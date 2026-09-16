@@ -1,0 +1,29 @@
+// Escher: a pure-Java X11 protocol library bundled with LG3D.
+// Legacy layout: sources live under gnu/ with root package "gnu".
+sourceSets {
+    main {
+        java {
+            srcDirs = [projectDir]
+            include 'gnu/**/*.java'
+        }
+        resources {
+            srcDirs = [projectDir]
+            include 'gnu/**/*.properties'
+            include 'gnu/**/*.xml'
+            include 'COPYING-BSD'
+        }
+    }
+    // The bundled antlr-2.7.4 tree and gnu/x11/test harness are not part of the library jar.
+}
+
+jar {
+    archiveBaseName = 'escher'
+    archiveVersion = '0.2.2'
+}
+
+// Escher sources are ASCII except a Big5-encoded comment in the gnu/x11/test
+// harness; ISO-8859-1 maps every byte so the modern compiler never fails on
+// unmappable characters.
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'ISO-8859-1'
+}

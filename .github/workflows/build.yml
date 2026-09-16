@@ -1,0 +1,74 @@
+name: Build
+
+# CI for the Project Looking Glass modernization port (Gradle 8.14 + JDK 21).
+# The lg3d modules live in git submodules, so the checkout must fetch them
+# recursively -- the Gradle build compiles their sources.
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch/ref supersedes an in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (JDK 21)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          # lg3d-core / lg3d-escher / lg3d-demo-apps / lg3d-incubator are
+          # submodules; the build needs their sources. If any submodule is
+          # private, the default GITHUB_TOKEN cannot fetch it -- add a PAT or
+          # deploy key with read access in that case.
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # Verify gradle-wrapper.jar against the published Gradle distribution
+          # and cache the Gradle user home between runs.
+          validate-wrappers: true
+          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Compile + jar every module. This is headless: only the :lg3d-core:run
+      # task needs an X display, and it is not part of `build`.
+      - name: Build all modules
+        run: ./gradlew build --stacktrace
+
+      # Validate the runtime resources/ tree (icons, wallpapers, background
+      # manager configs) assembles from lg3d-art + lg3d-core + bgmanager.
+      - name: Assemble runtime resources
+        run: ./gradlew :lg3d-core:runtimeResources --stacktrace
+
+      - name: Upload module jars
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lg3d-jars
+          path: |
+            lg3d-escher/build-gradle/libs/*.jar
+            lg3d-core/build-gradle/libs/*.jar
+            lg3d-demo-apps/build-gradle/libs/*.jar
+            lg3d-incubator/build-gradle/libs/*.jar
+          if-no-files-found: error

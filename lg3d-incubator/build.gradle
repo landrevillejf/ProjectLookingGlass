@@ -1,0 +1,86 @@
+// lg3d-incubator: a grab-bag of independent experimental LG3D applications.
+//
+// Ported from the 2006-era Ant build (lg3d-incubator/build.xml). The legacy
+// build was a meta-target that ran a per-app subant over src/build-scripts/
+// build-*.xml with failonerror="false": each app was compiled and jarred on its
+// own, and any app that failed to build was simply skipped without failing the
+// overall build.
+//
+// This Gradle port compiles the whole src/classes tree as one source set against
+// lg3d-core plus every bundled ext jar. A handful of apps depend on third-party
+// libraries that were never committed to the repository (and are not on Maven
+// Central under a compatible coordinate), so they cannot be compiled here -- the
+// legacy build silently skipped them too. They are excluded below, grouped by the
+// missing dependency:
+//
+//   * nu/koidelab/** (Cosmo)          - Jini/JavaSpaces (net.jini.*),
+//                                       JGL (com.objectspace.jgl), SATIN
+//   * apps/archviz3d/**               - XMLBeans-generated schema docs
+//                                       (org.candc, org.reqarch3D, org.module,
+//                                       org.apache.xmlbeans) and JavaLog
+//   * apps/intel3d/**                 - Jini (net.jini.*)
+//   * apps/browser/**                 - ICEsoft ICEbrowser (com.icesoft.*) and
+//                                       BeanShell (bsh)
+//   * apps/browser3d/**               - Jini (net.jini.*)
+//
+// A second group of apps does not compile against the lg3d-core API snapshot in
+// this repository (their sources predate API changes such as
+// AppLaunchAction(String,ClassLoader), FuzzyEdgePanel.setSize(float,float),
+// MouseClickedEventAdapter's constructor, and the absence of an awt.Color
+// constructor on vecmath Color3f/Color4f). These are pre-existing failures,
+// unrelated to the JDK 21 / Jogamp migration -- the legacy failonerror=false
+// per-app build never produced jars for them either. They are excluded as whole
+// self-contained apps:
+//
+//   * apps/wilkoaim3d/**              - also needs the absent com.wilko AIM lib
+//   * apps/luncher/**, apps/nlc/**    - AppLaunchAction / Pseudo3DShortcut drift
+//   * apps/orgchart/**                - FuzzyEdgePanel.setSize drift
+//   * apps/jmf23D/**                  - vecmath Color3f(awt.Color) drift
+//
+// Everything else builds against the Jogamp Java 3D API migrated across the tree.
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/classes'
+
+            // Apps whose third-party libraries are absent from the repository
+            // (see header). Mirrors the legacy per-app failonerror=false skips.
+            exclude 'nu/koidelab/**'
+            exclude 'org/jdesktop/lg3d/apps/archviz3d/**'
+            exclude 'org/jdesktop/lg3d/apps/intel3d/**'
+            exclude 'org/jdesktop/lg3d/apps/browser/**'
+            exclude 'org/jdesktop/lg3d/apps/browser3d/**'
+            exclude 'org/jdesktop/lg3d/apps/wilkoaim3d/**'
+            exclude 'org/jdesktop/lg3d/apps/luncher/**'
+            exclude 'org/jdesktop/lg3d/apps/orgchart/**'
+            exclude 'org/jdesktop/lg3d/apps/nlc/**'
+            exclude 'org/jdesktop/lg3d/apps/jmf23D/**'
+        }
+        resources {
+            // Images, models, configs and other assets sit alongside the sources.
+            srcDir 'src/classes'
+            exclude '**/*.java'
+        }
+    }
+}
+
+// The desktop app descriptors under src/config are bundled at the jar root.
+processResources {
+    from('src/config') {
+        into 'config'
+    }
+}
+
+jar {
+    archiveBaseName = 'lg3d-incubator'
+    zip64 = true
+}
+
+dependencies {
+    implementation project(':lg3d-core')
+
+    // Bundled third-party jars (axis, jai, jmf, jxta, log4j, prefuse,
+    // svgSalamander, nanoxml, jl, jpedal, mail/activation, bouncycastle, ...).
+    implementation fileTree(dir: 'ext', include: '**/*.jar')
+}

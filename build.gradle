@@ -1,0 +1,35 @@
+// Root build for the LG3D (Project Looking Glass) modernization port.
+// Targets JDK 21 + Gradle, replacing the original 2006-era Ant/source-1.5 build.
+allprojects {
+    group = 'org.jdesktop.lg3d'
+    version = '1.0.1-dev'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+
+    // Legacy modules ship their own 'build'/'clean' scripts (e.g. lg3d-escher),
+    // so keep Gradle output in a separate directory to avoid clobbering them.
+    layout.buildDirectory.set(file("$projectDir/build-gradle"))
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // The legacy sources are noisy under a modern compiler; keep warnings off.
+        options.compilerArgs << '-nowarn'
+    }
+
+    tasks.withType(Jar).configureEach {
+        // Preserve legacy behaviour: do not compress by default.
+        zip64 = true
+    }
+}

@@ -1,0 +1,40 @@
+// lg3d-demo-apps: the sample/demo applications shipped with LG3D.
+//
+// Ported from the 2006-era Ant build (lg3d-demo-apps/build.xml). Pure Java,
+// compiled against lg3d-core (which exposes the Jogamp Java 3D API transitively)
+// and packaged into lg3d-demo-apps.jar. Resources live next to the sources under
+// src/classes (per-app "resources" trees, shader .frag/.vert files, icons) and
+// the desktop app descriptors under src/config are bundled into config/demo, as
+// the legacy build did.
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/classes'
+            include 'org/**'
+        }
+        resources {
+            // Pick up the non-Java files that sit alongside the sources
+            // (org/jdesktop/lg3d/apps/*/resources/**, *.frag, *.vert, images).
+            srcDir 'src/classes'
+            include 'org/**'
+            exclude '**/*.java'
+            exclude '**/*.form'
+        }
+    }
+}
+
+// The legacy build copied src/config into the jar under config/demo.
+processResources {
+    from('src/config') {
+        into 'config/demo'
+    }
+}
+
+jar {
+    archiveBaseName = 'lg3d-demo-apps'
+}
+
+dependencies {
+    implementation project(':lg3d-core')
+}

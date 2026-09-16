@@ -1,0 +1,38 @@
+# ---- Gradle ----
+# Gradle project cache (NOT the wrapper under gradle/, which must be committed)
+.gradle/
+# Root Gradle output only. Anchored with a leading slash so nested directories
+# named "build" that hold SOURCE (e.g. lg3d-escher/antlr-2.7.4/antlr/build/*.java)
+# are preserved.
+/build/
+# Module Gradle output is redirected to build-gradle/ (see root build.gradle).
+# Unanchored so it matches every module; each built module also carries its own
+# .gitignore for local self-documentation.
+build-gradle/
+
+# ---- Compiled artifacts ----
+*.class
+*.jar.tmp
+
+# ---- IDE: IntelliJ IDEA ----
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ---- IDE: Eclipse / VS Code ----
+.classpath
+.project
+.settings/
+.vscode/
+
+# ---- OS cruft ----
+.DS_Store
+Thumbs.db
+
+# ---- Runtime / crash logs ----
+# Do NOT blanket-ignore *.log: lg3d-docs/*.log are historical content files that
+# belong in the repo. Only ignore runtime-generated logs.
+hs_err_pid*
+lg3d-perf-*.log

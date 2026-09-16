@@ -1,0 +1,21 @@
+rootProject.name = 'lg3d'
+
+include 'lg3d-escher'
+include 'lg3d-core'
+include 'lg3d-demo-apps'
+include 'lg3d-incubator'
+
+// lg3d-awt is intentionally NOT part of the Gradle build.
+//
+// It is an optional, self-contained custom AWT Toolkit / peer implementation
+// ("jawt"): 46 of its 79 classes implement the java.awt.peer.* SPI and 9 use
+// JDK-internal sun.awt.* types (SunToolkit, AppContext, CausedFocusEvent,
+// image.OffScreenImage, X11.XToolkit, windows.WToolkit). Those internals are
+// unexported in the JDK 21 java.desktop module and the peer SPI itself changed
+// substantially after JDK 5, so a faithful port would require reimplementing a
+// JDK-internal subsystem plus matching --add-exports/--add-opens at runtime.
+//
+// The toolkit is only activated when the system property lg.use3dtoolkit=true
+// (default false) and is loaded dynamically via java.awt.Toolkit, so lg3d-core
+// has no compile-time dependency on it. It is left out of the build; its
+// sources remain in-tree under lg3d-awt/ for reference.

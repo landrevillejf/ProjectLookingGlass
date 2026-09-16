@@ -1,0 +1,4 @@
+# Gradle build output for this module.
+# The root build.gradle redirects each module's build directory to build-gradle/
+# so the legacy 'build'/'clean' scripts shipped in some modules are not clobbered.
+/build-gradle/

@@ -1,0 +1,251 @@
+// lg3d-core: the LG3D scene-graph / windowing / display-server SDK.
+//
+// Ported from the 2006-era Ant build (lg3d-core/build.xml). This module targets
+// the "compile-javaonly" flavour of the legacy build (nonative + nox11): it
+// builds the pure-Java SDK against Java 3D, and intentionally omits the parts
+// that cannot exist on a modern JDK:
+//
+//   * org.jdesktop.lg3d.awt.* / awtpeer.*  - the LG3D AWT toolkit, which was
+//     implemented against JDK-internal sun.awt.* peer APIs removed after JDK 6.
+//   * sun.awt.X11.*                        - X11 keyboard/window peer shims,
+//     likewise bound to removed JDK internals.
+//   * displayserver/fws/x11, apps/x11integration - native X11 integration.
+//   * sg/wg internal.rmi                   - unused RMI scene-graph transport.
+//   * wg .../j3dnodes/Ode*                 - ODE physics, replaced in-tree.
+//
+// Java 3D is pulled from Maven Central as the Jogamp-maintained 1.7.2 fork of
+// the Sun 1.5/1.6 codebase. It renames the packages (javax.media.j3d ->
+// org.jogamp.java3d, javax.vecmath -> org.jogamp.vecmath), so every source file
+// in the tree was migrated to the new names; the 1.5-era API surface the sources
+// rely on is preserved.
+
+import org.apache.tools.ant.filters.ReplaceTokens
+
+// Jogamp publishes its native libraries as classifier artifacts named after the
+// host platform (e.g. natives-linux-amd64). Derive the right one so the Java 3D
+// runtime can load JOGL/GlueGen/JOAL natives on any OS/arch.
+def jogampNatives = {
+    def osName = System.getProperty('os.name').toLowerCase()
+    def osArch = System.getProperty('os.arch').toLowerCase()
+    if (osName.contains('mac') || osName.contains('darwin'))
+        return 'natives-macosx-universal'
+    def os = osName.contains('win') ? 'windows' : 'linux'
+    def arch = (osArch.contains('aarch64') || osArch.contains('arm64')) ? 'aarch64'
+             : osArch.contains('64') ? 'amd64' : 'i586'
+    return "natives-${os}-${arch}"
+}()
+
+// ---------------------------------------------------------------------------
+// Generated sources: LgBuildInfo.java
+// ---------------------------------------------------------------------------
+// The legacy build copies build-tools/LgBuildInfo.java into the source tree and
+// substitutes @TOKEN@ placeholders with build metadata. Reproduce that into the
+// Gradle build directory so the checked-in tree stays clean.
+def generatedSrcDir = layout.buildDirectory.dir('generated-src/lg3d')
+
+def generateBuildInfo = tasks.register('generateBuildInfo', Copy) {
+    from 'build-tools/LgBuildInfo.java'
+    into generatedSrcDir.map { it.dir('org/jdesktop/lg3d/displayserver') }
+    // The tokens embed a build timestamp/version computed at configuration time,
+    // which Gradle cannot track as task inputs, so always regenerate.
+    outputs.upToDateWhen { false }
+    filter(ReplaceTokens, tokens: [
+        'BUILD_TIME_STAMP': new Date().format('yyMMddHHmm'),
+        'BUILD_DATE'      : new Date().format('HH:mm zzz dd MMM yyyy'),
+        'BUILD_TYPE'      : 'user',
+        'BUILD_VERSION'   : project.version.toString(),
+        'IS_DEBUG'        : 'true',
+        // Main.java compares JAVA_VERSION.substring(0,5) against the runtime
+        // java.version.substring(0,5) as a same-major.minor guard, so this must
+        // be a full version string ("21" alone would throw
+        // StringIndexOutOfBoundsException). Any 21.0.x value matches a 21.0.x
+        // runtime on the first five characters ("21.0.").
+        'JAVA_VERSION'    : '21.0.12',
+    ])
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/classes'
+            srcDir 'src/contrib/java'   // in-tree replacements for j3d-contrib-utils
+            srcDir generatedSrcDir
+            include 'org/**'
+            // Legacy-named scene-graph-IO shims (see src/contrib/java headers):
+            // let Jogamp's reader resolve the old state-class and node-class
+            // names baked into pre-existing .j3f files.
+            include 'com/sun/j3d/utils/scenegraph/io/state/**'
+            include 'javax/media/j3d/**'
+
+            // AWT toolkit peers + JDK-internal sun.awt shims (see header).
+            exclude 'org/jdesktop/lg3d/awt/**'
+            exclude 'org/jdesktop/lg3d/awtpeer/**'
+            exclude 'sun/**'
+            // Native X11 integration.
+            exclude 'org/jdesktop/lg3d/displayserver/fws/x11/**'
+            exclude 'org/jdesktop/lg3d/apps/x11integration/**'
+            // Unused RMI scene-graph transport.
+            exclude 'org/jdesktop/lg3d/sg/internal/rmi/**'
+            exclude 'org/jdesktop/lg3d/wg/internal/rmi/**'
+            // ODE physics nodes, superseded by an in-tree spring-damper system.
+            exclude 'org/jdesktop/lg3d/wg/internal/j3d/j3dnodes/Ode*.java'
+        }
+        resources {
+            srcDirs = ['src/resources', 'src/etc', 'src/classes']
+            include 'images/**'
+            include 'models/**'
+            include 'core-gestures.gsa'
+            include 'lg3d/**'          // src/etc/lg3d config tree
+            include 'org/jdesktop/lg3d/appkit/resource/**'
+        }
+    }
+}
+
+tasks.named('compileJava') { dependsOn generateBuildInfo }
+
+jar {
+    archiveBaseName = 'lg3d-core'
+    manifest {
+        attributes(
+            'Main-Class': 'org.jdesktop.lg3d.displayserver.Main',
+        )
+    }
+}
+
+dependencies {
+    // Escher X11 protocol library (sibling module in this build).
+    implementation project(':lg3d-escher')
+
+    // Java 3D 1.7.2 (Jogamp-maintained fork of the Sun 1.5/1.6 codebase). This
+    // is the only readily-available release that provides the 1.5-era API
+    // surface the sources rely on (ShaderError, Node.ALLOW_PARENT_READ,
+    // VirtualUniverse.addGraphStructureChangeListener, ...). The old
+    // 'java3d:*:1.3.1' artifacts predate those APIs. Jogamp renames the packages
+    // to org.jogamp.java3d / org.jogamp.vecmath; all sources were migrated.
+    api 'org.jogamp.java3d:java3d-core:1.7.2'
+    api 'org.jogamp.java3d:java3d-utils:1.7.2'
+    api 'org.jogamp.java3d:vecmath:1.7.2'
+
+    // Bundled third-party jars (odejava / nwn are excluded from the SDK build).
+    //
+    // Neither j3d-contrib-utils.jar nor satin-v2.3.jar is used: both were
+    // compiled against the legacy javax.media.j3d packages and are
+    // binary-incompatible with the Jogamp rename.
+    //   * j3d-contrib-utils - the classes LG3D consumes (Math3D, the TreeScan
+    //     traverser, TransparencyOrderedGroup/Controller) are reimplemented
+    //     in-tree under src/contrib/java against the Jogamp API.
+    //   * satin - only SatinGestureModule used it; that module now classifies
+    //     strokes geometrically instead of via the SATIN/Rubine stack.
+
+    // Jogamp native libraries (GlueGen/JOGL/JOAL). Java3D's JoglPipeline loads
+    // these at runtime during VirtualUniverse init, but the java3d-core jars only
+    // pull in the Java-class jars transitively -- the platform-specific native
+    // classifier jars must be added explicitly, otherwise startup fails with
+    // UnsatisfiedLinkError (jogamp.common.jvm.JVMUtil.initialize).
+    runtimeOnly "org.jogamp.gluegen:gluegen-rt:2.6.0:${jogampNatives}"
+    runtimeOnly "org.jogamp.jogl:jogl-all:2.6.0:${jogampNatives}"
+    runtimeOnly "org.jogamp.joal:joal:2.6.0:${jogampNatives}"
+}
+
+// ---------------------------------------------------------------------------
+// runtimeResources: assemble the legacy top-level "resources/" classpath tree
+// ---------------------------------------------------------------------------
+// LG3D resolves its artwork through the classpath under a top-level
+// "resources/" prefix, e.g. getResource("resources/images/icon/firefox-icon.png")
+// for the start-menu/taskbar icons, "resources/images/background/*.jpg" for the
+// taskbar theme wallpapers, and "resources/Backgrounds/BgConfig.xml" (+ the
+// self-contained "resources/Backgrounds/<Name>/" directories) for the background
+// manager. The legacy jars bundled that whole tree; the per-module Gradle builds
+// instead emit these assets at other paths (jar root, or next to the bgmanager
+// classes), so at runtime the lookups miss and the desktop comes up without its
+// icons/wallpapers.
+//
+// Rather than restructure every module's jar, assemble the union here and put it
+// on the run classpath. Sources, in override order (later wins on a path clash):
+//   * lg3d-art/src/resources     - the art module: the full wallpaper
+//                                  collection, splash art, models, GDM theme.
+//   * lg3d-core/src/resources    - the icons/buttons/misc the desktop actually
+//                                  requests, plus the default theme wallpapers.
+//   * lg3d-incubator bgmanager   - BgConfig.xml and the per-background
+//                                  <Name>/LgBgConf.lgbg + image directories,
+//                                  relocated under resources/Backgrounds/.
+def runtimeResourcesDir = layout.buildDirectory.dir('runtime-resources')
+def bgmanagerResDir = rootProject.file(
+    'lg3d-incubator/src/classes/org/jdesktop/lg3d/apps/bgmanager')
+
+tasks.register('runtimeResources', Sync) {
+    group = 'application'
+    description = 'Assemble the legacy resources/ classpath tree from lg3d-art, lg3d-core and the background manager.'
+    into runtimeResourcesDir.map { it.dir('resources') }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE   // later sources override earlier
+
+    from rootProject.file('lg3d-art/src/resources')
+    from file('src/resources')
+    from("${bgmanagerResDir}/res/BgConfig.xml") { into 'Backgrounds' }
+    from("${bgmanagerResDir}/Backgrounds") { into 'Backgrounds' }
+    // The background-manager taskbar icon is referenced as
+    // resources/images/icon/bgicon*.png but ships beside the bgmanager classes.
+    from("${bgmanagerResDir}/res") { include 'bgicon*.png'; into 'images/icon' }
+}
+
+// ---------------------------------------------------------------------------
+// run: launch the LG3D display server in "development mode"
+// ---------------------------------------------------------------------------
+// Dev mode (lg.fws.mode=dev) runs the 3D desktop inside an ordinary window
+// under the host window system using the standard AWT/Swing toolkit, so it needs
+// neither the native X11 foundation window system nor the (excluded) lg3d AWT
+// peer toolkit -- lg.use3dtoolkit is left at its default of false. This mirrors
+// the legacy src/devscripts/lg3d-dev launcher, minus the parts that no longer
+// exist: the dropped j3d-contrib-utils/satin jars and the removed CMS collector
+// (-XX:+UseConcMarkSweepGC is gone since JDK 14). Java 3D rendering is provided
+// by the Jogamp runtime (jogl/gluegen natives self-extract from the jars).
+tasks.register('run', JavaExec) {
+    group = 'application'
+    description = 'Run the LG3D display server full-screen (borderless, non-X11). Use -Pwindowed for the small debug window.'
+
+    // Make the demo/incubator apps available on the desktop, as the legacy
+    // launcher put lg3d-demo-apps.jar on the classpath.
+    def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
+    def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
+    def runtimeResources = tasks.named('runtimeResources')
+    dependsOn demoAppsJar, incubatorJar, runtimeResources
+
+    mainClass = 'org.jdesktop.lg3d.displayserver.Main'
+    // The assembled resources/ tree's parent goes on the classpath so that
+    // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
+    classpath = sourceSets.main.runtimeClasspath +
+        files(demoAppsJar, incubatorJar, runtimeResourcesDir)
+
+    // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
+    // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
+    // version match.
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+
+    def etcDir = file('src/etc')
+    def resourceDir = file('src/resources')
+
+    jvmArgs '-Xms128m', '-Xmx512m'
+
+    systemProperty 'lg.fws.mode', 'dev'
+    systemProperty 'lg.etcdir', "${etcDir}/"
+    systemProperty 'lg.resourcedir', "${resourceDir}/"
+    systemProperty 'lg.configurl', "file://${etcDir}/lg3d/lgconfig_1p_nox.xml"
+    // Default to the borderless full-screen desktop (NoBorderFullScreen +
+    // coexistence/virtual-world view) so LG3D fills the whole monitor like a
+    // real 3D session rather than floating in a small window. Pass -Pwindowed
+    // to fall back to the 800x600 windowed config (j3d1x1) for debugging.
+    def displayConfig = project.hasProperty('windowed') ? 'j3d1x1' : 'j3d1x1-nbfs'
+    systemProperty 'lg.displayconfigurl', "file://${etcDir}/lg3d/displayconfig/${displayConfig}"
+    systemProperty 'lg.appcodebase', "file://${file('ext/app')}"
+    systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
+    systemProperty 'j3d.sortShape3DBounds', 'true'
+    systemProperty 'j3d.useFreeLists', 'false'
+
+    // Opt-in: run with -Pbackground3d to use the 3D model desktop background
+    // (pinguin.j3f, loaded via the in-tree J3fLoader) instead of the default
+    // image backgrounds. AdvancedGlassyTaskbar switches to ModelBackground only
+    // when the lg.3dbackground property is set.
+    if (project.hasProperty('background3d')) {
+        systemProperty 'lg.3dbackground', 'true'
+    }
+}

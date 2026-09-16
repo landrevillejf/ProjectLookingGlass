@@ -1,0 +1,10 @@
+# Gradle build output for this module (redirected from build/ by the root
+# build.gradle, since this module ships its own legacy build scripts).
+/build-gradle/
+
+# NOTE — the following legacy artifacts in this module MUST stay tracked, so they
+# are intentionally NOT ignored here:
+#   * the 'build' and 'clean' shell scripts at this module's root
+#   * the bundled ANTLR sources under antlr-2.7.4/antlr/build/ (ANTLR.java,
+#     Tool.java, StreamScarfer.java)
+# Only build-gradle/ is ignored, which leaves both of the above intact.

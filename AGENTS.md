@@ -1,0 +1,337 @@
+# AGENTS.md
+
+## Repository Overview
+
+Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsystems 3D desktop. The codebase has been migrated from Ant + Java 1.5 to Gradle 8.14 + JDK 21, with Java 3D migrated from Sun's `javax.media.j3d` to Jogamp's `org.jogamp.java3d` 1.7.2.
+
+**Project coordinates:** `org.jdesktop.lg3d:1.0.1-dev`
+
+## Build System
+
+### Required Toolchain
+- **JDK 21** - Pinned via Gradle toolchain. Gradle 8.14 cannot run on Java 25+.
+- **Gradle 8.14** - Wrapper included ([./gradlew](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/gradlew:0:0-0:0)).
+
+### Verified Commands
+
+```bash
+# Build all modules
+./gradlew build
+
+# Build specific module
+./gradlew :lg3d-core:build
+
+# Launch desktop in development mode (requires X display)
+./gradlew :lg3d-core:run
+# Or use the launcher script:
+./run-lg3d.sh              # basic launch
+./run-lg3d.sh -b           # with 3D background model
+./run-lg3d.sh -c           # clean first
+./run-lg3d.sh -r           # reassemble runtime resources
+
+# Assemble runtime resources tree (icons, wallpapers, bgmanager configs)
+./gradlew :lg3d-core:runtimeResources
+```
+
+### Build Output Locations
+- Jars: `<module>/build-gradle/libs/`
+- Generated sources: [lg3d-core/build-gradle/generated-src/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-gradle/generated-src:0:0-0:0)
+- Runtime resources: `lg3d-core/build-gradle/runtime-resources/`
+
+**Critical:** Gradle output uses `build-gradle/` (not `build/`) to avoid clobbering legacy per-module build scripts that remain in the tree.
+
+## Module Structure
+
+### Built Modules (in Gradle)
+- `lg3d-escher` - Pure-Java X11 protocol library
+- `lg3d-core` - Scene-graph / windowing / display-server SDK and desktop
+- `lg3d-demo-apps` - Sample and demo applications
+- `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
+
+### Excluded from Build
+- `lg3d-awt` - Custom AWT Toolkit/peer implementation (depends on JDK-internal `sun.awt.*` APIs removed after JDK 6)
+- `lg3d-x11` - Native X11 foundation window system (not a Java module)
+- [lg3d-docs](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-docs:0:0-0:0) - Historical documentation (HTML/PDF)
+- `lg3d-art` - Assets (wallpapers, splash art, models, GDM theme) - consumed at runtime
+
+## Files That Must Not Be Edited Manually
+
+### Generated Files
+- `**/build-gradle/**` - All Gradle build output
+- `lg3d-core/build-gradle/generated-src/**` - Generated [LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0)
+
+### Template Files
+- [lg3d-core/build-tools/LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0) - Contains `@TOKEN@` placeholders substituted at build time. Edit the template, not the generated output.
+
+### Legacy Build Artifacts
+- Legacy per-module `build`/`clean` scripts (e.g., [lg3d-escher/antlr-2.7.4/Makefile](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-escher/antlr-2.7.4/Makefile:0:0-0:0)) - Left in-tree for reference but not used by Gradle build.
+
+### Historical Documentation
+- `lg3d-docs/**` - Historical 2006-era documentation. Do not update.
+
+## Java 3D Migration Rules
+
+All source files have been migrated from the legacy Sun Java 3D packages to Jogamp:
+
+- `javax.media.j3d.*` → `org.jogamp.java3d.*`
+- `javax.vecmath.*` → `org.jogamp.vecmath.*`
+- `com.sun.j3d.*` → `org.jogamp.java3d.*` (where applicable)
+
+**When adding new code:** Use the Jogamp packages (`org.jogamp.java3d`, `org.jogamp.vecmath`), not the legacy `javax.*` packages.
+
+## In-Tree Replacements
+
+The following bundled jars were dropped (binary-incompatible with Jogamp) and reimplemented in `lg3d-core/src/contrib/java`:
+
+- `j3d-contrib-utils` → Reimplemented classes: `Math3D`, `TreeScan`/`NodeChangeProcessor` traverser, `TransparencyOrderedGroup`/`TransparencyOrderController`, `J3fLoader`
+- `satin-v2.3` → `SatinGestureModule` rewritten as geometric stroke classifier
+
+**Compatibility shims** (also in `src/contrib/java`) allow pre-existing `.j3f` files to deserialize under Jogamp:
+- `javax.media.j3d.AmbientLight`
+- `com.sun.j3d.utils.scenegraph.io.state.javax.media.j3d.AmbientLightState`
+
+## Code Exclusions
+
+The following code paths are intentionally excluded from the build (see [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0)):
+
+- `org.jdesktop.lg3d.awt.*` / `awtpeer.*` - Custom AWT peer toolkit
+- `sun.awt.*` - JDK-internal X11 shims
+- `org.jdesktop.lg3d.displayserver.fws.x11.*` - Native X11 integration
+- `org.jdesktop.lg3d.apps.x11integration.*` - X11 integration apps
+- `org.jdesktop.lg3d.sg/internal/rmi/**` - Unused RMI scene-graph transport
+- `org.jdesktop.lg3d.wg/internal/rmi/**` - Unused RMI scene-graph transport
+- `org.jdesktop.lg3d.wg/.../j3dnodes/Ode*.java` - ODE physics (superseded by in-tree spring-damper)
+
+**Do not attempt to restore or build these code paths** without understanding the JDK 21 compatibility constraints.
+
+## Incubator Exclusions
+
+The following incubator apps are excluded due to missing third-party libraries (not in repository, not on Maven Central):
+
+- `nu/koidelab/**` (Cosmo) - Missing Jini/JavaSpaces, JGL, SATIN
+- `apps/archviz3d/**` - Missing XMLBeans-generated schema docs, JavaLog
+- `apps/intel3d/**` - Missing Jini
+- `apps/browser/**` - Missing ICEsoft ICEbrowser, BeanShell
+- `apps/browser3d/**` - Missing Jini
+- `apps/wilkoaim3d/**` - Missing com.wilko AIM lib
+
+Additional exclusions due to API drift (sources predate core API snapshot):
+- `apps/luncher/**`, `apps/nlc/**` - AppLaunchAction / Pseudo3DShortcut API changes
+- `apps/orgchart/**` - FuzzyEdgePanel.setSize API changes
+- `apps/jmf23D/**` - vecmath Color3f(awt.Color) constructor removed
+
+## Runtime Resources
+
+LG3D resolves artwork through the classpath under a top-level `resources/` prefix (e.g., `resources/images/icon/firefox-icon.png`). The `:lg3d-core:runtimeResources` task assembles this tree from:
+
+1. `lg3d-art/src/resources` - Full wallpaper/splash/model collection
+2. `lg3d-core/src/resources` - Icons, buttons, default wallpapers
+3. `lg3d-incubator/src/classes/org/jdesktop/lg3d/apps/bgmanager` - BgConfig.xml and per-background directories
+
+**When adding assets:** Place them in the appropriate source directory. The runtime resources task will assemble them automatically.
+
+## Development Mode
+
+The desktop runs in development mode (`lg.fws.mode=dev`) using the standard AWT/Swing toolkit in a window under the host window system. This requires:
+
+- An X display (`DISPLAY` environment variable, defaults to `:0`)
+- JDK 21 toolchain (auto-detected by [run-lg3d.sh](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/run-lg3d.sh:0:0-0:0) or pinned via Gradle)
+
+**System properties for `:lg3d-core:run`:**
+- `lg.fws.mode=dev` - Development mode
+- `lg.etcdir` - Points to `lg3d-core/src/etc/`
+- `lg.resourcedir` - Points to `lg3d-core/src/resources/`
+- `lg.configurl` - Points to `src/etc/lg3d/lgconfig_1p_nox.xml`
+- `lg.displayconfigurl` - Display configuration (default: `j3d1x1-nbfs` for full-screen, pass `-Pwindowed` for `j3d1x1` windowed)
+- `lg.3dbackground=true` - Opt-in for 3D model background (pass `-Pbackground3d`)
+
+## Testing
+
+Minimal test infrastructure exists:
+- [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - Contains some JUnit tests
+- No automated test execution configured in CI
+
+**CI workflow** ([.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0)):
+- Runs `./gradlew build` (headless, no X display required)
+- Runs `./gradlew :lg3d-core:runtimeResources` to validate resource assembly
+- Uploads module jars as artifacts
+
+## Dependencies
+
+### External Dependencies
+- Java 3D (Jogamp): `org.jogamp.java3d:{java3d-core,java3d-utils,vecmath}:1.7.2`
+- Jogamp natives (platform-specific): `gluegen-rt:2.6.0`, `jogl-all:2.6.0`, `joal:2.6.0` with classifier (e.g., `natives-linux-amd64`)
+
+### Internal Dependencies
+- `lg3d-core` depends on `lg3d-escher`
+- `lg3d-demo-apps` depends on `lg3d-core`
+- `lg3d-incubator` depends on `lg3d-core` plus bundled jars in `ext/`
+
+## Compiler Configuration
+
+- **Encoding:** UTF-8 (except `lg3d-escher` which uses ISO-8859-1)
+- **Warnings:** Disabled (`-nowarn`) due to noisy legacy sources
+- **Toolchain:** JDK 21 (pinned)
+- **Jar compression:** Disabled by default (`zip64 = true`)
+
+## Git Conventions
+
+- No git submodules (CI mentions them but repository does not use them)
+- Branches: `master`, `main` (CI triggers on both)
+- Concurrency: Newer push supersedes in-flight run
+
+## Completion Report Format
+
+When completing a task, report:
+
+1. **Files modified** - List of files changed with brief description
+2. **Build verification** - Whether `./gradlew build` succeeds
+3. **Runtime verification** - Whether [./run-lg3d.sh](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/run-lg3d.sh:0:0-0:0) launches successfully (if applicable)
+4. **Resource assembly** - Whether `./gradlew :lg3d-core:runtimeResources` succeeds (if assets changed)
+5. **Module impact** - Which modules are affected
+6. **Backward compatibility** - Any breaking changes to existing functionality
+
+## Nested AGENTS.md Files
+
+Consider creating nested AGENTS.md files for:
+
+- `lg3d-core/AGENTS.md` - Core SDK specifics, scene-graph architecture, window manager integration
+- `lg3d-incubator/AGENTS.md` - Incubator app development guidelines, dependency management for bundled jars
+
+## Instructions Better Suited to Other Mechanisms
+
+### Skills
+- How to create new LG3D applications
+- Scene-graph programming patterns
+- 3D component development
+
+### CI/CD
+- Automated testing integration
+- Deployment automation
+
+### Permissions
+- Access control for modifying core SDK vs. incubator apps
+- Release process automation
+
+## Questions Requiring Human Confirmation
+
+1. **Should automated testing be added?** The repository has minimal test infrastructure and no test execution in CI.
+2. **Should linters/formatters be configured?** No code quality tools (checkstyle, spotbugs, pmd, etc.) are currently configured.
+3. **Should the incubator exclusions be documented differently?** The current approach excludes whole apps; a finer-grained approach might be desirable.
+4. **Should there be a migration guide for adding new apps to incubator?** The current process is ad-hoc.
+5. **Should the legacy build scripts be removed?** They are currently not used but left in-tree for reference.
+```
+
+---
+
+## Evidence for Repository-Specific Instructions
+
+### Build Commands
+- **Evidence:**
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 56-80: Documents `./gradlew build` and [./run-lg3d.sh](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/run-lg3d.sh:0:0-0:0) usage
+  - [build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/build.gradle:0:0-0:0) lines 3-5: Root build configuration
+  - [run-lg3d.sh](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/run-lg3d.sh:0:0-0:0) lines 1-113: Launcher script implementation
+  - [.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0) lines 56-62: CI executes `./gradlew build` and `:lg3d-core:runtimeResources`
+
+### Build Output Locations
+- **Evidence:**
+  - [build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/build.gradle:0:0-0:0) line 17: `layout.buildDirectory.set(file("$projectDir/build-gradle"))`
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 36-38: Explains `build-gradle/` convention
+  - [.gitignore](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.gitignore:0:0-0:0) lines 8-11: Ignores `build-gradle/`
+
+### Generated Files
+- **Evidence:**
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 40-65: `generateBuildInfo` task generates [LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0) with token substitution
+  - [lg3d-core/build-tools/LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0) lines 27, 29-37: Template with `@TOKEN@` placeholders
+
+### Java 3D Migration
+- **Evidence:**
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 102-113: Documents package renaming from `javax.media.j3d` to `org.jogamp.java3d`
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 115-128: Dependencies on Jogamp Java 3D 1.7.2
+  - [CHANGELOG.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/CHANGELOG.md:0:0-0:0) lines 46-56: Details the migration
+
+### In-Tree Replacements
+- **Evidence:**
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 119-136: Explains dropped jars and in-tree replacements
+  - [lg3d-core/README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/README.md:0:0-0:0) lines 46-61: Lists reimplemented classes in `src/contrib/java`
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 67-78: Source set includes `src/contrib/java`
+
+### Code Exclusions
+- **Evidence:**
+  - [settings.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/settings.gradle:0:0-0:0) lines 8-21: Explains why `lg3d-awt` is excluded
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 80-92: Source set excludes AWT toolkit, X11 integration, RMI, ODE physics
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 151-163: Lists intentionally excluded components
+
+### Incubator Exclusions
+- **Evidence:**
+  - [lg3d-incubator/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-incubator/build.gradle:0:0-0:0) lines 1-39: Detailed comments on excluded apps and missing dependencies
+  - [lg3d-incubator/README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-incubator/README.md:0:0-0:0) lines 27-53: Tables of excluded apps with reasons
+
+### Runtime Resources
+- **Evidence:**
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 150-189: `runtimeResources` task assembles resources tree
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 138-149: Explains resources/ classpath prefix requirement
+
+### Development Mode
+- **Evidence:**
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 191-251: `run` task configuration with system properties
+  - [run-lg3d.sh](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/run-lg3d.sh:0:0-0:0) lines 19-45: JDK 21 detection and DISPLAY setup
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 88-91: Explains dev mode uses standard AWT/Swing
+
+### Module Structure
+- **Evidence:**
+  - [settings.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/settings.gradle:0:0-0:0) lines 1-6: Lists included modules
+  - [README.md](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/README.md:0:0-0:0) lines 20-34: Module table with roles
+
+### Compiler Configuration
+- **Evidence:**
+  - [build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/build.gradle:0:0-0:0) lines 19-29: Toolchain, encoding, and warning configuration
+  - [lg3d-escher/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-escher/build.gradle:0:0-0:0) lines 24-29: ISO-8859-1 encoding for Escher
+
+### CI Workflow
+- **Evidence:**
+  - [.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0) lines 1-75: Complete CI configuration
+
+### Dependencies
+- **Evidence:**
+  - [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0) lines 115-148: Java 3D and native dependencies
+  - [lg3d-incubator/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-incubator/build.gradle:0:0-0:0) lines 80-86: Bundled ext jars
+
+### Git Conventions
+- **Evidence:**
+  - [.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0) lines 7-11: Triggers on master/main branches
+  - [.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0) lines 18-20: Concurrency configuration
+  - Git submodule check returned empty (no submodules)
+
+### Testing
+- **Evidence:**
+  - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) directory exists but contains minimal tests
+  - No test execution in CI workflow
+
+---
+
+## Suggested Nested Files
+
+1. **`lg3d-core/AGENTS.md`** - For core SDK development, scene-graph architecture, window manager integration details
+2. **`lg3d-incubator/AGENTS.md`** - For incubator app development, bundled jar management, app-specific guidelines
+
+---
+
+## Instructions Better Suited to Other Mechanisms
+
+### Skills
+- **LG3D application development tutorial** - How to create new 3D applications, scene-graph programming patterns
+- **3D component development** - Creating custom Component3D subclasses, animation patterns
+- **Gesture system usage** - Implementing custom gesture recognizers
+
+### Hooks
+- **Pre-commit hook** - Validate that new Java files use Jogamp packages, not legacy javax.media.j3d
+- **Pre-push hook** - Run `./gradlew build` to ensure changes compile
+
+### Permissions
+- **Core SDK modifications** - Require additional review for changes to `lg3d-core/src/classes/`
+- **Incubator app additions** - Different permissions for adding new apps vs. modifying existing ones
+
+### CI
+- **Automated testing** - Add test execution to CI workflow
+- **Integration tests** - Run desktop in headless mode with Xvfb for automated smoke tests
