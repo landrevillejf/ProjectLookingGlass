@@ -311,12 +311,16 @@ public class SwingNode extends Component3D {
 
         boolean recreated = false;
         if (swingTexture == null || p2w != texWidth || p2h != texHeight) {
-            p2Image = new BufferedImage(p2w, p2h, BufferedImage.TYPE_INT_RGB);
+            // RGBA, not RGB: the renderer samples this texture with
+            // TextureAttributes.REPLACE, so the fragment alpha is taken straight
+            // from the image. An alpha-less RGB texture yields alpha ~0 under
+            // Jogamp, so the quad blends away to (almost) nothing.
+            p2Image = new BufferedImage(p2w, p2h, BufferedImage.TYPE_INT_ARGB);
             imageComponent = new ImageComponent2D(
-                    ImageComponent2D.FORMAT_RGB, p2w, p2h, false, true);
+                    ImageComponent2D.FORMAT_RGBA, p2w, p2h, false, true);
             imageComponent.setCapability(ImageComponent2D.ALLOW_IMAGE_WRITE);
             swingTexture = new Texture2D(
-                    Texture2D.BASE_LEVEL, Texture2D.RGB, p2w, p2h);
+                    Texture2D.BASE_LEVEL, Texture2D.RGBA, p2w, p2h);
             swingTexture.setMinFilter(Texture2D.BASE_LEVEL_LINEAR);
             swingTexture.setMagFilter(Texture2D.BASE_LEVEL_LINEAR);
             swingTexture.setImage(0, imageComponent);
@@ -327,6 +331,13 @@ public class SwingNode extends Component3D {
 
         Graphics2D g = p2Image.createGraphics();
         try {
+            // Lay down a fully opaque backdrop first: every pixel - including the
+            // power-of-two padding that linear filtering can touch at the panel
+            // edges - must be alpha 255, or REPLACE punches a transparent hole.
+            // Use the panel's own background so dark panels get no light fringe.
+            Color bg = p.getBackground();
+            g.setColor(bg != null ? bg : Color.WHITE);
+            g.fillRect(0, 0, p2w, p2h);
             g.setClip(0, 0, w, h);
             p.paint(g);
         } finally {
@@ -470,12 +481,18 @@ public class SwingNode extends Component3D {
 		    0.0f, false, 0.0f
 		    ));            
             
+            // BLENDED (alpha blending) rather than FASTEST (screen-door): this is
+            // the same configuration SimpleAppearance uses for native windows -
+            // the one proven to render an image quad opaque under Jogamp Java3D
+            // 1.7.2. Default is fully opaque (0.0); callers opt into translucency
+            // via SwingNode.setTransparency (widgets use ~0.12).
             transparencyAttributes =
-                    new TransparencyAttributes(TransparencyAttributes.FASTEST, 0.8f);
+                    new TransparencyAttributes(
+                            TransparencyAttributes.BLENDED, 0.0f,
+                            TransparencyAttributes.BLEND_SRC_ALPHA,
+                            TransparencyAttributes.BLEND_ONE_MINUS_SRC_ALPHA);
             transparencyAttributes.setCapability(TransparencyAttributes.ALLOW_VALUE_WRITE);
             swingAppearance.setTransparencyAttributes(transparencyAttributes);
-//            Material mat = new Material(new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), 64f);
-//            swingAppearance.setMaterial(mat);
 
             
             body = new NativeWindowFuzzyEdgePanel(width3D, height3D, swingAppearance);
