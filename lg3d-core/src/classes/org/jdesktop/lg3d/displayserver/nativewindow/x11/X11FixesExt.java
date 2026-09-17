@@ -102,7 +102,10 @@ public class X11FixesExt extends Extension implements EventFactory {
    * 
    */
   public X11FixesExt (Display display) throws NotFoundException { 
-    super (display, "XFIXES", MINOR_OPCODE_STRINGS, 0, 1);
+    // XFixes defines exactly two events: SelectionNotify (first_event + 0)
+    // and CursorNotify (first_event + 1). Register both so the reader thread
+    // can decode them instead of dropping them as "unsupported".
+    super (display, "XFIXES", MINOR_OPCODE_STRINGS, 0, 2);
 
     // These extension requests expect replies
     XProtocolInfo.extensionRequestExpectsReply(major_opcode, 0, 32); // QueryVersion
@@ -115,6 +118,65 @@ public class X11FixesExt extends Extension implements EventFactory {
     Data reply = display.read_reply (request);
     server_major_version = reply.read2 (8);
     server_minor_version = reply.read2 (10);
+  }
+
+  /** XFixes cursor-event mask bit: request SetCursorNotify events. */
+  public static final int SET_CURSOR_NOTIFY_MASK = 1;
+
+/*
+typedef struct {
+    CARD8   reqType;
+    CARD8   xfixesReqType;   // 3
+    CARD16  length B16;      // 3
+    Window  window B32;
+    CARD32  eventMask B32;
+} xXFixesSelectCursorInputReq;
+#define sz_xXFixesSelectCursorInputReq  12
+*/
+  /**
+   * Selects delivery of XFixes cursor events on <code>window</code>. A
+   * compositor calls this on the root window with
+   * {@link #SET_CURSOR_NOTIFY_MASK} to be told whenever the cursor image
+   * changes, so it can update the 3D cursor representation.
+   *
+   * @see <a href="https://www.x.org/releases/X11R7.6/doc/fixesproto/fixesproto.txt">XFixesSelectCursorInput</a>
+   */
+  public void selectCursorInput (Window window, int event_mask) {
+    Request request = new Request (display, major_opcode, 3, 3);
+    request.write4 (window.id);
+    request.write4 (event_mask);
+    display.send_request (request);
+  }
+
+  /**
+   * XFixes CursorNotify event (event code {@code first_event + 1}). Delivered
+   * after {@link #selectCursorInput} when the cursor image changes.
+   *
+   * <pre>
+   * typedef struct {
+   *     CARD8   type;             // 0
+   *     CARD8   subtype;          // 1  (SetCursorNotify = 0)
+   *     CARD16  sequenceNumber;   // 2
+   *     Window  window;           // 4
+   *     CARD32  cursorSerial;     // 8
+   *     Time    timestamp;        // 12
+   *     Atom    name;             // 16  (XFixes 2.0+)
+   *     CARD32  pad1;             // 20
+   * } xXFixesCursorNotifyEvent;
+   * </pre>
+   */
+  public static class CursorNotifyEvent extends Event {
+    public CursorNotifyEvent (Display display, byte [] data) {
+      super (display, data, 4);
+    }
+    /** SetCursorNotify subtype discriminator at byte 1. */
+    public int subtype () { return read1 (1); }
+    /** Monotonically increasing serial for each distinct cursor image. */
+    public int cursor_serial () { return read4 (8); }
+    /** Server timestamp of the cursor change. */
+    public int timestamp () { return read4 (12); }
+    /** Cursor name atom (0 if the cursor is unnamed), XFixes 2.0+. */
+    public int name_atom () { return read4 (16); }
   }
 
 /*
@@ -370,11 +432,17 @@ typedef struct {
 
 
   /* (non-Javadoc)
-   * 
+   * Decodes XFixes extension events. XFixes defines two events:
+   * SelectionNotify (first_event + 0) and CursorNotify (first_event + 1).
+   * Only CursorNotify is modelled in detail; any other event is wrapped in a
+   * generic {@link Event} so it is dispatched (and can be logged) rather than
+   * silently dropped by the reader thread.
    */
-  public Event build(Display arg0, byte[] arg1, int arg2)
+  public Event build(Display display, byte[] data, int code)
   {
-     // TODO Auto-generated method stub
-     return null;
+     if (code == first_event + 1) {
+        return new CursorNotifyEvent (display, data);
+     }
+     return new Event (display, data, 4);
   }
 }

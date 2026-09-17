@@ -76,6 +76,7 @@ a `DISPLAY`, assembles the runtime resources, and starts the display server:
 ./run-lg3d.sh -b           # use the 3D model (pinguin.j3f) desktop background
 ./run-lg3d.sh -c           # clean lg3d-core first
 ./run-lg3d.sh -r           # force the runtime resources/ tree to be reassembled
+./run-lg3d.sh -x           # run lg3d as its own X11 window manager + compositor
 ./run-lg3d.sh -h           # help
 ```
 
@@ -95,6 +96,74 @@ lg3d AWT peer toolkit.
 > `lg3d-core/src/etc/lg3d/glassy.lgcfg` — the only path that loads the 3D
 > `pinguin.j3f` model background — is commented out upstream. Pass `-b`
 > (`-Pbackground3d`) to opt into the 3D background when that taskbar is enabled.
+
+## X11 compositor mode
+
+Dev mode above runs lg3d *inside* your existing desktop. This port also revives
+lg3d's original ambition — running **real X11 applications as textured windows
+inside the 3D scene** — using the modern X **Composite / Damage / XTest**
+extensions rather than the blocked 2006 native path. In this mode lg3d becomes
+the **window manager and compositor** of the display:
+
+- lg3d claims `SubstructureRedirect` on the root window (the WM takeover) and
+  calls `CompositeRedirectSubwindows`, so the X server redirects every top-level
+  client window into an offscreen pixmap.
+- On each `DamageNotify`, the damaged region of a client's pixmap is read back
+  (via MIT-SHM, falling back to `GetImage`) into a `BufferedImage` and uploaded
+  as a texture on that window's `NativeWindow3D` quad, decorated by the existing
+  `GlassyNativeWindowLookAndFeel`.
+- Physical input on the Canvas3D is picked in 3D, translated back to the client
+  window's pixel coordinates, and re-injected with **XTest** (`fake_motion` /
+  `fake_button` / `fake_key`); focus follows the pointer via `XSetInputFocus`.
+
+All of it is **pure Java** through the in-tree Escher X11 library — no JNI, no
+JNA, no patched JDK, and no custom X server.
+
+```bash
+./run-lg3d.sh -x                                                # via the launcher
+JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Pcompositor  # via Gradle
+```
+
+`-Pcompositor` switches `lg.configurl` to `lgconfig_1p_x_composite.xml`
+(`WinSysAWT` + `X11IntegrationModule`), sets `lg3d.x11.compositor=true`, and adds
+`--add-exports java.desktop/sun.awt=ALL-UNNAMED` so lg3d can find — and exempt
+from redirection — its own Canvas3D window. It is opt-in: the default dev-mode
+desktop (`lgconfig_1p_nox.xml`) is unchanged.
+
+> **Requires a bare X server.** Because lg3d claims `SubstructureRedirect`, it
+> must be the *only* window manager on that display. It will **not** start under
+> an existing session (GNOME/mutter, KDE, or Xwayland) — the WM claim fails with
+> `BadAccess`. It is meant for a dedicated Xorg session, as below.
+
+### Deployment target (Linux From Scratch)
+
+The intended runtime is a minimal, purpose-built system: **Xorg on `:0` with no
+display manager and no other window manager**, and lg3d started as the session.
+A systemd unit can express this with the classic `xinit` hand-off (Xorg starts,
+lg3d runs as the session client, and Xorg exits when lg3d does):
+
+```ini
+# /etc/systemd/system/lg3d-compositor.service
+[Unit]
+Description=Project Looking Glass as the X11 session (window manager + compositor)
+After=systemd-user-sessions.service
+
+[Service]
+Environment=JAVA_HOME=/opt/jdk-21
+ExecStart=/usr/bin/xinit /opt/lg3d/run-lg3d.sh -x -- /usr/bin/Xorg :0 vt1 -nolisten tcp
+Restart=on-failure
+
+[Install]
+WantedBy=graphical.target
+```
+
+Any equivalent that (1) starts Xorg on `:0` and (2) launches `run-lg3d.sh -x`
+with no competing window manager will work. lg3d normally discovers its own
+Canvas3D window id automatically (that is what the `--add-exports` above
+enables); if discovery fails on the target, pin the id with the
+`lg3d.x11.ownwindowid` system property, e.g.
+`JAVA_TOOL_OPTIONS=-Dlg3d.x11.ownwindowid=<id>`. For a leaner production session
+you can also run the built jars directly instead of via Gradle.
 
 ## What was changed to make it build & run
 

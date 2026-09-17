@@ -68,6 +68,7 @@ import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowMonitor;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindow3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativePopup3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeBacksideWindow3D;
+import org.jdesktop.lg3d.displayserver.nativewindow.TiledNativeWindowImage;
 
 
 final class X11Client extends Window implements NativeWindowControl {
@@ -123,6 +124,22 @@ final class X11Client extends Window implements NativeWindowControl {
     private boolean dockable = true;
     
     private X11Client associatedPrimaryWindow = null;
+    
+    /**
+     * Composite-mode image source: reads this window's redirected pixmap and
+     * feeds it into the {@link NativeWindow3D}'s tiles on DamageNotify. Null
+     * unless a compositor is active. See {@link X11Compositor}.
+     */
+    private CompositeWindowImageLoader compositeLoader = null;
+    private int oldWidth = Integer.MIN_VALUE;
+    private int oldHeight = Integer.MIN_VALUE;
+
+    /**
+     * Composite-mode input forwarder: injects 3D-picked mouse/key events into
+     * this window via XTest. Null unless a compositor with XTEST is active.
+     * See {@link X11InputForwarder}.
+     */
+    private X11InputForwarder inputForwarder = null;
     
     
     X11Client(X11WindowManager x11wm, int id) {
@@ -326,6 +343,114 @@ final class X11Client extends Window implements NativeWindowControl {
         }
         nativeWinMonitor.destroyed();
         windowAssociator.removeAllRules(this); // Remove all rules associated with this window
+    }
+    
+    // ---- Composite-mode image source wiring (see X11Compositor) ----
+    
+    /**
+     * Attaches a damage-driven image source to this window's 3D representation.
+     * Called from {@link X11WindowManager} on MapNotify when a compositor is
+     * active. Registers a {@link X11Compositor.DamageListener} that reads the
+     * damaged region of the redirected pixmap into the window's tiles.
+     *
+     * <p>The {@link NativeWindow3D}'s {@code TiledNativeWindowImage} is created
+     * lazily during the enable sequence, so it may still be null here; the
+     * listener fetches it on each damage event and no-ops until it exists. An
+     * initial full-window read is attempted for the common case where the image
+     * is already present.
+     */
+    void setupCompositeImageSource(X11Compositor compositor) {
+        if (compositor == null || compositeLoader != null) {
+            return;
+        }
+        if (!(nativeWinMonitor instanceof NativeWindow3D)) {
+            // InputOnly / popup windows have no textured image to drive.
+            return;
+        }
+        final NativeWindow3D nw3d = (NativeWindow3D) nativeWinMonitor;
+        compositeLoader = new CompositeWindowImageLoader(compositor, id);
+        compositor.addDamageListener(id, new X11Compositor.DamageListener() {
+            public void damageReported(int windowId, int x, int y,
+                                       int width, int height) {
+                TiledNativeWindowImage img = nw3d.getImage();
+                if (img != null) {
+                    compositeLoader.updateRegion(img, x, y, width, height, null);
+                }
+            }
+        });
+        // Best-effort initial population if the image already exists.
+        TiledNativeWindowImage img = nw3d.getImage();
+        if (img != null) {
+            compositeLoader.updateRegion(img, 0, 0, width, height, null);
+        }
+        oldWidth = width;
+        oldHeight = height;
+    }
+    
+    /**
+     * Detaches the composite image source. The compositor's
+     * {@code teardownDamageForWindow} removes the registered listener; here we
+     * only drop our reference so a subsequent map re-creates it.
+     */
+    void teardownCompositeImageSource() {
+        compositeLoader = null;
+    }
+    
+    /**
+     * Notifies the 3D representation that the native window has been resized.
+     * In composite mode there is no FWS resize listener, so the WM drives this
+     * from ConfigureNotify. Rebuilds the tiles for the new size; the caller
+     * separately re-issues NameWindowPixmap (the old pixmap is invalidated).
+     */
+    void compositeResized() {
+        if (width == oldWidth && height == oldHeight) {
+            return;
+        }
+        oldWidth = width;
+        oldHeight = height;
+        if (nativeWinMonitor instanceof NativeWindow3D) {
+            ((NativeWindow3D) nativeWinMonitor).sizeChanged(getWID(), width, height);
+        }
+    }
+
+    // ---- Composite-mode input forwarding wiring (see X11InputForwarder) ----
+
+    /**
+     * Attaches an {@link X11InputForwarder} to this window's 3D representation
+     * so mouse/keyboard events picked on the textured quad are injected into
+     * the real X window via XTest. Called from {@link X11WindowManager} on
+     * MapNotify when a compositor is active.
+     *
+     * <p>Registering the listener also makes the {@link NativeWindow3D} a
+     * mouse/key event source (see {@code LgEventConnector.addListener}), which
+     * is what causes lg3d's picking engine to deliver these events to it and to
+     * route keyboard focus to it under the focus-follows-pointer policy.
+     */
+    void setupCompositeInput(X11Compositor compositor) {
+        if (compositor == null || compositor.getXTest() == null
+            || inputForwarder != null) {
+            return;
+        }
+        if (!(nativeWinMonitor instanceof NativeWindow3D)) {
+            // InputOnly / popup windows are not textured here; no forwarding.
+            return;
+        }
+        NativeWindow3D nw3d = (NativeWindow3D) nativeWinMonitor;
+        inputForwarder = new X11InputForwarder(compositor, this, nw3d);
+        nw3d.addListener(inputForwarder);
+    }
+
+    /**
+     * Detaches the input forwarder registered by
+     * {@link #setupCompositeInput(X11Compositor)}. Safe to call when none is
+     * attached.
+     */
+    void teardownCompositeInput() {
+        if (inputForwarder != null
+            && nativeWinMonitor instanceof NativeWindow3D) {
+            ((NativeWindow3D) nativeWinMonitor).removeListener(inputForwarder);
+        }
+        inputForwarder = null;
     }
     
     // methods from NativeWindowControl

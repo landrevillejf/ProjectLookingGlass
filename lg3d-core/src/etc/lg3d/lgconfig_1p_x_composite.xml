@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Project Looking Glass - X11 compositing configuration.
+
+  Same X11-integration wiring as lgconfig_1p_x.xml (X11IntegrationModule +
+  GlassyNativeWindowLookAndFeel), except:
+
+    * foundationWinSys stays WinSysAWT. The legacy WinSysX11 foundation is the
+      blocked 2006 path (patched-JDK / LightPipe / JNI). The compositing path
+      keeps WinSysAWT hosting the Canvas3D and layers Composite/Damage on top
+      via X11Compositor. See plan Assumption 5.
+
+    * The compositor bootstrap is gated by the system property
+      lg3d.x11.compositor=true, which X11IntegrationModule.initialize() reads.
+      LgConfig is a fixed JavaBean and cannot set arbitrary system properties,
+      so this flag is supplied on the command line (the -Pcompositor Gradle
+      property / run-lg3d.sh -x flag sets it alongside lg.configurl).
+
+  WARNING: this mode claims SubstructureRedirect on :0. It must be run with no
+  other window manager already holding that selection on the target display.
+-->
+<java version="1.4.2_04" class="java.beans.XMLDecoder">
+ <object class="org.jdesktop.lg3d.displayserver.LgConfig">
+  <void property="nativeWinIntegration">
+      <string>org.jdesktop.lg3d.displayserver.nativewindow.x11.X11IntegrationModule</string>
+  </void>
+  <void property="nativeWinLookAndFeel">
+      <string>org.jdesktop.lg3d.scenemanager.utils.decoration.GlassyNativeWindowLookAndFeel</string>
+  </void>
+  <void property="x11IntegrationEnabled">
+   <boolean>true</boolean>
+  </void>
+  <void property="clientServer">
+   <boolean>false</boolean>
+  </void>
+  <void property="foundationWinSys">
+   <string>org.jdesktop.lg3d.displayserver.fws.awt.WinSysAWT</string>
+  </void>
+ </object>
+</java>
