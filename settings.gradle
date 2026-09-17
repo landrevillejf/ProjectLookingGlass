@@ -4,6 +4,11 @@ include 'lg3d-escher'
 include 'lg3d-core'
 include 'lg3d-demo-apps'
 include 'lg3d-incubator'
+// Desktop widgets: the public widget API (org.jdesktop.lg3d.widgets.api) plus
+// the desktop widget layer and the built-in clock/temperature/CPU/memory
+// widgets. Depends on lg3d-core; the :lg3d-core:run task puts its jar on the
+// desktop classpath and glassy.lgcfg registers its WidgetLayerPlugin.
+include 'lg3d-widgets'
 
 // lg3d-awt is intentionally NOT part of the Gradle build.
 //
