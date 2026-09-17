@@ -203,18 +203,19 @@ tasks.register('run', JavaExec) {
     group = 'application'
     description = 'Run the LG3D display server full-screen (borderless, non-X11). Use -Pwindowed for the small debug window, or -Pcompositor to run lg3d as its own X11 window manager/compositor.'
 
-    // Make the demo/incubator apps available on the desktop, as the legacy
-    // launcher put lg3d-demo-apps.jar on the classpath.
+    // Make the demo/incubator apps and the desktop widgets available on the
+    // desktop, as the legacy launcher put lg3d-demo-apps.jar on the classpath.
     def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
     def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
+    def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
-    dependsOn demoAppsJar, incubatorJar, runtimeResources
+    dependsOn demoAppsJar, incubatorJar, widgetsJar, runtimeResources
 
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, runtimeResourcesDir)
+        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java

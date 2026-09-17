@@ -378,6 +378,12 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         }
         item.addListener(new MouseClickedEventAdapter(ButtonId.BUTTON3, 
                 true, null, new RemoveTaskbarItemAction(item)));
+        if (index < 0) {
+            // Mirror GlassyTaskbar: a negative index -n means "n-th from the
+            // right" of the row, with -1 rightmost. (This taskbar routes items
+            // into the single shortcuts row rather than a separate right group.)
+            index = shortcuts.numChildren() + 1 + index;
+        }
         if(index < 0 || index > shortcuts.numChildren()) {
             index= shortcuts.numChildren();
         }

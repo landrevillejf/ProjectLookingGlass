@@ -17,7 +17,7 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Main menu group</string>
   </void>
   <void property="groupLinks">
-   <array class="java.lang.String" length="7">
+   <array class="java.lang.String" length="8">
     <void index="0">
      <string>Internet</string>
     </void>
@@ -38,6 +38,9 @@ startmenu.lgcfg - Basic Start Menu configuration file
     </void>
     <void index="6">
      <string>Developers</string>
+    </void>
+    <void index="7">
+     <string>System</string>
     </void>
    </array>
   </void>
@@ -214,6 +217,22 @@ startmenu.lgcfg - Basic Start Menu configuration file
   </void>
   <void property="name">
    <string>Demos</string>
+  </void>
+ </object>
+
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuGroupConfig">
+  <void property="desc">
+   <string>System tools</string>
+  </void>
+  <void property="groupLinks">
+   <array class="java.lang.String" length="1">
+    <void index="0">
+     <string>Main</string>
+    </void>
+   </array>
+  </void>
+  <void property="name">
+   <string>System</string>
   </void>
  </object>
 
