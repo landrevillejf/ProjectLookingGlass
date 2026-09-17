@@ -82,6 +82,17 @@ work to make it build and run on a current toolchain.
   `ThermalService`, `DisplayService` (`xrandr`), `UserService` and
   `SystemInfoService`. No JNI/JNA; every service degrades gracefully (read-only
   or "n/a") when a tool or file is absent.
+- **Standard 3D window decoration for all `Frame3D` apps** — a reusable
+  `Frame3DWindowDecoration` (`org.jdesktop.lg3d.scenemanager.utils.decoration`)
+  is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
+  window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
+  popups and the demos) native-style **minimize / maximize / close** buttons plus
+  3D rotation: **right-click** flips the window over to a `StickyNote` back side
+  and **middle-drag** free-spins it. Previously this chrome existed only for
+  native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded code path, so
+  dev-mode apps had no window buttons and could not be rotated. Frames that build
+  their own chrome (e.g. `Lg3dHelp`) opt out via the
+  `lg3d.frame3d.decoration.optOut` property.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
