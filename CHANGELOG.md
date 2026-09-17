@@ -54,6 +54,45 @@ work to make it build and run on a current toolchain.
   `-Pcompositor` / `run-lg3d.sh -x` (`lgconfig_1p_x_composite.xml`); no JNI, no
   JNA, no patched JDK. Requires a bare Xorg with no other WM already holding
   `SubstructureRedirect`. The legacy native `fws/x11` path stays excluded.
+- **Desktop shell: widget framework (`lg3d-widgets`)** — a new in-tree module
+  providing a public, pluggable widget API (`org.jdesktop.lg3d.widgets.api`:
+  `Widget`, `AbstractWidget`, `WidgetContext`, `WidgetDescriptor`, the
+  `WidgetProvider` SPI and `WidgetRegistry`), a desktop widget layer/host
+  (`...widgets.host`) that renders draggable widgets whose layout persists to
+  `~/.config/lg3d/widgets.properties`, and built-in clock, temperature, CPU and
+  memory widgets (`...widgets.builtin`). Third parties add widgets by dropping a
+  jar carrying a `META-INF/services/...WidgetProvider` entry; placed widgets are
+  managed through the **Widget Gallery** app.
+- **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
+  taskbar's right side, immediately before Exit
+  (`[Background] [Documents] [Downloads] [Exit]`), each expanding to a list or an
+  OSX-style grid (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`,
+  registered from `glassy.lgcfg`). Files open with `xdg-open`; folders open in
+  the file manager.
+- **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
+  (tree + list browsing with copy / move / rename / delete-to-trash / new-folder,
+  multi-select, drag-and-drop, keyboard shortcuts), **Task Manager** (live
+  process table from procfs with End Task / Force Quit / Change Priority), and
+  **Control Center** (Display via `xrandr` with a timed auto-revert, Users via
+  `pkexec`, live System info, and an Appearance wallpaper chooser). All three sit
+  under a new **System** start-menu group.
+- **Pure-Java Linux system backends** (`org.jdesktop.lg3d.utils.system` in
+  `lg3d-core`) — `ProcessRunner` / `PrivilegedRunner` (`pkexec`), `Opener`
+  (`xdg-open`, freedesktop trash), `Proc` (procfs readers), `ProcessService`,
+  `ThermalService`, `DisplayService` (`xrandr`), `UserService` and
+  `SystemInfoService`. No JNI/JNA; every service degrades gracefully (read-only
+  or "n/a") when a tool or file is absent.
+- **Standard 3D window decoration for all `Frame3D` apps** — a reusable
+  `Frame3DWindowDecoration` (`org.jdesktop.lg3d.scenemanager.utils.decoration`)
+  is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
+  window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
+  popups and the demos) native-style **minimize / maximize / close** buttons plus
+  3D rotation: **right-click** flips the window over to a `StickyNote` back side
+  and **middle-drag** free-spins it. Previously this chrome existed only for
+  native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded code path, so
+  dev-mode apps had no window buttons and could not be rotated. Frames that build
+  their own chrome (e.g. `Lg3dHelp`) opt out via the
+  `lg3d.frame3d.decoration.optOut` property.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -113,6 +152,27 @@ work to make it build and run on a current toolchain.
   `javaLauncher = javaToolchains.launcherFor { languageVersion = 21 }` so the
   desktop runs on the same JDK it was compiled with, not the (possibly newer) JVM
   that launched Gradle.
+- **Negative taskbar indices** — `Taskbar.addTaskbarItem(item, -n)` now places
+  the item n-th from the right of the right-hand group (`-1` rightmost) instead
+  of clamping every negative index to append-at-end, so the dock stacks sit
+  immediately before Exit regardless of plugin initialisation order.
+- **`SwingNode` blank quads + stray `JFrame`s** — Swing content (desktop
+  widgets, the file/task manager, control center, dock stack popups and the
+  SwingNode/StickyNote demos) rendered as an empty white rectangle while the
+  hidden `SwingNodeJFrame` popped up as a real window. The offscreen capture
+  lived in the excluded `lg3d-awt` peer toolkit (`lg.use3dtoolkit`, off in this
+  build); `SwingNode` now paints its panel into a power-of-two `Texture2D`
+  directly on stock JDK 21, driven by a `RepaintManager` repaint hook, and never
+  maps the hidden frame.
+- **`SwingNode` content nearly invisible (over-transparent)** — the offscreen
+  capture above used an alpha-less `RGB` texture under `TextureAttributes.REPLACE`
+  with `TransparencyAttributes.FASTEST` (screen-door); on Jogamp the fragment
+  alpha came out ~0, so apps and widgets faded to barely-visible even when they
+  called `setTransparency(0.0f)`. The capture now uses an `RGBA` texture laid over
+  an opaque backdrop, and `DefaultSwingNodeRenderer` blends with
+  `BLENDED` + `SRC_ALPHA`/`ONE_MINUS_SRC_ALPHA` (the same configuration
+  `SimpleAppearance` uses to render native windows opaque) defaulting to fully
+  opaque; translucency stays opt-in via `setTransparency`.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:

@@ -49,6 +49,8 @@ import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GlassyTaskbar extends Taskbar {
     private static float barHeight = 0.025f;
@@ -65,6 +67,11 @@ public class GlassyTaskbar extends Taskbar {
     private Container3D appThumbnails;
     private Container3D shortcuts;
     private Container3D themes;
+
+    /** Requested taskbar index of each right-side (themes) item, so a negative
+     *  index -n reliably means "n-th from the right" regardless of the order in
+     *  which plugins post their items. */
+    private final Map<Component3D, Integer> themesIndex = new HashMap<Component3D, Integer>();
     
     public GlassyTaskbar() {
     }
@@ -207,22 +214,41 @@ public class GlassyTaskbar extends Taskbar {
         item.addListener(new MouseClickedEventAdapter(ButtonId.BUTTON3, 
                 true, null, new RemoveTaskbarItemAction(item)));
         
-        Container3D targetContainer = shortcuts;
+        Container3D targetContainer;
+        int insertAt;
         if (index < 0) {
+            // Right-aligned group (themes). A negative index -n means "n-th from
+            // the right": -1 is rightmost, -2 sits to its left, and so on. Order
+            // the new item by its index among the existing right-side items so
+            // the result does not depend on the order plugins post them.
             targetContainer = themes;
-            index = themes.numChildren() - index;
+            insertAt = 0;
+            for (Integer existing : themesIndex.values()) {
+                if (existing.intValue() < index) {
+                    insertAt++;
+                }
+            }
+            themesIndex.put(item, Integer.valueOf(index));
+        } else {
+            targetContainer = shortcuts;
+            insertAt = index;
         }
-        if (index > targetContainer.numChildren()) {
-            index = targetContainer.numChildren();
-        } else if (index < 0) {
-            index = 0;
+        if (insertAt > targetContainer.numChildren()) {
+            insertAt = targetContainer.numChildren();
+        } else if (insertAt < 0) {
+            insertAt = 0;
         }
-        targetContainer.addChild(item, index);
+        targetContainer.addChild(item, insertAt);
     }
     
     @Override
     public void removeTaskbarItem(Component3D item) {
-        shortcuts.removeChild(item);
+        // Right-side items live in themes; everything else in shortcuts.
+        if (themesIndex.remove(item) != null) {
+            themes.removeChild(item);
+        } else {
+            shortcuts.removeChild(item);
+        }
     }
     
     private class RemoveTaskbarItemAction implements ActionNoArg {

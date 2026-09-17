@@ -47,6 +47,29 @@
   </void>
  </object>
 
+ <!-- Desktop widget layer (clock/temperature/cpu/memory). From lg3d-widgets;
+ its jar is on the :lg3d-core:run classpath. getPluginRoot() returns a
+ screen-sized container placed in front of the background and behind apps. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.widgets.host.WidgetLayerPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
+ <!-- Documents + Downloads folder stacks on the taskbar's right side,
+ immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.taskbar.stack.StacksPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Taskbar Items -->
  <object class="org.jdesktop.lg3d.scenemanager.config.ApplicationDescription">
   <void property="exec">

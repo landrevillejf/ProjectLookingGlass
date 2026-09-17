@@ -48,7 +48,9 @@ public class BgManagerIcon implements SceneManagerPlugin {
                 }
                 @Override
                 public int getItemIndex() {
-                    return -2;
+                    // -4: sit to the left of the Documents (-3) and Downloads
+                    // (-2) folder stacks, which in turn sit left of Exit (-1).
+                    return -4;
                 }
             }, null);
     }

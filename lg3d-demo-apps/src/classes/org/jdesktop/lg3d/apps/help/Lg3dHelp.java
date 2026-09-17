@@ -21,6 +21,7 @@ package org.jdesktop.lg3d.apps.help;
 
 import java.net.MalformedURLException;
 import org.jogamp.vecmath.Vector3f;
+import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
@@ -87,6 +88,10 @@ public class Lg3dHelp extends Frame3D {
     
     public Lg3dHelp() {
         setName("LG3D Helper");
+        
+        // This app builds its own close/minimize chrome, so suppress the
+        // automatic Frame3D window decoration to avoid duplicate buttons.
+        setProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY, Boolean.TRUE);
         
         float height = Toolkit3D.getToolkit3D().getScreenHeight() * 0.5f;
         float width = height;

@@ -1,0 +1,41 @@
+// lg3d-widgets: the desktop widget framework and the built-in desktop widgets.
+//
+// A dedicated module exposing a public, pluggable widget API
+// (org.jdesktop.lg3d.widgets.api) plus a desktop widget layer/host
+// (org.jdesktop.lg3d.widgets.host) and built-in widgets
+// (org.jdesktop.lg3d.widgets.builtin: clock, temperature, CPU, memory).
+//
+// Widgets are discovered through the standard java.util.ServiceLoader SPI
+// (org.jdesktop.lg3d.widgets.api.WidgetProvider), so a third party can add
+// widgets just by dropping a jar with a META-INF/services entry on the desktop
+// classpath -- no changes to this module or to lg3d-core are required.
+//
+// Pure Java, compiled against lg3d-core (which exposes the Jogamp Java 3D API
+// and the org.jdesktop.lg3d.utils.system Linux backends transitively). The
+// :lg3d-core:run task puts lg3d-widgets.jar on the desktop classpath, and the
+// WidgetLayerPlugin is registered as a scene-manager plugin from glassy.lgcfg.
+//
+// The toolchain (JDK 21), encoding, build directory and java-library plugin are
+// inherited from the root build.gradle subprojects block.
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/classes'
+            include 'org/**'
+        }
+        resources {
+            // META-INF/services (the WidgetProvider SPI registration) and any
+            // widget/gallery assets live under src/resources.
+            srcDir 'src/resources'
+        }
+    }
+}
+
+jar {
+    archiveBaseName = 'lg3d-widgets'
+}
+
+dependencies {
+    implementation project(':lg3d-core')
+}

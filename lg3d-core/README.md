@@ -45,6 +45,56 @@ From the repository root, `./run-lg3d.sh` is the convenient launcher.
   and `-Pcompositor` to run lg3d as its own X11 window manager/compositor (see
   [X11 compositing](#x11-compositing-modern-path) below).
 
+## Desktop shell backends and dock stacks
+
+This module also hosts the Linux system backends and the taskbar folder stacks
+used by the desktop shell (overview in the
+[root README](../README.md#desktop-shell-features)):
+
+- **`org.jdesktop.lg3d.utils.system`** — pure-Java system services shared by the
+  `lg3d-widgets` module and the demo apps: `ProcessRunner` / `PrivilegedRunner`
+  (`pkexec`), `Opener` (`xdg-open`, freedesktop trash), `Proc` (procfs readers),
+  `ProcessService` (process snapshot + terminate/kill/renice), `ThermalService`,
+  `DisplayService` (xrandr), `UserService` (passwd/group administration) and
+  `SystemInfoService`. They live in `lg3d-core` because it is the common
+  dependency of both consumers, avoiding extra modules and dependency cycles.
+- **`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`** — the Documents /
+  Downloads dock stacks (`FolderStackModel`, `FolderStack`, `FolderStackPopup`,
+  `StacksPlugin`), registered from `glassy.lgcfg`.
+- **Negative taskbar indices** — `Taskbar.addTaskbarItem(item, -n)` places the
+  item n-th from the right of the right-hand group (`-1` rightmost). The desktop
+  uses Exit `-1`, Downloads `-2`, Documents `-3` and background `-4`, so the
+  stacks sit immediately before Exit regardless of plugin initialisation order.
+
+## Frame3D window decoration
+
+In dev mode every application is a pure-3D `Frame3D` managed by
+`StandardAppContainer`. Historically the window chrome (minimize / maximize /
+close) and the right-click "flip to sticky note" gesture existed only for native
+X11 windows via `GlassyNativeWindowLookAndFeel` — an excluded code path — so
+bare `Frame3D` apps had no buttons and could not be rotated.
+
+**`org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration`**
+generalises the self-contained decoration pattern from the `Lg3dHelp` demo into a
+reusable `Component3D`. `StandardAppContainer.addFrame3D` attaches one to every
+frame automatically (before the frame goes live), providing:
+
+- **close** — `frame.changeEnabled(false)`;
+- **minimize** — `frame.changeVisible(false)` (restored by clicking its shelf
+  thumbnail);
+- **maximize** — scale-to-fill the viewport and bring to front; toggles back;
+- **right-click (BUTTON3)** — flip the window over to a `StickyNote` back side
+  (note text persists to user preferences); right-click again flips back;
+- **middle-drag (BUTTON2)** — free spin about an arbitrary axis
+  (`Component3DRotator`), which does not clash with click-to-front or the
+  CTRL-modifier rotator used by `ZLayeredMovableLayout`.
+
+Frames that build their own chrome opt out by setting the frame property
+`Frame3DWindowDecoration.OPT_OUT_PROPERTY` (`lg3d.frame3d.decoration.optOut`) to
+`Boolean.TRUE` before being enabled — `Lg3dHelp` does exactly this. The
+attached decoration instance is stored under the
+`Frame3DWindowDecoration.PROPERTY_KEY` (`lg3d.frame3d.decoration`) property.
+
 ## In-tree contrib replacements (`src/contrib/java`)
 
 `j3d-contrib-utils.jar` and `satin-v2.3.jar` were compiled against the legacy
