@@ -24,6 +24,54 @@ supplies the **background manager** (`org.jdesktop.lg3d.apps.bgmanager`) whose
 `BgConfig.xml` and per-background directories are assembled into the runtime
 `resources/Backgrounds/` tree by the `lg3d-core:runtimeResources` task.
 
+## Image Studio
+
+`org.jdesktop.lg3d.apps.imagestudio` is a full-featured image editor with an
+**lg3d-native 3D UI** — the canvas, toolbar, slider, histogram and filmstrip are
+all Java 3D scene-graph nodes, not Swing (Swing is used only for the two native
+file dialogs). It is launched from the start menu (Utilities) with
+`java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp`. The descriptor lives in
+[`lg3d-demo-apps/src/config/imagestudio.lgcfg`](../lg3d-demo-apps/src/config/imagestudio.lgcfg)
+rather than this module's own `src/config`, because discovery only scans
+`config/demo` and `config/incubator` while the incubator's `src/config` is
+bundled to `config/` — the same precedent the Widget Gallery follows.
+
+| Class | Role |
+| --- | --- |
+| `ImageStudioApp` | `main` entry point: builds the frame, then enables + shows it. |
+| `ImageStudioFrame3D` | The `Frame3D` window; lays out the scene and owns the `EditorModel`. |
+| `EditorModel` | Original/current image, bounded undo/redo, listeners, continuous-edit preview. |
+| `JaiProcessor` | The JAI bridge: image operators, conversions, histogram, and file I/O. |
+| `ImageCanvas3D` | Textured-quad image view with mouse-wheel zoom and reset-view. |
+| `Toolbar3D` | Category tabs, operation buttons, undo/redo/reset/fit; hosts the slider. |
+| `Slider3D` | Draggable 3D slider for the active operation's parameter. |
+| `Histogram3D` | Log-scaled 256-bin RGB histogram, redrawn on every model change. |
+| `FileStrip3D` | `~/Pictures` filmstrip plus Open / Save / Save As (native dialogs). |
+| `Ui3D` | Shared widget factory (colours, panels, labels, buttons). |
+
+The toolbar exposes 27 operations in four categories, each mapped to a JAI
+operator: **Geometry** (Flip H/V, Rot 90, Rotate, Scale, Pixelate, Border),
+**Color** (Brighter, Contrast, Gamma, Gray, Sepia, Invert, Posterize,
+Threshold), **Filter** (Blur, Sharpen, Emboss, Edges) and **Math** (Add,
+Subtract, Multiply, Abs, AND, OR, XOR, Noise). `JaiProcessor` additionally
+provides crop and 180/270 rotations used internally.
+
+### JAI dependency
+
+The vendored JAI jars live in [`ext/`](ext) and are on this module's *compile*
+classpath (`fileTree ext/**/*.jar`). Two are also needed at *runtime* on the
+desktop, so the `lg3d-core:run` task adds `jai_core.jar` (`javax.media.jai.*`,
+whose `META-INF` registry auto-registers the standard operators) and
+`jai_codec.jar` (`com.sun.media.jai.codec.*`, the TIFF/BMP path) to its classpath,
+and passes `--add-exports java.desktop/sun.awt.image=ALL-UNNAMED` — JAI's
+`RasterAccessor` fast path references JDK-internal `sun.awt.image` raster classes
+that JDK 21 strongly encapsulates, so without the export every operator fails
+with `IllegalAccessError`. (`jaimlib.jar` in the same directory is
+`com.wilko.jaim`, an unrelated AIM library — not JAI — and is deliberately
+excluded.) Image I/O uses `javax.imageio.ImageIO` for PNG/JPEG (robust on JDK 21)
+and reserves the JAI codec for TIFF/BMP, avoiding JAI's JPEG encoder which
+references the JDK-removed `com.sun.image.codec.jpeg`.
+
 ## Excluded apps
 
 A handful of apps cannot be compiled here — the legacy `failonerror="false"`

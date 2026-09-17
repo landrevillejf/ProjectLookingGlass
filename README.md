@@ -137,6 +137,31 @@ System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
 `lm-sensors` (a `sensors` fallback for temperatures). Every backend degrades
 gracefully — read-only or "n/a" — when a tool or file is absent.
 
+## Image Studio (JAI image editor)
+
+**Image Studio** (Utilities menu) is a full-featured image editor with an
+lg3d-native **3D** UI, built on the **bundled Java Advanced Imaging API**
+(`javax.media.jai`) that ships in [`lg3d-incubator/ext`](lg3d-incubator/ext). It
+provides categorised Geometry / Color / Filter / Math operations driven by a live
+3D parameter slider, a log-scaled 256-bin RGB histogram, bounded undo/redo/reset,
+a `~/Pictures` thumbnail filmstrip, and native open/save dialogs (PNG/JPEG via
+`ImageIO`, TIFF/BMP via the JAI codec). Full details in
+[`lg3d-incubator/README.md`](lg3d-incubator/README.md).
+
+JAI is on the incubator's *compile* classpath but not on the desktop's, so the
+`lg3d-core:run` task adds the two genuine JAI jars (`jai_core.jar`,
+`jai_codec.jar`) to the run classpath and passes
+`--add-exports java.desktop/sun.awt.image=ALL-UNNAMED` — JAI's `RasterAccessor`
+fast path reaches into that JDK-internal package, which JDK 21 otherwise
+encapsulates (without the export every operator fails at runtime).
+
+> **Terminal item.** The taskbar / start-menu **Terminal** launcher now falls
+> back through `gnome-terminal`, `konsole`, `xfce4-terminal`, `mate-terminal`,
+> `lxterminal`, `xterm` when `xterm` is absent, so it is no longer dropped from
+> the desktop. In dev mode a native terminal opens as an ordinary host window,
+> not embedded in the 3D scene — embedding real X11 clients requires the
+> `-Pcompositor` mode described below.
+
 ## X11 compositor mode
 
 Dev mode above runs lg3d *inside* your existing desktop. This port also revives
