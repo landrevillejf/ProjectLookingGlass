@@ -145,6 +145,14 @@ work to make it build and run on a current toolchain.
   the item n-th from the right of the right-hand group (`-1` rightmost) instead
   of clamping every negative index to append-at-end, so the dock stacks sit
   immediately before Exit regardless of plugin initialisation order.
+- **`SwingNode` blank quads + stray `JFrame`s** — Swing content (desktop
+  widgets, the file/task manager, control center, dock stack popups and the
+  SwingNode/StickyNote demos) rendered as an empty white rectangle while the
+  hidden `SwingNodeJFrame` popped up as a real window. The offscreen capture
+  lived in the excluded `lg3d-awt` peer toolkit (`lg.use3dtoolkit`, off in this
+  build); `SwingNode` now paints its panel into a power-of-two `Texture2D`
+  directly on stock JDK 21, driven by a `RepaintManager` repaint hook, and never
+  maps the hidden frame.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
