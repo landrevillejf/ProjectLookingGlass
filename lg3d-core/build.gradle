@@ -211,11 +211,24 @@ tasks.register('run', JavaExec) {
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn demoAppsJar, incubatorJar, widgetsJar, runtimeResources
 
+    // The Image Studio app (lg3d-incubator) is built on the vendored Java
+    // Advanced Imaging API. Those jars live in lg3d-incubator/ext and are on the
+    // incubator's *compile* classpath (fileTree ext/**/*.jar), but not on this
+    // run classpath, so add the two genuine JAI jars here -- jai_core.jar
+    // (javax.media.jai.*, whose META-INF registry auto-registers the standard
+    // operators) and jai_codec.jar (com.sun.media.jai.codec.* for the TIFF/BMP
+    // encode/decode path). Without them the ops would NoClassDefFoundError at
+    // runtime. (jaimlib.jar in the same dir is com.wilko.jaim, an unrelated AIM
+    // library -- not JAI -- so it is deliberately excluded.)
+    def jaiJars = files(fileTree(
+        dir: "${project(':lg3d-incubator').projectDir}/ext",
+        include: ['jai_core.jar', 'jai_codec.jar']))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir)
+        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir, jaiJars)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -226,6 +239,13 @@ tasks.register('run', JavaExec) {
     def resourceDir = file('src/resources')
 
     jvmArgs '-Xms128m', '-Xmx512m'
+
+    // The vendored Java Advanced Imaging API (used by the Image Studio app) has a
+    // RasterAccessor fast path that references the JDK-internal sun.awt.image
+    // raster classes (e.g. BytePackedRaster). JDK 21 strongly encapsulates
+    // java.desktop, so without this export *every* JAI operator dies at runtime
+    // with IllegalAccessError: sun.awt.image is not exported. Verified required.
+    jvmArgs '--add-exports', 'java.desktop/sun.awt.image=ALL-UNNAMED'
 
     // The X11 compositing path runs lg3d as its own window manager + compositor
     // on :0, redirecting real X11 client windows into offscreen pixmaps that are
