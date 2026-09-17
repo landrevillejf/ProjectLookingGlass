@@ -190,6 +190,20 @@ public class FileManagerPanel extends JPanel {
             public void mouseReleased(MouseEvent e) {
                 maybePopup(e);
             }
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // Double-click opens the item under the cursor: descends into a
+                // folder, or opens a file via xdg-open (same as Enter / Open).
+                if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() == 2) {
+                    int row = table.rowAtPoint(e.getPoint());
+                    if (row >= 0) {
+                        if (!table.isRowSelected(row)) {
+                            table.setRowSelectionInterval(row, row);
+                        }
+                        doOpen();
+                    }
+                }
+            }
             private void maybePopup(MouseEvent e) {
                 if (!e.isPopupTrigger()) {
                     return;
