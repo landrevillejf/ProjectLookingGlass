@@ -153,6 +153,15 @@ work to make it build and run on a current toolchain.
   build); `SwingNode` now paints its panel into a power-of-two `Texture2D`
   directly on stock JDK 21, driven by a `RepaintManager` repaint hook, and never
   maps the hidden frame.
+- **`SwingNode` content nearly invisible (over-transparent)** — the offscreen
+  capture above used an alpha-less `RGB` texture under `TextureAttributes.REPLACE`
+  with `TransparencyAttributes.FASTEST` (screen-door); on Jogamp the fragment
+  alpha came out ~0, so apps and widgets faded to barely-visible even when they
+  called `setTransparency(0.0f)`. The capture now uses an `RGBA` texture laid over
+  an opaque backdrop, and `DefaultSwingNodeRenderer` blends with
+  `BLENDED` + `SRC_ALPHA`/`ONE_MINUS_SRC_ALPHA` (the same configuration
+  `SimpleAppearance` uses to render native windows opaque) defaulting to fully
+  opaque; translucency stays opt-in via `setTransparency`.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
