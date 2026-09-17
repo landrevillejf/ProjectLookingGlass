@@ -23,10 +23,25 @@ package org.jdesktop.lg3d.wg;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.RepaintManager;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowFuzzyEdgePanel;
 import org.jdesktop.lg3d.sg.Appearance;
+import org.jdesktop.lg3d.sg.ImageComponent2D;
 import org.jdesktop.lg3d.sg.PolygonAttributes;
 import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.TextureAttributes;
@@ -83,6 +98,10 @@ public class SwingNode extends Component3D {
      */
     public SwingNode(SwingNodeRenderer geometryUpdater) {
         hiddenFrame = new SwingNodeJFrame();
+        // Never mapped as a real on-screen window: the frame is kept only as a
+        // displayable host for Swing layout and input dispatch. Its content is
+        // painted into a texture by captureNow() instead (see setJPanel).
+        hiddenFrame.setUndecorated(true);
         
         if (geometryUpdater==null)
             comp = new DefaultSwingNodeRenderer();
@@ -140,6 +159,9 @@ public class SwingNode extends Component3D {
         if (panel != null && panelResizeListener != null) {
             panel.removeComponentListener(panelResizeListener);
         }
+        if (panel != null) {
+            HOSTED_PANELS.remove(panel);
+        }
         panelResizeListener = null;
 
         this.panel = p;
@@ -152,19 +174,38 @@ public class SwingNode extends Component3D {
             printHeirarchy(hiddenFrame, 0);
         }
         
-        hiddenFrame.setVisible(true);
+        // The pre-port code called hiddenFrame.setVisible(true) here. That only
+        // stayed off-screen because the custom lg3d AWT peer toolkit
+        // (lg.use3dtoolkit=true) intercepted the frame and vectored its image
+        // into the texture. That toolkit is excluded from this build, so making
+        // the frame visible popped a real window onto the host desktop while the
+        // 3D quad stayed blank. We now render the panel ourselves (captureNow)
+        // and leave the frame displayable-but-hidden for input dispatch.
         final Toolkit3D toolkit3d = Toolkit3D.getToolkit3D();
         localWidth = toolkit3d.widthNativeToPhysical(panel.getWidth());
         localHeight = toolkit3d.heightNativeToPhysical(panel.getHeight());
+        
+        HOSTED_PANELS.put(panel, this);
+        installCaptureSupport(panel);
         
         final JPanel capturedPanel = panel;
         panelResizeListener = new java.awt.event.ComponentAdapter() {
             public void componentResized(java.awt.event.ComponentEvent event) {
                 localWidth = toolkit3d.widthNativeToPhysical(capturedPanel.getWidth());
                 localHeight = toolkit3d.heightNativeToPhysical(capturedPanel.getHeight());
+                markDirty(SwingNode.this);
             }
         };
         panel.addComponentListener(panelResizeListener);
+        
+        // Capture the freshly laid-out panel on the EDT.
+        if (SwingUtilities.isEventDispatchThread()) {
+            markDirty(this);
+        } else {
+            SwingUtilities.invokeLater(new Runnable() {
+                public void run() { markDirty(SwingNode.this); }
+            });
+        }
     }
     
     public JPanel getJPanel() {
@@ -180,8 +221,19 @@ public class SwingNode extends Component3D {
         if (panel != null && panelResizeListener != null) {
             panel.removeComponentListener(panelResizeListener);
         }
+        if (panel != null) {
+            HOSTED_PANELS.remove(panel);
+        }
+        synchronized (DIRTY_NODES) {
+            DIRTY_NODES.remove(this);
+        }
         panelResizeListener = null;
         panel = null;
+        swingTexture = null;
+        imageComponent = null;
+        p2Image = null;
+        texWidth = -1;
+        texHeight = -1;
         if (hiddenFrame != null) {
             hiddenFrame.setVisible(false);
             hiddenFrame.dispose();
@@ -215,6 +267,187 @@ public class SwingNode extends Component3D {
         return localHeight;
     }
  
+    // ------------------------------------------------------------------
+    // Offscreen Swing rendering (replaces the excluded lg3d AWT peer toolkit)
+    // ------------------------------------------------------------------
+
+    private BufferedImage p2Image;            // power-of-two image holding the painted panel
+    private ImageComponent2D imageComponent;  // live-updatable image on the texture
+    private Texture2D swingTexture;           // texture handed to the renderer
+    private int texWidth = -1;                // current pow2 texture width
+    private int texHeight = -1;               // current pow2 texture height
+
+    /**
+     * Paints the hosted panel into a power-of-two texture and pushes it to the
+     * renderer. Mirrors the texture layout the old {@code awtpeer.PeerBase}
+     * produced (pow2 RGB image, yUp, panel drawn at the origin) so the existing
+     * {@link SwingNodeRenderer#textureChanged(Texture2D)} contract - and any
+     * custom renderer - is unchanged. Runs on the EDT.
+     */
+    void captureNow() {
+        final JPanel p = panel;
+        if (p == null) {
+            return;
+        }
+        int w = p.getWidth();
+        int h = p.getHeight();
+        if (w <= 0 || h <= 0) {
+            Dimension ps = p.getPreferredSize();
+            w = ps.width;
+            h = ps.height;
+            if (w <= 0 || h <= 0) {
+                return;
+            }
+            p.setSize(w, h);
+            p.doLayout();
+        }
+
+        final Toolkit3D toolkit3d = Toolkit3D.getToolkit3D();
+        localWidth = toolkit3d.widthNativeToPhysical(w);
+        localHeight = toolkit3d.heightNativeToPhysical(h);
+
+        int p2w = powerOfTwo(w);
+        int p2h = powerOfTwo(h);
+
+        boolean recreated = false;
+        if (swingTexture == null || p2w != texWidth || p2h != texHeight) {
+            p2Image = new BufferedImage(p2w, p2h, BufferedImage.TYPE_INT_RGB);
+            imageComponent = new ImageComponent2D(
+                    ImageComponent2D.FORMAT_RGB, p2w, p2h, false, true);
+            imageComponent.setCapability(ImageComponent2D.ALLOW_IMAGE_WRITE);
+            swingTexture = new Texture2D(
+                    Texture2D.BASE_LEVEL, Texture2D.RGB, p2w, p2h);
+            swingTexture.setMinFilter(Texture2D.BASE_LEVEL_LINEAR);
+            swingTexture.setMagFilter(Texture2D.BASE_LEVEL_LINEAR);
+            swingTexture.setImage(0, imageComponent);
+            texWidth = p2w;
+            texHeight = p2h;
+            recreated = true;
+        }
+
+        Graphics2D g = p2Image.createGraphics();
+        try {
+            g.setClip(0, 0, w, h);
+            p.paint(g);
+        } finally {
+            g.dispose();
+        }
+        imageComponent.set(p2Image);
+
+        if (recreated) {
+            // New texture object: let the renderer bind it and re-fit geometry.
+            comp.textureChanged(swingTexture);
+        }
+    }
+
+    private static int powerOfTwo(int value) {
+        if (value < 1) {
+            return 1;
+        }
+        int pow = 1;
+        while (pow < value) {
+            pow <<= 1;
+        }
+        return pow;
+    }
+
+    // ---- shared, cross-node capture scheduling -------------------------
+
+    /** Coalescing delay (ms) between a repaint and the texture re-capture. */
+    private static final int CAPTURE_DELAY_MS = 30;
+
+    /** Panels currently hosted by a SwingNode, mapped to their node. */
+    private static final Map<JPanel, SwingNode> HOSTED_PANELS =
+            Collections.synchronizedMap(new WeakHashMap<JPanel, SwingNode>());
+
+    /** Nodes whose panel has repainted and need a texture re-capture. */
+    private static final Set<SwingNode> DIRTY_NODES =
+            Collections.synchronizedSet(new HashSet<SwingNode>());
+
+    private static Timer captureTimer;
+    private static boolean repaintManagerInstalled;
+
+    private static void installCaptureSupport(JPanel p) {
+        synchronized (SwingNode.class) {
+            if (!repaintManagerInstalled) {
+                RepaintManager current = RepaintManager.currentManager(p);
+                if (!(current instanceof SwingNodeRepaintManager)) {
+                    RepaintManager.setCurrentManager(new SwingNodeRepaintManager());
+                }
+                repaintManagerInstalled = true;
+            }
+            if (captureTimer == null) {
+                captureTimer = new Timer(CAPTURE_DELAY_MS,
+                        e -> captureDirtyNodes());
+                captureTimer.setRepeats(true);
+            }
+        }
+    }
+
+    private static void markDirty(SwingNode node) {
+        synchronized (DIRTY_NODES) {
+            DIRTY_NODES.add(node);
+        }
+        Timer t;
+        synchronized (SwingNode.class) {
+            t = captureTimer;
+        }
+        if (t != null && !t.isRunning()) {
+            t.start();
+        }
+    }
+
+    private static void captureDirtyNodes() {
+        List<SwingNode> batch;
+        synchronized (DIRTY_NODES) {
+            if (DIRTY_NODES.isEmpty()) {
+                captureTimer.stop();
+                return;
+            }
+            batch = new ArrayList<SwingNode>(DIRTY_NODES);
+            DIRTY_NODES.clear();
+        }
+        for (SwingNode node : batch) {
+            try {
+                node.captureNow();
+            } catch (Throwable t) {
+                // One failing widget must not stall the shared capture timer.
+                t.printStackTrace();
+            }
+        }
+        synchronized (DIRTY_NODES) {
+            if (DIRTY_NODES.isEmpty() && captureTimer != null) {
+                captureTimer.stop();
+            }
+        }
+    }
+
+    /**
+     * Flags the owning {@link SwingNode} whenever a hosted panel - or any of
+     * its descendants - is repainted, so its texture is re-captured. All real
+     * work is delegated to the standard {@link RepaintManager}.
+     */
+    private static class SwingNodeRepaintManager extends RepaintManager {
+        @Override
+        public void addDirtyRegion(JComponent c, int x, int y, int w, int h) {
+            super.addDirtyRegion(c, x, y, w, h);
+            SwingNode owner = findOwner(c);
+            if (owner != null) {
+                markDirty(owner);
+            }
+        }
+
+        private SwingNode findOwner(Component c) {
+            for (Component p = c; p != null; p = p.getParent()) {
+                SwingNode node = HOSTED_PANELS.get(p);
+                if (node != null) {
+                    return node;
+                }
+            }
+            return null;
+        }
+    }
+
     class DefaultSwingNodeRenderer extends SwingNodeRenderer {
                
         private Appearance swingAppearance;
