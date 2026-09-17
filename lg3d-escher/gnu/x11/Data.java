@@ -1,11 +1,32 @@
 package gnu.x11;
 
+import java.nio.ByteOrder;
 
 /** 
  * Efficient storage of byte array. Similar to "struct" in C/C++. No
  * parsing.
  */
 public class Data {  
+  /**
+   * True when the host JVM is little-endian (x86, x86_64, ARM in LE mode).
+   *
+   * <p>X11 requires the client to declare its byte order in the very first
+   * byte of the connection setup request ({@code 'B'} for MSB-first,
+   * {@code 'l'} for LSB-first). The server then sends every multi-byte
+   * protocol field in the client's declared order. Escher 0.2.2 was
+   * hardwired to big-endian, which only worked on SPARC/PowerPC hosts or
+   * against X servers explicitly started with {@code -byteswappedclients}.
+   * Modern Xwayland rejects byte-swapped clients by default, so the lg3d
+   * JDK-21 port makes the wire format follow the host's native order.
+   *
+   * <p>When this flag is true, {@link #read2}, {@link #read4},
+   * {@link #read8}, {@link #write2(int,int)}, {@link #write4(int,int)}, and
+   * {@link #write8(int,long)} reverse byte order on the wire, and
+   * {@link Display} sends {@code 'l'} in the connection setup.
+   */
+  public static final boolean LSB_FIRST =
+    ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+
   /** Sequential writing. */
   public int index;
 
@@ -163,7 +184,7 @@ public class Data {
   public int read2 (int j) {
     int b0 = data [j+offset] & 0xff;
     int b1 = data [j+offset+1] & 0xff;
-    return (b0 << 8) | b1;
+    return LSB_FIRST ? ((b1 << 8) | b0) : ((b0 << 8) | b1);
   }
 
 
@@ -172,7 +193,9 @@ public class Data {
     int b1 = data [j+offset+1] & 0xff;
     int b2 = data [j+offset+2] & 0xff;
     int b3 = data [j+offset+3] & 0xff;
-    return b0 << 24 | b1 << 16 | b2 << 8 | b3;
+    return LSB_FIRST
+      ? (b3 << 24 | b2 << 16 | b1 << 8 | b0)
+      : (b0 << 24 | b1 << 16 | b2 << 8 | b3);
   }
 
   
@@ -185,8 +208,11 @@ public class Data {
     long b5 = data [j+offset+5] & 0xff;
     long b6 = data [j+offset+6] & 0xff;
     long b7 = data [j+offset+7] & 0xff;
-    return b0 << 56 | b1 << 48 | b2 << 40 | b3 << 32
-      | b4 << 24 | b5 << 16 | b6 << 8 | b7;
+    return LSB_FIRST
+      ? (b7 << 56 | b6 << 48 | b5 << 40 | b4 << 32
+        | b3 << 24 | b2 << 16 | b1 << 8 | b0)
+      : (b0 << 56 | b1 << 48 | b2 << 40 | b3 << 32
+        | b4 << 24 | b5 << 16 | b6 << 8 | b7);
   }
 
 
@@ -299,8 +325,13 @@ public class Data {
   //-- write2 - given j
 
   public void write2 (int j, int s) {
-    data [j+offset] = (byte) ((s >> 8) & 0xff);
-    data [j+offset+1] = (byte) (s & 0xff);
+    if (LSB_FIRST) {
+      data [j+offset] = (byte) (s & 0xff);
+      data [j+offset+1] = (byte) ((s >> 8) & 0xff);
+    } else {
+      data [j+offset] = (byte) ((s >> 8) & 0xff);
+      data [j+offset+1] = (byte) (s & 0xff);
+    }
   }
 
 
@@ -379,10 +410,17 @@ public class Data {
 
 
   public void write4 (int j, int i) {
-    data [j+offset] = (byte) ((i >> 24) & 0xff);
-    data [j+offset+1] = (byte) ((i >> 16) & 0xff);
-    data [j+offset+2] = (byte) ((i >> 8) & 0xff);
-    data [j+offset+3] = (byte) (i & 0xff);
+    if (LSB_FIRST) {
+      data [j+offset] = (byte) (i & 0xff);
+      data [j+offset+1] = (byte) ((i >> 8) & 0xff);
+      data [j+offset+2] = (byte) ((i >> 16) & 0xff);
+      data [j+offset+3] = (byte) ((i >> 24) & 0xff);
+    } else {
+      data [j+offset] = (byte) ((i >> 24) & 0xff);
+      data [j+offset+1] = (byte) ((i >> 16) & 0xff);
+      data [j+offset+2] = (byte) ((i >> 8) & 0xff);
+      data [j+offset+3] = (byte) (i & 0xff);
+    }
   }
 
 
@@ -456,14 +494,25 @@ public class Data {
   //-- write8 - given j
 
   public void write8 (int j, long l) {
-    data [j+offset] = (byte) ((l >> 56) & 0xff);
-    data [j+offset+1] = (byte) ((l >> 48) & 0xff);
-    data [j+offset+2] = (byte) ((l >> 40) & 0xff);
-    data [j+offset+3] = (byte) ((l >> 32) & 0xff);
-    data [j+offset+4] = (byte) ((l >> 24) & 0xff);
-    data [j+offset+5] = (byte) ((l >> 16) & 0xff);
-    data [j+offset+6] = (byte) ((l >> 8) & 0xff);
-    data [j+offset+7] = (byte) (l & 0xff);
+    if (LSB_FIRST) {
+      data [j+offset] = (byte) (l & 0xff);
+      data [j+offset+1] = (byte) ((l >> 8) & 0xff);
+      data [j+offset+2] = (byte) ((l >> 16) & 0xff);
+      data [j+offset+3] = (byte) ((l >> 24) & 0xff);
+      data [j+offset+4] = (byte) ((l >> 32) & 0xff);
+      data [j+offset+5] = (byte) ((l >> 40) & 0xff);
+      data [j+offset+6] = (byte) ((l >> 48) & 0xff);
+      data [j+offset+7] = (byte) ((l >> 56) & 0xff);
+    } else {
+      data [j+offset] = (byte) ((l >> 56) & 0xff);
+      data [j+offset+1] = (byte) ((l >> 48) & 0xff);
+      data [j+offset+2] = (byte) ((l >> 40) & 0xff);
+      data [j+offset+3] = (byte) ((l >> 32) & 0xff);
+      data [j+offset+4] = (byte) ((l >> 24) & 0xff);
+      data [j+offset+5] = (byte) ((l >> 16) & 0xff);
+      data [j+offset+6] = (byte) ((l >> 8) & 0xff);
+      data [j+offset+7] = (byte) (l & 0xff);
+    }
   }
 
 

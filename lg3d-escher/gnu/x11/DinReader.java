@@ -90,16 +90,37 @@ class DinReader
 	} catch (EOFException e) {
 	    // This happens normally when a Wonderland app's window manager goes away
 	    System.err.println("DinReader: saw EOF exception");
-	    threadStopped = true;
 	} catch (IOException e) {
 	    // This happens normally when a Wonderland app's window manager goes away
 	    System.err.println("DinReader: saw IO exception");
-	    threadStopped = true;
+	} catch (Throwable t) {
+	    // Historically this loop only caught EOFException/IOException,
+	    // so any gnu.x11.Error (which extends java.lang.Error) escaped
+	    // and killed the reader thread while leaving threadStopped
+	    // false. Every caller blocked in readReply()/readEvent() then
+	    // waited forever. The connection-setup Failed reply is the
+	    // most common trigger (e.g. missing MIT-MAGIC-COOKIE-1). Mark
+	    // the reader stopped and wake all waiters so the failure
+	    // surfaces to the caller instead of hanging the JVM.
+	    System.err.println("DinReader: reader thread terminating: " + t);
+	} finally {
+	    markStopped();
 	}
 
 	if (disconnectListener != null) {
 	    disconnectListener.disconnected();
 	}
+    }
+
+    /**
+     * Sets {@link #threadStopped} and wakes every thread parked in
+     * {@link #readReply()} or {@link #readEvent(boolean, boolean)}.
+     * Synchronized so the {@code notifyAll()} reaches waiters that are
+     * about to release the monitor.
+     */
+    private synchronized void markStopped () {
+	threadStopped = true;
+	notifyAll();
     }
 
     public void stop () {

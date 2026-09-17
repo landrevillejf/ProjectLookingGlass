@@ -213,20 +213,41 @@ public class Display {
     connection.start_reading();
 
     // authorization protocol
+    //
+    // Look up an MIT-MAGIC-COOKIE-1 for this display in $XAUTHORITY (or
+    // ~/.Xauthority). Escher originally sent empty auth_name/auth_data,
+    // which only worked against servers started with -noauth or with
+    // host-based ACLs; every modern desktop session (systemd user
+    // sessions, Xwayland under GNOME/KDE, and the LFS-style Xorg-on-VT
+    // setup lg3d targets) requires the cookie. Without this the
+    // connection-setup reply is a Failed packet, DinReader rethrows it
+    // as a gnu.x11.Error, the reader thread dies without setting
+    // threadStopped, and read_reply() below blocks forever.
     String auth_name = "";
-    String auth_data = "";
-    int n = Data.len (auth_name);
-    int d = Data.len (auth_data);
-    
-    Request request = new Request (this, 'B', // java = MSB
-      3 + Data.unit (auth_name) + Data.unit (auth_data));
+    byte [] auth_data = new byte [0];
+    XAuthority.Entry auth_entry = XAuthority.findForDisplay (display_no);
+    if (auth_entry != null) {
+      auth_name = auth_entry.name;
+      auth_data = auth_entry.data;
+    }
+    int name_padded = Data.len (auth_name.length ());
+    int data_padded = Data.len (auth_data.length);
+
+    Request request = new Request (this, Data.LSB_FIRST ? 'l' : 'B',
+      3 + name_padded/4 + data_padded/4);
     request.index = 2;		// connection setup request hack
     request.write2 (11);	// major version
     request.write2 (0);		// minor version
     request.write2 (auth_name.length ());
-    request.write2 (auth_data.length ());
+    request.write2 (auth_data.length);
+    request.write2 (0);		// CARD16 unused (bytes 10-11 per X11 spec)
+    // write1(String) advances index by Data.len(s) (padded) but only
+    // copies the raw bytes; the trailing pad bytes stay zero from array
+    // allocation. For the cookie (raw bytes, not a String) we must pad
+    // manually because write1(byte[]) advances by the exact length.
     request.write1 (auth_name);
-    request.write1 (auth_data);
+    request.write1 (auth_data, 0, auth_data.length);
+    for (int i = auth_data.length; i < data_padded; i++) request.write1 (0);
 
     init_server_info (read_reply (request));
     init_defaults ();
