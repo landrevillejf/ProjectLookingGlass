@@ -29,6 +29,7 @@ import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DAddedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DAnimationFinishedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DRemovedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
+import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.scenemanager.utils.taskbar.DefaultThumbnail;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionComponent3D;
@@ -319,6 +320,18 @@ public class StandardAppContainer extends AppContainer {
         frame3d.changeTransparency(translucencyNormal); // fade in to the space
         frame3d.setScale(0.0f);
         frame3d.changeScale(1.0f); // scale up
+        
+        // Attach the standard 3D window decoration (minimize/maximize/close
+        // buttons plus right-click flip and middle-drag free-spin) unless the
+        // frame supplies its own chrome (e.g. Lg3dHelp). Done before addChild
+        // so the decoration is parented while the frame is not yet live.
+        if (!Boolean.TRUE.equals(
+                frame3d.getProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY))) {
+            Frame3DWindowDecoration decoration
+                = new Frame3DWindowDecoration(frame3d);
+            frame3d.setProperty(Frame3DWindowDecoration.PROPERTY_KEY, decoration);
+            frame3d.addChild(decoration);
+        }
         
         addChild(frame3d);
         postEvent(new Frame3DAddedEvent(frame3d));
