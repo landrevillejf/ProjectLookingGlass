@@ -54,6 +54,34 @@ work to make it build and run on a current toolchain.
   `-Pcompositor` / `run-lg3d.sh -x` (`lgconfig_1p_x_composite.xml`); no JNI, no
   JNA, no patched JDK. Requires a bare Xorg with no other WM already holding
   `SubstructureRedirect`. The legacy native `fws/x11` path stays excluded.
+- **Desktop shell: widget framework (`lg3d-widgets`)** — a new in-tree module
+  providing a public, pluggable widget API (`org.jdesktop.lg3d.widgets.api`:
+  `Widget`, `AbstractWidget`, `WidgetContext`, `WidgetDescriptor`, the
+  `WidgetProvider` SPI and `WidgetRegistry`), a desktop widget layer/host
+  (`...widgets.host`) that renders draggable widgets whose layout persists to
+  `~/.config/lg3d/widgets.properties`, and built-in clock, temperature, CPU and
+  memory widgets (`...widgets.builtin`). Third parties add widgets by dropping a
+  jar carrying a `META-INF/services/...WidgetProvider` entry; placed widgets are
+  managed through the **Widget Gallery** app.
+- **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
+  taskbar's right side, immediately before Exit
+  (`[Background] [Documents] [Downloads] [Exit]`), each expanding to a list or an
+  OSX-style grid (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`,
+  registered from `glassy.lgcfg`). Files open with `xdg-open`; folders open in
+  the file manager.
+- **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
+  (tree + list browsing with copy / move / rename / delete-to-trash / new-folder,
+  multi-select, drag-and-drop, keyboard shortcuts), **Task Manager** (live
+  process table from procfs with End Task / Force Quit / Change Priority), and
+  **Control Center** (Display via `xrandr` with a timed auto-revert, Users via
+  `pkexec`, live System info, and an Appearance wallpaper chooser). All three sit
+  under a new **System** start-menu group.
+- **Pure-Java Linux system backends** (`org.jdesktop.lg3d.utils.system` in
+  `lg3d-core`) — `ProcessRunner` / `PrivilegedRunner` (`pkexec`), `Opener`
+  (`xdg-open`, freedesktop trash), `Proc` (procfs readers), `ProcessService`,
+  `ThermalService`, `DisplayService` (`xrandr`), `UserService` and
+  `SystemInfoService`. No JNI/JNA; every service degrades gracefully (read-only
+  or "n/a") when a tool or file is absent.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -113,6 +141,10 @@ work to make it build and run on a current toolchain.
   `javaLauncher = javaToolchains.launcherFor { languageVersion = 21 }` so the
   desktop runs on the same JDK it was compiled with, not the (possibly newer) JVM
   that launched Gradle.
+- **Negative taskbar indices** — `Taskbar.addTaskbarItem(item, -n)` now places
+  the item n-th from the right of the right-hand group (`-1` rightmost) instead
+  of clamping every negative index to append-at-end, so the dock stacks sit
+  immediately before Exit regardless of plugin initialisation order.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:

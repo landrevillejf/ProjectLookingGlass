@@ -19,8 +19,9 @@ JDK 21 install using the Jogamp OpenGL pipeline.
 
 ## Repository layout
 
-The original project is split across several git submodules. Only four of them
-are part of the Gradle build (see [`settings.gradle`](settings.gradle)):
+The original project is split across several git submodules. Four of them are
+part of the Gradle build (see [`settings.gradle`](settings.gradle)); this port
+adds a fifth, in-tree module, `lg3d-widgets`:
 
 | Module            | In build | Role |
 | ----------------- | :------: | ---- |
@@ -28,6 +29,7 @@ are part of the Gradle build (see [`settings.gradle`](settings.gradle)):
 | `lg3d-core`       | ✅ | The scene-graph / windowing / display-server SDK and the desktop itself. |
 | `lg3d-demo-apps`  | ✅ | Sample and demo applications shipped with lg3d. |
 | `lg3d-incubator`  | ✅ | Grab-bag of independent experimental lg3d apps. |
+| `lg3d-widgets`    | ✅ | **New in this port:** desktop widget API/host and built-in widgets. |
 | `lg3d-art`        | assets | Wallpapers, splash art, 3D models, GDM theme (consumed at runtime). |
 | `lg3d-awt`        | ❌ | Optional custom AWT Toolkit/peer implementation — excluded (see below). |
 | `lg3d-x11`        | ❌ | Native X11 foundation window system scripts/binaries — not a Java module. |
@@ -64,6 +66,7 @@ lg3d-escher/build-gradle/libs/escher-0.2.2.jar
 lg3d-core/build-gradle/libs/lg3d-core-1.0.1-dev.jar
 lg3d-demo-apps/build-gradle/libs/lg3d-demo-apps-1.0.1-dev.jar
 lg3d-incubator/build-gradle/libs/lg3d-incubator-1.0.1-dev.jar
+lg3d-widgets/build-gradle/libs/lg3d-widgets-1.0.1-dev.jar
 ```
 
 ## Running the desktop
@@ -96,6 +99,43 @@ lg3d AWT peer toolkit.
 > `lg3d-core/src/etc/lg3d/glassy.lgcfg` — the only path that loads the 3D
 > `pinguin.j3f` model background — is commented out upstream. Pass `-b`
 > (`-Pbackground3d`) to opt into the 3D background when that taskbar is enabled.
+
+## Desktop shell features
+
+On top of the 3D scene this port adds a small desktop shell: desktop widgets,
+dock folder stacks, and three system apps. All system access is **pure Java**
+(`ProcessBuilder`, `/proc`, `/sys`, `xrandr`, `pkexec`, `xdg-open`) — no JNI, no
+JNA.
+
+- **Widgets (`lg3d-widgets`)** — a public, pluggable widget API
+  (`org.jdesktop.lg3d.widgets.api`: `Widget`, `AbstractWidget`, `WidgetContext`,
+  `WidgetDescriptor`, `WidgetProvider` SPI, `WidgetRegistry`). Third parties add
+  widgets by dropping a jar that carries a
+  `META-INF/services/org.jdesktop.lg3d.widgets.api.WidgetProvider` entry. The
+  host (`...widgets.host`) renders a draggable desktop widget layer whose layout
+  persists to `~/.config/lg3d/widgets.properties`. Built-ins: clock,
+  temperature, CPU load, memory. Manage them with the **Widget Gallery** app
+  (Utilities menu).
+- **Dock stacks** — Documents and Downloads folder stacks on the taskbar's
+  right side, immediately before Exit
+  (`[Background] [Documents] [Downloads] [Exit]`). Each expands to a list or a
+  grid (OSX-style); files open with `xdg-open`, folders open in the file manager.
+- **File Manager** (System menu) — tree + list browsing with copy / move /
+  rename / delete-to-trash / new-folder, multi-select, drag-and-drop and
+  keyboard shortcuts.
+- **Task Manager** (System menu) — live process table (CPU% and memory from
+  procfs deltas) with End Task / Force Quit / Change Priority; processes owned
+  by other users are signalled through `pkexec`.
+- **Control Center** (System menu) — Display (xrandr modes, refresh rate,
+  multi-monitor position, scale, with a timed auto-revert), Users (add / edit /
+  password / groups / remove via `pkexec`), System (live CPU / memory / disk /
+  kernel / distro), and Appearance (wallpaper chooser that changes the live
+  desktop background).
+
+System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
+(`xdg-open`), polkit / `pkexec` (privileged operations), and optionally
+`lm-sensors` (a `sensors` fallback for temperatures). Every backend degrades
+gracefully — read-only or "n/a" — when a tool or file is absent.
 
 ## X11 compositor mode
 
