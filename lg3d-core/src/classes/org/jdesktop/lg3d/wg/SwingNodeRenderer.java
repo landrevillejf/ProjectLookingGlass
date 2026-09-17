@@ -24,6 +24,7 @@ import javax.swing.JPanel;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import java.awt.Point;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import org.jogamp.vecmath.Point3f;
@@ -31,6 +32,7 @@ import org.jdesktop.j3d.utils.math.Math3D;
 import org.jdesktop.lg3d.sg.Group;
 import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.Transform3D;
+import org.jdesktop.lg3d.wg.event.KeyEvent3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
@@ -38,6 +40,7 @@ import org.jdesktop.lg3d.wg.event.MouseDraggedEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMotionEvent3D;
+import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
 import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeJFrame;
 
 /**
@@ -66,9 +69,23 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
     
     /**  This routine is duplicated in PeerBase. If you find any bugs here please
      * be sure to fix them in PeerBase as well.
+     *
+     * @deprecated use {@link #addInputHandlers(Component3D)} which also wires
+     * up keyboard and mouse-wheel forwarding.
+     */
+    @Deprecated
+    public void addMouseHandlers(Component3D comp) {
+        addInputHandlers(comp);
+    }
+
+    /**
+     * Registers mouse, mouse-wheel and key event listeners on the given
+     * Component3D that forward into the hidden JFrame hosting the Swing panel.
+     * Key events are only delivered by the lg3d focus pipeline when the
+     * SwingNode currently has focus, so no additional guard is needed here.
      */
     @SuppressWarnings("deprecation") // ignore warnings against createSwingEvent(), getPeer() and createSwingEvent()
-    public void addMouseHandlers(Component3D comp) {
+    public void addInputHandlers(Component3D comp) {
         comp.addListener(
                 new LgEventListener() {
             public void processEvent(LgEvent evt) {
@@ -85,7 +102,8 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {MouseButtonEvent3D.class,
                 MouseMotionEvent3D.class,
-                MouseDraggedEvent3D.class};
+                MouseDraggedEvent3D.class,
+                MouseWheelEvent3D.class};
             }
         });
         
@@ -132,6 +150,31 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {MouseEnteredEvent3D.class};
+            }
+        });
+
+        // Keyboard forwarding: deliver KeyEvent3D into the hidden JFrame's
+        // focus owner so editable Swing widgets (JTextField, JTextArea, etc.)
+        // inside a SwingNode actually receive typed characters. Without this
+        // the StickyNote's JTextArea is display-only.
+        comp.addListener(
+                new LgEventListener() {
+            public void processEvent(LgEvent evt) {
+                if (!swingNode.isVisible())
+                    return;
+                KeyEvent3D kevt = (KeyEvent3D) evt;
+                Component target = hiddenFrame.getFocusOwner();
+                if (target == null) {
+                    target = hiddenFrame.getContentPane();
+                }
+                if (target == null) {
+                    target = hiddenFrame;
+                }
+                KeyEvent swingEvent = kevt.createSwingEvent(target);
+                target.dispatchEvent(swingEvent);
+            }
+            public Class<LgEvent>[] getTargetEventClasses() {
+                return new Class[] {KeyEvent3D.class};
             }
         });
     }

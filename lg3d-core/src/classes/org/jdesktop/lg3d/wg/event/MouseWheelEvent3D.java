@@ -19,6 +19,8 @@
  */
 package org.jdesktop.lg3d.wg.event;
 
+import java.awt.Component;
+import java.awt.Point;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import org.jogamp.vecmath.Point3f;
@@ -66,6 +68,29 @@ public class MouseWheelEvent3D extends MouseEvent3D {
      */
     public int getWheelRotation() {
         return ((MouseWheelEvent)awtEvent).getWheelRotation();
+    }
+
+    /**
+     * Rebuilds the event as an AWT MouseWheelEvent targeted at the given
+     * component, preserving scroll type, scroll amount and wheel rotation.
+     * Overrides the inherited MouseEvent3D version, which would otherwise
+     * downgrade the event to a plain MouseEvent and lose the wheel data
+     * (making JScrollPane / JList inside a SwingNode unscrollable).
+     */
+    @Override
+    public java.awt.event.MouseEvent createSwingEvent(Component comp, Point mousePos) {
+        MouseWheelEvent src = (MouseWheelEvent) awtEvent;
+        return new MouseWheelEvent(comp,
+                                   getID(),
+                                   src.getWhen(),
+                                   src.getModifiers(),
+                                   (int) mousePos.getX(),
+                                   (int) mousePos.getY(),
+                                   src.getClickCount(),
+                                   src.isPopupTrigger(),
+                                   src.getWheelRotation(),
+                                   src.getScrollType(),
+                                   src.getScrollAmount());
     }
     
     /**
