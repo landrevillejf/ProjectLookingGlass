@@ -16,12 +16,14 @@ work to make it build and run on a current toolchain.
   legacy per-module `build`/`clean` scripts are left untouched.
 - **`run-lg3d.sh`** launcher at the repository root — auto-detects/pins the JDK 21
   toolchain, defaults `DISPLAY`, and starts the desktop. Options: `-b`
-  (3D `pinguin.j3f` background), `-c` (clean first), `-r` (reassemble runtime
-  resources), `-h` (help), and `--` pass-through to Gradle.
+  (3D `pinguin.j3f` background), `-x` (X11 compositor/WM mode), `-c` (clean
+  first), `-r` (reassemble runtime resources), `-h` (help), and `--`
+  pass-through to Gradle.
 - **`lg3d-core:run`** task (`JavaExec`) launching `org.jdesktop.lg3d.displayserver.Main`
   in development mode (`lg.fws.mode=dev`) with the AWT foundation window system,
   pinned to the JDK 21 launcher. Accepts `-Pbackground3d` to opt into the 3D model
-  background.
+  background and `-Pcompositor` to run lg3d as its own X11 window
+  manager/compositor.
 - **`lg3d-core:runtimeResources`** task — assembles the legacy top-level
   `resources/` classpath tree from `lg3d-art` (wallpapers, splash, models, GDM
   theme), `lg3d-core` (icons, buttons, default wallpapers) and the incubator
@@ -42,6 +44,16 @@ work to make it build and run on a current toolchain.
   and `com.sun.j3d.utils.scenegraph.io.state.javax.media.j3d.AmbientLightState`.
 - **Jogamp native runtime dependencies** — GlueGen / JOGL / JOAL 2.6.0
   platform-classifier jars, selected from `os.name`/`os.arch`.
+- **X11 compositing integration** (`lg3d-core/.../displayserver/nativewindow/x11/`)
+  — lg3d can run as its own X11 **window manager + compositor**, displaying real
+  X11 client apps as textured `NativeWindow3D` quads in the 3D scene. Built on new
+  pure-Java Escher extension bindings (`X11CompositeExt`, `X11DamageExt`,
+  `X11ShmExt`) plus `X11Compositor` (WM takeover + `CompositeRedirectSubwindows`
+  + event loop), `CompositeWindowImageLoader` (Damage-triggered pixmap → texture),
+  and `X11InputForwarder` (3D pick → XTest pointer/keyboard injection). Opt-in via
+  `-Pcompositor` / `run-lg3d.sh -x` (`lgconfig_1p_x_composite.xml`); no JNI, no
+  JNA, no patched JDK. Requires a bare Xorg with no other WM already holding
+  `SubstructureRedirect`. The legacy native `fws/x11` path stays excluded.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to

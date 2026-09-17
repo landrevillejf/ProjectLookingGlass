@@ -102,6 +102,14 @@ final class X11WindowManager extends Application implements Runnable {
     private HashMap<Integer,Depth> screenDepth = null;
     private HashMap<Integer,Visual> screenVisual = null;    
     private int defaultDepth;
+
+    /**
+     * Optional Composite/Damage compositor layered on top of this WM's
+     * SubstructureRedirect claim. Null unless {@code lg3d.x11.compositor=true}.
+     * Set from the initializing thread after construction; declared volatile so
+     * the X event thread observes it. See {@link X11Compositor}.
+     */
+    private volatile X11Compositor compositor;
     
     public X11WindowManager(String dpy) {
 	super(new String[] {"--display", dpy});
@@ -199,7 +207,16 @@ final class X11WindowManager extends Application implements Runnable {
         rootWindows = new Window[numCanvases];
         
         for (int i=0; i< fws.getNumCanvases(); i++) {                        
-            long prwId 	= fws.getCanvasWid(i); 			
+            long prwId;
+            try {
+                prwId = fws.getCanvasWid(i);
+            } catch (RuntimeException e) {
+                // WinSysAWT (composite mode) does not expose a per-canvas X
+                // window id: the Canvas3D lives in an ordinary AWT window. There
+                // is a single screen whose root is the WM root, so use it as the
+                // pseudo-root.
+                prwId = rootWin.id;
+            }
             
             pseudoRootWindow[i] = new Window(display, (int)prwId);
             Window.TreeReply repl = pseudoRootWindow[i].tree();
@@ -326,6 +343,13 @@ final class X11WindowManager extends Application implements Runnable {
 	        break;
 	        
 	    default:
+		// Extension events (DamageNotify, CursorNotify, ...) have
+		// codes >= 64 and are not part of the core switch above. Hand
+		// them to the compositor if one is active.
+		if (compositor != null
+		    && compositor.dispatchExtensionEvent(event)) {
+		    break;
+		}
 		alertUser("Unhandled event: " + event);
 	}
     }
@@ -366,12 +390,33 @@ final class X11WindowManager extends Application implements Runnable {
 		&& event.wm_data () == Window.WMHints.ICONIC)
 	    {
 		hide(client);
+	    } else if (type.name.equals("_NET_ACTIVE_WINDOW")) {
+		// An application (or pager/taskbar) asks to activate this
+		// window. Raise it and give it input focus; the 3D stacking is
+		// driven by the scene manager's focus-follows-pointer policy.
+		activate(client);
 	    } else {
 	        alertUser("1- Unhandled client message: " + type);
 	    }
 	} else {
 	    alertUser("2- Unhandled client message: " + type);
 	}
+    }
+
+    /**
+     * Honours an {@code _NET_ACTIVE_WINDOW} request: unhide if iconic, raise
+     * the X window and move the input focus to it.
+     */
+    private void activate(X11Client client) {
+	if (client.state == X11Client.HIDDEN) {
+	    unhide(client);
+	}
+	if (client.state == X11Client.DESTROYED) {
+	    return;
+	}
+	client.raise();
+	client.set_input_focus();
+	display.check_error();
     }
 
     private void configureRequest(ConfigureRequest event) {
@@ -424,6 +469,15 @@ final class X11WindowManager extends Application implements Runnable {
 		client.restackWindow(aboveSibling, Window.Changes.ABOVE);
 	    }
 	}
+
+	// Compositor: a reconfigure invalidates the window's offscreen pixmap;
+	// re-issue NameWindowPixmap so Stage 3 reads the current contents, and
+	// propagate a size change to the 3D representation (there is no FWS
+	// resize listener in composite mode).
+	if (compositor != null) {
+	    compositor.refreshPixmapForWindow(client.id);
+	    client.compositeResized();
+	}
     }
 
     private void propertyNotify(PropertyNotify event) {
@@ -470,6 +524,14 @@ final class X11WindowManager extends Application implements Runnable {
 
 	X11Client client 
 	    = (X11Client)X11Client.intern(this, event.window_id());
+	
+	// Never manage lg3d's own Canvas3D window (would texture lg3d into
+	// itself). The compositor marks it override_redirect + DESKTOP.
+	if (compositor != null && compositor.isOwnWindow(client.id)) {
+	    client.map();
+	    display.check_error();
+	    return;
+	}
 	
         // just ignore MapRequest if we already process one before.
 	// Note: this condition will return false if we unmap this window.
@@ -663,6 +725,15 @@ final class X11WindowManager extends Application implements Runnable {
         
 	client.mapNotify();
 
+        // Compositor: begin Damage monitoring + obtain the offscreen pixmap
+        // for this newly mapped top-level window, then attach the damage-driven
+        // image source that feeds the window's texture.
+        if (compositor != null) {
+            compositor.setupDamageForWindow(client.id);
+            client.setupCompositeImageSource(compositor);
+            client.setupCompositeInput(compositor);
+        }
+
         display.check_error();
     }
 
@@ -680,6 +751,13 @@ final class X11WindowManager extends Application implements Runnable {
 	    return;
 	}
 	client.unmapNotify();
+
+	// Compositor: stop Damage monitoring for the unmapped window.
+	if (compositor != null) {
+	    client.teardownCompositeImageSource();
+	    client.teardownCompositeInput();
+	    compositor.teardownDamageForWindow(client.id);
+	}
 
 	display.check_error();
         if (display.checkEventTypeWindow(DestroyNotify.CODE, client.id)) {
@@ -711,6 +789,13 @@ final class X11WindowManager extends Application implements Runnable {
 	unmanage(client);
 	client.destroyNotify();
         client.state = X11Client.DESTROYED;
+
+	// Compositor: release Damage/pixmap tracking for the destroyed window.
+	if (compositor != null) {
+	    client.teardownCompositeImageSource();
+	    client.teardownCompositeInput();
+	    compositor.teardownDamageForWindow(client.id);
+	}
     }
 
     private boolean checkUnmapDestroyEvent(Display display, X11Client client) {
@@ -819,6 +904,25 @@ final class X11WindowManager extends Application implements Runnable {
     
     public Display getDisplay() {
         return display;
+    }
+
+    /** Returns the root window this WM holds SubstructureRedirect on. */
+    public Window getRootWindow() {
+        return rootWin;
+    }
+
+    /**
+     * Installs the compositor. Must be called after construction (the WM has
+     * already claimed SubstructureRedirect, a prerequisite for
+     * CompositeRedirectSubwindows). See {@link X11Compositor}.
+     */
+    public void setCompositor(X11Compositor compositor) {
+        this.compositor = compositor;
+    }
+
+    /** Returns the active compositor, or null if compositing is disabled. */
+    public X11Compositor getCompositor() {
+        return compositor;
     }
     
     public int getWindowWidthMax() {

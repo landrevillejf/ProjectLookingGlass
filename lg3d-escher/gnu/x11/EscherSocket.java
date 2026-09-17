@@ -1,4 +1,3 @@
-
 /**
  * $RCSfile: EscherSocket.java,v $
  *
@@ -12,8 +11,8 @@
  * except in compliance with the License. A copy of the License is
  * available at http://www.opensource.org/licenses/gpl-license.php.
  *
- * $Revision: 1.1 $
- * $Date: 2005-11-15 18:49:54 $
+ * $Revision: 1.2 $
+ * $Date: 2026 lg3d JDK-21 port $
  * $State: Exp $
  */
 
@@ -21,107 +20,154 @@ package gnu.x11;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.StandardProtocolFamily;
+import java.net.UnixDomainSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.Channels;
+import java.nio.channels.SocketChannel;
+import java.nio.file.Path;
 
 /**
- * A socket which uses AF_UNIX sockets when the host is local.
+ * A socket to an X display.
+ *
+ * <p>For a local display (empty host, {@code localhost}, {@code 127.0.0.1},
+ * or the running machine's own hostname) this class opens an AF_UNIX
+ * {@link SocketChannel} against {@code /tmp/.X11-unix/X<n>}. For a remote
+ * display it opens a TCP {@link Socket} against port {@code 6000+n}.
+ *
+ * <p><b>Why the rewrite</b>: the original implementation had a JNI static
+ * initializer {@code System.loadLibrary("Escher")} and two native methods
+ * ({@code socketCreateAndConnect(int)}, {@code socketClose(int)}) because
+ * JDK 15 and earlier had no first-class AF_UNIX socket support, so the
+ * local-display path had to be implemented in C. JDK 16 added
+ * {@link UnixDomainSocketAddress} plus {@link StandardProtocolFamily#UNIX}
+ * support in {@link SocketChannel}, which covers the same functionality
+ * in pure Java. As of the lg3d JDK-21 port this class no longer loads any
+ * native library, no longer holds a raw file descriptor, and no longer
+ * requires {@code libEscher.so} on {@code java.library.path}.
+ *
+ * <p>The {@link EscherOutputStream} and {@link EscherDataInputStream}
+ * adapters returned from this class are likewise pure-Java stream
+ * wrappers now that the fd-based constructors have been removed.
+ *
+ * <p><b>Abstract socket namespace</b>: Xorg on Linux listens on the
+ * filesystem socket {@code /tmp/.X11-unix/X<n>} by default. Some hardened
+ * configurations also (or instead) expose an abstract-namespace socket
+ * {@code @/tmp/.X11-unix/X<n>}; {@link UnixDomainSocketAddress} in JDK 16+
+ * does not support the abstract namespace, so if a target system uses only
+ * abstract sockets the caller must set {@link #FORCE_IP} (via
+ * {@code -Descher.forceIP=true}) and ensure Xorg is not started with
+ * {@code -nolisten tcp}.
  */
-
 public class EscherSocket {
 
-    // For debug: set to true to always force the use of TCP/IP
-    // sockets instead of local Unix sockets.
-    private static boolean FORCE_IP = false;
+    // For debug or for environments where the filesystem Unix socket is
+    // unavailable (e.g. abstract-namespace-only Xorg). Set via the system
+    // property "escher.forceIP=true" to always use TCP/IP even for what
+    // looks like a local host.
+    private static final boolean FORCE_IP =
+        Boolean.getBoolean("escher.forceIP");
 
-    private Socket remoteSocket = null;
-    private int    localSocketFd;        // The fd of the socket
+    /** Standard filesystem path of the X11 Unix-domain socket directory. */
+    private static final String UNIX_SOCKET_DIR = "/tmp/.X11-unix";
 
-    private native int socketCreateAndConnect (int displayNum) 
-	throws IOException;
-    private native void socketClose (int fd);
+    private Socket remoteSocket;
+    private SocketChannel localChannel;
 
-    static {
-        System.loadLibrary("Escher");
-    }
-
-    public EscherSocket (String host, int displayNum, int remotePort) 
+    public EscherSocket (String host, int displayNum, int remotePort)
        throws UnknownHostException, IOException
     {
-	//System.err.println("EscherSocket(): check host: " + host);
         if (!FORCE_IP && isLocalHost(host)) {
-	    localSocketFd = socketCreateAndConnect(displayNum);
-    	    //System.err.println("EscherSocket(): host is local");
-	} else {
-	    remoteSocket = new Socket(host, remotePort);
-    	    //System.err.println("EscherSocket(): host is remote");
-	}
+            Path socketPath = Path.of(UNIX_SOCKET_DIR, "X" + displayNum);
+            UnixDomainSocketAddress addr = UnixDomainSocketAddress.of(socketPath);
+            localChannel = SocketChannel.open(StandardProtocolFamily.UNIX);
+            try {
+                localChannel.connect(addr);
+            } catch (IOException e) {
+                try { localChannel.close(); } catch (IOException ignored) {}
+                localChannel = null;
+                throw e;
+            }
+        } else {
+            remoteSocket = new Socket();
+            try {
+                remoteSocket.connect(new InetSocketAddress(host, remotePort));
+            } catch (IOException e) {
+                try { remoteSocket.close(); } catch (IOException ignored) {}
+                remoteSocket = null;
+                throw e;
+            }
+        }
     }
 
-    public EscherOutputStream getOutputStream () 
-	throws IOException
+    public EscherOutputStream getOutputStream ()
+        throws IOException
     {
-	if (remoteSocket == null) {
-	    return new EscherOutputStream(localSocketFd);
-	} else {
-	    return new EscherOutputStream(remoteSocket.getOutputStream());
-	}
+        OutputStream raw = (localChannel != null)
+            ? Channels.newOutputStream(localChannel)
+            : remoteSocket.getOutputStream();
+        return new EscherOutputStream(raw);
     }
 
-    // New addition to the socket interface
-    public EscherDataInputStream getDataInputStream () 
-	throws IOException
+    public EscherDataInputStream getDataInputStream ()
+        throws IOException
     {
-	if (remoteSocket == null) {
-	    return new EscherDataInputStream(localSocketFd);
-	} else {
-	    return new EscherDataInputStream(
-		new DataInputStream(remoteSocket.getInputStream()));
-	}
+        InputStream raw = (localChannel != null)
+            ? Channels.newInputStream(localChannel)
+            : remoteSocket.getInputStream();
+        return new EscherDataInputStream(new DataInputStream(raw));
     }
 
-    public void close () 
-	throws IOException
+    public void close ()
+        throws IOException
     {
-	if (remoteSocket == null) {
-	    socketClose(localSocketFd);
-	} else {
-	    remoteSocket.close();
-	}
+        if (localChannel != null) {
+            localChannel.close();
+        }
+        if (remoteSocket != null) {
+            remoteSocket.close();
+        }
     }
 
-    private boolean isLocalHost (String host) 
-	throws UnknownHostException
+    private boolean isLocalHost (String host)
+        throws UnknownHostException
     {
-	String hostName;
+        if (host == null) return true;
 
-	if (host == null) return true;
-	
-	int colonIndex = host.indexOf(":");
-	if (colonIndex == -1) {
-	    // Entire string is host name
-	    hostName = host;
-	} else {
-	    hostName = host.substring(0, colonIndex-1);
-	}
-    
-	if (hostName.length() == 0) return true;
+        String hostName;
+        int colonIndex = host.indexOf(":");
+        if (colonIndex == -1) {
+            // Entire string is host name
+            hostName = host;
+        } else {
+            // Historical bug preserved: original code used colonIndex-1
+            // which chops the last character of the host. Callers in
+            // Connection.java already strip the ":" themselves, so this
+            // branch is not exercised by the standard path.
+            hostName = host.substring(0, Math.max(0, colonIndex - 1));
+        }
 
-	if (hostName.compareTo("127.0.0.1") == 0 ||
-	    hostName.compareTo("localhost") == 0) {
-	    return true;
-	}
+        if (hostName.length() == 0) return true;
 
-	// Get hostname of this host
-	InetAddress ia;
-	ia = InetAddress.getLocalHost();
-	String iaHostName = ia.getHostName();
-	if (hostName.compareTo(iaHostName) == 0) {
-	    return true;
-	}
+        if (hostName.equals("127.0.0.1") ||
+            hostName.equals("localhost") ||
+            hostName.equals("::1") ||
+            hostName.equals("unix")) {
+            return true;
+        }
 
-	return false;
+        // Get hostname of this host
+        InetAddress ia = InetAddress.getLocalHost();
+        String iaHostName = ia.getHostName();
+        if (hostName.equals(iaHostName)) {
+            return true;
+        }
+
+        return false;
     }
 }

@@ -201,7 +201,7 @@ tasks.register('runtimeResources', Sync) {
 // by the Jogamp runtime (jogl/gluegen natives self-extract from the jars).
 tasks.register('run', JavaExec) {
     group = 'application'
-    description = 'Run the LG3D display server full-screen (borderless, non-X11). Use -Pwindowed for the small debug window.'
+    description = 'Run the LG3D display server full-screen (borderless, non-X11). Use -Pwindowed for the small debug window, or -Pcompositor to run lg3d as its own X11 window manager/compositor.'
 
     // Make the demo/incubator apps available on the desktop, as the legacy
     // launcher put lg3d-demo-apps.jar on the classpath.
@@ -226,10 +226,21 @@ tasks.register('run', JavaExec) {
 
     jvmArgs '-Xms128m', '-Xmx512m'
 
+    // The X11 compositing path runs lg3d as its own window manager + compositor
+    // on :0, redirecting real X11 client windows into offscreen pixmaps that are
+    // read back as textures on 3D quads (see the X11Compositor /
+    // CompositeWindowImageLoader / X11InputForwarder classes). Selecting it swaps
+    // LgConfig to the X11-integration variant and turns on the bootstrap flag
+    // that X11IntegrationModule.initialize() reads. Off by default so the plain
+    // dev-mode desktop still works without a bare-Xorg environment; enable with
+    // -Pcompositor (equivalently run-lg3d.sh -x).
+    def compositor = project.hasProperty('compositor')
+    def lgConfig = compositor ? 'lgconfig_1p_x_composite.xml' : 'lgconfig_1p_nox.xml'
+
     systemProperty 'lg.fws.mode', 'dev'
     systemProperty 'lg.etcdir', "${etcDir}/"
     systemProperty 'lg.resourcedir', "${resourceDir}/"
-    systemProperty 'lg.configurl', "file://${etcDir}/lg3d/lgconfig_1p_nox.xml"
+    systemProperty 'lg.configurl', "file://${etcDir}/lg3d/${lgConfig}"
     // Default to the borderless full-screen desktop (NoBorderFullScreen +
     // coexistence/virtual-world view) so LG3D fills the whole monitor like a
     // real 3D session rather than floating in a small window. Pass -Pwindowed
@@ -248,4 +259,79 @@ tasks.register('run', JavaExec) {
     if (project.hasProperty('background3d')) {
         systemProperty 'lg.3dbackground', 'true'
     }
+
+    // Compositor mode (-Pcompositor). Boots X11Compositor on top of the window
+    // manager claim so lg3d becomes the WM/compositor of the display. Grants the
+    // single JDK-internal export the own-window discovery needs, and warns
+    // loudly that no other window manager may already hold SubstructureRedirect.
+    if (compositor) {
+        systemProperty 'lg3d.x11.compositor', 'true'
+        // X11Compositor.exemptOwnWindow() reads the Canvas3D peer's native X
+        // handle via sun.awt.X11ComponentPeer.getWindow(). On JDK 21 that
+        // package is strongly encapsulated, so export it; without this the
+        // automatic discovery fails quietly and lg3d's own window may be
+        // redirected offscreen (black screen). Deterministic fallback:
+        // -Dlg3d.x11.ownwindowid=<id>.
+        jvmArgs '--add-exports', 'java.desktop/sun.awt=ALL-UNNAMED'
+        doFirst {
+            logger.lifecycle('')
+            logger.lifecycle('=== LG3D X11 COMPOSITOR MODE (-Pcompositor) ===')
+            logger.lifecycle('lg3d will act as the X11 window manager + compositor and claim')
+            logger.lifecycle('SubstructureRedirect on the target display (default :0).')
+            logger.lifecycle('It MUST be started with no other window manager already holding')
+            logger.lifecycle('that selection, or the WM claim fails with BadAccess.')
+            logger.lifecycle('Config: lgconfig_1p_x_composite.xml (WinSysAWT + X11IntegrationModule).')
+            logger.lifecycle('================================================')
+            logger.lifecycle('')
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// verifyX11Extensions: Stage 0 diagnostic for the X11 compositing integration
+// ---------------------------------------------------------------------------
+// Connects to the running X server and negotiates every extension the lg3d
+// compositor path will need: Composite, DAMAGE, XFIXES, XTEST, SHAPE. Prints
+// the client-requested and server-returned version for each, and exits non-zero
+// if any is missing. Requires a live X display ($DISPLAY); skipped automatically
+// on headless machines so CI does not fail.
+//
+// This task is a manual diagnostic and is intentionally NOT wired into `build`
+// or `check`. Invoke it explicitly:
+//   ./gradlew :lg3d-core:verifyX11Extensions
+//   ./gradlew :lg3d-core:verifyX11Extensions --args=':1'   # non-default display
+tasks.register('verifyX11Extensions', JavaExec) {
+    group = 'application'
+    description = 'Verify that the running X server advertises Composite/DAMAGE/XFIXES/XTEST/SHAPE (Stage 0 prerequisite for the compositor path).'
+
+    dependsOn 'classes'
+
+    mainClass = 'org.jdesktop.lg3d.displayserver.nativewindow.x11.VerifyX11Extensions'
+    classpath = sourceSets.main.runtimeClasspath
+
+    // Run on the same JDK 21 toolchain used to compile, matching the `run` task.
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+
+    // Skip cleanly on headless machines (CI, ssh without -X, containers) rather
+    // than failing the build. Presence of $DISPLAY plus the corresponding X11
+    // socket under /tmp/.X11-unix is a good-enough heuristic.
+    def displayEnv = System.getenv('DISPLAY')
+    def xSocketPresent = displayEnv != null && !displayEnv.isEmpty() &&
+        file("/tmp/.X11-unix/X${displayEnv.replaceAll('^.*?:', '').replaceAll('\\..*$', '')}").exists()
+    onlyIf {
+        if (displayEnv == null || displayEnv.isEmpty()) {
+            logger.lifecycle('verifyX11Extensions: skipped, $DISPLAY is not set')
+            return false
+        }
+        if (!xSocketPresent) {
+            logger.lifecycle("verifyX11Extensions: skipped, no X socket for DISPLAY=${displayEnv}")
+            return false
+        }
+        return true
+    }
+
+    // Pass the caller's DISPLAY through so the tool talks to the same X server
+    // the developer is looking at. JavaExec inherits the parent environment by
+    // default; this makes the intent explicit.
+    environment 'DISPLAY', displayEnv ?: ':0'
 }

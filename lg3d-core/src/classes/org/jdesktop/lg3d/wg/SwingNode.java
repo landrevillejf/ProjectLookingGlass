@@ -51,6 +51,24 @@ public class SwingNode extends Component3D {
     private float localHeight;
     
     private SwingNodeRenderer comp;
+
+    /**
+     * Tracks the resize listener attached to the current panel so that it can
+     * be removed when the panel is replaced or the node is disposed. Without
+     * this, each call to {@link #setJPanel(JPanel)} leaks a listener on the
+     * previous panel.
+     */
+    private java.awt.event.ComponentListener panelResizeListener;
+
+    /**
+     * Debug switch: when the system property {@code lg3d.swingnode.debugHierarchy}
+     * is set to {@code true}, {@link #setJPanel(JPanel)} dumps the Swing
+     * hierarchy to stdout. The old code always dumped AND mutated user panels
+     * by calling {@code setBackground(Color.ORANGE/RED)} on every component,
+     * which visibly corrupted the rendered output; that mutation is gone.
+     */
+    private static final boolean DEBUG_HIERARCHY =
+            Boolean.getBoolean("lg3d.swingnode.debugHierarchy");
     
     /**
      * Create a SwingNode with the default geometry
@@ -73,7 +91,7 @@ public class SwingNode extends Component3D {
         comp.setup(hiddenFrame, this);
         hiddenFrame.addTextureChangedListener(comp);
         
-        comp.addMouseHandlers(this);
+        comp.addInputHandlers(this);
 
         addChild(comp);   
         this.setCursor(Cursor3D.MEDIUM_CURSOR);
@@ -88,13 +106,15 @@ public class SwingNode extends Component3D {
 
     
     private void printHeirarchy(Container c, int depth) {
+        // Debug-only helper. The pre-port version of this method also called
+        // setBackground(Color.ORANGE/RED) on every component, which corrupted
+        // user panels; that mutation has been removed. Now only dumps names.
         if (depth == 0) {
             for (int i=0; i<depth; i++) {
                 System.out.print("\t");
             }
             System.out.print(c.getClass().getName());
             System.out.println(" (" + c.isOpaque() + ")");
-            c.setBackground(Color.ORANGE);
         }
         for (Component comp : c.getComponents()) {
             for (int i=0; i<depth; i++) {
@@ -102,7 +122,6 @@ public class SwingNode extends Component3D {
             }
             System.out.print(comp.getClass().getName());
             System.out.println(" (" + comp.isOpaque() + ")");
-            comp.setBackground(Color.RED);
             
             if (comp instanceof Container) {
                 printHeirarchy((Container)comp, depth+1);
@@ -111,34 +130,75 @@ public class SwingNode extends Component3D {
     }
     
     /**
-     * Set the swing JPanel that this SwingNode will render
+     * Set the swing JPanel that this SwingNode will render. Any resize
+     * listener attached to a previously-set panel is removed first, so
+     * repeated calls do not leak listeners.
      */
     public void setJPanel(JPanel p) {
+        // Detach the resize listener from the previous panel (fixes leak on
+        // repeated setJPanel calls).
+        if (panel != null && panelResizeListener != null) {
+            panel.removeComponentListener(panelResizeListener);
+        }
+        panelResizeListener = null;
+
         this.panel = p;
         comp.setPanel(p);
         
         hiddenFrame.setContentPane(panel);
         hiddenFrame.pack();
 
-        //dump the heirarchy
-        printHeirarchy(hiddenFrame, 0);
+        if (DEBUG_HIERARCHY) {
+            printHeirarchy(hiddenFrame, 0);
+        }
         
-        //logger.severe("3D size "+panel.getWidth()+" "+panel.getHeight()+"  "+NativePopupLookAndFeel.widthNativeToPhysical(panel.getWidth())+" "+NativePopupLookAndFeel.heightNativeToPhysical(panel.getHeight()));
         hiddenFrame.setVisible(true);
         final Toolkit3D toolkit3d = Toolkit3D.getToolkit3D();
         localWidth = toolkit3d.widthNativeToPhysical(panel.getWidth());
         localHeight = toolkit3d.heightNativeToPhysical(panel.getHeight());
         
-        panel.addComponentListener( new java.awt.event.ComponentAdapter() {
+        final JPanel capturedPanel = panel;
+        panelResizeListener = new java.awt.event.ComponentAdapter() {
             public void componentResized(java.awt.event.ComponentEvent event) {
-                localWidth = toolkit3d.widthNativeToPhysical(panel.getWidth());
-                localHeight = toolkit3d.heightNativeToPhysical(panel.getHeight());
+                localWidth = toolkit3d.widthNativeToPhysical(capturedPanel.getWidth());
+                localHeight = toolkit3d.heightNativeToPhysical(capturedPanel.getHeight());
             }
-        });
+        };
+        panel.addComponentListener(panelResizeListener);
     }
     
     public JPanel getJPanel() {
         return panel;
+    }
+
+    /**
+     * Releases the resources held by this SwingNode: removes the resize
+     * listener from the current panel and disposes the offscreen JFrame that
+     * hosts it. After calling this the SwingNode should not be reused.
+     */
+    public void dispose() {
+        if (panel != null && panelResizeListener != null) {
+            panel.removeComponentListener(panelResizeListener);
+        }
+        panelResizeListener = null;
+        panel = null;
+        if (hiddenFrame != null) {
+            hiddenFrame.setVisible(false);
+            hiddenFrame.dispose();
+        }
+    }
+
+    /**
+     * Sets the transparency of the default renderer's appearance.
+     * {@code 0.0f} is fully opaque, {@code 1.0f} is fully transparent.
+     * Has no effect when this SwingNode was constructed with a custom
+     * {@link SwingNodeRenderer}; subclasses that want dynamic transparency
+     * should expose their own setter.
+     */
+    public void setTransparency(float transparency) {
+        if (comp instanceof DefaultSwingNodeRenderer) {
+            ((DefaultSwingNodeRenderer) comp).setTransparency(transparency);
+        }
     }
            
     /**
@@ -159,6 +219,7 @@ public class SwingNode extends Component3D {
                
         private Appearance swingAppearance;
         private NativeWindowFuzzyEdgePanel body;
+        private TransparencyAttributes transparencyAttributes;
         
         public DefaultSwingNodeRenderer() {
             width3D = 0.08f;
@@ -176,14 +237,27 @@ public class SwingNode extends Component3D {
 		    0.0f, false, 0.0f
 		    ));            
             
-            swingAppearance.setTransparencyAttributes(
-                    new TransparencyAttributes(TransparencyAttributes.FASTEST, 0.8f));
+            transparencyAttributes =
+                    new TransparencyAttributes(TransparencyAttributes.FASTEST, 0.8f);
+            transparencyAttributes.setCapability(TransparencyAttributes.ALLOW_VALUE_WRITE);
+            swingAppearance.setTransparencyAttributes(transparencyAttributes);
 //            Material mat = new Material(new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), new Color3f(1f,0f,0f), 64f);
 //            swingAppearance.setMaterial(mat);
 
             
             body = new NativeWindowFuzzyEdgePanel(width3D, height3D, swingAppearance);
             addChild(body);
+        }
+
+        /**
+         * Sets the transparency of the rendered panel. {@code 0.0f} is fully
+         * opaque, {@code 1.0f} is fully transparent. Safe to call after the
+         * scene graph is live thanks to {@code ALLOW_VALUE_WRITE}.
+         */
+        public void setTransparency(float transparency) {
+            if (transparencyAttributes != null) {
+                transparencyAttributes.setTransparency(transparency);
+            }
         }
         
         public void textureChanged(Texture2D texture) {

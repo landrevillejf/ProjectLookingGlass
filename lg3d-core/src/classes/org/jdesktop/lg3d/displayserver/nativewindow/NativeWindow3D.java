@@ -69,6 +69,17 @@ public class NativeWindow3D extends Frame3D
     protected static int CHANGE_TRANSLATION_NO_NATIVE = -1;
     
     private FoundationWinSys fws = FoundationWinSys.getFoundationWinSys();
+    /**
+     * True when the foundation window system is {@code WinSysAWT}, i.e. when
+     * lg3d runs as its own X11 compositor. In that mode WinSysAWT does not
+     * implement native-window resize listeners or damage tracking (both throw
+     * "Not Implemented"); instead the {@code X11Compositor} drives resize via
+     * {@code ConfigureNotify} and image updates via {@code DamageNotify} (see
+     * {@code CompositeWindowImageLoader}). Mirrors the {@code instanceof
+     * WinSysAWT} check already used by {@link TiledNativeWindowImage#waitFilled}.
+     */
+    private final boolean compositeMode =
+        (fws instanceof org.jdesktop.lg3d.displayserver.fws.awt.WinSysAWT);
     protected TiledNativeWindowImage mainWindowImage = null;
     protected NativeWindowLookAndFeel lookAndFeel;
     protected NativeWindowControl nativeWinContl;
@@ -297,21 +308,36 @@ public class NativeWindow3D extends Frame3D
     }
     
     protected void fwsInit () {
+	if (compositeMode) {
+	    // WinSysAWT does not implement resize listeners / event tracking;
+	    // the X11 compositor drives resize and damage instead.
+	    return;
+	}
 	fws.trackEventsForNativeWindow(nativeWinContl.getWID());
 	fws.addWindowResizeListener(nativeWinContl.getWID(), this);
     }
 
     protected void fwsTrackDamage () {
-	fws.trackDamageForNativeWindow(nativeWinContl.getWID(), mainWindowImage);
+	if (!compositeMode) {
+	    fws.trackDamageForNativeWindow(nativeWinContl.getWID(), mainWindowImage);
+	}
+	// In composite mode the X11Compositor's DamageListener drives texture
+	// updates; trackDamageEnabled still gates the visibility/resize logic.
 	trackDamageEnabled = true;
     }
 
     protected void fwsUntrackDamage () {
-	fws.trackDamageForNativeWindow(nativeWinContl.getWID(), null);
+	if (!compositeMode) {
+	    fws.trackDamageForNativeWindow(nativeWinContl.getWID(), null);
+	}
 	trackDamageEnabled = false;
     }
 
     protected void fwsDestroy () {
+	if (compositeMode) {
+	    // No FWS resize listener was registered; nothing to remove.
+	    return;
+	}
 	fws.destroyNativeWindow(nativeWinContl.getWID());
 	fws.removeWindowResizeListener(nativeWinContl.getWID(), this);
     }

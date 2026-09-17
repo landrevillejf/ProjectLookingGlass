@@ -35,7 +35,23 @@ public final class X11IntegrationModule implements IntegrationModule {
 	try {
             logger.fine("Starting X11WindowManager on display " + display);
             // X11WindowManager will start it's own event thread.
-            new X11WindowManager(display);
+            X11WindowManager wm = new X11WindowManager(display);
+
+            // Optionally layer the Composite/Damage compositor on top of the
+            // WM claim. The WM must already hold SubstructureRedirect (done in
+            // its constructor) before CompositeRedirectSubwindows can succeed,
+            // hence this happens after construction. Gated behind a system
+            // property so the default WM-only path is unchanged.
+            if (Boolean.getBoolean("lg3d.x11.compositor")) {
+                logger.fine("lg3d.x11.compositor=true; starting X11Compositor");
+                X11Compositor compositor =
+                    new X11Compositor(wm.getDisplay(), wm.getRootWindow());
+                wm.setCompositor(compositor);
+                // Exempt lg3d's own Canvas3D window from WM management and
+                // Composite redirection so it keeps drawing directly to screen.
+                compositor.exemptOwnWindow();
+            }
+
             logger.fine("X11 integration module successfully started");
 	} catch (Throwable e) {
             logger.log(Level.SEVERE, "X Window Manager creation failed: ", e);

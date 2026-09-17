@@ -335,3 +335,92 @@ Consider creating nested AGENTS.md files for:
 ### CI
 - **Automated testing** - Add test execution to CI workflow
 - **Integration tests** - Run desktop in headless mode with Xvfb for automated smoke tests
+
+## Commit Convention
+
+Commit messages must follow this format:
+
+```
+<type>(<scope>): <short subject>
+
+[optional body explaining why and how]
+
+[optional footer with references]
+```
+
+**Allowed types:**
+
+| Type | Usage |
+|------|-------|
+| `feat` | New feature or capability |
+| `fix` | Bug fix |
+| `docs` | Documentation only (README, AGENTS.md, comments) |
+| `style` | Formatting, indentation, no functional change |
+| `refactor` | Code rewrite without behavior change |
+| `test` | Adding or modifying tests |
+| `chore` | Maintenance tasks (deps, CI, config) |
+| `perf` | Performance optimization |
+
+**Common scopes** — use the Gradle module name for module-scoped changes:
+
+- Modules: `common`, `ide-core`, `ide-utils`, `project-manager`, `code-editor`, `build-system`, `debugger`, `project-explorer`, `advanced-statusbar`, `image-drawing`, `ide-ui`, `app`
+- `plugin-api`: the (build-excluded) plugin API module
+- `plugins`: external plugin integration / `plugins/` artifacts
+- `gradle`: build scripts, wrapper, `gradle.properties`, `build.gradle`
+- `config`: static analysis (`config/checkstyle/`, `config/pmd/`)
+- `ci`: GitHub Actions workflows (`.github/workflows/`)
+- `deps`: dependency version bumps
+- `docs`: `docs/` and top-level documentation
+- `agents`: `AGENTS.md` and `agents/**` role guides
+
+**Examples:**
+
+```
+feat(debugger): add conditional breakpoints
+fix(ide-ui): keep editor tabs in sync on the EDT
+test(code-editor): cover Kotlin highlighting
+docs(agents): reference role guides from root
+chore(deps): bump FlatLaf to 3.3
+```
+
+**Rules:**
+
+- Subject must be in **imperative** mood (e.g., "add", "fix", "update").
+- Subject must not exceed **50 characters**.
+- Body (if present) must be separated from subject by a blank line, and limited to **72 characters per line**.
+- Issue references must be in the footer (e.g., `Fixes #123`).
+
+##  Development Process
+
+- **Do not commit directly to `main`** — use feature branches and open PRs.
+- **PRs must include**: a clear description, issue references, and test results.
+- **Before merging**: ensure all tests pass and coverage remains at 100%.
+- **Breaking changes** must be discussed in an issue before implementation.
+- **Update changelog**: add a new entry for the change in `CHANGELOG.md`.
+- **Update Version**: update the version in `build.gradle`.
+
+# General Best Practices
+
+- **Keep it simple**: avoid unnecessary complexity.
+- **Follow existing patterns**: if a module uses a certain approach, new code should do the same.
+- **Do not introduce unnecessary external dependencies**; centralize versions in the root `build.gradle` / `gradle.properties`.
+- **Test across platforms** (Windows, macOS, Linux) when a change affects UI, file paths, or the debugger.
+- **Respect Swing threading**: UI work on the EDT; never block it.
+- **Code coverage**: ensure that all new code is tested and that the coverage remains at 100%.
+
+---
+
+## Ideal Commit Example
+
+```
+fix(debugger): resume VM when breakpoint is hit
+
+Breakpoints suspended only the current thread, so the rest of the VM
+kept running and the UI showed a stale stack. The JDI session now uses
+suspendPolicy SUSPEND_ALL and resumes via the EventQueue on continue.
+
+Also guard the step actions against a null ThreadReference to avoid a
+NullPointerException when the debuggee exits mid-step.
+
+Fixes #142
+```

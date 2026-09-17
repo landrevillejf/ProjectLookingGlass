@@ -55,6 +55,10 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
     -c, --clean          Run ':lg3d-core:clean' before launching.
     -r, --rebuild        Force the runtime resources/ tree to be reassembled
                          (reruns only the :lg3d-core:runtimeResources task).
+    -x, --compositor     Run lg3d as its own X11 window manager + compositor
+                         (Composite/Damage/XTest). Claims SubstructureRedirect
+                         on DISPLAY; start it with no other window manager
+                         running on that display. Passes -Pcompositor to Gradle.
     -h, --help           Print this help.
 
 Anything after '--' is passed straight to the Gradle invocation, e.g.:
@@ -70,6 +74,7 @@ EOF
 
 # --- Option parsing ----------------------------------------------------------
 BACKGROUND3D=false
+COMPOSITOR=false
 DO_CLEAN=false
 DO_REBUILD=false
 EXTRA_ARGS=()
@@ -77,6 +82,7 @@ EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         -b|--background3d) BACKGROUND3D=true ;;
+        -x|--compositor)   COMPOSITOR=true ;;
         -c|--clean)        DO_CLEAN=true ;;
         -r|--rebuild)      DO_REBUILD=true ;;
         -h|--help)         usage 0 ;;
@@ -91,12 +97,20 @@ GRADLE_ARGS=(":lg3d-core:run" "--console=plain")
 if [ "${BACKGROUND3D}" = true ]; then
     GRADLE_ARGS+=("-Pbackground3d")
 fi
+if [ "${COMPOSITOR}" = true ]; then
+    GRADLE_ARGS+=("-Pcompositor")
+fi
 if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then
     GRADLE_ARGS+=("${EXTRA_ARGS[@]}")
 fi
 
 echo "JAVA_HOME : ${JAVA_HOME}"
 echo "DISPLAY   : ${DISPLAY}"
+if [ "${COMPOSITOR}" = true ]; then
+    echo "MODE      : X11 compositor / window manager (-Pcompositor)"
+    echo "WARNING   : lg3d will claim SubstructureRedirect on ${DISPLAY} and act"
+    echo "            as the window manager. No other WM may already hold it."
+fi
 
 if [ "${DO_CLEAN}" = true ]; then
     echo "Cleaning :lg3d-core ..."

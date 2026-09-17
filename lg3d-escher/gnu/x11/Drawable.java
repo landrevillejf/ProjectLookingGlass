@@ -190,7 +190,7 @@ public abstract class Drawable extends Resource {
   }
 
 
-  // opcode 73 - get image TODO
+  // opcode 73 - get image
   /**
    * @see <a href="XGetImage.html">XGetImage</a>
    */
@@ -203,7 +203,7 @@ public abstract class Drawable extends Resource {
     request.write2 (y);
     request.write2 (width);
     request.write2 (height);
-    request.write2 (plane_mask);
+    request.write4 (plane_mask);
     
     return display.read_reply (request);
   }

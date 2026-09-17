@@ -19,6 +19,7 @@
  */
 package org.jdesktop.lg3d.wg.event;
 
+import java.awt.Component;
 import java.awt.event.KeyEvent;
 import java.awt.event.InputEvent;
 
@@ -95,5 +96,24 @@ public class KeyEvent3D extends InputEvent3D {
     // TODO: HACK
     public KeyEvent getKeyEvent () {
 	return awtEvent;
+    }
+
+    /**
+     * Builds an AWT KeyEvent with the same id, timestamp, modifiers, keyCode,
+     * keyChar and keyLocation as the original event, but retargeted at the
+     * given component. Used by SwingNode to forward key input from the 3D
+     * focus pipeline into the offscreen JFrame that hosts the Swing panel.
+     *
+     * @param target the component that should receive the reconstructed event
+     * @return a new AWT KeyEvent suitable for dispatching into a Swing hierarchy
+     */
+    public KeyEvent createSwingEvent(Component target) {
+        return new KeyEvent(target,
+                            awtEvent.getID(),
+                            awtEvent.getWhen(),
+                            awtEvent.getModifiers(),
+                            awtEvent.getKeyCode(),
+                            awtEvent.getKeyChar(),
+                            awtEvent.getKeyLocation());
     }
 }

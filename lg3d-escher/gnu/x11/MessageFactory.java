@@ -321,12 +321,20 @@ public class MessageFactory {
     b [0] = 1;			// reply code
 
     display.connection.din.readFully (b, 1, 7); // reply length
-    int extra = 4 * (display.connected
-      ? ((b [4] & 0xff) << 24) // general reply
-      | ((b [5] & 0xff) << 16)
-      | ((b [6] & 0xff) << 8) 
-      | (b [7] & 0xff)
-      : ((b [6] & 0xff) << 8) | (b [7] & 0xff)); // connection reply
+    int extra;
+    if (display.connected) {
+      // general reply: 4-byte length at offset 4
+      extra = 4 * (Data.LSB_FIRST
+        ? ((b [7] & 0xff) << 24) | ((b [6] & 0xff) << 16)
+          | ((b [5] & 0xff) << 8) | (b [4] & 0xff)
+        : ((b [4] & 0xff) << 24) | ((b [5] & 0xff) << 16)
+          | ((b [6] & 0xff) << 8) | (b [7] & 0xff));
+    } else {
+      // connection setup reply: 2-byte length at offset 6
+      extra = 4 * (Data.LSB_FIRST
+        ? ((b [7] & 0xff) << 8) | (b [6] & 0xff)
+        : ((b [6] & 0xff) << 8) | (b [7] & 0xff));
+    }
 
 
     Data reply = new Data ();
