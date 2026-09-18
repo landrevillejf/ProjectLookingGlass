@@ -93,6 +93,24 @@ work to make it build and run on a current toolchain.
   dev-mode apps had no window buttons and could not be rotated. Frames that build
   their own chrome (e.g. `Lg3dHelp`) opt out via the
   `lg3d.frame3d.decoration.optOut` property.
+- **Image Studio** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.imagestudio`) — a
+  full-featured image editor with an **lg3d-native 3D UI** (no Swing editing
+  surface), built on the **bundled Java Advanced Imaging API** (`javax.media.jai`)
+  in `lg3d-incubator/ext`. A `Frame3D` window (with the standard decoration)
+  lays out a textured-quad image canvas (mouse-wheel zoom, reset view), a left
+  toolbar of categorised operations — **Geometry** (scale, rotate, flip, crop,
+  border, pixelate), **Color** (brightness, contrast, gamma, grayscale, sepia,
+  invert, posterize, threshold), **Filter** (blur, sharpen, emboss, edge) and
+  **Math** (add/subtract/multiply constant, absolute, and/or/xor, noise) — driven
+  by a live 3D parameter slider, a log-scaled 256-bin RGB histogram, and a bottom
+  filmstrip of `~/Pictures` thumbnails. Bounded undo/redo/reset; images open from
+  the filmstrip or a native `JFileChooser`, and save back to the current path or
+  export to `~/Pictures/lg3d-imagestudio/` (PNG/JPEG via `ImageIO`, TIFF/BMP via
+  the JAI codec). Registered in the start menu (Utilities) by
+  `lg3d-demo-apps/src/config/imagestudio.lgcfg`. The `lg3d-core:run` task now
+  puts the two genuine JAI jars (`jai_core.jar`, `jai_codec.jar`) on the desktop
+  classpath and exports `java.desktop/sun.awt.image` so JAI's `RasterAccessor`
+  fast path works under JDK 21.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -173,11 +191,25 @@ work to make it build and run on a current toolchain.
   `BLENDED` + `SRC_ALPHA`/`ONE_MINUS_SRC_ALPHA` (the same configuration
   `SimpleAppearance` uses to render native windows opaque) defaulting to fully
   opaque; translucency stays opt-in via `setTransparency`.
+- **Terminal launcher dropped when `xterm` is absent** — the taskbar and
+  start-menu Terminal items hard-referenced `xterm`, so on a host without it
+  `ApplicationDescription.isApplicationAvailable` returned false, discovery
+  logged `Executable xterm not found, ignoring taskbar item` and the item
+  silently disappeared. Both configs now carry a portable fallback list
+  (`alternateExec` on the taskbar `ApplicationDescription`, `alternateCommands`
+  on the start-menu `StartMenuItemConfig`) of `gnome-terminal`, `konsole`,
+  `xfce4-terminal`, `mate-terminal`, `lxterminal`, `xterm`, so whichever emulator
+  is installed is used and the item (renamed **Terminal**) is shown. In dev mode
+  the native terminal still opens as an ordinary host window, not embedded in the
+  3D scene — embedding real X11 clients needs the separate `-Pcompositor` path.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
-- `Executable xterm not found` — the sample taskbar items reference apps not
-  installed on the host.
+- `Executable <app> not found, ignoring taskbar item` — a sample taskbar or
+  start-menu item references an app that is not installed on the host and has no
+  available alternate (e.g. Firefox/Thunderbird). The **Terminal** item no longer
+  triggers this: it now resolves through its `alternateExec` / `alternateCommands`
+  fallback list to an installed emulator.
 - `Could not lock System prefs` — the JDK preferences backing store warning.
 - `No default preferences file found: /etc/lg3d/skel/prefs.xml` — first-run
   defaults are created instead.

@@ -241,6 +241,28 @@ startmenu.lgcfg - Basic Start Menu configuration file
   <void property="command">
    <string>xterm</string>
   </void>
+  <void property="alternateCommands">
+   <array class="java.lang.String" length="6">
+    <void index="0">
+     <string>gnome-terminal</string>
+    </void>
+    <void index="1">
+     <string>konsole</string>
+    </void>
+    <void index="2">
+     <string>xfce4-terminal</string>
+    </void>
+    <void index="3">
+     <string>mate-terminal</string>
+    </void>
+    <void index="4">
+     <string>lxterminal</string>
+    </void>
+    <void index="5">
+     <string>xterm</string>
+    </void>
+   </array>
+  </void>
   <void property="desc">
    <string>Terminal</string>
   </void>

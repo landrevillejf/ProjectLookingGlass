@@ -5,11 +5,33 @@
   <void property="exec"> 
    <string>xterm -display :0</string> 
   </void> 
+  <void property="alternateExec"> 
+   <array class="java.lang.String" length="6"> 
+    <void index="0"> 
+     <string>gnome-terminal</string> 
+    </void> 
+    <void index="1"> 
+     <string>konsole</string> 
+    </void> 
+    <void index="2"> 
+     <string>xfce4-terminal</string> 
+    </void> 
+    <void index="3"> 
+     <string>mate-terminal</string> 
+    </void> 
+    <void index="4"> 
+     <string>lxterminal</string> 
+    </void> 
+    <void index="5"> 
+     <string>xterm</string> 
+    </void> 
+   </array> 
+  </void> 
   <void property="iconFilename"> 
    <string>resources/images/icon/system.png</string> 
   </void> 
   <void property="name"> 
-   <string>xterm</string> 
+   <string>Terminal</string> 
   </void> 
  </object> 
 </java> 
