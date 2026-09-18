@@ -17,9 +17,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Discovers the control center's category panels. The four built-in panels
+ * Discovers the control center's category pages. The four built-in pages
  * (Display, Users, System, Appearance) are registered on first access; extra
- * panels can be contributed with {@link #register(ControlPanel)} before the
+ * pages can be contributed with {@link #register(ControlPanel)} before the
  * control center window is built.
  */
 public final class ControlPanelRegistry {
@@ -31,21 +31,21 @@ public final class ControlPanelRegistry {
         // no instances
     }
 
-    /** Registers an additional category panel. */
+    /** Registers an additional category page. */
     public static synchronized void register(ControlPanel panel) {
         if (panel != null && !PANELS.contains(panel)) {
             PANELS.add(panel);
         }
     }
 
-    /** The registered panels, in display order (defaults included). */
+    /** The registered pages, in display order (defaults included). */
     public static synchronized List<ControlPanel> panels() {
         if (!defaultsAdded) {
             defaultsAdded = true;
-            PANELS.add(new DisplayPanel());
-            PANELS.add(new UsersPanel());
-            PANELS.add(new SystemInfoPanel());
-            PANELS.add(new AppearancePanel());
+            PANELS.add(new DisplayPage3D());
+            PANELS.add(new UsersPage3D());
+            PANELS.add(new SystemPage3D());
+            PANELS.add(new AppearancePage3D());
         }
         return new ArrayList<>(PANELS);
     }

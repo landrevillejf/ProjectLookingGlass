@@ -2,121 +2,86 @@
 
 ## Overview
 
-File Manager is a 3D file browser that provides a Swing-based UI for navigating and managing the filesystem. It demonstrates hosting a complex Swing application (JTable with file operations) within a 3D Frame3D using SwingNode.
+File Manager is a 100% lg3d-native 3D file browser (no SwingNode, no Swing
+widgets): a `Frame3D` built entirely from the shared glassy widget kit in
+`org.jdesktop.lg3d.apps.uikit` (translucent `GlassyPanel`s, `GlassyText2D`
+labels, `Button3D`, `ScrollList3D`), following the same pure-3D vocabulary as
+Image Studio.
 
 ## Purpose
 
-- Provide file system navigation in 3D environment
-- Demonstrate complex Swing UI integration
-- Support file operations (copy, move, delete, rename)
-- Integrate with dock stacks (Documents/Downloads)
+- Provide file system navigation as a native 3D desktop citizen
+- Demonstrate the shared `uikit` widget kit (buttons, wheel-scrolled lists)
+- Integrate with dock stacks (Documents/Downloads) via the initial-dir argument
 
 ## Key Components
 
-- **FileManager** - Main entry point, creates Frame3D and SwingNode
-- **FileManagerPanel** - Main Swing JPanel with file browser UI
-- **FileTableModel** - Table model for file listing
-- **FileOperations** - File operation implementations (copy, move, delete)
-- **SwingNode** - Bridge between Swing and 3D scenegraph
+- **FileManager** - Main entry point (`java ...filemanager.FileManager [dir]`),
+  constructs `FileManagerFrame3D` and calls `changeEnabled/changeVisible(true)`
+- **FileManagerFrame3D** - The whole UI: toolbar, path line, listing, status
+- **uikit** (`org.jdesktop.lg3d.apps.uikit`) - Shared widgets:
+  - `Ui3D` - factory helpers: colours, panels, labels, Component3D wrapping
+  - `Button3D` - glassy push button (hover highlight, `setText`, `setLit`,
+    `setEnabled`)
+  - `ScrollList3D` - wheel-scrollable viewport over caller-built rows; only
+    visible rows are shown/pickable
+  - `Gauge3D` - horizontal fill gauge (used by Control Center)
 
 ## Architecture
 
 ### Scene Graph Structure
 ```
-Frame3D (File Manager)
-└── SwingNode
-    └── FileManagerPanel (JPanel)
-        ├── JTable (file listing)
-        ├── Toolbar (navigation buttons)
-        └── Status bar
+FileManagerFrame3D (Frame3D + standard decoration)
+├── Component3D (window backdrop GlassyPanel)
+├── Component3D (title label)
+├── Button3D x7 (Back, Fwd, Up, Home, Refresh, Open, Delete)
+├── Component3D (path line GlassyText2D)
+├── ScrollList3D (file rows: type chip + name + size/kind)
+└── Component3D (status line GlassyText2D)
 ```
+
+### Window Sizing / Maximize
+
+The preferred size matches the usable screen aspect
+(`screenH - Taskbar.getReservedBottomHeight()`) so the decoration's
+aspect-preserving maximize fills the viewport on both axes.
 
 ### Command-Line Integration
 
-The application accepts an optional initial directory argument:
 ```bash
 java org.jdesktop.lg3d.apps.filemanager.FileManager /path/to/directory
 ```
 
-- If argument is a directory: opens at that location
-- If argument is a file: opens its parent directory
-- No argument: opens user home directory
-- Arguments may have leading spaces (trimmed before use)
+- Directory argument: opens at that location
+- File argument: opens its parent directory
+- No argument: opens `user.home`
+- Leading spaces are trimmed
 
-### Close Handler
+### Behaviour Notes
 
-Panel provides an `setOnClose(Runnable)` callback:
-```java
-panel.setOnClose(new Runnable() {
-    @Override
-    public void run() {
-        frame3d.changeEnabled(false);
-    }
-});
-```
-
-## Development Guidelines
-
-### Panel Dimensions
-
-- **Native Width**: 760 pixels
-- **Native Height**: 500 pixels
-- Converted to physical units via `Toolkit3D.widthNativeToPhysical()`
-
-### File Operations
-
-Use `FileOperations` class for common operations:
-- `copy(Path source, Path target)`
-- `move(Path source, Path target)`
-- `delete(Path path)`
-- `rename(Path path, String newName)`
-
-### Directory Parsing
-
-```java
-private static Path parseInitialDir(String[] args) {
-    // Trim and validate arguments
-    // Check if path is directory
-    // If file, use parent directory
-    // Default to user.home
-}
-```
-
-## Best Practices
-
-- **Path Handling**: Use `java.nio.file.Path` for modern file I/O
-- **Error Handling**: Show user-friendly error dialogs for failed operations
-- **Performance**: Lazy-load file listings for large directories
-- **Thread Safety**: File operations should run off-EDT to prevent UI freeze
-- **Permissions**: Check file permissions before attempting operations
+- Click a folder row to navigate into it; click a file row to select it
+- Open hands the selection to `Opener` (xdg-open via the desktop)
+- Delete is a two-click confirm (button retitles to "Confirm?", 4s disarm)
+  and moves the file to the trash via `Opener.trash`
+- Listing is capped at 400 rows; the wheel scrolls the `ScrollList3D`
+- There is no native text input, so rename/new-folder are not offered
 
 ## Dependencies
 
-- LG3D Core: Frame3D, SwingNode, Toolkit3D
-- Java NIO: Path, Paths, Files (modern file I/O)
-- Java Swing: JTable, TableModel, standard Swing components
+- LG3D Core: `Frame3D`, `Component3D`, `GlassyPanel`, `GlassyText2D`,
+  event adapters/actions, `Opener`, `Taskbar` (reserved height)
+- `org.jdesktop.lg3d.apps.uikit` (shared with Task Manager / Control Center)
+- Java NIO (`Files.list`, `Path`)
 
 ## Testing
 
-Launch with specific directory:
-```bash
-./gradlew :lg3d-demo-apps:run -Papp=filemanager -Pargs="/home/user/Documents"
-```
-
-Launch default (home directory):
+Launch from the desktop Start Menu (System group) or:
 ```bash
 ./gradlew :lg3d-demo-apps:run -Papp=filemanager
 ```
 
-## Integration Points
+## Extension Points
 
-- **Dock Stacks**: Documents and Downloads dock stacks use "Open folder" action
-- **Start Menu**: Launches with no arguments (opens home directory)
-- **File Associations**: Could be extended to open specific file types
-
-## Known Limitations
-
-- No file search functionality
-- No bookmark/favorites support
-- Limited to local filesystem (no network mounts)
-- No thumbnail preview for images
+- **Row kinds**: extend `makeRow` with icons/permissions columns
+- **Operations**: add copy/move via drag between two FileManagerFrame3D windows
+- **uikit reuse**: new native apps should build on `uikit` rather than Swing

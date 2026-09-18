@@ -2,137 +2,82 @@
 
 ## Overview
 
-Task Manager is a system monitoring application that displays running processes with CPU usage information. It provides a Swing-based UI with a table showing process details and real-time CPU sampling, hosted within a 3D Frame3D using SwingNode.
+Task Manager is a 100% lg3d-native 3D process monitor (no SwingNode, no Swing
+widgets): a `Frame3D` built from the shared glassy widget kit in
+`org.jdesktop.lg3d.apps.uikit`, backed by the core `ProcessService`
+(/proc + `ps` parsing).
 
 ## Purpose
 
-- Monitor system processes and CPU usage
-- Demonstrate real-time data updates in SwingNode
-- Provide process management interface
-- Showcase timer-based refresh in 3D environment
+- Live process/CPU/memory monitoring as a native 3D desktop citizen
+- Process signalling (SIGTERM / SIGKILL) through `ProcessService`
+- Demonstrate gated periodic refresh in a pure-3D app
 
 ## Key Components
 
-- **TaskManager** - Main entry point, creates Frame3D and SwingNode
-- **TaskManagerPanel** - Main Swing JPanel with process table
-- **ProcessTableModel** - TableModel for process listing
-- **SwingNode** - Bridge between Swing and 3D scenegraph
+- **TaskManager** - Main entry point (`java ...taskmanager.TaskManager`),
+  constructs `TaskManagerFrame3D` and calls `changeEnabled/changeVisible(true)`
+- **TaskManagerFrame3D** - The whole UI: aggregate header, sort/action
+  buttons, column header, process list, status line
+- **uikit** (`org.jdesktop.lg3d.apps.uikit`) - Shared widgets (`Ui3D`,
+  `Button3D`, `ScrollList3D`, `Gauge3D`), also used by File Manager and
+  Control Center
 
 ## Architecture
 
 ### Scene Graph Structure
-
 ```
-Frame3D (Task Manager)
-└── SwingNode
-    └── TaskManagerPanel (JPanel)
-        ├── JTable (process listing)
-        ├── Toolbar (refresh, kill process)
-        └── Status bar
-```
-
-### Refresh Timer
-
-The panel maintains its own two-second refresh timer:
-- Updates process list every 2 seconds
-- Samples CPU usage for each process
-- Stops timer when window is closed
-
-### Close Handler
-
-Panel provides an `setOnClose(Runnable)` callback:
-```java
-panel.setOnClose(new Runnable() {
-    @Override
-    public void run() {
-        frame3d.changeEnabled(false);
-    }
-});
+TaskManagerFrame3D (Frame3D + standard decoration)
+├── Component3D (window backdrop GlassyPanel)
+├── Component3D (title + aggregate header GlassyText2D)
+├── Button3D x6 (By CPU, By MEM, By Name, End Task, Force Quit, Refresh)
+├── Component3D (column header labels)
+├── ScrollList3D (process rows: pid+name | cpu, memory, state)
+└── Component3D (status line GlassyText2D)
 ```
 
-## Development Guidelines
+### Refresh + Threading Model
 
-### Panel Dimensions
+- A `javax.swing.Timer` (2s) triggers `refresh()`; sampling runs on a daemon
+  thread (`ProcessService.snapshot()` + `systemLoad()`) and results are
+  applied on the EDT via `SwingUtilities.invokeLater` - the scene graph is
+  never touched from the sampler thread.
+- `setEnabled`/`setVisible` overrides gate the timer, so a minimized or
+  closed window stops polling /proc (`isEnabled() && isVisible()`).
+- A `refreshing` flag drops overlapping ticks.
 
-- **Native Width**: 680 pixels
-- **Native Height**: 480 pixels
-- Converted to physical units via `Toolkit3D.widthNativeToPhysical()`
+### Window Sizing / Maximize
 
-### Process Table
+Preferred size matches the usable screen aspect
+(`screenH - Taskbar.getReservedBottomHeight()`) so the decoration's
+aspect-preserving maximize fills the viewport on both axes.
 
-Use `ProcessTableModel` for process data:
-```java
-ProcessTableModel model = new ProcessTableModel();
-JTable table = new JTable(model);
-```
+### Behaviour Notes
 
-### Timer Management
-
-```java
-// In TaskManagerPanel
-private Timer refreshTimer;
-
-public void startRefresh() {
-    refreshTimer = new Timer(2000, new ActionListener() {
-        public void actionPerformed(ActionEvent e) {
-            refreshProcessList();
-        }
-    });
-    refreshTimer.start();
-}
-
-public void stopRefresh() {
-    if (refreshTimer != null) {
-        refreshTimer.stop();
-        refreshTimer = null;
-    }
-}
-```
-
-### CPU Sampling
-
-CPU usage is sampled over time:
-- Store initial CPU time
-- Sample current CPU time
-- Calculate percentage based on elapsed time and CPU cores
-
-## Best Practices
-
-- **Timer Cleanup**: Always stop timer on window close to prevent memory leaks
-- **Thread Safety**: Swing updates must be on EDT (Timer handles this)
-- **Performance**: Limit refresh rate for large process lists
-- **Sorting**: Allow table sorting by column (PID, name, CPU, memory)
-- **Killing Processes**: Confirm before terminating processes
-- **Permissions**: Handle permission errors for process operations
+- Sort modes: CPU (desc), memory (desc), name (case-insensitive); the active
+  sort button stays lit (`Button3D.setLit`)
+- Click a row to select (highlighted via appearance swap); End Task sends
+  SIGTERM, Force Quit SIGKILL through `ProcessService` (with its pkexec
+  fallback for foreign processes); the result (`TerminateResult.getKind()`)
+  is shown in the status line
+- Listing is capped at 300 rows after sorting; the wheel scrolls
 
 ## Dependencies
 
-- LG3D Core: Frame3D, SwingNode, Toolkit3D
-- Java Swing: JTable, TableModel, Timer, standard Swing components
-- Java Lang: ProcessHandle (for process enumeration on JDK 9+)
-- Java Util: List, for process data storage
+- LG3D Core: `Frame3D`, `Component3D`, `GlassyPanel`, `GlassyText2D`, event
+  adapters/actions, `ProcessService`, `Taskbar` (reserved height)
+- `org.jdesktop.lg3d.apps.uikit`
 
 ## Testing
 
-Launch standalone:
+Launch from the desktop Start Menu (System group) or:
 ```bash
 ./gradlew :lg3d-demo-apps:run -Papp=taskmanager
 ```
 
 ## Extension Points
 
-- **Process Actions**: Add kill, renice, suspend/resume operations
-- **Filtering**: Add search/filter for process names
-- **Sorting**: Implement column sorting
-- **Graphs**: Add CPU history graph
-- **System Info**: Display total CPU, memory usage
-- **Refresh Rate**: Make refresh interval configurable
-- **Process Tree**: Show parent-child relationships
-
-## Known Limitations
-
-- Two-second refresh interval is fixed (not configurable)
-- No process killing functionality implemented
-- No sorting or filtering
-- No CPU history/graph
-- Limited to basic process information
+- **Graphs**: add a CPU-history strip using `Gauge3D`/textured quads
+- **Filtering**: no native text input yet; a letter-chip filter row is the
+  native-friendly approach
+- **Refresh rate**: make `REFRESH_MS` configurable

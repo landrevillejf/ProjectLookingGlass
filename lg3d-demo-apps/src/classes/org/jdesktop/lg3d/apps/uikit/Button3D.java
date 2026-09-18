@@ -80,4 +80,15 @@ public class Button3D extends Component3D {
     public void setLit(boolean lit) {
         bg.setAppearance(Ui3D.appearance(lit ? on : off));
     }
+
+    /**
+     * Enables or disables the button: a disabled button stops receiving
+     * mouse events (no hover, no click) and shows its unlit background.
+     */
+    public void setEnabled(boolean enabled) {
+        setMouseEventEnabled(enabled);
+        if (!enabled) {
+            setLit(false);
+        }
+    }
 }

@@ -248,9 +248,9 @@ public class DisplayPage3D implements ControlPanel {
         String label = o.getName()
                 + (o.isEnabled() ? "  " + o.getCurrentWidth() + "x" + o.getCurrentHeight()
                         : (o.isConnected() ? "" : "  (off)"));
-        GlassyPanel bg = newRow(label, outputList.getWidth());
+        GlassyPanel bg = newRow(outputList.getWidth());
         outputBgs.add(bg);
-        return wrapRow(bg, label, () -> selectOutput(o, bg));
+        return wrapRow(bg, label, outputList.getWidth(), () -> selectOutput(o, bg));
     }
 
     private void selectOutput(DisplayService.Output o, GlassyPanel bg) {
@@ -274,13 +274,13 @@ public class DisplayPage3D implements ControlPanel {
         float modeW = modeList.getWidth();
         for (DisplayService.Mode m : o.getModes()) {
             String label = m.getId() + (o.getCurrentMode() == m ? "  (current)" : "");
-            GlassyPanel mbg = newRow(label, modeW);
+            GlassyPanel mbg = newRow(modeW);
             modeBgs.add(mbg);
             if (m == selectedMode) {
                 selectedModeBg = mbg;
                 mbg.setAppearance(Ui3D.appearance(Ui3D.ROW_ON));
             }
-            rows.add(wrapRow(mbg, label, () -> selectMode(m, mbg)));
+            rows.add(wrapRow(mbg, label, modeW, () -> selectMode(m, mbg)));
         }
         modeList.setRows(rows);
     }
@@ -297,7 +297,7 @@ public class DisplayPage3D implements ControlPanel {
     }
 
     /** Creates the highlightable background panel for a list row. */
-    private GlassyPanel newRow(String label, float width) {
+    private GlassyPanel newRow(float width) {
         GlassyPanel bg = Ui3D.panel(width, rowH * 0.9f, 0.002f, Ui3D.ROW_OFF);
         bg.setCapability(Shape3D.ALLOW_APPEARANCE_READ);
         bg.setCapability(Shape3D.ALLOW_APPEARANCE_WRITE);
@@ -305,13 +305,13 @@ public class DisplayPage3D implements ControlPanel {
     }
 
     /** Assembles a clickable list row around its background panel. */
-    private Component3D wrapRow(GlassyPanel bg, String label, Runnable onClick) {
+    private Component3D wrapRow(GlassyPanel bg, String label, float width,
+            Runnable onClick) {
         Component3D row = new Component3D();
-        float width = bg.getBounds() == null ? rowH * 6 : rowH * 6; // unused
         row.addChild(Ui3D.component(Ui3D.at(bg, 0f, 0f, -0.001f)));
-        row.addChild(Ui3D.component(Ui3D.label(label, rowH * 9f, textH,
+        row.addChild(Ui3D.component(Ui3D.label(label, width * 0.94f, textH,
                 Ui3D.TEXT_BRIGHT, GlassyText2D.Alignment.LEFT,
-                -rowH * 4.4f, 0f, 0.001f)));
+                -width * 0.5f + rowH * 0.35f, 0f, 0.001f)));
         row.addListener(new MouseClickedEventAdapter(new ActionNoArg() {
             public void performAction(LgEventSource s) {
                 onClick.run();

@@ -16,14 +16,10 @@ package org.jdesktop.lg3d.apps.filemanager;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.SwingNode;
-import org.jdesktop.lg3d.wg.Toolkit3D;
-import org.jogamp.vecmath.Vector3f;
 
 /**
- * The file manager application: a {@link Frame3D} hosting the
- * {@link FileManagerPanel} Swing UI on a {@link SwingNode}.
+ * The file manager application: a 100% lg3d-native 3D window
+ * ({@link FileManagerFrame3D}) - no SwingNode, no Swing widgets.
  *
  * <p>{@code main} accepts an optional initial directory argument (used by the
  * Documents/Downloads dock stacks' "Open folder" action). When launched from
@@ -33,9 +29,6 @@ import org.jogamp.vecmath.Vector3f;
  * line), so it is trimmed before use.</p>
  */
 public class FileManager {
-
-    private static final int PANEL_W = 760;
-    private static final int PANEL_H = 500;
 
     public static void main(String[] args) {
         new FileManager(parseInitialDir(args));
@@ -68,27 +61,7 @@ public class FileManager {
     }
 
     public FileManager(Path initial) {
-        final FileManagerPanel panel = new FileManagerPanel(initial);
-
-        SwingNode swingNode = new SwingNode();
-        swingNode.setJPanel(panel);
-        swingNode.setTransparency(0.0f);
-
-        final Frame3D frame3d = new Frame3D();
-        frame3d.setName("File Manager");
-        frame3d.addChild(swingNode);
-
-        panel.setOnClose(new Runnable() {
-            @Override
-            public void run() {
-                frame3d.changeEnabled(false);
-            }
-        });
-
-        Toolkit3D tk = Toolkit3D.getToolkit3D();
-        float w = tk.widthNativeToPhysical(PANEL_W);
-        float h = tk.heightNativeToPhysical(PANEL_H);
-        frame3d.setPreferredSize(new Vector3f(w, h, 0.01f));
+        FileManagerFrame3D frame3d = new FileManagerFrame3D(initial);
         frame3d.changeEnabled(true);
         frame3d.changeVisible(true);
     }

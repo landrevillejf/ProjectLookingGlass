@@ -13,30 +13,34 @@
  */
 package org.jdesktop.lg3d.apps.controlcenter;
 
-import javax.swing.Icon;
-import javax.swing.JComponent;
+import org.jdesktop.lg3d.wg.Component3D;
 
 /**
- * One category page of the control center. Implementations supply their own
- * Swing component and are discovered through {@link ControlPanelRegistry}, so
- * new categories can be added without touching the control center shell.
+ * One category page of the control center: a 100% lg3d-native
+ * {@link Component3D} subtree (no Swing). Implementations are discovered
+ * through {@link ControlPanelRegistry}, so new categories can be added
+ * without touching the control center shell.
+ *
+ * <p>The shell builds each page once with the page-area size and lays the
+ * returned component out centered on that area; pages position their children
+ * relative to their own origin.</p>
  */
 public interface ControlPanel {
 
-    /** The category name shown in the navigation list. */
+    /** The category name shown in the navigation column. */
     String displayName();
 
-    /** An icon for the navigation list, or null for none. */
-    Icon icon();
+    /**
+     * Builds the page's 3D component for a page area of {@code width} x
+     * {@code height} (called once; the component is reused across shows).
+     */
+    Component3D component(float width, float height);
 
-    /** The panel's Swing component (created once, reused across shows). */
-    JComponent component();
-
-    /** Called when the panel becomes the visible category. */
+    /** Called when the page becomes the visible category (start timers). */
     default void onShow() {
     }
 
-    /** Called when the panel is hidden in favour of another category. */
+    /** Called when the page is hidden in favour of another category. */
     default void onHide() {
     }
 }

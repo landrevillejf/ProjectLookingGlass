@@ -2,117 +2,98 @@
 
 ## Overview
 
-Control Center is a system settings application that provides a Swing-based UI for configuring display, users, system information, and appearance settings. It demonstrates hosting a traditional Swing panel within a 3D Frame3D using SwingNode.
+Control Center is a 100% lg3d-native 3D system settings app (no SwingNode, no
+Swing widgets): a `Frame3D` shell with a navigation column of glassy tabs on
+the left and category pages on the right, built from the shared widget kit in
+`org.jdesktop.lg3d.apps.uikit`.
 
 ## Purpose
 
-- Provide centralized access to system configuration
-- Demonstrate SwingNode integration for hybrid 2D/3D UI
-- Showcase tabbed panel layout in 3D environment
+- Centralized access to display, user, system and appearance configuration
+- Demonstrate the native page-plugin pattern (`ControlPanel` +
+  `ControlPanelRegistry`) in pure 3D
 
 ## Key Components
 
-- **ControlCenter** - Main entry point, creates Frame3D and SwingNode
-- **ControlCenterPanel** - Swing JPanel containing tabbed interface
-- **DisplayPanel** - Display configuration settings
-- **UsersPanel** - User account management
-- **SystemInfoPanel** - System information display
-- **AppearancePanel** - Appearance/theme settings
-- **ControlPanel** - Base class for individual setting panels
-- **ControlPanelRegistry** - Registry for available control panels
+- **ControlCenter** - Main entry point (`java ...controlcenter.ControlCenter`),
+  constructs `ControlCenterFrame3D` and calls `changeEnabled/changeVisible(true)`
+- **ControlCenterFrame3D** - The shell: nav tab column (`Button3D`), page host,
+  and enabled/visible gating forwarded to the current page
+- **ControlPanel** - Native page interface:
+  `displayName()`, `component(float w, float h)`, `onShow()`, `onHide()`
+- **ControlPanelRegistry** - Discovers pages; extras can be registered before
+  the window is built
+- **DisplayPage3D** - xrandr via `DisplayService`: output + resolution lists,
+  Primary toggle, Apply with a 20s Keep/revert countdown (safety net against
+  modes the monitor cannot show); read-only warning without xrandr / on Wayland
+- **UsersPage3D** - read-only account browser via `UserService` (list, Show
+  System toggle, details + group membership); administration needs privileged
+  commands and text entry the native widget set does not provide
+- **SystemPage3D** - live CPU/memory `Gauge3D`s + host/kernel/session/load/
+  filesystem details via `SystemInfoService` (2s timer gated by onShow/onHide)
+- **AppearancePage3D** - wallpaper picker: enumerates
+  `resources/images/background` on the classpath (FALLBACK list when
+  unlistable), textured-quad preview, Apply posts a
+  `BackgroundChangeRequestEvent(new SimpleImageBackground(url))`
 
 ## Architecture
 
 ### Scene Graph Structure
 ```
-Frame3D (Control Center)
-└── SwingNode
-    └── ControlCenterPanel (JPanel)
-        ├── JTabbedPane
-        │   ├── DisplayPanel
-        │   ├── UsersPanel
-        │   ├── SystemInfoPanel
-        │   └── AppearancePanel
+ControlCenterFrame3D (Frame3D + standard decoration)
+├── Component3D (window backdrop + title)
+├── Button3D xN (nav tabs, one per ControlPanel)
+└── Component3D (page host)
+    └── <current page Component3D>  (swapped on tab click)
 ```
 
-### Swing Integration Pattern
-```java
-// Create Swing panel
-ControlCenterPanel panel = new ControlCenterPanel();
+### Page Lifecycle + Threading
 
-// Wrap in SwingNode
-SwingNode swingNode = new SwingNode();
-swingNode.setJPanel(panel);
-swingNode.setTransparency(0.0f); // Opaque
+- `component(w, h)` is called once at shell construction; pages position
+  children relative to their own origin (page area is centered on the host).
+- Tab clicks call `onHide()` on the old page and `onShow()` on the new one;
+  the frame also forwards its own `setEnabled`/`setVisible` transitions, so
+  minimizing/closing the window stops page timers.
+- All blocking service calls (xrandr, /etc/passwd, image decoding) run on
+  daemon threads; scene-graph updates go through
+  `SwingUtilities.invokeLater`.
+- AppearancePage3D follows the texture rule: pixels are in the
+  `ImageComponent2D` before `Texture2D.setImage` / `Appearance.setTexture`.
+- The Display page's Keep/revert countdown deliberately keeps running while
+  another page is shown (it is a safety net, not a UI poll).
 
-// Add to 3D frame
-Frame3D frame3d = new Frame3D();
-frame3d.addChild(swingNode);
+### Window Sizing / Maximize
 
-// Set physical size
-Toolkit3D tk = Toolkit3D.getToolkit3D();
-float w = tk.widthNativeToPhysical(PANEL_W);
-float h = tk.heightNativeToPhysical(PANEL_H);
-frame3d.setPreferredSize(new Vector3f(w, h, 0.01f));
-```
+Preferred size matches the usable screen aspect
+(`screenH - Taskbar.getReservedBottomHeight()`) so the decoration's
+aspect-preserving maximize fills the viewport on both axes.
 
 ## Development Guidelines
 
-### Adding New Control Panels
+### Adding a New Page
 
-1. Extend `ControlPanel` base class
-2. Register in `ControlPanelRegistry`
-3. Add tab to `ControlCenterPanel`
-
-```java
-public class MyPanel extends ControlPanel {
-    public MyPanel() {
-        super("My Settings");
-        // Build UI components
-    }
-}
-```
-
-### Panel Dimensions
-
-- **Native Width**: 720 pixels
-- **Native Height**: 500 pixels
-- Converted to physical units via `Toolkit3D.widthNativeToPhysical()`
-
-### Transparency
-
-- SwingNode transparency set to 0.0f (fully opaque)
-- Adjust for semi-transparent backgrounds if needed
-
-## Best Practices
-
-- **Panel Size**: Keep panels within 720x500 for consistent layout
-- **Thread Safety**: Swing components must be modified on EDT
-- **Resource Cleanup**: Dispose resources when panel is removed
-- **Validation**: Validate settings before applying changes
-- **Persistence**: Save settings to appropriate configuration files
+1. Implement `ControlPanel` (native `Component3D`, no Swing)
+2. Register it via `ControlPanelRegistry.register(...)` before the shell is
+   built, or add it to the defaults list
+3. Gate any polling in `onShow()`/`onHide()`
 
 ## Dependencies
 
-- LG3D Core: Frame3D, SwingNode, Toolkit3D
-- Java Swing: JPanel, JTabbedPane, standard Swing components
-- Java NIO: For file operations (if persisting settings)
+- LG3D Core: `Frame3D`, `Component3D`, `GlassyPanel`, `GlassyText2D`, event
+  adapters/actions, `DisplayService`, `UserService`, `SystemInfoService`,
+  `ProcessService` (formatters), `SimpleImageBackground` +
+  `BackgroundChangeRequestEvent`, `Taskbar` (reserved height)
+- `org.jdesktop.lg3d.apps.uikit`
 
 ## Testing
 
-Launch via main method:
+Launch from the desktop Start Menu (System group) or:
 ```bash
 ./gradlew :lg3d-demo-apps:run -Papp=controlcenter
 ```
 
 ## Extension Points
 
-- **ControlPanel Registry**: Add new panels via `ControlPanelRegistry`
-- **Panel Layout**: Modify `ControlCenterPanel` for different tab arrangement
-- **Settings Storage**: Implement persistence layer for each panel
-
-## Known Limitations
-
-- No settings persistence implemented (panels are UI-only)
-- Limited to Swing components (no native 3D controls in panels)
-- Fixed panel size (not responsive to screen size changes)
+- **New pages**: audio mixer, keyboard layout, network - via the registry
+- **Users admin**: would need a native text-input widget first
+- **Display**: refresh-rate and multi-monitor position selection

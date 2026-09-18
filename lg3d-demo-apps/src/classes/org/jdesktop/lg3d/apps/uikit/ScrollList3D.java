@@ -114,10 +114,10 @@ public class ScrollList3D extends Component3D {
             if (v >= 0 && v < visible) {
                 r.setTranslation(0.0f, top - (v + 0.5f) * rowH, 0.002f);
                 r.changeVisible(true);
-                r.setEnabled(true);
+                r.setMouseEventEnabled(true);
             } else {
                 r.changeVisible(false);
-                r.setEnabled(false);
+                r.setMouseEventEnabled(false);
             }
         }
     }
