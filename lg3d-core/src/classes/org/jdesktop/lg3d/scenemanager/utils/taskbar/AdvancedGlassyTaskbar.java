@@ -141,7 +141,11 @@ public class AdvancedGlassyTaskbar extends Taskbar {
 	    shortcuts.setLayout(new HorizontalReorderableLayout(
 		    HorizontalLayout.AlignmentType.LEFT, iconSpacing,
 		    new NaturalMotionF3DAnimationFactory(150)));
-	    
+	    // Launcher icons, dock stacks and the start-menu application list
+	    // live here; they must sit in front of the front window plane
+	    // (z ~ -0.004 via ZLayeredLayout) or a maximized window, which
+	    // spans the whole usable area, hides and blocks their popups.
+	    shortcuts.setTranslation(0.0f, 0.0f, thumbnailZ);
 	}
         
         tskbar.themes = new Container3D();
@@ -150,6 +154,9 @@ public class AdvancedGlassyTaskbar extends Taskbar {
             new HorizontalLayout(
                 HorizontalLayout.AlignmentType.RIGHT, iconSpacing,
                 new NaturalMotionAnimationFactory(150)));
+        // Same front-plane reasoning as shortcuts (right-side stacks pop up
+        // above the bar, over maximized windows).
+        tskbar.themes.setTranslation(0.0f, 0.0f, thumbnailZ);
         
         // FIXME -- the following line is to be removed
         initBackgrounds(tskbar.themes,sceneCntrl);
