@@ -167,20 +167,17 @@ public class ImageCanvas3D extends Component3D implements EditorModel.Listener {
         int p2w = powerOfTwo(dispW);
         int p2h = powerOfTwo(dispH);
 
-        if (texture == null || p2w != texW || p2h != texH) {
+        // The ImageComponent2D must hold pixel data before the texture that
+        // references it is attached to the (live) appearance: under Jogamp,
+        // Appearance.setTexture on a live graph calls TextureRetained.setLive,
+        // which dereferences the image data and NPEs on an empty component.
+        // So paint + upload first, then build/attach the texture.
+        boolean newTexture = (texture == null || p2w != texW || p2h != texH);
+        if (newTexture) {
             p2Image = new BufferedImage(p2w, p2h, BufferedImage.TYPE_INT_ARGB);
             imageComponent = new ImageComponent2D(
                     ImageComponent2D.FORMAT_RGBA, p2w, p2h, false, true);
             imageComponent.setCapability(ImageComponent2D.ALLOW_IMAGE_WRITE);
-            texture = new Texture2D(Texture2D.BASE_LEVEL, Texture2D.RGBA, p2w, p2h);
-            texture.setMinFilter(Texture2D.BASE_LEVEL_LINEAR);
-            texture.setMagFilter(Texture2D.BASE_LEVEL_LINEAR);
-            texture.setBoundaryModeS(Texture2D.CLAMP);
-            texture.setBoundaryModeT(Texture2D.CLAMP);
-            texture.setImage(0, imageComponent);
-            appearance.setTexture(texture);
-            texW = p2w;
-            texH = p2h;
         }
 
         Graphics2D g = p2Image.createGraphics();
@@ -199,6 +196,18 @@ public class ImageCanvas3D extends Component3D implements EditorModel.Listener {
             g.dispose();
         }
         imageComponent.set(p2Image);
+
+        if (newTexture) {
+            texture = new Texture2D(Texture2D.BASE_LEVEL, Texture2D.RGBA, p2w, p2h);
+            texture.setMinFilter(Texture2D.BASE_LEVEL_LINEAR);
+            texture.setMagFilter(Texture2D.BASE_LEVEL_LINEAR);
+            texture.setBoundaryModeS(Texture2D.CLAMP);
+            texture.setBoundaryModeT(Texture2D.CLAMP);
+            texture.setImage(0, imageComponent);
+            appearance.setTexture(texture);
+            texW = p2w;
+            texH = p2h;
+        }
 
         // Fit the quad into the viewport box, preserving the image aspect ratio.
         float scale = Math.min(viewWidth / dispW, viewHeight / dispH);

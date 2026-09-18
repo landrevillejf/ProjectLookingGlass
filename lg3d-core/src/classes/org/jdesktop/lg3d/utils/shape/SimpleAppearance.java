@@ -241,6 +241,7 @@ public class SimpleAppearance extends Appearance {
 	if (mat == null) {
 	    mat = new Material();
 	    mat.setCapability(Material.ALLOW_COMPONENT_WRITE);
+	    mat.setCapability(Material.ALLOW_COMPONENT_READ);
 	}
 	mat.setAmbientColor(red, green, blue);
 	mat.setDiffuseColor(red, green, blue);

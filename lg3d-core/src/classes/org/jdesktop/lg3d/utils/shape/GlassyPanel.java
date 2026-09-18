@@ -98,6 +98,7 @@ public class GlassyPanel extends Shape3D {
         this.zShift = zShift;
         
 	setAppearance(app);
+	tintVertexColors(app);
 
 	geometry
 	    = new IndexedQuadArray(20, 
@@ -191,6 +192,40 @@ public class GlassyPanel extends Shape3D {
         1.0f, 1.0f, 1.0f, 0.75f,
         1.0f, 1.0f, 1.0f, 0.35f,
     };
+
+    /**
+     * Vertex colours replace the appearance's material in Java 3D, so the
+     * white bevel ramp above would otherwise force every panel to render as
+     * a white wash and the requested tint (the window decoration's green,
+     * an app's button colour) would never show -- invisible over a light
+     * background. Scale the ramp's rgb by the material's diffuse colour so
+     * the glass keeps its bevel and honours the tint.
+     */
+    private void tintVertexColors(Appearance app) {
+        if (app == null) {
+            return;
+        }
+        Material material;
+        try {
+            material = app.getMaterial();
+        } catch (org.jogamp.java3d.CapabilityNotSetException e) {
+            return;
+        }
+        if (material == null) {
+            return;
+        }
+        Color3f diffuse = new Color3f();
+        try {
+            material.getDiffuseColor(diffuse);
+        } catch (org.jogamp.java3d.CapabilityNotSetException e) {
+            return;
+        }
+        for (int i = 0; i < colors4.length; i += 4) {
+            colors4[i]     *= diffuse.x;
+            colors4[i + 1] *= diffuse.y;
+            colors4[i + 2] *= diffuse.z;
+        }
+    }
 
     private final int[] colorIndices = {
         0, 0, 1, 1,

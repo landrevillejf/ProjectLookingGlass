@@ -200,11 +200,15 @@ public class GlassyText2D extends Shape3D {
         float widthRatio = gttg.getWidthRatio();
         float heightRatio = gttg.getHeightRatio();
         
+        // The glyph texture is uploaded with the image origin at the upper
+        // left (yUp=false), so v increases downward through the glyph rows.
+        // Mapping the quad's bottom edge to v=0 and its top edge to v=
+        // heightRatio therefore renders the label upright.
         float[] texCoords = {
-	    0.0f,       heightRatio,
-	    widthRatio, heightRatio,
-	    widthRatio, 0.0f,
 	    0.0f,       0.0f,
+	    widthRatio, 0.0f,
+	    widthRatio, heightRatio,
+	    0.0f,       heightRatio,
 	};
         geometry.setTextureCoordinates(0, 0, texCoords);
         

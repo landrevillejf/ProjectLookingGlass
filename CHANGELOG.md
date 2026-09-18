@@ -202,6 +202,34 @@ work to make it build and run on a current toolchain.
   is installed is used and the item (renamed **Terminal**) is shown. In dev mode
   the native terminal still opens as an ordinary host window, not embedded in the
   3D scene — embedding real X11 clients needs the separate `-Pcompositor` path.
+- **All `GlassyText2D` labels invisible** (window titles, taskbar/button text,
+  Image Studio toolbar) — two compounding Jogamp migration bugs. (1) The glyph
+  texture was built with `ImageComponent2D(..., byReference=true)`, so its pixels
+  were never uploaded and every label sampled a fully transparent texture;
+  `GlassyTextTextureGenerator` now copies the image (`byReference=false`).
+  (2) The texture was uploaded `yUp=true` while the quad's texture coordinates
+  sample `v` in `[0, heightRatio]`, so the sampled region missed the glyph rows
+  entirely; the generator now uploads with the image origin at the upper left
+  (`yUp=false`) and `GlassyText2D` maps the quad bottom edge to `v=0` so the text
+  reads upright.
+- **Glass panels washed out to near-invisible white** — `GlassyPanel` sets white
+  per-vertex `COLOR_4` values, which under Java 3D *replace* the `Material`
+  ambient/diffuse, so the themed tint (e.g. the green window decoration) never
+  showed. `GlassyPanel` now tints its vertex colors by the material's diffuse
+  color (reading it via a new `Material.ALLOW_COMPONENT_READ` capability on
+  `SimpleAppearance`).
+- **Image Studio histogram channels swapped** — for `TYPE_3BYTE_BGR` images the
+  JAI histogram band order is `{2,1,0}`, so band 0 is red; `Histogram3D` now maps
+  bands to R/G/B with the identity `{0,1,2}` instead of reversing them.
+- **Image Studio open (file chooser / filmstrip) appeared to do nothing** —
+  `ImageCanvas3D.setImage` attached the new `Texture2D` to the live appearance
+  (`Appearance.setTexture`) while its `ImageComponent2D` still held no pixels;
+  under Jogamp that makes `TextureRetained.setLive` dereference null image data
+  and throw, and the NPE propagated back through `EditorModel.setImage` into
+  `FileStrip3D.loadPath`'s catch, which reported "Could not open ..." and left
+  the canvas on the old image. The canvas now paints and uploads the pixels
+  before building/attaching the texture, so opening a file updates the viewport
+  and histogram.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
