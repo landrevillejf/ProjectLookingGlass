@@ -160,6 +160,17 @@ work to make it build and run on a current toolchain.
   `wilkoaim3d`, `luncher`, `orgchart`, `nlc`, `jmf23D`.
 
 ### Fixed
+- **Window flip showed a plain green back instead of the sticky note** — the
+  right-click flip of `Frame3DWindowDecoration` worked on both Swing
+  (`TitledSwingWindow`) and pure-3D app windows, but the `StickyNote` was
+  placed at `z = -1.1 x BODY_DEPTH`, inside the opaque decoration backdrop
+  slab (which spans `[-2 x BODY_DEPTH, -BODY_DEPTH]` because `GlassyPanel`
+  grows backwards from its local z=0). After the PI flip the slab's opaque
+  back face is closest to the viewer and completely hid the note. The note
+  now sits just outside the back face (`z = -2 x BODY_DEPTH - 0.0002`), so
+  the flipped window shows the editable yellow note; flipping back also
+  disposes the note's offscreen Swing resources, which previously leaked a
+  hidden `SwingNodeJFrame` per flip cycle.
 - **`TitledSwingWindow` windows could be parked but never rotated** — every
   rotation gesture of the desktop lives in frame-level listeners
   (`ZLayeredMovableLayout`'s CTRL spinner and `Frame3DWindowDecoration`'s
