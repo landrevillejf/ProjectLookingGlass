@@ -97,6 +97,22 @@ final class Ui3D {
     }
 
     /**
+     * Wrap an arbitrary scene-graph node in a {@link Component3D} (inside a
+     * {@link TransparencyOrderedGroup} for correct blending) so it can be added
+     * straight to a {@code Container3D}/{@code Frame3D}, which only accept
+     * {@code Component3D} children. This is the same
+     * {@code Component3D(TransparencyOrderedGroup(...))} idiom {@code Lg3dHelp}
+     * uses to put its body into the frame.
+     */
+    static Component3D component(Node node) {
+        TransparencyOrderedGroup tog = new TransparencyOrderedGroup();
+        tog.addChild(node);
+        Component3D c = new Component3D();
+        c.addChild(tog);
+        return c;
+    }
+
+    /**
      * A glassy push button centered at its own origin: a translucent panel with
      * a centered label, hover appearance + scale highlight, and a click action.
      * The caller positions the returned component with

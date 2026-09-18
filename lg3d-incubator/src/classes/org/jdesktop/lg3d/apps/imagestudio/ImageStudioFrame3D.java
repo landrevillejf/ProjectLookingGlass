@@ -13,7 +13,6 @@
  */
 package org.jdesktop.lg3d.apps.imagestudio;
 
-import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.shape.GlassyText2D;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -91,15 +90,17 @@ public class ImageStudioFrame3D extends Frame3D implements EditorModel.Listener 
         float canvasW = canvasRight - canvasLeft;
 
         // ---- window backdrop (drawn first, behind everything) ----
-        TransparencyOrderedGroup backdrop = new TransparencyOrderedGroup();
-        backdrop.addChild(Ui3D.at(Ui3D.panel(W, H, 0.006f, WINDOW_BG), 0f, 0f, -0.008f));
-        addChild(backdrop);
+        // A Frame3D is a Container3D, which only accepts Component3D children,
+        // so each raw scene-graph node here is wrapped via Ui3D.component(...).
+        addChild(Ui3D.component(
+                Ui3D.at(Ui3D.panel(W, H, 0.006f, WINDOW_BG), 0f, 0f, -0.008f)));
 
         // ---- title (top-left, away from the decoration's top-right buttons) ----
         float titleH = topMargin * 0.46f;
         GlassyText2D title = Ui3D.makeText("Image Studio", W * 0.5f, titleH,
                 Ui3D.TEXT_BRIGHT, GlassyText2D.Alignment.LEFT);
-        addChild(Ui3D.at(title, xLeft, H * 0.5f - topMargin * 0.62f, 0.002f));
+        addChild(Ui3D.component(
+                Ui3D.at(title, xLeft, H * 0.5f - topMargin * 0.62f, 0.002f)));
 
         // ---- central canvas (created first so the toolbar's Fit can reach it) ----
         canvas = new ImageCanvas3D(canvasW, mainH);
@@ -131,7 +132,8 @@ public class ImageStudioFrame3D extends Frame3D implements EditorModel.Listener 
         float statusTextH = statusH * 0.52f;
         statusText = Ui3D.makeText(model.getStatus(), W * 0.95f, statusTextH,
                 Ui3D.TEXT_DIM, GlassyText2D.Alignment.LEFT);
-        addChild(Ui3D.at(statusText, xLeft, statusCY - statusTextH * 0.5f, 0.002f));
+        addChild(Ui3D.component(
+                Ui3D.at(statusText, xLeft, statusCY - statusTextH * 0.5f, 0.002f)));
 
         model.addListener(this);
 
