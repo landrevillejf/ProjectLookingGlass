@@ -138,6 +138,23 @@ work to make it build and run on a current toolchain.
   `failonerror="false"` behaviour by excluding apps that cannot build.
 - **Documentation** — the root and per-module `README.md` files rewritten to
   describe the port, build/run instructions, module map, and exclusions.
+- **`lg3d-art` raster assets modernised for high-resolution displays** — the
+  wallpapers shipped as 512x512 JPEGs are stretched full-screen by
+  `SimpleImageBackground`, so they looked soft and blocky on modern 1080p/4K
+  panels. A new reproducible tool, `lg3d-art/tools/modernize_assets.py`
+  (Pillow + NumPy + SciPy), cleans and enlarges them in place while keeping the
+  *same content*: JPEGs get a mild variance-gated (Wiener-like) denoise at
+  native resolution to dissolve compression blockiness, a Lanczos upscale to a
+  2048px longest side (capped at 4x so small icons are not over-inflated), and a
+  high-quality progressive re-encode; PNGs (icons, splash art) are lossless
+  already, so only the Lanczos upscale + optimised re-encode is applied, with
+  alpha preserved. Per the agreed policy there is **no sharpening and no
+  contrast/colour retouch** — the look is preserved, only cleaned and enlarged.
+  Filenames, formats and aspect ratios are unchanged, so every runtime reference
+  (BgConfig, start-menu icons, splash, GDM theme) keeps working, and the tool is
+  idempotent (images already >= the target are never re-enlarged). The website
+  thumbnails under `www/` and the fixed-size GDM chrome buttons are excluded.
+  93 assets processed; the art payload grows ~6.8 MB -> ~37.8 MB.
 
 ### Removed
 - **Bundled `j3d-contrib-utils.jar` and `satin-v2.3.jar`** — compiled against the
