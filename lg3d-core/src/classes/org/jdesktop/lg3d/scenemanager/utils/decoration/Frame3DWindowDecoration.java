@@ -17,6 +17,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.jogamp.vecmath.Vector3f;
+import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
@@ -90,6 +91,7 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private static final int flipDuration = 500;
     private static final int flipResetDelay = 1000;
+    private static final int maximizeDuration = 500;
     private static final float maximizeMargin = 0.95f;
 
     private static final Timer flipperTimer = new Timer("Frame3DDecoration:FlipperTimer", true);
@@ -111,6 +113,7 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private boolean maximized = false;
     private float normalScale = 1.0f;
+    private Vector3f normalTranslation = null;
 
     private volatile boolean beingFlipped = false;
     private StickyNote stickyNote = null;
@@ -219,19 +222,43 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private void toggleMaximized() {
         if (maximized) {
-            frame.changeScale(normalScale);
+            // Restore the pre-maximize scale and position.
+            frame.changeScale(normalScale, maximizeDuration);
+            if (normalTranslation != null) {
+                frame.changeTranslation(normalTranslation, maximizeDuration);
+            }
             maximized = false;
         } else {
-            normalScale = frame.getScale();
             Toolkit3D tk = Toolkit3D.getToolkit3D();
+            normalScale = frame.getFinalScale();
+            normalTranslation = frame.getFinalTranslation(new Vector3f());
+
+            // The taskbar reserves a strip at the bottom of the screen; a real
+            // maximize must fill only the usable area above it and never cover
+            // the bar.
+            float reserve = Taskbar.getReservedBottomHeight();
+            float usableHeight = tk.getScreenHeight() - reserve;
+            // World-space y of the centre of the usable area (screen centre
+            // is y == 0, so the usable band is shifted up by reserve/2).
+            float centerY = reserve * 0.5f;
+
+            // Uniform (aspect-preserving) scale that fits the frame within the
+            // usable area. min() picks the constraining axis so the aspect
+            // ratio is never distorted.
             float fill = Math.min(
                 tk.getScreenWidth() / frameWidth,
-                tk.getScreenHeight() / frameHeight) * maximizeMargin;
-            if (fill > normalScale) {
-                frame.changeScale(fill);
-                frame.postEvent(new Component3DToFrontEvent());
-                maximized = true;
-            }
+                usableHeight / frameHeight) * maximizeMargin;
+
+            // A true maximize must also re-center the window: scaling alone
+            // just grows the frame about its current origin, leaving an
+            // off-center window enlarged in place rather than filling the
+            // screen. Center it in the usable area (the layout keeps z at the
+            // front plane via Component3DToFrontEvent below).
+            frame.changeTranslation(
+                new Vector3f(0.0f, centerY, normalTranslation.z), maximizeDuration);
+            frame.changeScale(fill, maximizeDuration);
+            frame.postEvent(new Component3DToFrontEvent());
+            maximized = true;
         }
     }
 

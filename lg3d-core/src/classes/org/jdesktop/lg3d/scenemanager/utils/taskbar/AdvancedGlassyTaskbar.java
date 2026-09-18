@@ -171,6 +171,10 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         
         tskbar.cont.setTranslation(0.0f, height * -0.6f, 0.0f);
         tskbar.cont.changeTranslation(0.0f, height * -0.5f + barHeight * 0.75f, 0.0f, 2000);
+        // The bar's centre sits at -H/2 + 0.75*barHeight, so its top edge is at
+        // -H/2 + 1.25*barHeight; publish that as the reserved bottom strip so
+        // maximized windows stop above the taskbar.
+        setReservedBottomHeight(barHeight * 1.25f);
         
 	return tskbar;
     }

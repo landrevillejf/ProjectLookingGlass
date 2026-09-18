@@ -36,6 +36,22 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
 public abstract class Taskbar extends Container3D implements SceneManagerPlugin {
     protected static final Logger logger = Logger.getLogger("lg.scenemanager");
+
+    /**
+     * World-space height the active taskbar reserves at the bottom of the
+     * screen (from the bottom edge up to the top of the bar). Window chrome
+     * (e.g. maximize) uses this to avoid covering the taskbar. Concrete
+     * taskbars publish it during initialization.
+     */
+    private static volatile float reservedBottomHeight = 0.0f;
+
+    public static void setReservedBottomHeight(float height) {
+        reservedBottomHeight = height;
+    }
+
+    public static float getReservedBottomHeight() {
+        return reservedBottomHeight;
+    }
     
     public abstract void addThumbnail(Component3D thumbnail);
     public abstract void removeThumbnail(Component3D thumbnail);
