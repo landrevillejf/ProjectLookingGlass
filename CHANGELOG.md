@@ -160,6 +160,16 @@ work to make it build and run on a current toolchain.
   `wilkoaim3d`, `luncher`, `orgchart`, `nlc`, `jmf23D`.
 
 ### Fixed
+- **Vertical spine titles floating beside the green window edge** — the rotated
+  edge titles built by `TitledSwingWindow` sit on the pale green side face of
+  the decoration backdrop: each pre-rotated +/-90deg spine quad is placed just
+  outside the backdrop side (`x = +/-(contentW/2 + DECO_WIDTH)`) with its glyph
+  band centred on the slab depth (`z = -1.5 x BODY_DEPTH`, half a glyph proud
+  of each glass face, the sign following the pre-rotation), so on a turned
+  window or on the bookshelf the title reads on the green edge like a book
+  spine instead of floating over the window rim. Placement derives from the
+  public `Frame3DWindowDecoration.BODY_DEPTH` / `DECO_WIDTH` constants so the
+  app helper and the decoration cannot drift apart.
 - **Blank desktop (missing icons/wallpapers/background chooser)** — caused by the
   `resources/` classpath-prefix mismatch: lg3d requests artwork under a top-level
   `resources/` prefix, but the per-module Gradle builds emit those assets at other

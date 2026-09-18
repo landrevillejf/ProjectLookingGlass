@@ -17,6 +17,7 @@ import javax.swing.JPanel;
 import javax.swing.UIManager;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
+import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyText2D;
@@ -56,6 +57,10 @@ public final class TitledSwingWindow {
     private static final float TITLE_BAR_HEIGHT = 0.012f;
     /** Thickness of the title-bar panel. */
     private static final float TITLE_BAR_DEPTH = 0.004f;
+    /** Glyph height of the vertical edge ("spine") titles. */
+    private static final float SPINE_GLYPH_HEIGHT = 0.006f;
+    /** Lift that keeps the spine quad just outside the backdrop side face. */
+    private static final float SPINE_MARGIN = 0.0002f;
 
     private TitledSwingWindow() {
     }
@@ -105,6 +110,16 @@ public final class TitledSwingWindow {
         titleBar.addListener(new Component3DMover(frame));
         frame.addChild(titleBar);
 
+        // Vertical "spine" titles on the left and right edges, each pre-rotated
+        // +/-90deg about Y. In the normal front-facing view they are edge-on and
+        // effectively invisible; when the window is parked on the bookshelf
+        // (right-click the desktop) BookshelfLayout rotates the frame +/-90deg,
+        // so the matching spine turns to face the viewer and reads like a book
+        // spine. This mirrors the SpineTitle chrome of the native X11 window
+        // look-and-feel, which the pure-3D Frame3D path otherwise lacks.
+        frame.addChild(buildSpineTitle(title, contentW, contentH, -1));
+        frame.addChild(buildSpineTitle(title, contentW, contentH, +1));
+
         // The frame is content + title bar; Frame3DWindowDecoration (attached
         // during changeEnabled) reads this size and lands its min/max/close
         // buttons in the title strip.
@@ -142,5 +157,48 @@ public final class TitledSwingWindow {
         bar.setTranslation(0.0f, contentH * 0.5f, 0.0f);
         bar.setCursor(Cursor3D.MOVE_CURSOR);
         return bar;
+    }
+
+    /**
+     * Builds one vertical edge ("spine") title. {@code side} is -1 for the left
+     * edge and +1 for the right edge; the sign also drives the pre-rotation so
+     * the correct spine faces the viewer once the window is parked on that side
+     * of the bookshelf. The component is non-pickable so it never intercepts the
+     * drag that moves the window.
+     */
+    private static Component3D buildSpineTitle(
+            String title, float contentW, float contentH, int side) {
+        Component3D spine = new Component3D();
+        // vertical=true lays the glyphs out along -Y from the origin, so the
+        // label hangs down from the top of the content area. The parameters
+        // match the native look-and-feel's SpineTitle (TOP_RIGHT light, LEFT
+        // alignment, 1.8 width scale).
+        GlassyText2D label = new GlassyText2D(
+                title, contentH * 0.95f, SPINE_GLYPH_HEIGHT,
+                new Color4f(0.95f, 0.97f, 1.0f, 1.0f),
+                GlassyText2D.LightDirection.TOP_RIGHT,
+                GlassyText2D.Alignment.LEFT,
+                1.8f, true);
+        spine.addChild(label);
+        spine.setRotationAxis(0.0f, 1.0f, 0.0f);
+        spine.setRotationAngle((float)Math.toRadians(90.0f * side));
+
+        // Lay the glyph band on the pale green side face of the decoration
+        // backdrop: the quad sits just outside the slab (so it never
+        // intersects the glass) at x = +/-(contentW/2 + DECO_WIDTH), and its
+        // 0.006 glyph band is centred on the slab depth. The GlassyPanel slab
+        // grows backwards from its z=0 front face, so with the backdrop at
+        // z = -BODY_DEPTH it spans z -0.010..-0.005; the band therefore runs
+        // -0.0105..-0.0045, half a glyph proud of each glass face. After the
+        // +/-90deg Y rotation the glyph height runs along Z, towards +Z for
+        // the left spine and -Z for the right one, hence the side sign.
+        float x = side
+                * (contentW * 0.5f + Frame3DWindowDecoration.DECO_WIDTH + SPINE_MARGIN);
+        float y = contentH * 0.5f;
+        float z = -Frame3DWindowDecoration.BODY_DEPTH * 1.5f
+                + side * SPINE_GLYPH_HEIGHT * 0.5f;
+        spine.setTranslation(x, y, z);
+        spine.setPickable(false);
+        return spine;
     }
 }
