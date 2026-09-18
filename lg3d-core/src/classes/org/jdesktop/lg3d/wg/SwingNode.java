@@ -276,6 +276,57 @@ public class SwingNode extends Component3D {
     private Texture2D swingTexture;           // texture handed to the renderer
     private int texWidth = -1;                // current pow2 texture width
     private int texHeight = -1;               // current pow2 texture height
+    private final List<TextureListener> textureListeners =
+            new ArrayList<TextureListener>();
+
+    /**
+     * Observer of the node's rendered texture. Unlike the internal
+     * {@code SwingNodeJFrame.TextureChangedListener} (a single slot already
+     * used by the {@link SwingNodeRenderer}), any number of listeners can be
+     * registered via {@link SwingNode#addTextureListener}. Useful to share the
+     * live Swing content with another surface, e.g. a taskbar thumbnail.
+     */
+    public interface TextureListener {
+        /**
+         * Called (on the EDT) whenever the texture object is recreated, i.e.
+         * on the first capture and on every resize. Content-only repaints keep
+         * the same {@code Texture2D} object and update it in place, so holders
+         * of the texture see them without a callback.
+         */
+        void textureChanged(Texture2D texture);
+    }
+
+    public void addTextureListener(TextureListener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener cannot be null");
+        }
+        synchronized (textureListeners) {
+            textureListeners.add(listener);
+        }
+        Texture2D tex = swingTexture;
+        if (tex != null) {
+            listener.textureChanged(tex);
+        }
+    }
+
+    public void removeTextureListener(TextureListener listener) {
+        synchronized (textureListeners) {
+            textureListeners.remove(listener);
+        }
+    }
+
+    private void fireTextureChanged(Texture2D texture) {
+        List<TextureListener> snapshot;
+        synchronized (textureListeners) {
+            if (textureListeners.isEmpty()) {
+                return;
+            }
+            snapshot = new ArrayList<TextureListener>(textureListeners);
+        }
+        for (TextureListener listener : snapshot) {
+            listener.textureChanged(texture);
+        }
+    }
 
     /**
      * Paints the hosted panel into a power-of-two texture and pushes it to the
@@ -348,6 +399,7 @@ public class SwingNode extends Component3D {
         if (recreated) {
             // New texture object: let the renderer bind it and re-fit geometry.
             comp.textureChanged(swingTexture);
+            fireTextureChanged(swingTexture);
         }
     }
 

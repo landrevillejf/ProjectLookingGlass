@@ -119,6 +119,15 @@ work to make it build and run on a current toolchain.
   via `SwingNode` — offscreen texture pipeline, input forwarding, custom
   renderers, lifecycle/`dispose()`). A nested `lg3d-core/AGENTS.md` captures the
   UI/UX rules for agents, and the root `AGENTS.md` now links both.
+- **Live taskbar miniatures for Swing windows** — `TitledSwingWindow` now sets a
+  content thumbnail (the `Lg3dHelp` `HelpThumbnail` pattern: glass plate, drop
+  shadow and a `FuzzyEdgePanel` textured with the window's own image) instead of
+  falling back to the blank coloured `DefaultThumbnail` plate. To make this
+  possible `SwingNode` gained a public `TextureListener` API
+  (`addTextureListener` / `removeTextureListener`): observers are notified on
+  the EDT whenever the rendered `Texture2D` is recreated (first capture and
+  resizes), so the miniature binds — and re-binds — to the same live texture
+  the window renders from, tracking panel repaints in real time.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
