@@ -56,8 +56,10 @@ public class Histogram3D extends Component3D implements EditorModel.Listener {
     private static final int MAX_SAMPLE = 256;
     private static final Color BG = new Color(0x14, 0x18, 0x20);
 
-    // Working image is TYPE_3BYTE_BGR, so band 0=B, 1=G, 2=R.
-    private static final int[] BAND_FOR_RGB = { 2, 1, 0 };
+    // JAI's histogram bands follow the sample model's band order, which for
+    // the TYPE_3BYTE_BGR working image is already R, G, B (band offsets
+    // {2, 1, 0} map band 0 to the R byte), so the identity mapping applies.
+    private static final int[] BAND_FOR_RGB = { 0, 1, 2 };
     private static final Color[] RGB_COLORS = {
         new Color(255, 70, 70, 130),
         new Color(70, 255, 90, 130),

@@ -79,8 +79,13 @@ class GlassyTextTextureGenerator {
             int xShift, int yShift) 
     {
 	BufferedImage bi = createTextureImage(text, height, widthScale, xShift, yShift);
+	// byReference must stay false: under Jogamp a by-reference image
+	// component never uploads its pixels. yUp must stay false as well:
+	// the glyph is drawn in the lower rows of the image and the quad's
+	// texture coordinates sample v in [0, heightRatio], which under
+	// Jogamp only matches when the image origin is the upper left.
 	ImageComponent2D ic2d 
-	    = new ImageComponent2D(ImageComponent.FORMAT_RGBA, bi, true, true);
+	    = new ImageComponent2D(ImageComponent.FORMAT_RGBA, bi, false, false);
 	Texture2D t2d 
 	    = new Texture2D(Texture.BASE_LEVEL, Texture.RGBA, 
 //		ic2d.getWidth(), ic2d.getHeight());
