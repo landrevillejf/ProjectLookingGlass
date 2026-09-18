@@ -13,6 +13,7 @@
  */
 package org.jdesktop.lg3d.apps.imagestudio;
 
+import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
 import org.jdesktop.lg3d.utils.shape.GlassyText2D;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -56,8 +57,14 @@ public class ImageStudioFrame3D extends Frame3D implements EditorModel.Listener 
         setName("Image Studio");
 
         Toolkit3D tk = Toolkit3D.getToolkit3D();
-        float W = tk.getScreenWidth() * 0.62f;
-        float H = tk.getScreenHeight() * 0.66f;
+        // Match the window aspect to the usable screen area (full width above
+        // the taskbar reserve). The decoration's maximize scales uniformly to
+        // preserve aspect, so only a matching aspect fills the viewport on
+        // both axes; a narrower window would hit the height bound first and
+        // maximize into a band with wide empty margins left and right.
+        float usableH = tk.getScreenHeight() - Taskbar.getReservedBottomHeight();
+        float H = usableH * 0.70f;
+        float W = H * tk.getScreenWidth() / usableH;
         setPreferredSize(new Vector3f(W, H, 0.01f));
 
         model = new EditorModel();

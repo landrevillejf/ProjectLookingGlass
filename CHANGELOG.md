@@ -250,6 +250,15 @@ work to make it build and run on a current toolchain.
   ratio is never distorted and the width stays proportional), centers the window
   in that usable band on the front plane, and restores the original scale *and*
   position on toggle-off.
+- **Image Studio maximized without filling the screen width** — the frame's
+  preferred size used fixed fractions of the raw screen (0.62 W x 0.66 H), an
+  aspect narrower than the usable desktop band, so the aspect-preserving
+  maximize scale hit the height bound first and left wide empty margins left
+  and right while the height looked correct. `ImageStudioFrame3D` now derives
+  its preferred size from the usable area (`screenHeight -
+  Taskbar.getReservedBottomHeight()`) with the matching aspect, so a maximized
+  window fills the viewport on both axes (uniform 5% margin) and the normal
+  window keeps screen proportions.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
