@@ -16,14 +16,13 @@ package org.jdesktop.lg3d.apps.filemanager;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import org.jdesktop.lg3d.apps.TitledSwingWindow;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.SwingNode;
-import org.jdesktop.lg3d.wg.Toolkit3D;
-import org.jogamp.vecmath.Vector3f;
 
 /**
- * The file manager application: a {@link Frame3D} hosting the
- * {@link FileManagerPanel} Swing UI on a {@link SwingNode}.
+ * The file manager application: the {@link FileManagerPanel} Swing UI presented
+ * as an integrated 3D desktop window (title bar plus minimize / maximize /
+ * close) via {@link TitledSwingWindow}.
  *
  * <p>{@code main} accepts an optional initial directory argument (used by the
  * Documents/Downloads dock stacks' "Open folder" action). When launched from
@@ -68,28 +67,10 @@ public class FileManager {
     }
 
     public FileManager(Path initial) {
+        TitledSwingWindow.installNativeLookAndFeel();
         final FileManagerPanel panel = new FileManagerPanel(initial);
-
-        SwingNode swingNode = new SwingNode();
-        swingNode.setJPanel(panel);
-        swingNode.setTransparency(0.0f);
-
-        final Frame3D frame3d = new Frame3D();
-        frame3d.setName("File Manager");
-        frame3d.addChild(swingNode);
-
-        panel.setOnClose(new Runnable() {
-            @Override
-            public void run() {
-                frame3d.changeEnabled(false);
-            }
-        });
-
-        Toolkit3D tk = Toolkit3D.getToolkit3D();
-        float w = tk.widthNativeToPhysical(PANEL_W);
-        float h = tk.heightNativeToPhysical(PANEL_H);
-        frame3d.setPreferredSize(new Vector3f(w, h, 0.01f));
-        frame3d.changeEnabled(true);
-        frame3d.changeVisible(true);
+        final Frame3D frame =
+                TitledSwingWindow.show("File Manager", panel, PANEL_W, PANEL_H);
+        panel.setOnClose(() -> frame.changeEnabled(false));
     }
 }

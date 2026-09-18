@@ -13,15 +13,12 @@
  */
 package org.jdesktop.lg3d.apps.controlcenter;
 
-import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.SwingNode;
-import org.jdesktop.lg3d.wg.Toolkit3D;
-import org.jogamp.vecmath.Vector3f;
+import org.jdesktop.lg3d.apps.TitledSwingWindow;
 
 /**
- * The control center application: a {@link Frame3D} hosting the
- * {@link ControlCenterPanel} (Display / Users / System / Appearance) on a
- * {@link SwingNode}.
+ * The control center application: the {@link ControlCenterPanel} (Display /
+ * Users / System / Appearance) presented as an integrated 3D desktop window
+ * (title bar plus minimize / maximize / close) via {@link TitledSwingWindow}.
  */
 public class ControlCenter {
 
@@ -33,21 +30,8 @@ public class ControlCenter {
     }
 
     public ControlCenter() {
+        TitledSwingWindow.installNativeLookAndFeel();
         final ControlCenterPanel panel = new ControlCenterPanel();
-
-        SwingNode swingNode = new SwingNode();
-        swingNode.setJPanel(panel);
-        swingNode.setTransparency(0.0f);
-
-        final Frame3D frame3d = new Frame3D();
-        frame3d.setName("Control Center");
-        frame3d.addChild(swingNode);
-
-        Toolkit3D tk = Toolkit3D.getToolkit3D();
-        float w = tk.widthNativeToPhysical(PANEL_W);
-        float h = tk.heightNativeToPhysical(PANEL_H);
-        frame3d.setPreferredSize(new Vector3f(w, h, 0.01f));
-        frame3d.changeEnabled(true);
-        frame3d.changeVisible(true);
+        TitledSwingWindow.show("Control Center", panel, PANEL_W, PANEL_H);
     }
 }
