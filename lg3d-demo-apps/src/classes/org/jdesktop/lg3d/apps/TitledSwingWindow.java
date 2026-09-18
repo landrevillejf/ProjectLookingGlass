@@ -15,17 +15,22 @@ package org.jdesktop.lg3d.apps;
 
 import javax.swing.JPanel;
 import javax.swing.UIManager;
+import org.jdesktop.lg3d.sg.Shape3D;
+import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
 import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
+import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyText2D;
+import org.jdesktop.lg3d.utils.shape.RectShadow;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.SwingNode;
+import org.jdesktop.lg3d.wg.Thumbnail;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jogamp.vecmath.Color4f;
 import org.jogamp.vecmath.Vector3f;
@@ -64,6 +69,12 @@ public final class TitledSwingWindow {
     private static final float SPINE_GLYPH_HEIGHT = 0.006f;
     /** Lift that keeps the spine quad just outside the backdrop side face. */
     private static final float SPINE_MARGIN = 0.0002f;
+    /** Taskbar thumbnail scale (matches DefaultThumbnail / native windows). */
+    private static final float THUMBNAIL_SCALE = 0.13f;
+    /** Fuzzy border of the thumbnail body (HelpThumbnail's, pre-scaled). */
+    private static final float THUMBNAIL_DECO = 0.005f * THUMBNAIL_SCALE;
+    /** Thickness of the thumbnail glass slab, pre-scaled. */
+    private static final float THUMBNAIL_DEPTH = 0.02f * THUMBNAIL_SCALE;
 
     private TitledSwingWindow() {
     }
@@ -132,6 +143,14 @@ public final class TitledSwingWindow {
         frame.addChild(buildSpineTitle(title, contentW, contentH, -1));
         frame.addChild(buildSpineTitle(title, contentW, contentH, +1));
 
+        // Live miniature for the taskbar: without an explicit thumbnail
+        // StandardAppContainer falls back to DefaultThumbnail, a plain coloured
+        // glass plate with no content. Native apps (e.g. Lg3dHelp) avoid that
+        // by supplying a thumbnail textured with the window's own image; do the
+        // same by observing the SwingNode texture, so the miniature tracks the
+        // panel live (same Texture2D object, updated in place on repaints).
+        frame.setThumbnail(buildThumbnail(node, contentW, contentH));
+
         // The frame is content + title bar; Frame3DWindowDecoration (attached
         // during changeEnabled) reads this size and lands its min/max/close
         // buttons in the title strip.
@@ -140,6 +159,66 @@ public final class TitledSwingWindow {
         frame.changeEnabled(true);
         frame.changeVisible(true);
         return frame;
+    }
+
+    /**
+     * Builds the taskbar miniature: a glass plate + drop shadow framing a
+     * {@link FuzzyEdgePanel} textured with the SwingNode's rendered content
+     * (the Lg3dHelp {@code HelpThumbnail} pattern). The texture does not exist
+     * yet at construction time - {@code SwingNode.setJPanel} captures on the
+     * EDT - so it is bound through {@link SwingNode#addTextureListener} and
+     * re-bound on every resize (each resize recreates the {@code Texture2D}).
+     */
+    private static Thumbnail buildThumbnail(
+            SwingNode node, float contentW, float contentH) {
+        final float width = contentW * THUMBNAIL_SCALE;
+        final float height = contentH * THUMBNAIL_SCALE;
+
+        Thumbnail thumbnail = new Thumbnail();
+
+        GlassyPanel deco = new GlassyPanel(
+                width + THUMBNAIL_DECO * 2,
+                height + THUMBNAIL_DECO * 2,
+                THUMBNAIL_DEPTH,
+                new SimpleAppearance(
+                        0.6f, 1.0f, 0.6f, 1.0f, SimpleAppearance.DISABLE_CULLING));
+
+        Shape3D shadow = new RectShadow(
+                width + THUMBNAIL_DECO * 2,
+                height + THUMBNAIL_DECO * 2,
+                0.001f * 2, 0.0015f * 2, 0.002f * 2, 0.001f * 2,
+                0.001f,
+                -THUMBNAIL_DEPTH,
+                0.3f);
+
+        // ENABLE_TEXTURE sets ALLOW_TEXTURE_WRITE on the appearance, so the
+        // texture can still be (re)bound once the thumbnail is live on the
+        // taskbar. The pixels exist before this setTexture call runs (the
+        // listener only fires after captureNow has filled the image).
+        final SimpleAppearance bodyApp = new SimpleAppearance(
+                1.0f, 1.0f, 1.0f, 1.0f,
+                SimpleAppearance.ENABLE_TEXTURE | SimpleAppearance.DISABLE_CULLING);
+        FuzzyEdgePanel body = new FuzzyEdgePanel(width, height, THUMBNAIL_DECO, bodyApp);
+
+        Component3D thumbBody = new Component3D();
+        thumbBody.addChild(deco);
+        thumbBody.addChild(shadow);
+        thumbBody.addChild(body);
+        // No setScale here: width/height are already the thumbnail-sized
+        // (content * THUMBNAIL_SCALE) dimensions, unlike HelpThumbnail which
+        // builds its children at full size and scales the container.
+        thumbnail.addChild(thumbBody);
+        thumbnail.setPreferredSize(new Vector3f(
+                width + THUMBNAIL_DECO * 2,
+                height + THUMBNAIL_DECO * 2,
+                THUMBNAIL_DEPTH));
+
+        node.addTextureListener(new SwingNode.TextureListener() {
+            public void textureChanged(Texture2D texture) {
+                bodyApp.setTexture(texture);
+            }
+        });
+        return thumbnail;
     }
 
     private static Component3D buildTitleBar(String title, float width, float contentH) {
