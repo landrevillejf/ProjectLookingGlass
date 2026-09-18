@@ -111,6 +111,14 @@ work to make it build and run on a current toolchain.
   puts the two genuine JAI jars (`jai_core.jar`, `jai_codec.jar`) on the desktop
   classpath and exports `java.desktop/sun.awt.image` so JAI's `RasterAccessor`
   fast path works under JDK 21.
+- **UI/UX developer documentation** — a new top-level `docs/` tree (distinct from
+  the historical `lg3d-docs/`): `docs/lg3d-native-apps.md` (building native 3D
+  apps — `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event
+  adapters + actions, transparency ordering, the live-graph texture-upload rule,
+  and Start-Menu `.lgcfg` registration) and `docs/swingnode.md` (embedding Swing
+  via `SwingNode` — offscreen texture pipeline, input forwarding, custom
+  renderers, lifecycle/`dispose()`). A nested `lg3d-core/AGENTS.md` captures the
+  UI/UX rules for agents, and the root `AGENTS.md` now links both.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
