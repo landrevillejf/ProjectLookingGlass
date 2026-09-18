@@ -90,6 +90,7 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private static final int flipDuration = 500;
     private static final int flipResetDelay = 1000;
+    private static final int maximizeDuration = 500;
     private static final float maximizeMargin = 0.95f;
 
     private static final Timer flipperTimer = new Timer("Frame3DDecoration:FlipperTimer", true);
@@ -111,6 +112,7 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private boolean maximized = false;
     private float normalScale = 1.0f;
+    private Vector3f normalTranslation = null;
 
     private volatile boolean beingFlipped = false;
     private StickyNote stickyNote = null;
@@ -219,19 +221,34 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private void toggleMaximized() {
         if (maximized) {
-            frame.changeScale(normalScale);
+            // Restore the pre-maximize scale and position.
+            frame.changeScale(normalScale, maximizeDuration);
+            if (normalTranslation != null) {
+                frame.changeTranslation(normalTranslation, maximizeDuration);
+            }
             maximized = false;
         } else {
-            normalScale = frame.getScale();
             Toolkit3D tk = Toolkit3D.getToolkit3D();
+            normalScale = frame.getFinalScale();
+            normalTranslation = frame.getFinalTranslation(new Vector3f());
+
+            // Uniform (aspect-preserving) scale that fits the frame within the
+            // usable screen area. min() picks the constraining axis so the
+            // aspect ratio is never distorted.
             float fill = Math.min(
                 tk.getScreenWidth() / frameWidth,
                 tk.getScreenHeight() / frameHeight) * maximizeMargin;
-            if (fill > normalScale) {
-                frame.changeScale(fill);
-                frame.postEvent(new Component3DToFrontEvent());
-                maximized = true;
-            }
+
+            // A true maximize must also re-center the window: scaling alone
+            // just grows the frame about its current origin, leaving an
+            // off-center window enlarged in place rather than filling the
+            // screen. Move it to the horizontal/vertical center (the layout
+            // keeps z at the front plane via Component3DToFrontEvent below).
+            frame.changeTranslation(
+                new Vector3f(0.0f, 0.0f, normalTranslation.z), maximizeDuration);
+            frame.changeScale(fill, maximizeDuration);
+            frame.postEvent(new Component3DToFrontEvent());
+            maximized = true;
         }
     }
 
