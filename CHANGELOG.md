@@ -66,10 +66,11 @@ work to make it build and run on a current toolchain.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side, immediately before Exit
   (`[Background] [Documents] [Downloads] [Exit]`), each fanning out its most
-  recent entries as an OSX/Leopard-style arc of icon cards
+  recent entries as an OSX/Leopard-style fan of icon cards, each a filename
+  pill beside its MIME icon
   (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`, registered from
   `glassy.lgcfg`). Hovering the dock icon opens the fan (a click toggles it),
-  newest entries leading the arc. Files open with `xdg-open`; folders — and a
+  newest entries leading the fan. Files open with `xdg-open`; folders — and a
   header **Show in File Manager** action — open the folder in the file manager.
   Escape or the close button dismisses the fan.
 - **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**

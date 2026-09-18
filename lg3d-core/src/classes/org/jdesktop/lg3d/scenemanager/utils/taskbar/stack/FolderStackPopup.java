@@ -13,7 +13,6 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.taskbar.stack;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
@@ -65,14 +64,22 @@ public class FolderStackPopup {
             "org.jdesktop.lg3d.apps.filemanager.FileManager";
 
     private static final int PANEL_W = 600;
-    private static final int PANEL_H = 380;
+    private static final int PANEL_H = 460;
 
     /** Most entries drawn on the fan arc (the newest ones). */
     private static final int MAX_FAN = 8;
-    /** Card cell size (icon + label). */
-    private static final int CARD = 80;
-    /** Scaled icon size painted inside a card. */
+    /** Card cell size: a filename pill beside an icon. */
+    private static final int CARD_W = 210;
+    private static final int CARD_H = 52;
+    /** Scaled icon size painted on the right of a card. */
     private static final int ICON = 46;
+    /** Filename pill painted on the left of a card. */
+    private static final int PILL_W = CARD_W - ICON - 8;
+    private static final int PILL_H = 22;
+    /** Horizontal bow of the vertical fan arc. */
+    private static final int ARC_BOW = 40;
+    /** Top of the fan area, just below the header. */
+    private static final int FAN_TOP = 44;
 
     private final FolderStackModel model;
     private final Frame3D frame3d;
@@ -227,24 +234,20 @@ public class FolderStackPopup {
             emptyLabel.setVisible(n == 0);
 
             if (n > 0) {
-                // Arc pivoted just below the panel so the fan opens upward.
-                final double startDeg = 155.0;
-                final double endDeg = 25.0;
-                final double px = PANEL_W / 2.0;
-                final double py = PANEL_H - 8.0;
-                final double radius = PANEL_H * 0.74;
+                // Vertical fan, newest at top, bowed like an opening arc.
+                final int usable = PANEL_H - FAN_TOP - 8 - CARD_H;
                 for (int i = 0; i < n; i++) {
                     double t = (n == 1) ? 0.5 : (double) i / (n - 1);
-                    double ang = Math.toRadians(startDeg + t * (endDeg - startDeg));
-                    int x = (int) Math.round(px + radius * Math.cos(ang));
-                    int y = (int) Math.round(py - radius * Math.sin(ang));
+                    int x = (int) Math.round(PANEL_W / 2.0
+                            + ARC_BOW * Math.sin(Math.PI * t));
+                    int y = (int) Math.round(FAN_TOP + t * usable);
                     final FolderStackModel.StackItem item = items.get(i);
                     FanCard card = new FanCard();
                     card.setItem(scaleIcon(item.getIcon(), ICON),
                             truncate(item.getName(), 14));
                     card.setToolTipText(item.getName());
                     card.setOnClick(() -> openItem(item));
-                    card.setBounds(x - CARD / 2, y - CARD / 2, CARD, CARD + 16);
+                    card.setBounds(x - CARD_W / 2, y, CARD_W, CARD_H);
                     add(card);
                 }
             }
@@ -253,7 +256,7 @@ public class FolderStackPopup {
         }
     }
 
-    /** A single icon card on the fan: an icon over a truncated name. */
+    /** A single entry on the fan: an icon beside a filename pill. */
     private static final class FanCard extends JPanel {
         private final JLabel iconLabel = new JLabel();
         private final JLabel nameLabel = new JLabel();
@@ -261,14 +264,18 @@ public class FolderStackPopup {
         private Runnable onClick;
 
         FanCard() {
-            super(new BorderLayout(0, 3));
+            // Null layout with explicit bounds: the offscreen SwingNode render
+            // never runs layout managers, so children must carry real bounds.
+            super(null);
             setOpaque(false);
             iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            iconLabel.setBounds(CARD_W - ICON, (CARD_H - ICON) / 2, ICON, ICON);
             nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.PLAIN, 10f));
+            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.PLAIN, 11f));
             nameLabel.setForeground(Color.WHITE);
-            add(iconLabel, BorderLayout.CENTER);
-            add(nameLabel, BorderLayout.SOUTH);
+            nameLabel.setBounds(0, (CARD_H - PILL_H) / 2, PILL_W, PILL_H);
+            add(iconLabel);
+            add(nameLabel);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             addMouseListener(new MouseAdapter() {
                 @Override
@@ -305,10 +312,17 @@ public class FolderStackPopup {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(255, 255, 255, hover ? 78 : 34));
-            g2.fillRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 16, 16);
-            g2.setColor(new Color(255, 255, 255, hover ? 160 : 60));
-            g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 16, 16);
+            // Filename pill behind the label (reference look).
+            g2.setColor(new Color(18, 22, 30, hover ? 235 : 200));
+            g2.fillRoundRect(0, (CARD_H - PILL_H) / 2, PILL_W, PILL_H, 12, 12);
+            g2.setColor(new Color(255, 255, 255, hover ? 150 : 70));
+            g2.drawRoundRect(0, (CARD_H - PILL_H) / 2, PILL_W, PILL_H, 12, 12);
+            // Hover highlight behind the icon.
+            if (hover) {
+                g2.setColor(new Color(255, 255, 255, 60));
+                g2.fillRoundRect(CARD_W - ICON - 3, (CARD_H - ICON) / 2 - 3,
+                        ICON + 6, ICON + 6, 14, 14);
+            }
             g2.dispose();
         }
     }
