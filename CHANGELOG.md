@@ -160,6 +160,18 @@ work to make it build and run on a current toolchain.
   `wilkoaim3d`, `luncher`, `orgchart`, `nlc`, `jmf23D`.
 
 ### Fixed
+- **`TitledSwingWindow` windows could be parked but never rotated** — every
+  rotation gesture of the desktop lives in frame-level listeners
+  (`ZLayeredMovableLayout`'s CTRL spinner and `Frame3DWindowDecoration`'s
+  middle-button spinner), and `PickEngine` only walks picked events up the
+  ancestor chain while each source it meets is mouse-event propagatable; the
+  Swing quad must stay non-propagatable (or Swing loses its own gestures) and
+  the title bar was too, so no spin gesture ever reached the frame. The title
+  bar is now propagatable, which turns it into the window's full gesture
+  handle: left-drag moves, middle-drag or CTRL+left-drag rotates and
+  right-click flips to the sticky note — the same idioms as pure-3D windows,
+  with no duplicate listeners (the native window look-and-feel uses the same
+  trick for its title panel).
 - **Vertical spine titles floating beside the green window edge** — the rotated
   edge titles built by `TitledSwingWindow` sit on the pale green side face of
   the decoration backdrop: each pre-rotated +/-90deg spine quad is placed just
