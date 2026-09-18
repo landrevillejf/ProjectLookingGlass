@@ -119,6 +119,13 @@ work to make it build and run on a current toolchain.
   via `SwingNode` — offscreen texture pipeline, input forwarding, custom
   renderers, lifecycle/`dispose()`). A nested `lg3d-core/AGENTS.md` captures the
   UI/UX rules for agents, and the root `AGENTS.md` now links both.
+- **Shared native widget kit (`uikit`)** — `org.jdesktop.lg3d.apps.uikit` in
+  `lg3d-demo-apps`: `Ui3D` (glassy colours, panel/label/Component3D factory
+  helpers), `Button3D` (push button with hover highlight, `setText`/`setLit`/
+  `setEnabled`), `ScrollList3D` (wheel-scrollable viewport that only shows and
+  picks the visible rows) and `Gauge3D` (horizontal fill gauge). Promotes the
+  pure-3D vocabulary proven by Image Studio into reusable widgets so native
+  apps no longer need Swing.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -138,6 +145,24 @@ work to make it build and run on a current toolchain.
   `failonerror="false"` behaviour by excluding apps that cannot build.
 - **Documentation** — the root and per-module `README.md` files rewritten to
   describe the port, build/run instructions, module map, and exclusions.
+- **File Manager, Task Manager and Control Center are now 100% lg3d-native 3D
+  apps** (like Image Studio) — the SwingNode + Swing implementations were
+  replaced with pure `Frame3D` UIs built from the shared `uikit` widgets, and
+  each window's preferred size now matches the usable-screen aspect so the
+  decoration's maximize fills the viewport. File Manager: toolbar (Back/Fwd/Up/
+  Home/Refresh/Open/Delete-to-trash with two-click confirm), wheel-scrolled
+  listing, `Opener` integration. Task Manager: live CPU/memory/load header,
+  sort by CPU/MEM/name, End Task (SIGTERM) / Force Quit (SIGKILL) via
+  `ProcessService`, 2s refresh gated by the window's enabled/visible state.
+  Control Center: native page-plugin shell (`ControlPanel` +
+  `ControlPanelRegistry`) with Display (xrandr output/resolution pick, Primary
+  toggle, Apply with a 20s Keep/revert countdown), Users (read-only account
+  browser with details + groups), System (live gauges + host/kernel/load/
+  filesystem info) and Appearance (wallpaper list with textured preview,
+  Apply posts `BackgroundChangeRequestEvent`) pages. Features that required
+  Swing text input or dialogs were dropped: rename/new-folder/copy/move in
+  File Manager, user account administration, custom-wallpaper file chooser,
+  and refresh-rate/scale/position pickers in Display.
 
 ### Removed
 - **Bundled `j3d-contrib-utils.jar` and `satin-v2.3.jar`** — compiled against the
@@ -259,6 +284,14 @@ work to make it build and run on a current toolchain.
   Taskbar.getReservedBottomHeight()`) with the matching aspect, so a maximized
   window fills the viewport on both axes (uniform 5% margin) and the normal
   window keeps screen proportions.
+- **Taskbar popups rendered behind maximized windows** — with a window
+  maximized, the start-menu application list, dock stacks and theme popups
+  could not be clicked: `AdvancedGlassyTaskbar` laid its `shortcuts` (launcher
+  icons, start-menu Tapp, dock stacks) and `themes` containers out at z≈0 while
+  the front window plane sits at z≈-0.004 (`ZLayeredLayout`), so the maximized
+  window covered both the visuals and the pick ray. Both containers are now
+  translated to the thumbnail depth (-0.023), in front of every window plane,
+  matching the app-thumbnail row that already worked.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
