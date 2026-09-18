@@ -221,6 +221,15 @@ work to make it build and run on a current toolchain.
 - **Image Studio histogram channels swapped** — for `TYPE_3BYTE_BGR` images the
   JAI histogram band order is `{2,1,0}`, so band 0 is red; `Histogram3D` now maps
   bands to R/G/B with the identity `{0,1,2}` instead of reversing them.
+- **Image Studio open (file chooser / filmstrip) appeared to do nothing** —
+  `ImageCanvas3D.setImage` attached the new `Texture2D` to the live appearance
+  (`Appearance.setTexture`) while its `ImageComponent2D` still held no pixels;
+  under Jogamp that makes `TextureRetained.setLive` dereference null image data
+  and throw, and the NPE propagated back through `EditorModel.setImage` into
+  `FileStrip3D.loadPath`'s catch, which reported "Could not open ..." and left
+  the canvas on the old image. The canvas now paints and uploads the pixels
+  before building/attaching the texture, so opening a file updates the viewport
+  and histogram.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:
