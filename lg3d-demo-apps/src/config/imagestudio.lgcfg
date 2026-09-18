@@ -3,8 +3,8 @@
  <!-- Start Menu item: Image Studio (from lg3d-incubator). Launched in-JVM via
  the "java <class>" command; the incubator jar and the bundled JAI jars are on
  the :lg3d-core:run classpath, so the app and javax.media.jai.* both resolve.
- Discovery only scans config/demo and config/incubator, so -- following the
- Widget Gallery precedent -- this descriptor lives in lg3d-demo-apps/src/config
+ Discovery only scans config/demo and config/incubator, so, following the
+ Widget Gallery precedent, this descriptor lives in lg3d-demo-apps/src/config
  (bundled to config/demo) rather than the incubator's own src/config. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
