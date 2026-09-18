@@ -153,6 +153,9 @@ public class GlassyTaskbar extends Taskbar {
         changeRotationAngle((float)Math.toRadians(5));
         setTranslation(0.0f, height * -0.6f, 0.0f);
         changeTranslation(0.0f, height * -0.5f + barHeight * 0.5f, barZ, 2000);
+        // The bar's centre sits at -H/2 + 0.5*barHeight, so its top edge is at
+        // -H/2 + barHeight; publish that as the reserved bottom strip.
+        setReservedBottomHeight(barHeight);
         
         // Listen for handling the window size change
         LgEventConnector.getLgEventConnector().addListener(

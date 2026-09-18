@@ -238,14 +238,18 @@ work to make it build and run on a current toolchain.
   the canvas on the old image. The canvas now paints and uploads the pixels
   before building/attaching the texture, so opening a file updates the viewport
   and histogram.
-- **`Frame3D` maximize only enlarged the window in place** — clicking maximize on
-  a native 3D app window scaled it about its current origin without re-centering,
-  so an off-center window merely grew (~2x) and never filled the screen, and the
-  pre-maximize position was lost on restore. `Frame3DWindowDecoration.toggleMaximized`
-  now saves both the final scale and translation, applies the aspect-preserving
-  fit-to-screen scale (`min(screenW/frameW, screenH/frameH) * margin`, so the
-  aspect ratio is never distorted), re-centers the window at (0, 0) on the front
-  plane, and restores the original scale *and* position on toggle-off.
+- **`Frame3D` maximize only enlarged the window in place and covered the taskbar**
+  — clicking maximize on a native 3D app window scaled it about its current
+  origin without re-centering, so an off-center window merely grew (~2x), the
+  pre-maximize position was lost on restore, and filling the full screen height
+  made the window overlap the bottom taskbar. `Frame3DWindowDecoration.toggleMaximized`
+  now saves both the final scale and translation, fits the window into the
+  *usable* desktop area above the taskbar (a new `Taskbar.getReservedBottomHeight()`
+  published by `AdvancedGlassyTaskbar`/`GlassyTaskbar`), applies an aspect-preserving
+  uniform scale (`min(screenW/frameW, usableH/frameH) * margin`, so the aspect
+  ratio is never distorted and the width stays proportional), centers the window
+  in that usable band on the front plane, and restores the original scale *and*
+  position on toggle-off.
 
 ### Known non-fatal runtime messages
 These are harmless and expected in dev mode:

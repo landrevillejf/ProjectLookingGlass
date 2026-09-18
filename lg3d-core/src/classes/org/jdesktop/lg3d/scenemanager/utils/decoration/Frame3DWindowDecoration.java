@@ -17,6 +17,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.jogamp.vecmath.Vector3f;
+import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
@@ -232,20 +233,29 @@ public class Frame3DWindowDecoration extends Component3D {
             normalScale = frame.getFinalScale();
             normalTranslation = frame.getFinalTranslation(new Vector3f());
 
+            // The taskbar reserves a strip at the bottom of the screen; a real
+            // maximize must fill only the usable area above it and never cover
+            // the bar.
+            float reserve = Taskbar.getReservedBottomHeight();
+            float usableHeight = tk.getScreenHeight() - reserve;
+            // World-space y of the centre of the usable area (screen centre
+            // is y == 0, so the usable band is shifted up by reserve/2).
+            float centerY = reserve * 0.5f;
+
             // Uniform (aspect-preserving) scale that fits the frame within the
-            // usable screen area. min() picks the constraining axis so the
-            // aspect ratio is never distorted.
+            // usable area. min() picks the constraining axis so the aspect
+            // ratio is never distorted.
             float fill = Math.min(
                 tk.getScreenWidth() / frameWidth,
-                tk.getScreenHeight() / frameHeight) * maximizeMargin;
+                usableHeight / frameHeight) * maximizeMargin;
 
             // A true maximize must also re-center the window: scaling alone
             // just grows the frame about its current origin, leaving an
             // off-center window enlarged in place rather than filling the
-            // screen. Move it to the horizontal/vertical center (the layout
-            // keeps z at the front plane via Component3DToFrontEvent below).
+            // screen. Center it in the usable area (the layout keeps z at the
+            // front plane via Component3DToFrontEvent below).
             frame.changeTranslation(
-                new Vector3f(0.0f, 0.0f, normalTranslation.z), maximizeDuration);
+                new Vector3f(0.0f, centerY, normalTranslation.z), maximizeDuration);
             frame.changeScale(fill, maximizeDuration);
             frame.postEvent(new Component3DToFrontEvent());
             maximized = true;
