@@ -79,8 +79,10 @@ public class Frame3DWindowDecoration extends Component3D {
      */
     public static final String OPT_OUT_PROPERTY = "lg3d.frame3d.decoration.optOut";
 
-    private static final float bodyDepth = 0.005f;
-    private static final float decoWidth = 0.005f;
+    /** Thickness (z) of the green backdrop slab, centred at z = -BODY_DEPTH. */
+    public static final float BODY_DEPTH = 0.005f;
+    /** Extra border the backdrop adds on every side of the frame content. */
+    public static final float DECO_WIDTH = 0.005f;
     private static final float buttonSize = 0.005f;
     private static final float buttonOnSize = buttonSize * 1.15f;
     private static final float shadowN = 0.001f;
@@ -133,27 +135,27 @@ public class Frame3DWindowDecoration extends Component3D {
         Component3D backdrop = new Component3D();
         GlassyPanel bodyDeco
             = new GlassyPanel(
-                frameWidth + decoWidth * 2,
-                frameHeight + decoWidth * 2,
-                bodyDepth,
+                frameWidth + DECO_WIDTH * 2,
+                frameHeight + DECO_WIDTH * 2,
+                BODY_DEPTH,
                 bodyApp);
         Shape3D bodyShadow
             = new RectShadow(
-                frameWidth + decoWidth * 2,
-                frameHeight + decoWidth * 2,
+                frameWidth + DECO_WIDTH * 2,
+                frameHeight + DECO_WIDTH * 2,
                 shadowN, shadowE, shadowS, shadowW, shadowI,
-                -bodyDepth,
+                -BODY_DEPTH,
                 0.2f);
         backdrop.addChild(bodyDeco);
         backdrop.addChild(bodyShadow);
-        backdrop.setTranslation(0.0f, 0.0f, -bodyDepth);
+        backdrop.setTranslation(0.0f, 0.0f, -BODY_DEPTH);
         backdrop.setPickable(false);
         tog.addChild(backdrop);
 
         initButtonAppearances();
 
         float inset = buttonSize * 0.6f;
-        float z = bodyDepth + 0.001f;
+        float z = BODY_DEPTH + 0.001f;
         float yPos = frameHeight * 0.5f - inset;
 
         Component3D minimizeButton
@@ -292,7 +294,7 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private StickyNote createStickyNote() {
         StickyNote sn = new StickyNote();
-        sn.setTranslation(0.0f, 0.0f, bodyDepth * -1.1f);
+        sn.setTranslation(0.0f, 0.0f, BODY_DEPTH * -1.1f);
         sn.setRotationAxis(0.0f, 1.0f, 0.0f);
         sn.setRotationAngle((float)Math.PI);
         Toolkit3D tk = Toolkit3D.getToolkit3D();
