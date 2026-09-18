@@ -13,17 +13,16 @@
  */
 package org.jdesktop.lg3d.apps.taskmanager;
 
+import org.jdesktop.lg3d.apps.TitledSwingWindow;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.SwingNode;
-import org.jdesktop.lg3d.wg.Toolkit3D;
-import org.jogamp.vecmath.Vector3f;
 
 /**
- * The task manager application: a {@link Frame3D} hosting the
- * {@link TaskManagerPanel} Swing UI on a {@link SwingNode}.
+ * The task manager application: the {@link TaskManagerPanel} Swing UI presented
+ * as an integrated 3D desktop window (title bar plus minimize / maximize /
+ * close) via {@link TitledSwingWindow}.
  *
- * <p>The panel drives its own two-second refresh timer; closing the window
- * stops the timer and clears the cached CPU samples.</p>
+ * <p>The panel drives its own two-second refresh timer; its Close button stops
+ * the timer and clears the cached CPU samples before the window is closed.</p>
  */
 public class TaskManager {
 
@@ -35,28 +34,10 @@ public class TaskManager {
     }
 
     public TaskManager() {
+        TitledSwingWindow.installNativeLookAndFeel();
         final TaskManagerPanel panel = new TaskManagerPanel();
-
-        SwingNode swingNode = new SwingNode();
-        swingNode.setJPanel(panel);
-        swingNode.setTransparency(0.0f);
-
-        final Frame3D frame3d = new Frame3D();
-        frame3d.setName("Task Manager");
-        frame3d.addChild(swingNode);
-
-        panel.setOnClose(new Runnable() {
-            @Override
-            public void run() {
-                frame3d.changeEnabled(false);
-            }
-        });
-
-        Toolkit3D tk = Toolkit3D.getToolkit3D();
-        float w = tk.widthNativeToPhysical(PANEL_W);
-        float h = tk.heightNativeToPhysical(PANEL_H);
-        frame3d.setPreferredSize(new Vector3f(w, h, 0.01f));
-        frame3d.changeEnabled(true);
-        frame3d.changeVisible(true);
+        final Frame3D frame =
+                TitledSwingWindow.show("Task Manager", panel, PANEL_W, PANEL_H);
+        panel.setOnClose(() -> frame.changeEnabled(false));
     }
 }
