@@ -310,10 +310,27 @@ Consider creating nested AGENTS.md files for:
 
 ---
 
-## Suggested Nested Files
+## Developer Documentation
 
-1. **`lg3d-core/AGENTS.md`** - For core SDK development, scene-graph architecture, window manager integration details
-2. **`lg3d-incubator/AGENTS.md`** - For incubator app development, bundled jar management, app-specific guidelines
+UI/app-authoring guides live in [`docs/`](docs) (distinct from the historical,
+do-not-edit `lg3d-docs/`):
+
+- [`docs/lg3d-native-apps.md`](docs/lg3d-native-apps.md) - building native 3D
+  apps: `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event
+  adapters + actions, transparency ordering, the live-graph texture rule, and
+  Start-Menu (`.lgcfg`) registration.
+- [`docs/swingnode.md`](docs/swingnode.md) - `SwingNode`: rendering a Swing
+  `JPanel` offscreen into a texture, input forwarding, custom renderers,
+  lifecycle/`dispose()`, and when to use it vs pure-3D widgets.
+
+## Nested AGENTS.md Files
+
+1. **`lg3d-core/AGENTS.md`** - *Present.* UI/UX rules for the scene-graph widget
+   toolkit (`org.jdesktop.lg3d.wg`, `org.jdesktop.lg3d.utils.*`): the two window
+   paths, the non-negotiable texture/transparency/threading rules, the glassy
+   vocabulary, layout conventions, `SwingNode` usage, and UI verification.
+2. **`lg3d-incubator/AGENTS.md`** - *Suggested.* Incubator app development,
+   bundled jar management, app-specific guidelines.
 
 ---
 
