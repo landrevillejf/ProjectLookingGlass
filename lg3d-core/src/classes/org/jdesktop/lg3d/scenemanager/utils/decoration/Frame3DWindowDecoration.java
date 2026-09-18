@@ -278,6 +278,10 @@ public class Frame3DWindowDecoration extends Component3D {
             frame.postEvent(new Component3DToFrontEvent());
             frame.removeChild(sn);
             sn.setEnabled(false);
+            // Release the offscreen Swing resources (hidden JFrame, repaint
+            // and resize hooks). Every flip creates a fresh StickyNote, so
+            // without this each flip cycle would leak a whole offscreen frame.
+            sn.dispose();
         } else {
             // Flip over to reveal the sticky note back side.
             stickyNote = createStickyNote();
@@ -294,7 +298,14 @@ public class Frame3DWindowDecoration extends Component3D {
 
     private StickyNote createStickyNote() {
         StickyNote sn = new StickyNote();
-        sn.setTranslation(0.0f, 0.0f, BODY_DEPTH * -1.1f);
+        // Place the note just outside the *back* face of the decoration slab.
+        // GlassyPanel grows backwards from its local z=0 and the backdrop sits
+        // at z = -BODY_DEPTH, so the opaque green glass spans
+        // [-2*BODY_DEPTH, -BODY_DEPTH]. At the old -1.1*BODY_DEPTH the note
+        // was buried inside that slab and, after the PI flip, the slab's
+        // opaque back face (then closest to the viewer) hid it completely -
+        // the window flipped to a plain green back on every app.
+        sn.setTranslation(0.0f, 0.0f, BODY_DEPTH * -2.0f - 0.0002f);
         sn.setRotationAxis(0.0f, 1.0f, 0.0f);
         sn.setRotationAngle((float)Math.PI);
         Toolkit3D tk = Toolkit3D.getToolkit3D();
