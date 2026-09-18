@@ -65,10 +65,13 @@ work to make it build and run on a current toolchain.
   managed through the **Widget Gallery** app.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side, immediately before Exit
-  (`[Background] [Documents] [Downloads] [Exit]`), each expanding to a list or an
-  OSX-style grid (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`,
-  registered from `glassy.lgcfg`). Files open with `xdg-open`; folders open in
-  the file manager.
+  (`[Background] [Documents] [Downloads] [Exit]`), each fanning out its most
+  recent entries as an OSX/Leopard-style arc of icon cards
+  (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`, registered from
+  `glassy.lgcfg`). Hovering the dock icon opens the fan (a click toggles it),
+  newest entries leading the arc. Files open with `xdg-open`; folders — and a
+  header **Show in File Manager** action — open the folder in the file manager.
+  Escape or the close button dismisses the fan.
 - **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
   (tree + list browsing with copy / move / rename / delete-to-trash / new-folder,
   multi-select, drag-and-drop, keyboard shortcuts), **Task Manager** (live
