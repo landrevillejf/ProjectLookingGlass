@@ -46,10 +46,13 @@ import org.jogamp.vecmath.Vector3f;
  * (so they are neither visible nor clickable).</p>
  *
  * <p>This helper reserves a title-bar strip at the top of the frame, shifts the
- * Swing content down into the remaining area, and makes the strip a pickable
- * drag handle wired straight to the frame. The result is a window that stays
- * part of the 3D desktop yet behaves like a conventional one: drag the title
- * bar to move it, and the standard window buttons sit in the clear strip.</p>
+ * Swing content down into the remaining area, and makes the strip a pickable,
+ * event-propagating drag handle: gestures picked on it travel up to the
+ * frame-level listeners of {@code ZLayeredMovableLayout} and
+ * {@link Frame3DWindowDecoration}, so the window keeps every desktop idiom -
+ * left-drag the title bar to move it, middle-drag or CTRL+left-drag to rotate
+ * it, right-click to flip it to the sticky note - and the standard window
+ * buttons sit in the clear strip.</p>
  */
 public final class TitledSwingWindow {
 
@@ -105,9 +108,18 @@ public final class TitledSwingWindow {
         frame.addChild(node);
 
         Component3D titleBar = buildTitleBar(title, contentW, contentH);
-        // Dragging the title bar moves the whole window. The mover targets the
-        // frame explicitly, so it works even though events do not propagate.
-        titleBar.addListener(new Component3DMover(frame));
+        // Every window gesture of the desktop lives in frame-level listeners:
+        // ZLayeredMovableLayout adds the BUTTON1 mover and the CTRL spinner to
+        // each frame, and Frame3DWindowDecoration adds the BUTTON2 spinner and
+        // the BUTTON3 flip. PickEngine only delivers a picked event up the
+        // ancestor chain while each source it meets is propagatable, which the
+        // Swing quad must not be (or Swing would lose its own gestures). So
+        // make the title bar propagatable instead: it becomes the window's
+        // gesture handle - left-drag moves, middle-drag or CTRL+left-drag
+        // rotates, right-click flips to the sticky note - the same idioms as
+        // pure-3D windows, with no duplicate listeners (the native window
+        // look-and-feel uses the same trick for its title panel).
+        titleBar.setMouseEventPropagatable(true);
         frame.addChild(titleBar);
 
         // Vertical "spine" titles on the left and right edges, each pre-rotated
