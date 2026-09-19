@@ -275,6 +275,29 @@ work to make it build and run on a current toolchain.
   clearance fills the usable band between them. Auto-hide slides the bar mostly
   off its docking edge on mouse-exit and back on edge hover (self-contained in
   the taskbar, as the legacy dormant `HideEvent` path has no poster).
+- **Four native-3D games** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.games`) —
+  **Tic-Tac-Toe 3D**, **Sudoku 3D**, **Chess 3D** and **Solitaire 3D**, each a
+  self-contained pure-3D app on the Agenda 3D pattern: a plain-Java game **model**
+  (no AWT, unit-tested headless), a live-texture `Component3D` **view** that
+  rasterises the board into one `ImageComponent2D` with the `Histogram3D` `.set`
+  recipe, and a `Frame3D` **host** (with the standard decoration) laying the view
+  over a strip of runtime-drawn `AgendaButton` controls. Interaction is entirely
+  **click-driven** — dev mode routes no keyboard focus to a `Frame3D` — picking the
+  textured quad and mapping the hit back to a board cell or card. **Tic-Tac-Toe**
+  plays an unbeatable full-width **minimax** opponent (perfect from either side).
+  **Sudoku** generates a puzzle from a solved grid across three difficulty levels
+  (Easy / Medium / Hard = 44 / 34 / 27 givens) with live row/column/box **conflict
+  highlighting**, hints, solve and reset-to-puzzle. **Chess** implements the full
+  ruleset — castling, en passant, promotion, check / checkmate / stalemate and
+  insufficient-material draws — against a **negamax + alpha-beta** engine with
+  quiescence search and piece-square evaluation (perft-verified to depth 4:
+  20 / 400 / 8902 / 197281 nodes), plus legal-move highlighting, undo and board
+  flip. **Solitaire** is Klondike with a recycling stock, four foundations, seven
+  tableau piles, run dragging, auto-finish, undo and hints; its cards are drawn
+  with **vector suit shapes** (`Path2D` / `Ellipse2D`) so it needs no extended
+  font. Each game is registered in a new **Games** start-menu group by a descriptor
+  under `lg3d-demo-apps/src/config` (`tictactoe`, `sudoku`, `chess`, `solitaire`)
+  and gets a distinct 48x48 `IconManager` icon from `GenerateAppIcons.java`.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
