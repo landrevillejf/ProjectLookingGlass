@@ -97,15 +97,24 @@ public final class TitledSwingWindow {
     }
 
     /**
-     * Installs the platform (system) Swing look-and-feel so hosted panels
-     * render as conventional desktop UIs instead of with the default
-     * cross-platform Metal look. Call <em>before</em> constructing the panel so
-     * its child components are created with the right UI delegates. A failure
-     * leaves the current look-and-feel untouched.
+     * Installs the Swing look-and-feel used by every panel hosted on a
+     * {@link SwingNode}. This is deliberately the pure-Java cross-platform
+     * (Metal) LAF and <em>not</em> the platform/system LAF: on Linux the
+     * system LAF is GTK, which is Synth-based, and Synth resolves widget
+     * styles through a {@code SynthContext} that is null when a component is
+     * painted into the SwingNode offscreen {@code BufferedImage} rather than a
+     * real on-screen peer. Any Synth widget - list, table, radio button, check
+     * box, combo box - then throws a {@code NullPointerException} from
+     * {@code SynthContext.getStyle()} during {@code SwingNode.captureNow},
+     * which aborts the whole-window repaint and leaves the panel frozen.
+     * Metal paints offscreen through {@code DefaultLookup} with no
+     * {@code SynthContext} and is reliable. Call <em>before</em> constructing
+     * the panel so its child components are created with the right UI
+     * delegates. A failure leaves the current look-and-feel untouched.
      */
-    public static void installNativeLookAndFeel() {
+    public static void installHostedLookAndFeel() {
         try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         } catch (Exception e) {
             // Keep whatever look-and-feel is already active.
         }

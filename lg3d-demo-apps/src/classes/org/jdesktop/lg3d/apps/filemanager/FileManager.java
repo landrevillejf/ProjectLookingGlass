@@ -67,7 +67,7 @@ public class FileManager {
     }
 
     public FileManager(Path initial) {
-        TitledSwingWindow.installNativeLookAndFeel();
+        TitledSwingWindow.installHostedLookAndFeel();
         final FileManagerPanel panel = new FileManagerPanel(initial);
         final Frame3D frame =
                 TitledSwingWindow.show("File Manager", panel, PANEL_W, PANEL_H);

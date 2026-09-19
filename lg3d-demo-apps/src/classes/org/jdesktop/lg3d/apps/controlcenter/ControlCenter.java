@@ -31,7 +31,7 @@ public class ControlCenter {
     }
 
     public ControlCenter() {
-        TitledSwingWindow.installNativeLookAndFeel();
+        TitledSwingWindow.installHostedLookAndFeel();
         final ControlCenterPanel panel = new ControlCenterPanel();
         TitledSwingWindow.show("Control Center", panel, PANEL_W, PANEL_H);
     }
