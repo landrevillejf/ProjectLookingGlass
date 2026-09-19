@@ -65,8 +65,11 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D;
  *       it</li>
  *   <li><b>maximize</b> - scale the frame to fill the viewport and bring it to
  *       front; clicking again restores the previous scale</li>
- *   <li><b>right-click (BUTTON3)</b> - flip the window over to reveal a
- *       {@link StickyNote} back side; right-click again flips back</li>
+ *   <li><b>CTRL + right-click (BUTTON3)</b> - flip the window over to reveal a
+ *       {@link StickyNote} back side; CTRL + right-click again flips back. The
+ *       CTRL modifier keeps the gesture clear of the plain right-click that
+ *       hosted Swing-to-Node and native LG3D apps reserve for their own context
+ *       menus</li>
  *   <li><b>middle-drag (BUTTON2)</b> - free spin about an arbitrary axis</li>
  * </ul>
  */
@@ -205,10 +208,18 @@ public class Frame3DWindowDecoration extends Component3D {
 
         addChild(tog);
 
-        // Rotation model 1: right-click flips the window over to a sticky note.
+        // Rotation model 1: CTRL + right-click flips the window over to a
+        // sticky note. The CTRL modifier is required so the gesture never
+        // collides with the plain right-click that hosted Swing-to-Node and
+        // native LG3D apps reserve for their own context menus: those apps
+        // consume a bare BUTTON3 on their (non-propagatable) content, so only
+        // CTRL+BUTTON3 reliably reaches this frame-level listener through a
+        // propagatable handle such as TitledSwingWindow's title bar.
         frame.addListener(
             new MouseClickedEventAdapter(
                 MouseEvent3D.ButtonId.BUTTON3,
+                false,
+                InputEvent3D.ModifierId.CTRL,
                 new ActionNoArg() {
                     public void performAction(LgEventSource source) {
                         processFlipRequest();
@@ -315,9 +326,14 @@ public class Frame3DWindowDecoration extends Component3D {
         int hpx = tk.heightPhysicalToNative(frameHeight);
         sn.initialize(frame.getName(), wpx, hpx);
         sn.setEnabled(true);
+        // Flip back with the same CTRL + right-click gesture that flipped over.
+        // The note is itself the picked source, so its own listener fires
+        // regardless of the propagation flag on the Swing quad.
         sn.addListener(
             new MouseClickedEventAdapter(
                 MouseEvent3D.ButtonId.BUTTON3,
+                false,
+                InputEvent3D.ModifierId.CTRL,
                 new ActionNoArg() {
                     public void performAction(LgEventSource source) {
                         processFlipRequest();

@@ -72,6 +72,38 @@ excluded.) Image I/O uses `javax.imageio.ImageIO` for PNG/JPEG (robust on JDK 21
 and reserves the JAI codec for TIFF/BMP, avoiding JAI's JPEG encoder which
 references the JDK-removed `com.sun.image.codec.jpeg`.
 
+## Agenda 3D
+
+`org.jdesktop.lg3d.apps.orgchart.ui.agenda` is a **new** native-3D week-agenda
+app (not a port) that interacts **one-way** with the ported **Contact 3D**. Both
+run in the same JVM and share the user `Preferences` root, so `Agenda3D` reads the
+same `/contacts` node `Contact3D` imports — falling back to the bundled
+`contacts.xml` if Contact 3D has not run yet — and offers those contacts as
+meeting attendees, drawing each invitee's live free/busy presence as a coloured
+chip on the appointment block. **Contact 3D itself is unchanged.**
+
+It is launched from the start menu (Office) with
+`java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D`; the descriptor lives in
+[`lg3d-demo-apps/src/config/agenda3d.lgcfg`](../lg3d-demo-apps/src/config/agenda3d.lgcfg)
+for the same discovery reason Image Studio follows.
+
+| Class | Role |
+| --- | --- |
+| `Agenda3D` | `main` entry point: the `Frame3D` window; wires data, grid and controls. |
+| `AgendaGrid` | Week-view `Component3D`: renders 7 day columns x 10 hour rows (08:00-18:00) into one live texture and maps clicks to cells. |
+| `AgendaButton` | Runtime-drawn labelled 3D push button (normal/hover appearances, no PNG assets). |
+| `Appointment` | A user-created entry (title, day, start hour, duration, attendees) with `Preferences` serialisation. |
+| `AppointmentStore` | Loads / saves / deletes appointments under `/agenda/appointments`. |
+| `ContactDirectory` | Read-only view of the shared `/contacts` store Contact 3D populates. |
+
+Appointments are **user-created only** (the agenda starts empty) and persist
+across launches. The grid obeys the live-texture rule: one fixed-size
+`ImageComponent2D` with `ALLOW_IMAGE_WRITE` is attached to a `Texture2D` once,
+off-live, and every edit only repaints the `BufferedImage` and calls
+`ImageComponent2D.set` in place — no texture is ever re-attached to the live
+scene graph. The grid quad sets `Geometry.ALLOW_INTERSECT` so the pick engine's
+`PICK_GEOMETRY` mode reports an intersection point for click-to-cell mapping.
+
 ## Excluded apps
 
 A handful of apps cannot be compiled here — the legacy `failonerror="false"`

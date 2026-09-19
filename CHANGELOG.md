@@ -106,8 +106,8 @@ work to make it build and run on a current toolchain.
   is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
   window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
   popups and the demos) native-style **minimize / maximize / close** buttons plus
-  3D rotation: **right-click** flips the window over to a `StickyNote` back side
-  and **middle-drag** free-spins it. Previously this chrome existed only for
+  3D rotation: **CTRL + right-click** flips the window over to a `StickyNote` back
+  side and **middle-drag** free-spins it. Previously this chrome existed only for
   native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded code path, so
   dev-mode apps had no window buttons and could not be rotated. Frames that build
   their own chrome (e.g. `Lg3dHelp`) opt out via the
@@ -169,6 +169,22 @@ work to make it build and run on a current toolchain.
   `ColorAlphaChangeAction`) and its AOL AIM backend was discontinued in 2017, so
   it could never run — its exclusion rationale was corrected (the `com.wilko`
   `jaimlib.jar` is in fact present).
+- **Agenda 3D** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.orgchart.ui.agenda`) —
+  a new native-3D week-agenda app that interacts **one-way** with the ported
+  **Contact 3D**. Both run in the same JVM and share the user `Preferences` root,
+  so `Agenda3D` reads the very same `/contacts` node `Contact3D` imports (falling
+  back to the bundled `contacts.xml` if Contact 3D has not run yet) and offers
+  those contacts as meeting attendees, drawing each invitee's live free/busy
+  presence as a coloured chip on the appointment block — **Contact 3D itself is
+  unchanged**. A `Frame3D` (with the standard decoration) lays out an `AgendaGrid`
+  week view — seven day columns by ten one-hour rows (08:00–18:00) rasterised into
+  a single live texture with the `Histogram3D` `ImageComponent2D.set` recipe — over
+  a strip of runtime-drawn `AgendaButton` controls (New / Del / Title / Today /
+  Att- / Att+ and Day / Hr / Dur nudges). Clicking a cell selects an appointment
+  or moves the creation cursor; appointments are **user-created only** (the agenda
+  starts empty) and persist under `/agenda/appointments`, mirroring how Contact 3D
+  stores contacts. Registered in the start menu (Office) by
+  `lg3d-demo-apps/src/config/agenda3d.lgcfg`.
 - **`jmf23D` (Algea3D) ported but intentionally not menu-registered** — the
   JMF-backed 3D media player now compiles, and its `main` guards against a null
   `Player` so it degrades gracefully instead of throwing an NPE, but it is a
@@ -249,6 +265,14 @@ work to make it build and run on a current toolchain.
   idempotent (images already >= the target are never re-enlarged). The website
   thumbnails under `www/` and the fixed-size GDM chrome buttons are excluded.
   93 assets processed; the art payload grows ~6.8 MB -> ~37.8 MB.
+- **Window flip-to-sticky gesture now requires CTRL + right-click** — the
+  `Frame3DWindowDecoration` flip (and the matching flip-back on the sticky note)
+  was bound to a plain BUTTON3, which never reached the frame for Swing-to-Node or
+  native LG3D apps: those reserve a bare right-click for their own context menus
+  and their content is non-propagatable, so `PickEngine` stopped the event before
+  the frame-level listener ever saw it. Rebinding both listeners to CTRL + BUTTON3
+  disambiguates the desktop gesture from app context menus; it still arrives
+  through a propagatable handle (the title bar / window chrome).
 
 ### Removed
 - **Bundled `j3d-contrib-utils.jar` and `satin-v2.3.jar`** — compiled against the
@@ -304,7 +328,7 @@ work to make it build and run on a current toolchain.
   the title bar was too, so no spin gesture ever reached the frame. The title
   bar is now propagatable, which turns it into the window's full gesture
   handle: left-drag moves, middle-drag or CTRL+left-drag rotates and
-  right-click flips to the sticky note — the same idioms as pure-3D windows,
+  CTRL + right-click flips to the sticky note — the same idioms as pure-3D windows,
   with no duplicate listeners (the native window look-and-feel uses the same
   trick for its title panel).
 - **`TitledSwingWindow` windows could be parked but not left-clicked back** —
