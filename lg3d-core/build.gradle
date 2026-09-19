@@ -243,11 +243,27 @@ tasks.register('run', JavaExec) {
                   'jl1.0.jar', 'commons-cli-1.0.jar', 'javanlp.jar',
                   'nanoxml-lite-2.2.3.jar', 'prefuse.jar']))
 
+    // Agenda 3D's week grid classifies business days / holidays / weekends with
+    // the bundled jbusinessday library from the repo-root libs/. It is a compile
+    // dependency of lg3d-incubator but is not packaged into that jar, so it must
+    // be placed on the desktop run classpath explicitly. jbusinessday in turn
+    // needs slf4j at runtime (its holiday utilities touch org.slf4j.LoggerFactory
+    // in a static initializer); without it the first holiday lookup dies with
+    // NoClassDefFoundError. slf4j-nop is a silent no-op provider -- the desktop
+    // does not surface jbusinessday's internal logs. This run task assembles its
+    // classpath from packaged jars rather than the incubator's runtimeClasspath,
+    // so the slf4j provider is resolved here via a detached configuration.
+    def agendaLibs = files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar')) +
+        configurations.detachedConfiguration(
+            dependencies.create('org.slf4j:slf4j-api:2.0.16'),
+            dependencies.create('org.slf4j:slf4j-nop:2.0.16'))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir, incubatorExtJars)
+        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir,
+              incubatorExtJars, agendaLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
