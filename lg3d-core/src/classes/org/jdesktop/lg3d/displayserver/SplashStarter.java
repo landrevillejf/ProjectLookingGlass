@@ -71,7 +71,7 @@ public class SplashStarter extends Thread {
                 if (scfg.showText == true) {
                     if (scfg.messageText==null)                        
                         SplashWindow.showMessage( new String[] 
-                                { LgBuildInfo.getBuildType()+" "+LgBuildInfo.getVersion(),
+                                { "version: " + LgBuildInfo.getVersion(),
                                   LgBuildInfo.getBuildDate()
                                 });
                     else

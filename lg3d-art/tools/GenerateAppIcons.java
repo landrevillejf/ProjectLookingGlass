@@ -52,6 +52,7 @@ public class GenerateAppIcons {
         {"chart3d.png",     IconColor.GREEN,  IconCategory.TABLE,       "ColumnInsertAfter"},
         {"contact3d.png",   IconColor.TEAL,   IconCategory.GENERAL,     "ComposeMail"},
         {"agenda3d.png",    IconColor.RED,    IconCategory.GENERAL,     "History"},
+        {"mail3d.png",      IconColor.INDIGO, IconCategory.GENERAL,     "SendMail"},
         // Native 3D games (grid glyphs for the board games, a magnifier for the
         // chess engine's search, overlapping pages for the solitaire card fan).
         {"tictactoe.png",   IconColor.DEEP_ORANGE, IconCategory.TABLE,  "RowInsertAfter"},
