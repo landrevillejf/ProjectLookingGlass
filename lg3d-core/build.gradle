@@ -222,19 +222,26 @@ tasks.register('run', JavaExec) {
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
     // (fileTree ext/**/*.jar) but not on this run classpath, so any app that
-    // touches one dies with NoClassDefFoundError at launch. Put the whole ext
-    // tree on the desktop classpath so the ported apps resolve their deps at
-    // runtime:
+    // touches one dies with NoClassDefFoundError at launch. Add ONLY the specific
+    // jars the desktop apps actually need at runtime:
     //   * Image Studio -> jai_core.jar / jai_codec.jar (javax.media.jai.*, whose
     //                     META-INF registry auto-registers the standard operators)
     //   * Algea3D      -> jmf.jar (javax.media.*) + fobs4jmf.jar / jl1.0.jar codecs
+    //                     + commons-cli-1.0.jar (org.apache.commons.cli.*, its
+    //                     command-line parsing)
     //   * nlc          -> javanlp.jar (edu.stanford.nlp.*) + nanoxml-lite (nanoxml.*)
     //   * orgchart     -> prefuse.jar (edu.berkeley.guir.prefuse.*)
-    // (jaimlib.jar is com.wilko.jaim, an unrelated AIM library; wilkoaim3d is not
-    // built, so that jar is simply unused here.)
+    // Do NOT add the whole ext tree: ext/axis/xercesImpl.jar is an ancient Xerces
+    // that registers itself as the JAXP DocumentBuilderFactory and references
+    // org.w3c.dom.ls.DocumentLS (long removed from the JDK), which makes
+    // java.util.prefs -- and thus DesktopConfig and the background manager --
+    // throw NoClassDefFoundError on every desktop. None of the jars below carry a
+    // Xerces/JAXP override, so the platform XML parser stays intact.
     def incubatorExtJars = files(fileTree(
         dir: "${project(':lg3d-incubator').projectDir}/ext",
-        include: '**/*.jar'))
+        include: ['jai_core.jar', 'jai_codec.jar', 'jmf.jar', 'fobs4jmf.jar',
+                  'jl1.0.jar', 'commons-cli-1.0.jar', 'javanlp.jar',
+                  'nanoxml-lite-2.2.3.jar', 'prefuse.jar']))
 
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that

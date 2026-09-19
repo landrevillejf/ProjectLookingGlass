@@ -1,6 +1,6 @@
 <root>
 	<files>
-		<file>/etc/lg3d/base.xml</file>
-		<file>/etc/lg3d/apps.xml</file>
+		<file>/org/jdesktop/lg3d/apps/nlc/conf/base.xml</file>
+		<file>/org/jdesktop/lg3d/apps/nlc/conf/apps.xml</file>
 	</files>
 </root>

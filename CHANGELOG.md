@@ -130,35 +130,56 @@ work to make it build and run on a current toolchain.
   puts the two genuine JAI jars (`jai_core.jar`, `jai_codec.jar`) on the desktop
   classpath and exports `java.desktop/sun.awt.image` so JAI's `RasterAccessor`
   fast path works under JDK 21.
-- **Four more `lg3d-incubator` apps ported and registered** — apps whose sources
-  merely predated the current core API snapshot were brought up to date and now
-  build: **Algea3D** (`jmf23D`, a JMF-backed 3D media player), **Luncher**
+- **Three more `lg3d-incubator` apps ported, registered and verified launching** —
+  apps whose sources merely predated the current core API snapshot were brought up
+  to date, built, and confirmed to start on the desktop: **Luncher**
   (`luncher.Luncher1`, a 3D glassy-cube card launcher), **Natural Language
   Control** (`nlc.Main`, a command-driven 3D mascot) and the **org chart** apps
-  (`orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D`). The drift fixed
-  was small and self-contained: vecmath's dropped `Color3f/Color4f(java.awt.Color)`
-  constructors, `AppLaunchAction(String,ClassLoader)` /
+  (`orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D`). Each is
+  registered in the desktop start menu by a new descriptor under
+  `lg3d-demo-apps/src/config` (`luncher`, `nlc`, `orgchart-chart`,
+  `orgchart-contact`), following the Image Studio precedent. The compile-time
+  drift fixed was small and self-contained: vecmath's dropped
+  `Color3f/Color4f(java.awt.Color)` constructors,
+  `AppLaunchAction(String,ClassLoader)` /
   `Pseudo3DShortcut(URL,String,ClassLoader)` signatures,
   `SimpleAppearance.setTexture(URL)`, and `FuzzyEdgePanel.setSize(float,float,float,float)`.
-  Each is registered in the desktop start menu by a new descriptor under
-  `lg3d-demo-apps/src/config` (`algea3d`, `luncher`, `nlc`, `orgchart-chart`,
-  `orgchart-contact`), following the Image Studio precedent. `wilkoaim3d` remains
-  excluded: it needs a whole removed 2004-era utility vocabulary
-  (`Frame3DToFrontEvent`, `ComponentMover`, `ResilientRotateAction`,
-  `NaturalMotion*`, `ColorAlphaChangeAction`) and its AOL AIM backend was
-  discontinued in 2017, so it could never run — its exclusion rationale was
-  corrected (the `com.wilko` `jaimlib.jar` is in fact present).
-  These apps also needed runtime wiring to actually launch on the desktop: the
-  `lg3d-core:run` classpath now carries the whole `lg3d-incubator/ext` jar tree
-  (previously only the two JAI jars), so `jmf.jar` (`javax.media.*`),
-  `nanoxml-lite`/`javanlp` (`nanoxml.*`, `edu.stanford.nlp.*`) and `prefuse.jar`
-  resolve instead of throwing `NoClassDefFoundError`; luncher's
-  `MenuConfigFileReader` falls back to the `MenuConfigFile.xml` bundled beside the
-  class (the legacy `etc/lg3d/` copy is not installed by this port); nlc's
-  `StanfordFactory` loads its `englishPCFG.ser.gz` grammar model from the jar
-  (copying it to a temp file) rather than the absent `lg.etcdir` path; and the
-  `runtimeResources` assembly now merges Algea3D's transport-button models and
-  icon into the top-level `resources/` tree they are looked up under.
+  Making them actually *run* also required fixing legacy resource/API drift that
+  only surfaces at launch: luncher's `MenuConfigFileReader` falls back to the
+  `MenuConfigFile.xml` bundled beside the class and its menu icon now resolves
+  from the bundled `GlassyCardIcon.png` (the legacy `etc/lg3d/` and
+  `resources/images/icon/` install paths are not populated by this port);
+  `Luncher1.setShortcuts` no longer calls `Container3D.setLayout` on an
+  already-populated container (the modern API rejects that — `MenuConfigFileReader`
+  sets the layout while the container is still empty); nlc's `StanfordFactory`
+  loads its `englishPCFG.ser.gz` grammar model from the jar (copying it to a temp
+  file) and `Main`/`knowledge.xml` point at the bundled `conf/` resources rather
+  than the absent `/etc/lg3d` paths; and `Chart3D.upLevel` guards on
+  `numChildren > 1` before reading `getChild(1)` (child 0 is the Up button), so a
+  stray keypress at the top level no longer throws. Runtime dependencies are
+  supplied by putting the *specific* bundled `ext` jars these apps need on the
+  `lg3d-core:run` classpath — `nanoxml-lite` + `javanlp` (nlc), `prefuse`
+  (orgchart) and the two JAI jars (Image Studio) — deliberately **not** the whole
+  `ext` tree, because `ext/axis/xercesImpl.jar` registers itself as the JAXP
+  `DocumentBuilderFactory` and references `org.w3c.dom.ls.DocumentLS` (long
+  removed from the JDK), which breaks `java.util.prefs` and hence `DesktopConfig`
+  and the background manager on every desktop. `wilkoaim3d` remains excluded: it
+  needs a whole removed 2004-era utility vocabulary (`Frame3DToFrontEvent`,
+  `ComponentMover`, `ResilientRotateAction`, `NaturalMotion*`,
+  `ColorAlphaChangeAction`) and its AOL AIM backend was discontinued in 2017, so
+  it could never run — its exclusion rationale was corrected (the `com.wilko`
+  `jaimlib.jar` is in fact present).
+- **`jmf23D` (Algea3D) ported but intentionally not menu-registered** — the
+  JMF-backed 3D media player now compiles, and its `main` guards against a null
+  `Player` so it degrades gracefully instead of throwing an NPE, but it is a
+  *media player*: its default clip (`GoMonkeyDemo.ogg`) is not shipped in the
+  repository and its Ogg demuxer needs the `fobs4jmf` **native** library, which
+  has no modern x86-64 build. With no playable media and no available codec it
+  cannot render anything from a start-menu click, so no `.lgcfg` descriptor is
+  installed; it stays usable from the command line via `java ...Algea3D -m <url>`
+  wherever a suitable JMF codec exists. Its `jmf`/`fobs4jmf`/`jl1.0`/`commons-cli`
+  jars are still on the run classpath and its transport-button models are merged
+  into `runtimeResources` for that command-line path.
 - **UI/UX developer documentation** — a new top-level `docs/` tree (distinct from
   the historical `lg3d-docs/`): `docs/lg3d-native-apps.md` (building native 3D
   apps — `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event

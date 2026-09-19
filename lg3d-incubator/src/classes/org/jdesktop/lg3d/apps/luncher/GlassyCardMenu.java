@@ -86,8 +86,11 @@ public class GlassyCardMenu extends Container3D {
             menu = new MenuCard(container.getName());
             container.setName(MENU_NAME);
             menuPanelHolder.addChild(menu);
-            // The first icon should alwais be the Glassy Card Menu icon
-            container.insertChild(new GlassyCardMenuIcon("resources/images/icon/GlassyCardIcon.png", this), 0);
+            // The first icon should alwais be the Glassy Card Menu icon.
+            // The icon ships inside the lg3d-incubator jar beside this class,
+            // not under the legacy "resources/images/icon/" install path this
+            // port never populates, so resolve it from the bundled location.
+            container.insertChild(new GlassyCardMenuIcon("org/jdesktop/lg3d/apps/luncher/GlassyCardIcon.png", this), 0);
             shortcutHolder = new ShortcutHolder();
             shortcutHolder.menuCard = menu;
             shortcutHolder.shortcuts = container;
@@ -174,7 +177,9 @@ public class GlassyCardMenu extends Container3D {
             addChild(textComp);
             // we need the location where a card is boarn to be able to
             // put it back in the right possion.
-            defaultLocation = getTranslation(defaultLocation);
+            // Component3D.getTranslation(Vector3f) now rejects a null argument,
+            // so pass a fresh vector instead of the (still null) field.
+            defaultLocation = getTranslation(new Vector3f());
             
             this.addListener(new MouseDraggedEventAdapter(ButtonId.BUTTON1, 
                     new ActionFloat3() {
