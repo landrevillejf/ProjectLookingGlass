@@ -15,18 +15,20 @@ package org.jdesktop.lg3d.scenemanager.utils.taskbar.stack;
 
 import java.net.URL;
 import java.nio.file.Path;
+import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.wg.Tapp;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jogamp.vecmath.Vector3f;
 
 /**
  * An OSX-style folder stack on the right side of the taskbar: a folder
- * {@link Pseudo3DIcon} that, when clicked, expands into a
- * {@link FolderStackPopup} listing the folder's most-recent entries as a list
- * or a grid.
+ * {@link Pseudo3DIcon} that opens a {@link FolderStackPopup} fanning out the
+ * folder's most-recent entries as an arc of icons (Leopard-style). Hovering the
+ * icon opens the fan; clicking it toggles the fan open/closed.
  *
  * <p>Instances are created by {@link StacksPlugin} (one for Documents, one for
  * Downloads) and posted to the taskbar with a negative item index so they sit
@@ -48,6 +50,16 @@ public class FolderStack extends Tapp {
         this.displayName = displayName;
 
         Pseudo3DIcon icon = new Pseudo3DIcon(iconUrl);
+        // Hovering the dock icon fans out the recent entries (Leopard-style).
+        icon.addListener(new MouseEnteredEventAdapter(new ActionBoolean() {
+            @Override
+            public void performAction(LgEventSource source, boolean entered) {
+                if (entered) {
+                    show();
+                }
+            }
+        }));
+        // A click still toggles, giving an explicit way to dismiss the fan.
         icon.addListener(new MouseClickedEventAdapter(new ActionNoArg() {
             @Override
             public void performAction(LgEventSource source) {
@@ -66,15 +78,28 @@ public class FolderStack extends Tapp {
         return displayName;
     }
 
+    /** Shows the popup if it is not already visible. */
+    public synchronized void show() {
+        if (popup == null) {
+            popup = new FolderStackPopup(model);
+        }
+        if (!popup.isVisible()) {
+            // Anchor the fan just above this dock icon rather than letting the
+            // window default to the centre of the screen. getTranslationTo(null,..)
+            // returns -this_vworld, so negate it to recover this icon's location.
+            Vector3f anchor = getTranslationTo(null, new Vector3f());
+            anchor.negate();
+            Vector3f size = getPreferredSize(new Vector3f());
+            popup.show(anchor, size.y);
+        }
+    }
+
     /** Shows the popup if hidden, hides it if shown. */
     public synchronized void toggle() {
         if (popup != null && popup.isVisible()) {
             popup.hide();
         } else {
-            if (popup == null) {
-                popup = new FolderStackPopup(model);
-            }
-            popup.show();
+            show();
         }
     }
 }

@@ -284,14 +284,24 @@ public class Component3DAnimationTarget implements AnimationTarget {
      * Add the specified event listener to the animation target component.
      */
     public void addListenerToComponent3D(LgEventListener listener) {
-        targetComponent.get().addListener(listener);
+        Component3D comp = (targetComponent == null) ? null : targetComponent.get();
+        if (comp != null) {
+            comp.addListener(listener);
+        }
     }
     
     /**
      * Removes the specified event listener from the animation target component.
      */
     public void removeListenerFromComponent3D(LgEventListener listener) {
-        targetComponent.get().removeListener(listener);
+        // The target reference is deliberately cleared (setTargetComponent3D(null))
+        // just before an animation is destroyed when it is replaced, so a
+        // destroy() that removes listeners must tolerate an already-cleared
+        // target instead of dereferencing a null WeakReference.
+        Component3D comp = (targetComponent == null) ? null : targetComponent.get();
+        if (comp != null) {
+            comp.removeListener(listener);
+        }
     }
     
     /**
