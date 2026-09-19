@@ -19,7 +19,7 @@
    <string>ICON</string>
   </void>
   <void property="displayResourceUrlName">
-   <string>resource:///resources/images/icon/defaultapp.png</string>
+   <string>resource:///resources/images/icon/agenda3d.png</string>
   </void>
   <void property="menuGroup">
    <string>Office</string>
