@@ -24,7 +24,9 @@ import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
 import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
+import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
+import org.jdesktop.lg3d.utils.eventadapter.Component3DParkedEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
@@ -37,6 +39,7 @@ import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.SwingNode;
 import org.jdesktop.lg3d.wg.Thumbnail;
 import org.jdesktop.lg3d.wg.Toolkit3D;
+import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jogamp.vecmath.Color4f;
 import org.jogamp.vecmath.Vector3f;
 
@@ -203,6 +206,26 @@ public final class TitledSwingWindow {
         // look-and-feel, which the pure-3D Frame3D path otherwise lacks.
         frame.addChild(buildSpineTitle(title, contentW, contentH, -1));
         frame.addChild(buildSpineTitle(title, contentW, contentH, +1));
+
+        // Click-to-unpark parity with native windows. StandardAppContainer
+        // restores a parked window when the *frame* receives a BUTTON1 click:
+        // Frame3D click -> Component3DToFrontEvent -> migrate back to the main
+        // container -> Component3DParkedEvent(false). A native window body is
+        // covered by a propagatable move region, so a click anywhere on it
+        // reaches the frame. Our Swing quad is deliberately non-propagatable
+        // (see above) and the only propagatable strip - the title bar - is
+        // edge-on once BookshelfLayout rotates the parked frame +/-90deg, so a
+        // left click on the visible content dies at the quad and never unparks.
+        // The panel is not interactive while parked anyway, so make the quad
+        // propagatable for the parked state only: the click then travels up to
+        // the frame and unparks it exactly like a native window, and on unpark
+        // the quad returns to non-propagatable so live Swing input is untouched.
+        frame.addListener(new Component3DParkedEventAdapter(
+            new ActionBoolean() {
+                public void performAction(LgEventSource source, boolean parked) {
+                    node.setMouseEventPropagatable(parked);
+                }
+            }));
 
         // Live miniature for the taskbar: without an explicit thumbnail
         // StandardAppContainer falls back to DefaultThumbnail, a plain coloured

@@ -256,6 +256,18 @@ work to make it build and run on a current toolchain.
   right-click flips to the sticky note — the same idioms as pure-3D windows,
   with no duplicate listeners (the native window look-and-feel uses the same
   trick for its title panel).
+- **`TitledSwingWindow` windows could be parked but not left-clicked back** —
+  `StandardAppContainer` unparks a window when the *frame* receives a BUTTON1
+  click (`Frame3D` click -> `Component3DToFrontEvent` -> migrate back to the
+  main container), and a native window body is covered by a propagatable move
+  region so a click anywhere on it reaches the frame. The Swing quad is
+  deliberately non-propagatable and the only propagatable strip (the title bar)
+  is edge-on once `BookshelfLayout` turns the parked frame +/-90deg, so a left
+  click on the visible content died at the quad and never unparked. The quad is
+  now made propagatable for the parked state only (via a
+  `Component3DParkedEventAdapter`), so a click on a parked window travels up to
+  the frame and restores it exactly like a native window, while live Swing
+  input keeps the quad non-propagatable and untouched.
 - **Vertical spine titles floating beside the green window edge** — the rotated
   edge titles built by `TitledSwingWindow` sit on the pale green side face of
   the decoration backdrop: each pre-rotated +/-90deg spine quad is placed just
