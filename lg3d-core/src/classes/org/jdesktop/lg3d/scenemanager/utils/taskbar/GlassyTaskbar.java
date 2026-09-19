@@ -71,6 +71,12 @@ public class GlassyTaskbar extends Taskbar {
     private static float barZ = -0.04f;
     private static float thumbnailZ = -0.01f;
     private static float iconSpacing = 0.0025f;
+    /** Right-edge inset for the right-aligned (themes) icon group, in bar
+     *  heights. {@code HorizontalLayout.RIGHT} packs the group flush to the
+     *  container's right edge; without an inset the rightmost icon (Exit) lands
+     *  past the tapered tip of the tilted glass shelf and reads as hanging off
+     *  the end of the bar. */
+    private static final float RIGHT_GROUP_INSET_BAR_HEIGHTS = 1.0f;
     private static Appearance barApp
 	= new SimpleAppearance(
 	    0.6f, 1.0f, 0.6f, 1.0f,
@@ -146,7 +152,7 @@ public class GlassyTaskbar extends Taskbar {
             });
         
 	themes = new Container3D();
-        themes.setPreferredSize(new Vector3f(width, barHeight, barHeight));//FIXME
+        themes.setPreferredSize(new Vector3f(rightGroupWidth(width), barHeight, barHeight));//FIXME
 	themes.setLayout(
             new HorizontalReorderableLayout(
                 HorizontalLayout.AlignmentType.RIGHT, iconSpacing,
@@ -334,7 +340,7 @@ public class GlassyTaskbar extends Taskbar {
         bottomBarComp.changeRotationAngle(shelfRotRadians(), animMs);
         bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
         shortcuts.setPreferredSize(new Vector3f(width, barHeight, barHeight));
-        themes.setPreferredSize(new Vector3f(width, barHeight, barHeight));
+        themes.setPreferredSize(new Vector3f(rightGroupWidth(width), barHeight, barHeight));
         appThumbnails.setPreferredSize(new Vector3f(width, barHeight, barHeight));
 
         changeTranslation(0.0f, dockedY(height), barZ, animMs);
@@ -382,6 +388,14 @@ public class GlassyTaskbar extends Taskbar {
         // the pointer can re-enter the bar and bring it back.
         return isTop() ? (height * 0.5f + barHeight * 0.3f)
                        : (height * -0.5f - barHeight * 0.3f);
+    }
+
+    /** Preferred width for the right-aligned icon group: the full screen width
+     *  less a symmetric inset, so {@code HorizontalLayout.RIGHT} packs the icons
+     *  {@link #RIGHT_GROUP_INSET_BAR_HEIGHTS} bar-heights in from the edge and
+     *  the rightmost one stays on the bar instead of off its tapered tip. */
+    private float rightGroupWidth(float screenWidth) {
+        return screenWidth - 2.0f * barHeight * RIGHT_GROUP_INSET_BAR_HEIGHTS;
     }
 
     private void rescaleIcons() {

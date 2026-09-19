@@ -30,9 +30,9 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
  * taskbar, immediately before the Exit icon.
  *
  * <p>Each stack is posted as a {@link TaskbarItemConfig} with a negative item
- * index: Downloads is {@code -2} and Documents is {@code -3}, so with Exit at
- * {@code -1} and the background icon at {@code -4} the right-hand group reads
- * {@code [Background] [Documents] [Downloads] [Exit]}.</p>
+ * index: Documents is {@code -4} and Downloads is {@code -3}, so with the
+ * background icon at {@code -2} and Exit at {@code -1} the right-hand group
+ * reads {@code [Documents] [Downloads] [Background] [Exit]}.</p>
  *
  * <p>Registered from {@code glassy.lgcfg}. The stacks read
  * {@code ~/Documents} and {@code ~/Downloads}; a missing folder simply shows an
@@ -42,8 +42,8 @@ public class StacksPlugin implements SceneManagerPlugin {
     private static final Logger logger = Logger.getLogger("lg.scenemanager");
 
     /** Taskbar indices (negative = counted from the right). */
-    private static final int INDEX_DOCUMENTS = -3;
-    private static final int INDEX_DOWNLOADS = -2;
+    private static final int INDEX_DOCUMENTS = -4;
+    private static final int INDEX_DOWNLOADS = -3;
 
     /** Fallback icon if a folder glyph is somehow missing from the resources. */
     private static final String FALLBACK_ICON = "resources/images/icon/star.png";

@@ -77,8 +77,8 @@ work to make it build and run on a current toolchain.
   the last reading and flags it "stale". Listed in the Widget Gallery under
   **Web**.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
-  taskbar's right side, immediately before Exit
-  (`[Background] [Documents] [Downloads] [Exit]`), each fanning out its most
+  taskbar's right side
+  (`[Documents] [Downloads] [Background] [Exit]`), each fanning out its most
   recent entries as an OSX/Leopard-style fan of icon cards, each a filename
   pill beside its MIME icon
   (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`, registered from
@@ -342,6 +342,12 @@ work to make it build and run on a current toolchain.
   the frame-level listener ever saw it. Rebinding both listeners to CTRL + BUTTON3
   disambiguates the desktop gesture from app context menus; it still arrives
   through a propagatable handle (the title bar / window chrome).
+- **Taskbar right-hand group reordered and inset from the screen edge** — the
+  dock group now reads `[Documents] [Downloads] [Background] [Exit]` (Documents
+  `-4`, Downloads `-3`, background `-2`, Exit `-1`) instead of background-first,
+  and the right-aligned group is inset by one bar height so the rightmost (Exit)
+  icon sits on the tapered tip of the tilted glass shelf rather than hanging off
+  the end of the bar.
 
 ### Removed
 - **Bundled `j3d-contrib-utils.jar` and `satin-v2.3.jar`** — compiled against the
