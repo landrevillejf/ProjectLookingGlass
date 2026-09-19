@@ -43,6 +43,12 @@ import org.jogamp.vecmath.Vector3f;
  * selected); {@code Title} cycles a preset caption; {@code Att-}/{@code Att+}
  * remove/invite contacts from the shared directory. Every change is saved
  * immediately.</p>
+ *
+ * <p>A top navigation row ({@code Yr-}/{@code Mo-}/{@code Wk-} and their
+ * {@code +} counterparts) cycles the displayed week back and forth through the
+ * calendar, and {@code Today} snaps back to the current week. The grid's title
+ * band shows the displayed week's month range and year, so the year is always
+ * visible while paging.</p>
  */
 public class Agenda3D extends Frame3D {
 
@@ -65,6 +71,7 @@ public class Agenda3D extends Frame3D {
     private float bottomY;
     private float colGap;
     private float rowGap;
+    private int controlRows = 3;
 
     public static void main(String[] args) {
         new Agenda3D();
@@ -92,7 +99,7 @@ public class Agenda3D extends Frame3D {
 
         float topMargin = height * 0.10f;    // clears the corner window buttons
         float bottomMargin = height * 0.03f;
-        float controlH = height * 0.17f;
+        float controlH = height * 0.21f;     // three rows: nav / edit / move
         float gap = height * 0.025f;
 
         gridH = height - topMargin - bottomMargin - controlH - gap;
@@ -107,8 +114,8 @@ public class Agenda3D extends Frame3D {
         int cols = 6;
         colGap = gridW * 0.012f;
         btnW = (gridW - (cols - 1) * colGap) / cols;
-        btnH = controlH * 0.40f;
-        rowGap = controlH * 0.14f;
+        rowGap = controlH * 0.06f;
+        btnH = (controlH - (controlRows - 1) * rowGap) / controlRows;
         startX = -gridW * 0.5f + btnW * 0.5f;
         bottomY = -height * 0.5f + bottomMargin + btnH * 0.5f;
     }
@@ -126,32 +133,47 @@ public class Agenda3D extends Frame3D {
         grid.setAppointments(appointments);
         addChild(grid);
 
-        // Top row: create / delete / rename / jump / attendees.
-        addButton("New", 0, 0, new Runnable() {
+        // Navigation row: cycle the displayed week / month / year back and
+        // forth; "Today" (middle row) snaps back to the current week.
+        addButton("Yr-", 0, 0, new Runnable() {
+            public void run() { grid.shiftYears(-1); } });
+        addButton("Mo-", 1, 0, new Runnable() {
+            public void run() { grid.shiftMonths(-1); } });
+        addButton("Wk-", 2, 0, new Runnable() {
+            public void run() { grid.shiftWeeks(-1); } });
+        addButton("Wk+", 3, 0, new Runnable() {
+            public void run() { grid.shiftWeeks(1); } });
+        addButton("Mo+", 4, 0, new Runnable() {
+            public void run() { grid.shiftMonths(1); } });
+        addButton("Yr+", 5, 0, new Runnable() {
+            public void run() { grid.shiftYears(1); } });
+
+        // Middle row: create / delete / rename / jump / attendees.
+        addButton("New", 0, 1, new Runnable() {
             public void run() { newAppointment(); } });
-        addButton("Del", 1, 0, new Runnable() {
+        addButton("Del", 1, 1, new Runnable() {
             public void run() { deleteSelected(); } });
-        addButton("Title", 2, 0, new Runnable() {
+        addButton("Title", 2, 1, new Runnable() {
             public void run() { cycleTitle(); } });
-        addButton("Today", 3, 0, new Runnable() {
+        addButton("Today", 3, 1, new Runnable() {
             public void run() { grid.jumpToToday(); } });
-        addButton("Att-", 4, 0, new Runnable() {
+        addButton("Att-", 4, 1, new Runnable() {
             public void run() { removeAttendee(); } });
-        addButton("Att+", 5, 0, new Runnable() {
+        addButton("Att+", 5, 1, new Runnable() {
             public void run() { addAttendee(); } });
 
         // Bottom row: move / resize the selection (or the cursor when none).
-        addButton("Day-", 0, 1, new Runnable() {
+        addButton("Day-", 0, 2, new Runnable() {
             public void run() { adjustDay(-1); } });
-        addButton("Day+", 1, 1, new Runnable() {
+        addButton("Day+", 1, 2, new Runnable() {
             public void run() { adjustDay(1); } });
-        addButton("Hr-", 2, 1, new Runnable() {
+        addButton("Hr-", 2, 2, new Runnable() {
             public void run() { adjustHour(-1); } });
-        addButton("Hr+", 3, 1, new Runnable() {
+        addButton("Hr+", 3, 2, new Runnable() {
             public void run() { adjustHour(1); } });
-        addButton("Dur-", 4, 1, new Runnable() {
+        addButton("Dur-", 4, 2, new Runnable() {
             public void run() { adjustDuration(-1); } });
-        addButton("Dur+", 5, 1, new Runnable() {
+        addButton("Dur+", 5, 2, new Runnable() {
             public void run() { adjustDuration(1); } });
     }
 
@@ -171,7 +193,7 @@ public class Agenda3D extends Frame3D {
     }
 
     private float rowY(int row) {
-        return bottomY + (1 - row) * (btnH + rowGap);
+        return bottomY + (controlRows - 1 - row) * (btnH + rowGap);
     }
 
     // ------------------------------------------------------------------

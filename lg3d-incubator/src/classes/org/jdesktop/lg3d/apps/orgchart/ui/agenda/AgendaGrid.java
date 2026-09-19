@@ -22,9 +22,19 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.image.BufferedImage;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import io.github.landrevillejf.jbusinessday.JBusinessDay;
+import io.github.landrevillejf.jbusinessday.utils.canada.CanadianHolidayUtil;
+import io.github.landrevillejf.jbusinessday.utils.usa.AmericanHolidayUtil;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Geometry;
 import org.jdesktop.lg3d.sg.GeometryArray;
@@ -77,13 +87,21 @@ public class AgendaGrid extends Component3D {
         "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
     };
 
+    /** Holiday calendar region for jbusinessday: "US" or "CA" (federal). */
+    private static final String REGION =
+            System.getProperty("lg.agenda.holidayRegion", "US");
+
     // Power-of-two texture the grid is rasterized into.
     private static final int TW = 1024;
     private static final int TH = 512;
 
-    // Image-space layout: hour-label gutter on the left, day-name header on top.
+    // Image-space layout: hour-label gutter on the left; a two-band header on
+    // top -- a title band carrying the displayed week's month range + year, over
+    // the per-day name/date band. The grid body starts at HEADER_PX.
     private static final int GUTTER_PX = 64;
-    private static final int HEADER_PX = 48;
+    private static final int TITLE_PX = 30;
+    private static final int DAY_BAND_PX = 64;
+    private static final int HEADER_PX = TITLE_PX + DAY_BAND_PX;
     private static final float GRID_W = TW - GUTTER_PX;
     private static final float GRID_H = TH - HEADER_PX;
     private static final float COL_W = GRID_W / DAYS;
@@ -92,6 +110,7 @@ public class AgendaGrid extends Component3D {
 
     private static final Color BG = new Color(0x0E, 0x14, 0x20, 0xF2);
     private static final Color HEADER_BG = new Color(0x1A, 0x2A, 0x44, 0xF8);
+    private static final Color TITLE_BG = new Color(0x10, 0x1A, 0x2E, 0xFF);
     private static final Color TODAY_BG = new Color(0x2A, 0x4A, 0x74, 0xF8);
     private static final Color GRID_LINE = new Color(255, 255, 255, 34);
     private static final Color AXIS_LINE = new Color(255, 255, 255, 80);
@@ -101,6 +120,13 @@ public class AgendaGrid extends Component3D {
     private static final Color FREE_CHIP = new Color(90, 214, 120, 255);
     private static final Color BUSY_CHIP = new Color(232, 92, 92, 255);
     private static final Color UNKNOWN_CHIP = new Color(150, 158, 170, 255);
+    private static final Color WEEKEND_BG = new Color(0x20, 0x26, 0x34, 0xF8);
+    private static final Color HOLIDAY_BG = new Color(0x4A, 0x24, 0x30, 0xF8);
+    private static final Color WEEKEND_BODY = new Color(255, 255, 255, 12);
+    private static final Color HOLIDAY_BODY = new Color(232, 92, 92, 20);
+    private static final Color WEEKEND_TEXT = new Color(160, 172, 194, 225);
+    private static final Color HOLIDAY_TEXT = new Color(255, 158, 158, 255);
+    private static final Color TODAY_ACCENT = new Color(120, 180, 255, 255);
 
     private static final Color[] BLOCK_COLORS = {
         new Color(70, 130, 220, 215),
@@ -110,9 +136,11 @@ public class AgendaGrid extends Component3D {
         new Color(80, 172, 196, 215),
     };
 
-    private static final Font DAY_FONT = new Font("SansSerif", Font.BOLD, 22);
+    private static final Font TITLE_BAND_FONT = new Font("SansSerif", Font.BOLD, 19);
+    private static final Font DAY_FONT = new Font("SansSerif", Font.BOLD, 20);
     private static final Font HOUR_FONT = new Font("SansSerif", Font.PLAIN, 16);
     private static final Font TITLE_FONT = new Font("SansSerif", Font.BOLD, 16);
+    private static final Font DATE_FONT = new Font("SansSerif", Font.PLAIN, 15);
 
     /** Notified whenever a click changes the selection or creation cursor. */
     public interface GridListener {
@@ -131,6 +159,13 @@ public class AgendaGrid extends Component3D {
     private Appointment selected;
     private int cursorDay;
     private int cursorHour = START_HOUR;
+
+    /** Monday of the displayed week; column d shows weekStart+d. Advanced by the
+     *  week/month/year navigation so the user can cycle back and forth. */
+    private LocalDate weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
+    /** Per-year federal-holiday cache supplied by the jbusinessday library. */
+    private final Map<Integer, List<LocalDate>> holidayCache =
+            new HashMap<Integer, List<LocalDate>>();
 
     public AgendaGrid(float width, float height) {
         this.width = width;
@@ -234,10 +269,29 @@ public class AgendaGrid extends Component3D {
         refresh();
     }
 
-    /** Clears the selection and moves the cursor to today's column. */
+    /** Clears the selection, returns to the current week and centres today. */
     public void jumpToToday() {
         this.selected = null;
+        this.weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
         setCursor(todayIndex(), cursorHour);
+    }
+
+    /** Cycles the displayed week by {@code weeks} (negative moves back). */
+    public void shiftWeeks(int weeks) {
+        this.weekStart = weekStart.plusWeeks(weeks);
+        refresh();
+    }
+
+    /** Cycles the displayed week by {@code months}, realigned to Monday. */
+    public void shiftMonths(int months) {
+        this.weekStart = weekStart.plusMonths(months).with(DayOfWeek.MONDAY);
+        refresh();
+    }
+
+    /** Cycles the displayed week by {@code years}, realigned to Monday. */
+    public void shiftYears(int years) {
+        this.weekStart = weekStart.plusYears(years).with(DayOfWeek.MONDAY);
+        refresh();
     }
 
     static int clampHour(int hour) {
@@ -301,6 +355,45 @@ public class AgendaGrid extends Component3D {
         return (dow + 5) % 7; // SUNDAY(1)..SATURDAY(7) -> Mon=0..Sun=6
     }
 
+    /** Column of the real today within the displayed week, or -1 when today is
+     *  not in this week (so the highlight only shows on the current week). */
+    private int todayColumnInWeek() {
+        long diff = ChronoUnit.DAYS.between(weekStart, LocalDate.now());
+        return (diff >= 0 && diff < DAYS) ? (int) diff : -1;
+    }
+
+    /** The real calendar date shown in day column {@code d}. */
+    private LocalDate dateFor(int d) {
+        return weekStart.plusDays(d);
+    }
+
+    private boolean isWeekend(int d) {
+        return JBusinessDay.isWeekend(dateFor(d));
+    }
+
+    private boolean isHoliday(int d) {
+        LocalDate date = dateFor(d);
+        return holidaysFor(date.getYear()).contains(date);
+    }
+
+    /** A business day is a non-weekend, non-holiday day per jbusinessday. */
+    private boolean isBusinessDay(int d) {
+        LocalDate date = dateFor(d);
+        return JBusinessDay.isBusinessDay(date, holidaysFor(date.getYear()));
+    }
+
+    /** Federal holidays for {@code year}, cached, from jbusinessday. */
+    private List<LocalDate> holidaysFor(int year) {
+        List<LocalDate> cached = holidayCache.get(year);
+        if (cached == null) {
+            cached = "CA".equalsIgnoreCase(REGION)
+                    ? CanadianHolidayUtil.getCanadianFederalHolidays(year)
+                    : AmericanHolidayUtil.getFederalHolidays(year);
+            holidayCache.put(year, cached);
+        }
+        return cached;
+    }
+
     // ------------------------------------------------------------------
     // Rendering
     // ------------------------------------------------------------------
@@ -317,6 +410,7 @@ public class AgendaGrid extends Component3D {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                     RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
+            drawColumnTints(g);
             drawHeader(g);
             drawGutter(g);
             drawGridLines(g);
@@ -330,21 +424,88 @@ public class AgendaGrid extends Component3D {
     }
 
     private void drawHeader(Graphics2D g) {
-        int today = todayIndex();
-        g.setFont(DAY_FONT);
-        FontMetrics fm = g.getFontMetrics();
+        // Title band: the displayed week's month range and year, centred.
+        g.setColor(TITLE_BG);
+        g.fillRect(0, 0, TW, TITLE_PX);
+        g.setFont(TITLE_BAND_FONT);
+        FontMetrics tm = g.getFontMetrics();
+        String title = weekTitle();
+        g.setColor(Color.WHITE);
+        g.drawString(title, (TW - tm.stringWidth(title)) / 2,
+                (TITLE_PX - tm.getHeight()) / 2 + tm.getAscent());
+
+        // Day band: one cell per column, tinted for today / holiday / weekend.
+        int today = todayColumnInWeek();
+        g.setColor(HEADER_BG);
+        g.fillRect(0, TITLE_PX, GUTTER_PX, DAY_BAND_PX);
         for (int d = 0; d < DAYS; d++) {
             int x0 = Math.round(GUTTER_PX + d * COL_W);
             int w = Math.round(COL_W);
-            g.setColor(d == today ? TODAY_BG : HEADER_BG);
-            g.fillRect(x0, 0, w, HEADER_PX);
+            LocalDate date = dateFor(d);
+            boolean holiday = isHoliday(d);
+            boolean weekend = isWeekend(d);
+
+            g.setColor(d == today ? TODAY_BG
+                    : holiday ? HOLIDAY_BG
+                    : weekend ? WEEKEND_BG : HEADER_BG);
+            g.fillRect(x0, TITLE_PX, w, DAY_BAND_PX);
+            if (d == today) {
+                g.setColor(TODAY_ACCENT);
+                g.fillRect(x0, TITLE_PX, w, 3);
+            }
+
+            String monthDay = date.getMonth()
+                    .getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+                    + " " + date.getDayOfMonth();
+
+            g.setFont(DAY_FONT);
+            FontMetrics fm = g.getFontMetrics();
             g.setColor(d == today ? Color.WHITE : TEXT_DIM);
-            int tx = x0 + (w - fm.stringWidth(DAY_NAMES[d])) / 2;
-            int ty = (HEADER_PX - fm.getHeight()) / 2 + fm.getAscent();
-            g.drawString(DAY_NAMES[d], tx, ty);
+            g.drawString(DAY_NAMES[d],
+                    x0 + (w - fm.stringWidth(DAY_NAMES[d])) / 2, TITLE_PX + 26);
+
+            g.setFont(DATE_FONT);
+            FontMetrics dm = g.getFontMetrics();
+            g.setColor(holiday ? HOLIDAY_TEXT
+                    : weekend ? WEEKEND_TEXT : TEXT_DIM);
+            g.drawString(monthDay,
+                    x0 + (w - dm.stringWidth(monthDay)) / 2, TITLE_PX + 50);
         }
         g.setColor(AXIS_LINE);
         g.fillRect(0, HEADER_PX - 1, TW, 2);
+    }
+
+    /** Week-range caption for the title band; always includes the year. */
+    private String weekTitle() {
+        LocalDate a = weekStart;
+        LocalDate b = weekStart.plusDays(DAYS - 1);
+        String am = a.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+        String bm = b.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+        if (a.getYear() != b.getYear()) {
+            return am + " " + a.getDayOfMonth() + ", " + a.getYear()
+                    + " \u2013 " + bm + " " + b.getDayOfMonth() + ", " + b.getYear();
+        }
+        if (a.getMonth() != b.getMonth()) {
+            return am + " " + a.getDayOfMonth() + " \u2013 " + bm + " "
+                    + b.getDayOfMonth() + ", " + a.getYear();
+        }
+        return a.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                + " " + a.getDayOfMonth() + "\u2013" + b.getDayOfMonth()
+                + ", " + a.getYear();
+    }
+
+    /** Tints weekend and holiday columns in the grid body; business days stay plain. */
+    private void drawColumnTints(Graphics2D g) {
+        for (int d = 0; d < DAYS; d++) {
+            boolean holiday = isHoliday(d);
+            boolean weekend = isWeekend(d);
+            if (!holiday && !weekend && isBusinessDay(d)) {
+                continue; // ordinary business day: no tint
+            }
+            int x = Math.round(GUTTER_PX + d * COL_W);
+            g.setColor(holiday ? HOLIDAY_BODY : WEEKEND_BODY);
+            g.fillRect(x, HEADER_PX, Math.round(COL_W), TH - HEADER_PX);
+        }
     }
 
     private void drawGutter(Graphics2D g) {
