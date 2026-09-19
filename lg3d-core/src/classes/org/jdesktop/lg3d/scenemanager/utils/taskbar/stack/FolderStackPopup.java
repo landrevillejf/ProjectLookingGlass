@@ -37,6 +37,7 @@ import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import org.jdesktop.lg3d.utils.action.AppLaunchAction;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.system.Opener;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.SwingNode;
@@ -122,9 +123,13 @@ public class FolderStackPopup {
         Toolkit3D tk = Toolkit3D.getToolkit3D();
         Vector3f pref = frame3d.getPreferredSize(new Vector3f());
         final float gap = 0.01f;
-        // setTranslation positions the window's centre, so lift it by half the
-        // icon plus half the panel to sit the panel's bottom edge above the icon.
-        float y = iconWorld.y + iconHeight / 2.0f + pref.y / 2.0f + gap;
+        // Grow away from the docking edge. setTranslation positions the window's
+        // centre, so for a bottom bar lift it (panel's bottom edge above the
+        // icon); for a top bar drop it (panel's top edge below the icon).
+        boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+        float y = top
+                ? iconWorld.y - iconHeight / 2.0f - pref.y / 2.0f - gap
+                : iconWorld.y + iconHeight / 2.0f + pref.y / 2.0f + gap;
         float x = iconWorld.x;
         // The dock icons sit at the right edge; clamp the panel so it stays
         // fully on screen (world is centred on the origin).

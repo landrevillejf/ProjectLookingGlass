@@ -69,6 +69,16 @@ public class PanelMenuGroupComponent extends MenuGroupComponent {
         }
     }
     
+    /**
+     * Grows the menu column downward (top-docked bar) or upward (bottom bar),
+     * relayouting the current items immediately.
+     */
+    public void setDownward(boolean downward) {
+        if (layout != null) {
+            layout.setDownward(downward);
+        }
+    }
+
     public float getComponentCount() {
         return layout.getComponentCount();
     }

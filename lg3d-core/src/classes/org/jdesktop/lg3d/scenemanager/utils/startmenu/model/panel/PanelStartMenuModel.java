@@ -29,6 +29,7 @@ package org.jdesktop.lg3d.scenemanager.utils.startmenu.model.panel;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.StartMenuModel;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuGroupComponent;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.PickableRegion;
 import org.jdesktop.lg3d.wg.Component3D;
 
@@ -59,9 +60,10 @@ public class PanelStartMenuModel extends StartMenuModel {
 
     @Override
     public void setPickableRegionSize(MenuGroupComponent currentGroupComp) {
+        boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
         if (currentGroupComp == null) {
             if (pickableRegion != null) {
-                pickableRegion.setSize(0.05f, 0.01f, 0.0f, 0.005f, 0.0f);
+                pickableRegion.setSize(0.05f, 0.01f, 0.0f, top ? -0.005f : 0.005f, 0.0f);
             }
             return;
         }
@@ -70,6 +72,9 @@ public class PanelStartMenuModel extends StartMenuModel {
         float h = (prevPickableRegionHeight > height)?(prevPickableRegionHeight):(height);
         prevPickableRegionHeight = height;
         
-        pickableRegion.setSize(0.05f, h + 0.01f, 0.02f, h * 0.5f, -0.01f);
+        // Grow the pickable column toward the screen centre: up from a bottom
+        // bar, down from a top bar.
+        pmgc.setDownward(top);
+        pickableRegion.setSize(0.05f, h + 0.01f, 0.02f, top ? -h * 0.5f : h * 0.5f, -0.01f);
     }
 }
