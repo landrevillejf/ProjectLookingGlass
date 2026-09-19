@@ -152,7 +152,7 @@ public class Luncher2 extends Frame3D implements GlassyCardMenuHolder {
         
     private Luncher3DShortcut(String filename, String command, Frame3D frame) {
 	super(filename);
-        appCommand = new AppLaunchAction(command);
+        appCommand = new AppLaunchAction(command, getClass().getClassLoader());
         this.frame = frame;
         this.addListener(new MouseClickedEventAdapter(this) );
     }

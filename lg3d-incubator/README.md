@@ -88,16 +88,40 @@ under a compatible coordinate):
 | `apps/intel3d/**` | Jini (`net.jini.*`) |
 | `apps/browser/**` | ICEsoft ICEbrowser (`com.icesoft.*`), BeanShell (`bsh`) |
 | `apps/browser3d/**` | Jini (`net.jini.*`) |
-| `apps/wilkoaim3d/**` | the absent `com.wilko` AIM lib (and API drift, below) |
 
-**Sources that predate the core API snapshot in this repository** (pre-existing
-failures, unrelated to the JDK 21 / Jogamp migration):
+**Deep core-API drift** (a from-scratch rewrite, not a small fix):
 
-| App | API drift |
+| App | Why it stays excluded |
 | --- | --- |
-| `apps/luncher/**`, `apps/nlc/**` | `AppLaunchAction` / `Pseudo3DShortcut` |
-| `apps/orgchart/**` | `FuzzyEdgePanel.setSize(float,float)` |
-| `apps/jmf23D/**` | vecmath `Color3f(awt.Color)` constructor |
+| `apps/wilkoaim3d/**` | Targets a whole 2004-era lg3d utility vocabulary that no longer exists in core (`Frame3DToFrontEvent`, `ComponentMover`, `ResilientRotateAction`, `NaturalMotionComponent3D`/`Container3D`, `ColorAlphaChangeAction`), the obsolete 2-arg event-adapter constructors, and `setTexture(String)`. Porting it means rewriting a 1277-line prototype — and its AOL AIM TOC backend was discontinued by AOL in Dec 2017, so it could never log in even if rewritten. (The `com.wilko` `jaimlib.jar` *is* present in [`ext/`](ext) and on the classpath; a missing dependency was never the real blocker.) |
+
+## Ported apps
+
+Four apps whose sources merely predated the core API snapshot in this repository
+have been ported to the current API and now build:
+
+| App | Entry point(s) | Drift that was fixed |
+| --- | --- | --- |
+| `apps/jmf23D/**` | `jmf23D.Algea3D` | vecmath dropped the `Color3f(java.awt.Color)` constructor — replaced with explicit RGB floats. |
+| `apps/luncher/**` | `luncher.Luncher1`, `luncher.Luncher2` | `AppLaunchAction(String,ClassLoader)` / `Pseudo3DShortcut(URL,String,ClassLoader)` signatures; `SimpleAppearance.setTexture(URL)` instead of `setTexture(String)`. |
+| `apps/nlc/**` | `nlc.Main` | `AppLaunchAction(String,ClassLoader)`; vecmath `Color4f(java.awt.Color)` constructor. |
+| `apps/orgchart/**` | `orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D` | `FuzzyEdgePanel.setSize(float,float,float,float)` signature. |
+
+Each is registered in the desktop **Start Menu** via a `.lgcfg` descriptor under
+[`lg3d-demo-apps/src/config`](../lg3d-demo-apps/src/config) (`algea3d`, `luncher`,
+`nlc`, `orgchart-chart`, `orgchart-contact`) rather than this module's own
+`src/config`, for the same discovery reason Image Studio follows: discovery only
+scans `config/demo` and `config/incubator`, while the incubator's `src/config` is
+bundled to `config/`.
+
+At runtime these apps lean on their bundled `ext/` libraries, so the
+`lg3d-core:run` task puts the whole `ext/` jar tree on the desktop classpath (not
+just the JAI jars Image Studio needs): `jmf.jar` for Algea3D, `nanoxml-lite` +
+`javanlp` for nlc, `prefuse.jar` for the org chart apps. Two apps also resolve
+data files from the classpath rather than the (uninstalled) legacy `etc/lg3d/`
+location: luncher's `MenuConfigFile.xml` and nlc's `englishPCFG.ser.gz` grammar
+model are both loaded from the jar. Algea3D's transport-button models/icon are
+merged into the top-level `resources/` tree by `lg3d-core:runtimeResources`.
 
 Everything else builds against the Jogamp Java 3D API migrated across the tree.
 

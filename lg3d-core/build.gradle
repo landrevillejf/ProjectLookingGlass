@@ -172,6 +172,8 @@ dependencies {
 def runtimeResourcesDir = layout.buildDirectory.dir('runtime-resources')
 def bgmanagerResDir = rootProject.file(
     'lg3d-incubator/src/classes/org/jdesktop/lg3d/apps/bgmanager')
+def jmf23dResDir = rootProject.file(
+    'lg3d-incubator/src/classes/org/jdesktop/lg3d/apps/jmf23D/resources')
 
 tasks.register('runtimeResources', Sync) {
     group = 'application'
@@ -186,6 +188,12 @@ tasks.register('runtimeResources', Sync) {
     // The background-manager taskbar icon is referenced as
     // resources/images/icon/bgicon*.png but ships beside the bgmanager classes.
     from("${bgmanagerResDir}/res") { include 'bgicon*.png'; into 'images/icon' }
+    // Algea3D (jmf23D) loads its transport-button models through the top-level
+    // resources/models/ prefix and its RECORD-button texture as
+    // resources/images/icon/alg3d.png, but those assets ship beside the app
+    // classes; merge them into the assembled tree so the lookups resolve.
+    from("${jmf23dResDir}/models") { into 'models' }
+    from("${jmf23dResDir}/images") { include 'alg3d.png'; into 'images/icon' }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,24 +219,35 @@ tasks.register('run', JavaExec) {
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn demoAppsJar, incubatorJar, widgetsJar, runtimeResources
 
-    // The Image Studio app (lg3d-incubator) is built on the vendored Java
-    // Advanced Imaging API. Those jars live in lg3d-incubator/ext and are on the
-    // incubator's *compile* classpath (fileTree ext/**/*.jar), but not on this
-    // run classpath, so add the two genuine JAI jars here -- jai_core.jar
-    // (javax.media.jai.*, whose META-INF registry auto-registers the standard
-    // operators) and jai_codec.jar (com.sun.media.jai.codec.* for the TIFF/BMP
-    // encode/decode path). Without them the ops would NoClassDefFoundError at
-    // runtime. (jaimlib.jar in the same dir is com.wilko.jaim, an unrelated AIM
-    // library -- not JAI -- so it is deliberately excluded.)
-    def jaiJars = files(fileTree(
+    // The lg3d-incubator apps carry their own bundled third-party libraries in
+    // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
+    // (fileTree ext/**/*.jar) but not on this run classpath, so any app that
+    // touches one dies with NoClassDefFoundError at launch. Add ONLY the specific
+    // jars the desktop apps actually need at runtime:
+    //   * Image Studio -> jai_core.jar / jai_codec.jar (javax.media.jai.*, whose
+    //                     META-INF registry auto-registers the standard operators)
+    //   * Algea3D      -> jmf.jar (javax.media.*) + fobs4jmf.jar / jl1.0.jar codecs
+    //                     + commons-cli-1.0.jar (org.apache.commons.cli.*, its
+    //                     command-line parsing)
+    //   * nlc          -> javanlp.jar (edu.stanford.nlp.*) + nanoxml-lite (nanoxml.*)
+    //   * orgchart     -> prefuse.jar (edu.berkeley.guir.prefuse.*)
+    // Do NOT add the whole ext tree: ext/axis/xercesImpl.jar is an ancient Xerces
+    // that registers itself as the JAXP DocumentBuilderFactory and references
+    // org.w3c.dom.ls.DocumentLS (long removed from the JDK), which makes
+    // java.util.prefs -- and thus DesktopConfig and the background manager --
+    // throw NoClassDefFoundError on every desktop. None of the jars below carry a
+    // Xerces/JAXP override, so the platform XML parser stays intact.
+    def incubatorExtJars = files(fileTree(
         dir: "${project(':lg3d-incubator').projectDir}/ext",
-        include: ['jai_core.jar', 'jai_codec.jar']))
+        include: ['jai_core.jar', 'jai_codec.jar', 'jmf.jar', 'fobs4jmf.jar',
+                  'jl1.0.jar', 'commons-cli-1.0.jar', 'javanlp.jar',
+                  'nanoxml-lite-2.2.3.jar', 'prefuse.jar']))
 
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir, jaiJars)
+        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir, incubatorExtJars)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java

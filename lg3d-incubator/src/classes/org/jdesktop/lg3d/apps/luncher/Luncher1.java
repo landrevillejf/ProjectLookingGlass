@@ -96,7 +96,14 @@ public class Luncher1 extends Frame3D implements GlassyCardMenuHolder {
         }
         if (shortcuts!=null) {
             shortcuts.setPreferredSize(new Vector3f(luncherWidth, luncherHeight, luncherDepth));
-            shortcuts.setLayout(new HorizontalLayout(HorizontalLayout.AlignmentType.LEFT, iconSpacing));
+            // MenuConfigFileReader already assigned a HorizontalLayout to this
+            // container while it was still empty, then filled it with shortcut
+            // icons. Container3D.setLayout() now throws when the container is
+            // not empty, so only apply our spacing when there is nothing in it
+            // yet; otherwise keep the layout the reader established.
+            if (shortcuts.numChildren() == 0) {
+                shortcuts.setLayout(new HorizontalLayout(HorizontalLayout.AlignmentType.LEFT, iconSpacing));
+            }
         }
         if (comp==null) deco.addChild(shortcuts);
         else {
@@ -158,7 +165,7 @@ public class Luncher1 extends Frame3D implements GlassyCardMenuHolder {
         
     private Luncher3DShortcut(String filename, String command, Frame3D frame) {
 	super(filename);
-        appCommand = new AppLaunchAction(command);
+        appCommand = new AppLaunchAction(command, getClass().getClassLoader());
         this.frame = frame;
         this.addListener(new MouseClickedEventAdapter(this));
     }

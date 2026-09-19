@@ -23,19 +23,32 @@
 //                                       BeanShell (bsh)
 //   * apps/browser3d/**               - Jini (net.jini.*)
 //
-// A second group of apps does not compile against the lg3d-core API snapshot in
-// this repository (their sources predate API changes such as
-// AppLaunchAction(String,ClassLoader), FuzzyEdgePanel.setSize(float,float),
-// MouseClickedEventAdapter's constructor, and the absence of an awt.Color
-// constructor on vecmath Color3f/Color4f). These are pre-existing failures,
-// unrelated to the JDK 21 / Jogamp migration -- the legacy failonerror=false
-// per-app build never produced jars for them either. They are excluded as whole
-// self-contained apps:
+// A second group of apps did not compile against the lg3d-core API snapshot in
+// this repository because their sources predate API changes such as
+// AppLaunchAction(String,ClassLoader), Pseudo3DShortcut(URL,String,ClassLoader),
+// FuzzyEdgePanel.setSize(float,float,float,float), SimpleAppearance.setTexture(URL)
+// and the absence of an awt.Color constructor on vecmath Color3f/Color4f. Four
+// of them -- luncher, nlc, orgchart and jmf23D -- were small, self-contained
+// drift and have been ported to the current API; they now build. Their start-menu
+// descriptors live in lg3d-demo-apps/src/config (bundled to config/demo), because
+// discovery only scans config/demo and config/incubator while this module's own
+// src/config is bundled to config/ -- the same precedent Image Studio follows.
 //
-//   * apps/wilkoaim3d/**              - also needs the absent com.wilko AIM lib
-//   * apps/luncher/**, apps/nlc/**    - AppLaunchAction / Pseudo3DShortcut drift
-//   * apps/orgchart/**                - FuzzyEdgePanel.setSize drift
-//   * apps/jmf23D/**                  - vecmath Color3f(awt.Color) drift
+// One app in this group remains excluded:
+//
+//   * apps/wilkoaim3d/**              - deep drift, not a small fix: it targets a
+//                                       whole 2004-era lg3d utility vocabulary that
+//                                       no longer exists in core (Frame3DToFrontEvent,
+//                                       ComponentMover, ResilientRotateAction,
+//                                       NaturalMotionComponent3D/Container3D,
+//                                       ColorAlphaChangeAction), the obsolete 2-arg
+//                                       event-adapter constructors, and setTexture(String).
+//                                       Porting it means rewriting a 1277-line prototype
+//                                       from scratch -- and its AOL AIM TOC backend was
+//                                       discontinued by AOL in Dec 2017, so the app could
+//                                       never log in even if rewritten. (Note: the com.wilko
+//                                       jaimlib.jar IS present in ext/ and on the classpath;
+//                                       the missing dependency was never the real blocker.)
 //
 // Everything else builds against the Jogamp Java 3D API migrated across the tree.
 
@@ -51,11 +64,10 @@ sourceSets {
             exclude 'org/jdesktop/lg3d/apps/intel3d/**'
             exclude 'org/jdesktop/lg3d/apps/browser/**'
             exclude 'org/jdesktop/lg3d/apps/browser3d/**'
+
+            // Deep 2004-era core-API drift + a discontinued AOL AIM backend (see
+            // header): a from-scratch rewrite that could never run, so it stays out.
             exclude 'org/jdesktop/lg3d/apps/wilkoaim3d/**'
-            exclude 'org/jdesktop/lg3d/apps/luncher/**'
-            exclude 'org/jdesktop/lg3d/apps/orgchart/**'
-            exclude 'org/jdesktop/lg3d/apps/nlc/**'
-            exclude 'org/jdesktop/lg3d/apps/jmf23D/**'
         }
         resources {
             // Images, models, configs and other assets sit alongside the sources.

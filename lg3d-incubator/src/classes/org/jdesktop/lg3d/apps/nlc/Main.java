@@ -38,7 +38,10 @@ public class Main {
 		SceneFactory.getInstance().init();
 		CurrentScene scene = SceneFactory.getInstance().getCurrentScene();
 		
-		final Nlc nlc = new Nlc(scene, "/etc/lg3d/knowledge.xml");
+		// The knowledge files ship inside the lg3d-incubator jar under the nlc
+		// conf package; the legacy "/etc/lg3d/" install path is not populated by
+		// the Gradle port.
+		final Nlc nlc = new Nlc(scene, "/org/jdesktop/lg3d/apps/nlc/conf/knowledge.xml");
 		nlc.init();
 		final Mascot mascot = new BasicMascot(nlc);
 		logger.fine("Adding listener for F12");

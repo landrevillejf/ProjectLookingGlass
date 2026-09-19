@@ -128,6 +128,18 @@ public class Algea3D implements Algea3DMBean {
             logger.severe("failed to create a processor for movie " + ml);
             ex.printStackTrace();
             printUsage();
+            // Do not fall through to p.start() below: createRealizedPlayer
+            // failed, so p is still null and dereferencing it throws an NPE
+            // that masks the real cause (an unplayable/absent media file or a
+            // missing codec such as the native fobs4jmf Ogg parser).
+            return;
+        }
+
+        if (p == null) {
+            logger.severe("no player was created for " + ml
+                + "; a playable media file and the required JMF codec are needed");
+            printUsage();
+            return;
         }
 
         p.start();

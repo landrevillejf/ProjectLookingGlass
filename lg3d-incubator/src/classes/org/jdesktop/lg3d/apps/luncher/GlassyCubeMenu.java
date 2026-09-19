@@ -290,7 +290,7 @@ public class GlassyCubeMenu extends Container3D {
 		setColor(0.6f, 1.0f, 0.6f, 0.6f);
 	    }
 	    try {
-		setTexture(filename);
+		setTexture(getClass().getClassLoader().getResource(filename));
 	    } catch (Exception e) {
 		throw new RuntimeException("failed to initilaze window button: " + e);
 	    }

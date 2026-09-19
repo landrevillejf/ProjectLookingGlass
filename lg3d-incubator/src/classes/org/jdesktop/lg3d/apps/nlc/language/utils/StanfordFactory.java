@@ -22,12 +22,54 @@ public class StanfordFactory {
 	private LexicalizedParser parser;
 	
 	private final static String DEFAULT_PARSER_FILE = "etc/lg3d/englishPCFG.ser.gz";
-	
+
+	// The grammar model ships inside the lg3d-incubator jar next to the nlc
+	// classes. The legacy code expected it to have been unpacked into
+	// <lg.etcdir>/lg3d/englishPCFG.ser.gz, which the Gradle port does not do, so
+	// resolve it from the classpath instead.
+	private final static String BUNDLED_PARSER_RESOURCE =
+		"org/jdesktop/lg3d/apps/nlc/conf/englishPCFG.ser.gz";
+
 	private StanfordFactory(String parserFile) throws IOException{
-		//String file = copyToTempFile(StanfordFactory.class.getClassLoader().getResourceAsStream(parserFile));
-		String file = System.getProperty("lg.etcdir") + "/lg3d/englishPCFG.ser.gz";
+		String file = resolveParserFile(parserFile);
 		logger.info("Loading parser from " + file); 
 		parser = new LexicalizedParser(file);
+	}
+
+	// Locate the serialized grammar model. Prefer an on-disk copy under
+	// lg.etcdir (the legacy install location, so a user-supplied model still
+	// wins); otherwise fall back to the copy bundled in the jar. Because
+	// LexicalizedParser reads from a filesystem path and the bundled model lives
+	// inside a jar, the resource is copied to a temporary file.
+	private static String resolveParserFile(String parserFile) throws IOException {
+		String etcDir = System.getProperty("lg.etcdir");
+		if (etcDir != null) {
+			File etcFile = new File(etcDir, "lg3d/englishPCFG.ser.gz");
+			if (etcFile.isFile()) {
+				return etcFile.getAbsolutePath();
+			}
+		}
+		URL res = StanfordFactory.class.getClassLoader()
+			.getResource(BUNDLED_PARSER_RESOURCE);
+		if (res == null) {
+			throw new IOException("Stanford NLP grammar model not found: "
+				+ BUNDLED_PARSER_RESOURCE + " (requested: " + parserFile + ")");
+		}
+		return copyToTempFile(res);
+	}
+
+	private static String copyToTempFile(URL res) throws IOException {
+		File tmp = File.createTempFile("englishPCFG", ".ser.gz");
+		tmp.deleteOnExit();
+		try (InputStream in = res.openStream();
+		     OutputStream out = new FileOutputStream(tmp)) {
+			byte[] buf = new byte[8192];
+			int n;
+			while ((n = in.read(buf)) > 0) {
+				out.write(buf, 0, n);
+			}
+		}
+		return tmp.getAbsolutePath();
 	}
 	
 	private static StanfordFactory instance;

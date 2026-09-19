@@ -245,7 +245,12 @@ for (Map contact : contactList) {
         revalidate();
 
         int numChildren = levels.numChildren();
-        if (numChildren > 0) {
+        // levels.getChild(0) is the "up" button; the first OrgLevel lives at
+        // index 1, so there must be at least two children before we can read
+        // getChild(1). Guarding on > 0 (as originally written) throws an
+        // IndexOutOfBoundsException when a key is typed before any chart is
+        // loaded. adjustButton() already uses the correct > 1 check.
+        if (numChildren > 1) {
             // get the first level, and pick the first entry if non open
             OrgLevel firstLevel = (OrgLevel)levels.getChild(1);
             Map firstContact = firstLevel.getSelected();

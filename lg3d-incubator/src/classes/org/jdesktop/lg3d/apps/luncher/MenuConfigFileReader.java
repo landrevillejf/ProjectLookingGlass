@@ -112,7 +112,7 @@ public class MenuConfigFileReader extends DefaultHandler {
             if (readingShortcutTag) {
                 // Under the new convention shortcutIconSize is 1cm by default.
 //                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutIconSize, shortcutCommand);
-                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutCommand);
+                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutCommand, getClass().getClassLoader());
                 shortcutsContainer.addChild(shortcut);
             }
             readingShortcutTag = false;
@@ -143,6 +143,16 @@ public class MenuConfigFileReader extends DefaultHandler {
      */
     public void parseConfigFile(String fileName) throws SAXException {
         java.net.URL fileUrl = getClass().getClassLoader().getResource(fileName);
+        if (fileUrl == null) {
+            // The legacy default "etc/lg3d/MenuConfigFile.xml" assumed the file
+            // had been copied into the runtime etc dir, which the Gradle port
+            // does not do. Fall back to the copy bundled alongside this class in
+            // the lg3d-incubator jar (org/jdesktop/lg3d/apps/luncher/).
+            fileUrl = getClass().getResource("MenuConfigFile.xml");
+        }
+        if (fileUrl == null) {
+            throw new SAXException("Menu config file not found: " + fileName);
+        }
         try {
             SAXParserFactory factory = SAXParserFactory.newInstance();
             SAXParser saxParser = factory.newSAXParser();
