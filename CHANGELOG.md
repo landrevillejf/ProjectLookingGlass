@@ -345,9 +345,9 @@ work to make it build and run on a current toolchain.
 - **Taskbar right-hand group reordered and inset from the screen edge** — the
   dock group now reads `[Documents] [Downloads] [Background] [Exit]` (Documents
   `-4`, Downloads `-3`, background `-2`, Exit `-1`) instead of background-first,
-  and the right-aligned group is inset by one bar height so the rightmost (Exit)
-  icon sits on the tapered tip of the tilted glass shelf rather than hanging off
-  the end of the bar.
+  and the right-aligned group is inset by a quarter bar height so the rightmost
+  (Exit) icon sits on the tapered tip of the tilted glass shelf rather than
+  hanging off the end of the bar.
 
 ### Removed
 - **Bundled `j3d-contrib-utils.jar` and `satin-v2.3.jar`** — compiled against the

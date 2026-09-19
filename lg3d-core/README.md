@@ -66,8 +66,8 @@ used by the desktop shell (overview in the
   uses Exit `-1`, background `-2`, Downloads `-3` and Documents `-4`, so the
   right-hand group reads Documents, Downloads, background, Exit regardless of
   plugin initialisation order. The right-aligned group is inset from the screen
-  edge by one bar height so its rightmost icon stays on the tapered tip of the
-  tilted glass shelf instead of hanging off the end of the bar.
+  edge by a quarter bar height so its rightmost icon stays on the tapered tip of
+  the tilted glass shelf instead of hanging off the end of the bar.
 
 ## Frame3D window decoration
 
