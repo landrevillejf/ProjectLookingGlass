@@ -148,6 +148,17 @@ work to make it build and run on a current toolchain.
   `NaturalMotion*`, `ColorAlphaChangeAction`) and its AOL AIM backend was
   discontinued in 2017, so it could never run — its exclusion rationale was
   corrected (the `com.wilko` `jaimlib.jar` is in fact present).
+  These apps also needed runtime wiring to actually launch on the desktop: the
+  `lg3d-core:run` classpath now carries the whole `lg3d-incubator/ext` jar tree
+  (previously only the two JAI jars), so `jmf.jar` (`javax.media.*`),
+  `nanoxml-lite`/`javanlp` (`nanoxml.*`, `edu.stanford.nlp.*`) and `prefuse.jar`
+  resolve instead of throwing `NoClassDefFoundError`; luncher's
+  `MenuConfigFileReader` falls back to the `MenuConfigFile.xml` bundled beside the
+  class (the legacy `etc/lg3d/` copy is not installed by this port); nlc's
+  `StanfordFactory` loads its `englishPCFG.ser.gz` grammar model from the jar
+  (copying it to a temp file) rather than the absent `lg.etcdir` path; and the
+  `runtimeResources` assembly now merges Algea3D's transport-button models and
+  icon into the top-level `resources/` tree they are looked up under.
 - **UI/UX developer documentation** — a new top-level `docs/` tree (distinct from
   the historical `lg3d-docs/`): `docs/lg3d-native-apps.md` (building native 3D
   apps — `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event
@@ -236,7 +247,8 @@ work to make it build and run on a current toolchain.
   spring-damper system; the bundled `odejava` jar is not used.
 - **Incubator apps that cannot build** (silently skipped by the legacy build too):
   `nu/koidelab` (Cosmo), `archviz3d`, `intel3d`, `browser`, `browser3d`,
-  `wilkoaim3d`, `luncher`, `orgchart`, `nlc`, `jmf23D`.
+  `wilkoaim3d`. (`luncher`, `orgchart`, `nlc` and `jmf23D` were previously in
+  this list and have since been ported — see Added.)
 
 ### Fixed
 - **Dock stack fan crashed on repeated hover and showed stale content** — the

@@ -114,6 +114,15 @@ Each is registered in the desktop **Start Menu** via a `.lgcfg` descriptor under
 scans `config/demo` and `config/incubator`, while the incubator's `src/config` is
 bundled to `config/`.
 
+At runtime these apps lean on their bundled `ext/` libraries, so the
+`lg3d-core:run` task puts the whole `ext/` jar tree on the desktop classpath (not
+just the JAI jars Image Studio needs): `jmf.jar` for Algea3D, `nanoxml-lite` +
+`javanlp` for nlc, `prefuse.jar` for the org chart apps. Two apps also resolve
+data files from the classpath rather than the (uninstalled) legacy `etc/lg3d/`
+location: luncher's `MenuConfigFile.xml` and nlc's `englishPCFG.ser.gz` grammar
+model are both loaded from the jar. Algea3D's transport-button models/icon are
+merged into the top-level `resources/` tree by `lg3d-core:runtimeResources`.
+
 Everything else builds against the Jogamp Java 3D API migrated across the tree.
 
 ## Dependencies
