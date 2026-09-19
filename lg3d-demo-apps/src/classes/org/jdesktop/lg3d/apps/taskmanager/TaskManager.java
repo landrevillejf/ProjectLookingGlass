@@ -34,7 +34,7 @@ public class TaskManager {
     }
 
     public TaskManager() {
-        TitledSwingWindow.installNativeLookAndFeel();
+        TitledSwingWindow.installHostedLookAndFeel();
         final TaskManagerPanel panel = new TaskManagerPanel();
         final Frame3D frame =
                 TitledSwingWindow.show("Task Manager", panel, PANEL_W, PANEL_H);

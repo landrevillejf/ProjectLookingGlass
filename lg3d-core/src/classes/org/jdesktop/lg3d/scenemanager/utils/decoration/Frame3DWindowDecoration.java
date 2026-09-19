@@ -235,14 +235,16 @@ public class Frame3DWindowDecoration extends Component3D {
             normalScale = frame.getFinalScale();
             normalTranslation = frame.getFinalTranslation(new Vector3f());
 
-            // The taskbar reserves a strip at the bottom of the screen; a real
-            // maximize must fill only the usable area above it and never cover
-            // the bar.
-            float reserve = Taskbar.getReservedBottomHeight();
-            float usableHeight = tk.getScreenHeight() - reserve;
-            // World-space y of the centre of the usable area (screen centre
-            // is y == 0, so the usable band is shifted up by reserve/2).
-            float centerY = reserve * 0.5f;
+            // The taskbar reserves a strip at one edge of the screen; a real
+            // maximize must fill only the usable area between the reserved
+            // strips and never cover the bar (whether it is docked top/bottom).
+            float bottom = Taskbar.getReservedBottomHeight();
+            float top = Taskbar.getReservedTopHeight();
+            float usableHeight = tk.getScreenHeight() - bottom - top;
+            // World-space y of the centre of the usable area (screen centre is
+            // y == 0). A bottom reserve shifts the band up by bottom/2, a top
+            // reserve shifts it down by top/2.
+            float centerY = (bottom - top) * 0.5f;
 
             // Uniform (aspect-preserving) scale that fits the frame within the
             // usable area. min() picks the constraining axis so the aspect

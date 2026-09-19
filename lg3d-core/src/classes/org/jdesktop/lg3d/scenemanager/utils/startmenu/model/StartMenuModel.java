@@ -47,6 +47,7 @@ import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
@@ -513,7 +514,10 @@ public abstract class StartMenuModel extends Container3D {
                 setScale(0.25f);
             }
             changeScale(1.0f);
-            changeTranslation(-0.005f, 0.015f, 0.02f);
+            // Raise the menu toward the screen centre: up from a bottom bar,
+            // down from a top bar.
+            boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+            changeTranslation(-0.005f, top ? -0.015f : 0.015f, 0.02f);
             setMouseEventEnabled(true);
             
             // reset the pickable region size

@@ -17,10 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Discovers the control center's category panels. The four built-in panels
- * (Display, Users, System, Appearance) are registered on first access; extra
- * panels can be contributed with {@link #register(ControlPanel)} before the
- * control center window is built.
+ * Discovers the control center's category panels. The five built-in panels
+ * (Display, Users, System, Appearance, Desktop) are registered on first access;
+ * extra panels can be contributed with {@link #register(ControlPanel)} before
+ * the control center window is built.
  */
 public final class ControlPanelRegistry {
 
@@ -46,6 +46,7 @@ public final class ControlPanelRegistry {
             PANELS.add(new UsersPanel());
             PANELS.add(new SystemInfoPanel());
             PANELS.add(new AppearancePanel());
+            PANELS.add(new DesktopPanel());
         }
         return new ArrayList<>(PANELS);
     }

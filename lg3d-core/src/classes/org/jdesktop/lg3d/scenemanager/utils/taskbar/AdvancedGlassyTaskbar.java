@@ -35,14 +35,17 @@ import org.jdesktop.lg3d.scenemanager.utils.background.ModelBackground;
 import org.jdesktop.lg3d.scenemanager.utils.background.PanoImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.BoundingBox;
+import org.jdesktop.lg3d.sg.Node;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -53,6 +56,7 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
+import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 import java.net.URL;
 
@@ -169,17 +173,44 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         
         tskbar.cont.changeRotationAngle((float)Math.toRadians(5));
         
-        tskbar.cont.setTranslation(0.0f, height * -0.6f, 0.0f);
-        tskbar.cont.changeTranslation(0.0f, height * -0.5f + barHeight * 0.75f, 0.0f, 2000);
-        // The bar's centre sits at -H/2 + 0.75*barHeight, so its top edge is at
-        // -H/2 + 1.25*barHeight; publish that as the reserved bottom strip so
-        // maximized windows stop above the taskbar.
-        setReservedBottomHeight(barHeight * 1.25f);
-        
+        // Slide in from the docking edge (bottom by default, top when the user
+        // has moved the bar there) and publish the matching reserved strip so
+        // maximized windows stop clear of the bar.
+        boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+        tskbar.cont.setTranslation(0.0f, top ? height * 0.6f : height * -0.6f, 0.0f);
+        tskbar.cont.changeTranslation(0.0f, dockedY(height), 0.0f, 2000);
+        publishReserved();
+
+        // Auto-hide: the bar container is its own hover handle. Entering slides
+        // it back to the docked edge; leaving slides it mostly off-screen (a thin
+        // sliver stays hoverable so it can return). The listener self-gates on
+        // DesktopConfig.isAutoHide(), so it stays inert unless auto-hide is on.
+        tskbar.cont.setMouseEventSource(MouseEnteredEvent3D.class, true);
+        final TasbarInstance autoHideInst = tskbar;
+        tskbar.cont.addListener(new LgEventListener() {
+            public void processEvent(final LgEvent evt) {
+                if (!DesktopConfig.get().isAutoHide()) {
+                    return;
+                }
+                MouseEnteredEvent3D me = (MouseEnteredEvent3D) evt;
+                float h = Toolkit3D.getToolkit3D().getScreenHeight();
+                float y = me.isEntered() ? dockedY(h) : hiddenY(h);
+                autoHideInst.cont.changeTranslation(0.0f, y, 0.0f, 300);
+            }
+            public Class<LgEvent>[] getTargetEventClasses() {
+                return new Class[] { MouseEnteredEvent3D.class };
+            }
+        });
+
 	return tskbar;
     }
     public void initialize(SceneControl sceneControl) {
         super.initialize();
+        // Honour the persisted desktop configuration before any bar geometry is
+        // built, so instances and the icons they host come up at the right size.
+        DesktopConfig cfg = DesktopConfig.get();
+        barHeight = cfg.getBarHeight();
+        Pseudo3DIcon.setIconScale(cfg.getIconScale());
         if (sceneControl instanceof AdvancedSceneControl) {
             sceneMng = (AdvancedSceneControl)sceneControl;
             for (AdvancedSceneControl sceneCntrl : sceneMng.getSceneControls()) {
@@ -233,6 +264,20 @@ public class AdvancedGlassyTaskbar extends Taskbar {
                 }
                 public Class<LgEvent>[] getTargetEventClasses() {
                     return new Class[] {ScreenResolutionChangedEvent.class};
+                }
+            });
+        
+        // Listen for desktop-configuration changes (taskbar thickness, position,
+        // icon size, auto-hide) and re-apply the bar layout live.
+        LgEventConnector.getLgEventConnector().addListener(
+            LgEventSource.ALL_SOURCES,
+            new LgEventListener() {
+                public void processEvent(final LgEvent event) {
+                    Toolkit3D tk = Toolkit3D.getToolkit3D();
+                    applyConfig(tk.getScreenWidth(), tk.getScreenHeight(), 300);
+                }
+                public Class<LgEvent>[] getTargetEventClasses() {
+                    return new Class[] {DesktopConfigChangeEvent.class};
                 }
             });
         
@@ -410,15 +455,88 @@ public class AdvancedGlassyTaskbar extends Taskbar {
     }
     
     private void changeSize(float width, float height) {
-	for (TasbarInstance taskbar: taskbarInstList) {
-	    taskbar.cont.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
-	    taskbar.bottomBar.setSize(width - 0.02f, barHeight);
-	    taskbar.cont.changeTranslation(0.0f, height * -0.5f + barHeight * 0.75f, 0.0f, 200);
-        
-            shortcuts.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));//FIXME
-            taskbar.themes.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));//FIXME
-            taskbar.appThumbnails.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));//FIXME
-	}
+        applyConfig(width, height, 200);
+    }
+
+    /**
+     * (Re)applies the bar geometry from the current {@link DesktopConfig} and
+     * screen size: thickness, docking position (top/bottom), the reserved strip
+     * published for maximize clearance, and the icon scale of every docked icon.
+     * Called on screen-resolution changes and on {@code DesktopConfigChangeEvent}
+     * so configuration edits take effect live.
+     */
+    private void applyConfig(float width, float height, int animMs) {
+        DesktopConfig cfg = DesktopConfig.get();
+        barHeight = cfg.getBarHeight();
+        Pseudo3DIcon.setIconScale(cfg.getIconScale());
+        for (TasbarInstance taskbar : taskbarInstList) {
+            taskbar.cont.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
+            taskbar.bottomBar.setSize(width - 0.02f, barHeight);
+            taskbar.cont.changeTranslation(0.0f, dockedY(height), 0.0f, animMs);
+            taskbar.themes.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
+            taskbar.appThumbnails.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
+        }
+        if (shortcuts != null) {
+            shortcuts.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
+        }
+        publishReserved();
+        rescaleIcons();
+    }
+
+    /** World-space y of the bar centre when docked at the configured edge. */
+    private float dockedY(float height) {
+        if (DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP) {
+            return height * 0.5f - barHeight * 0.75f;
+        }
+        return height * -0.5f + barHeight * 0.75f;
+    }
+
+    /**
+     * World-space y of the bar centre when auto-hidden: pushed past the docking
+     * edge so most of the bar is off-screen, leaving a thin sliver hoverable so
+     * the enter handler can bring it back.
+     */
+    private float hiddenY(float height) {
+        if (DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP) {
+            return height * 0.5f + barHeight * 0.35f;
+        }
+        return height * -0.5f - barHeight * 0.35f;
+    }
+
+    /**
+     * Publishes the reserved strip for the docking edge in use and clears the
+     * opposite one, so maximized windows fill the usable area between them.
+     */
+    private void publishReserved() {
+        if (DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP) {
+            setReservedTopHeight(barHeight * 1.25f);
+            setReservedBottomHeight(0.0f);
+        } else {
+            setReservedBottomHeight(barHeight * 1.25f);
+            setReservedTopHeight(0.0f);
+        }
+    }
+
+    /** Rescales every docked {@link Pseudo3DIcon} to the configured icon size. */
+    private void rescaleIcons() {
+        float s = DesktopConfig.get().getIconScale();
+        if (shortcuts != null) {
+            rescaleChildren(shortcuts, s);
+        }
+        for (TasbarInstance taskbar : taskbarInstList) {
+            if (taskbar.themes != null) {
+                rescaleChildren(taskbar.themes, s);
+            }
+        }
+    }
+
+    private void rescaleChildren(Container3D container, float scale) {
+        for (int i = 0; i < container.numChildren(); i++) {
+            Node child = container.getChild(i);
+            if (child instanceof Pseudo3DIcon) {
+                ((Pseudo3DIcon) child).rescale(scale);
+            }
+        }
     }
     
     private void initHideEventHandler(final float height) {

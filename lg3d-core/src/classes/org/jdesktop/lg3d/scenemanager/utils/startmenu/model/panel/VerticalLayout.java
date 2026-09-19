@@ -54,6 +54,10 @@ public class VerticalLayout implements LayoutManager3D {
 
     private Vector3f tmpV3f = new Vector3f();
 
+    /** When true the column stacks downward from the baseline, as needed for a
+     *  top-docked taskbar; the default (false) stacks upward for a bottom bar. */
+    private boolean downward = false;
+
     public VerticalLayout(AlignmentType policy, float spacing) {
         this.policy = policy;
         this.spacing = spacing;
@@ -72,6 +76,21 @@ public class VerticalLayout implements LayoutManager3D {
 
     public void setContainer(Container3D cont) {
         this.cont = cont;
+    }
+
+    /**
+     * Sets the stacking direction and relayouts if it changed. Upward (default)
+     * grows the column above the baseline for a bottom-docked bar; downward
+     * grows it below for a top-docked bar.
+     */
+    public void setDownward(boolean downward) {
+        if (this.downward == downward) {
+            return;
+        }
+        this.downward = downward;
+        if (cont != null) {
+            layoutContainer();
+        }
     }
 
     public void layoutContainer() {
@@ -99,15 +118,16 @@ public class VerticalLayout implements LayoutManager3D {
         }
         }
 
+        float dir = downward ? -1.0f : 1.0f;
         for (Component3D comp : compList) {
             float scale = comp.getScale();
             comp.getPreferredSize(tmpV3f);
             float w = tmpV3f.y * 0.5f * scale;
-            y += w;
+            y += dir * w;
             if (comp != compToSkip) {
                 comp.changeTranslation(x + tmpV3f.x * 0.5f * scale, y, z);
             }
-            y += w + spacing;
+            y += dir * (w + spacing);
         }
     }
 

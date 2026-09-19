@@ -29,14 +29,17 @@ import org.jdesktop.lg3d.scenemanager.utils.background.LayeredImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.background.ModelBackground;
 import org.jdesktop.lg3d.scenemanager.utils.background.PanoImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.sg.Appearance;
+import org.jdesktop.lg3d.sg.Node;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -47,6 +50,7 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
+import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 import java.net.URL;
 import java.util.HashMap;
@@ -54,6 +58,15 @@ import java.util.Map;
 
 public class GlassyTaskbar extends Taskbar {
     private static float barHeight = 0.025f;
+    private static final float BASE_BAR_HEIGHT = 0.025f;
+    /** Whole-bar tilt in degrees about X; mirrored negative when docked top. */
+    private static final float BAR_TILT_DEG = 5.0f;
+    /** Glass-shelf lay-flat rotation in degrees about X; mirrored when top. */
+    private static final float SHELF_ROT_DEG = -90.0f;
+    /** Glass-shelf Y offset as a fraction of barHeight; mirrored when top. */
+    private static final float SHELF_Y_OFFSET = -0.52f;
+    /** Glass-shelf Z offset as a fraction of barHeight (edge-independent). */
+    private static final float SHELF_Z_OFFSET = -0.3f;
     private static float barDepth = 0.0025f;
     private static float barZ = -0.04f;
     private static float thumbnailZ = -0.01f;
@@ -64,6 +77,7 @@ public class GlassyTaskbar extends Taskbar {
 	    SimpleAppearance.DISABLE_CULLING);
     
     private GlassyPanel bottomBar;
+    private Component3D bottomBarComp;
     private Container3D appThumbnails;
     private Container3D shortcuts;
     private Container3D themes;
@@ -80,6 +94,12 @@ public class GlassyTaskbar extends Taskbar {
         super.initialize();
         setName("GlassyTaskBar");
         setMouseEventSource(MouseButtonEvent3D.class, true);
+
+        // Honour the persisted desktop configuration (thickness, icon size,
+        // docking edge) so this legacy bar stays consistent with the active one.
+        DesktopConfig cfg = DesktopConfig.get();
+        barHeight = BASE_BAR_HEIGHT * cfg.getBarScale();
+        Pseudo3DIcon.setIconScale(cfg.getIconScale());
         
         Toolkit3D toolkit3d = Toolkit3D.getToolkit3D();
         // If the Canvas is not visible yet screensize might be 0,0, which causes NonAffine transforms
@@ -95,11 +115,11 @@ public class GlassyTaskbar extends Taskbar {
                 barDepth * 0.1f,
 		barApp);
         
-	Component3D bottomBarComp = new Component3D();
+	bottomBarComp = new Component3D();
 	bottomBarComp.addChild(bottomBar);
 	bottomBarComp.setRotationAxis(1.0f, 0.0f, 0.0f);
-	bottomBarComp.setRotationAngle((float)Math.toRadians(-90));
-	bottomBarComp.setTranslation(0.0f, barHeight * -0.52f, barHeight * -0.3f);
+	bottomBarComp.setRotationAngle(shelfRotRadians());
+	bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
         bottomBarComp.setName("BottomBarComp");
 	Container3D deco = new Container3D();
 	deco.addChild(bottomBarComp);
@@ -150,12 +170,21 @@ public class GlassyTaskbar extends Taskbar {
         
 	setRotationAxis(1.0f, 0.0f, 0.0f);
         setRotationAngle((float)Math.toRadians(-360));
-        changeRotationAngle((float)Math.toRadians(5));
-        setTranslation(0.0f, height * -0.6f, 0.0f);
-        changeTranslation(0.0f, height * -0.5f + barHeight * 0.5f, barZ, 2000);
-        // The bar's centre sits at -H/2 + 0.5*barHeight, so its top edge is at
-        // -H/2 + barHeight; publish that as the reserved bottom strip.
-        setReservedBottomHeight(barHeight);
+        changeRotationAngle(tiltRadians());
+        boolean top = cfg.getPosition() == DesktopConfig.Position.TOP;
+        setTranslation(0.0f, top ? height * 0.6f : height * -0.6f, 0.0f);
+        float dockY = top ? (height * 0.5f - barHeight * 0.5f)
+                          : (height * -0.5f + barHeight * 0.5f);
+        changeTranslation(0.0f, dockY, barZ, 2000);
+        // Publish the reserved strip for the docking edge in use so maximized
+        // windows fill the usable area and never cover the bar.
+        if (top) {
+            setReservedTopHeight(barHeight);
+            setReservedBottomHeight(0.0f);
+        } else {
+            setReservedBottomHeight(barHeight);
+            setReservedTopHeight(0.0f);
+        }
         
         // Listen for handling the window size change
         LgEventConnector.getLgEventConnector().addListener(
@@ -171,6 +200,22 @@ public class GlassyTaskbar extends Taskbar {
             });
             
         initHideEventHandler(height);
+
+        // Live re-layout when the user applies new desktop settings in the
+        // Control Center (thickness, docking edge, icon size, auto-hide).
+        LgEventConnector.getLgEventConnector().addListener(
+            LgEventSource.ALL_SOURCES,
+            new LgEventListener() {
+                public void processEvent(final LgEvent evt) {
+                    Toolkit3D tk = Toolkit3D.getToolkit3D();
+                    applyConfig(tk.getScreenWidth(), tk.getScreenHeight(), 300);
+                }
+                public Class<LgEvent>[] getTargetEventClasses() {
+                    return new Class[] {DesktopConfigChangeEvent.class};
+                }
+            });
+
+        installAutoHide();
     }
     
     private abstract class BackgroundIcon extends Pseudo3DIcon {
@@ -265,17 +310,117 @@ public class GlassyTaskbar extends Taskbar {
     }
     
     private void changeSize(float width, float height) {
+        applyConfig(width, height, 200);
+    }
+
+    /**
+     * Re-lays-out the bar from the current {@link DesktopConfig}: thickness
+     * (barScale), docking edge (position), icon size (iconScale) and the
+     * reserved strip published for maximized-window clearance. Runs at startup,
+     * on screen-resolution change, and live when the user applies new settings
+     * in the Control Center (via {@link DesktopConfigChangeEvent}).
+     */
+    private void applyConfig(float width, float height, int animMs) {
+        DesktopConfig cfg = DesktopConfig.get();
+        barHeight = BASE_BAR_HEIGHT * cfg.getBarScale();
+        Pseudo3DIcon.setIconScale(cfg.getIconScale());
+
         setPreferredSize(new Vector3f(width, barHeight, barHeight));
-	bottomBar.setSize(width, barHeight);
-        changeTranslation(0.0f, height * -0.5f + barHeight * 0.5f, barZ, 200);
-        
-        shortcuts.setPreferredSize(new Vector3f(width, barHeight, barHeight));//FIXME
-        themes.setPreferredSize(new Vector3f(width, barHeight, barHeight));//FIXME
-        appThumbnails.setPreferredSize(new Vector3f(width, barHeight, barHeight));//FIXME
-        
-        System.out.println("GlassyTaskBar sizeChange");
-        System.out.println(width+"  "+height);
-        System.out.println((height * -0.5f + barHeight * 0.5f)+" "+ barZ);
+        bottomBar.setSize(width, barHeight);
+        // Mirror the bar tilt and the glass-shelf orientation for the docking
+        // edge in use, so a top-docked bar is the vertical reflection of the
+        // bottom one instead of leaning the same (wrong-looking) way.
+        changeRotationAngle(tiltRadians(), animMs);
+        bottomBarComp.changeRotationAngle(shelfRotRadians(), animMs);
+        bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
+        shortcuts.setPreferredSize(new Vector3f(width, barHeight, barHeight));
+        themes.setPreferredSize(new Vector3f(width, barHeight, barHeight));
+        appThumbnails.setPreferredSize(new Vector3f(width, barHeight, barHeight));
+
+        changeTranslation(0.0f, dockedY(height), barZ, animMs);
+
+        // Publish the reserved strip for the docking edge in use so maximized
+        // windows fill the usable area and never cover the bar.
+        if (cfg.getPosition() == DesktopConfig.Position.TOP) {
+            setReservedTopHeight(barHeight);
+            setReservedBottomHeight(0.0f);
+        } else {
+            setReservedBottomHeight(barHeight);
+            setReservedTopHeight(0.0f);
+        }
+
+        rescaleIcons();
+    }
+
+    private boolean isTop() {
+        return DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+    }
+
+    /** Whole-bar tilt about X: positive at the bottom edge, mirrored negative
+     *  at the top so the bar face leans toward the viewer either way. */
+    private float tiltRadians() {
+        return (float) Math.toRadians(isTop() ? -BAR_TILT_DEG : BAR_TILT_DEG);
+    }
+
+    /** Glass-shelf lay-flat rotation about X, mirrored for top docking. */
+    private float shelfRotRadians() {
+        return (float) Math.toRadians(isTop() ? -SHELF_ROT_DEG : SHELF_ROT_DEG);
+    }
+
+    /** Glass-shelf Y offset (fraction of barHeight), mirrored for top docking. */
+    private float shelfYOffset() {
+        return barHeight * (isTop() ? -SHELF_Y_OFFSET : SHELF_Y_OFFSET);
+    }
+
+    private float dockedY(float height) {
+        return isTop() ? (height * 0.5f - barHeight * 0.5f)
+                       : (height * -0.5f + barHeight * 0.5f);
+    }
+
+    private float hiddenY(float height) {
+        // Slide mostly off the docking edge but leave a thin sliver on screen so
+        // the pointer can re-enter the bar and bring it back.
+        return isTop() ? (height * 0.5f + barHeight * 0.3f)
+                       : (height * -0.5f - barHeight * 0.3f);
+    }
+
+    private void rescaleIcons() {
+        float scale = DesktopConfig.get().getIconScale();
+        rescaleChildren(shortcuts, scale);
+        rescaleChildren(themes, scale);
+    }
+
+    private void rescaleChildren(Container3D container, float scale) {
+        for (int i = 0; i < container.numChildren(); i++) {
+            Node child = container.getChild(i);
+            if (child instanceof Pseudo3DIcon) {
+                ((Pseudo3DIcon) child).rescale(scale);
+            }
+        }
+    }
+
+    /**
+     * Self-contained auto-hide: when enabled in {@link DesktopConfig} the bar
+     * slides off its docking edge on pointer-exit and back on pointer-enter.
+     * The legacy {@link HideEvent} path is dormant (nothing posts it), so the
+     * toggle is driven directly by {@link MouseEnteredEvent3D} on the bar.
+     */
+    private void installAutoHide() {
+        setMouseEventSource(MouseEnteredEvent3D.class, true);
+        addListener(new LgEventListener() {
+            public void processEvent(final LgEvent evt) {
+                if (!DesktopConfig.get().isAutoHide()) {
+                    return;
+                }
+                MouseEnteredEvent3D me = (MouseEnteredEvent3D) evt;
+                float h = Toolkit3D.getToolkit3D().getScreenHeight();
+                float y = me.isEntered() ? dockedY(h) : hiddenY(h);
+                changeTranslation(0.0f, y, barZ, 300);
+            }
+            public Class<LgEvent>[] getTargetEventClasses() {
+                return new Class[] {MouseEnteredEvent3D.class};
+            }
+        });
     }
     
     private void initHideEventHandler(final float height) {

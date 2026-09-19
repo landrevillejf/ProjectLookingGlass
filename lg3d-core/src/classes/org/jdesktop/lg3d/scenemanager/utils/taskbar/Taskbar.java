@@ -45,12 +45,28 @@ public abstract class Taskbar extends Container3D implements SceneManagerPlugin 
      */
     private static volatile float reservedBottomHeight = 0.0f;
 
+    /**
+     * World-space height the active taskbar reserves at the top of the screen
+     * (from the top edge down to the bottom of the bar) when it is docked to the
+     * top. Window chrome (e.g. maximize) uses this to avoid covering the bar.
+     * Zero when the taskbar is docked at the bottom.
+     */
+    private static volatile float reservedTopHeight = 0.0f;
+
     public static void setReservedBottomHeight(float height) {
         reservedBottomHeight = height;
     }
 
     public static float getReservedBottomHeight() {
         return reservedBottomHeight;
+    }
+
+    public static void setReservedTopHeight(float height) {
+        reservedTopHeight = height;
+    }
+
+    public static float getReservedTopHeight() {
+        return reservedTopHeight;
     }
     
     public abstract void addThumbnail(Component3D thumbnail);

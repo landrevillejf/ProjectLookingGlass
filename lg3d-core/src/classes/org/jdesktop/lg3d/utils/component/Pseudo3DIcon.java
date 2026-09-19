@@ -39,14 +39,36 @@ import org.jdesktop.lg3d.wg.Container3D;
 public class Pseudo3DIcon extends Component3D {
     private static final float DEFAULT_SIZE = 0.01f; // 1cm
     private static final int DEFAULT_ANIM_DURATION = 150;
-    
+
+    /**
+     * Global multiplier applied to {@link #DEFAULT_SIZE} when an icon is built.
+     * Set from the desktop configuration so newly created icons honour the
+     * user's icon-size choice. Kept as a plain static (rather than reading
+     * {@code DesktopConfig} directly) to avoid coupling this widget to prefs.
+     */
+    private static float iconScale = 1.0f;
+
+    /** Sets the global icon-size multiplier used by subsequently created icons. */
+    public static void setIconScale(float scale) {
+        iconScale = (scale > 0.0f) ? scale : 1.0f;
+    }
+
+    /** Returns the current global icon-size multiplier. */
+    public static float getIconScale() {
+        return iconScale;
+    }
+
+    /** The multiplier this icon's geometry was baked at (see {@link #rescale}). */
+    private final float baseScale;
+
     private Vector3f mouseEnteredTrans;
     
     public Pseudo3DIcon(URL imageUrl) {
         if (imageUrl == null) {
             throw new IllegalArgumentException("the imageUrl argument cannot be null");
         }
-        float size = DEFAULT_SIZE;
+        baseScale = iconScale;
+        float size = DEFAULT_SIZE * iconScale;
         mouseEnteredTrans = new Vector3f(0.0f, size * 0.15f, 0.0f);
 	setPreferredSize(new Vector3f(size, size, size));
 
@@ -100,6 +122,20 @@ public class Pseudo3DIcon extends Component3D {
     
     public Pseudo3DIcon(String imageName) {
         this(Pseudo3DIcon.class.getClassLoader().getResource(imageName));
+    }
+
+    /**
+     * Live-rescales this icon to {@code scale} (a multiplier of the 1cm icon
+     * convention). The geometry is baked at construction, so this applies a
+     * compensating visual scale ({@code scale / baseScale}) and updates the
+     * preferred size the taskbar layout reads. Taskbar icons carry no
+     * persistent scale of their own (the hover animation scales an inner child
+     * and restores it), so overwriting this component's scale is safe.
+     */
+    public void rescale(float scale) {
+        float s = (scale > 0.0f) ? scale : 1.0f;
+        setScale(s / baseScale);
+        setPreferredSize(new Vector3f(DEFAULT_SIZE * s, DEFAULT_SIZE * s, DEFAULT_SIZE * s));
     }
 }
 
