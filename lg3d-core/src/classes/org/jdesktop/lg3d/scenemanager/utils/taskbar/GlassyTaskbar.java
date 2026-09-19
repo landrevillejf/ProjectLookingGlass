@@ -76,7 +76,7 @@ public class GlassyTaskbar extends Taskbar {
      *  container's right edge; without an inset the rightmost icon (Exit) lands
      *  past the tapered tip of the tilted glass shelf and reads as hanging off
      *  the end of the bar. */
-    private static final float RIGHT_GROUP_INSET_BAR_HEIGHTS = 1.0f;
+    private static final float RIGHT_GROUP_INSET_BAR_HEIGHTS = 0.25f;
     private static Appearance barApp
 	= new SimpleAppearance(
 	    0.6f, 1.0f, 0.6f, 1.0f,
