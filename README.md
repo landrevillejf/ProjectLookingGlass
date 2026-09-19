@@ -304,7 +304,7 @@ it on the `run` classpath. This is additive — no module jar is restructured.
 ## Project coordinates
 
 - Group: `org.jdesktop.lg3d`
-- Version: `1.4.0-dev`
+- Version: `1.5.0-dev`
 
 See [CHANGELOG.md](CHANGELOG.md) for a summary of the modernization work.
 
