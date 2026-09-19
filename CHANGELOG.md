@@ -185,6 +185,26 @@ work to make it build and run on a current toolchain.
   starts empty) and persist under `/agenda/appointments`, mirroring how Contact 3D
   stores contacts. Registered in the start menu (Office) by
   `lg3d-demo-apps/src/config/agenda3d.lgcfg`.
+- **Agenda 3D week grid now marks business days, holidays and weekends** — the
+  `AgendaGrid` columns are anchored to real `LocalDate`s (Monday of the current
+  week + offset) instead of bare indices, and each day is classified with the
+  bundled **`jbusinessday`** library (`libs/jbusinessday-0.9.1-SNAPSHOT.jar`):
+  `JBusinessDay.isWeekend` / `isBusinessDay` against a per-year cached federal
+  holiday list (`AmericanHolidayUtil.getFederalHolidays` by default, or
+  `CanadianHolidayUtil.getCanadianFederalHolidays` when started with
+  `-Dlg.agenda.holidayRegion=CA`). A title band across the top of the grid shows
+  the displayed week's month range **and year** (e.g. `September 14–20, 2026`, or
+  `Dec 28, 2026 – Jan 3, 2027` when the week straddles a year), the day header is
+  two lines — the day name over a short month + day-of-month (e.g. `Mon` /
+  `Sep 14`) — and weekend and holiday columns get distinct header tints plus a
+  faint full-height body wash, with an accent bar over today. A new navigation
+  row (`Yr-`/`Mo-`/`Wk-` and their `+` counterparts) cycles the displayed week
+  back and forth through the calendar, and `Today` snaps back to the current
+  week; the today-highlight only appears when the displayed week is the current
+  one. `jbusinessday` logs through slf4j and touches
+  `org.slf4j.LoggerFactory` in a static initializer, so `slf4j-api` + the silent
+  `slf4j-nop` provider (2.0.16) are added to the incubator runtime classpath and
+  resolved onto the `lg3d-core:run` classpath alongside the jar.
 - **App icons via the bundled `IconManager` library** (`libs/IconManager-1.6.0.jar`)
   — the six start-menu apps that previously fell back to the generic
   `defaultapp.png` (**Image Studio**, **Luncher**, **Natural Language Control**,
