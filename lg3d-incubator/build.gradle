@@ -95,4 +95,17 @@ dependencies {
     // Bundled third-party jars (axis, jai, jmf, jxta, log4j, prefuse,
     // svgSalamander, nanoxml, jl, jpedal, mail/activation, bouncycastle, ...).
     implementation fileTree(dir: 'ext', include: '**/*.jar')
+
+    // Agenda 3D marks business days / holidays / weekends in its week grid via
+    // the bundled jbusinessday library (repo-root libs/, not a module ext jar).
+    implementation files("${rootProject.projectDir}/libs/jbusinessday-0.9.1-SNAPSHOT.jar")
+
+    // jbusinessday logs through slf4j and its holiday utilities touch
+    // org.slf4j.LoggerFactory in a static initializer, so slf4j-api MUST be on
+    // the runtime classpath or the library dies with NoClassDefFoundError the
+    // first time a holiday list is built. slf4j-nop is a silent no-op provider:
+    // the desktop has no interest in jbusinessday's internal logs, and binding
+    // NOP avoids the "no SLF4J providers were found" startup warning.
+    runtimeOnly 'org.slf4j:slf4j-api:2.0.16'
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
 }
