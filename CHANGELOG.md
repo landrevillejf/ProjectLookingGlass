@@ -130,6 +130,24 @@ work to make it build and run on a current toolchain.
   puts the two genuine JAI jars (`jai_core.jar`, `jai_codec.jar`) on the desktop
   classpath and exports `java.desktop/sun.awt.image` so JAI's `RasterAccessor`
   fast path works under JDK 21.
+- **Four more `lg3d-incubator` apps ported and registered** — apps whose sources
+  merely predated the current core API snapshot were brought up to date and now
+  build: **Algea3D** (`jmf23D`, a JMF-backed 3D media player), **Luncher**
+  (`luncher.Luncher1`, a 3D glassy-cube card launcher), **Natural Language
+  Control** (`nlc.Main`, a command-driven 3D mascot) and the **org chart** apps
+  (`orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D`). The drift fixed
+  was small and self-contained: vecmath's dropped `Color3f/Color4f(java.awt.Color)`
+  constructors, `AppLaunchAction(String,ClassLoader)` /
+  `Pseudo3DShortcut(URL,String,ClassLoader)` signatures,
+  `SimpleAppearance.setTexture(URL)`, and `FuzzyEdgePanel.setSize(float,float,float,float)`.
+  Each is registered in the desktop start menu by a new descriptor under
+  `lg3d-demo-apps/src/config` (`algea3d`, `luncher`, `nlc`, `orgchart-chart`,
+  `orgchart-contact`), following the Image Studio precedent. `wilkoaim3d` remains
+  excluded: it needs a whole removed 2004-era utility vocabulary
+  (`Frame3DToFrontEvent`, `ComponentMover`, `ResilientRotateAction`,
+  `NaturalMotion*`, `ColorAlphaChangeAction`) and its AOL AIM backend was
+  discontinued in 2017, so it could never run — its exclusion rationale was
+  corrected (the `com.wilko` `jaimlib.jar` is in fact present).
 - **UI/UX developer documentation** — a new top-level `docs/` tree (distinct from
   the historical `lg3d-docs/`): `docs/lg3d-native-apps.md` (building native 3D
   apps — `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event

@@ -79,7 +79,9 @@ public class AlgeaUtilities {
     public static Component3D createRenderingNode(float aspectRatio) {
 	    
         Appearance blackApp = new Appearance();
-        Color3f black = new Color3f(Color.black);
+        // vecmath (Jogamp) dropped the Color3f(java.awt.Color) constructor;
+        // Color.black is (0,0,0).
+        Color3f black = new Color3f(0.0f, 0.0f, 0.0f);
         Material m = new Material(black, black, black, black, 1.0f);
         blackApp.setMaterial(m);
 

@@ -49,7 +49,7 @@ public class BasicMascot extends Mascot {
 		frame = new Frame3D();
 		Component3D component = new Component3D();
 		tp = new GlassyText2D(
-                        "", MAXWIDTH, MAXHEIGHT, new Color4f(Color.YELLOW),
+                        "", MAXWIDTH, MAXHEIGHT, new Color4f(1.0f, 1.0f, 0.0f, 1.0f),
                         GlassyText2D.LightDirection.TOP_LEFT,
                         GlassyText2D.Alignment.LEFT, WIDTHSCALE);
 		// tp.setText("Enter your command");

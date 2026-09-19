@@ -112,7 +112,7 @@ public class MenuConfigFileReader extends DefaultHandler {
             if (readingShortcutTag) {
                 // Under the new convention shortcutIconSize is 1cm by default.
 //                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutIconSize, shortcutCommand);
-                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutCommand);
+                shortcut = new Pseudo3DShortcut(shortcutIconFile, shortcutCommand, getClass().getClassLoader());
                 shortcutsContainer.addChild(shortcut);
             }
             readingShortcutTag = false;

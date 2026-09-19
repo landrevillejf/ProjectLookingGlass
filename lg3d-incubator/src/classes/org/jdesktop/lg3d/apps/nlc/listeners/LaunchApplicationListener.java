@@ -16,7 +16,7 @@ public class LaunchApplicationListener implements LgEventListener {
 
 	public void processEvent(LgEvent evt) {
 		LaunchApplicationEvent event = (LaunchApplicationEvent) evt;
-		new AppLaunchAction(event.getCommand()).performAction(null);
+		new AppLaunchAction(event.getCommand(), getClass().getClassLoader()).performAction(null);
 	}
 
 	public Class<LgEvent>[] getTargetEventClasses() {

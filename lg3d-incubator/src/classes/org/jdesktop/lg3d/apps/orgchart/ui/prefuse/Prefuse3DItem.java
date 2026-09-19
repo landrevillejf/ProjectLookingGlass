@@ -231,10 +231,10 @@ public class Prefuse3DItem extends Component3D implements ChannelListener {
                 photoScale = PHOTO_HEIGHT / photoHeight;
             }
             // scale and recompute size for next step
-            photoPanel.setSize(photoWidth, photoHeight,
-                    1.0f, 1.0f,
-                    0, 0,
-                    photoWidth, photoHeight);
+            // FuzzyEdgePanel.setSize is now (w, h, textureWidthScale,
+            // textureHeightScale); the old trailing sub-image offset/size args
+            // (0, 0, photoWidth, photoHeight) were the identity/no-crop case.
+            photoPanel.setSize(photoWidth, photoHeight, 1.0f, 1.0f);
             photo.setScale(photoScale);
             photoWidth *= photoScale;
             photoHeight *= photoScale;
