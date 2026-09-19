@@ -19,7 +19,7 @@ import org.jdesktop.lg3d.widgets.api.WidgetProvider;
 
 /**
  * Contributes the widgets bundled with the lg3d-widgets module (clock,
- * temperature, CPU and memory) to the {@link org.jdesktop.lg3d.widgets.api.WidgetRegistry}.
+ * temperature, CPU, memory and weather) to the {@link org.jdesktop.lg3d.widgets.api.WidgetRegistry}.
  *
  * <p>Registered through
  * {@code META-INF/services/org.jdesktop.lg3d.widgets.api.WidgetProvider}. Icons
@@ -39,7 +39,9 @@ public class BuiltinWidgetProvider implements WidgetProvider {
             new WidgetDescriptor(CpuWidget.ID, "CPU Load", "System",
                     ICON_PREFIX + "system.png", 150, 110, CpuWidget::new),
             new WidgetDescriptor(MemoryWidget.ID, "Memory", "System",
-                    ICON_PREFIX + "system.png", 160, 110, MemoryWidget::new)
+                    ICON_PREFIX + "system.png", 160, 110, MemoryWidget::new),
+            new WidgetDescriptor(WeatherWidget.ID, "Weather", "Web",
+                    ICON_PREFIX + "leaf.png", 200, 160, WeatherWidget::new)
         );
     }
 }

@@ -63,6 +63,19 @@ work to make it build and run on a current toolchain.
   memory widgets (`...widgets.builtin`). Third parties add widgets by dropping a
   jar carrying a `META-INF/services/...WidgetProvider` entry; placed widgets are
   managed through the **Widget Gallery** app.
+- **Desktop shell: Weather widget** (`lg3d-widgets`, `WeatherWidget`) — a new
+  built-in desktop widget showing current conditions from the free
+  **Open-Meteo** forecast API (no API key): temperature, a sky glyph drawn from
+  the WMO weather code, condition text, location, today's high/low, feels-like,
+  humidity and wind. The **mouse wheel** cycles a preset list of major cities
+  (persisted) and a **click** toggles &deg;C/&deg;F (defaulted from the system
+  locale); a custom `lat`/`lon`/`label` can be pinned in
+  `~/.config/lg3d/widgets.properties`. Fetches run on the shared widget
+  scheduler thread every 15 minutes (and immediately after a city change) via
+  the JDK `java.net.http` client with a small dependency-free JSON reader, so
+  neither the EDT nor the 3D event loop is ever blocked; a failed refresh keeps
+  the last reading and flags it "stale". Listed in the Widget Gallery under
+  **Web**.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side, immediately before Exit
   (`[Background] [Documents] [Downloads] [Exit]`), each fanning out its most
