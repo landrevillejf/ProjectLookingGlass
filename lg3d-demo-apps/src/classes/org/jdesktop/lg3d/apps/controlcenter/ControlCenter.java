@@ -17,8 +17,9 @@ import org.jdesktop.lg3d.apps.TitledSwingWindow;
 
 /**
  * The control center application: the {@link ControlCenterPanel} (Display /
- * Users / System / Appearance) presented as an integrated 3D desktop window
- * (title bar plus minimize / maximize / close) via {@link TitledSwingWindow}.
+ * Users / System / Appearance / Desktop) presented as an integrated 3D desktop
+ * window (title bar plus minimize / maximize / close) via
+ * {@link TitledSwingWindow}.
  */
 public class ControlCenter {
 

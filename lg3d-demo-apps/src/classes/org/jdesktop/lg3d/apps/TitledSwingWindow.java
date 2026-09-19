@@ -14,13 +14,18 @@
 package org.jdesktop.lg3d.apps;
 
 import javax.swing.JPanel;
+import javax.swing.LookAndFeel;
+import javax.swing.UIDefaults;
 import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
+import java.awt.Font;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
 import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyText2D;
@@ -76,6 +81,18 @@ public final class TitledSwingWindow {
     /** Thickness of the thumbnail glass slab, pre-scaled. */
     private static final float THUMBNAIL_DEPTH = 0.02f * THUMBNAIL_SCALE;
 
+    /** UIManager font-default keys overridden by the desktop configuration. */
+    private static final String[] FONT_KEYS = {
+        "Label.font", "Button.font", "ToggleButton.font", "TextField.font",
+        "TextArea.font", "ComboBox.font", "List.font", "Table.font",
+        "TableHeader.font", "Menu.font", "MenuItem.font", "PopupMenu.font",
+        "Panel.font", "Dialog.font", "Frame.font", "TitledBorder.font",
+        "OptionPane.font", "CheckBox.font", "RadioButton.font",
+        "TabbedPane.font", "Tree.font", "ToolBar.font", "Spinner.font",
+        "EditorPane.font", "TextPane.font", "FormattedTextField.font",
+        "PasswordField.font", "ToolTip.font"
+    };
+
     private TitledSwingWindow() {
     }
 
@@ -91,6 +108,41 @@ public final class TitledSwingWindow {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             // Keep whatever look-and-feel is already active.
+        }
+        applySwingFontDefaults();
+    }
+
+    /**
+     * Applies the configured Swing UI font (family + size) from
+     * {@link DesktopConfig} to the {@link UIManager} defaults, so hosted panels
+     * built afterwards render with the user's chosen font. While the config
+     * still holds the built-in default the platform look-and-feel font is left
+     * untouched (and any previous override is rolled back to the LAF default).
+     * Safe to call again after a configuration change to re-apply live.
+     */
+    public static void applySwingFontDefaults() {
+        DesktopConfig cfg = DesktopConfig.get();
+        boolean isDefault = DesktopConfig.DEFAULT_FONT_NAME.equals(cfg.getFontName())
+                && cfg.getFontSize() == DesktopConfig.DEFAULT_FONT_SIZE;
+        if (isDefault) {
+            // Restore the active look-and-feel's own fonts, undoing any earlier
+            // override so "reset to defaults" really returns to the native look.
+            LookAndFeel laf = UIManager.getLookAndFeel();
+            UIDefaults defs = (laf == null) ? null : laf.getDefaults();
+            if (defs != null) {
+                for (String key : FONT_KEYS) {
+                    Object v = defs.get(key);
+                    if (v != null) {
+                        UIManager.put(key, v);
+                    }
+                }
+            }
+            return;
+        }
+        FontUIResource font = new FontUIResource(
+                new Font(cfg.getFontName(), Font.PLAIN, cfg.getFontSize()));
+        for (String key : FONT_KEYS) {
+            UIManager.put(key, font);
         }
     }
 

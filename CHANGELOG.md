@@ -134,6 +134,22 @@ work to make it build and run on a current toolchain.
   the EDT whenever the rendered `Texture2D` is recreated (first capture and
   resizes), so the miniature binds — and re-binds — to the same live texture
   the window renders from, tracking panel repaints in real time.
+- **Desktop configuration (Control Center → Desktop)** — a user-friendly,
+  persisted settings surface for the desktop shell: **taskbar thickness**,
+  **docking position** (bottom/top; left/right reserved for a later phase),
+  **icon size**, the **Swing application UI font** (family + size), and a
+  taskbar **auto-hide** toggle. Settings are held in a new lg3d-core
+  `DesktopConfig` singleton backed by `java.util.prefs`
+  (`LgPreferencesHelper`), edited from a new `DesktopPanel` in the Control
+  Center, and applied **live**: the panel saves the prefs and posts a
+  `DesktopConfigChangeEvent`, which the active `AdvancedGlassyTaskbar` consumes
+  to re-lay-out (thickness/position/icon scale) on the fly, while
+  `TitledSwingWindow` re-applies the configured font to the Swing
+  `UIManager` defaults. Taskbar docking now publishes a top *or* bottom
+  reserved strip (`Taskbar.get/setReservedTopHeight`), and window maximize
+  clearance fills the usable band between them. Auto-hide slides the bar mostly
+  off its docking edge on mouse-exit and back on edge hover (self-contained in
+  the taskbar, as the legacy dormant `HideEvent` path has no poster).
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to

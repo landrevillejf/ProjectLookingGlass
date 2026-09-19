@@ -37,6 +37,7 @@ import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -54,6 +55,7 @@ import java.util.Map;
 
 public class GlassyTaskbar extends Taskbar {
     private static float barHeight = 0.025f;
+    private static final float BASE_BAR_HEIGHT = 0.025f;
     private static float barDepth = 0.0025f;
     private static float barZ = -0.04f;
     private static float thumbnailZ = -0.01f;
@@ -80,6 +82,12 @@ public class GlassyTaskbar extends Taskbar {
         super.initialize();
         setName("GlassyTaskBar");
         setMouseEventSource(MouseButtonEvent3D.class, true);
+
+        // Honour the persisted desktop configuration (thickness, icon size,
+        // docking edge) so this legacy bar stays consistent with the active one.
+        DesktopConfig cfg = DesktopConfig.get();
+        barHeight = BASE_BAR_HEIGHT * cfg.getBarScale();
+        Pseudo3DIcon.setIconScale(cfg.getIconScale());
         
         Toolkit3D toolkit3d = Toolkit3D.getToolkit3D();
         // If the Canvas is not visible yet screensize might be 0,0, which causes NonAffine transforms
@@ -151,11 +159,20 @@ public class GlassyTaskbar extends Taskbar {
 	setRotationAxis(1.0f, 0.0f, 0.0f);
         setRotationAngle((float)Math.toRadians(-360));
         changeRotationAngle((float)Math.toRadians(5));
-        setTranslation(0.0f, height * -0.6f, 0.0f);
-        changeTranslation(0.0f, height * -0.5f + barHeight * 0.5f, barZ, 2000);
-        // The bar's centre sits at -H/2 + 0.5*barHeight, so its top edge is at
-        // -H/2 + barHeight; publish that as the reserved bottom strip.
-        setReservedBottomHeight(barHeight);
+        boolean top = cfg.getPosition() == DesktopConfig.Position.TOP;
+        setTranslation(0.0f, top ? height * 0.6f : height * -0.6f, 0.0f);
+        float dockY = top ? (height * 0.5f - barHeight * 0.5f)
+                          : (height * -0.5f + barHeight * 0.5f);
+        changeTranslation(0.0f, dockY, barZ, 2000);
+        // Publish the reserved strip for the docking edge in use so maximized
+        // windows fill the usable area and never cover the bar.
+        if (top) {
+            setReservedTopHeight(barHeight);
+            setReservedBottomHeight(0.0f);
+        } else {
+            setReservedBottomHeight(barHeight);
+            setReservedTopHeight(0.0f);
+        }
         
         // Listen for handling the window size change
         LgEventConnector.getLgEventConnector().addListener(
