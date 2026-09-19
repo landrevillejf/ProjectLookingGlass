@@ -64,7 +64,7 @@ import org.jogamp.vecmath.Vector3f;
  * frame-level listeners of {@code ZLayeredMovableLayout} and
  * {@link Frame3DWindowDecoration}, so the window keeps every desktop idiom -
  * left-drag the title bar to move it, middle-drag or CTRL+left-drag to rotate
- * it, right-click to flip it to the sticky note - and the standard window
+ * it, CTRL+right-click to flip it to the sticky note - and the standard window
  * buttons sit in the clear strip.</p>
  */
 public final class TitledSwingWindow {
@@ -186,13 +186,13 @@ public final class TitledSwingWindow {
         // Every window gesture of the desktop lives in frame-level listeners:
         // ZLayeredMovableLayout adds the BUTTON1 mover and the CTRL spinner to
         // each frame, and Frame3DWindowDecoration adds the BUTTON2 spinner and
-        // the BUTTON3 flip. PickEngine only delivers a picked event up the
+        // the CTRL+BUTTON3 flip. PickEngine only delivers a picked event up the
         // ancestor chain while each source it meets is propagatable, which the
         // Swing quad must not be (or Swing would lose its own gestures). So
         // make the title bar propagatable instead: it becomes the window's
         // gesture handle - left-drag moves, middle-drag or CTRL+left-drag
-        // rotates, right-click flips to the sticky note - the same idioms as
-        // pure-3D windows, with no duplicate listeners (the native window
+        // rotates, CTRL+right-click flips to the sticky note - the same idioms
+        // as pure-3D windows, with no duplicate listeners (the native window
         // look-and-feel uses the same trick for its title panel).
         titleBar.setMouseEventPropagatable(true);
         frame.addChild(titleBar);
