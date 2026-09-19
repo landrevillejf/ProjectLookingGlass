@@ -52,6 +52,7 @@ public class GenerateAppIcons {
         {"chart3d.png",     IconColor.GREEN,  IconCategory.TABLE,       "ColumnInsertAfter"},
         {"contact3d.png",   IconColor.TEAL,   IconCategory.GENERAL,     "ComposeMail"},
         {"agenda3d.png",    IconColor.RED,    IconCategory.GENERAL,     "History"},
+        {"mail3d.png",      IconColor.INDIGO, IconCategory.GENERAL,     "SendMail"},
     };
 
     public static void main(String[] args) throws Exception {

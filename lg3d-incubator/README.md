@@ -104,6 +104,39 @@ off-live, and every edit only repaints the `BufferedImage` and calls
 scene graph. The grid quad sets `Geometry.ALLOW_INTERSECT` so the pick engine's
 `PICK_GEOMETRY` mode reports an intersection point for click-to-cell mapping.
 
+## Mail 3D
+
+`org.jdesktop.lg3d.apps.mail` is a **new** native-3D e-mail client (not a port).
+Like Agenda 3D it reuses the agenda's runtime-drawn `AgendaButton` for its control
+strip and reads the same shared `/contacts` directory Contact 3D populates (via
+`ContactDirectory`) as its address book, but it never writes contact data. The
+mailbox is **local-only** — there is no SMTP/IMAP; "sending" a message files it in
+the Sent folder — so the compose / reply / send loop is fully exercisable offline,
+and it persists under `/mail/messages` in the user `Preferences` tree, seeded with
+a few sample messages on first run.
+
+It is launched from the start menu (Office) with
+`java org.jdesktop.lg3d.apps.mail.Mail3D`; the descriptor lives in
+[`lg3d-demo-apps/src/config/mail3d.lgcfg`](../lg3d-demo-apps/src/config/mail3d.lgcfg)
+for the same discovery reason Image Studio follows.
+
+| Class | Role |
+| --- | --- |
+| `Mail3D` | `main` entry point: the `Frame3D` window; wires store, contacts, view and the button strip. |
+| `MailView` | Live-texture `Component3D`: message list beside a reading / compose pane under a folder header; maps clicks to rows. |
+| `MailMessage` | A single message (from/to/subject/body/when/read/folder) with `Preferences` serialisation. |
+| `MailStore` | Loads / saves / deletes messages under `/mail/messages` and seeds the first-run inbox. |
+
+Interaction is **button-driven** (dev mode has no keyboard focus routing): click a
+row to open and mark it read; `Inbox`/`Sent` switch folders and `Next` walks the
+selection; `New`/`Reply` open a draft whose `To`/`Subj`/`Body` cycle presets and
+contacts; `Send` files it into Sent and jumps there, `Back` discards it; `Read`
+toggles the unread flag and `Del` removes the selection. Compose-only actions are
+inert while reading and vice versa, so a draft is never clobbered. The view obeys
+the same live-texture rule as `AgendaGrid`: one fixed-size `ImageComponent2D` with
+`ALLOW_IMAGE_WRITE` is attached once off-live and every change only repaints the
+`BufferedImage` and calls `ImageComponent2D.set` in place.
+
 ## Excluded apps
 
 A handful of apps cannot be compiled here — the legacy `failonerror="false"`
