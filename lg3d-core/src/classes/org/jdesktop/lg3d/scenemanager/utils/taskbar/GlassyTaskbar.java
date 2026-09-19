@@ -59,6 +59,14 @@ import java.util.Map;
 public class GlassyTaskbar extends Taskbar {
     private static float barHeight = 0.025f;
     private static final float BASE_BAR_HEIGHT = 0.025f;
+    /** Whole-bar tilt in degrees about X; mirrored negative when docked top. */
+    private static final float BAR_TILT_DEG = 5.0f;
+    /** Glass-shelf lay-flat rotation in degrees about X; mirrored when top. */
+    private static final float SHELF_ROT_DEG = -90.0f;
+    /** Glass-shelf Y offset as a fraction of barHeight; mirrored when top. */
+    private static final float SHELF_Y_OFFSET = -0.52f;
+    /** Glass-shelf Z offset as a fraction of barHeight (edge-independent). */
+    private static final float SHELF_Z_OFFSET = -0.3f;
     private static float barDepth = 0.0025f;
     private static float barZ = -0.04f;
     private static float thumbnailZ = -0.01f;
@@ -110,8 +118,8 @@ public class GlassyTaskbar extends Taskbar {
 	bottomBarComp = new Component3D();
 	bottomBarComp.addChild(bottomBar);
 	bottomBarComp.setRotationAxis(1.0f, 0.0f, 0.0f);
-	bottomBarComp.setRotationAngle((float)Math.toRadians(-90));
-	bottomBarComp.setTranslation(0.0f, barHeight * -0.52f, barHeight * -0.3f);
+	bottomBarComp.setRotationAngle(shelfRotRadians());
+	bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
         bottomBarComp.setName("BottomBarComp");
 	Container3D deco = new Container3D();
 	deco.addChild(bottomBarComp);
@@ -162,7 +170,7 @@ public class GlassyTaskbar extends Taskbar {
         
 	setRotationAxis(1.0f, 0.0f, 0.0f);
         setRotationAngle((float)Math.toRadians(-360));
-        changeRotationAngle((float)Math.toRadians(5));
+        changeRotationAngle(tiltRadians());
         boolean top = cfg.getPosition() == DesktopConfig.Position.TOP;
         setTranslation(0.0f, top ? height * 0.6f : height * -0.6f, 0.0f);
         float dockY = top ? (height * 0.5f - barHeight * 0.5f)
@@ -319,7 +327,12 @@ public class GlassyTaskbar extends Taskbar {
 
         setPreferredSize(new Vector3f(width, barHeight, barHeight));
         bottomBar.setSize(width, barHeight);
-        bottomBarComp.setTranslation(0.0f, barHeight * -0.52f, barHeight * -0.3f);
+        // Mirror the bar tilt and the glass-shelf orientation for the docking
+        // edge in use, so a top-docked bar is the vertical reflection of the
+        // bottom one instead of leaning the same (wrong-looking) way.
+        changeRotationAngle(tiltRadians(), animMs);
+        bottomBarComp.changeRotationAngle(shelfRotRadians(), animMs);
+        bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
         shortcuts.setPreferredSize(new Vector3f(width, barHeight, barHeight));
         themes.setPreferredSize(new Vector3f(width, barHeight, barHeight));
         appThumbnails.setPreferredSize(new Vector3f(width, barHeight, barHeight));
@@ -341,6 +354,22 @@ public class GlassyTaskbar extends Taskbar {
 
     private boolean isTop() {
         return DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+    }
+
+    /** Whole-bar tilt about X: positive at the bottom edge, mirrored negative
+     *  at the top so the bar face leans toward the viewer either way. */
+    private float tiltRadians() {
+        return (float) Math.toRadians(isTop() ? -BAR_TILT_DEG : BAR_TILT_DEG);
+    }
+
+    /** Glass-shelf lay-flat rotation about X, mirrored for top docking. */
+    private float shelfRotRadians() {
+        return (float) Math.toRadians(isTop() ? -SHELF_ROT_DEG : SHELF_ROT_DEG);
+    }
+
+    /** Glass-shelf Y offset (fraction of barHeight), mirrored for top docking. */
+    private float shelfYOffset() {
+        return barHeight * (isTop() ? -SHELF_Y_OFFSET : SHELF_Y_OFFSET);
     }
 
     private float dockedY(float height) {
