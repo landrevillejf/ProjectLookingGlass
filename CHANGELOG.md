@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.4.0-dev — Gradle / JDK 21 modernization
+## [Unreleased] — 1.5.0-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **Gradle build** (wrapper 8.14) replacing the 2006-era Ant `source 1.5` build,
