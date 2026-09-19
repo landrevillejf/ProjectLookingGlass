@@ -74,6 +74,9 @@ public class StandardAppContainer extends AppContainer {
 
     private static boolean first = true;
 
+    /** Marks a frame whose one-time app-container setup has already run. */
+    private static final String SETUP_PROPERTY = "lg3d.appcontainer.setup";
+
     private static final float zSpacing = 0.02f;
     private static final float shelfViewAngle = (float)Math.toRadians(90);
     private static final float shelfViewZ = -0.05f;
@@ -296,42 +299,54 @@ public class StandardAppContainer extends AppContainer {
         
         frame3d.setMouseEventSource(MouseEnteredEvent3D.class, true);
         
-        frame3d.addListener(
-            new Component3DVisualAppearanceEventAdapter(
-                new TransparencyActionNoArg(frame3d, 
-                     translucencyNormal, translucencyAnimDuration),
-                new TransparencyActionNoArg(frame3d, 
-                     translucencyHighlight, translucencyAnimDuration),
-                new TransparencyActionNoArg(frame3d, 
-                     translucencyLowlight, translucencyAnimDuration)));
-        
-        Frame3DAnimation f3da
-            = new PluggableF3DAnimation(
-                new NaturalMotionWithSwayAnimation(
-                    defaultAnimDuration, 
-                    new AnimateToChangeVisiblePlugin(
-                        this, tn, 500, true, new YAcceleratingVector3fSmoother(), null, null)),
-                new FlyAwayChangeEnabledPlugin(contWidth, contHeight, 500));
-        f3da.setAnimationFinishedEvent(Frame3DAnimationFinishedEvent.class);
-        frame3d.setAnimation(f3da);
+        // A frame can be enabled more than once over its lifetime -- e.g. a
+        // hover popup that is shown and hidden repeatedly. The translucency
+        // listener, the animation and the window decoration are one-time setup:
+        // re-running them on every re-add would stack duplicate decorations and
+        // listeners and re-set the animation, whose teardown of the previous
+        // NaturalMotionWithSwayAnimation dereferences an already-cleared
+        // animation target and throws. Guard them so a frame is only fully
+        // initialised the first time it is added.
+        if (!Boolean.TRUE.equals(frame3d.getProperty(SETUP_PROPERTY))) {
+            frame3d.addListener(
+                new Component3DVisualAppearanceEventAdapter(
+                    new TransparencyActionNoArg(frame3d, 
+                         translucencyNormal, translucencyAnimDuration),
+                    new TransparencyActionNoArg(frame3d, 
+                         translucencyHighlight, translucencyAnimDuration),
+                    new TransparencyActionNoArg(frame3d, 
+                         translucencyLowlight, translucencyAnimDuration)));
+            
+            Frame3DAnimation f3da
+                = new PluggableF3DAnimation(
+                    new NaturalMotionWithSwayAnimation(
+                        defaultAnimDuration, 
+                        new AnimateToChangeVisiblePlugin(
+                            this, tn, 500, true, new YAcceleratingVector3fSmoother(), null, null)),
+                    new FlyAwayChangeEnabledPlugin(contWidth, contHeight, 500));
+            f3da.setAnimationFinishedEvent(Frame3DAnimationFinishedEvent.class);
+            frame3d.setAnimation(f3da);
+            
+            // Attach the standard 3D window decoration (minimize/maximize/close
+            // buttons plus right-click flip and middle-drag free-spin) unless the
+            // frame supplies its own chrome (e.g. Lg3dHelp). Done before addChild
+            // so the decoration is parented while the frame is not yet live.
+            if (!Boolean.TRUE.equals(
+                    frame3d.getProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY))) {
+                Frame3DWindowDecoration decoration
+                    = new Frame3DWindowDecoration(frame3d);
+                frame3d.setProperty(Frame3DWindowDecoration.PROPERTY_KEY, decoration);
+                frame3d.addChild(decoration);
+            }
+            
+            frame3d.setProperty(SETUP_PROPERTY, Boolean.TRUE);
+        }
         
         frame3d.setRotationAxis(0.0f, 1.0f, 0.0f);
         frame3d.setTransparency(1.0f);
         frame3d.changeTransparency(translucencyNormal); // fade in to the space
         frame3d.setScale(0.0f);
         frame3d.changeScale(1.0f); // scale up
-        
-        // Attach the standard 3D window decoration (minimize/maximize/close
-        // buttons plus right-click flip and middle-drag free-spin) unless the
-        // frame supplies its own chrome (e.g. Lg3dHelp). Done before addChild
-        // so the decoration is parented while the frame is not yet live.
-        if (!Boolean.TRUE.equals(
-                frame3d.getProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY))) {
-            Frame3DWindowDecoration decoration
-                = new Frame3DWindowDecoration(frame3d);
-            frame3d.setProperty(Frame3DWindowDecoration.PROPERTY_KEY, decoration);
-            frame3d.addChild(decoration);
-        }
         
         addChild(frame3d);
         postEvent(new Frame3DAddedEvent(frame3d));

@@ -85,6 +85,13 @@ public class FolderStackPopup {
     private final Frame3D frame3d;
     private final FanPanel panel;
 
+    /**
+     * The stack fan currently open. Opening one (e.g. hovering Downloads)
+     * dismisses the other (e.g. Documents) so two fans are never left on screen
+     * showing stale content when the pointer moves between the dock icons.
+     */
+    private static FolderStackPopup current;
+
     public FolderStackPopup(FolderStackModel model) {
         this.model = model;
         this.panel = new FanPanel();
@@ -103,8 +110,41 @@ public class FolderStackPopup {
                 tk.heightNativeToPhysical(PANEL_H), 0.01f));
     }
 
+    /**
+     * Rescans the folder and shows the fan anchored above the dock icon that
+     * owns this stack, so the popup grows upward from the icon instead of
+     * appearing centred on screen.
+     *
+     * @param iconWorld  vworld location of the dock icon
+     * @param iconHeight physical height of the dock icon, used to clear it
+     */
+    public void show(Vector3f iconWorld, float iconHeight) {
+        Toolkit3D tk = Toolkit3D.getToolkit3D();
+        Vector3f pref = frame3d.getPreferredSize(new Vector3f());
+        final float gap = 0.01f;
+        // setTranslation positions the window's centre, so lift it by half the
+        // icon plus half the panel to sit the panel's bottom edge above the icon.
+        float y = iconWorld.y + iconHeight / 2.0f + pref.y / 2.0f + gap;
+        float x = iconWorld.x;
+        // The dock icons sit at the right edge; clamp the panel so it stays
+        // fully on screen (world is centred on the origin).
+        float halfW = tk.getScreenWidth() / 2.0f;
+        float halfH = tk.getScreenHeight() / 2.0f;
+        float margin = 0.01f;
+        x = Math.max(-halfW + pref.x / 2.0f + margin,
+                Math.min(x, halfW - pref.x / 2.0f - margin));
+        y = Math.max(-halfH + pref.y / 2.0f + margin,
+                Math.min(y, halfH - pref.y / 2.0f - margin));
+        frame3d.setTranslation(x, y, iconWorld.z);
+        show();
+    }
+
     /** Rescans the folder and shows (or re-shows) the fan. */
     public void show() {
+        if (current != null && current != this) {
+            current.hide();
+        }
+        current = this;
         model.refresh();
         panel.reload();
         frame3d.changeEnabled(true);
@@ -115,6 +155,9 @@ public class FolderStackPopup {
     /** Hides the fan. */
     public void hide() {
         frame3d.changeEnabled(false);
+        if (current == this) {
+            current = null;
+        }
     }
 
     public boolean isVisible() {

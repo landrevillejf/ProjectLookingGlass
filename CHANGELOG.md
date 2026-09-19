@@ -70,7 +70,9 @@ work to make it build and run on a current toolchain.
   pill beside its MIME icon
   (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`, registered from
   `glassy.lgcfg`). Hovering the dock icon opens the fan (a click toggles it),
-  newest entries leading the fan. Files open with `xdg-open`; folders — and a
+  newest entries leading the fan. The fan window is anchored just above its own
+  dock icon (clamped to stay fully on screen) instead of defaulting to the centre
+  of the screen. Files open with `xdg-open`; folders — and a
   header **Show in File Manager** action — open the folder in the file manager.
   Escape or the close button dismisses the fan.
 - **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
@@ -190,6 +192,18 @@ work to make it build and run on a current toolchain.
   `wilkoaim3d`, `luncher`, `orgchart`, `nlc`, `jmf23D`.
 
 ### Fixed
+- **Dock stack fan crashed on repeated hover and showed stale content** — the
+  Documents/Downloads fan is shown and hidden with `Frame3D.changeEnabled`, and
+  every re-enable re-ran `StandardAppContainer.addFrame3D`, which re-created the
+  window animation. Replacing the animation destroys the previous
+  `NaturalMotionWithSwayAnimation` *after* its target `Component3D` reference is
+  cleared, so `removeListenerFromComponent3D` dereferenced a null `WeakReference`
+  and threw a `NullPointerException` in the `EventProcessor`; the aborted
+  `show()` also left the previously-open fan (e.g. Documents) on screen when
+  hovering the other stack (Downloads). `addFrame3D` now performs its one-time
+  setup (translucency listener, animation, window decoration) only once per
+  frame, `Component3DAnimationTarget` tolerates an already-cleared target when
+  adding/removing listeners, and opening one stack fan dismisses the other.
 - **Window flip showed a plain green back instead of the sticky note** — the
   right-click flip of `Frame3DWindowDecoration` worked on both Swing
   (`TitledSwingWindow`) and pure-3D app windows, but the `StickyNote` was

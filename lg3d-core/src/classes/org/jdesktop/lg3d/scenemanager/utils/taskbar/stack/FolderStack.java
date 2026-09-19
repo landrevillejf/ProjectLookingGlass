@@ -84,7 +84,13 @@ public class FolderStack extends Tapp {
             popup = new FolderStackPopup(model);
         }
         if (!popup.isVisible()) {
-            popup.show();
+            // Anchor the fan just above this dock icon rather than letting the
+            // window default to the centre of the screen. getTranslationTo(null,..)
+            // returns -this_vworld, so negate it to recover this icon's location.
+            Vector3f anchor = getTranslationTo(null, new Vector3f());
+            anchor.negate();
+            Vector3f size = getPreferredSize(new Vector3f());
+            popup.show(anchor, size.y);
         }
     }
 
