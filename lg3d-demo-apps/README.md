@@ -30,3 +30,17 @@ these apps appear on the running lg3d desktop.
 ## Dependencies
 
 - `lg3d-core` (project dependency) — provides the SDK and the Jogamp Java 3D API.
+
+## Calculator
+
+`org.jdesktop.lg3d.apps.calculator` — an advanced scientific calculator whose
+Swing panel is hosted on a `SwingNode` inside a `Frame3D` via
+`TitledSwingWindow` (see [`docs/swingnode.md`](../docs/swingnode.md)): a
+headless recursive-descent expression engine (parentheses, `^`, factorial,
+`%`, `mod`, DEG/RAD trigonometry, `ln`/`log`/`sqrt`/`abs`, `pi`/`e`/`Ans`), a
+memory register (MC/MR/M+/M-/MS), a live result preview over an editable
+expression field, and a clickable history list. The panel uses a null layout
+with explicit bounds, as `SwingNode` paints hosted panels offscreen without a
+layout pass. Start-menu descriptor: `src/config/calculator.lgcfg` (Utilities
+group); the icon keypad glyph is drawn by
+`lg3d-art/tools/GenerateAppIcons.java`.

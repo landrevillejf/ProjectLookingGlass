@@ -131,6 +131,10 @@ JNA.
   password / groups / remove via `pkexec`), System (live CPU / memory / disk /
   kernel / distro), and Appearance (wallpaper chooser that changes the live
   desktop background).
+- **Calculator** (Utilities menu) — scientific calculator whose Swing panel is
+  hosted on a `SwingNode`: expression engine with parentheses, powers,
+  factorial, `%`, `mod`, DEG/RAD trigonometry, `pi`/`e`/`Ans`, a memory
+  register, a live result preview and a clickable history list.
 
 System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
 (`xdg-open`), polkit / `pkexec` (privileged operations), and optionally

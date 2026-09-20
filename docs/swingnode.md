@@ -194,5 +194,6 @@ content area.
 
 `StickyNote`, `SwingNodeTest`, `SwingNodeTutorial`, `GooglerFrame3D`,
 `TextViewer`, `ViewerContainer`, `ReplyForwardComponent3D`,
-`PreferenceComponent3D`. The `swingnode.lgcfg` demo
+`PreferenceComponent3D`, `Calculator` (scientific calculator panel with key
+pad, preview and history). The `swingnode.lgcfg` demo
 (`lg3d-demo-apps/src/config/swingnode.lgcfg`) launches the SwingNode demo app.
