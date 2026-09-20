@@ -423,6 +423,17 @@ work to make it build and run on a current toolchain.
   hands the event straight to that component so editable widgets receive typed
   characters. Verified against a hidden-frame probe on JDK 21 with no reflection
   and no `--add-opens`.
+- **Sticky-note typing came out reversed and kept losing focus** — typing "salut"
+  produced "tulas" and the caret had to be re-clicked constantly. The
+  `SwingNodeRenderer` input listeners run on the lg3d event thread while the
+  `SwingNode` capture timer repaints the hosted panel on the EDT; mutating Swing
+  state (caret / document / focus) off the EDT races with that repaint and pins
+  the caret at 0, so every character inserts at position 0 (reversed text) and
+  keystrokes/focus are intermittently dropped. All Swing dispatch in
+  `SwingNodeRenderer` (mouse, enter/exit focus and key forwarding) is now
+  marshalled onto the EDT with `SwingUtilities.invokeLater`, which serialises it
+  with the capture repaint. Reproduced and verified with an off-EDT + capture-timer
+  probe: off-EDT gave "tulas"/caret 0, EDT-marshalled gave "salut"/advancing caret.
 - **Right-click flip to the sticky note did nothing on any app** — two compounding
   faults. (1) `Frame3DWindowDecoration.createStickyNote()` called
   `StickyNote.initialize(...)` *before* `setEnabled(true)`, but `initialize()`
