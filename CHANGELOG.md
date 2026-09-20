@@ -106,9 +106,10 @@ work to make it build and run on a current toolchain.
   is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
   window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
   popups and the demos) native-style **minimize / maximize / close** buttons plus
-  3D rotation: **CTRL + right-click** flips the window over to a `StickyNote` back
-  side and **middle-drag** free-spins it. Previously this chrome existed only for
-  native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded code path, so
+  3D rotation: **right-click** on the window's green border flips it over to a
+  `StickyNote` back side and **middle-drag** free-spins it. Previously this chrome
+  existed only for native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded
+  code path, so
   dev-mode apps had no window buttons and could not be rotated. Frames that build
   their own chrome (e.g. `Lg3dHelp`) opt out via the
   `lg3d.frame3d.decoration.optOut` property.
@@ -408,6 +409,20 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Right-click flip to the sticky note did nothing on any app** — the flip is a
+  frame-level `BUTTON3` listener, so it only fires when the pick propagates up to
+  the frame, but a decorated `Frame3D` had no propagatable surface to right-click:
+  app content (Swing quads, native 3D widgets) is deliberately non-propagatable so
+  it keeps its own context menus, and the decoration backdrop was `setPickable(false)`.
+  Requiring CTRL (an earlier attempt) did not help — the gesture still never reached
+  the frame — so flipping silently failed for both native 3D apps and Swing-to-Node
+  windows. The decoration backdrop border is now pickable and mouse-event
+  propagatable: because it sits *behind* the content it never occludes or intercepts
+  app clicks, yet a plain right-click (or middle-drag) on the exposed green border
+  propagates to the frame's flip / rotate listeners — the `Frame3D` analogue of the
+  native look-and-feel's propagatable `moveRegion`. The flip is bound to a plain
+  `BUTTON3` again, matching the native X11 idiom, and works from the window border
+  on every decorated app as well as from `TitledSwingWindow`'s title bar.
 - **Dock stack fan crashed on repeated hover and showed stale content** — the
   Documents/Downloads fan is shown and hidden with `Frame3D.changeEnabled`, and
   every re-enable re-ran `StandardAppContainer.addFrame3D`, which re-created the
@@ -440,7 +455,7 @@ work to make it build and run on a current toolchain.
   the title bar was too, so no spin gesture ever reached the frame. The title
   bar is now propagatable, which turns it into the window's full gesture
   handle: left-drag moves, middle-drag or CTRL+left-drag rotates and
-  CTRL + right-click flips to the sticky note — the same idioms as pure-3D windows,
+  right-click flips to the sticky note — the same idioms as pure-3D windows,
   with no duplicate listeners (the native window look-and-feel uses the same
   trick for its title panel).
 - **`TitledSwingWindow` windows could be parked but not left-clicked back** —

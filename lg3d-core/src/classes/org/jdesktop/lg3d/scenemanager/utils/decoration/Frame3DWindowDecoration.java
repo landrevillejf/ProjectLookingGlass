@@ -65,11 +65,12 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D;
  *       it</li>
  *   <li><b>maximize</b> - scale the frame to fill the viewport and bring it to
  *       front; clicking again restores the previous scale</li>
- *   <li><b>CTRL + right-click (BUTTON3)</b> - flip the window over to reveal a
- *       {@link StickyNote} back side; CTRL + right-click again flips back. The
- *       CTRL modifier keeps the gesture clear of the plain right-click that
- *       hosted Swing-to-Node and native LG3D apps reserve for their own context
- *       menus</li>
+ *   <li><b>right-click (BUTTON3)</b> on the window's green border - flip the
+ *       window over to reveal a {@link StickyNote} back side; right-click the
+ *       note again to flip back. The pickable backdrop border is the reliable
+ *       gesture handle for <em>both</em> native 3D apps and Swing-to-Node
+ *       windows, whose own content stays non-propagatable so it keeps its
+ *       right-click for its context menus</li>
  *   <li><b>middle-drag (BUTTON2)</b> - free spin about an arbitrary axis</li>
  * </ul>
  */
@@ -133,8 +134,20 @@ public class Frame3DWindowDecoration extends Component3D {
         TransparencyOrderedGroup tog = new TransparencyOrderedGroup();
 
         // Body backdrop: a glassy panel + drop shadow slightly larger than the
-        // content, parked behind it (z = -bodyDepth) so it reads as a thin
-        // framed border and never occludes or intercepts clicks on the app.
+        // content, parked behind it (z = -BODY_DEPTH) so it reads as a thin
+        // green framed border around the app.
+        //
+        // It is pickable and mouse-event propagatable, which makes this border
+        // the window's gesture handle. Because it sits *behind* the app content
+        // it never occludes or intercepts clicks on the app itself - picks there
+        // still hit the (closer) content first - yet a right-click / middle-drag
+        // on the exposed border propagates up to the frame-level flip and rotate
+        // listeners. This is the Frame3D analogue of the native look-and-feel's
+        // propagatable moveRegion. Without it a decorated Frame3D has no
+        // propagatable surface at all (app content is deliberately
+        // non-propagatable), so the frame-level flip gesture could never be
+        // reached - which is exactly why flipping to the sticky note silently
+        // did nothing for both native 3D apps and Swing-to-Node windows.
         Component3D backdrop = new Component3D();
         GlassyPanel bodyDeco
             = new GlassyPanel(
@@ -152,7 +165,8 @@ public class Frame3DWindowDecoration extends Component3D {
         backdrop.addChild(bodyDeco);
         backdrop.addChild(bodyShadow);
         backdrop.setTranslation(0.0f, 0.0f, -BODY_DEPTH);
-        backdrop.setPickable(false);
+        backdrop.setPickable(true);
+        backdrop.setMouseEventPropagatable(true);
         tog.addChild(backdrop);
 
         initButtonAppearances();
@@ -208,18 +222,18 @@ public class Frame3DWindowDecoration extends Component3D {
 
         addChild(tog);
 
-        // Rotation model 1: CTRL + right-click flips the window over to a
-        // sticky note. The CTRL modifier is required so the gesture never
-        // collides with the plain right-click that hosted Swing-to-Node and
-        // native LG3D apps reserve for their own context menus: those apps
-        // consume a bare BUTTON3 on their (non-propagatable) content, so only
-        // CTRL+BUTTON3 reliably reaches this frame-level listener through a
-        // propagatable handle such as TitledSwingWindow's title bar.
+        // Rotation model 1: right-click flips the window over to a sticky note.
+        // This is a frame-level listener, so it fires only when the pick
+        // propagates up to the frame. App content (Swing quads, native 3D
+        // widgets) is deliberately non-propagatable and keeps its own right-click
+        // context menus, so the reliable handle is the decoration chrome: the
+        // pickable + propagatable backdrop border above and, for
+        // TitledSwingWindow, its propagatable title bar. A plain right-click on
+        // the green window border therefore flips any decorated Frame3D, exactly
+        // matching the plain BUTTON3 idiom of the native X11 look-and-feel.
         frame.addListener(
             new MouseClickedEventAdapter(
                 MouseEvent3D.ButtonId.BUTTON3,
-                false,
-                InputEvent3D.ModifierId.CTRL,
                 new ActionNoArg() {
                     public void performAction(LgEventSource source) {
                         processFlipRequest();
@@ -326,14 +340,12 @@ public class Frame3DWindowDecoration extends Component3D {
         int hpx = tk.heightPhysicalToNative(frameHeight);
         sn.initialize(frame.getName(), wpx, hpx);
         sn.setEnabled(true);
-        // Flip back with the same CTRL + right-click gesture that flipped over.
+        // Flip back with the same plain right-click gesture that flipped over.
         // The note is itself the picked source, so its own listener fires
-        // regardless of the propagation flag on the Swing quad.
+        // directly regardless of the propagation flag on the Swing quad.
         sn.addListener(
             new MouseClickedEventAdapter(
                 MouseEvent3D.ButtonId.BUTTON3,
-                false,
-                InputEvent3D.ModifierId.CTRL,
                 new ActionNoArg() {
                     public void performAction(LgEventSource source) {
                         processFlipRequest();
