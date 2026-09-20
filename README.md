@@ -135,6 +135,13 @@ JNA.
   hosted on a `SwingNode`: expression engine with parentheses, powers,
   factorial, `%`, `mod`, DEG/RAD trigonometry, `pi`/`e`/`Ans`, a memory
   register, a live result preview and a clickable history list.
+- **Media Writer** (Utilities menu) — disc/USB imaging tool on a `SwingNode`:
+  burn an ISO to CD/DVD, write an image to a USB key (optionally
+  isohybrid-bootable), clone a disc/device, format a key
+  (vfat/exfat/ntfs/ext4/ext2) or build a data disc from a folder. Drives the
+  real system tools (`growisofs`/`wodim`/`xorriso`/`dd`/`mkfs.*`) with device
+  detection via `lsblk`, `pkexec` elevation, inline confirmation before every
+  destructive write, progress, cancellation and optional SHA-256 verify.
 
 System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
 (`xdg-open`), polkit / `pkexec` (privileged operations), and optionally

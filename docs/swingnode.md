@@ -195,5 +195,8 @@ content area.
 `StickyNote`, `SwingNodeTest`, `SwingNodeTutorial`, `GooglerFrame3D`,
 `TextViewer`, `ViewerContainer`, `ReplyForwardComponent3D`,
 `PreferenceComponent3D`, `Calculator` (scientific calculator panel with key
-pad, preview and history). The `swingnode.lgcfg` demo
+pad, preview and history), `MediaWriter` (disc/USB imaging panel with device
+and mode selectors, progress bar, log and in-panel browser/confirm overlays —
+modal dialogs cannot be used because they escape the offscreen capture). The
+`swingnode.lgcfg` demo
 (`lg3d-demo-apps/src/config/swingnode.lgcfg`) launches the SwingNode demo app.

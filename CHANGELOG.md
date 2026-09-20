@@ -310,6 +310,31 @@ work to make it build and run on a current toolchain.
   registered in the **Utilities** start-menu group (`calculator.lgcfg`) and gets
   a 48x48 icon whose keypad glyph is drawn inside `GenerateAppIcons.java`, the
   bundled glyph set carrying nothing calculator shaped.
+- **Media Writer** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.mediawriter`) — a
+  full-featured disc and USB imaging tool whose Swing `JPanel` is hosted on a
+  `SwingNode` inside a `Frame3D` via `TitledSwingWindow`. A headless engine
+  (`MediaWriterEngine`) drives the **real** Linux media tools — `growisofs` /
+  `wodim` / `xorriso` for optical burns, `dd` for USB imaging and cloning,
+  `wipefs` / `parted` / `mkfs.*` for formatting — across five modes: **burn an
+  ISO to CD/DVD** (speed selection, `-dvd-compat`), **write a raw image or ISO
+  to a USB key** (with `isohybrid` master-boot-record fix-up and optional
+  bootable-partition handling), **clone a disc/device**, **format a removable
+  key** (vfat/exfat/ntfs/ext4/ext2, optional msdos partition table, volume
+  label) and **build a data disc** from a folder (`xorriso -as mkisofs`,
+  Rock Ridge + Joliet, optionally burned straight to a drive). Devices are
+  enumerated by parsing `lsblk -b -P` (optical / USB / internal-disk
+  classification, mount points, media state from `/proc/sys/dev/cdrom/info`);
+  images are probed for ISO-9660 and hybrid-magic before writing. Safety: an
+  internal disk is never a writable target, mounted filesystems are unmounted
+  first, destructive tools run under `pkexec` when not root, every write is
+  gated by an explicit inline confirmation, and an optional **SHA-256 verify**
+  re-reads the written media. The panel adds cancellation, live progress
+  (parsed from `dd`/`growisofs` output) and a scrolling command log. Because
+  `SwingNode` captures only its own panel, file picking and confirmation use
+  **in-panel overlays** instead of modal dialogs. Registered in the
+  **Utilities** start-menu group (`mediawriter.lgcfg`); its 48x48 icon gets a
+  disc glyph drawn inside `GenerateAppIcons.java`, the bundled glyph set
+  carrying nothing disc shaped.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
