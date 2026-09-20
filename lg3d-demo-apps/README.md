@@ -44,3 +44,26 @@ with explicit bounds, as `SwingNode` paints hosted panels offscreen without a
 layout pass. Start-menu descriptor: `src/config/calculator.lgcfg` (Utilities
 group); the icon keypad glyph is drawn by
 `lg3d-art/tools/GenerateAppIcons.java`.
+
+## Media Writer
+
+`org.jdesktop.lg3d.apps.mediawriter` — a full-featured disc and USB imaging
+tool whose Swing panel is hosted on a `SwingNode` inside a `Frame3D` via
+`TitledSwingWindow` (see [`docs/swingnode.md`](../docs/swingnode.md)). A
+headless `MediaWriterEngine` drives the real Linux media tools across five
+modes: burn an ISO to CD/DVD (`growisofs`/`wodim`/`xorriso`, speed selection),
+write a raw image or ISO to a USB key (`dd`, optional `isohybrid` bootable
+fix-up), clone a disc/device, format a removable key (`wipefs`/`parted`/
+`mkfs.*`: vfat/exfat/ntfs/ext4/ext2, optional msdos partition table and volume
+label), and build a data disc from a folder (`xorriso -as mkisofs -r -J`,
+optionally burned directly). Devices are enumerated by parsing `lsblk -b -P`;
+images are probed for ISO-9660/hybrid magic. Safety guards: internal disks are
+never writable targets, mounted filesystems are unmounted first, destructive
+tools are elevated with `pkexec`, every write requires an explicit inline
+confirmation, and an optional SHA-256 verify re-reads the media. Progress,
+cancellation and a command log stream into the panel; file picking and
+confirmation use in-panel overlays because modal dialogs escape the `SwingNode`
+offscreen capture. Like the Calculator, the panel uses a null layout with
+explicit bounds. Start-menu descriptor: `src/config/mediawriter.lgcfg`
+(Utilities group); the icon disc glyph is drawn by
+`lg3d-art/tools/GenerateAppIcons.java`.
