@@ -409,20 +409,23 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
-- **Right-click flip to the sticky note did nothing on any app** — the flip is a
-  frame-level `BUTTON3` listener, so it only fires when the pick propagates up to
-  the frame, but a decorated `Frame3D` had no propagatable surface to right-click:
-  app content (Swing quads, native 3D widgets) is deliberately non-propagatable so
-  it keeps its own context menus, and the decoration backdrop was `setPickable(false)`.
-  Requiring CTRL (an earlier attempt) did not help — the gesture still never reached
-  the frame — so flipping silently failed for both native 3D apps and Swing-to-Node
-  windows. The decoration backdrop border is now pickable and mouse-event
-  propagatable: because it sits *behind* the content it never occludes or intercepts
-  app clicks, yet a plain right-click (or middle-drag) on the exposed green border
-  propagates to the frame's flip / rotate listeners — the `Frame3D` analogue of the
-  native look-and-feel's propagatable `moveRegion`. The flip is bound to a plain
-  `BUTTON3` again, matching the native X11 idiom, and works from the window border
-  on every decorated app as well as from `TitledSwingWindow`'s title bar.
+- **Right-click flip to the sticky note did nothing on any app** — two compounding
+  faults. (1) `Frame3DWindowDecoration.createStickyNote()` called
+  `StickyNote.initialize(...)` *before* `setEnabled(true)`, but `initialize()`
+  dereferences the Swing panel / title field / text area that only `enable()`
+  (run from `setEnabled(true)`) creates, so every flip threw a
+  `NullPointerException` that the event loop swallowed and the window never
+  turned — on native 3D apps and Swing-to-Node windows alike. The native
+  look-and-feel has always enabled first and initialised second; the decoration
+  now does the same. (2) The flip is a frame-level `BUTTON3` listener, so it only
+  fires where the pick propagates to the frame, and a decorated `Frame3D` had no
+  propagatable surface to right-click: app content is deliberately
+  non-propagatable (it keeps its own context menus) and the decoration backdrop
+  was `setPickable(false)`. The backdrop border is now pickable and mouse-event
+  propagatable — it sits *behind* the content so it never occludes or intercepts
+  app clicks, yet a plain right-click on the exposed green border (or on
+  `TitledSwingWindow`'s title bar) reaches the frame's flip listener. The flip is
+  bound to a plain `BUTTON3` again, matching the 2006 / native X11 idiom.
 - **Dock stack fan crashed on repeated hover and showed stale content** — the
   Documents/Downloads fan is shown and hidden with `Frame3D.changeEnabled`, and
   every re-enable re-ran `StandardAppContainer.addFrame3D`, which re-created the

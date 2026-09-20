@@ -338,8 +338,15 @@ public class Frame3DWindowDecoration extends Component3D {
         Toolkit3D tk = Toolkit3D.getToolkit3D();
         int wpx = tk.widthPhysicalToNative(frameWidth);
         int hpx = tk.heightPhysicalToNative(frameHeight);
-        sn.initialize(frame.getName(), wpx, hpx);
+        // enable() must run BEFORE initialize(): initialize() dereferences the
+        // Swing panel / title field / text area, and those are only created by
+        // enable() (invoked from setEnabled(true)). Calling initialize() first
+        // threw a NullPointerException that the event loop swallowed, so the
+        // window never flipped at all - on native 3D apps and Swing-to-Node
+        // windows alike. This mirrors the native look-and-feel, which calls
+        // setEnabled(true) in createStickyNote() and initialize() afterwards.
         sn.setEnabled(true);
+        sn.initialize(frame.getName(), wpx, hpx);
         // Flip back with the same plain right-click gesture that flipped over.
         // The note is itself the picked source, so its own listener fires
         // directly regardless of the propagation flag on the Swing quad.
