@@ -366,6 +366,26 @@ work to make it build and run on a current toolchain.
   (`-PswingApp="<fqcn> [args...]"` and `-PswingAppCp=<path[:path...]>` for the
   app's classes/jar) and `run-lg3d.sh` (`--swing-app <fqcn> [args...]`,
   `--swing-app-cp <paths>`).
+- **Paint** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.paint`) — a full-featured
+  layered raster draw/paint editor presented as a conventional Swing `JFrame`
+  and integrated into the 3D desktop by the top-level Swing window-capture layer
+  above (its frame becomes a decorated desktop window; its `JOptionPane` /
+  `JFileChooser` / colour-chooser dialogs render in-scene). It offers a complete
+  tool palette (brush, pencil, eraser, spray, line / rectangle / ellipse /
+  polygon / freeform shapes, flood fill, eyedropper, text, rectangular and lasso
+  selection), a multi-layer document with per-layer visibility, opacity and
+  blend modes, selection cut / copy / paste / clear / crop, whole-image resize /
+  rotate / flip, live-preview adjustments and filters (brightness, contrast,
+  hue, saturation, grayscale, invert, posterize, threshold, blur, sharpen,
+  emboss), bounded undo / redo, zoom and pan, and PNG / JPEG / GIF / BMP file
+  I/O using only `java.awt.image`. Registered in the **Graphics** start-menu
+  group (`paint.lgcfg`); its 48x48 icon gets a brush glyph drawn inside
+  `GenerateAppIcons.java`, the bundled glyph set carrying nothing brush shaped.
+  Because a start-menu-launched app can open its frame before the desktop has
+  created any `SwingNode`, `DisplayServerControl` now installs the global
+  capture hook (`SwingNodeWindowCapture.ensureHookInstalled`) as soon as start-up
+  configuration completes instead of waiting for the first (lazily created)
+  `SwingNode`, so the Paint frame can never escape to the host desktop.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to

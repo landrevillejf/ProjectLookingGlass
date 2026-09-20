@@ -319,6 +319,19 @@ public final class SwingNodeWindowCapture {
     // Global window hook
     // ------------------------------------------------------------------
 
+    /**
+     * Ensures the global window hook is installed even before any
+     * {@link SwingNode} exists. A conventional Swing app launched in-JVM from
+     * the start menu can open its {@code JFrame} before the desktop has created
+     * a SwingNode (StickyNote, the only start-up-path node, is created lazily on
+     * window flip), so without this the frame would escape to the host desktop.
+     * Called once from {@code DisplayServerControl} after start-up completes.
+     * Idempotent.
+     */
+    public static void ensureHookInstalled() {
+        installHook();
+    }
+
     private static synchronized void installHook() {
         if (hookInstalled) {
             return;

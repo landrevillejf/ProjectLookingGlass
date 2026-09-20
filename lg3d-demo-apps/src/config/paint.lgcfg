@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Paint (from lg3d-demo-apps). A full featured layered
+ raster draw and paint editor presented as a conventional Swing JFrame and
+ captured into the 3D desktop by the SwingNodeWindowCapture layer. It offers a
+ complete tool palette (brush, pencil, eraser, spray, shapes, flood fill,
+ eyedropper, text, rectangular and lasso selection), a multi layer document with
+ per layer visibility, opacity and blend modes, selection cut copy paste and
+ crop, whole image resize rotate and flip, live preview adjustments and filters
+ (brightness, contrast, hue, saturation, grayscale, invert, posterize,
+ threshold, blur, sharpen, emboss), bounded undo redo, zoom and pan, and PNG,
+ JPEG, GIF and BMP file IO using only java.awt.image. Launched in JVM via the
+ java class command. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.paint.PaintApp</string>
+  </void>
+  <void property="desc">
+   <string>Draw and paint images</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/paint.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Graphics</string>
+  </void>
+  <void property="name">
+   <string>Paint</string>
+  </void>
+ </object>
+</java>
