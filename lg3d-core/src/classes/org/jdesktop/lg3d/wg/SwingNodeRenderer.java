@@ -20,6 +20,8 @@
 package org.jdesktop.lg3d.wg;
 
 import java.awt.Component;
+import java.awt.Container;
+import java.awt.KeyboardFocusManager;
 import javax.swing.JPanel;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -55,6 +57,16 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
     protected JPanel panel;
     private JFrame hiddenFrame;
     private SwingNode swingNode;
+
+    /**
+     * The Swing component that should receive forwarded key events, emulating
+     * click-to-focus. The offscreen {@link #hiddenFrame} is displayable but
+     * never shown, so AWT never installs a real focus owner
+     * ({@code hiddenFrame.getFocusOwner()} stays {@code null}); we therefore
+     * remember the deepest component under the last mouse press and target it
+     * when forwarding {@link KeyEvent3D}s. Reset whenever the panel changes.
+     */
+    private Component keyTarget;
     
     void setup(JFrame hiddenFrame, SwingNode swingNode) {
         this.hiddenFrame = hiddenFrame;
@@ -63,6 +75,7 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
     
     void setPanel(JPanel panel) {
         this.panel = panel;
+        this.keyTarget = null;
     }
     
     public abstract void textureChanged(Texture2D texture);
@@ -97,6 +110,22 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 Point swingPos = calcPositionInPanel((mevt).getIntersection(new Point3f()));
                 MouseEvent swingEvent = mevt.createSwingEvent(hiddenFrame, swingPos);
                 //logger.warning("PeerBase processEvent "+swingEvent);
+                // Emulate click-to-focus: remember the deepest Swing component
+                // under a mouse press so the key-forwarding listener below has a
+                // real target. AWT will not install a focus owner for a frame
+                // that is never shown, so without this the key handler would
+                // fall back to the content pane and typed characters would never
+                // reach an editable widget such as the StickyNote's JTextArea.
+                if (swingEvent.getID() == MouseEvent.MOUSE_PRESSED) {
+                    Container root = hiddenFrame.getContentPane();
+                    if (root != null) {
+                        Component deepest = SwingUtilities.getDeepestComponentAt(
+                                root, swingPos.x, swingPos.y);
+                        if (deepest != null) {
+                            keyTarget = deepest;
+                        }
+                    }
+                }
                 hiddenFrame.dispatchEvent(swingEvent);
             }
             public Class<LgEvent>[] getTargetEventClasses() {
@@ -165,13 +194,24 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 KeyEvent3D kevt = (KeyEvent3D) evt;
                 Component target = hiddenFrame.getFocusOwner();
                 if (target == null) {
+                    target = keyTarget;
+                }
+                if (target == null) {
                     target = hiddenFrame.getContentPane();
                 }
                 if (target == null) {
                     target = hiddenFrame;
                 }
                 KeyEvent swingEvent = kevt.createSwingEvent(target);
-                target.dispatchEvent(swingEvent);
+                // Deliver via KeyboardFocusManager.redispatchEvent, NOT
+                // target.dispatchEvent: the offscreen frame is never the focused
+                // window, so a direct dispatch of a KeyEvent is dropped by AWT
+                // before it reaches the component's WHEN_FOCUSED input map and
+                // nothing is typed. redispatchEvent hands the event straight to
+                // the target, which makes editable widgets (JTextArea,
+                // JTextField) inside a SwingNode actually receive keystrokes.
+                KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                        .redispatchEvent(target, swingEvent);
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {KeyEvent3D.class};

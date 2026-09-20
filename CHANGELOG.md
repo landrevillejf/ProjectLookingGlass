@@ -409,6 +409,20 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Could not type into a flipped sticky note (or any `SwingNode` text field)** —
+  `SwingNodeRenderer` forwarded `KeyEvent3D`s with `target.dispatchEvent(...)`, but
+  the offscreen `SwingNodeJFrame` is displayable yet never *shown*, so AWT never
+  installs a focus owner: `hiddenFrame.getFocusOwner()` stayed `null`, the keys fell
+  back to the content pane, and a direct dispatch of a `KeyEvent` to a component in
+  an unfocused window is dropped before it ever reaches the `JTextArea`'s
+  `WHEN_FOCUSED` input map. The old build relied on the excluded `lg3d-awt` peer
+  toolkit (`Lg3dComponentPeer.setGlobalFocusOwner`) for this, which is unavailable
+  on JDK 21 (strong encapsulation). The renderer now emulates click-to-focus —
+  it remembers the deepest Swing component under a mouse press — and delivers
+  keystrokes through `KeyboardFocusManager.redispatchEvent(target, evt)`, which
+  hands the event straight to that component so editable widgets receive typed
+  characters. Verified against a hidden-frame probe on JDK 21 with no reflection
+  and no `--add-opens`.
 - **Right-click flip to the sticky note did nothing on any app** — two compounding
   faults. (1) `Frame3DWindowDecoration.createStickyNote()` called
   `StickyNote.initialize(...)` *before* `setEnabled(true)`, but `initialize()`
