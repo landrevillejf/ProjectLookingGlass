@@ -20,6 +20,8 @@
 package org.jdesktop.lg3d.wg;
 
 import java.awt.Component;
+import java.awt.Container;
+import java.awt.KeyboardFocusManager;
 import javax.swing.JPanel;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -55,6 +57,16 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
     protected JPanel panel;
     private JFrame hiddenFrame;
     private SwingNode swingNode;
+
+    /**
+     * The Swing component that should receive forwarded key events, emulating
+     * click-to-focus. The offscreen {@link #hiddenFrame} is displayable but
+     * never shown, so AWT never installs a real focus owner
+     * ({@code hiddenFrame.getFocusOwner()} stays {@code null}); we therefore
+     * remember the deepest component under the last mouse press and target it
+     * when forwarding {@link KeyEvent3D}s. Reset whenever the panel changes.
+     */
+    private Component keyTarget;
     
     void setup(JFrame hiddenFrame, SwingNode swingNode) {
         this.hiddenFrame = hiddenFrame;
@@ -63,6 +75,7 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
     
     void setPanel(JPanel panel) {
         this.panel = panel;
+        this.keyTarget = null;
     }
     
     public abstract void textureChanged(Texture2D texture);
@@ -97,7 +110,35 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 Point swingPos = calcPositionInPanel((mevt).getIntersection(new Point3f()));
                 MouseEvent swingEvent = mevt.createSwingEvent(hiddenFrame, swingPos);
                 //logger.warning("PeerBase processEvent "+swingEvent);
-                hiddenFrame.dispatchEvent(swingEvent);
+                // All Swing dispatch must run on the EDT. The lg3d event loop
+                // invokes these listeners on its own thread while the SwingNode
+                // capture timer repaints the hosted panel on the EDT; mutating
+                // Swing state (caret, focus, document) off the EDT races with
+                // that repaint and leaves the caret stuck at 0, so typed
+                // characters insert at position 0 and come out reversed
+                // ("salut" -> "tulas"). Marshal onto the EDT.
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        // Emulate click-to-focus: remember the deepest Swing
+                        // component under a mouse press so the key-forwarding
+                        // listener below has a real target. AWT will not install
+                        // a focus owner for a frame that is never shown, so
+                        // without this the key handler would fall back to the
+                        // content pane and typed characters would never reach an
+                        // editable widget such as the StickyNote's JTextArea.
+                        if (swingEvent.getID() == MouseEvent.MOUSE_PRESSED) {
+                            Container root = hiddenFrame.getContentPane();
+                            if (root != null) {
+                                Component deepest = SwingUtilities.getDeepestComponentAt(
+                                        root, swingPos.x, swingPos.y);
+                                if (deepest != null) {
+                                    keyTarget = deepest;
+                                }
+                            }
+                        }
+                        hiddenFrame.dispatchEvent(swingEvent);
+                    }
+                });
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {MouseButtonEvent3D.class,
@@ -113,40 +154,27 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 //logger.warning("Enter event");
                 if (!swingNode.isVisible())
                     return;
-                MouseEnteredEvent3D enterEvt = (MouseEnteredEvent3D)evt;
-                if (enterEvt.isEntered()) {
-                    logger.fine("Mouse Entered "+enterEvt.getAWTComponent());
-                    Point swingPos = calcPositionInPanel((enterEvt).getIntersection(new Point3f()));
-                    hiddenFrame.dispatchEvent(enterEvt.createSwingEvent(hiddenFrame, swingPos));
-                    hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_GAINED_FOCUS, (java.awt.Window)null));
-                    hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_ACTIVATED, (java.awt.Window)null));
-                } else {
-                    java.awt.Window opposite = SwingUtilities.getWindowAncestor(enterEvt.getAWTComponent());
-                    //logger.warning("TODO Should we give focus back to Canvas3D ?");
-                    hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_LOST_FOCUS, opposite));
-                    hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_DEACTIVATED, opposite));
-                    
-                    // SwingNodes don't have a valid parent so force it to be the Canvas3D
-//                    if (opposite==null) {
-//                        
-//                    }
-//                    
-//                    logger.warning("AWTComponnet "+enterEvt.getAWTComponent()+"\n"+"Ancestor "+opposite);
-//                    if (opposite==null) {
-//                        Component comp = enterEvt.getAWTComponent();
-//                        do {
-//                            Component parent = comp.getParent();
-//                            logger.warning("Parent "+parent);
-//                            comp = parent;
-//                        } while(comp!=null);
-//                    }
-                    // Hack until we get lg3d focus manager
-                    // always give focus back to the canvas3d
-//                    if (opposite!=null) {
-                        hiddenFrame.dispatchEvent(new WindowEvent(opposite, WindowEvent.WINDOW_GAINED_FOCUS, (java.awt.Window)hiddenFrame));
-                        hiddenFrame.dispatchEvent(new WindowEvent(opposite, WindowEvent.WINDOW_ACTIVATED, (java.awt.Window)hiddenFrame));
-//                    }
-                }
+                final MouseEnteredEvent3D enterEvt = (MouseEnteredEvent3D)evt;
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        if (enterEvt.isEntered()) {
+                            logger.fine("Mouse Entered "+enterEvt.getAWTComponent());
+                            Point swingPos = calcPositionInPanel((enterEvt).getIntersection(new Point3f()));
+                            hiddenFrame.dispatchEvent(enterEvt.createSwingEvent(hiddenFrame, swingPos));
+                            hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_GAINED_FOCUS, (java.awt.Window)null));
+                            hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_ACTIVATED, (java.awt.Window)null));
+                        } else {
+                            java.awt.Window opposite = SwingUtilities.getWindowAncestor(enterEvt.getAWTComponent());
+                            //logger.warning("TODO Should we give focus back to Canvas3D ?");
+                            hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_LOST_FOCUS, opposite));
+                            hiddenFrame.dispatchEvent(new WindowEvent((java.awt.Window)hiddenFrame, WindowEvent.WINDOW_DEACTIVATED, opposite));
+                            // Hack until we get lg3d focus manager
+                            // always give focus back to the canvas3d
+                            hiddenFrame.dispatchEvent(new WindowEvent(opposite, WindowEvent.WINDOW_GAINED_FOCUS, (java.awt.Window)hiddenFrame));
+                            hiddenFrame.dispatchEvent(new WindowEvent(opposite, WindowEvent.WINDOW_ACTIVATED, (java.awt.Window)hiddenFrame));
+                        }
+                    }
+                });
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {MouseEnteredEvent3D.class};
@@ -162,16 +190,32 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
             public void processEvent(LgEvent evt) {
                 if (!swingNode.isVisible())
                     return;
-                KeyEvent3D kevt = (KeyEvent3D) evt;
-                Component target = hiddenFrame.getFocusOwner();
-                if (target == null) {
-                    target = hiddenFrame.getContentPane();
-                }
-                if (target == null) {
-                    target = hiddenFrame;
-                }
-                KeyEvent swingEvent = kevt.createSwingEvent(target);
-                target.dispatchEvent(swingEvent);
+                final KeyEvent3D kevt = (KeyEvent3D) evt;
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        Component target = hiddenFrame.getFocusOwner();
+                        if (target == null) {
+                            target = keyTarget;
+                        }
+                        if (target == null) {
+                            target = hiddenFrame.getContentPane();
+                        }
+                        if (target == null) {
+                            target = hiddenFrame;
+                        }
+                        KeyEvent swingEvent = kevt.createSwingEvent(target);
+                        // Deliver via KeyboardFocusManager.redispatchEvent, NOT
+                        // target.dispatchEvent: the offscreen frame is never the
+                        // focused window, so a direct dispatch of a KeyEvent is
+                        // dropped by AWT before it reaches the component's
+                        // WHEN_FOCUSED input map and nothing is typed.
+                        // redispatchEvent hands the event straight to the target,
+                        // which makes editable widgets (JTextArea, JTextField)
+                        // inside a SwingNode actually receive keystrokes.
+                        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                                .redispatchEvent(target, swingEvent);
+                    }
+                });
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {KeyEvent3D.class};

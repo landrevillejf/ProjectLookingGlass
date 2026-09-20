@@ -106,9 +106,10 @@ work to make it build and run on a current toolchain.
   is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
   window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
   popups and the demos) native-style **minimize / maximize / close** buttons plus
-  3D rotation: **CTRL + right-click** flips the window over to a `StickyNote` back
-  side and **middle-drag** free-spins it. Previously this chrome existed only for
-  native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded code path, so
+  3D rotation: **right-click** on the window's green border flips it over to a
+  `StickyNote` back side and **middle-drag** free-spins it. Previously this chrome
+  existed only for native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded
+  code path, so
   dev-mode apps had no window buttons and could not be rotated. Frames that build
   their own chrome (e.g. `Lg3dHelp`) opt out via the
   `lg3d.frame3d.decoration.optOut` property.
@@ -408,6 +409,48 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Could not type into a flipped sticky note (or any `SwingNode` text field)** —
+  `SwingNodeRenderer` forwarded `KeyEvent3D`s with `target.dispatchEvent(...)`, but
+  the offscreen `SwingNodeJFrame` is displayable yet never *shown*, so AWT never
+  installs a focus owner: `hiddenFrame.getFocusOwner()` stayed `null`, the keys fell
+  back to the content pane, and a direct dispatch of a `KeyEvent` to a component in
+  an unfocused window is dropped before it ever reaches the `JTextArea`'s
+  `WHEN_FOCUSED` input map. The old build relied on the excluded `lg3d-awt` peer
+  toolkit (`Lg3dComponentPeer.setGlobalFocusOwner`) for this, which is unavailable
+  on JDK 21 (strong encapsulation). The renderer now emulates click-to-focus —
+  it remembers the deepest Swing component under a mouse press — and delivers
+  keystrokes through `KeyboardFocusManager.redispatchEvent(target, evt)`, which
+  hands the event straight to that component so editable widgets receive typed
+  characters. Verified against a hidden-frame probe on JDK 21 with no reflection
+  and no `--add-opens`.
+- **Sticky-note typing came out reversed and kept losing focus** — typing "salut"
+  produced "tulas" and the caret had to be re-clicked constantly. The
+  `SwingNodeRenderer` input listeners run on the lg3d event thread while the
+  `SwingNode` capture timer repaints the hosted panel on the EDT; mutating Swing
+  state (caret / document / focus) off the EDT races with that repaint and pins
+  the caret at 0, so every character inserts at position 0 (reversed text) and
+  keystrokes/focus are intermittently dropped. All Swing dispatch in
+  `SwingNodeRenderer` (mouse, enter/exit focus and key forwarding) is now
+  marshalled onto the EDT with `SwingUtilities.invokeLater`, which serialises it
+  with the capture repaint. Reproduced and verified with an off-EDT + capture-timer
+  probe: off-EDT gave "tulas"/caret 0, EDT-marshalled gave "salut"/advancing caret.
+- **Right-click flip to the sticky note did nothing on any app** — two compounding
+  faults. (1) `Frame3DWindowDecoration.createStickyNote()` called
+  `StickyNote.initialize(...)` *before* `setEnabled(true)`, but `initialize()`
+  dereferences the Swing panel / title field / text area that only `enable()`
+  (run from `setEnabled(true)`) creates, so every flip threw a
+  `NullPointerException` that the event loop swallowed and the window never
+  turned — on native 3D apps and Swing-to-Node windows alike. The native
+  look-and-feel has always enabled first and initialised second; the decoration
+  now does the same. (2) The flip is a frame-level `BUTTON3` listener, so it only
+  fires where the pick propagates to the frame, and a decorated `Frame3D` had no
+  propagatable surface to right-click: app content is deliberately
+  non-propagatable (it keeps its own context menus) and the decoration backdrop
+  was `setPickable(false)`. The backdrop border is now pickable and mouse-event
+  propagatable — it sits *behind* the content so it never occludes or intercepts
+  app clicks, yet a plain right-click on the exposed green border (or on
+  `TitledSwingWindow`'s title bar) reaches the frame's flip listener. The flip is
+  bound to a plain `BUTTON3` again, matching the 2006 / native X11 idiom.
 - **Dock stack fan crashed on repeated hover and showed stale content** — the
   Documents/Downloads fan is shown and hidden with `Frame3D.changeEnabled`, and
   every re-enable re-ran `StandardAppContainer.addFrame3D`, which re-created the
@@ -440,7 +483,7 @@ work to make it build and run on a current toolchain.
   the title bar was too, so no spin gesture ever reached the frame. The title
   bar is now propagatable, which turns it into the window's full gesture
   handle: left-drag moves, middle-drag or CTRL+left-drag rotates and
-  CTRL + right-click flips to the sticky note — the same idioms as pure-3D windows,
+  right-click flips to the sticky note — the same idioms as pure-3D windows,
   with no duplicate listeners (the native window look-and-feel uses the same
   trick for its title panel).
 - **`TitledSwingWindow` windows could be parked but not left-clicked back** —
