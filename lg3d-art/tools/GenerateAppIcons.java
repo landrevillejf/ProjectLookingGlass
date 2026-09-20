@@ -5,6 +5,11 @@ import com.protonmail.landrevillejf.IconManager.IconCategory;
 import com.protonmail.landrevillejf.IconManager.IconStyle;
 
 import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.File;
 
 /**
@@ -44,6 +49,9 @@ public class GenerateAppIcons {
     /** Glyph overlay size on top of the tile. */
     private static final int GLYPH = 32;
 
+    /** Glyph name that draws a built-in vector keypad instead of a bundled glyph. */
+    private static final String KEYPAD_GLYPH = "CalculatorKeypad";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -59,6 +67,9 @@ public class GenerateAppIcons {
         {"sudoku.png",      IconColor.INDIGO,      IconCategory.TABLE,  "ColumnInsertBefore"},
         {"chess.png",       IconColor.BLUE_GRAY,   IconCategory.GENERAL, "Find"},
         {"solitaire.png",   IconColor.GREEN,       IconCategory.GENERAL, "Copy"},
+        // Advanced calculator (Swing panel hosted on a SwingNode); the bundled
+        // glyph set has no calculator, so the keypad glyph is drawn in-tool.
+        {"calculator.png",  IconColor.TEAL,        IconCategory.GENERAL, KEYPAD_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -72,11 +83,16 @@ public class GenerateAppIcons {
             IconCategory category = (IconCategory) app[2];
             String glyphName = (String) app[3];
 
-            Icon glyph = IconManager.resizeIcon(
-                IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
-            if (glyph.getClass().getSimpleName().contains("Missing")) {
-                throw new IllegalStateException("no bundled glyph for " + file
-                    + " (" + category + "/" + glyphName + ")");
+            Icon glyph;
+            if (KEYPAD_GLYPH.equals(glyphName)) {
+                glyph = drawKeypadGlyph(GLYPH);
+            } else {
+                glyph = IconManager.resizeIcon(
+                    IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
+                if (glyph.getClass().getSimpleName().contains("Missing")) {
+                    throw new IllegalStateException("no bundled glyph for " + file
+                        + " (" + category + "/" + glyphName + ")");
+                }
             }
             Icon background = IconManager.createGradientIcon(
                 color.getColor(), color.getColor().darker(), "", SIZE, IconStyle.GLASS);
@@ -87,5 +103,26 @@ public class GenerateAppIcons {
             IconManager.exportIcon(icon, out.getAbsolutePath(), "png");
             System.out.println("wrote " + out.getPath());
         }
+    }
+
+    /**
+     * Draws the calculator keypad glyph: a display strip above a 4x3 key grid.
+     * The bundled {@code toolbarButtonGraphics} set carries nothing calculator
+     * shaped, and a misleading glyph (grid arrows, mail) reads worse than a
+     * purpose-drawn keypad.
+     */
+    private static Icon drawKeypadGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(2, 2, size - 4, 7, 3, 3);
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 4; col++) {
+                g.fillRoundRect(2 + col * 7, 12 + row * 6, 6, 5, 2, 2);
+            }
+        }
+        g.dispose();
+        return new ImageIcon(image);
     }
 }
