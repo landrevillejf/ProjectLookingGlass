@@ -445,6 +445,16 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
+  apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
+  routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired
+  `System.exit` and killed lg3d along with the app (e.g. Screen Capture).
+  `SwingNodeWindowCapture.onWindowOpened` now rewrites `EXIT_ON_CLOSE` to
+  `DISPOSE_ON_CLOSE` on every non-host `JFrame`, so closing an app window only
+  disposes that frame. (An app that calls `System.exit` directly from a menu
+  handler is still out of scope.) Verified with an in-JVM probe: a plain
+  `JFrame` opened as `EXIT_ON_CLOSE` (op 3) was rewritten to `DISPOSE_ON_CLOSE`
+  (op 2) by the hook while the desktop kept running.
 - **Window capture hijacked every conventional Swing app** — the global
   `SwingNodeWindowCapture` hook captured *all* top-level `JFrame`s unconditionally,
   so apps that used to run as normal host windows with native input (Screen

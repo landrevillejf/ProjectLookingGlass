@@ -384,6 +384,11 @@ public final class SwingNodeWindowCapture {
             return;
         }
         if (w instanceof JFrame) {
+            // Safety net: an app running in-JVM must never tear down the whole
+            // desktop. Conventional Swing apps default to EXIT_ON_CLOSE, whose
+            // System.exit would kill lg3d along with the app; force
+            // DISPOSE_ON_CLOSE so closing the window only disposes that frame.
+            neutralizeExitOnClose((JFrame) w);
             // Only capture frames from apps that opted in; every other JFrame
             // stays a normal host window with native input.
             if (!isCaptureEnabled(w)) {
@@ -480,6 +485,26 @@ public final class SwingNodeWindowCapture {
             }
         }
         return false;
+    }
+
+    /**
+     * Rewrites {@code EXIT_ON_CLOSE} to {@code DISPOSE_ON_CLOSE} on an in-JVM app
+     * frame so that closing its window cannot call {@code System.exit} and tear
+     * down the whole desktop. Conventional Swing apps routinely default to
+     * {@code EXIT_ON_CLOSE}; that is only safe in a standalone JVM, not one shared
+     * with the desktop. Best effort: an app that calls {@code System.exit} from a
+     * menu handler directly is out of scope.
+     */
+    private static void neutralizeExitOnClose(JFrame f) {
+        try {
+            if (f.getDefaultCloseOperation()
+                    == javax.swing.WindowConstants.EXIT_ON_CLOSE) {
+                f.setDefaultCloseOperation(
+                        javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+            }
+        } catch (Throwable t) {
+            // Never let the safety net break window opening.
+        }
     }
 
     private static void parkOffScreen(Window w) {
