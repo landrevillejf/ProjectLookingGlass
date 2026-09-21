@@ -316,6 +316,21 @@ tasks.register('run', JavaExec) {
         systemProperty 'lg.3dbackground', 'true'
     }
 
+    // Opt-in: run a conventional Swing application inside the desktop JVM so its
+    // top-level windows are captured into the 3D scene (see SwingNodeWindowCapture
+    // / CapturedFrameHost) instead of popping onto the host desktop.
+    //   -PswingApp="<fqcn> [args...]"  -> sets lg.swingapp; DisplayServerControl
+    //                                     launches it after start-up completes.
+    //   -PswingAppCp="<path[:path...]>"-> adds the app's classes/jar to the run
+    //                                     classpath (File.pathSeparator-separated).
+    if (project.hasProperty('swingApp')) {
+        systemProperty 'lg.swingapp', project.property('swingApp').toString()
+    }
+    if (project.hasProperty('swingAppCp')) {
+        classpath = classpath + files(
+            project.property('swingAppCp').toString().split(File.pathSeparator))
+    }
+
     // Compositor mode (-Pcompositor). Boots X11Compositor on top of the window
     // manager claim so lg3d becomes the WM/compositor of the display. Grants the
     // single JDK-internal export the own-window discovery needs, and warns

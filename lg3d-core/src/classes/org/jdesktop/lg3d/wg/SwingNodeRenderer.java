@@ -44,6 +44,7 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMotionEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
 import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeJFrame;
+import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture;
 
 /**
  * Parent class for all Swing Node geometry control. Users who wish to provide their own geometry
@@ -108,7 +109,6 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 MouseEvent3D mevt = (MouseEvent3D)evt;
                 
                 Point swingPos = calcPositionInPanel((mevt).getIntersection(new Point3f()));
-                MouseEvent swingEvent = mevt.createSwingEvent(hiddenFrame, swingPos);
                 //logger.warning("PeerBase processEvent "+swingEvent);
                 // All Swing dispatch must run on the EDT. The lg3d event loop
                 // invokes these listeners on its own thread while the SwingNode
@@ -119,6 +119,26 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 // ("salut" -> "tulas"). Marshal onto the EDT.
                 SwingUtilities.invokeLater(new Runnable() {
                     public void run() {
+                        // Remember which node the pointer is driving so an
+                        // owner-less dialog (JOptionPane.showXxx(null, ...))
+                        // opened from it can be attributed by the capture layer.
+                        SwingNodeWindowCapture.setLastActiveNode(swingNode);
+                        // Resolve the input destination: a captured modal dialog
+                        // takes ALL input (modal semantics); otherwise a captured
+                        // overlay under the pointer receives it; else the node's
+                        // own hidden frame hosts the panel exactly as before.
+                        int pw = (panel != null) ? panel.getWidth() : hiddenFrame.getWidth();
+                        int ph = (panel != null) ? panel.getHeight() : hiddenFrame.getHeight();
+                        Component root = hiddenFrame;
+                        Point local = swingPos;
+                        SwingNodeWindowCapture.InputTarget it =
+                                SwingNodeWindowCapture.resolveInputTarget(
+                                        swingNode, swingPos, pw, ph);
+                        if (it != null) {
+                            root = it.root;
+                            local = it.local;
+                        }
+                        MouseEvent swingEvent = mevt.createSwingEvent(root, local);
                         // Emulate click-to-focus: remember the deepest Swing
                         // component under a mouse press so the key-forwarding
                         // listener below has a real target. AWT will not install
@@ -127,16 +147,17 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                         // content pane and typed characters would never reach an
                         // editable widget such as the StickyNote's JTextArea.
                         if (swingEvent.getID() == MouseEvent.MOUSE_PRESSED) {
-                            Container root = hiddenFrame.getContentPane();
-                            if (root != null) {
+                            Container container = (root instanceof Container)
+                                    ? (Container) root : hiddenFrame.getContentPane();
+                            if (container != null) {
                                 Component deepest = SwingUtilities.getDeepestComponentAt(
-                                        root, swingPos.x, swingPos.y);
+                                        container, local.x, local.y);
                                 if (deepest != null) {
                                     keyTarget = deepest;
                                 }
                             }
                         }
-                        hiddenFrame.dispatchEvent(swingEvent);
+                        root.dispatchEvent(swingEvent);
                     }
                 });
             }
@@ -158,6 +179,7 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
                 SwingUtilities.invokeLater(new Runnable() {
                     public void run() {
                         if (enterEvt.isEntered()) {
+                            SwingNodeWindowCapture.setLastActiveNode(swingNode);
                             logger.fine("Mouse Entered "+enterEvt.getAWTComponent());
                             Point swingPos = calcPositionInPanel((enterEvt).getIntersection(new Point3f()));
                             hiddenFrame.dispatchEvent(enterEvt.createSwingEvent(hiddenFrame, swingPos));
