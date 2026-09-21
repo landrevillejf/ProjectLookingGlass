@@ -79,6 +79,10 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 
 **When adding new code:** Use the Jogamp packages (`org.jogamp.java3d`, `org.jogamp.vecmath`), not the legacy `javax.*` packages.
 
+## Test coverage
+- 100% is mandatory with jacoco
+- 0 surviving mutants is mandatory with PIT
+
 ## In-Tree Replacements
 
 The following bundled jars were dropped (binary-incompatible with Jogamp) and reimplemented in `lg3d-core/src/contrib/java`:
