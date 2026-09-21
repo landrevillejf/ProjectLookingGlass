@@ -34,6 +34,7 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
+import org.jdesktop.lg3d.wg.HostedWindowResizer;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.wg.event.Component3DToFrontEvent;
 import org.jdesktop.lg3d.wg.event.InputEvent3D;
@@ -103,8 +104,20 @@ public class Frame3DWindowDecoration extends Component3D {
     private static final Timer flipperTimer = new Timer("Frame3DDecoration:FlipperTimer", true);
 
     private final Frame3D frame;
-    private final float frameWidth;
-    private final float frameHeight;
+    private float frameWidth;
+    private float frameHeight;
+
+    // Chrome rebuilt / repositioned by relayout() on hosted-window resize.
+    private Component3D backdrop;
+    private GlassyPanel bodyDeco;
+    private RectShadow bodyShadow;
+    private Component3D minimizeButton;
+    private Component3D maximizeButton;
+    private Component3D closeButton;
+
+    // Pre-maximize hosted size in native pixels, to restore on un-maximize.
+    private int normalWidthPx;
+    private int normalHeightPx;
 
     private final SimpleAppearance bodyApp
         = new SimpleAppearance(
@@ -148,22 +161,8 @@ public class Frame3DWindowDecoration extends Component3D {
         // non-propagatable), so the frame-level flip gesture could never be
         // reached - which is exactly why flipping to the sticky note silently
         // did nothing for both native 3D apps and Swing-to-Node windows.
-        Component3D backdrop = new Component3D();
-        GlassyPanel bodyDeco
-            = new GlassyPanel(
-                frameWidth + DECO_WIDTH * 2,
-                frameHeight + DECO_WIDTH * 2,
-                BODY_DEPTH,
-                bodyApp);
-        Shape3D bodyShadow
-            = new RectShadow(
-                frameWidth + DECO_WIDTH * 2,
-                frameHeight + DECO_WIDTH * 2,
-                shadowN, shadowE, shadowS, shadowW, shadowI,
-                -BODY_DEPTH,
-                0.2f);
-        backdrop.addChild(bodyDeco);
-        backdrop.addChild(bodyShadow);
+        backdrop = new Component3D();
+        populateBackdrop();
         backdrop.setTranslation(0.0f, 0.0f, -BODY_DEPTH);
         backdrop.setPickable(true);
         backdrop.setMouseEventPropagatable(true);
@@ -171,16 +170,10 @@ public class Frame3DWindowDecoration extends Component3D {
 
         initButtonAppearances();
 
-        float inset = buttonSize * 0.6f;
-        float z = BODY_DEPTH + 0.001f;
-        float yPos = frameHeight * 0.5f - inset;
-
-        Component3D minimizeButton
+        minimizeButton
             = new Button(buttonSize, minimizeButtonOffAppearance,
                 buttonOnSize, minimizeButtonOnAppearance);
         minimizeButton.setCursor(Cursor3D.SMALL_CURSOR);
-        minimizeButton.setTranslation(
-            frameWidth * 0.5f - inset - buttonSize * 3.3f, yPos, z);
         minimizeButton.addListener(
             new MouseClickedEventAdapter(
                 new ActionNoArg() {
@@ -190,12 +183,10 @@ public class Frame3DWindowDecoration extends Component3D {
                 }));
         tog.addChild(minimizeButton);
 
-        Component3D maximizeButton
+        maximizeButton
             = new Button(buttonSize, maximizeButtonOffAppearance,
                 buttonOnSize, maximizeButtonOnAppearance);
         maximizeButton.setCursor(Cursor3D.SMALL_CURSOR);
-        maximizeButton.setTranslation(
-            frameWidth * 0.5f - inset - buttonSize * 1.9f, yPos, z);
         maximizeButton.addListener(
             new MouseClickedEventAdapter(
                 new ActionNoArg() {
@@ -205,12 +196,10 @@ public class Frame3DWindowDecoration extends Component3D {
                 }));
         tog.addChild(maximizeButton);
 
-        Component3D closeButton
+        closeButton
             = new Button(buttonSize, closeButtonOffAppearance,
                 buttonOnSize, closeButtonOnAppearance);
         closeButton.setCursor(Cursor3D.SMALL_CURSOR);
-        closeButton.setTranslation(
-            frameWidth * 0.5f - inset - buttonSize * 0.5f, yPos, z);
         closeButton.addListener(
             new MouseClickedEventAdapter(
                 new ActionNoArg() {
@@ -219,6 +208,7 @@ public class Frame3DWindowDecoration extends Component3D {
                     }
                 }));
         tog.addChild(closeButton);
+        positionButtons();
 
         addChild(tog);
 
@@ -247,12 +237,84 @@ public class Frame3DWindowDecoration extends Component3D {
             new Component3DRotator(frame, InputEvent3D.ModifierId.BUTTON2));
     }
 
+    /**
+     * Builds the backdrop glass + shadow once, at the current frame size. Only
+     * called from the constructor (before the decoration is on a live graph);
+     * later size changes go through {@link #relayout()}, which resizes the
+     * existing geometry in place rather than rebuilding it.
+     */
+    private void populateBackdrop() {
+        bodyDeco = new GlassyPanel(
+            frameWidth + DECO_WIDTH * 2,
+            frameHeight + DECO_WIDTH * 2,
+            BODY_DEPTH,
+            bodyApp);
+        bodyShadow = new RectShadow(
+            frameWidth + DECO_WIDTH * 2,
+            frameHeight + DECO_WIDTH * 2,
+            shadowN, shadowE, shadowS, shadowW, shadowI,
+            -BODY_DEPTH,
+            0.2f);
+        backdrop.addChild(bodyDeco);
+        backdrop.addChild(bodyShadow);
+    }
+
+    /** Pins the min/max/close buttons to the top-right of the current size. */
+    private void positionButtons() {
+        float inset = buttonSize * 0.6f;
+        float z = BODY_DEPTH + 0.001f;
+        float yPos = frameHeight * 0.5f - inset;
+        minimizeButton.setTranslation(
+            frameWidth * 0.5f - inset - buttonSize * 3.3f, yPos, z);
+        maximizeButton.setTranslation(
+            frameWidth * 0.5f - inset - buttonSize * 1.9f, yPos, z);
+        closeButton.setTranslation(
+            frameWidth * 0.5f - inset - buttonSize * 0.5f, yPos, z);
+    }
+
+    /**
+     * Re-reads the frame's preferred size and re-lays-out the chrome (backdrop
+     * and window buttons) to match. Called after a hosted Swing window is
+     * resized (e.g. maximize) so the decoration tracks the new dimensions
+     * without re-creating this object (which would double the frame-level
+     * flip / rotate listeners installed in the constructor).
+     */
+    public void relayout() {
+        Vector3f size = frame.getPreferredSize(new Vector3f());
+        this.frameWidth = size.x;
+        this.frameHeight = size.y;
+        // Resize the glass + shadow geometry IN PLACE. Both shapes were built
+        // with ALLOW_COORDINATE_WRITE, so setSize rewrites their vertex buffers
+        // on the live graph legally. Recreating them would require removing
+        // non-BranchGroup Shape3D children from a live Group (Java 3D forbids
+        // this: RestrictedAccessException), and detaching the whole backdrop to
+        // rebuild it off-graph then re-inserting it trips
+        // MultipleParentException. In-place setSize avoids both.
+        float w = frameWidth + DECO_WIDTH * 2;
+        float h = frameHeight + DECO_WIDTH * 2;
+        if (bodyDeco != null) {
+            bodyDeco.setSize(w, h);
+        }
+        if (bodyShadow != null) {
+            bodyShadow.setSize(w, h);
+        }
+        positionButtons();
+    }
+
     private void toggleMaximized() {
         if (maximized) {
             // Restore the pre-maximize scale and position.
             frame.changeScale(normalScale, maximizeDuration);
             if (normalTranslation != null) {
                 frame.changeTranslation(normalTranslation, maximizeDuration);
+            }
+            // A hosted Swing window was resized (not scaled) to maximize; put
+            // its content back at the original pixel size.
+            if (normalWidthPx > 0 && normalHeightPx > 0) {
+                HostedWindowResizer.resize(
+                    frame, normalWidthPx, normalHeightPx);
+                normalWidthPx = 0;
+                normalHeightPx = 0;
             }
             maximized = false;
         } else {
@@ -271,9 +333,27 @@ public class Frame3DWindowDecoration extends Component3D {
             // reserve shifts it down by top/2.
             float centerY = (bottom - top) * 0.5f;
 
-            // Uniform (aspect-preserving) scale that fits the frame within the
-            // usable area. min() picks the constraining axis so the aspect
-            // ratio is never distorted.
+            if (HostedWindowResizer.isResizable(frame)) {
+                // JFrame-like maximize: resize the hosted Swing content to the
+                // usable area in pixels (full width) so Swing re-lays-out at
+                // native text size, instead of magnifying a fixed-resolution
+                // texture and letterboxing a narrow window.
+                Vector3f pref = frame.getPreferredSize(new Vector3f());
+                normalWidthPx = tk.widthPhysicalToNative(pref.x);
+                normalHeightPx = tk.heightPhysicalToNative(pref.y);
+                HostedWindowResizer.resize(
+                    frame,
+                    tk.widthPhysicalToNative(tk.getScreenWidth()),
+                    tk.heightPhysicalToNative(usableHeight));
+                frame.changeTranslation(
+                    new Vector3f(0.0f, centerY, normalTranslation.z),
+                    maximizeDuration);
+                frame.postEvent(new Component3DToFrontEvent());
+                maximized = true;
+                return;
+            }
+
+            // Pure-3D windows keep the uniform (aspect-preserving) fit.
             float fill = Math.min(
                 tk.getScreenWidth() / frameWidth,
                 usableHeight / frameHeight) * maximizeMargin;

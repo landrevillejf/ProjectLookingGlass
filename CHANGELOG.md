@@ -445,6 +445,29 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Maximizing a hosted Swing window magnified its text and left it narrow** —
+  `Frame3DWindowDecoration.toggleMaximized` maximized every window by uniformly
+  scaling the `Frame3D` to fit the usable screen area
+  (`min(screenW/w, usableH/h)`). For a `SwingNode`-hosted window (Task Manager,
+  and any `TitledSwingWindow`) that scaled a fixed-resolution offscreen texture,
+  so the content — text included — was blown up and blurry, and the
+  aspect-preserving `min` letterboxed a narrow window instead of filling the
+  width. A real `JFrame` re-lays-out its content at native size on maximize.
+  Hosted windows now do the same: `HostedWindowResizer` (a
+  `WeakHashMap<Frame3D,Resizer>` registry in `lg3d-core`) lets
+  `TitledSwingWindow` register a per-frame resizer; `toggleMaximized` detects a
+  registered frame and resizes the Swing panel to the usable area in native
+  pixels (`SwingNode.setHostedSize`) instead of scaling, then re-lays-out the
+  title bar, spines and decoration. The panel repaints at its new native size
+  (crisp text) and the quad grows to full width. The decoration tracks the new
+  size **in place** — `GlassyPanel`/`RectShadow` are resized through their
+  `setSize` (both carry `ALLOW_COORDINATE_WRITE`), never removed and rebuilt,
+  since detaching non-`BranchGroup` children from a live graph throws
+  `RestrictedAccessException` and re-inserting a detached backdrop trips
+  `MultipleParentException`. Un-maximizing restores the original pixel size;
+  pure-3D windows keep the uniform scale-to-fit maximize. Verified with an
+  in-JVM probe: a 680x480 hosted panel maximized to 1920x852 (full width, native
+  pixels) with no scene-graph exceptions.
 - **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
   apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
   routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired
