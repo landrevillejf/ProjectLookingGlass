@@ -479,6 +479,19 @@ work to make it build and run on a current toolchain.
   list disappeared behind it. The raised local `z` is now `0.05` (world
   `~= +0.01`), in front of any app window, so the start menu always wins the
   depth test like a real desktop's always-on-top menu.
+- **Maximized hosted window kept its Swing content at the old size** — follow-up
+  to the hosted maximize above. `SwingNode.setHostedSize` resized the panel then
+  called `revalidate()` + `doLayout()`, but `doLayout()` only lays out the panel's
+  *immediate* children, so a nested `JScrollPane` -> viewport -> `JTable` subtree
+  kept its pre-resize interior bounds: the grown window showed the old small
+  content stranded in a top corner with the rest of the area blank ("the frame
+  content doesn't adapt"), which also left the title bar / window buttons looking
+  detached from a mis-rendered body. `setHostedSize` now runs a full recursive
+  `invalidate()` + `validate()` (`validateTree`) over the Swing hierarchy so every
+  nested layout manager reflows at the new native size. Verified with an in-JVM
+  probe plus an lg3d framebuffer screenshot: a hosted table window maximized to
+  1920x852 with its columns stretched full-width and all rows visible, and the
+  taskbar stayed clear below the maximized window.
 - **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
   apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
   routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired

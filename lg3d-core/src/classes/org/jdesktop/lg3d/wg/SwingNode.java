@@ -278,8 +278,15 @@ public class SwingNode extends Component3D {
                 p.setMinimumSize(d);
                 p.setMaximumSize(d);
                 p.setSize(d);
-                p.revalidate();
-                p.doLayout();
+                // A full recursive validation, not just this panel's own
+                // doLayout(): doLayout() only positions this container's
+                // immediate children, so a nested JScrollPane -> viewport ->
+                // JTable subtree keeps its old interior bounds and the content
+                // renders stuck at its pre-resize size inside the grown window.
+                // invalidate()+validate() runs validateTree over the whole
+                // Swing hierarchy so every nested layout manager reflows.
+                p.invalidate();
+                p.validate();
                 p.repaint();
                 requestRecapture();
             }
