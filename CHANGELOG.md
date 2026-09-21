@@ -468,6 +468,17 @@ work to make it build and run on a current toolchain.
   pure-3D windows keep the uniform scale-to-fit maximize. Verified with an
   in-JVM probe: a 680x480 hosted panel maximized to 1920x852 (full width, native
   pixels) with no scene-graph exceptions.
+- **A maximized window masked the start-menu application list** — the full-screen
+  hosted maximize above exposed a latent z-order bug in the start menu. The menu
+  is a child of the taskbar, which docks at `z = -0.04` (`GlassyTaskbar.barZ`),
+  while `ZLayeredLayout` places the front-most app window at `z ~= -0.004` (its
+  decoration buttons reach `~= +0.002`). `StartMenuModel.changeVisible` only
+  raised the menu to a local `z = 0.02` (world `~= -0.02`), i.e. *behind* every
+  window; that went unnoticed because ordinary windows never overlap the menu's
+  bottom-corner popup region, but a full-screen maximized window does, so the app
+  list disappeared behind it. The raised local `z` is now `0.05` (world
+  `~= +0.01`), in front of any app window, so the start menu always wins the
+  depth test like a real desktop's always-on-top menu.
 - **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
   apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
   routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired
