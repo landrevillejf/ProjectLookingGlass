@@ -25,8 +25,6 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.Window;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,7 +46,6 @@ import org.jdesktop.lg3d.sg.PolygonAttributes;
 import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeJFrame;
-import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture;
 import org.jdesktop.j3d.utils.math.Math3D;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 
@@ -117,10 +114,6 @@ public class SwingNode extends Component3D {
 
         addChild(comp);   
         this.setCursor(Cursor3D.MEDIUM_CURSOR);
-        // Register the hidden frame with the global capture layer so dialogs and
-        // popups this node's hosted panel opens (JOptionPane, JFileChooser, ...)
-        // are captured into the texture instead of popping onto the host desktop.
-        SwingNodeWindowCapture.registerHiddenFrame(hiddenFrame, this);
     }
     
     /**
@@ -241,21 +234,10 @@ public class SwingNode extends Component3D {
         p2Image = null;
         texWidth = -1;
         texHeight = -1;
-        SwingNodeWindowCapture.releaseNode(this);
         if (hiddenFrame != null) {
-            SwingNodeWindowCapture.unregisterHiddenFrame(hiddenFrame);
             hiddenFrame.setVisible(false);
             hiddenFrame.dispose();
         }
-    }
-
-    /**
-     * Requests that this node's texture be re-captured on the next capture pass.
-     * Called by {@link SwingNodeWindowCapture} when a captured overlay window
-     * opens, closes or repaints, so the change is reflected in the 3D scene.
-     */
-    public void requestRecapture() {
-        markDirty(this);
     }
 
     /**
@@ -409,36 +391,6 @@ public class SwingNode extends Component3D {
             g.fillRect(0, 0, p2w, p2h);
             g.setClip(0, 0, w, h);
             p.paint(g);
-
-            // Paint any captured top-level windows on top of the hosted panel:
-            // JOptionPane / JFileChooser dialogs and popups (centred overlays),
-            // or a conventional app's JFrame (full-bleed, see CapturedFrameHost).
-            // Each is drawn at its overlay origin, clipped to its own bounds and
-            // read at its live size so a not-yet-laid-out dialog self-corrects on
-            // the next capture pass.
-            List<Window> overlays = SwingNodeWindowCapture.getCaptured(this);
-            for (Window ow : overlays) {
-                if (!ow.isDisplayable()) {
-                    continue;
-                }
-                int ow_w = ow.getWidth();
-                int ow_h = ow.getHeight();
-                if (ow_w <= 0 || ow_h <= 0) {
-                    continue;
-                }
-                Point origin = SwingNodeWindowCapture.getOverlayOrigin(this, ow, w, h);
-                Graphics2D og = (Graphics2D) g.create();
-                try {
-                    og.translate(origin.x, origin.y);
-                    og.setClip(0, 0, ow_w, ow_h);
-                    ow.paint(og);
-                } catch (Throwable t) {
-                    // One failing overlay must not abort the whole capture.
-                    t.printStackTrace();
-                } finally {
-                    og.dispose();
-                }
-            }
         } finally {
             g.dispose();
         }
@@ -553,15 +505,6 @@ public class SwingNode extends Component3D {
                 SwingNode node = HOSTED_PANELS.get(p);
                 if (node != null) {
                     return node;
-                }
-                // A repaint inside a captured dialog / popup bubbles up to its
-                // top-level Window, which the capture layer maps back to the node
-                // presenting it; without this the overlay would never refresh.
-                if (p instanceof Window) {
-                    node = SwingNodeWindowCapture.getNodeForWindow((Window) p);
-                    if (node != null) {
-                        return node;
-                    }
                 }
             }
             return null;

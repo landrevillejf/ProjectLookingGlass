@@ -59,17 +59,6 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          (Composite/Damage/XTest). Claims SubstructureRedirect
                          on DISPLAY; start it with no other window manager
                          running on that display. Passes -Pcompositor to Gradle.
-    -s, --swing-app <fqcn> [args...]
-                         Run a conventional Swing application's main() inside
-                         the desktop JVM so its windows are captured into the
-                         3D scene (JFrames become desktop windows; JOptionPane /
-                         JFileChooser / popups render in-scene). TERMINAL: every
-                         token after <fqcn> is passed to the app's main(). Put
-                         --swing-app-cp BEFORE this option. Passes -PswingApp.
-        --swing-app-cp <path[:path...]>
-                         Add the Swing app's classes/jar to the desktop run
-                         classpath (File.pathSeparator-separated). Passes
-                         -PswingAppCp. Must precede --swing-app.
     -h, --help           Print this help.
 
 Anything after '--' is passed straight to the Gradle invocation, e.g.:
@@ -88,9 +77,6 @@ BACKGROUND3D=false
 COMPOSITOR=false
 DO_CLEAN=false
 DO_REBUILD=false
-SWING_APP=""
-SWING_APP_ARGS=""
-SWING_APP_CP=""
 EXTRA_ARGS=()
 
 while [ $# -gt 0 ]; do
@@ -99,14 +85,6 @@ while [ $# -gt 0 ]; do
         -x|--compositor)   COMPOSITOR=true ;;
         -c|--clean)        DO_CLEAN=true ;;
         -r|--rebuild)      DO_REBUILD=true ;;
-        --swing-app-cp)    SWING_APP_CP="${2:-}"; shift ;;
-        -s|--swing-app)
-                           SWING_APP="${2:-}"
-                           if [ $# -ge 2 ]; then shift 2; else shift; fi
-                           # Everything after the main class is the app's args.
-                           SWING_APP_ARGS="$*"
-                           break
-                           ;;
         -h|--help)         usage 0 ;;
         --)                shift; EXTRA_ARGS+=("$@"); break ;;
         -*)                echo "Unknown option: $1" >&2; usage 1 ;;
@@ -121,16 +99,6 @@ if [ "${BACKGROUND3D}" = true ]; then
 fi
 if [ "${COMPOSITOR}" = true ]; then
     GRADLE_ARGS+=("-Pcompositor")
-fi
-if [ -n "${SWING_APP}" ]; then
-    SWING_SPEC="${SWING_APP}"
-    if [ -n "${SWING_APP_ARGS}" ]; then
-        SWING_SPEC="${SWING_SPEC} ${SWING_APP_ARGS}"
-    fi
-    GRADLE_ARGS+=("-PswingApp=${SWING_SPEC}")
-    if [ -n "${SWING_APP_CP}" ]; then
-        GRADLE_ARGS+=("-PswingAppCp=${SWING_APP_CP}")
-    fi
 fi
 if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then
     GRADLE_ARGS+=("${EXTRA_ARGS[@]}")
