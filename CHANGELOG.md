@@ -366,6 +366,11 @@ work to make it build and run on a current toolchain.
   (`-PswingApp="<fqcn> [args...]"` and `-PswingAppCp=<path[:path...]>` for the
   app's classes/jar) and `run-lg3d.sh` (`--swing-app <fqcn> [args...]`,
   `--swing-app-cp <paths>`).
+- **Paint drawing app** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.paint`) — a
+  conventional Swing `JFrame` raster editor (brush/pencil/shape/fill/eyedropper
+  tools, layers, selections, image ops, undo/redo) registered in the Start menu
+  under *Utilities* via `paint.lgcfg`. Launched in-JVM by `SwingAppLauncher`, so
+  its frame is captured and presented as an integrated 3D desktop window.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -439,6 +444,15 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Captured conventional Swing `JFrame` opened two windows on Wayland** — the
+  capture layer hid the real frame only by relocating it to `(-32000,-32000)`,
+  but a compositor-managed window manager (GNOME/Mutter under Wayland/XWayland)
+  ignores that, so the host `JFrame` stayed mapped beside the 3D window, stole
+  native input, and closing it exited the app. `SwingNodeWindowCapture` now
+  unmaps the frame (`setVisible(false)`) and `SwingNode.captureNow` paints its
+  **root pane** (a `JComponent`) instead of the hidden `Window`, which paints
+  blank offscreen; `CapturedFrameHost` sizes the quad to the content area. The
+  app now shows as a single integrated desktop window.
 - **Could not type into a flipped sticky note (or any `SwingNode` text field)** —
   `SwingNodeRenderer` forwarded `KeyEvent3D`s with `target.dispatchEvent(...)`, but
   the offscreen `SwingNodeJFrame` is displayable yet never *shown*, so AWT never

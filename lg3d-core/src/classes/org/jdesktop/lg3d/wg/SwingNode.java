@@ -421,8 +421,23 @@ public class SwingNode extends Component3D {
                 if (!ow.isDisplayable()) {
                     continue;
                 }
+                // Paint a JComponent, not the Window, when the captured window is
+                // not showing: a hidden top-level Window renders blank offscreen
+                // (its peer stops painting), but its root pane paints fine - the
+                // same contract the SwingNode hidden frame relies on. This is what
+                // lets a conventional app's JFrame be hidden from the host desktop
+                // (Wayland ignores off-screen parking) yet still render in 3D.
+                Component paintTarget = ow;
                 int ow_w = ow.getWidth();
                 int ow_h = ow.getHeight();
+                if (!ow.isShowing() && ow instanceof javax.swing.RootPaneContainer) {
+                    Component rp = ((javax.swing.RootPaneContainer) ow).getRootPane();
+                    if (rp != null && rp.getWidth() > 0 && rp.getHeight() > 0) {
+                        paintTarget = rp;
+                        ow_w = rp.getWidth();
+                        ow_h = rp.getHeight();
+                    }
+                }
                 if (ow_w <= 0 || ow_h <= 0) {
                     continue;
                 }
@@ -431,7 +446,7 @@ public class SwingNode extends Component3D {
                 try {
                     og.translate(origin.x, origin.y);
                     og.setClip(0, 0, ow_w, ow_h);
-                    ow.paint(og);
+                    paintTarget.paint(og);
                 } catch (Throwable t) {
                     // One failing overlay must not abort the whole capture.
                     t.printStackTrace();

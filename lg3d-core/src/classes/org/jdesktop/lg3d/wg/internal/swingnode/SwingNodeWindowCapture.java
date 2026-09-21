@@ -166,7 +166,7 @@ public final class SwingNodeWindowCapture {
         addCapture(node, new Capture(window, true));
         WINDOW_TO_NODE.put(window, node);
         FRAME_TO_NODE.put(window, node);
-        parkOffScreen(window);
+        hideForCapture(window);
         node.requestRecapture();
     }
 
@@ -319,6 +319,19 @@ public final class SwingNodeWindowCapture {
     // Global window hook
     // ------------------------------------------------------------------
 
+    /**
+     * Ensures the global window hook is installed even before any
+     * {@link SwingNode} exists. A conventional Swing app launched in-JVM from
+     * the start menu can open its {@code JFrame} before the desktop has created
+     * a SwingNode (StickyNote, the only start-up-path node, is created lazily on
+     * window flip), so without this the frame would escape to the host desktop.
+     * Called once from {@code DisplayServerControl} after start-up completes.
+     * Idempotent.
+     */
+    public static void ensureHookInstalled() {
+        installHook();
+    }
+
     private static synchronized void installHook() {
         if (hookInstalled) {
             return;
@@ -427,6 +440,28 @@ public final class SwingNodeWindowCapture {
             // A window that cannot be relocated simply stays where it is; the
             // capture still paints it into the texture.
         }
+    }
+
+    /**
+     * Removes a full-bleed captured frame from the host desktop so the app shows
+     * as exactly ONE window (its 3D desktop window) instead of two. Relocating
+     * alone is not enough: a window manager (e.g. GNOME/Mutter under
+     * Wayland/XWayland) owns window placement and ignores or clamps
+     * {@code setLocation(-32000, ...)}, so the real {@code JFrame} stays mapped
+     * and visible beside the 3D window, steals native input, and closing it exits
+     * the app. Hiding unmaps the window while keeping it <em>displayable</em>; the
+     * content still renders because {@code SwingNode.captureNow()} paints the
+     * frame's <em>root pane</em> (a {@code JComponent}), which paints fine
+     * offscreen even when its top-level window is not showing. Parking is kept as
+     * a fallback for a window that cannot be hidden.
+     */
+    private static void hideForCapture(Window w) {
+        try {
+            w.setVisible(false);
+        } catch (Throwable t) {
+            // Fall through to parking if the window refuses to hide.
+        }
+        parkOffScreen(w);
     }
 
     /**

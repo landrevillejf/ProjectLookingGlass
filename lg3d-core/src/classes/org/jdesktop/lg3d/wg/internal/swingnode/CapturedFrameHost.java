@@ -108,7 +108,7 @@ public final class CapturedFrameHost {
             return;
         }
         final Toolkit3D tk = Toolkit3D.getToolkit3D();
-        Dimension size = f.getSize();
+        Dimension size = contentSize(f);
         int widthPx = Math.max(1, size.width);
         int heightPx = Math.max(1, size.height);
         float contentW = tk.widthNativeToPhysical(widthPx);
@@ -186,7 +186,7 @@ public final class CapturedFrameHost {
                 if (disposed.get()) {
                     return;
                 }
-                Dimension d = f.getSize();
+                Dimension d = contentSize(f);
                 int w = Math.max(1, d.width);
                 int h = Math.max(1, d.height);
                 hostPanel.setSize(w, h);
@@ -221,6 +221,20 @@ public final class CapturedFrameHost {
     private static String title(JFrame f) {
         String t = f.getTitle();
         return (t == null || t.trim().isEmpty()) ? "Application" : t;
+    }
+
+    /**
+     * The size of the frame's <em>content</em> (its root pane), not its outer
+     * bounds. The capture layer paints the root pane into the texture and hides
+     * the real window, so the 3D quad must match the content area; using the
+     * outer frame size would leave an OS-decoration-sized blank strip.
+     */
+    private static Dimension contentSize(JFrame f) {
+        java.awt.Container rp = f.getRootPane();
+        if (rp != null && rp.getWidth() > 0 && rp.getHeight() > 0) {
+            return rp.getSize();
+        }
+        return f.getSize();
     }
 
     // ------------------------------------------------------------------
