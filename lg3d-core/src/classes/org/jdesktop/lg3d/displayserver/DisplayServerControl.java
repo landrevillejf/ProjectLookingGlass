@@ -440,6 +440,18 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
             logger.fine("Acquiring lock, waiting for ConfigurationCompleteEvent");
             complete.acquire();
             logger.info("Start-up configuration completed...");
+            // Install the global Swing window-capture hook now, before any
+            // conventional app opens a JFrame. It otherwise installs lazily on
+            // the first SwingNode (StickyNote, created only on window flip), so
+            // a start-menu-launched app's frame could escape to the host
+            // desktop. Idempotent.
+            org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture.ensureHookInstalled();
+            // If a conventional Swing app was requested via -Dlg.swingapp (set by
+            // run-lg3d.sh --swing-app / :lg3d-core:run -PswingApp), start its
+            // main() now that the desktop is up, so its windows are captured into
+            // the 3D scene by SwingNodeWindowCapture instead of popping onto the
+            // host desktop. No-op when the property is unset.
+            org.jdesktop.lg3d.utils.SwingAppLauncher.launchFromProperties();
         } catch(InterruptedException e) {
             logger.warning("Interrupted waiting for Configuration to complete");
         }

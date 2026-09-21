@@ -336,6 +336,42 @@ work to make it build and run on a current toolchain.
   **Utilities** start-menu group (`mediawriter.lgcfg`); its 48x48 icon gets a
   disc glyph drawn inside `GenerateAppIcons.java`, the bundled glyph set
   carrying nothing disc shaped.
+- **Top-level Swing window capture in `SwingNode`** (`lg3d-core`,
+  `org.jdesktop.lg3d.wg.internal.swingnode`) — a conventional, *unmodified* Swing
+  application now integrates into the 3D desktop. A single global
+  `AWTEventListener` (`SwingNodeWindowCapture`) watches every top-level `Window`
+  the JVM opens and, instead of letting it pop onto the host desktop where the
+  offscreen texture capture cannot reach it: presents a captured `JFrame` as a
+  real desktop window (`CapturedFrameHost` — a `Frame3D` + `SwingNode` with the
+  standard title bar / spine titles / min-max-close `Frame3DWindowDecoration`, a
+  live taskbar thumbnail, and resize / title / close sync between the real frame
+  and its 3D window), and paints a captured `JDialog` / `JWindow` (`JOptionPane`,
+  `JFileChooser`, popups) as a centred in-scene **overlay** inside the owning
+  node's texture, routing forwarded mouse and key input to it with modal
+  semantics preserved (a modal dialog's own secondary EDT loop processes the
+  events the node dispatches). `SwingNode.captureNow` composites the captured
+  overlays on top of the hosted panel, its `RepaintManager` marks the owning node
+  dirty when a captured dialog repaints, and `SwingNodeRenderer` resolves each
+  input event's target through the capture registry (topmost modal dialog first,
+  else the overlay under the pointer, else the node's own hidden frame). This
+  removes the technical reason for the "in-panel overlays instead of modal
+  dialogs" workaround noted for Media Writer above — that app is intentionally
+  left as-is, but real modal dialogs now render in-scene for any app that opens
+  them.
+- **`SwingAppLauncher` + `--swing-app` launcher** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils`) — runs a conventional Swing application's `main`
+  inside the desktop JVM on a dedicated thread so every window it creates is
+  captured. Wired through `DisplayServerControl` (after "Start-up configuration
+  completed", reading `-Dlg.swingapp`), the `:lg3d-core:run` task
+  (`-PswingApp="<fqcn> [args...]"` and `-PswingAppCp=<path[:path...]>` for the
+  app's classes/jar) and `run-lg3d.sh` (`--swing-app <fqcn> [args...]`,
+  `--swing-app-cp <paths>`).
+- **Paint drawing app** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.paint`) — a
+  conventional Swing `JFrame` raster editor (brush/pencil/shape/fill/eyedropper
+  tools, layers, selections, image ops, undo/redo) registered in the Start menu
+  under *Utilities* via `paint.lgcfg`. Its descriptor uses the new `swingapp`
+  command verb, which opts the app into 3D window capture and launches it in-JVM,
+  so its frame is captured and presented as an integrated 3D desktop window.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -409,6 +445,36 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
+  apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
+  routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired
+  `System.exit` and killed lg3d along with the app (e.g. Screen Capture).
+  `SwingNodeWindowCapture.onWindowOpened` now rewrites `EXIT_ON_CLOSE` to
+  `DISPOSE_ON_CLOSE` on every non-host `JFrame`, so closing an app window only
+  disposes that frame. (An app that calls `System.exit` directly from a menu
+  handler is still out of scope.) Verified with an in-JVM probe: a plain
+  `JFrame` opened as `EXIT_ON_CLOSE` (op 3) was rewritten to `DISPOSE_ON_CLOSE`
+  (op 2) by the hook while the desktop kept running.
+- **Window capture hijacked every conventional Swing app** — the global
+  `SwingNodeWindowCapture` hook captured *all* top-level `JFrame`s unconditionally,
+  so apps that used to run as normal host windows with native input (Screen
+  Capture, Image Studio, Calculator, …) were hidden and re-presented as 3D windows
+  driven by synthetic in-scene input, leaving their buttons unresponsive. Capture
+  is now **opt-in per app**: `SwingNodeWindowCapture.registerCapturePackage` records
+  the launching app's package and the hook only captures a `JFrame` whose class is
+  in a registered package. The `swingapp <mainClass>` command verb (and
+  `-Dlg.swingapp` / `--swing-app`) register that package; the plain `java <class>`
+  verb used by every other Start-menu app does not, so those apps keep their
+  native windows and working input. Only Paint opts in today.
+- **Captured conventional Swing `JFrame` opened two windows on Wayland** — the
+  capture layer hid the real frame only by relocating it to `(-32000,-32000)`,
+  but a compositor-managed window manager (GNOME/Mutter under Wayland/XWayland)
+  ignores that, so the host `JFrame` stayed mapped beside the 3D window, stole
+  native input, and closing it exited the app. `SwingNodeWindowCapture` now
+  unmaps the frame (`setVisible(false)`) and `SwingNode.captureNow` paints its
+  **root pane** (a `JComponent`) instead of the hidden `Window`, which paints
+  blank offscreen; `CapturedFrameHost` sizes the quad to the content area. The
+  app now shows as a single integrated desktop window.
 - **Could not type into a flipped sticky note (or any `SwingNode` text field)** —
   `SwingNodeRenderer` forwarded `KeyEvent3D`s with `target.dispatchEvent(...)`, but
   the offscreen `SwingNodeJFrame` is displayable yet never *shown*, so AWT never
