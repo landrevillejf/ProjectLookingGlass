@@ -10,10 +10,11 @@
  (brightness, contrast, hue, saturation, grayscale, invert, posterize,
  threshold, blur, sharpen, emboss), bounded undo redo, zoom and pan, and PNG,
  JPEG, GIF and BMP file IO using only java.awt.image. Launched in JVM via the
- java class command. -->
+ swingapp class command, which opts the app into 3D window capture so its JFrame
+ is presented as an integrated desktop window. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
-   <string>java org.jdesktop.lg3d.apps.paint.PaintApp</string>
+   <string>swingapp org.jdesktop.lg3d.apps.paint.PaintApp</string>
   </void>
   <void property="desc">
    <string>Draw and paint images</string>

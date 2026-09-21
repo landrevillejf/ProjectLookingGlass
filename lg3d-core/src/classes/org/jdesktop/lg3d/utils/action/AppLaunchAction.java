@@ -45,6 +45,17 @@ public class AppLaunchAction implements ActionNoArg {
     private ClassLoader classLoader;
 
     public AppLaunchAction(String command, ClassLoader classloader) { 
+        // "swingapp <mainClass> [args]" opts the app into 3D window capture and
+        // then runs it in-JVM exactly like "java <mainClass> [args]". Only apps
+        // launched this way have their JFrames captured; every other app keeps
+        // its normal host window and native input.
+        if (command != null && command.startsWith("swingapp ")) {
+            String rest = command.substring("swingapp ".length()).trim();
+            String mainClass = rest.split("\\s+")[0];
+            org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture
+                    .registerCapturePackage(mainClass);
+            command = "java " + rest;
+        }
 	this.command = command;
         this.classLoader = classloader;
         logger.config("AppLaunchAction for "+command+"  with classloader "+classloader);

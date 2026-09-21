@@ -396,7 +396,10 @@ public class ApplicationDescription extends ConfigData {
      * Returns true if the app is available.
      */
     public static boolean isApplicationAvailable(String exec) {
-        if (exec.startsWith("java"))
+        // "java ..." runs a class's main in-JVM; "swingapp ..." does the same
+        // but also opts the app into 3D window capture (see AppLaunchAction).
+        // Neither is an external executable, so both are always available.
+        if (exec.startsWith("java") || exec.startsWith("swingapp "))
             return true;
         
         int end = exec.indexOf(' ');    // Somewhat evil, no space allowed in path or filename

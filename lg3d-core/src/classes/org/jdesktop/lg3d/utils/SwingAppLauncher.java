@@ -72,6 +72,10 @@ public final class SwingAppLauncher {
         if (mainClass == null || mainClass.trim().isEmpty()) {
             return;
         }
+        // Opt this app into 3D window capture so its JFrames are presented as
+        // desktop windows (see SwingNodeWindowCapture.registerCapturePackage).
+        org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture
+                .registerCapturePackage(mainClass);
         final String[] safeArgs = (args == null) ? new String[0] : args;
         Thread t = new Thread(new Runnable() {
             public void run() {

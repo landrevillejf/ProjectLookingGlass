@@ -24,9 +24,11 @@ import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 import javax.swing.JFrame;
 import org.jdesktop.lg3d.wg.SwingNode;
@@ -88,6 +90,17 @@ public final class SwingNodeWindowCapture {
     private static volatile SwingNode lastActiveNode;
 
     private static boolean hookInstalled;
+
+    /**
+     * Package prefixes of apps that opted into 3D window capture. Only a
+     * {@code JFrame} whose class name starts with one of these is captured and
+     * presented as a desktop window; every other top-level window is left as a
+     * normal host window with native input. This keeps the global hook from
+     * hijacking conventional JFrame apps (screen capture, image studio,
+     * calculator, ...) that are not designed for synthetic in-scene input.
+     */
+    private static final Set<String> CAPTURE_PREFIXES =
+            Collections.synchronizedSet(new HashSet<String>());
 
     private SwingNodeWindowCapture() {
     }
@@ -371,6 +384,11 @@ public final class SwingNodeWindowCapture {
             return;
         }
         if (w instanceof JFrame) {
+            // Only capture frames from apps that opted in; every other JFrame
+            // stays a normal host window with native input.
+            if (!isCaptureEnabled(w)) {
+                return;
+            }
             try {
                 CapturedFrameHost.present((JFrame) w);
             } catch (Throwable t) {
@@ -431,6 +449,37 @@ public final class SwingNodeWindowCapture {
             o = o.getOwner();
         }
         return lastActiveNode;
+    }
+
+    /**
+     * Registers an app (by its main class name) for 3D window capture: the
+     * class's package becomes a prefix, and any top-level {@code JFrame} whose
+     * class is in that package will be captured and presented as a desktop
+     * window. Called by the launchers for apps that opt in (the {@code swingapp}
+     * command verb or {@code -Dlg.swingapp}). Apps that do not opt in keep their
+     * normal host windows and native input.
+     */
+    public static void registerCapturePackage(String mainClassName) {
+        if (mainClassName == null || mainClassName.trim().isEmpty()) {
+            return;
+        }
+        int dot = mainClassName.lastIndexOf('.');
+        String prefix = (dot < 0) ? mainClassName : mainClassName.substring(0, dot + 1);
+        CAPTURE_PREFIXES.add(prefix);
+        logger.fine("3D window capture enabled for package prefix: " + prefix);
+    }
+
+    /** True when {@code w} belongs to a package that opted into capture. */
+    private static boolean isCaptureEnabled(Window w) {
+        String name = w.getClass().getName();
+        synchronized (CAPTURE_PREFIXES) {
+            for (String prefix : CAPTURE_PREFIXES) {
+                if (name.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void parkOffScreen(Window w) {

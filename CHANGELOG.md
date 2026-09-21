@@ -369,8 +369,9 @@ work to make it build and run on a current toolchain.
 - **Paint drawing app** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.paint`) — a
   conventional Swing `JFrame` raster editor (brush/pencil/shape/fill/eyedropper
   tools, layers, selections, image ops, undo/redo) registered in the Start menu
-  under *Utilities* via `paint.lgcfg`. Launched in-JVM by `SwingAppLauncher`, so
-  its frame is captured and presented as an integrated 3D desktop window.
+  under *Utilities* via `paint.lgcfg`. Its descriptor uses the new `swingapp`
+  command verb, which opts the app into 3D window capture and launches it in-JVM,
+  so its frame is captured and presented as an integrated 3D desktop window.
 
 ### Changed
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
@@ -444,6 +445,17 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Window capture hijacked every conventional Swing app** — the global
+  `SwingNodeWindowCapture` hook captured *all* top-level `JFrame`s unconditionally,
+  so apps that used to run as normal host windows with native input (Screen
+  Capture, Image Studio, Calculator, …) were hidden and re-presented as 3D windows
+  driven by synthetic in-scene input, leaving their buttons unresponsive. Capture
+  is now **opt-in per app**: `SwingNodeWindowCapture.registerCapturePackage` records
+  the launching app's package and the hook only captures a `JFrame` whose class is
+  in a registered package. The `swingapp <mainClass>` command verb (and
+  `-Dlg.swingapp` / `--swing-app`) register that package; the plain `java <class>`
+  verb used by every other Start-menu app does not, so those apps keep their
+  native windows and working input. Only Paint opts in today.
 - **Captured conventional Swing `JFrame` opened two windows on Wayland** — the
   capture layer hid the real frame only by relocating it to `(-32000,-32000)`,
   but a compositor-managed window manager (GNOME/Mutter under Wayland/XWayland)
