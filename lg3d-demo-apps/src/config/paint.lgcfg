@@ -25,7 +25,7 @@
    <string>resource:///resources/images/icon/paint.png</string>
   </void>
   <void property="menuGroup">
-   <string>Graphics</string>
+   <string>Utilities</string>
   </void>
   <void property="name">
    <string>Paint</string>
