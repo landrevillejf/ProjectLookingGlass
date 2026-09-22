@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 
 /**
  * Discovers the control center's category panels. The five built-in panels
@@ -26,10 +25,15 @@ import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
  * extra panels can be contributed with {@link #register(ControlPanel)} before
  * the control center window is built.
  *
- * <p>On the conventional Swing (2D) desktop - used when the machine has no
- * Java 3D - the Appearance and Desktop panels are left out: both drive the 3D
- * scene (wallpaper textures, desktop effects) through lg3d's event connector,
- * which pulls in Java 3D classes that are absent there.</p>
+ * <p>All five register in every desktop mode, so the control center shows the
+ * same categories on the 3D desktop and on the conventional Swing (2D) desktop.
+ * The Appearance and Desktop panels drive whichever desktop is running: on the
+ * 3D desktop they post events through lg3d's connector (wallpaper textures,
+ * taskbar re-layout), and on the 2D desktop they call into
+ * {@link org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D} instead, so the
+ * same settings take live effect there. Each panel is still built defensively -
+ * one that cannot be constructed in this JVM (a missing Java 3D runtime, say)
+ * is skipped rather than taking the whole control center with it.</p>
  */
 public final class ControlPanelRegistry {
 
@@ -56,10 +60,8 @@ public final class ControlPanelRegistry {
             addDefault(DisplayPanel::new, "Display");
             addDefault(UsersPanel::new, "Users");
             addDefault(SystemInfoPanel::new, "System");
-            if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
-                addDefault(AppearancePanel::new, "Appearance");
-                addDefault(DesktopPanel::new, "Desktop");
-            }
+            addDefault(AppearancePanel::new, "Appearance");
+            addDefault(DesktopPanel::new, "Desktop");
         }
         return new ArrayList<>(PANELS);
     }

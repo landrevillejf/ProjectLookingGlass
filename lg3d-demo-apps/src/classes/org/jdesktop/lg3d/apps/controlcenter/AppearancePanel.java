@@ -36,6 +36,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.ListSelectionModel;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
@@ -231,11 +232,21 @@ public class AppearancePanel implements ControlPanel {
             warn("Select a wallpaper first.");
             return;
         }
+        String applied = "Background applied: " + nameList.getSelectedValue();
+        // On the conventional 2D desktop there is no scene manager listening
+        // for BackgroundChangeRequestEvent, so hand the image straight to the
+        // running shell. Guarded on the mode property so the Java 3D classes
+        // below are never touched on a JVM where they are absent.
+        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            Desktop2D.setWallpaper(url);
+            statusLabel.setText(applied);
+            return;
+        }
         try {
             SimpleImageBackground background = new SimpleImageBackground(url);
             LgEventConnector.getLgEventConnector().postEvent(
                     new BackgroundChangeRequestEvent(background), null);
-            statusLabel.setText("Background applied: " + nameList.getSelectedValue());
+            statusLabel.setText(applied);
         } catch (RuntimeException e) {
             warn("Could not apply the background:\n" + e.getMessage());
         }
