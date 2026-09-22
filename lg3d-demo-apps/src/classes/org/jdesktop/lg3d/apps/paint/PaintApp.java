@@ -46,7 +46,14 @@ public class PaintApp {
             return;
         }
         // Metal LAF must be installed before any Swing component is created.
-        org.jdesktop.lg3d.apps.TitledSwingWindow.installHostedLookAndFeel();
+        // The helper lives with the 3D window classes, so on the conventional
+        // Swing (2D) desktop - a JVM with no Java 3D at all - it cannot load;
+        // the platform LAF is the right look there anyway.
+        try {
+            org.jdesktop.lg3d.apps.TitledSwingWindow.installHostedLookAndFeel();
+        } catch (Throwable t) {
+            // Non-3D desktop: keep the default look and feel.
+        }
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
                 PaintDocument doc = PaintDocument.create(800, 600, Color.WHITE);
