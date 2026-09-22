@@ -469,23 +469,36 @@ work to make it build and run on a current toolchain.
   in-JVM probe: a 680x480 hosted panel maximized to 1920x852 (full width, native
   pixels) with no scene-graph exceptions.
 - **A maximized window masked the start-menu application list** — the full-screen
-  hosted maximize above exposed a latent z-order bug in the start menu. The menu
-  is a child of the taskbar, which docks at `z = -0.04` (`GlassyTaskbar.barZ`),
-  while `ZLayeredLayout` places the front-most app window at `z ~= -0.004` (its
-  decoration buttons reach `~= +0.002`). `StartMenuModel.changeVisible` only
-  raised the menu to a local `z = 0.02` (world `~= -0.02`), i.e. *behind* every
-  window; that went unnoticed because ordinary windows never overlap the menu's
-  bottom-corner popup region, but a full-screen maximized window does, so the app
-  list disappeared behind it. Raising the menu in depth alone is not enough:
-  the view is perspective with the eye ~1.0 away, so any Z raise also magnifies
-  the menu and pushes it away from the screen centre (visibly left, over the
-  application bar and the glassy taskbar). The raise is now perspective-
-  compensated: the menu moves to world `z = +0.05` (ahead of every window
-  plane) while its world X/Y and node scale are multiplied by
-  `r = (eyeZ - zNew)/(eyeZ - zRef)`, which cancels the perspective change
-  exactly. The hovered application list therefore pops up on top of any
-  window - verified in a framebuffer capture over a maximized window - while
-  its on-screen position and size, and the rest of the desktop, stay put.
+  hosted maximize above exposed a latent draw-order bug in the start menu. The
+  menu is a child of the taskbar, which docks at `z = -0.04`
+  (`GlassyTaskbar.barZ`), while `ZLayeredLayout` places the front-most app window
+  at `z ~= -0.004`. `StartMenuModel.changeVisible` only raised the menu to a local
+  `z = 0.02` (world `~= -0.02`), i.e. *behind* every window; that went unnoticed
+  because ordinary windows never overlap the menu's bottom-corner popup region,
+  but a full-screen maximized window does, so the app list disappeared behind it.
+  Raising the menu in depth alone is not enough, and neither is a small Z lift:
+  transparent shapes are sorted back-to-front by the distance from the eye to
+  each shape's bounding-sphere centre, *not* by Z. A maximized window quad is
+  centred on-axis (distance ~= eye.z), while the menu is docked in a screen
+  corner, so its off-axis centre stays *farther* from the eye even at a nearer Z
+  and it keeps sorting behind the window. The raise now lifts the menu to a
+  fraction (`FRONT_WORLD_Z_FRACTION = 0.4`) of the eye distance, which pulls its
+  bounding-sphere centre well inside the window's so every menu shape sorts - and
+  is picked - in front; the lift is perspective-compensated (world X/Y and node
+  scale multiplied by `r = (eyeZ - zNew)/(eyeZ - zRef)`) so the list's on-screen
+  position and size are unchanged. Verified in a framebuffer capture: the hovered
+  application list pops up on top of a maximized full-width window while the rest
+  of the desktop stays put.
+- **Min/max/close buttons sat above the title text** — `Frame3DWindowDecoration`
+  pinned the window buttons to the top corner of the frame
+  (`y = frameHeight/2 - inset`), while `TitledSwingWindow` centres its title text
+  in the reserved title strip (`y = frameHeight/2 - titleBarHeight/2`), so on a
+  hosted window the three buttons floated visibly higher than the title. The
+  decoration now reads a new `TITLE_BAR_HEIGHT_PROPERTY` frame property; when a
+  frame publishes its title-strip height (as `TitledSwingWindow` does before
+  `changeEnabled`) the buttons are centred on that strip, aligned with the title
+  text, and pure-3D frames without a strip keep the corner placement. Verified in
+  framebuffer captures in both the normal and the maximized state.
 - **Maximized window pushed its title bar off the top edge** - filling exactly to
   the screen top left the title strip (and the minimize/maximize/close buttons)
   flush against / past the top edge where they cannot be clicked. Maximize now

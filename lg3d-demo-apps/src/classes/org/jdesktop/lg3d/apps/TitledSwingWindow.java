@@ -254,9 +254,14 @@ public final class TitledSwingWindow {
 
         // The frame is content + title bar; Frame3DWindowDecoration (attached
         // during changeEnabled) reads this size and lands its min/max/close
-        // buttons in the title strip.
+        // buttons in the title strip. Publish the strip height first so the
+        // decoration centres those buttons on the strip, aligned with the title
+        // text, rather than pinning them to the top corner.
         frame.setPreferredSize(
                 new Vector3f(contentW, contentH + TITLE_BAR_HEIGHT, 0.01f));
+        frame.setProperty(
+                Frame3DWindowDecoration.TITLE_BAR_HEIGHT_PROPERTY,
+                TITLE_BAR_HEIGHT);
         frame.changeEnabled(true);
         frame.changeVisible(true);
         return frame;

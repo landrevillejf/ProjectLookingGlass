@@ -48,15 +48,15 @@ import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
+import org.jogamp.vecmath.Point3f;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
-import org.jogamp.vecmath.Point3f;
-import org.jogamp.vecmath.Vector3f;
 
 /**
  * The main class for defining a 3D model for the start menu. This class defines
@@ -108,7 +108,26 @@ public abstract class StartMenuModel extends Container3D {
     private Class groupLinkCompClass;
 
     protected boolean visible;
-    
+
+    /**
+     * Fraction of the eye distance the raised menu is lifted to, measured from
+     * the screen plane. Application windows sit just behind the screen plane
+     * (front frame around z = -0.005), but transparent shapes are sorted
+     * back-to-front by the distance from the eye to each shape's bounding
+     * sphere centre - <em>not</em> by Z. A maximized window quad is centred
+     * on-axis (distance ~= eye.z), while the menu is docked in a screen corner,
+     * so its off-axis centre can be <em>farther</em> from the eye even at a
+     * nearer Z: lifting the menu only to z = 0 (or a few thousandths in front)
+     * still left the list behind a full-width window. Moving it to 40% of the
+     * way from the screen to the eye pulls its centre well inside the window's,
+     * so every menu shape sorts in front and is also picked in front - which
+     * keeps the taskbar-item hover alive while the pointer is on the list
+     * instead of falling through to the window and auto-hiding the menu. The
+     * lift is perspective-compensated in {@link #compensatedFrontPose} so the
+     * menu's on-screen position and size are unchanged.
+     */
+    private static final float FRONT_WORLD_Z_FRACTION = 0.4f;
+
     /**
      * Default constructor. This attaches the model listeners
      * and then calls <code>initialize()</code> for the
@@ -513,37 +532,23 @@ public abstract class StartMenuModel extends Container3D {
     public void changeVisible(boolean visible, boolean redoAnim) {
         this.visible = visible;
         if (visible) {
-            // Raise the menu in FRONT of every app window while keeping its
-            // on-screen position and size exactly as the original raised pose.
-            //
-            // Depth ordering is geometric, so being in front requires a world Z
-            // ahead of the front window plane (~= +0.002). But the view is
-            // perspective with the eye only ~0.34 away: moving an object from
-            // world Z -0.02 to +0.05 without compensation magnifies it ~20% and
-            // pushes it away from the screen centre (visibly left, over the
-            // application bar and the glassy taskbar). Apparent position and
-            // size are proportional to world/(eyeZ - worldZ) and to
-            // scale/(eyeZ - worldZ), so scaling the world X/Y and the node
-            // scale by r = (eyeZ - zNew)/(eyeZ - zRef) cancels the perspective
-            // change exactly: the menu pops up on top of any window yet looks
-            // like it never moved.
-            boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
-            Vector3f local = raisedTranslation(top);
-            if (local == null) {
-                // Eye position unavailable: fall back to the plain pose.
-                local = new Vector3f(-0.005f, top ? -0.015f : 0.015f, 0.02f);
-                if (redoAnim) {
-                    setScale(0.25f);
-                }
-                changeScale(1.0f);
-            } else {
-                if (redoAnim) {
-                    setScale(0.25f * raisedScale);
-                }
-                changeScale(raisedScale);
+            if (redoAnim) {
+                setScale(0.25f);
             }
-            changeTranslation(local.x, local.y, local.z);
-            lastLocalTranslation.set(local);
+            // Raise the menu toward the screen centre: up from a bottom bar,
+            // down from a top bar. These are the original local offsets. The
+            // view is perspective, so lifting the menu forward (needed to put
+            // it in front of application windows, both to draw over them and
+            // to be picked over them) would otherwise magnify it and push it
+            // away from the screen centre. compensatedFrontPose() scales the
+            // world position and the node scale so the menu still appears at
+            // exactly this position and size while sitting in front of every
+            // window. On hide the plain pose returns and, being behind the
+            // windows again, the menu drops back out of sight.
+            boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
+            float[] pose = compensatedFrontPose(-0.005f, top ? -0.015f : 0.015f, 0.02f);
+            changeScale(pose[3]);
+            changeTranslation(pose[0], pose[1], pose[2]);
             setMouseEventEnabled(true);
             
             // reset the pickable region size
@@ -551,8 +556,6 @@ public abstract class StartMenuModel extends Container3D {
         } else {
             changeScale(0.25f, 500);
             changeTranslation(-0.005f, 0.0f, 0.0f);
-            lastLocalTranslation.set(-0.005f, 0.0f, 0.0f);
-            raisedScale = 1.0f;
             if (redoAnim) {
                 setRotationAngle((float)(Math.toRadians(40) - Math.PI * 2));
                 changeRotationAngle((float)Math.toRadians(40), 1000);
@@ -562,46 +565,70 @@ public abstract class StartMenuModel extends Container3D {
         }
     }
 
-    /** World Z the raised menu is placed at: ahead of every window plane. */
-    private static final float RAISED_WORLD_Z = 0.05f;
-
-    /** The 2006 reference raised pose, relative to the taskbar. */
-    private static final float REF_LOCAL_X = -0.005f;
-    private static final float REF_LOCAL_Y = 0.015f;
-    private static final float REF_LOCAL_Z = 0.02f;
-
-    /** Local translation this class last applied (used to recover the parent pose). */
-    private final Vector3f lastLocalTranslation = new Vector3f(REF_LOCAL_X, 0.0f, 0.0f);
-
-    /** Perspective compensation scale for the current raise, 1.0 when hidden. */
-    private float raisedScale = 1.0f;
-
     /**
-     * Computes the compensated raised translation. Returns {@code null} when
-     * the eye position cannot be determined, in which case the caller uses the
-     * uncompensated reference pose.
+     * Compute the local pose that renders the menu at its original raised
+     * position and size while its world position sits at
+     * {@code eye.z * }{@link #FRONT_WORLD_Z_FRACTION} (well in front of
+     * application windows). Apparent position and size go as
+     * world/(eyeZ - worldZ) and scale/(eyeZ - worldZ) and the eye is on the Z
+     * axis, so multiplying the world position and the node scale by
+     * r = (eyeZ - zNew)/(eyeZ - zRef) cancels the perspective change exactly.
+     * <p>
+     * A node's world origin depends only on its local translation (its own
+     * rotation and scale act about that origin), so the reference world
+     * position is {@code parentWorld.transform(refLocal)} and the compensated
+     * world position is mapped back with the inverse of {@code parentWorld}.
+     * This is exact even though the taskbar item is tilted, and needs no
+     * assumption about the parent's rotation or scale.
+     *
+     * @param refX original local X of the raised menu
+     * @param refY original local Y of the raised menu
+     * @param refZ original local Z of the raised menu
+     * @return the compensated local pose as {@code {x, y, z, scale}}
      */
-    private Vector3f raisedTranslation(boolean top) {
-        Point3f eye = new Point3f();
-        Toolkit3D.getToolkit3D().getEyePositionInVworld(eye);
-        // Parent (taskbar) world pose = our world pose minus the local
-        // translation we last applied; the taskbar does not move or scale.
-        Vector3f world = getFinalTranslation(new Vector3f());
-        Vector3f parent = new Vector3f(world);
-        parent.sub(lastLocalTranslation);
-        float zRef = parent.z + REF_LOCAL_Z;
-        float zNew = RAISED_WORLD_Z;
-        if (eye.z <= zNew + 0.01f || eye.z <= zRef + 0.01f) {
-            return null;
+    private float[] compensatedFrontPose(float refX, float refY, float refZ) {
+        float[] plain = { refX, refY, refZ, 1.0f };
+        try {
+            org.jdesktop.lg3d.sg.Node parent = getParent();
+            if (parent == null) {
+                return plain;
+            }
+            Transform3D parentWorld = new Transform3D();
+            parent.getLocalToVworld(parentWorld);
+            Point3f eye = Toolkit3D.getToolkit3D()
+                    .getEyePositionInVworld(new Point3f());
+
+            // World position of the menu at the original (plain) raised pose.
+            Point3f refWorld = new Point3f(refX, refY, refZ);
+            parentWorld.transform(refWorld);
+
+            // Lift the menu toward the eye as a fraction of the eye distance so
+            // its bounding-sphere centre sorts in front of a maximized window's
+            // on-axis centre (see FRONT_WORLD_Z_FRACTION). The front clip plane
+            // sits just in front of the eye; keep the lift safely behind it.
+            float frontZ = eye.z * FRONT_WORLD_Z_FRACTION;
+            float denom = eye.z - refWorld.z;
+            if (denom <= 0.01f || frontZ >= eye.z - 0.01f) {
+                return plain;
+            }
+            float r = (eye.z - frontZ) / denom;
+
+            // Same apparent position/size, but lifted to the front plane.
+            Point3f frontWorld = new Point3f(
+                    refWorld.x * r, refWorld.y * r, frontZ);
+
+            // Back into the parent's local space; the node scale becomes r so
+            // the world (and therefore apparent) size is unchanged. Invert in
+            // place: the lg3d Transform3D copy constructor is reflection-based
+            // and unavailable, so reuse parentWorld rather than copying it.
+            parentWorld.invert();
+            parentWorld.transform(frontWorld);
+
+            return new float[] { frontWorld.x, frontWorld.y, frontWorld.z, r };
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "compensatedFrontPose fell back to plain pose", e);
+            return plain;
         }
-        raisedScale = (eye.z - zNew) / (eye.z - zRef);
-        float xRef = parent.x + REF_LOCAL_X;
-        float yRef = parent.y + (top ? -REF_LOCAL_Y : REF_LOCAL_Y);
-        Vector3f local = new Vector3f();
-        local.x = raisedScale * xRef - parent.x;
-        local.y = raisedScale * yRef - parent.y;
-        local.z = zNew - parent.z;
-        return local;
     }
 
     /**

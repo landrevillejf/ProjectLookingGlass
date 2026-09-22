@@ -84,6 +84,16 @@ public class Frame3DWindowDecoration extends Component3D {
      */
     public static final String OPT_OUT_PROPERTY = "lg3d.frame3d.decoration.optOut";
 
+    /**
+     * Frames that reserve a dedicated title strip (e.g. hosted Swing windows)
+     * set this property to the strip's height (a {@link Number}, in world
+     * units) so the minimize/maximize/close buttons are centred on the strip -
+     * aligned with the title text - instead of pinned to the top corner. Pure
+     * 3D frames leave it unset and keep the corner placement.
+     */
+    public static final String TITLE_BAR_HEIGHT_PROPERTY
+        = "lg3d.frame3d.decoration.titleBarHeight";
+
     /** Thickness (z) of the green backdrop slab, centred at z = -BODY_DEPTH. */
     public static final float BODY_DEPTH = 0.005f;
     /** Extra border the backdrop adds on every side of the frame content. */
@@ -263,7 +273,19 @@ public class Frame3DWindowDecoration extends Component3D {
     private void positionButtons() {
         float inset = buttonSize * 0.6f;
         float z = BODY_DEPTH + 0.001f;
+        // Vertically centre the buttons on the window's title strip so they
+        // line up with the title text, which is itself centred in the strip. A
+        // hosted Swing window (TitledSwingWindow) publishes its title-bar
+        // height under TITLE_BAR_HEIGHT_PROPERTY; the strip occupies the top
+        // titleBarHeight of the frame, so its centre - and the title text's -
+        // sits at frameHeight/2 - titleBarHeight/2. Pure-3D frames have no
+        // dedicated strip, so fall back to the top-corner inset.
         float yPos = frameHeight * 0.5f - inset;
+        Object titleBarHeight = frame.getProperty(TITLE_BAR_HEIGHT_PROPERTY);
+        if (titleBarHeight instanceof Number) {
+            yPos = frameHeight * 0.5f
+                - ((Number) titleBarHeight).floatValue() * 0.5f;
+        }
         minimizeButton.setTranslation(
             frameWidth * 0.5f - inset - buttonSize * 3.3f, yPos, z);
         maximizeButton.setTranslation(
