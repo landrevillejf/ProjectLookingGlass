@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
+import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.List;
 import javax.swing.JDesktopPane;
@@ -244,5 +245,47 @@ class SwingWidgetLayerTest {
         } finally {
             System.setProperty("user.home", oldHome);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Drag-to-move: the cards must track the pointer across many events.
+    // ------------------------------------------------------------------
+
+    private static MouseEvent mouse(int id, Component src, int x, int y) {
+        return new MouseEvent(src, id, System.currentTimeMillis(), 0, x, y, 1, false);
+    }
+
+    @Test
+    @DisplayName("dragging a card tracks the pointer instead of flying off")
+    void dragTracksPointerWithoutCompounding() {
+        JDesktopPane d = desktop();
+        SwingWidgetLayer l = newLayer(d, "drag.properties");
+        String id = l.addWidget("clock", 0.5f, 0.5f);
+        Component card = d.getComponent(0);
+        card.setBounds(100, 100, 120, 80);
+
+        // Grab near the card's top-left, then drag in two steps. Each point is
+        // in the card's own space, exactly as Swing delivers it while the card
+        // follows the cursor.
+        card.dispatchEvent(mouse(MouseEvent.MOUSE_PRESSED, card, 10, 10));
+        card.dispatchEvent(mouse(MouseEvent.MOUSE_DRAGGED, card, 30, 25));
+        card.dispatchEvent(mouse(MouseEvent.MOUSE_DRAGGED, card, 50, 45));
+        card.dispatchEvent(mouse(MouseEvent.MOUSE_RELEASED, card, 50, 45));
+
+        // The card must have followed the pointer to (160,150). The buggy
+        // re-conversion compounded the card's own movement and flung it
+        // backwards to (40,35) on the second drag event.
+        assertEquals(160, card.getX(), "card x tracks the pointer");
+        assertEquals(150, card.getY(), "card y tracks the pointer");
+        assertTrue(card.getX() >= 0 && card.getY() >= 0,
+                "the card never flies off the desktop");
+        assertTrue(card.getX() + card.getWidth() <= d.getWidth());
+        assertTrue(card.getY() + card.getHeight() <= d.getHeight());
+
+        // The new spot is persisted so the layout survives a restart.
+        float fx = l.config().getX(id, -1f);
+        float fy = l.config().getY(id, -1f);
+        assertTrue(fx >= 0f && fx <= 1f, "persisted x is fractional");
+        assertTrue(fy >= 0f && fy <= 1f, "persisted y is fractional");
     }
 }
