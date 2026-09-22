@@ -28,12 +28,15 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
 import javax.swing.JFrame;
+import javax.swing.JInternalFrame;
 import javax.swing.LookAndFeel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -48,6 +51,7 @@ import javax.swing.plaf.basic.BasicDesktopPaneUI;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.system.Opener;
+import org.jdesktop.lg3d.wg.switcher.SwitcherOverlay;
 
 /**
  * The conventional-Swing desktop used when Java 3D is unavailable: one
@@ -109,6 +113,8 @@ public class Desktop2D {
     private final WallpaperDesktopPane desktop;
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
+    private final Desktop2DSwitcherModel switcherModel;
+    private final SwitcherOverlay switcherOverlay;
 
     private JPopupMenu startMenu;
     private JPopupMenu documentsMenu;
@@ -151,6 +157,24 @@ public class Desktop2D {
 
         // Drop the built-in widgets onto the wallpaper, behind the app windows.
         installWidgetLayer();
+
+        // Alt+Tab-style application switcher: cycles the internal frames this
+        // desktop hosts. The trigger is Ctrl+Alt+Tab because the host window
+        // manager grabs plain Alt+Tab; see Desktop2DSwitcherModel.TRIGGER.
+        switcherModel = new Desktop2DSwitcherModel(
+                new Desktop2DSwitcherModel.WindowSource() {
+                    @Override
+                    public List<Desktop2DWindow> openWindows() {
+                        return Desktop2D.this.openWindows();
+                    }
+
+                    @Override
+                    public void focusWindow(Desktop2DWindow window) {
+                        Desktop2D.this.focusWindow(window);
+                    }
+                });
+        switcherOverlay = new SwitcherOverlay(desktop, switcherModel);
+        switcherOverlay.install();
 
         instance = this;
         // Honour any desktop configuration persisted from a previous session
@@ -368,11 +392,13 @@ public class Desktop2D {
             @Override
             public void internalFrameClosed(InternalFrameEvent e) {
                 taskbar.windowClosed(window);
+                switcherModel.forget(window);
             }
 
             @Override
             public void internalFrameActivated(InternalFrameEvent e) {
                 taskbar.windowSelected(window);
+                switcherModel.touch(window);
             }
 
             @Override
@@ -410,6 +436,38 @@ public class Desktop2D {
             window.setSelected(true);
         } catch (java.beans.PropertyVetoException pve) {
             logger.log(Level.FINE, "Could not activate " + window.getAppName(), pve);
+        }
+    }
+
+    /** Every application window currently on the desktop, in z-order. */
+    private List<Desktop2DWindow> openWindows() {
+        List<Desktop2DWindow> windows = new ArrayList<>();
+        for (JInternalFrame candidate : desktop.getAllFrames()) {
+            if (candidate instanceof Desktop2DWindow) {
+                windows.add((Desktop2DWindow) candidate);
+            }
+        }
+        return windows;
+    }
+
+    /**
+     * Brings {@code window} forward and focuses it without {@link
+     * #activateWindow}'s minimise-if-already-front toggle, so the switcher can
+     * activate the window the user landed on even when it is the current one.
+     */
+    private void focusWindow(Desktop2DWindow window) {
+        if (window == null) {
+            return;
+        }
+        try {
+            if (window.isIcon()) {
+                window.setIcon(false);
+            }
+            window.setVisible(true);
+            window.toFront();
+            window.setSelected(true);
+        } catch (java.beans.PropertyVetoException pve) {
+            logger.log(Level.FINE, "Could not focus " + window.getAppName(), pve);
         }
     }
 
@@ -454,6 +512,7 @@ public class Desktop2D {
         logger.info("Shutting down the 2D desktop");
         instance = null;
         uninstallWidgetLayer();
+        switcherOverlay.uninstall();
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();

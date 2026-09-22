@@ -151,6 +151,27 @@ work to make it build and run on a current toolchain.
   `lg3d-widgets/src/test/java` source set (catalog, card behaviour, layer
   persistence/relayout, gallery panel, offscreen render) plus registry tests in
   `lg3d-core`.
+- **Application switcher (Alt+Tab) — 2D / Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.wg.switcher` + `desktop2d.Desktop2DSwitcherModel`) — a
+  most-recently-used window switcher for the MDI desktops: **Ctrl+Alt+Tab**
+  (plain **Alt+Tab** is also bound, and takes over when lg3d owns the display)
+  raises a translucent strip of the open internal frames in MRU order over the
+  `JDesktopPane`'s popup layer; repeated presses step the highlight (Shift steps
+  back) and the selection is committed on key release — approximated by an idle
+  timer, since a windowed lg3d cannot see the modifier keys go up — or at once on
+  **Enter**, while **Esc** cancels. The mechanism is split into a
+  desktop-agnostic core (`SwitcherModel` / `SwitcherItem` / `MruTracker` /
+  `SwitcherController`) and a Swing view (`SwitcherOverlay`), so the planned 3D
+  (`Frame3D`) and compositor (`NativeWindow3D`) switchers reuse the same
+  controller and MRU tracking. `Desktop2D` binds the trigger, installs the
+  overlay and hooks window opened / activated / closed into the MRU, and gains a
+  non-toggling `focusWindow` so activating the window you landed on never
+  minimises it. Only lg3d-hosted windows are cycled in this phase: external/host
+  applications (Firefox, a terminal) can be enumerated and raised only when lg3d
+  is the window manager/compositor of the display they live on (the gated
+  Phase 3). Covered by JUnit 5 headless tests (MRU ordering, the controller state
+  machine, the item, overlay paint, and the 2D model through a `WindowSource`
+  seam).
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side
   (`[Documents] [Downloads] [Background] [Exit]`), each raising **the same
