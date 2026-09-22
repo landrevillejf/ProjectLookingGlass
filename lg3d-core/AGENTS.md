@@ -59,6 +59,33 @@ the X11 path affects only real X11 windows.
 
 ---
 
+## Depth, draw order and overlays (transparent sorting)
+
+Java 3D sorts **transparent** shapes back-to-front by the distance from the eye
+(`Toolkit3D.getEyePositionInVworld`) to each shape's **bounding-sphere centre** —
+*not* by Z. Consequences that bite in this codebase:
+
+- An overlay docked in a screen corner (start menu, popup) has an *off-axis*
+  bounding-sphere centre, so it can be **farther** from the eye than an on-axis
+  full-width window quad even when its Z is nearer. Lifting it by a small Z
+  margin (`z = 0`, `+0.01`, even `+0.05`) therefore does **not** bring it in
+  front of a maximized window — it keeps sorting (and picking) behind it.
+- To put an overlay in front of every window, lift it a **fraction of the eye
+  distance** (e.g. `frontZ = eye.z * 0.4`, kept safely behind the front clip
+  plane) so its bounding-sphere centre falls inside the window's, then keep the
+  apparent pose unchanged with perspective compensation: multiply the overlay's
+  world X/Y and node scale by `r = (eye.z - zNew)/(eye.z - zRef)`. See
+  `StartMenuModel.compensatedFrontPose` / `FRONT_WORLD_Z_FRACTION`.
+- Within a single subtree, explicit order still comes from
+  `TransparencyOrderedGroup` (rule #4); the eye-distance sort only arbitrates
+  *between* separate transparent subtrees.
+
+Verify any overlay/occlusion claim with a framebuffer capture over a maximized
+window (see *Verifying UI changes*); numeric Z alone has repeatedly proven
+misleading here.
+
+---
+
 ## Preferred UI vocabulary
 
 Build from the existing glassy toolkit instead of new geometry or PNG assets:
@@ -135,8 +162,54 @@ Agent rules:
   use `setJPanel(...)` / `addInputHandlers(...)`.
 - Do not reintroduce the old `printHeirarchy` background-mutation behaviour;
   hierarchy dumping is gated behind `-Dlg3d.swingnode.debugHierarchy=true`.
+- The default renderer fills the whole `Frame3D` with **one opaque, pickable,
+  non-propagatable quad**. That quad swallows the BUTTON1 drag the frame mover
+  needs (so the window cannot be moved) and covers the auto-attached
+  min/max/close buttons. Hosted windows therefore reserve a title strip: shift
+  the node down by `-titleBarH/2`, add a pickable + **propagatable** title bar as
+  the window's gesture handle (move / spin / flip), and publish
+  `Frame3DWindowDecoration.TITLE_BAR_HEIGHT_PROPERTY` before `changeEnabled` so
+  the decoration centres its buttons on the strip, aligned with the title text.
+  `TitledSwingWindow` (`lg3d-demo-apps`) is the reference implementation.
+- Capturing a conventional `JFrame` (`SwingNodeWindowCapture`) on a
+  compositor-managed session (GNOME/Wayland): **unmap** it (`setVisible(false)`),
+  never "hide" it by relocating to `(-32000,-32000)` — the compositor ignores the
+  move, the window stays mapped and steals native input. Paint the frame's
+  **root pane** (`JComponent`), not the hidden `Window` (a hidden `Window` paints
+  blank offscreen), and size the quad to the content area, not `frame.getSize()`.
+- **Sticky note (flip target): `setEnabled(true)` BEFORE `initialize()`.**
+  `StickyNote.initialize()` dereferences the Swing panel / title field / text
+  area that only `enable()` (run from `setEnabled(true)`) creates; calling
+  `initialize()` first throws an NPE that the event loop swallows, so the window
+  silently never flips.
+- **Typing into a `SwingNode` text field:** the offscreen host frame is never
+  *shown*, so AWT installs no focus owner and a direct `dispatchEvent` of a
+  `KeyEvent` is dropped. Emulate click-to-focus (remember the deepest component
+  under a mouse press) and deliver keys via
+  `KeyboardFocusManager.redispatchEvent(target, evt)`, marshalled on the EDT
+  (rule #5) or the caret races the capture repaint and text inserts reversed.
 
 See [`../docs/swingnode.md`](../docs/swingnode.md) for the full contract.
+
+---
+
+## Resizing live windows and chrome (maximize)
+
+- Hosted `SwingNode` windows maximize by **native resize**, not uniform scale:
+  scaling only magnifies the fixed-resolution texture (blurry text) and
+  letterboxes narrow windows. `Frame3DWindowDecoration.toggleMaximized` consults
+  the `HostedWindowResizer` registry (`org.jdesktop.lg3d.wg`); a registered frame
+  is resized in native pixels via `SwingNode.setHostedSize`, which re-lays-out
+  the Swing hierarchy with a recursive `invalidate()`+`validate()` (a bare
+  `revalidate()`+`doLayout()` leaves nested `JScrollPane` subtrees at stale
+  bounds). Pure-3D windows keep uniform scale-to-fit.
+- On a **live** scene graph, resize `GlassyPanel` / `RectShadow` **in place** via
+  their `setSize()` (both carry `ALLOW_COORDINATE_WRITE`). Removing/re-adding a
+  non-`BranchGroup` shape throws `RestrictedAccessException`; detaching a group
+  and re-inserting it throws `MultipleParentException`. `Component3D` chrome
+  (title bar, spines) *is* a `BranchGroup` and may be removed and rebuilt.
+- Keep a top headroom band when maximizing so the title strip and its buttons
+  stay inside the visible area and clickable.
 
 ---
 
@@ -162,6 +235,20 @@ in-JVM launch, `menuGroup`, `name`, `desc`, and a
    an interaction is broken — most "does nothing" reports are a swallowed
    exception (often the texture NPE from rule #2).
 5. `lg3d-core/lgscreen-*.png` are **runtime artifacts**: do not commit them.
+6. **In-JVM probe** for anything that needs the live scene graph: write a probe
+   class with a `main`, compile it against
+   `lg3d-core/build-gradle/classes/java/main` (+ the Jogamp jars + demo-apps
+   classes), then run
+   `./run-lg3d.sh --swing-app-cp <ABS classes dir> -s <fqcn>`. Use **absolute**
+   paths for `--swing-app-cp` — entries resolve relative to the `lg3d-core`
+   project dir, so a relative path yields `ClassNotFoundException`. Capture with
+   `AppConnectorPrivate.getAppConnector().postEvent(new ScreenCaptureEvent(dir),
+   null)` and read `dir/lgscreen-0-N.png`. The desktop JVM exits when the probe
+   `main` returns, so no leftover process needs killing.
+7. Under GNOME/Wayland every *external* capture path is blocked (`Robot`,
+   `gnome-screenshot`, `import`, `scrot`); only the internal `ScreenCaptureEvent`
+   works. Numeric geometry alone is not proof of a visual fix — confirm with a
+   capture before declaring success.
 
 ---
 
