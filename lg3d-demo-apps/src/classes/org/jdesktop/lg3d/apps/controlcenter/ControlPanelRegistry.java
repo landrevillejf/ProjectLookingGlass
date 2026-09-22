@@ -15,14 +15,25 @@ package org.jdesktop.lg3d.apps.controlcenter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 
 /**
  * Discovers the control center's category panels. The five built-in panels
  * (Display, Users, System, Appearance, Desktop) are registered on first access;
  * extra panels can be contributed with {@link #register(ControlPanel)} before
  * the control center window is built.
+ *
+ * <p>On the conventional Swing (2D) desktop - used when the machine has no
+ * Java 3D - the Appearance and Desktop panels are left out: both drive the 3D
+ * scene (wallpaper textures, desktop effects) through lg3d's event connector,
+ * which pulls in Java 3D classes that are absent there.</p>
  */
 public final class ControlPanelRegistry {
+
+    private static final Logger logger = Logger.getLogger("lg.apps.controlcenter");
 
     private static final List<ControlPanel> PANELS = new ArrayList<>();
     private static boolean defaultsAdded;
@@ -42,12 +53,27 @@ public final class ControlPanelRegistry {
     public static synchronized List<ControlPanel> panels() {
         if (!defaultsAdded) {
             defaultsAdded = true;
-            PANELS.add(new DisplayPanel());
-            PANELS.add(new UsersPanel());
-            PANELS.add(new SystemInfoPanel());
-            PANELS.add(new AppearancePanel());
-            PANELS.add(new DesktopPanel());
+            addDefault(DisplayPanel::new, "Display");
+            addDefault(UsersPanel::new, "Users");
+            addDefault(SystemInfoPanel::new, "System");
+            if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+                addDefault(AppearancePanel::new, "Appearance");
+                addDefault(DesktopPanel::new, "Desktop");
+            }
         }
         return new ArrayList<>(PANELS);
+    }
+
+    /**
+     * Adds one built-in panel, skipping it if it cannot be constructed in this
+     * JVM (a missing Java 3D runtime, say) rather than losing the whole control
+     * center to one category.
+     */
+    private static void addDefault(Supplier<ControlPanel> factory, String name) {
+        try {
+            PANELS.add(factory.get());
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "Skipping control panel " + name, t);
+        }
     }
 }
