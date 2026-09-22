@@ -59,11 +59,11 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          is also what a machine without Java 3D gets
                          automatically (after a prompt).
                          Passes -Pdesktop2d to Gradle.
-    -w, --swing          Run the conventional Swing desktop with real top-level
-                         windows: each application opens in its own JFrame,
-                         decorated and managed by the host window manager, under
-                         the Metal look and feel. Same shell, menus and taskbar
-                         as --2d, but no in-desktop MDI window manager.
+    -w, --swing          Run the conventional Swing desktop: the same MDI shell
+                         as --2d, each application in a JInternalFrame inside
+                         the desktop's JDesktopPane (so windows stay integrated
+                         and minimise into the desktop), under the Metal look
+                         and feel instead of the host system look.
                          Passes -PdesktopSwing to Gradle.
     -c, --clean          Run ':lg3d-core:clean' before launching.
     -r, --rebuild        Force the runtime resources/ tree to be reassembled
@@ -165,7 +165,7 @@ if [ "${DESKTOP2D}" = true ]; then
     echo "MODE      : conventional Swing 2D desktop (-Pdesktop2d)"
 fi
 if [ "${DESKTOP_SWING}" = true ]; then
-    echo "MODE      : conventional Swing desktop, top-level JFrames (-PdesktopSwing)"
+    echo "MODE      : conventional Swing desktop, Metal look and feel (-PdesktopSwing)"
 fi
 if [ "${COMPOSITOR}" = true ]; then
     echo "MODE      : X11 compositor / window manager (-Pcompositor)"
