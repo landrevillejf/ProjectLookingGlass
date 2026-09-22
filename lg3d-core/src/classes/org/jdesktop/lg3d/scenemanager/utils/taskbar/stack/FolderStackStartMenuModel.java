@@ -56,6 +56,12 @@ public class FolderStackStartMenuModel extends PanelStartMenuModel {
     private static final String SHOW_IN_FILE_MANAGER = "Show in File Manager";
 
     /**
+     * Margin over the 500 ms hide animation after which the lowered column is
+     * switched off completely (see {@link #changeVisible}).
+     */
+    private static final int HIDE_ANIM_MS = 600;
+
+    /**
      * The stack list currently raised. Opening one (e.g. hovering Downloads)
      * dismisses the other (e.g. Documents) so two lists are never left on
      * screen showing stale content when the pointer moves between dock icons.
@@ -71,6 +77,15 @@ public class FolderStackStartMenuModel extends PanelStartMenuModel {
     /** Signature of the content the rows were last built from. */
     private String contentSignature = "";
 
+    /**
+     * Detaches the lowered column once the hide animation ends; cancelled by
+     * any raise so a re-raise inside the animation window stays visible.
+     */
+    private javax.swing.Timer hideTimer;
+
+    /** This stack's row column; detached while the list is lowered. */
+    private MenuGroupComponent groupComp;
+
     public FolderStackStartMenuModel(FolderStackModel folderModel) {
         this.folderModel = folderModel;
         // "stack:" prefix keeps the name clear of any application menu group.
@@ -82,6 +97,25 @@ public class FolderStackStartMenuModel extends PanelStartMenuModel {
         super.initialize();
         // Installs the group column as this model's current (and only) group.
         addMenuGroup(group, true);
+        groupComp = getMenuGroupComponent(group);
+        // The list starts lowered: drop the column straight away so no stub
+        // shows above the taskbar before the first raise.
+        detachIfLowered();
+    }
+
+    /**
+     * Removes the row column from the scene graph while the list is lowered.
+     * The application list lowers into its taskbar button, which hides the
+     * shrunken column; a dock stack has no button to sink into, so the
+     * leftover stub would keep showing above the bar. Detaching the column is
+     * the same mechanism {@code StartMenuModel.changeGroup} uses, and unlike
+     * {@code setVisible} it leaves the raise/hide pose animations untouched.
+     */
+    private void detachIfLowered() {
+        if (!isVisible() && groupComp != null
+                && groupComp.getParent() != null) {
+            removeChild(groupComp);
+        }
     }
 
     /**
@@ -170,10 +204,33 @@ public class FolderStackStartMenuModel extends PanelStartMenuModel {
                 other.changeVisible(false, false);
             }
             current = this;
+            if (hideTimer != null) {
+                hideTimer.stop();
+                hideTimer = null;
+            }
+            // Re-attach the column the lowered state detached, before the
+            // raise animation renders it.
+            if (groupComp != null && groupComp.getParent() == null) {
+                addChild(groupComp);
+            }
         } else if (current == this) {
             current = null;
         }
+        boolean wasVisible = isVisible();
         super.changeVisible(visible, redoAnim);
+        if (!visible) {
+            if (hideTimer != null) {
+                hideTimer.stop();
+            }
+            if (wasVisible) {
+                hideTimer = new javax.swing.Timer(HIDE_ANIM_MS,
+                        e -> detachIfLowered());
+                hideTimer.setRepeats(false);
+                hideTimer.start();
+            } else {
+                detachIfLowered();
+            }
+        }
     }
 
     // ------------------------------------------------------------------

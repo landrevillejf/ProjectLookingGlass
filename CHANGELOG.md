@@ -85,7 +85,10 @@ work to make it build and run on a current toolchain.
   icon and opening leftward (the stacks sit at the right screen edge), and
   leaving the icon or the list hides it again — including in front of a
   maximized full-width window, through the same eye-distance lift as the app
-  list. Rows are the folder's most-recently-modified entries (newest first,
+  list. Once lowered the list leaves nothing above the bar: its row column is
+  detached while hidden (a dock stack has no taskbar button for the shrunken
+  column to sink into, unlike the start menu's) and re-attached on the next
+  raise. Rows are the folder's most-recently-modified entries (newest first,
   capped at 12) drawn with the desktop's own MIME icons (painted once into
   `~/.cache/lg3d/stack-icons/` PNGs, since 3D icon textures load from URLs),
   plus a trailing **Show in File Manager** row; the mouse wheel cycles the rows
