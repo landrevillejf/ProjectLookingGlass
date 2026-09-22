@@ -47,6 +47,17 @@ class DesktopModeTest {
     }
 
     @Test
+    @DisplayName("lg.fws.mode=swing forces the top-level-JFrame Swing desktop")
+    void explicitSwingAlwaysWins() {
+        assertEquals(Mode.SWING, DesktopMode.resolve("swing", true, true));
+        assertEquals(Mode.SWING, DesktopMode.resolve("SWING", false, false));
+        assertEquals(Mode.SWING, DesktopMode.resolve("  swing ", true, false));
+        assertFalse(DesktopMode.requiresConfirmation("swing", false, false),
+                "an explicit request must not be confirmed");
+        assertFalse(DesktopMode.requiresConfirmation("swing", true, true));
+    }
+
+    @Test
     @DisplayName("lg.fws.mode=3d keeps the historical fail-loudly 3D boot")
     void explicit3dAlwaysWins() {
         assertEquals(Mode.THREE_D, DesktopMode.resolve("3d", true, true));
@@ -63,6 +74,8 @@ class DesktopModeTest {
         assertEquals(Mode.TWO_D, DesktopMode.resolve("dev", false, true));
         assertEquals(Mode.TWO_D, DesktopMode.resolve("dev", true, false));
         assertEquals(Mode.TWO_D, DesktopMode.resolve("x11", false, false));
+        // An automatic fallback lands on the MDI desktop, never on --swing.
+        assertFalse(DesktopMode.resolve("dev", false, false) == Mode.SWING);
     }
 
     @Test

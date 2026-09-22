@@ -31,6 +31,7 @@ import java.util.logging.LogManager;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
+import org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing;
 import org.jdesktop.lg3d.displayserver.socketconnector.ServerHandler;
 import org.jdesktop.lg3d.displayserver.SplashWindow;
 
@@ -158,6 +159,15 @@ public final class Main {
                 throw new SevereRuntimeError(capability.getReason());
             }
             return false;
+        }
+        if (mode == DesktopMode.Mode.SWING) {
+            // lg.fws.mode=swing: explicit opt-in to the conventional Swing
+            // desktop (each application in its own top-level JFrame, Metal look
+            // and feel). Like '2d' it needs no 3D and is never a fallback, so
+            // there is nothing to confirm.
+            logger.info("Starting the conventional Swing desktop");
+            DesktopSwing.start();
+            return true;
         }
         if (DesktopMode.requiresConfirmation(fwsMode, capability)
                 && !confirmFallback(capability.getReason())) {

@@ -23,11 +23,16 @@ import java.util.logging.Logger;
  * <p>The decision is driven by the {@code lg.fws.mode} system property and by a
  * capability probe:</p>
  * <ul>
- *  <li>{@code lg.fws.mode=2d} - force the 2D desktop (manual opt-in, no prompt).</li>
+ *  <li>{@code lg.fws.mode=2d} - force the MDI 2D desktop (applications in
+ *      internal frames inside the desktop window; manual opt-in, no prompt).</li>
+ *  <li>{@code lg.fws.mode=swing} - force the conventional Swing desktop
+ *      ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}: each
+ *      application in its own top-level {@code JFrame}, Metal look and feel;
+ *      manual opt-in, no prompt).</li>
  *  <li>{@code lg.fws.mode=3d} - force the 3D desktop and fail loudly if 3D is
  *      unavailable (the pre-2D-mode behaviour).</li>
  *  <li>any other value ({@code dev}, {@code x11}, unset) - start 3D when the
- *      probe says it can work, otherwise fall back to the 2D desktop after
+ *      probe says it can work, otherwise fall back to the MDI 2D desktop after
  *      asking the user to confirm.</li>
  * </ul>
  *
@@ -45,8 +50,15 @@ public final class DesktopMode {
     /** The system property selecting the desktop mode. */
     public static final String MODE_PROPERTY = "lg.fws.mode";
 
-    /** Property value that forces the conventional-Swing desktop. */
+    /** Property value that forces the MDI conventional-Swing desktop. */
     public static final String MODE_2D = "2d";
+
+    /**
+     * Property value that forces the conventional Swing desktop whose
+     * applications each open in their own top-level {@code JFrame}
+     * ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}).
+     */
+    public static final String MODE_SWING = "swing";
 
     /** Property value that forces the 3D desktop (and fails loudly without 3D). */
     public static final String MODE_3D = "3d";
@@ -71,8 +83,13 @@ public final class DesktopMode {
 
     /** Which desktop to start. */
     public enum Mode {
-        /** The conventional-Swing desktop (JDesktopPane based). */
+        /** The MDI conventional-Swing desktop (JDesktopPane + internal frames). */
         TWO_D,
+        /**
+         * The conventional Swing desktop whose applications each open in their
+         * own top-level {@code JFrame} (Metal look and feel).
+         */
+        SWING,
         /** The Java 3D scene-graph desktop. */
         THREE_D
     }
@@ -173,6 +190,9 @@ public final class DesktopMode {
                                boolean glInitOk) {
         if (MODE_2D.equalsIgnoreCase(trim(modeProperty))) {
             return Mode.TWO_D;
+        }
+        if (MODE_SWING.equalsIgnoreCase(trim(modeProperty))) {
+            return Mode.SWING;
         }
         if (MODE_3D.equalsIgnoreCase(trim(modeProperty))) {
             return Mode.THREE_D;
