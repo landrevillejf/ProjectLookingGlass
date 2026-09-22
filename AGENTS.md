@@ -83,6 +83,13 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 - 100% is mandatory with jacoco
 - 0 surviving mutants is mandatory with PIT
 
+> **Current status:** neither JaCoCo nor PIT is wired into the Gradle build and
+> CI runs no tests, so these gates are not yet enforceable in automation. Until
+> they are, scene-graph / rendering changes (which need a live 3D desktop) are
+> verified with the in-JVM probe + internal screencapture described in
+> [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*); report
+> that evidence in the PR instead of claiming untested success.
+
 ## In-Tree Replacements
 
 The following bundled jars were dropped (binary-incompatible with Jogamp) and reimplemented in `lg3d-core/src/contrib/java`:
@@ -183,6 +190,20 @@ Minimal test infrastructure exists:
 - No git submodules (CI mentions them but repository does not use them)
 - Branches: `master`, `main` (CI triggers on both)
 - Concurrency: Newer push supersedes in-flight run
+- **Single repository.** Despite the README's "split across several git
+  submodules" wording, `lg3d-core`, `lg3d-demo-apps`, `lg3d-incubator`,
+  `lg3d-widgets`, `CHANGELOG.md` and `README.md` all live in **one** repo.
+- **Stage explicitly.** Never `git add -A` / `git add .`: the working tree holds
+  untracked runtime artifacts (`lg3d-core/lgscreen-*.png`, stray downloads) that
+  must stay out of commits. List the intended paths.
+- **Flow:** feature branch off `main` → module-scoped Conventional Commit →
+  push → PR against `main` via the `gh` CLI. Run this automatically; only pause
+  for genuinely destructive/irreversible operations.
+- **Version bumps are a separate chore PR** (`chore: bump version to X.Y.0-dev`)
+  branched off `main` that edits exactly the four version references (see
+  *Development Process*). Feature PRs add their `CHANGELOG.md` bullets under the
+  current `[Unreleased]` header and do **not** touch the version, so the two
+  merge cleanly in either order (merge the feature first).
 
 ## Completion Report Format
 
@@ -418,7 +439,13 @@ chore(deps): bump FlatLaf to 3.3
 - **Before merging**: ensure all tests pass and coverage remains at 100%.
 - **Breaking changes** must be discussed in an issue before implementation.
 - **Update changelog**: add a new entry for the change in `CHANGELOG.md`.
-- **Update Version**: update the version in `build.gradle`.
+- **Update Version**: the dev version string lives in exactly four places that
+  must stay in sync — root `build.gradle` (`allprojects.version`, authoritative),
+  the `CHANGELOG.md` `[Unreleased]` header, `README.md` *Project coordinates*,
+  and this file's *Project coordinates*. Bump it in a **separate chore PR** after
+  the feature PR merges (feat → minor, fix-only → patch, keep the `-dev`
+  suffix); leave the legacy `lg3d-core/build.properties` `rpmbuild.version`
+  untouched (Ant/rpm, not wired into Gradle).
 
 # General Best Practices
 
