@@ -30,6 +30,11 @@ sourceSets {
             srcDir 'src/resources'
         }
     }
+    test {
+        java {
+            srcDir 'src/test/java'
+        }
+    }
 }
 
 jar {
@@ -38,4 +43,18 @@ jar {
 
 dependencies {
     implementation project(':lg3d-core')
+
+    // Unit tests for the Java 3D-free widget layer. The pure-Swing cards, the
+    // 2D SwingWidgetLayer host and the gallery panel are plain Swing, so they
+    // are exercised headless (a JDesktopPane/JPanel needs no X display).
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The widget cards/layer are pure Swing; run headless so CI (no X display)
+    // does not fail on the JDesktopPane/JPanel the tests build.
+    systemProperty 'java.awt.headless', 'true'
 }

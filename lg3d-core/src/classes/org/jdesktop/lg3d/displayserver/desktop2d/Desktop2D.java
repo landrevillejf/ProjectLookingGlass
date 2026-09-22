@@ -22,6 +22,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -117,6 +118,9 @@ public class Desktop2D {
                 confirmExit();
             }
         });
+
+        // Drop the built-in widgets onto the wallpaper, behind the app windows.
+        installWidgetLayer();
     }
 
     /**
@@ -155,6 +159,43 @@ public class Desktop2D {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             logger.log(Level.FINE, "Keeping the default look and feel", e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Desktop widgets
+    // ------------------------------------------------------------------
+
+    /**
+     * Installs the 2D widget layer on the desktop pane, if the lg3d-widgets
+     * module is on the classpath. Done reflectively: lg3d-core cannot depend on
+     * lg3d-widgets, and the desktop must still start where that module is
+     * absent. The layer loads the very same persisted layout
+     * ({@code ~/.config/lg3d/widgets.properties}) the 3D desktop writes, so a
+     * widget arrangement carries over between the 3D and 2D desktops.
+     */
+    private void installWidgetLayer() {
+        try {
+            Class<?> layer = Class.forName(
+                    "org.jdesktop.lg3d.widgets.swing.SwingWidgetLayer");
+            Method install = layer.getMethod("install", JDesktopPane.class);
+            install.invoke(null, desktop);
+        } catch (ClassNotFoundException cnfe) {
+            logger.log(Level.FINE,
+                    "No widget layer on the classpath; the 2D desktop runs without widgets");
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "Could not install the 2D widget layer", t);
+        }
+    }
+
+    /** Detaches the 2D widget layer, if it was installed. Never throws. */
+    private void uninstallWidgetLayer() {
+        try {
+            Class<?> layer = Class.forName(
+                    "org.jdesktop.lg3d.widgets.swing.SwingWidgetLayer");
+            layer.getMethod("uninstall").invoke(null);
+        } catch (Throwable t) {
+            logger.log(Level.FINE, "Could not uninstall the 2D widget layer", t);
         }
     }
 
@@ -374,6 +415,7 @@ public class Desktop2D {
     /** Stops the taskbar clock, disposes the window and exits the JVM. */
     public void exit() {
         logger.info("Shutting down the 2D desktop");
+        uninstallWidgetLayer();
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();

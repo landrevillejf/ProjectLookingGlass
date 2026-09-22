@@ -143,9 +143,16 @@ application descriptors the 3D menu reads, so the groups, items, order and icons
 match. Entries are handled by kind:
 
 - **Panel apps** — **File Manager**, **Task Manager**, **Control Center**,
-  **Calculator** and **Media Writer** (the same Swing panels the 3D desktop hosts
-  on a `SwingNode`, minus the 3D) — open as internal frames inside the desktop
-  window under both `-2` and `-w` / `--swing` (Metal look and feel under `-w`).
+  **Calculator**, **Media Writer** and the **Widget Gallery** (the same Swing
+  panels the 3D desktop hosts on a `SwingNode`, minus the 3D) — open as internal
+  frames inside the desktop window under both `-2` and `-w` / `--swing` (Metal
+  look and feel under `-w`).
+- **Desktop widgets** run natively in 2D: the `lg3d-widgets` cards (clock,
+  temperature, CPU, memory, weather) are pure Swing and are drawn as draggable
+  components on the desktop pane by a `SwingWidgetLayer`, sharing the 3D host's
+  scheduler and its `~/.config/lg3d/widgets.properties` layout, so placements
+  carry over between the 2D and 3D desktops. Add/remove them from the Widget
+  Gallery, as in 3D.
 - **Conventional Swing apps** that insist on their own top-level window
   (**Paint**, **Swing Test**, **Screen Snapshot**) launch in-JVM and appear
   beside the desktop. In 2D, **Screen Snapshot** captures by painting the
@@ -160,9 +167,10 @@ match. Entries are handled by kind:
   the MDI internal frames, which both `-2` and `--swing` use.)
 
 **What is disabled.** Pure Java 3D applications (the demos, Image Studio,
-Agenda 3D, Mail 3D, the 3D widgets, …) have no scene to render into, so their
-menu entries appear **greyed out** with the tooltip *“Requires the 3D desktop”*
-rather than being hidden. The Control Center omits its **Appearance** and
+Agenda 3D, Mail 3D, …) have no scene to render into, so their menu entries
+appear **greyed out** with the tooltip *“Requires the 3D desktop”* rather than
+being hidden. (The widgets are *not* in this category — see above.) The Control
+Center omits its **Appearance** and
 **Desktop** panels, which drive the 3D scene. The 3D desktop and its boot path
 are otherwise untouched.
 
@@ -180,8 +188,13 @@ JNA.
   `META-INF/services/org.jdesktop.lg3d.widgets.api.WidgetProvider` entry. The
   host (`...widgets.host`) renders a draggable desktop widget layer whose layout
   persists to `~/.config/lg3d/widgets.properties`. Built-ins: clock,
-  temperature, CPU load, memory. Manage them with the **Widget Gallery** app
-  (Utilities menu).
+  temperature, CPU load, memory, weather. Manage them with the **Widget
+  Gallery** app (Utilities menu). Each built-in's model/paint/interaction lives
+  in a pure-Swing `WidgetCard` (`...widgets.builtin`): on the 3D desktop the
+  `*Widget` classes host the card on a `SwingNode` texture, and on the 2D /
+  Swing desktops a `SwingWidgetLayer` (`...widgets.swing`) draws the *same*
+  cards directly on the `JDesktopPane` — one implementation, both desktops,
+  one shared persisted layout.
 - **Dock stacks** — Documents and Downloads folder stacks on the taskbar's
   right side (`[Documents] [Downloads] [Background] [Exit]`). Hovering one
   raises the same glassy vertical list the start menu uses for its application

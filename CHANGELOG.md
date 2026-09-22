@@ -129,6 +129,28 @@ work to make it build and run on a current toolchain.
   neither the EDT nor the 3D event loop is ever blocked; a failed refresh keeps
   the last reading and flags it "stale". Listed in the Widget Gallery under
   **Web**.
+- **Desktop widgets on the 2D / Swing desktop** (`lg3d-widgets` +
+  `lg3d-core`) — the widgets are no longer 3D-only and their start-menu entry no
+  longer says *“Requires the 3D desktop”*. The visual/logic core of each
+  built-in was extracted into pure-Swing `WidgetCard`s
+  (`...widgets.builtin`: model + tick + `Graphics2D` paint + click handling,
+  catalogued by `BuiltinWidgetCards`/`WidgetCardSpec`); the five 3D `*Widget`
+  classes are now thin delegates that host the *same* card on a `SwingNode`
+  texture, so nothing is duplicated between desktops. A new `SwingWidgetLayer`
+  (`...widgets.swing`) renders the cards as draggable Swing components on the
+  2D desktop's `JDesktopPane` (above the wallpaper, below application windows),
+  shares the 3D host's scheduler and persists to the *same*
+  `~/.config/lg3d/widgets.properties`, so a layout placed on one desktop is
+  restored on the other. `WidgetGalleryPanel` is the pure-Swing Widget Gallery;
+  `Desktop2DAppRegistry` maps the gallery's `.lgcfg` command to it as a panel
+  app (hosted in an internal frame), and `Desktop2D` installs/uninstalls the
+  layer reflectively — one hook that covers both `--2d` and `--swing`
+  (`DesktopSwing extends Desktop2D`), with lg3d-core still carrying no
+  dependency on lg3d-widgets and degrading gracefully when the module is absent.
+  The 3D widget path is unchanged. Covered by JUnit 5 tests in a new
+  `lg3d-widgets/src/test/java` source set (catalog, card behaviour, layer
+  persistence/relayout, gallery panel, offscreen render) plus registry tests in
+  `lg3d-core`.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side
   (`[Documents] [Downloads] [Background] [Exit]`), each raising **the same

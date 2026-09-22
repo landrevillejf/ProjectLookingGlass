@@ -108,6 +108,12 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.calculator.CalculatorPanel");
         panels.put("org.jdesktop.lg3d.apps.mediawriter.MediaWriter",
                 "org.jdesktop.lg3d.apps.mediawriter.MediaWriterPanel");
+        // The widget gallery lives in lg3d-widgets (not lg3d-demo-apps); its
+        // Swing panel is the pure-2D counterpart of the 3D WidgetGallery. Both
+        // jars are on the desktop classpath, so the reflective lookup resolves,
+        // and hosting the panel means the gallery no longer needs the 3D desktop.
+        panels.put("org.jdesktop.lg3d.widgets.gallery.WidgetGallery",
+                "org.jdesktop.lg3d.widgets.swing.WidgetGalleryPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

@@ -220,6 +220,18 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the widget gallery is hosted as a panel, not gated on 3D")
+    void widgetGalleryIsAPanelApp() {
+        // The widgets are pure Swing under the hood, so the gallery runs in the
+        // 2D desktop like any other panel app instead of demanding the 3D one.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.widgets.gallery.WidgetGallery"));
+        assertEquals("org.jdesktop.lg3d.widgets.swing.WidgetGalleryPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.widgets.gallery.WidgetGallery"));
+    }
+
+    @Test
     @DisplayName("the unavailable tooltip explains the 3D requirement")
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",
