@@ -321,14 +321,21 @@ public final class SwingWidgetLayer {
                 if (press == null) {
                     return;
                 }
-                Point p = e.getLocationOnScreen();
-                SwingUtilities.convertPointToScreen(press, card);
-                int dx = p.x - press.x;
-                int dy = p.y - press.y;
+                // Convert the live pointer position into the desktop pane's
+                // space on every event, anchoring the card to the grab point
+                // recorded on press. Recomputing from e.getPoint() keeps the
+                // delta stable; re-converting a stored point (the previous
+                // convertPointToScreen(press, card)) compounded the card's own
+                // movement each event and flung the widget off the cursor.
+                Point p = SwingUtilities.convertPoint(card, e.getPoint(), desktop);
+                int x = p.x - press.x;
+                int y = p.y - press.y;
+                int dx = x - origin.x;
+                int dy = y - origin.y;
                 if (!dragged && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
                     dragged = true;
                 }
-                card.setLocation(origin.x + dx, origin.y + dy);
+                card.setLocation(x, y);
             }
 
             @Override

@@ -526,6 +526,21 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **2D/Swing desktop widgets could not be dragged** — in the conventional Swing
+  desktop (`SwingWidgetLayer`, the `--2d`/`--swing` widget host) grabbing a
+  widget card and moving it made the card fly off the cursor instead of
+  tracking it, so widgets could not be repositioned. `mouseDragged` called
+  `SwingUtilities.convertPointToScreen(press, card)` on every event, but that
+  method mutates its `Point` argument in place and `press` was captured once on
+  mouse-press in card-local coordinates: after the first drag it already held
+  screen coordinates, so each later event re-converted it and compounded the
+  card's own movement into a runaway delta. The handler now recomputes the
+  pointer in the desktop pane's space from the raw local point each event
+  (`SwingUtilities.convertPoint(card, e.getPoint(), desktop)`) and never mutates
+  the stored press point, so the card follows the pointer exactly and its new
+  fractional position still persists on release. Covered by a new headless
+  `SwingWidgetLayerTest` drag case (synthetic press/drag/release asserts the
+  card lands on the pointer rather than flying off).
 - **2D/Swing desktop showed minimised windows on a second row** — under the
   Synth (GTK) look-and-feel the `JDesktopPane` installed its own MDI taskbar
   strip that re-listed minimised windows above the shell's taskbar, so a
