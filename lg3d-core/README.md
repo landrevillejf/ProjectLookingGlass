@@ -59,8 +59,11 @@ used by the desktop shell (overview in the
   `SystemInfoService`. They live in `lg3d-core` because it is the common
   dependency of both consumers, avoiding extra modules and dependency cycles.
 - **`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`** — the Documents /
-  Downloads dock stacks (`FolderStackModel`, `FolderStack`, `FolderStackPopup`,
-  `StacksPlugin`), registered from `glassy.lgcfg`.
+  Downloads dock stacks (`FolderStackModel`, `FolderStack`,
+  `FolderStackStartMenuModel` with its row/group components, `StackIconCache`,
+  `StacksPlugin`), registered from `glassy.lgcfg`. A stack raises the start
+  menu's panel list (`PanelStartMenuModel`) filled with the folder's entries,
+  so it looks and behaves exactly like the application list.
 - **Negative taskbar indices** — `Taskbar.addTaskbarItem(item, -n)` places the
   item n-th from the right of the right-hand group (`-1` rightmost). The desktop
   uses Exit `-1`, background `-2`, Downloads `-3` and Documents `-4`, so the

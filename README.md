@@ -117,9 +117,11 @@ JNA.
   temperature, CPU load, memory. Manage them with the **Widget Gallery** app
   (Utilities menu).
 - **Dock stacks** — Documents and Downloads folder stacks on the taskbar's
-  right side (`[Documents] [Downloads] [Background] [Exit]`). Each expands to a
-  list or a grid (OSX-style); files open with `xdg-open`, folders open in the
-  file manager.
+  right side (`[Documents] [Downloads] [Background] [Exit]`). Hovering one
+  raises the same glassy vertical list the start menu uses for its application
+  groups, filled with the folder's most recent entries (MIME icons, mouse-wheel
+  cycling, in front of maximized windows); files open with `xdg-open`, folders
+  and the trailing *Show in File Manager* row open in the file manager.
 - **File Manager** (System menu) — tree + list browsing with copy / move /
   rename / delete-to-trash / new-folder, multi-select, drag-and-drop and
   keyboard shortcuts.

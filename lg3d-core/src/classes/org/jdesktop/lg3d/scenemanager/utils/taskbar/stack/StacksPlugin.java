@@ -16,6 +16,9 @@ package org.jdesktop.lg3d.scenemanager.utils.taskbar.stack;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.scenemanager.utils.SceneControl;
@@ -48,7 +51,16 @@ public class StacksPlugin implements SceneManagerPlugin {
     /** Fallback icon if a folder glyph is somehow missing from the resources. */
     private static final String FALLBACK_ICON = "resources/images/icon/star.png";
 
+    /** The stacks this plugin posted, in creation order. */
+    private final List<FolderStack> stacks =
+            Collections.synchronizedList(new ArrayList<FolderStack>());
+
     public StacksPlugin() {
+    }
+
+    /** The folder stacks this plugin posted to the taskbar. */
+    public List<FolderStack> getStacks() {
+        return stacks;
     }
 
     @Override
@@ -72,7 +84,9 @@ public class StacksPlugin implements SceneManagerPlugin {
             new TaskbarItemConfig() {
                 @Override
                 public Tapp createItem() {
-                    return new FolderStack(dir, name, iconUrl);
+                    FolderStack stack = new FolderStack(dir, name, iconUrl);
+                    stacks.add(stack);
+                    return stack;
                 }
                 @Override
                 public int getItemIndex() {
