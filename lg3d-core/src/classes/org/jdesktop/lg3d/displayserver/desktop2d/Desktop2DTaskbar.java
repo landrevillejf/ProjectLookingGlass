@@ -19,6 +19,7 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagLayout;
 import java.awt.IllegalComponentStateException;
 import java.awt.Image;
 import java.awt.MouseInfo;
@@ -108,31 +109,41 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
         windowButtons.setOpaque(false);
 
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
-        left.setOpaque(false);
+        // Each button row is centred inside a plain GridBagLayout wrapper: a
+        // thick bar (barScale > 1) then keeps its buttons on one centred row
+        // instead of pinning them to the top and leaving an empty band below
+        // that reads as a second row.
+        JPanel leftRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        leftRow.setOpaque(false);
         startIconBase = Desktop2DStartMenu.icon(STAR_ICON);
         startButton = new JButton("Start", startIconBase);
         startButton.setToolTipText("Applications");
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
-        left.add(startButton);
-        left.add(windowButtons);
+        leftRow.add(startButton);
+        leftRow.add(windowButtons);
+        JPanel left = new JPanel(new GridBagLayout());
+        left.setOpaque(false);
+        left.add(leftRow);
         add(left, BorderLayout.WEST);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
-        right.setOpaque(false);
+        JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
+        rightRow.setOpaque(false);
         documentsIconBase = Desktop2DStartMenu.icon(DOCUMENTS_ICON);
         documentsButton = folderButton("Documents", documentsIconBase,
                 desktop.getDocumentsMenu());
         downloadsIconBase = Desktop2DStartMenu.icon(DOWNLOADS_ICON);
         downloadsButton = folderButton("Downloads", downloadsIconBase,
                 desktop.getDownloadsMenu());
-        right.add(documentsButton);
-        right.add(downloadsButton);
-        right.add(clock);
+        rightRow.add(documentsButton);
+        rightRow.add(downloadsButton);
+        rightRow.add(clock);
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");
         exit.addActionListener(e -> desktop.confirmExit());
-        right.add(exit);
+        rightRow.add(exit);
+        JPanel right = new JPanel(new GridBagLayout());
+        right.setOpaque(false);
+        right.add(rightRow);
         add(right, BorderLayout.EAST);
 
         ActionListener tick = e -> updateClock();

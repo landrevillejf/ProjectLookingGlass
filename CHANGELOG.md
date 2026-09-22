@@ -533,6 +533,10 @@ work to make it build and run on a current toolchain.
   desktop pane now pins `BasicDesktopPaneUI` (no built-in strip) and a desktop
   manager hides the classic MDI desktop icon, leaving the shell taskbar button
   as the single representation; clicking it still restores the window.
+- **2D/Swing taskbar looked like two rows when made thicker** — with a bar
+  thickness above the default (`barScale` > 1) the button row stayed pinned to
+  the top of the taller bar, leaving an empty band below that read as a second
+  row. Each button row is now centred vertically in the bar.
 - **Control Center showed fewer categories in the 2D/Swing desktop** — the
   control center listed only Display, Users and System under `--2d`/`--swing`
   but all five on the 3D desktop: `ControlPanelRegistry` deliberately dropped
