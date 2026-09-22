@@ -31,6 +31,7 @@ import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import org.jdesktop.lg3d.apps.TitledSwingWindow;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
@@ -192,17 +193,27 @@ public class DesktopPanel implements ControlPanel {
         }
         cfg.save();
 
-        // Live-apply the Swing font to this window (the taskbar picks up its
-        // geometry from the posted event below).
-        TitledSwingWindow.applySwingFontDefaults();
-        Window w = SwingUtilities.getWindowAncestor(root);
-        if (w != null) {
-            SwingUtilities.updateComponentTreeUI(w);
-        }
+        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            // Conventional 2D desktop: there is no scene manager or
+            // LgEventConnector here. Desktop2D re-applies the Swing font
+            // defaults and re-lays-out its own taskbar live (thickness, docking
+            // edge, icon scale, auto-hide), then we refresh this panel so the
+            // new font shows immediately.
+            Desktop2D.applyDesktopConfig();
+            SwingUtilities.updateComponentTreeUI(root);
+        } else {
+            // Live-apply the Swing font to this window (the 3D taskbar picks up
+            // its geometry from the posted event below).
+            TitledSwingWindow.applySwingFontDefaults();
+            Window w = SwingUtilities.getWindowAncestor(root);
+            if (w != null) {
+                SwingUtilities.updateComponentTreeUI(w);
+            }
 
-        // Notify the scene-manager taskbar to re-lay-out live.
-        LgEventConnector.getLgEventConnector().postEvent(
-                new DesktopConfigChangeEvent(), null);
+            // Notify the scene-manager taskbar to re-lay-out live.
+            LgEventConnector.getLgEventConnector().postEvent(
+                    new DesktopConfigChangeEvent(), null);
+        }
 
         statusLabel.setText("Settings applied and saved.");
     }

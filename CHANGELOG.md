@@ -526,6 +526,27 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Control Center showed fewer categories in the 2D/Swing desktop** — the
+  control center listed only Display, Users and System under `--2d`/`--swing`
+  but all five on the 3D desktop: `ControlPanelRegistry` deliberately dropped
+  the Appearance and Desktop panels when `lg.desktop2d` was set, because both
+  drove the scene graph through `LgEventConnector`
+  (`BackgroundChangeRequestEvent`, `DesktopConfigChangeEvent`) with nothing
+  listening on the conventional desktop. All five panels now register in every
+  mode, and each drives whichever desktop is running: on the 2D desktop
+  `AppearancePanel` calls `Desktop2D.setWallpaper(url)` (the backdrop image is
+  now swappable at runtime) and `DesktopPanel` calls
+  `Desktop2D.applyDesktopConfig()`, which re-applies the persisted
+  `DesktopConfig` live — Swing UI font defaults, taskbar docking edge
+  (top/bottom), thickness (`barScale`), chrome-icon scale (`iconScale`) and
+  auto-hide (a pointer-proximity poll collapses the bar to a sliver). The 2D
+  shell also honours the saved config at startup, and the Java 3D event path is
+  guarded behind the mode property so it is never touched on a 3D-less JVM. The
+  3D desktop path is unchanged. Verified with in-JVM probes: the panel list
+  reports `count=5 [Display, Users, System, Appearance, Desktop]` under
+  `lg.desktop2d=true`, and driving a live `Desktop2D` re-docked the taskbar to
+  `North` at `preferredHeight=54` (barScale 1.6) and swapped the wallpaper
+  image; the scale/height math is covered by `Desktop2DTaskbarConfigTest`.
 - **Screen Snapshot would not launch in the 2D/Swing desktop** — the
   conventional Swing `ScreenCaptureConfigFrame` (a plain `JFrame` with a `main`,
   like Paint and Swing Test) was missing from `Desktop2DAppRegistry`'s
