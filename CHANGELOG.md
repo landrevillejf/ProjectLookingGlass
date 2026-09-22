@@ -15,15 +15,47 @@ work to make it build and run on a current toolchain.
   `lg3d-incubator`; jars are emitted to `<module>/build-gradle/libs/` so the
   legacy per-module `build`/`clean` scripts are left untouched.
 - **`run-lg3d.sh`** launcher at the repository root — auto-detects/pins the JDK 21
-  toolchain, defaults `DISPLAY`, and starts the desktop. Options: `-b`
-  (3D `pinguin.j3f` background), `-x` (X11 compositor/WM mode), `-c` (clean
-  first), `-r` (reassemble runtime resources), `-h` (help), and `--`
-  pass-through to Gradle.
+  toolchain, defaults `DISPLAY`, and starts the desktop. Options: `-2`
+  (conventional Swing 2D desktop), `-b` (3D `pinguin.j3f` background), `-x`
+  (X11 compositor/WM mode), `-c` (clean first), `-r` (reassemble runtime
+  resources), `-h` (help), and `--` pass-through to Gradle.
 - **`lg3d-core:run`** task (`JavaExec`) launching `org.jdesktop.lg3d.displayserver.Main`
   in development mode (`lg.fws.mode=dev`) with the AWT foundation window system,
   pinned to the JDK 21 launcher. Accepts `-Pbackground3d` to opt into the 3D model
   background and `-Pcompositor` to run lg3d as its own X11 window
   manager/compositor.
+- **Non-3D (2D) fallback desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d` + `DesktopMode`) — a machine with
+  no Java 3D, or with the jars present but no working GL context, no longer dies
+  at boot with `SevereRuntimeError`. `Main` now resolves the desktop mode through
+  a pure, unit-tested `DesktopMode`: `lg.fws.mode=2d` forces the Swing desktop,
+  `lg.fws.mode=3d` keeps the historical fail-loudly 3D boot, and any other value
+  (including the default `dev`) **probes** the machine — Java 3D on the classpath
+  and a 3D-capable `GraphicsConfiguration`, both reflectively — falling back to
+  2D only after a modal confirmation dialog ("3D unavailable: … Start in 2D
+  mode?"; **Exit** preserves today's error). A `Throwable` escaping
+  `new ServerHandler()` (classes present, GL init fails) re-runs the same
+  resolver, and `lg.2d.simulateNo3D=true` forces the fallback branch so the
+  dialog is exercisable on 3D-capable hardware. The 2D shell itself is pure JDK
+  Swing and touches no Java 3D, so it also runs where the Java 3D jars are
+  missing entirely: one undecorated, maximised `JFrame` holding an MDI
+  `JDesktopPane` over the usual wallpaper, with a Swing taskbar (Start button,
+  per-window buttons, Documents/Downloads folder menus reusing the 3D-free
+  `FolderStackModel`, clock, Exit). Its start menu is built from the *same*
+  `.lgcfg` descriptors as the 3D menu — read as plain XML (`Desktop2DMenuConfig`)
+  rather than decoded into 3D beans — and classifies each entry
+  (`Desktop2DAppRegistry`): panel apps (**File Manager**, **Task Manager**,
+  **Control Center**, **Calculator**, **Media Writer**) are hosted in internal
+  frames via reflection (so lg3d-core never depends on lg3d-demo-apps nor loads a
+  3D wrapper); conventional Swing apps (**Paint**, **Swing Test**) launch in-JVM
+  without the 3D window capture; external commands run as child processes as in
+  3D; and pure-3D apps appear **disabled** with a "Requires the 3D desktop"
+  tooltip. Two latent 3D couplings that would crash apps in 2D were also fixed:
+  the Control Center omits its Appearance/Desktop panels when `lg.desktop2d` is
+  set, and `PaintApp` tolerates a missing hosted look-and-feel. Selected with
+  `run-lg3d.sh -2` / `-Pdesktop2d`. Covered by JUnit 5 tests in a new
+  `lg3d-core/src/test/java` source set (mode resolver, descriptor reader, app
+  registry, folder-menu listing); the 3D boot path is otherwise unchanged.
 - **`lg3d-core:runtimeResources`** task — assembles the legacy top-level
   `resources/` classpath tree from `lg3d-art` (wallpapers, splash, models, GDM
   theme), `lg3d-core` (icons, buttons, default wallpapers) and the incubator

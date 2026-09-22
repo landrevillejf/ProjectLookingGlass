@@ -76,6 +76,7 @@ a `DISPLAY`, assembles the runtime resources, and starts the display server:
 
 ```bash
 ./run-lg3d.sh              # launch the 3D desktop
+./run-lg3d.sh -2           # launch the conventional Swing (2D) desktop
 ./run-lg3d.sh -b           # use the 3D model (pinguin.j3f) desktop background
 ./run-lg3d.sh -c           # clean lg3d-core first
 ./run-lg3d.sh -r           # force the runtime resources/ tree to be reassembled
@@ -99,6 +100,57 @@ lg3d AWT peer toolkit.
 > `lg3d-core/src/etc/lg3d/glassy.lgcfg` — the only path that loads the 3D
 > `pinguin.j3f` model background — is commented out upstream. Pass `-b`
 > (`-Pbackground3d`) to opt into the 3D background when that taskbar is enabled.
+
+## Non-3D (2D) fallback mode
+
+A machine with **no Java 3D** — or with the Java 3D jars present but no working
+GL context — cannot render the 3D scene. Rather than dying at boot, lg3d now
+falls back to a **conventional Swing desktop** built entirely from the JDK (no
+Java 3D, no JOGL): one undecorated, maximised window holding an MDI
+`JDesktopPane` over the usual wallpaper, with a Swing taskbar along the bottom.
+Nothing in this shell touches Java 3D, so it also runs in a JVM where the
+Java 3D jars are missing altogether.
+
+**How it is selected** (see `displayserver/DesktopMode`):
+
+- `lg.fws.mode=3d` — force the 3D desktop; if 3D is unavailable it fails loudly
+  exactly as before (no fallback).
+- `lg.fws.mode=2d` — force the 2D desktop, no prompt. This is what `-2`
+  (equivalently `-Pdesktop2d`) sets.
+- unset / any other value (e.g. the default `dev`) — lg3d **probes** the machine
+  (Java 3D present? a 3D-capable graphics configuration?) and, if 3D is
+  unavailable, asks *“3D unavailable: … Start in 2D mode?”* before falling back.
+  Choosing **Exit** keeps today's error behaviour.
+
+```bash
+./run-lg3d.sh -2                                        # force the 2D desktop
+JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Pdesktop2d
+# exercise the auto-detect + confirmation dialog on a 3D-capable machine:
+JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Dlg.2d.simulateNo3D=true
+```
+
+**What runs in 2D.** The start menu is built from the *same* `.lgcfg`
+application descriptors the 3D menu reads, so the groups, items, order and icons
+match. Entries are handled by kind:
+
+- **Panel apps** open as internal frames inside the desktop: **File Manager**,
+  **Task Manager**, **Control Center**, **Calculator** and **Media Writer** (the
+  same Swing panels the 3D desktop hosts on a `SwingNode`, minus the 3D).
+- **Conventional Swing apps** that insist on their own top-level window
+  (**Paint**, **Swing Test**) launch in-JVM and appear beside the desktop.
+- **External commands** (browser, terminal, `javaws …`) start as child
+  processes, exactly as in 3D; an entry whose executable is missing is dropped,
+  as the 3D menu does.
+- The taskbar carries the **Start** button, one button per open window,
+  **Documents** / **Downloads** folder menus (the same most-recent-first listing
+  the 3D dock stacks use), a clock and **Exit**.
+
+**What is disabled.** Pure Java 3D applications (the demos, Image Studio,
+Agenda 3D, Mail 3D, the 3D widgets, …) have no scene to render into, so their
+menu entries appear **greyed out** with the tooltip *“Requires the 3D desktop”*
+rather than being hidden. The Control Center omits its **Appearance** and
+**Desktop** panels, which drive the 3D scene. The 3D desktop and its boot path
+are otherwise untouched.
 
 ## Desktop shell features
 
