@@ -16,19 +16,20 @@ package org.jdesktop.lg3d.scenemanager.utils.taskbar.stack;
 import java.net.URL;
 import java.nio.file.Path;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
+import org.jdesktop.lg3d.utils.eventadapter.MouseHoverEventAdapter;
+import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Tapp;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jogamp.vecmath.Vector3f;
 
 /**
- * An OSX-style folder stack on the right side of the taskbar: a folder
- * {@link Pseudo3DIcon} that opens a {@link FolderStackPopup} fanning out the
- * folder's most-recent entries as an arc of icons (Leopard-style). Hovering the
- * icon opens the fan; clicking it toggles the fan open/closed.
+ * A folder stack on the right side of the taskbar: a folder
+ * {@link Pseudo3DIcon} whose hover raises the folder's entries as the same
+ * glassy vertical list the start menu shows for its application groups
+ * ({@link FolderStackStartMenuModel}), anchored above the icon and opening
+ * leftward since the stack sits at the right screen edge. Leaving the icon -
+ * and the list - hides it again: exactly the application list's behaviour.
  *
  * <p>Instances are created by {@link StacksPlugin} (one for Documents, one for
  * Downloads) and posted to the taskbar with a negative item index so they sit
@@ -36,9 +37,18 @@ import org.jogamp.vecmath.Vector3f;
  */
 public class FolderStack extends Tapp {
 
+    /** Half the width of a list row (the panel item's preferred width). */
+    private static final float COLUMN_HALF_WIDTH = 0.0225f;
+
+    /** X offset the raised pose applies to the column (see StartMenuModel). */
+    private static final float RAISED_X_OFFSET = 0.005f;
+
+    /** Gap kept between the dock icon and the list's near edge. */
+    private static final float ICON_GAP = 0.004f;
+
     private final FolderStackModel model;
     private final String displayName;
-    private FolderStackPopup popup;
+    private final FolderStackStartMenuModel menuModel;
 
     /**
      * @param directory   the folder this stack represents
@@ -50,24 +60,35 @@ public class FolderStack extends Tapp {
         this.displayName = displayName;
 
         Pseudo3DIcon icon = new Pseudo3DIcon(iconUrl);
-        // Hovering the dock icon fans out the recent entries (Leopard-style).
-        icon.addListener(new MouseEnteredEventAdapter(new ActionBoolean() {
+        addChild(icon);
+        setPreferredSize(icon.getPreferredSize(new Vector3f()));
+
+        menuModel = new FolderStackStartMenuModel(model);
+        menuModel.initialize();
+
+        // The list column is centred on the model origin; shift it fully to
+        // the left of the icon so a right-docked stack opens leftward, like
+        // any desktop menu raised near the right screen edge.
+        Component3D anchor = new Component3D();
+        Vector3f iconSize = getPreferredSize(new Vector3f());
+        anchor.setTranslation(-(iconSize.x * 0.5f + ICON_GAP
+                + COLUMN_HALF_WIDTH - RAISED_X_OFFSET), 0.0f, 0.0f);
+        anchor.addChild(menuModel);
+        addChild(anchor);
+
+        // Same hover contract as the application list: raise on enter, hide on
+        // leave. The raised list keeps the hover alive through its pickable
+        // region and rows, so moving onto the list does not dismiss it.
+        addListener(new MouseHoverEventAdapter(0, 500, 0, new ActionBoolean() {
             @Override
             public void performAction(LgEventSource source, boolean entered) {
-                if (entered) {
-                    show();
+                if (entered && !menuModel.isVisible()) {
+                    menuModel.changeVisible(true, false);
+                } else if (!entered && menuModel.isVisible()) {
+                    menuModel.changeVisible(false, false);
                 }
             }
         }));
-        // A click still toggles, giving an explicit way to dismiss the fan.
-        icon.addListener(new MouseClickedEventAdapter(new ActionNoArg() {
-            @Override
-            public void performAction(LgEventSource source) {
-                toggle();
-            }
-        }));
-        addChild(icon);
-        setPreferredSize(icon.getPreferredSize(new Vector3f()));
     }
 
     public FolderStackModel getModel() {
@@ -78,28 +99,8 @@ public class FolderStack extends Tapp {
         return displayName;
     }
 
-    /** Shows the popup if it is not already visible. */
-    public synchronized void show() {
-        if (popup == null) {
-            popup = new FolderStackPopup(model);
-        }
-        if (!popup.isVisible()) {
-            // Anchor the fan just above this dock icon rather than letting the
-            // window default to the centre of the screen. getTranslationTo(null,..)
-            // returns -this_vworld, so negate it to recover this icon's location.
-            Vector3f anchor = getTranslationTo(null, new Vector3f());
-            anchor.negate();
-            Vector3f size = getPreferredSize(new Vector3f());
-            popup.show(anchor, size.y);
-        }
-    }
-
-    /** Shows the popup if hidden, hides it if shown. */
-    public synchronized void toggle() {
-        if (popup != null && popup.isVisible()) {
-            popup.hide();
-        } else {
-            show();
-        }
+    /** The raised list of this stack. */
+    public FolderStackStartMenuModel getMenuModel() {
+        return menuModel;
     }
 }

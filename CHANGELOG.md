@@ -78,16 +78,22 @@ work to make it build and run on a current toolchain.
   **Web**.
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side
-  (`[Documents] [Downloads] [Background] [Exit]`), each fanning out its most
-  recent entries as an OSX/Leopard-style fan of icon cards, each a filename
-  pill beside its MIME icon
+  (`[Documents] [Downloads] [Background] [Exit]`), each raising **the same
+  glassy vertical list the start menu uses for its application groups**
   (`org.jdesktop.lg3d.scenemanager.utils.taskbar.stack`, registered from
-  `glassy.lgcfg`). Hovering the dock icon opens the fan (a click toggles it),
-  newest entries leading the fan. The fan window is anchored just above its own
-  dock icon (clamped to stay fully on screen) instead of defaulting to the centre
-  of the screen. Files open with `xdg-open`; folders — and a
-  header **Show in File Manager** action — open the folder in the file manager.
-  Escape or the close button dismisses the fan.
+  `glassy.lgcfg`): hovering the dock icon raises the list anchored above the
+  icon and opening leftward (the stacks sit at the right screen edge), and
+  leaving the icon or the list hides it again — including in front of a
+  maximized full-width window, through the same eye-distance lift as the app
+  list. Once lowered the list leaves nothing above the bar: its row column is
+  detached while hidden (a dock stack has no taskbar button for the shrunken
+  column to sink into, unlike the start menu's) and re-attached on the next
+  raise. Rows are the folder's most-recently-modified entries (newest first,
+  capped at 12) drawn with the desktop's own MIME icons (painted once into
+  `~/.cache/lg3d/stack-icons/` PNGs, since 3D icon textures load from URLs),
+  plus a trailing **Show in File Manager** row; the mouse wheel cycles the rows
+  exactly as in the app list. Files open with `xdg-open`; folders and the
+  trailing row open the folder in the file manager.
 - **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
   (tree + list browsing with copy / move / rename / delete-to-trash / new-folder,
   multi-select, drag-and-drop, keyboard shortcuts), **Task Manager** (live
@@ -104,8 +110,8 @@ work to make it build and run on a current toolchain.
 - **Standard 3D window decoration for all `Frame3D` apps** — a reusable
   `Frame3DWindowDecoration` (`org.jdesktop.lg3d.scenemanager.utils.decoration`)
   is auto-attached by `StandardAppContainer.addFrame3D`, giving every pure-3D
-  window (File Manager, Task Manager, Control Center, Widget Gallery, dock stack
-  popups and the demos) native-style **minimize / maximize / close** buttons plus
+  window (File Manager, Task Manager, Control Center, Widget Gallery and the
+  demos) native-style **minimize / maximize / close** buttons plus
   3D rotation: **right-click** on the window's green border flips it over to a
   `StickyNote` back side and **middle-drag** free-spins it. Previously this chrome
   existed only for native X11 windows (`GlassyNativeWindowLookAndFeel`), an excluded
