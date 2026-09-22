@@ -162,7 +162,8 @@ public final class Main {
         }
         if (mode == DesktopMode.Mode.SWING) {
             // lg.fws.mode=swing: explicit opt-in to the conventional Swing
-            // desktop (each application in its own top-level JFrame, Metal look
+            // desktop (the same MDI shell as '2d' - applications in internal
+            // frames inside the desktop's JDesktopPane - under the Metal look
             // and feel). Like '2d' it needs no 3D and is never a fallback, so
             // there is nothing to confirm.
             logger.info("Starting the conventional Swing desktop");

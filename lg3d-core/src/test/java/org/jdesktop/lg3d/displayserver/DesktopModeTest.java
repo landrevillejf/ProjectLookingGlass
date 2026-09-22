@@ -47,7 +47,7 @@ class DesktopModeTest {
     }
 
     @Test
-    @DisplayName("lg.fws.mode=swing forces the top-level-JFrame Swing desktop")
+    @DisplayName("lg.fws.mode=swing forces the Metal look-and-feel Swing desktop")
     void explicitSwingAlwaysWins() {
         assertEquals(Mode.SWING, DesktopMode.resolve("swing", true, true));
         assertEquals(Mode.SWING, DesktopMode.resolve("SWING", false, false));

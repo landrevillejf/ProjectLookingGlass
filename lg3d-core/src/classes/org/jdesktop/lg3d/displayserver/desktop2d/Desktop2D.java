@@ -252,13 +252,8 @@ public class Desktop2D {
      * Hosts a panel application in an internal frame. An already-open window
      * for the same application is brought forward instead of duplicated, the
      * way the 3D desktop's app containers behave.
-     *
-     * <p>This is the one window-hosting step the {@link DesktopSwing} flavour
-     * replaces (it opens a top-level {@code JFrame} instead), so it is
-     * {@code protected}; everything else - menu building, the taskbar, external
-     * and Swing-app launches, exit - is shared unchanged.</p>
      */
-    protected void openPanelApp(ItemSpec item, Path initialDir) {
+    private void openPanelApp(ItemSpec item, Path initialDir) {
         String appName = (item.getName() == null || item.getName().isBlank())
                 ? Desktop2DAppRegistry.mainClass(item.getCommand())
                 : item.getName();
@@ -356,7 +351,7 @@ public class Desktop2D {
         }
     }
 
-    protected void showMessage(String title, String message) {
+    private void showMessage(String title, String message) {
         JOptionPane.showMessageDialog(frame, message, title,
                 JOptionPane.WARNING_MESSAGE);
     }

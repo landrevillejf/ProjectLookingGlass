@@ -26,9 +26,10 @@ import java.util.logging.Logger;
  *  <li>{@code lg.fws.mode=2d} - force the MDI 2D desktop (applications in
  *      internal frames inside the desktop window; manual opt-in, no prompt).</li>
  *  <li>{@code lg.fws.mode=swing} - force the conventional Swing desktop
- *      ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}: each
- *      application in its own top-level {@code JFrame}, Metal look and feel;
- *      manual opt-in, no prompt).</li>
+ *      ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}: the same
+ *      MDI shell as {@code 2d} - applications in internal frames inside the
+ *      desktop's {@code JDesktopPane} - under the Metal look and feel; manual
+ *      opt-in, no prompt).</li>
  *  <li>{@code lg.fws.mode=3d} - force the 3D desktop and fail loudly if 3D is
  *      unavailable (the pre-2D-mode behaviour).</li>
  *  <li>any other value ({@code dev}, {@code x11}, unset) - start 3D when the
@@ -54,9 +55,10 @@ public final class DesktopMode {
     public static final String MODE_2D = "2d";
 
     /**
-     * Property value that forces the conventional Swing desktop whose
-     * applications each open in their own top-level {@code JFrame}
-     * ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}).
+     * Property value that forces the conventional Swing desktop
+     * ({@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing}): the MDI
+     * shell - applications in internal frames inside the desktop's
+     * {@code JDesktopPane} - under the Metal look and feel.
      */
     public static final String MODE_SWING = "swing";
 
@@ -86,8 +88,9 @@ public final class DesktopMode {
         /** The MDI conventional-Swing desktop (JDesktopPane + internal frames). */
         TWO_D,
         /**
-         * The conventional Swing desktop whose applications each open in their
-         * own top-level {@code JFrame} (Metal look and feel).
+         * The conventional Swing desktop: the MDI shell (applications in
+         * internal frames inside the desktop's {@code JDesktopPane}) under the
+         * Metal look and feel.
          */
         SWING,
         /** The Java 3D scene-graph desktop. */

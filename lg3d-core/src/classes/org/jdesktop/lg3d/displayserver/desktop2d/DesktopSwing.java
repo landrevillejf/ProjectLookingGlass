@@ -13,48 +13,37 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
-import java.awt.Point;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
+import javax.swing.JDesktopPane;
+import javax.swing.JInternalFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 
 /**
- * The conventional Swing desktop: the same shell, menus, taskbar and
- * application registry as {@link Desktop2D}, but every application opens in its
- * own <em>top-level {@link JFrame}</em> decorated and managed by the host window
- * manager, and the whole desktop wears the Metal look and feel.
+ * The conventional Swing desktop: the same MDI shell as {@link Desktop2D} - one
+ * maximised window whose {@link JDesktopPane} hosts each application in a
+ * {@link JInternalFrame} - but wearing the <em>Metal</em> look and feel.
  *
- * <p>This is the "just use Swing" flavour the {@code --swing} launcher option
- * selects ({@code lg.fws.mode=swing}). Where {@link Desktop2D} ({@code --2d})
- * hosts panel applications as {@code JInternalFrame}s inside the desktop's
- * {@code JDesktopPane} - a self-contained MDI window manager - this flavour
- * leaves window management to the host: a real {@code JFrame} gets the native
- * title bar, minimise/maximise/close, taskbar entry and Alt-Tab for free, so
- * none of that is reimplemented here.</p>
+ * <p><strong>Why the windows are {@code JInternalFrame}s, not top-level
+ * {@code JFrame}s.</strong> A {@code JFrame} is a native, top-level window owned
+ * by the host window manager: it cannot be a child of a {@code JDesktopPane},
+ * and minimising it iconifies it into the <em>host</em> taskbar, outside the
+ * desktop. The only Swing window that lives <em>inside</em> a
+ * {@code JDesktopPane} - and so stays within the desktop, cascades with its
+ * siblings, and minimises into an icon on the desktop rather than escaping it -
+ * is {@code JInternalFrame}. That is stock Swing (the classic MDI pattern), not
+ * custom chrome, so using it is the opposite of reinventing the wheel: it is the
+ * component Swing provides for exactly this "windows integrated into a desktop
+ * pane" job.</p>
  *
- * <p>Everything that is not window chrome is inherited unchanged: the desktop
- * background is still a {@code JDesktopPane} painted with the lg3d wallpaper,
- * the start menu / Documents / Downloads menus come from the same
- * {@code .lgcfg} descriptors, external commands still run as child processes,
- * conventional Swing apps that insist on their own {@code JFrame} still launch
- * beside the desktop, and pure Java 3D applications are still offered disabled.
- * The only override is {@link #openPanelApp}, which wraps an application's Swing
- * panel in a {@code JFrame} instead of an internal frame.</p>
- *
- * <p>Application frames use {@link JFrame#DISPOSE_ON_CLOSE}, never
- * {@code EXIT_ON_CLOSE}: they share the desktop's JVM, so exiting on close would
- * tear the whole desktop down.</p>
+ * <p>Everything is inherited from {@link Desktop2D} unchanged - the wallpaper
+ * {@code JDesktopPane}, the internal-frame hosting and de-duplication
+ * ({@link Desktop2DWindow}), the start menu, the Documents/Downloads folder
+ * menus, the taskbar with its per-window buttons, external-command and
+ * conventional-Swing-app launches, and exit handling. This subclass adds only
+ * the Metal look and feel and its own window title, so the two flavours cannot
+ * drift apart. {@code --2d} keeps the host system look and feel.</p>
  */
 public class DesktopSwing extends Desktop2D {
 
@@ -63,20 +52,6 @@ public class DesktopSwing extends Desktop2D {
     /** Window title, so the host window manager shows something sensible. */
     static final String FRAME_TITLE_SWING = "Project Looking Glass (Swing desktop)";
 
-    /** Cascade offset between consecutively opened application frames. */
-    private static final int CASCADE_STEP = 28;
-
-    /** Margin from the desktop's top-left corner for the first frame. */
-    private static final int EDGE_MARGIN = 40;
-
-    /**
-     * Application frames currently open, keyed by application name, so a second
-     * launch of the same application brings its frame forward instead of opening
-     * a duplicate - the same de-duplication {@link Desktop2D} does for internal
-     * frames. Entries are removed when the frame is closed.
-     */
-    private final Map<String, JFrame> openFrames = new LinkedHashMap<>();
-
     /**
      * Builds the Swing desktop shell. Does not show it; call {@link #start()}
      * (or {@link #show()} on the EDT).
@@ -84,8 +59,7 @@ public class DesktopSwing extends Desktop2D {
     public DesktopSwing() {
         super();
         getFrame().setTitle(FRAME_TITLE_SWING);
-        logger.info("Starting the conventional Swing desktop "
-                + "(top-level JFrames, Metal look and feel)");
+        logger.info("Starting the conventional Swing desktop (Metal look and feel)");
     }
 
     /**
@@ -106,7 +80,7 @@ public class DesktopSwing extends Desktop2D {
      * Installs the Metal look and feel. The cross-platform look and feel
      * {@code UIManager} reports <em>is</em> Metal: a conventional, pure-Java,
      * non-Synth look that renders identically on every platform (unlike the
-     * GTK/Synth system look and feel {@link Desktop2D} uses).
+     * GTK/Synth system look and feel {@link Desktop2D} installs for {@code --2d}).
      */
     private static void installMetalLookAndFeel() {
         try {
@@ -114,72 +88,5 @@ public class DesktopSwing extends Desktop2D {
         } catch (Exception e) {
             logger.log(Level.FINE, "Keeping the default look and feel", e);
         }
-    }
-
-    /**
-     * Opens an application's Swing panel in its own top-level {@code JFrame},
-     * or brings the already-open frame for that application forward.
-     */
-    @Override
-    protected void openPanelApp(ItemSpec item, Path initialDir) {
-        if (item == null) {
-            return;
-        }
-        final String appName = (item.getName() == null || item.getName().isBlank())
-                ? Desktop2DAppRegistry.mainClass(item.getCommand())
-                : item.getName();
-        JFrame existing = openFrames.get(appName);
-        if (existing != null) {
-            existing.setExtendedState(JFrame.NORMAL);
-            existing.setVisible(true);
-            existing.toFront();
-            return;
-        }
-        try {
-            JComponent panel =
-                    Desktop2DAppRegistry.createPanel(item.getCommand(), initialDir);
-            // A panel with its own "Close" toolbar button disposes its frame.
-            Desktop2DAppRegistry.setCloseCallback(panel, new Runnable() {
-                @Override
-                public void run() {
-                    JFrame frame = openFrames.get(appName);
-                    if (frame != null) {
-                        frame.dispose();
-                    }
-                }
-            });
-
-            JFrame frame = new JFrame(appName);
-            Icon icon = Desktop2DStartMenu.icon(item.getIconResource());
-            if (icon instanceof ImageIcon) {
-                frame.setIconImage(((ImageIcon) icon).getImage());
-            }
-            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            frame.getContentPane().add(panel);
-            frame.pack();
-            frame.setLocation(cascadeLocation());
-            frame.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosed(WindowEvent e) {
-                    openFrames.remove(appName);
-                }
-            });
-            openFrames.put(appName, frame);
-            frame.setVisible(true);
-            frame.toFront();
-        } catch (Throwable t) {
-            // NoClassDefFoundError included: on a 3D-less JVM an app may still
-            // drag in a Java 3D class through a shared helper.
-            logger.log(Level.WARNING,
-                    "Could not start " + appName + " in the Swing desktop", t);
-            showMessage("Could not start " + appName,
-                    "The application could not run without 3D:\n" + t);
-        }
-    }
-
-    /** Offsets each new frame from the ones already open, wrapping at eight. */
-    private Point cascadeLocation() {
-        int offset = (openFrames.size() % 8) * CASCADE_STEP;
-        return new Point(EDGE_MARGIN + offset, EDGE_MARGIN + offset);
     }
 }
