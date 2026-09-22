@@ -526,6 +526,13 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **2D/Swing desktop showed minimised windows on a second row** — under the
+  Synth (GTK) look-and-feel the `JDesktopPane` installed its own MDI taskbar
+  strip that re-listed minimised windows above the shell's taskbar, so a
+  minimised application icon appeared twice and the bar read as two rows. The
+  desktop pane now pins `BasicDesktopPaneUI` (no built-in strip) and a desktop
+  manager hides the classic MDI desktop icon, leaving the shell taskbar button
+  as the single representation; clicking it still restores the window.
 - **Control Center showed fewer categories in the 2D/Swing desktop** — the
   control center listed only Display, Users and System under `--2d`/`--swing`
   but all five on the 3D desktop: `ControlPanelRegistry` deliberately dropped
