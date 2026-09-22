@@ -72,6 +72,8 @@ public class Desktop2DTaskbar extends JPanel {
     static final int MIN_BAR_HEIGHT_PX = 18;
     /** Sliver left on screen when auto-hide has collapsed the bar. */
     static final int COLLAPSED_HEIGHT_PX = 5;
+    /** Sentinel height: let the bar pack to the height of its controls. */
+    private static final int NATURAL_HEIGHT = -1;
     /** How often the auto-hide poll checks the pointer against the bar. */
     private static final int AUTOHIDE_POLL_MS = 250;
 
@@ -92,8 +94,7 @@ public class Desktop2DTaskbar extends JPanel {
     private final Map<Component, Font> originalFonts = new IdentityHashMap<>();
 
     private Font activeFont;
-    private int expandedHeight = BASE_BAR_HEIGHT_PX;
-    private int currentHeight = -1;
+    private int currentHeight = NATURAL_HEIGHT;
     private boolean autoHide;
     private Timer autoHideTimer;
 
@@ -248,14 +249,16 @@ public class Desktop2DTaskbar extends JPanel {
         documentsButton.setIcon(scaledIcon(documentsIconBase, iconScale));
         downloadsButton.setIcon(scaledIcon(downloadsIconBase, iconScale));
 
-        expandedHeight = barHeightFor(cfg.getBarScale());
+        // The bar hugs its controls: it carries no thickness of its own, so it
+        // is always roughly as tall as the buttons it holds. Only auto-hide
+        // overrides the height, collapsing the bar to a sliver.
         autoHide = cfg.isAutoHide();
         if (autoHide) {
             startAutoHide();
             updateAutoHide();
         } else {
             stopAutoHide();
-            setBarHeight(expandedHeight);
+            setBarHeight(NATURAL_HEIGHT);
         }
         revalidate();
         repaint();
@@ -266,7 +269,7 @@ public class Desktop2DTaskbar extends JPanel {
             return;
         }
         currentHeight = height;
-        setPreferredSize(new Dimension(0, height));
+        setPreferredSize(height < 0 ? null : new Dimension(0, height));
         Container parent = getParent();
         if (parent != null) {
             parent.revalidate();
@@ -290,7 +293,7 @@ public class Desktop2DTaskbar extends JPanel {
 
     /** Expands the bar while the pointer is over it, collapses it otherwise. */
     private void updateAutoHide() {
-        setBarHeight(isPointerOverBar() ? expandedHeight : COLLAPSED_HEIGHT_PX);
+        setBarHeight(isPointerOverBar() ? NATURAL_HEIGHT : COLLAPSED_HEIGHT_PX);
     }
 
     private boolean isPointerOverBar() {
