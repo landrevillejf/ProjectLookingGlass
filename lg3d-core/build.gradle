@@ -336,6 +336,16 @@ tasks.register('run', JavaExec) {
         systemProperty 'lg.fws.mode', '2d'
     }
 
+    // Opt-in: run the conventional Swing desktop under the Metal look and feel
+    // (-PdesktopSwing, equivalently run-lg3d.sh --swing). Sets lg.fws.mode=swing.
+    // Same MDI shell as -Pdesktop2d - applications as JInternalFrames inside the
+    // desktop's JDesktopPane, so they integrate with the desktop and minimise
+    // into it - the only difference being Metal here vs the host system look and
+    // feel under -Pdesktop2d. Applied after it, so --swing wins if both are given.
+    if (project.hasProperty('desktopSwing')) {
+        systemProperty 'lg.fws.mode', 'swing'
+    }
+
     // Opt-in: run with -Pbackground3d to use the 3D model desktop background
     // (pinguin.j3f, loaded via the in-tree J3fLoader) instead of the default
     // image backgrounds. AdvancedGlassyTaskbar switches to ModelBackground only

@@ -77,6 +77,7 @@ a `DISPLAY`, assembles the runtime resources, and starts the display server:
 ```bash
 ./run-lg3d.sh              # launch the 3D desktop
 ./run-lg3d.sh -2           # launch the conventional Swing (2D) desktop
+./run-lg3d.sh -w           # launch the Swing desktop (Metal look and feel)
 ./run-lg3d.sh -b           # use the 3D model (pinguin.j3f) desktop background
 ./run-lg3d.sh -c           # clean lg3d-core first
 ./run-lg3d.sh -r           # force the runtime resources/ tree to be reassembled
@@ -117,6 +118,12 @@ Java 3D jars are missing altogether.
   exactly as before (no fallback).
 - `lg.fws.mode=2d` — force the 2D desktop, no prompt. This is what `-2`
   (equivalently `-Pdesktop2d`) sets.
+- `lg.fws.mode=swing` — force the **Swing desktop** (`DesktopSwing`), no prompt:
+  the same MDI shell, menus and taskbar as `2d` — each application still in a
+  `JInternalFrame` inside the desktop's `JDesktopPane`, so windows stay
+  integrated with the desktop and minimise into it — but wearing the **Metal**
+  look and feel instead of the host system look. This is what `-w` / `--swing`
+  (equivalently `-PdesktopSwing`) sets.
 - unset / any other value (e.g. the default `dev`) — lg3d **probes** the machine
   (Java 3D present? a 3D-capable graphics configuration?) and, if 3D is
   unavailable, asks *“3D unavailable: … Start in 2D mode?”* before falling back.
@@ -125,6 +132,8 @@ Java 3D jars are missing altogether.
 ```bash
 ./run-lg3d.sh -2                                        # force the 2D desktop
 JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Pdesktop2d
+./run-lg3d.sh -w                                        # Swing desktop, Metal look and feel
+JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -PdesktopSwing
 # exercise the auto-detect + confirmation dialog on a 3D-capable machine:
 JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Dlg.2d.simulateNo3D=true
 ```
@@ -133,9 +142,10 @@ JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Dlg.2d.simulateNo3D=true
 application descriptors the 3D menu reads, so the groups, items, order and icons
 match. Entries are handled by kind:
 
-- **Panel apps** open as internal frames inside the desktop: **File Manager**,
-  **Task Manager**, **Control Center**, **Calculator** and **Media Writer** (the
-  same Swing panels the 3D desktop hosts on a `SwingNode`, minus the 3D).
+- **Panel apps** — **File Manager**, **Task Manager**, **Control Center**,
+  **Calculator** and **Media Writer** (the same Swing panels the 3D desktop hosts
+  on a `SwingNode`, minus the 3D) — open as internal frames inside the desktop
+  window under both `-2` and `-w` / `--swing` (Metal look and feel under `-w`).
 - **Conventional Swing apps** that insist on their own top-level window
   (**Paint**, **Swing Test**) launch in-JVM and appear beside the desktop.
 - **External commands** (browser, terminal, `javaws …`) start as child
@@ -143,7 +153,8 @@ match. Entries are handled by kind:
   as the 3D menu does.
 - The taskbar carries the **Start** button, one button per open window,
   **Documents** / **Downloads** folder menus (the same most-recent-first listing
-  the 3D dock stacks use), a clock and **Exit**.
+  the 3D dock stacks use), a clock and **Exit**. (The per-window buttons track
+  the MDI internal frames, which both `-2` and `--swing` use.)
 
 **What is disabled.** Pure Java 3D applications (the demos, Image Studio,
 Agenda 3D, Mail 3D, the 3D widgets, …) have no scene to render into, so their

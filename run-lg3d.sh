@@ -54,10 +54,17 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          default image backgrounds.
     -2, --2d             Run the conventional Swing (2D) desktop instead of the
                          3D one: an MDI JDesktopPane with a Swing taskbar and
-                         start menu, hosting the applications whose UI is a
-                         plain Swing panel. This is also what a machine without
-                         Java 3D gets automatically (after a prompt).
+                         start menu, hosting each application in an internal
+                         frame (JInternalFrame) inside the desktop window. This
+                         is also what a machine without Java 3D gets
+                         automatically (after a prompt).
                          Passes -Pdesktop2d to Gradle.
+    -w, --swing          Run the conventional Swing desktop: the same MDI shell
+                         as --2d, each application in a JInternalFrame inside
+                         the desktop's JDesktopPane (so windows stay integrated
+                         and minimise into the desktop), under the Metal look
+                         and feel instead of the host system look.
+                         Passes -PdesktopSwing to Gradle.
     -c, --clean          Run ':lg3d-core:clean' before launching.
     -r, --rebuild        Force the runtime resources/ tree to be reassembled
                          (reruns only the :lg3d-core:runtimeResources task).
@@ -93,6 +100,7 @@ EOF
 BACKGROUND3D=false
 COMPOSITOR=false
 DESKTOP2D=false
+DESKTOP_SWING=false
 DO_CLEAN=false
 DO_REBUILD=false
 SWING_APP=""
@@ -104,6 +112,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -b|--background3d) BACKGROUND3D=true ;;
         -2|--2d)           DESKTOP2D=true ;;
+        -w|--swing)        DESKTOP_SWING=true ;;
         -x|--compositor)   COMPOSITOR=true ;;
         -c|--clean)        DO_CLEAN=true ;;
         -r|--rebuild)      DO_REBUILD=true ;;
@@ -133,6 +142,9 @@ fi
 if [ "${DESKTOP2D}" = true ]; then
     GRADLE_ARGS+=("-Pdesktop2d")
 fi
+if [ "${DESKTOP_SWING}" = true ]; then
+    GRADLE_ARGS+=("-PdesktopSwing")
+fi
 if [ -n "${SWING_APP}" ]; then
     SWING_SPEC="${SWING_APP}"
     if [ -n "${SWING_APP_ARGS}" ]; then
@@ -151,6 +163,9 @@ echo "JAVA_HOME : ${JAVA_HOME}"
 echo "DISPLAY   : ${DISPLAY}"
 if [ "${DESKTOP2D}" = true ]; then
     echo "MODE      : conventional Swing 2D desktop (-Pdesktop2d)"
+fi
+if [ "${DESKTOP_SWING}" = true ]; then
+    echo "MODE      : conventional Swing desktop, Metal look and feel (-PdesktopSwing)"
 fi
 if [ "${COMPOSITOR}" = true ]; then
     echo "MODE      : X11 compositor / window manager (-Pcompositor)"
