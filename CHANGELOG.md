@@ -445,6 +445,79 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Maximizing a hosted Swing window magnified its text and left it narrow** —
+  `Frame3DWindowDecoration.toggleMaximized` maximized every window by uniformly
+  scaling the `Frame3D` to fit the usable screen area
+  (`min(screenW/w, usableH/h)`). For a `SwingNode`-hosted window (Task Manager,
+  and any `TitledSwingWindow`) that scaled a fixed-resolution offscreen texture,
+  so the content — text included — was blown up and blurry, and the
+  aspect-preserving `min` letterboxed a narrow window instead of filling the
+  width. A real `JFrame` re-lays-out its content at native size on maximize.
+  Hosted windows now do the same: `HostedWindowResizer` (a
+  `WeakHashMap<Frame3D,Resizer>` registry in `lg3d-core`) lets
+  `TitledSwingWindow` register a per-frame resizer; `toggleMaximized` detects a
+  registered frame and resizes the Swing panel to the usable area in native
+  pixels (`SwingNode.setHostedSize`) instead of scaling, then re-lays-out the
+  title bar, spines and decoration. The panel repaints at its new native size
+  (crisp text) and the quad grows to full width. The decoration tracks the new
+  size **in place** — `GlassyPanel`/`RectShadow` are resized through their
+  `setSize` (both carry `ALLOW_COORDINATE_WRITE`), never removed and rebuilt,
+  since detaching non-`BranchGroup` children from a live graph throws
+  `RestrictedAccessException` and re-inserting a detached backdrop trips
+  `MultipleParentException`. Un-maximizing restores the original pixel size;
+  pure-3D windows keep the uniform scale-to-fit maximize. Verified with an
+  in-JVM probe: a 680x480 hosted panel maximized to 1920x852 (full width, native
+  pixels) with no scene-graph exceptions.
+- **A maximized window masked the start-menu application list** — the full-screen
+  hosted maximize above exposed a latent draw-order bug in the start menu. The
+  menu is a child of the taskbar, which docks at `z = -0.04`
+  (`GlassyTaskbar.barZ`), while `ZLayeredLayout` places the front-most app window
+  at `z ~= -0.004`. `StartMenuModel.changeVisible` only raised the menu to a local
+  `z = 0.02` (world `~= -0.02`), i.e. *behind* every window; that went unnoticed
+  because ordinary windows never overlap the menu's bottom-corner popup region,
+  but a full-screen maximized window does, so the app list disappeared behind it.
+  Raising the menu in depth alone is not enough, and neither is a small Z lift:
+  transparent shapes are sorted back-to-front by the distance from the eye to
+  each shape's bounding-sphere centre, *not* by Z. A maximized window quad is
+  centred on-axis (distance ~= eye.z), while the menu is docked in a screen
+  corner, so its off-axis centre stays *farther* from the eye even at a nearer Z
+  and it keeps sorting behind the window. The raise now lifts the menu to a
+  fraction (`FRONT_WORLD_Z_FRACTION = 0.4`) of the eye distance, which pulls its
+  bounding-sphere centre well inside the window's so every menu shape sorts - and
+  is picked - in front; the lift is perspective-compensated (world X/Y and node
+  scale multiplied by `r = (eyeZ - zNew)/(eyeZ - zRef)`) so the list's on-screen
+  position and size are unchanged. Verified in a framebuffer capture: the hovered
+  application list pops up on top of a maximized full-width window while the rest
+  of the desktop stays put.
+- **Min/max/close buttons sat above the title text** — `Frame3DWindowDecoration`
+  pinned the window buttons to the top corner of the frame
+  (`y = frameHeight/2 - inset`), while `TitledSwingWindow` centres its title text
+  in the reserved title strip (`y = frameHeight/2 - titleBarHeight/2`), so on a
+  hosted window the three buttons floated visibly higher than the title. The
+  decoration now reads a new `TITLE_BAR_HEIGHT_PROPERTY` frame property; when a
+  frame publishes its title-strip height (as `TitledSwingWindow` does before
+  `changeEnabled`) the buttons are centred on that strip, aligned with the title
+  text, and pure-3D frames without a strip keep the corner placement. Verified in
+  framebuffer captures in both the normal and the maximized state.
+- **Maximized window pushed its title bar off the top edge** - filling exactly to
+  the screen top left the title strip (and the minimize/maximize/close buttons)
+  flush against / past the top edge where they cannot be clicked. Maximize now
+  reserves a small top headroom band (`0.012`) in addition to the taskbar
+  reserves, so the whole title bar and its buttons stay comfortably inside the
+  visible area while the window still fills the usable width and height.
+- **Maximized hosted window kept its Swing content at the old size** — follow-up
+  to the hosted maximize above. `SwingNode.setHostedSize` resized the panel then
+  called `revalidate()` + `doLayout()`, but `doLayout()` only lays out the panel's
+  *immediate* children, so a nested `JScrollPane` -> viewport -> `JTable` subtree
+  kept its pre-resize interior bounds: the grown window showed the old small
+  content stranded in a top corner with the rest of the area blank ("the frame
+  content doesn't adapt"), which also left the title bar / window buttons looking
+  detached from a mis-rendered body. `setHostedSize` now runs a full recursive
+  `invalidate()` + `validate()` (`validateTree`) over the Swing hierarchy so every
+  nested layout manager reflows at the new native size. Verified with an in-JVM
+  probe plus an lg3d framebuffer screenshot: a hosted table window maximized to
+  1920x852 with its columns stretched full-width and all rows visible, and the
+  taskbar stayed clear below the maximized window.
 - **Closing an in-JVM Swing app could tear down the whole desktop** — conventional
   apps run inside the desktop JVM (the `java` / `swingapp` command verbs), and they
   routinely default to `EXIT_ON_CLOSE`, so clicking their close button fired

@@ -259,6 +259,46 @@ public class SwingNode extends Component3D {
     }
 
     /**
+     * Resizes the hosted Swing panel to {@code widthPx} x {@code heightPx}
+     * native pixels and re-renders the texture at the new resolution, so the
+     * content re-lays-out at native text size (like a real window resize)
+     * instead of being magnified by scaling the 3D quad. The quad follows
+     * automatically through the renderer's {@code textureChanged}. Swing state
+     * is mutated on the EDT.
+     */
+    public void setHostedSize(final int widthPx, final int heightPx) {
+        final JPanel p = panel;
+        if (p == null || widthPx <= 0 || heightPx <= 0) {
+            return;
+        }
+        Runnable r = new Runnable() {
+            public void run() {
+                Dimension d = new Dimension(widthPx, heightPx);
+                p.setPreferredSize(d);
+                p.setMinimumSize(d);
+                p.setMaximumSize(d);
+                p.setSize(d);
+                // A full recursive validation, not just this panel's own
+                // doLayout(): doLayout() only positions this container's
+                // immediate children, so a nested JScrollPane -> viewport ->
+                // JTable subtree keeps its old interior bounds and the content
+                // renders stuck at its pre-resize size inside the grown window.
+                // invalidate()+validate() runs validateTree over the whole
+                // Swing hierarchy so every nested layout manager reflows.
+                p.invalidate();
+                p.validate();
+                p.repaint();
+                requestRecapture();
+            }
+        };
+        if (javax.swing.SwingUtilities.isEventDispatchThread()) {
+            r.run();
+        } else {
+            javax.swing.SwingUtilities.invokeLater(r);
+        }
+    }
+
+    /**
      * Sets the transparency of the default renderer's appearance.
      * {@code 0.0f} is fully opaque, {@code 1.0f} is fully transparent.
      * Has no effect when this SwingNode was constructed with a custom

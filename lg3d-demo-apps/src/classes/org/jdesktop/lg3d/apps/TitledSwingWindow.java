@@ -27,6 +27,7 @@ import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
 import org.jdesktop.lg3d.utils.eventadapter.Component3DParkedEventAdapter;
+import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
@@ -36,6 +37,7 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
+import org.jdesktop.lg3d.wg.HostedWindowResizer;
 import org.jdesktop.lg3d.wg.SwingNode;
 import org.jdesktop.lg3d.wg.Thumbnail;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -182,7 +184,8 @@ public final class TitledSwingWindow {
         frame.setName(title);
         frame.addChild(node);
 
-        Component3D titleBar = buildTitleBar(title, contentW, contentH);
+        final Chrome chrome = new Chrome();
+        chrome.titleBar = buildTitleBar(title, contentW, contentH);
         // Every window gesture of the desktop lives in frame-level listeners:
         // ZLayeredMovableLayout adds the BUTTON1 mover and the CTRL spinner to
         // each frame, and Frame3DWindowDecoration adds the BUTTON2 spinner and
@@ -196,8 +199,8 @@ public final class TitledSwingWindow {
         // look-and-feel uses the same trick for its title panel). The
         // decoration's own pickable green border is a second such handle, so
         // the flip also works from the window edge.
-        titleBar.setMouseEventPropagatable(true);
-        frame.addChild(titleBar);
+        chrome.titleBar.setMouseEventPropagatable(true);
+        frame.addChild(chrome.titleBar);
 
         // Vertical "spine" titles on the left and right edges, each pre-rotated
         // +/-90deg about Y. In the normal front-facing view they are edge-on and
@@ -206,8 +209,10 @@ public final class TitledSwingWindow {
         // so the matching spine turns to face the viewer and reads like a book
         // spine. This mirrors the SpineTitle chrome of the native X11 window
         // look-and-feel, which the pure-3D Frame3D path otherwise lacks.
-        frame.addChild(buildSpineTitle(title, contentW, contentH, -1));
-        frame.addChild(buildSpineTitle(title, contentW, contentH, +1));
+        chrome.spineLeft = buildSpineTitle(title, contentW, contentH, -1);
+        chrome.spineRight = buildSpineTitle(title, contentW, contentH, +1);
+        frame.addChild(chrome.spineLeft);
+        frame.addChild(chrome.spineRight);
 
         // Click-to-unpark parity with native windows. StandardAppContainer
         // restores a parked window when the *frame* receives a BUTTON1 click:
@@ -237,14 +242,84 @@ public final class TitledSwingWindow {
         // panel live (same Texture2D object, updated in place on repaints).
         frame.setThumbnail(buildThumbnail(node, contentW, contentH));
 
+        // JFrame-like maximize: let the core window chrome resize this hosted
+        // window (Swing content + title bar + spines + decoration) to a new
+        // pixel size instead of uniformly scaling the fixed-res texture.
+        HostedWindowResizer.register(frame, new HostedWindowResizer.Resizer() {
+            public void resize(int widthPx, int heightPx) {
+                resizeWindow(frame, node, title, panel, chrome,
+                        widthPx, heightPx);
+            }
+        });
+
         // The frame is content + title bar; Frame3DWindowDecoration (attached
         // during changeEnabled) reads this size and lands its min/max/close
-        // buttons in the title strip.
+        // buttons in the title strip. Publish the strip height first so the
+        // decoration centres those buttons on the strip, aligned with the title
+        // text, rather than pinning them to the top corner.
         frame.setPreferredSize(
                 new Vector3f(contentW, contentH + TITLE_BAR_HEIGHT, 0.01f));
+        frame.setProperty(
+                Frame3DWindowDecoration.TITLE_BAR_HEIGHT_PROPERTY,
+                TITLE_BAR_HEIGHT);
         frame.changeEnabled(true);
         frame.changeVisible(true);
         return frame;
+    }
+
+    /** Mutable chrome references so a window can be resized after show(). */
+    private static final class Chrome {
+        Component3D titleBar;
+        Component3D spineLeft;
+        Component3D spineRight;
+    }
+
+    /**
+     * Resizes a hosted window so its whole area (title bar included) becomes
+     * {@code totalWidthPx} x {@code totalHeightPx} native pixels: the Swing
+     * panel re-lays-out at the new size (native text, crisp), the quad follows,
+     * and the fixed-size chrome (title bar, spines) plus the frame preferred
+     * size and the window decoration are rebuilt / re-laid-out to match.
+     */
+    private static void resizeWindow(
+            Frame3D frame, SwingNode node, String title, JPanel panel,
+            Chrome chrome, int totalWidthPx, int totalHeightPx) {
+        Toolkit3D tk = Toolkit3D.getToolkit3D();
+        int titleBarPx = tk.heightPhysicalToNative(TITLE_BAR_HEIGHT);
+        int contentWpx = totalWidthPx;
+        int contentHpx = totalHeightPx - titleBarPx;
+        if (contentWpx <= 0 || contentHpx <= 0) {
+            return;
+        }
+        float contentW = tk.widthNativeToPhysical(contentWpx);
+        float contentH = tk.heightNativeToPhysical(contentHpx);
+
+        // Re-layout the Swing content at the new pixel size (native text).
+        node.setHostedSize(contentWpx, contentHpx);
+
+        // Rebuild the fixed-size chrome at the new dimensions.
+        frame.removeChild(chrome.titleBar);
+        frame.removeChild(chrome.spineLeft);
+        frame.removeChild(chrome.spineRight);
+        chrome.titleBar = buildTitleBar(title, contentW, contentH);
+        chrome.titleBar.setMouseEventPropagatable(true);
+        chrome.spineLeft = buildSpineTitle(title, contentW, contentH, -1);
+        chrome.spineRight = buildSpineTitle(title, contentW, contentH, +1);
+        frame.addChild(chrome.titleBar);
+        frame.addChild(chrome.spineLeft);
+        frame.addChild(chrome.spineRight);
+
+        frame.setPreferredSize(new Vector3f(
+                contentW, contentH + TITLE_BAR_HEIGHT, 0.01f));
+
+        // Track the new size with the window chrome (backdrop + buttons).
+        for (java.util.Enumeration e = frame.getAllChildren();
+                e.hasMoreElements(); ) {
+            Object child = e.nextElement();
+            if (child instanceof Frame3DWindowDecoration) {
+                ((Frame3DWindowDecoration) child).relayout();
+            }
+        }
     }
 
     /**
