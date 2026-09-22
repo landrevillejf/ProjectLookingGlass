@@ -99,6 +99,11 @@ sourceSets {
             include 'org/jdesktop/lg3d/appkit/resource/**'
         }
     }
+    test {
+        java {
+            srcDir 'src/test/java'
+        }
+    }
 }
 
 tasks.named('compileJava') { dependsOn generateBuildInfo }
@@ -145,6 +150,21 @@ dependencies {
     runtimeOnly "org.jogamp.gluegen:gluegen-rt:2.6.0:${jogampNatives}"
     runtimeOnly "org.jogamp.jogl:jogl-all:2.6.0:${jogampNatives}"
     runtimeOnly "org.jogamp.joal:joal:2.6.0:${jogampNatives}"
+
+    // Unit tests for the Java 3D-free parts of the SDK (the 2D desktop's mode
+    // resolver, its .lgcfg reader and its application registry). The legacy
+    // tests/junit tree is left where it is; it predates this source set.
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The tests exercise Java 3D-free logic only; run them headless so CI
+    // (no X display) does not fail on the occasional Swing component built by
+    // the folder-menu/registry helpers.
+    systemProperty 'java.awt.headless', 'true'
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +327,14 @@ tasks.register('run', JavaExec) {
     systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
     systemProperty 'j3d.sortShape3DBounds', 'true'
     systemProperty 'j3d.useFreeLists', 'false'
+
+    // Opt-in: run the conventional Swing (2D) desktop instead of the 3D one
+    // (-Pdesktop2d, equivalently run-lg3d.sh -2). Sets lg.fws.mode=2d, which
+    // Main reads before booting Java 3D; on a machine without 3D the same
+    // desktop is offered automatically. Overrides the 'dev' value set above.
+    if (project.hasProperty('desktop2d')) {
+        systemProperty 'lg.fws.mode', '2d'
+    }
 
     // Opt-in: run with -Pbackground3d to use the 3D model desktop background
     // (pinguin.j3f, loaded via the in-tree J3fLoader) instead of the default
