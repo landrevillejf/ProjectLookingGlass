@@ -517,18 +517,18 @@ public abstract class StartMenuModel extends Container3D {
             // Raise the menu toward the screen centre: up from a bottom bar,
             // down from a top bar.
             boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
-            // The raised Z must clear the app-window front plane, not just sit
-            // proud of the taskbar. The menu is a child of the taskbar, which
-            // docks at Z = -0.04 (GlassyTaskbar.barZ), while ZLayeredLayout
-            // places the front-most app window at Z ~= -0.004 (its decoration
-            // buttons reach ~= +0.002). The old local Z of 0.02 left the raised
-            // menu at world Z ~= -0.02, i.e. BEHIND every window; that only
-            // went unnoticed because ordinary windows never overlap the menu's
-            // bottom-corner popup region. A full-screen maximized window does
-            // overlap it, so the menu was masked. 0.05 lifts it to world Z
-            // ~= +0.01, in front of any app window, so the start menu always
-            // wins the depth test like a real desktop's always-on-top menu.
-            changeTranslation(-0.005f, top ? -0.015f : 0.015f, 0.05f);
+            // The raised menu must win the depth test against app windows,
+            // but it must NOT visibly move: this view is perspective, so a
+            // large local Z pulls the menu toward the camera and magnifies /
+            // displaces it over the application bar and the glassy taskbar.
+            // Use the smallest Z that clears the front-most window plane: the
+            // taskbar docks at Z = -0.04 (GlassyTaskbar.barZ) and ZLayeredLayout
+            // puts the front app window at Z ~= -0.004 (its decoration buttons
+            // reach ~= +0.002), so a local Z of 0.045 (world ~= +0.005) sits
+            // just in front of every part of any window - enough for the
+            // hovered application list to appear on top - while staying close
+            // to the bar so its on-screen position and size are unchanged.
+            changeTranslation(-0.005f, top ? -0.015f : 0.015f, 0.045f);
             setMouseEventEnabled(true);
             
             // reset the pickable region size

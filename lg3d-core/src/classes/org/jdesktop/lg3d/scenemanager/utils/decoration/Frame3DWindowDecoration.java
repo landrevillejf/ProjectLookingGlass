@@ -327,11 +327,17 @@ public class Frame3DWindowDecoration extends Component3D {
             // strips and never cover the bar (whether it is docked top/bottom).
             float bottom = Taskbar.getReservedBottomHeight();
             float top = Taskbar.getReservedTopHeight();
-            float usableHeight = tk.getScreenHeight() - bottom - top;
+            // Leave a headroom band at the top of the screen. Filling exactly
+            // to the screen top put the title strip - and with it the
+            // minimize/maximize/close buttons - flush against (or past) the
+            // top edge, where they cannot be clicked. The headroom keeps the
+            // whole title bar comfortably inside the visible area.
+            float headroom = 0.012f;
+            float usableHeight = tk.getScreenHeight() - bottom - top - headroom;
             // World-space y of the centre of the usable area (screen centre is
             // y == 0). A bottom reserve shifts the band up by bottom/2, a top
-            // reserve shifts it down by top/2.
-            float centerY = (bottom - top) * 0.5f;
+            // reserve shifts it down by top/2, the headroom shifts it down.
+            float centerY = (bottom - top - headroom) * 0.5f;
 
             if (HostedWindowResizer.isResizable(frame)) {
                 // JFrame-like maximize: resize the hosted Swing content to the

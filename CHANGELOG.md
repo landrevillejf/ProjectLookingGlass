@@ -476,9 +476,19 @@ work to make it build and run on a current toolchain.
   raised the menu to a local `z = 0.02` (world `~= -0.02`), i.e. *behind* every
   window; that went unnoticed because ordinary windows never overlap the menu's
   bottom-corner popup region, but a full-screen maximized window does, so the app
-  list disappeared behind it. The raised local `z` is now `0.05` (world
-  `~= +0.01`), in front of any app window, so the start menu always wins the
-  depth test like a real desktop's always-on-top menu.
+  list disappeared behind it. The raised local `z` is now `0.045` (world
+  `~= +0.005`) - the *smallest* depth that clears the front-most window plane
+  (`~= +0.002`). Because the view is perspective, a larger raise pulls the menu
+  toward the camera and visibly magnifies/displaces it over the application bar
+  and the glassy taskbar, so the depth is kept minimal: the hovered application
+  list appears in front of any window while the rest of the desktop keeps its
+  position.
+- **Maximized window pushed its title bar off the top edge** - filling exactly to
+  the screen top left the title strip (and the minimize/maximize/close buttons)
+  flush against / past the top edge where they cannot be clicked. Maximize now
+  reserves a small top headroom band (`0.012`) in addition to the taskbar
+  reserves, so the whole title bar and its buttons stay comfortably inside the
+  visible area while the window still fills the usable width and height.
 - **Maximized hosted window kept its Swing content at the old size** — follow-up
   to the hosted maximize above. `SwingNode.setHostedSize` resized the panel then
   called `revalidate()` + `doLayout()`, but `doLayout()` only lays out the panel's
