@@ -200,3 +200,25 @@ and mode selectors, progress bar, log and in-panel browser/confirm overlays —
 modal dialogs cannot be used because they escape the offscreen capture). The
 `swingnode.lgcfg` demo
 (`lg3d-demo-apps/src/config/swingnode.lgcfg`) launches the SwingNode demo app.
+
+---
+
+## 8. Real X11 / native applications are a separate path
+
+`SwingNode` hosts **in-JVM Swing/AWT** UI only — a `JPanel` the desktop builds
+inside its own JVM. It is *not* a way to embed an external, already-running X11
+(or any other native) client window.
+
+On an ordinary desktop session — **including Wayland** — `SwingNode` is the
+supported way to get an application into the 3D desktop: conventional Swing apps
+are launched in-JVM and hosted through it (the `SwingNodeWindowCapture` path
+presents a top-level `JFrame` as a single integrated window). Embedding **real
+external X11 clients** as textured windows is a wholly separate, **experimental**
+mechanism that requires lg3d to become the window manager + compositor
+(`Composite` / `Damage` / `XTest`) of an X server it **owns** — either a **bare
+Xorg** session, or, for development on a Wayland host, a **nested Xephyr** started
+just for it (`run-lg3d.sh --nested`). It can never take over the *host* root under
+a running GNOME/Wayland session, because there `DISPLAY=:0` is XWayland and its X
+root is already owned by the Wayland compositor. See the
+[X11 compositor mode](../README.md#x11-compositor-mode) section of the README for
+the mechanism, the launch flags and the limitations.

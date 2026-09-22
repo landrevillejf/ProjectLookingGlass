@@ -369,6 +369,25 @@ tasks.register('run', JavaExec) {
             project.property('swingAppCp').toString().split(File.pathSeparator))
     }
 
+    // Opt-in: target a specific X display for the window-manager/compositor claim
+    // AND for external applications launched into the scene
+    // (-Plgserverdisplay=:1, set by run-lg3d.sh --nested). Sets both:
+    //   * the lg.lgserverdisplay property -- read by X11IntegrationModule (which
+    //     X server to claim SubstructureRedirect on) and by the app launchers
+    //     (Desktop2DAppRegistry / AppLaunchAction / ProcessRunner, which DISPLAY
+    //     to hand external apps so they land on the lg3d-owned server), and
+    //   * the forked JVM's DISPLAY, so lg3d's own Canvas3D window is created on
+    //     the SAME server it composites (X11Compositor.exemptOwnWindow() reads
+    //     that window's native handle).
+    // Without this the WM always defaults to :0, which under Wayland is XWayland
+    // and cannot be claimed. This is what lets the compositor run inside a nested
+    // Xephyr :1 while the developer stays on the host Wayland :0.
+    if (project.hasProperty('lgserverdisplay')) {
+        def lgDisplay = project.property('lgserverdisplay').toString()
+        systemProperty 'lg.lgserverdisplay', lgDisplay
+        environment 'DISPLAY', lgDisplay
+    }
+
     // Compositor mode (-Pcompositor). Boots X11Compositor on top of the window
     // manager claim so lg3d becomes the WM/compositor of the display. Grants the
     // single JDK-internal export the own-window discovery needs, and warns
@@ -383,10 +402,13 @@ tasks.register('run', JavaExec) {
         // -Dlg3d.x11.ownwindowid=<id>.
         jvmArgs '--add-exports', 'java.desktop/sun.awt=ALL-UNNAMED'
         doFirst {
+            def targetDisplay = project.hasProperty('lgserverdisplay') ?
+                project.property('lgserverdisplay').toString() :
+                (System.getenv('DISPLAY') ?: ':0')
             logger.lifecycle('')
             logger.lifecycle('=== LG3D X11 COMPOSITOR MODE (-Pcompositor) ===')
             logger.lifecycle('lg3d will act as the X11 window manager + compositor and claim')
-            logger.lifecycle('SubstructureRedirect on the target display (default :0).')
+            logger.lifecycle("SubstructureRedirect on the target display (${targetDisplay}).")
             logger.lifecycle('It MUST be started with no other window manager already holding')
             logger.lifecycle('that selection, or the WM claim fails with BadAccess.')
             logger.lifecycle('Config: lgconfig_1p_x_composite.xml (WinSysAWT + X11IntegrationModule).')

@@ -262,6 +262,17 @@ inside the 3D scene** — using the modern X **Composite / Damage / XTest**
 extensions rather than the blocked 2006 native path. In this mode lg3d becomes
 the **window manager and compositor** of the display:
 
+> **Status: experimental — implemented and fully wired, not yet validated
+> end-to-end.** This is a from-scratch reimplementation (the 2006 native path is
+> build-excluded and cannot run on stock JDK 21). lg3d claims the display,
+> redirects client windows, and launches external apps onto the display it owns —
+> but this has not yet been proven on real hardware. The hard constraint is that
+> lg3d must **own the X server** it composites, so it cannot hijack a running
+> GNOME/Wayland session; run it either on a **bare Xorg** session (production,
+> below) or inside a **nested Xephyr** on top of Wayland (development, below).
+> For pure in-JVM Swing/AWT apps, [`SwingNode`](docs/swingnode.md) remains the
+> simpler path that needs no X takeover.
+
 - lg3d claims `SubstructureRedirect` on the root window (the WM takeover) and
   calls `CompositeRedirectSubwindows`, so the X server redirects every top-level
   client window into an offscreen pixmap.
@@ -277,7 +288,8 @@ All of it is **pure Java** through the in-tree Escher X11 library — no JNI, no
 JNA, no patched JDK, and no custom X server.
 
 ```bash
-./run-lg3d.sh -x                                                # via the launcher
+./run-lg3d.sh -x                                                # bare Xorg session (production)
+./run-lg3d.sh --nested                                          # nested Xephyr :1 on a Wayland host (dev)
 JAVA_HOME=/path/to/jdk21 ./gradlew :lg3d-core:run -Pcompositor  # via Gradle
 ```
 
@@ -290,7 +302,48 @@ desktop (`lgconfig_1p_nox.xml`) is unchanged.
 > **Requires a bare X server.** Because lg3d claims `SubstructureRedirect`, it
 > must be the *only* window manager on that display. It will **not** start under
 > an existing session (GNOME/mutter, KDE, or Xwayland) — the WM claim fails with
-> `BadAccess`. It is meant for a dedicated Xorg session, as below.
+> `BadAccess`. Under Wayland in particular `DISPLAY=:0` is **XWayland**, whose
+> root is already owned by the Wayland compositor and whose top-level X windows
+> are each mapped to their own Wayland surface, so there is no single X root to
+> redirect and the claim can never succeed there. It is meant for a dedicated
+> Xorg session, as below.
+
+### How external apps get inside the scene
+
+An app launched from the start menu whose command is **not** a `java …` /
+`swingapp …` verb is classified `EXTERNAL` and started as a **child process**
+with `DISPLAY` set to the display lg3d owns (`lg.lgserverdisplay`). Because lg3d
+is that display's window manager and has redirected its subwindows, the new
+top-level window (Firefox, a terminal, …) is composited into an offscreen pixmap
+and textured onto a `NativeWindow3D` quad in the 3D scene — the modern equivalent
+of the 2006 native integration. This only works when lg3d owns the server, which
+is what the two modes below provide.
+
+### Try it on a Wayland host (nested Xephyr)
+
+You do not have to log out of Wayland to exercise the compositor. `--nested`
+starts a nested **Xephyr** X server (default `:1`) as an ordinary window on your
+current desktop, then runs lg3d as *its* window manager + compositor, so external
+apps land inside the 3D scene:
+
+```bash
+sudo dnf install xorg-x11-server-Xephyr   # once (Debian/Ubuntu: xserver-xephyr)
+./run-lg3d.sh --nested                    # Xephyr :1 + lg3d as its WM/compositor
+./run-lg3d.sh --nested :2                 # pick a different nested display
+XEPHYR_SCREEN=1600x900 ./run-lg3d.sh --nested
+```
+
+`--nested` implies `-x` and passes `-Plgserverdisplay=:1`, which sets both the
+`lg.lgserverdisplay` property (the display the WM claims and external apps are
+launched on) and the forked JVM's `DISPLAY` (so lg3d's own Canvas3D window is
+created on that same nested server). The nested Xephyr is torn down when lg3d
+exits.
+
+> **GLX caveat.** Xephyr has no direct GL by default. If Java 3D cannot obtain an
+> OpenGL context inside the nested server, pass
+> `XEPHYR_ARGS="-screen 1280x800 -gl"` (recent Xephyr + host GL) or use the bare
+> Xorg session below, which has real hardware GLX. Nested mode is for developing
+> and verifying the compositing/input path; bare Xorg is the production target.
 
 ### Deployment target (Linux From Scratch)
 

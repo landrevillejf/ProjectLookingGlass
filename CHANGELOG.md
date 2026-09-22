@@ -107,6 +107,20 @@ work to make it build and run on a current toolchain.
   `-Pcompositor` / `run-lg3d.sh -x` (`lgconfig_1p_x_composite.xml`); no JNI, no
   JNA, no patched JDK. Requires a bare Xorg with no other WM already holding
   `SubstructureRedirect`. The legacy native `fws/x11` path stays excluded.
+  **Experimental / unverified:** implemented and fully wired, but not yet
+  validated end-to-end on real hardware. lg3d must own the X server it composites,
+  so it cannot hijack a running GNOME/Wayland session; run it on a bare Xorg
+  session or, for development on Wayland, inside a nested Xephyr
+  (`run-lg3d.sh --nested`). See the README's *X11 compositor mode*.
+- **X11 compositor: nested-Xephyr launcher + display override** — `run-lg3d.sh
+  --nested [<display>]` starts a nested Xephyr X server (default `:1`) and runs
+  lg3d as its window manager + compositor inside it, so real external X11 apps
+  launched from the desktop are composited into the 3D scene without leaving a
+  Wayland session; the nested server is torn down on exit. Backed by a new
+  `-Plgserverdisplay=<display>` on `:lg3d-core:run`, which sets both the
+  `lg.lgserverdisplay` property (the display the WM claims and external apps are
+  launched on) and the forked JVM's `DISPLAY`; `--display <display>` exposes the
+  same override for `-x`.
 - **Desktop shell: widget framework (`lg3d-widgets`)** — a new in-tree module
   providing a public, pluggable widget API (`org.jdesktop.lg3d.widgets.api`:
   `Widget`, `AbstractWidget`, `WidgetContext`, `WidgetDescriptor`, the

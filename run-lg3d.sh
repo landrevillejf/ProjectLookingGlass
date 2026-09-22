@@ -72,6 +72,18 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          (Composite/Damage/XTest). Claims SubstructureRedirect
                          on DISPLAY; start it with no other window manager
                          running on that display. Passes -Pcompositor to Gradle.
+        --nested [DISP]  Run the compositor inside a nested Xephyr X server so
+                         real external X11 apps (e.g. firefox) launched from the
+                         desktop are composited into the 3D scene WITHOUT
+                         leaving your Wayland session. Starts Xephyr (default
+                         :1), then runs lg3d as its WM/compositor there.
+                         Implies -x. Needs Xephyr installed:
+                           Fedora/Red Hat: sudo dnf install xorg-x11-server-Xephyr
+                           Debian/Ubuntu:  sudo apt install xserver-xephyr
+                         Passes -Plgserverdisplay=<DISP> to Gradle.
+        --display <DISP> X display the compositor claims and external apps are
+                         launched on (sets lg.lgserverdisplay + the JVM DISPLAY).
+                         Defaults to :0 for -x, :1 for --nested.
     -s, --swing-app <fqcn> [args...]
                          Run a conventional Swing application's main() inside
                          the desktop JVM so its windows are captured into the
@@ -89,8 +101,11 @@ Anything after '--' is passed straight to the Gradle invocation, e.g.:
     ./run-lg3d.sh -- --info
 
 Environment:
-    JAVA_HOME  JDK 21 toolchain (auto-detected if unset).
-    DISPLAY    X display to render into (defaults to :0).
+    JAVA_HOME      JDK 21 toolchain (auto-detected if unset).
+    DISPLAY        X display to render into (defaults to :0).
+    XEPHYR_SCREEN  Nested screen size for --nested (default 1280x800).
+    XEPHYR_ARGS    Full Xephyr arg string for --nested (overrides the screen
+                   default; e.g. "-screen 1600x900 -gl" if Java 3D needs GLX).
 
 EOF
     exit "${1:-0}"
@@ -99,6 +114,8 @@ EOF
 # --- Option parsing ----------------------------------------------------------
 BACKGROUND3D=false
 COMPOSITOR=false
+NESTED=false
+LG_DISPLAY=""
 DESKTOP2D=false
 DESKTOP_SWING=false
 DO_CLEAN=false
@@ -114,6 +131,14 @@ while [ $# -gt 0 ]; do
         -2|--2d)           DESKTOP2D=true ;;
         -w|--swing)        DESKTOP_SWING=true ;;
         -x|--compositor)   COMPOSITOR=true ;;
+        --nested)
+                           NESTED=true
+                           # optional explicit display, e.g. --nested :2
+                           case "${2:-}" in
+                               :*) LG_DISPLAY="$2"; shift ;;
+                           esac
+                           ;;
+        --display)         LG_DISPLAY="${2:-}"; shift ;;
         -c|--clean)        DO_CLEAN=true ;;
         -r|--rebuild)      DO_REBUILD=true ;;
         --swing-app-cp)    SWING_APP_CP="${2:-}"; shift ;;
@@ -132,12 +157,61 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# --nested implies the compositor plus a nested X display for lg3d to claim.
+if [ "${NESTED}" = true ]; then
+    COMPOSITOR=true
+    [ -n "${LG_DISPLAY}" ] || LG_DISPLAY=":1"
+fi
+
+# Start a nested Xephyr X server for --nested so lg3d can be its window manager
+# without leaving the host (Wayland) session. Xephyr presents the nested screen
+# as an ordinary window on the host; lg3d's 3D desktop renders inside it, and
+# external apps launched from the desktop land on the same nested display and are
+# composited into the scene.
+start_xephyr() {
+    local disp="$1"
+    local num="${disp#:}"; num="${num%%.*}"
+    local sock="/tmp/.X11-unix/X${num}"
+    if [ -S "${sock}" ]; then
+        echo "Xephyr: an X server already listens on ${disp}; reusing it."
+        return 0
+    fi
+    if ! command -v Xephyr >/dev/null 2>&1; then
+        echo "ERROR: --nested needs Xephyr, which is not installed." >&2
+        echo "  Fedora/Red Hat: sudo dnf install xorg-x11-server-Xephyr" >&2
+        echo "  Debian/Ubuntu:  sudo apt install xserver-xephyr" >&2
+        exit 1
+    fi
+    local args="${XEPHYR_ARGS:--screen ${XEPHYR_SCREEN:-1280x800}}"
+    echo "Starting Xephyr on ${disp} (${args}) ..."
+    # shellcheck disable=SC2086
+    Xephyr "${disp}" ${args} >/tmp/xephyr-lg3d.log 2>&1 &
+    XEPHYR_PID=$!
+    local i
+    for i in $(seq 1 50); do
+        [ -S "${sock}" ] && break
+        sleep 0.1
+    done
+    if [ ! -S "${sock}" ]; then
+        echo "ERROR: Xephyr did not come up on ${disp}; see /tmp/xephyr-lg3d.log" >&2
+        exit 1
+    fi
+    echo "Xephyr is up on ${disp} (pid ${XEPHYR_PID})."
+}
+
+if [ "${NESTED}" = true ]; then
+    start_xephyr "${LG_DISPLAY}"
+fi
+
 GRADLE_ARGS=(":lg3d-core:run" "--console=plain")
 if [ "${BACKGROUND3D}" = true ]; then
     GRADLE_ARGS+=("-Pbackground3d")
 fi
 if [ "${COMPOSITOR}" = true ]; then
     GRADLE_ARGS+=("-Pcompositor")
+fi
+if [ -n "${LG_DISPLAY}" ]; then
+    GRADLE_ARGS+=("-Plgserverdisplay=${LG_DISPLAY}")
 fi
 if [ "${DESKTOP2D}" = true ]; then
     GRADLE_ARGS+=("-Pdesktop2d")
@@ -168,9 +242,15 @@ if [ "${DESKTOP_SWING}" = true ]; then
     echo "MODE      : conventional Swing desktop, Metal look and feel (-PdesktopSwing)"
 fi
 if [ "${COMPOSITOR}" = true ]; then
-    echo "MODE      : X11 compositor / window manager (-Pcompositor)"
-    echo "WARNING   : lg3d will claim SubstructureRedirect on ${DISPLAY} and act"
-    echo "            as the window manager. No other WM may already hold it."
+    if [ "${NESTED}" = true ]; then
+        echo "MODE      : X11 compositor / WM in nested Xephyr (-Pcompositor -Plgserverdisplay=${LG_DISPLAY})"
+        echo "NOTE      : lg3d owns ${LG_DISPLAY}; external apps launched from the"
+        echo "            desktop are composited into the 3D scene."
+    else
+        echo "MODE      : X11 compositor / window manager (-Pcompositor)"
+        echo "WARNING   : lg3d will claim SubstructureRedirect on ${LG_DISPLAY:-${DISPLAY}}"
+        echo "            and act as the window manager. No other WM may hold it."
+    fi
 fi
 
 if [ "${DO_CLEAN}" = true ]; then
@@ -184,4 +264,16 @@ if [ "${DO_REBUILD}" = true ]; then
 fi
 
 echo "Launching LG3D desktop: ./gradlew ${GRADLE_ARGS[*]}"
+if [ "${NESTED}" = true ]; then
+    # Do not exec: the nested Xephyr must be torn down when lg3d exits.
+    set +e
+    ./gradlew "${GRADLE_ARGS[@]}"
+    rc=$?
+    set -e
+    if [ -n "${XEPHYR_PID:-}" ]; then
+        echo "Stopping Xephyr (pid ${XEPHYR_PID}) ..."
+        kill "${XEPHYR_PID}" 2>/dev/null || true
+    fi
+    exit "${rc}"
+fi
 exec ./gradlew "${GRADLE_ARGS[@]}"
