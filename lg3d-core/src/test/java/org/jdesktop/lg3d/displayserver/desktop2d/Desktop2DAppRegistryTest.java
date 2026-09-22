@@ -60,6 +60,8 @@ class Desktop2DAppRegistryTest {
                 "swingapp org.jdesktop.lg3d.apps.paint.PaintApp"));
         assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.swingtest.TestFrame"));
+        assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.screencapture.ScreenCaptureConfigFrame"));
     }
 
     @Test

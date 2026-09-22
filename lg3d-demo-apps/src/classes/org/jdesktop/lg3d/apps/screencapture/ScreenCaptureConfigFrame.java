@@ -6,14 +6,20 @@
 
 package org.jdesktop.lg3d.apps.screencapture;
 
+import java.awt.Frame;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.Timer;
 import java.util.TimerTask;
+import javax.imageio.ImageIO;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.displayserver.ScreenCaptureEvent;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 
 /**
  *
@@ -25,6 +31,9 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     private int snapshotDelay = 2;
     
     private static WeakReference<ScreenCaptureConfigFrame> captureFrame = null;
+    
+    /** Per-image counter, matching the 3D ScreenCaptureBehavior's naming. */
+    private static int imageNo = 0;
     
     /** Creates new form ScreenCaptureConfigFrame */
     public ScreenCaptureConfigFrame() {
@@ -65,7 +74,11 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         snapshotButton = new javax.swing.JButton();
         cancelButton = new javax.swing.JButton();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        // In the shared 2D/Swing desktop this frame lives inside the desktop's
+        // own JVM, so EXIT_ON_CLOSE would tear the whole desktop down when the
+        // window is closed. DISPOSE_ON_CLOSE matches the other in-JVM Swing apps
+        // (e.g. Paint) and still lets a standalone run exit once it is dismissed.
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         jPanel1.setLayout(new java.awt.GridBagLayout());
 
         jPanel1.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
@@ -150,10 +163,23 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         setVisible(false);
         dispose();
         
+        final String dir = saveDirectory.getAbsolutePath();
+        final boolean desktop2d = Boolean.getBoolean(Desktop2D.MODE_PROPERTY);
         TimerTask taskPerformer = new TimerTask() {
           public void run() {
-            AppConnectorPrivate.getAppConnector().postEvent(new ScreenCaptureEvent(saveDirectory.getAbsolutePath()), null); 
-            System.out.println("SNAPSHOT ********************");
+            if (desktop2d) {
+              // No 3D display server in the 2D/Swing desktop: posting a
+              // ScreenCaptureEvent would make AppConnectorPrivate boot Java 3D
+              // and crash. Paint the desktop window(s) to a PNG on the EDT.
+              SwingUtilities.invokeLater(new Runnable() {
+                public void run() {
+                  captureDesktopToPng(dir);
+                }
+              });
+            } else {
+              AppConnectorPrivate.getAppConnector().postEvent(new ScreenCaptureEvent(dir), null); 
+              System.out.println("SNAPSHOT ********************");
+            }
           }
         };
         Timer timer = new Timer();
@@ -181,6 +207,41 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
             }
         }
     }//GEN-LAST:event_browseButtonActionPerformed
+    
+    /**
+     * Paints every visible top-level window to a PNG in {@code dir}, named like
+     * the 3D capture ({@code lgscreen-<i>-<n>.png}). This is the 2D/Swing
+     * desktop's capture path: there is no scene graph to read a raster from and
+     * {@code java.awt.Robot} cannot grab a rootless/Wayland display, so the
+     * desktop is rendered straight into an image. Runs on the EDT.
+     */
+    private static void captureDesktopToPng(String dir) {
+        int index = 0;
+        for (Frame window : Frame.getFrames()) {
+            if (!window.isShowing() || window.getWidth() <= 0
+                    || window.getHeight() <= 0) {
+                continue;
+            }
+            try {
+                BufferedImage image = new BufferedImage(window.getWidth(),
+                        window.getHeight(), BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = image.createGraphics();
+                try {
+                    window.paint(g);
+                } finally {
+                    g.dispose();
+                }
+                File out = new File(dir,
+                        "lgscreen-" + index + "-" + (imageNo++) + ".png");
+                ImageIO.write(image, "png", out);
+                System.out.println("SNAPSHOT (2D) written to "
+                        + out.getAbsolutePath());
+                index++;
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
     
     /**
      * @param args the command line arguments
