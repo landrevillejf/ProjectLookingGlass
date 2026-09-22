@@ -13,35 +13,51 @@
  */
 package org.jdesktop.lg3d.widgets.builtin;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import org.jdesktop.lg3d.widgets.api.Widget;
 import org.jdesktop.lg3d.widgets.api.WidgetDescriptor;
 import org.jdesktop.lg3d.widgets.api.WidgetProvider;
 
 /**
  * Contributes the widgets bundled with the lg3d-widgets module (clock,
- * temperature, CPU, memory and weather) to the {@link org.jdesktop.lg3d.widgets.api.WidgetRegistry}.
+ * temperature, CPU, memory and weather) to the
+ * {@link org.jdesktop.lg3d.widgets.api.WidgetRegistry}.
  *
  * <p>Registered through
- * {@code META-INF/services/org.jdesktop.lg3d.widgets.api.WidgetProvider}. Icons
- * reference the core icon set, which is on the desktop runtime classpath.</p>
+ * {@code META-INF/services/org.jdesktop.lg3d.widgets.api.WidgetProvider}. The
+ * metadata (id, name, category, icon, default size) comes from the shared,
+ * Java 3D-free {@link BuiltinWidgetCards} catalogue - the same source the 2D
+ * desktop uses - so each widget is described exactly once; this provider only
+ * pairs each card spec with the {@link Widget} that hosts it in 3D.</p>
  */
 public class BuiltinWidgetProvider implements WidgetProvider {
 
-    private static final String ICON_PREFIX = "/resources/images/icon/";
+    /** Widget type id -> factory for the 3D widget that hosts its card. */
+    private static final Map<String, Supplier<Widget>> WIDGETS = new LinkedHashMap<>();
+
+    static {
+        WIDGETS.put(ClockWidget.ID, ClockWidget::new);
+        WIDGETS.put(TemperatureWidget.ID, TemperatureWidget::new);
+        WIDGETS.put(CpuWidget.ID, CpuWidget::new);
+        WIDGETS.put(MemoryWidget.ID, MemoryWidget::new);
+        WIDGETS.put(WeatherWidget.ID, WeatherWidget::new);
+    }
 
     @Override
     public List<WidgetDescriptor> descriptors() {
-        return List.of(
-            new WidgetDescriptor(ClockWidget.ID, "Clock", "Clock",
-                    ICON_PREFIX + "star.png", 150, 150, ClockWidget::new),
-            new WidgetDescriptor(TemperatureWidget.ID, "Temperature", "System",
-                    ICON_PREFIX + "system.png", 150, 120, TemperatureWidget::new),
-            new WidgetDescriptor(CpuWidget.ID, "CPU Load", "System",
-                    ICON_PREFIX + "system.png", 150, 110, CpuWidget::new),
-            new WidgetDescriptor(MemoryWidget.ID, "Memory", "System",
-                    ICON_PREFIX + "system.png", 160, 110, MemoryWidget::new),
-            new WidgetDescriptor(WeatherWidget.ID, "Weather", "Web",
-                    ICON_PREFIX + "leaf.png", 200, 160, WeatherWidget::new)
-        );
+        List<WidgetDescriptor> out = new ArrayList<>();
+        for (WidgetCardSpec spec : BuiltinWidgetCards.all()) {
+            Supplier<Widget> factory = WIDGETS.get(spec.id());
+            if (factory == null) {
+                continue;
+            }
+            out.add(new WidgetDescriptor(spec.id(), spec.displayName(), spec.category(),
+                    spec.iconResource(), spec.defaultWidth(), spec.defaultHeight(), factory));
+        }
+        return out;
     }
 }
