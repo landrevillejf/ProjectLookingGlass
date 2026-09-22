@@ -2,7 +2,7 @@
 // Targets JDK 21 + Gradle, replacing the original 2006-era Ant/source-1.5 build.
 allprojects {
     group = 'org.jdesktop.lg3d'
-    version = '1.8.0-dev'
+    version = '1.9.0-dev'
 
     repositories {
         mavenCentral()
