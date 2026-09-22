@@ -147,7 +147,10 @@ match. Entries are handled by kind:
   on a `SwingNode`, minus the 3D) — open as internal frames inside the desktop
   window under both `-2` and `-w` / `--swing` (Metal look and feel under `-w`).
 - **Conventional Swing apps** that insist on their own top-level window
-  (**Paint**, **Swing Test**) launch in-JVM and appear beside the desktop.
+  (**Paint**, **Swing Test**, **Screen Snapshot**) launch in-JVM and appear
+  beside the desktop. In 2D, **Screen Snapshot** captures by painting the
+  desktop window to a PNG (`lgscreen-<i>-<n>.png` in the chosen folder) instead
+  of reading the 3D raster.
 - **External commands** (browser, terminal, `javaws …`) start as child
   processes, exactly as in 3D; an entry whose executable is missing is dropped,
   as the 3D menu does.

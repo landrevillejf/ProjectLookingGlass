@@ -504,6 +504,21 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **Screen Snapshot would not launch in the 2D/Swing desktop** — the
+  conventional Swing `ScreenCaptureConfigFrame` (a plain `JFrame` with a `main`,
+  like Paint and Swing Test) was missing from `Desktop2DAppRegistry`'s
+  `SWING_FRAME_APPS`, so `classify` fell through to `UNAVAILABLE` and its
+  Start-menu entry (Utilities) was greyed out with "Requires the 3D desktop". It
+  is now registered as a Swing-frame app, so it launches in-JVM beside the
+  desktop under both `--2d` and `--swing`. Two 3D couplings that would misbehave
+  in the shared desktop JVM were fixed at the same time: its `EXIT_ON_CLOSE`
+  (which would tear the desktop down on close) is now `DISPOSE_ON_CLOSE`, and
+  "Take Snapshot" no longer posts a `ScreenCaptureEvent` in 2D — that path makes
+  `AppConnectorPrivate` boot Java 3D, which cannot work with no 3D — so it paints
+  the visible desktop window(s) straight into `lgscreen-<i>-<n>.png` in the
+  chosen folder (the same naming as the 3D `ScreenCaptureBehavior`), avoiding
+  `java.awt.Robot`, which cannot grab a rootless/Wayland display. The 3D capture
+  path is unchanged. Covered by `Desktop2DAppRegistryTest`.
 - **Maximizing a hosted Swing window magnified its text and left it narrow** —
   `Frame3DWindowDecoration.toggleMaximized` maximized every window by uniformly
   scaling the `Frame3D` to fit the usable screen area
