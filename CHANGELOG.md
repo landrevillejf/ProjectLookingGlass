@@ -172,6 +172,27 @@ work to make it build and run on a current toolchain.
   Phase 3). Covered by JUnit 5 headless tests (MRU ordering, the controller state
   machine, the item, overlay paint, and the 2D model through a `WindowSource`
   seam).
+- **Application switcher (Alt+Tab) — 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.switcher`) — the same MRU switcher now
+  runs on the 3D desktop, reusing the desktop-agnostic core
+  (`SwitcherController` / `MruTracker` / `SwitcherItem`) built in the 2D phase.
+  `Frame3DSwitcherModel` enumerates the open `Frame3D` application windows in
+  MRU order through a Java 3D-free `WindowSource` seam — so it is headless
+  unit-testable exactly like `Desktop2DSwitcherModel` — and activates one by
+  posting a `Component3DToFrontEvent`. `ApplicationSwitcher3D` tracks windows
+  through the same `Frame3DAdded` / `Frame3DRemoved` / `Component3DToFront` event
+  stream the taskbar uses, binds **Alt+Tab** on the scene root (Shift steps back,
+  **Enter** commits, **Esc** cancels, and an idle timer commits on key release,
+  which a windowed dev-mode lg3d cannot always observe), and drives
+  `SwitcherOverlay3D` — a glassy panel listing the window names, lifted in front
+  of every window with the start menu's perspective-compensated pose so it both
+  draws over and picks in front of them. `SceneManagerBase` installs it on the 3D
+  desktop. Labels are plain glassy text rather than live `Thumbnail` nodes: a
+  `Frame3D`'s single thumbnail is already parented in the taskbar and a
+  scene-graph node cannot have two parents. Only lg3d-hosted `Frame3D` windows are
+  cycled here; external/host applications remain the gated compositor phase.
+  Covered by JUnit 5 headless tests (MRU ordering, activation, forget, the null
+  and empty window lists, and the trigger spec through the `WindowSource` seam).
 - **Desktop shell: dock folder stacks** — Documents and Downloads stacks on the
   taskbar's right side
   (`[Documents] [Downloads] [Background] [Exit]`), each raising **the same

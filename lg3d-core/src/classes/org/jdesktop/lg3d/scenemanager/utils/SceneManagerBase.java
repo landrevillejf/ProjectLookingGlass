@@ -34,6 +34,7 @@ import org.jdesktop.lg3d.scenemanager.utils.cursormodule.StandardCursorModule;
 import org.jdesktop.lg3d.scenemanager.utils.gesture.GestureModuleBase;
 import org.jdesktop.lg3d.scenemanager.utils.globallights.GlobalLights;
 import org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPlugin;
+import org.jdesktop.lg3d.scenemanager.utils.switcher.ApplicationSwitcher3D;
 import org.jdesktop.lg3d.utils.action.ActionBooleanInt;
 import org.jdesktop.lg3d.utils.eventadapter.KeyPressedEventAdapter;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -55,6 +56,9 @@ public abstract class SceneManagerBase implements SceneManager {
     protected Component3D rootContainer;
     protected boolean addDefaultLights = true;
     protected boolean addGestureSupport = true;
+
+    /** The Alt+Tab application switcher installed on the 3D desktop. */
+    private ApplicationSwitcher3D applicationSwitcher;
     
     /**
      * Initialization method to be implemented in a derived class.
@@ -136,6 +140,11 @@ public abstract class SceneManagerBase implements SceneManager {
 		    }
             }));
             
+        // Install the Alt+Tab application switcher on the 3D desktop, so the
+        // same cycling UX the 2D/Swing desktop has is available here too.
+        applicationSwitcher = new ApplicationSwitcher3D();
+        applicationSwitcher.install(rootContainer);
+
         initialize();
         
 //        initializePlugins(prefs);
