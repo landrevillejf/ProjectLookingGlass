@@ -17,7 +17,7 @@ work to make it build and run on a current toolchain.
 - **`run-lg3d.sh`** launcher at the repository root — auto-detects/pins the JDK 21
   toolchain, defaults `DISPLAY`, and starts the desktop. Options: `-2`
   (conventional Swing 2D desktop, MDI internal frames), `-w` / `--swing` (Swing
-  desktop with top-level `JFrame`s + Metal look and feel), `-b` (3D `pinguin.j3f`
+  desktop, MDI internal frames + Metal look and feel), `-b` (3D `pinguin.j3f`
   background), `-x` (X11 compositor/WM mode), `-c` (clean first), `-r`
   (reassemble runtime resources), `-h` (help), and `--` pass-through to Gradle.
 - **`lg3d-core:run`** task (`JavaExec`) launching `org.jdesktop.lg3d.displayserver.Main`
@@ -58,23 +58,25 @@ work to make it build and run on a current toolchain.
   `lg3d-core/src/test/java` source set (mode resolver, descriptor reader, app
   registry, folder-menu listing); the 3D boot path is otherwise unchanged.
 - **Swing desktop flavour (`--swing`)** (`lg3d-core`,
-  `org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing`) — an alternative to
-  the MDI 2D desktop in which every application opens in its own **top-level
-  `JFrame`** decorated and managed by the host window manager, under the **Metal**
-  look and feel, rather than as a `JInternalFrame` inside the desktop's
-  `JDesktopPane`. `DesktopSwing extends Desktop2D` and overrides only the
-  window-hosting step (`openPanelApp`, widened to `protected`): the shell,
-  wallpaper `JDesktopPane`, start menu, Documents/Downloads folder menus,
-  taskbar, external-command and conventional-Swing-app launches and exit handling
-  are all inherited unchanged, so nothing is duplicated. Application frames use
-  `DISPOSE_ON_CLOSE` (never `EXIT_ON_CLOSE`) because they share the desktop JVM,
-  and re-launching an already-open application brings its frame forward instead
-  of opening a second one. Selected with `lg.fws.mode=swing` (`run-lg3d.sh -w` /
+  `org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing`) — the same MDI
+  desktop as `--2d`, wearing the **Metal** look and feel: one maximised window
+  whose `JDesktopPane` hosts each application in a `JInternalFrame`, so windows
+  stay integrated with the desktop and minimise into it rather than escaping to
+  the host taskbar. (`--2d` keeps the host system look and feel.) A real
+  top-level `JFrame` cannot be a child of a `JDesktopPane` and iconifies into the
+  host window manager, outside the desktop, so `JInternalFrame` — stock Swing's
+  MDI window — is the correct component here. `DesktopSwing extends Desktop2D`
+  and adds only the Metal look and feel and its own window title: the shell,
+  wallpaper `JDesktopPane`, internal-frame hosting and de-duplication, start
+  menu, Documents/Downloads folder menus, taskbar, external-command and
+  conventional-Swing-app launches and exit handling are all inherited unchanged,
+  so nothing is duplicated. Selected with `lg.fws.mode=swing` (`run-lg3d.sh -w` /
   `--swing`, equivalently `-PdesktopSwing`); `DesktopMode` resolves it as an
   explicit, never-confirmed choice and the automatic no-3D fallback still lands
   on the MDI 2D desktop, so `--2d` is unchanged. Covered by `DesktopModeTest`;
-  the `JFrame` hosting was verified at runtime (two panel apps open as real
-  `JFrame`s, the desktop pane holds zero internal frames, Metal is active).
+  the internal-frame hosting under Metal was verified at runtime (panel apps open
+  as `JInternalFrame`s inside the desktop pane and minimise into it, Metal is
+  active).
 - **`lg3d-core:runtimeResources`** task — assembles the legacy top-level
   `resources/` classpath tree from `lg3d-art` (wallpapers, splash, models, GDM
   theme), `lg3d-core` (icons, buttons, default wallpapers) and the incubator
