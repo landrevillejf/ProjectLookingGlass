@@ -44,6 +44,7 @@ import javax.swing.UIManager;
 import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.plaf.basic.BasicDesktopPaneUI;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.system.Opener;
@@ -124,6 +125,10 @@ public class Desktop2D {
         menuModel = Desktop2DMenuConfig.load();
         desktop = new WallpaperDesktopPane(wallpaper());
         desktop.setDragMode(JDesktopPane.OUTLINE_DRAG_MODE);
+        // The taskbar button is the single representation of a minimised
+        // window; stock MDI would also drop a desktop icon on the pane, which
+        // shows the icon twice and reads as a second row above the taskbar.
+        desktop.setDesktopManager(new SingleIconDesktopManager());
 
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
@@ -579,6 +584,22 @@ public class Desktop2D {
         return null;
     }
 
+    /**
+     * Keeps a minimised window's icon in exactly one place. Stock MDI drops a
+     * desktop icon onto the pane when a frame is iconified; the taskbar button
+     * already represents the minimised window, so the desktop icon is hidden.
+     * Clicking the taskbar button restores the window via
+     * {@link #activateWindow(Desktop2DWindow)}.
+     */
+    private static final class SingleIconDesktopManager
+            extends javax.swing.DefaultDesktopManager {
+        @Override
+        public void iconifyFrame(javax.swing.JInternalFrame f) {
+            super.iconifyFrame(f);
+            f.getDesktopIcon().setVisible(false);
+        }
+    }
+
     /** A desktop pane that paints the wallpaper behind the MDI windows. */
     private static final class WallpaperDesktopPane extends JDesktopPane {
         private Image image;
@@ -586,6 +607,18 @@ public class Desktop2D {
         WallpaperDesktopPane(Image image) {
             this.image = image;
             setOpaque(true);
+        }
+
+        /**
+         * Pins the plain basic desktop UI. The Synth (GTK) desktop UI installs
+         * its own taskbar strip along the bottom of the pane that re-lists
+         * minimised windows; on top of the shell's taskbar that shows the
+         * minimised icon twice and reads as a second row. The basic UI keeps
+         * the MDI behaviour without that strip.
+         */
+        @Override
+        public void updateUI() {
+            setUI(new BasicDesktopPaneUI());
         }
 
         /** Swaps the backdrop image; repaints as the new pixels arrive. */

@@ -19,6 +19,7 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagLayout;
 import java.awt.IllegalComponentStateException;
 import java.awt.Image;
 import java.awt.MouseInfo;
@@ -71,6 +72,8 @@ public class Desktop2DTaskbar extends JPanel {
     static final int MIN_BAR_HEIGHT_PX = 18;
     /** Sliver left on screen when auto-hide has collapsed the bar. */
     static final int COLLAPSED_HEIGHT_PX = 5;
+    /** Sentinel height: let the bar pack to the height of its controls. */
+    private static final int NATURAL_HEIGHT = -1;
     /** How often the auto-hide poll checks the pointer against the bar. */
     private static final int AUTOHIDE_POLL_MS = 250;
 
@@ -91,8 +94,7 @@ public class Desktop2DTaskbar extends JPanel {
     private final Map<Component, Font> originalFonts = new IdentityHashMap<>();
 
     private Font activeFont;
-    private int expandedHeight = BASE_BAR_HEIGHT_PX;
-    private int currentHeight = -1;
+    private int currentHeight = NATURAL_HEIGHT;
     private boolean autoHide;
     private Timer autoHideTimer;
 
@@ -108,31 +110,41 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
         windowButtons.setOpaque(false);
 
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
-        left.setOpaque(false);
+        // Each button row is centred inside a plain GridBagLayout wrapper: a
+        // thick bar (barScale > 1) then keeps its buttons on one centred row
+        // instead of pinning them to the top and leaving an empty band below
+        // that reads as a second row.
+        JPanel leftRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        leftRow.setOpaque(false);
         startIconBase = Desktop2DStartMenu.icon(STAR_ICON);
         startButton = new JButton("Start", startIconBase);
         startButton.setToolTipText("Applications");
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
-        left.add(startButton);
-        left.add(windowButtons);
+        leftRow.add(startButton);
+        leftRow.add(windowButtons);
+        JPanel left = new JPanel(new GridBagLayout());
+        left.setOpaque(false);
+        left.add(leftRow);
         add(left, BorderLayout.WEST);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
-        right.setOpaque(false);
+        JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
+        rightRow.setOpaque(false);
         documentsIconBase = Desktop2DStartMenu.icon(DOCUMENTS_ICON);
         documentsButton = folderButton("Documents", documentsIconBase,
                 desktop.getDocumentsMenu());
         downloadsIconBase = Desktop2DStartMenu.icon(DOWNLOADS_ICON);
         downloadsButton = folderButton("Downloads", downloadsIconBase,
                 desktop.getDownloadsMenu());
-        right.add(documentsButton);
-        right.add(downloadsButton);
-        right.add(clock);
+        rightRow.add(documentsButton);
+        rightRow.add(downloadsButton);
+        rightRow.add(clock);
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");
         exit.addActionListener(e -> desktop.confirmExit());
-        right.add(exit);
+        rightRow.add(exit);
+        JPanel right = new JPanel(new GridBagLayout());
+        right.setOpaque(false);
+        right.add(rightRow);
         add(right, BorderLayout.EAST);
 
         ActionListener tick = e -> updateClock();
@@ -237,14 +249,16 @@ public class Desktop2DTaskbar extends JPanel {
         documentsButton.setIcon(scaledIcon(documentsIconBase, iconScale));
         downloadsButton.setIcon(scaledIcon(downloadsIconBase, iconScale));
 
-        expandedHeight = barHeightFor(cfg.getBarScale());
+        // The bar hugs its controls: it carries no thickness of its own, so it
+        // is always roughly as tall as the buttons it holds. Only auto-hide
+        // overrides the height, collapsing the bar to a sliver.
         autoHide = cfg.isAutoHide();
         if (autoHide) {
             startAutoHide();
             updateAutoHide();
         } else {
             stopAutoHide();
-            setBarHeight(expandedHeight);
+            setBarHeight(NATURAL_HEIGHT);
         }
         revalidate();
         repaint();
@@ -255,7 +269,7 @@ public class Desktop2DTaskbar extends JPanel {
             return;
         }
         currentHeight = height;
-        setPreferredSize(new Dimension(0, height));
+        setPreferredSize(height < 0 ? null : new Dimension(0, height));
         Container parent = getParent();
         if (parent != null) {
             parent.revalidate();
@@ -279,7 +293,7 @@ public class Desktop2DTaskbar extends JPanel {
 
     /** Expands the bar while the pointer is over it, collapses it otherwise. */
     private void updateAutoHide() {
-        setBarHeight(isPointerOverBar() ? expandedHeight : COLLAPSED_HEIGHT_PX);
+        setBarHeight(isPointerOverBar() ? NATURAL_HEIGHT : COLLAPSED_HEIGHT_PX);
     }
 
     private boolean isPointerOverBar() {
