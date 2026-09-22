@@ -117,6 +117,7 @@ public final class Desktop2DAppRegistry {
         Set<String> frames = new LinkedHashSet<>();
         frames.add("org.jdesktop.lg3d.apps.paint.PaintApp");
         frames.add("org.jdesktop.lg3d.apps.swingtest.TestFrame");
+        frames.add("org.jdesktop.lg3d.apps.screencapture.ScreenCaptureConfigFrame");
         SWING_FRAME_APPS = Collections.unmodifiableSet(frames);
     }
 
