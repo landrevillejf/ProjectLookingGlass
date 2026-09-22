@@ -14,6 +14,8 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import java.awt.BorderLayout;
+import java.awt.Container;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
@@ -32,14 +34,18 @@ import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
 import javax.swing.JFrame;
+import javax.swing.LookAndFeel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
+import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
+import javax.swing.plaf.FontUIResource;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.system.Opener;
 
 /**
@@ -79,8 +85,27 @@ public class Desktop2D {
         "resources/images/background/DreamLakeReflections.jpg",
     };
 
+    /**
+     * UIManager font-default keys overridden by the desktop configuration. The
+     * same list {@code TitledSwingWindow} uses on the 3D desktop, duplicated
+     * here so the 2D shell stays free of any demo-apps / Java 3D dependency.
+     */
+    private static final String[] FONT_KEYS = {
+        "Label.font", "Button.font", "ToggleButton.font", "TextField.font",
+        "TextArea.font", "ComboBox.font", "List.font", "Table.font",
+        "TableHeader.font", "Menu.font", "MenuItem.font", "PopupMenu.font",
+        "Panel.font", "Dialog.font", "Frame.font", "TitledBorder.font",
+        "OptionPane.font", "CheckBox.font", "RadioButton.font",
+        "TabbedPane.font", "Tree.font", "ToolBar.font", "Spinner.font",
+        "EditorPane.font", "TextPane.font", "FormattedTextField.font",
+        "PasswordField.font", "ToolTip.font"
+    };
+
+    /** The running 2D desktop, so settings panels can reach it. Null if none. */
+    private static volatile Desktop2D instance;
+
     private final JFrame frame;
-    private final JDesktopPane desktop;
+    private final WallpaperDesktopPane desktop;
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
 
@@ -121,6 +146,13 @@ public class Desktop2D {
 
         // Drop the built-in widgets onto the wallpaper, behind the app windows.
         installWidgetLayer();
+
+        instance = this;
+        // Honour any desktop configuration persisted from a previous session
+        // (taskbar position/thickness/font/icon scale/auto-hide). The wallpaper
+        // stays the bundled default until the user picks one in the control
+        // center, exactly as the 3D desktop does.
+        reapplyConfig();
     }
 
     /**
@@ -415,11 +447,114 @@ public class Desktop2D {
     /** Stops the taskbar clock, disposes the window and exits the JVM. */
     public void exit() {
         logger.info("Shutting down the 2D desktop");
+        instance = null;
         uninstallWidgetLayer();
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();
         System.exit(0);
+    }
+
+    // ------------------------------------------------------------------
+    // Live configuration (driven by the control center's Desktop panel)
+    // ------------------------------------------------------------------
+
+    /**
+     * Re-applies {@link DesktopConfig} to the running 2D desktop: the Swing UI
+     * font defaults, the taskbar docking edge (top/bottom) and the taskbar's own
+     * geometry (thickness, icon scale, font, auto-hide). A no-op when the 2D
+     * desktop is not running. Safe to call from any thread; the work is done on
+     * the EDT. This is the 2D counterpart of the {@code DesktopConfigChangeEvent}
+     * the 3D taskbar listens for.
+     */
+    public static void applyDesktopConfig() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return;
+        }
+        Runnable apply = new Runnable() {
+            @Override
+            public void run() {
+                d.reapplyConfig();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            apply.run();
+        } else {
+            SwingUtilities.invokeLater(apply);
+        }
+    }
+
+    /**
+     * Sets the desktop backdrop to the image at {@code url}, the 2D counterpart
+     * of the {@code BackgroundChangeRequestEvent} the 3D scene manager listens
+     * for. A no-op when the 2D desktop is not running or {@code url} is null.
+     * The image loads asynchronously; the pane repaints itself as the observer
+     * once the pixels arrive. Safe to call from any thread.
+     */
+    public static void setWallpaper(final URL url) {
+        final Desktop2D d = instance;
+        if (d == null || url == null) {
+            return;
+        }
+        Runnable set = new Runnable() {
+            @Override
+            public void run() {
+                d.desktop.setImage(
+                        java.awt.Toolkit.getDefaultToolkit().createImage(url));
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            set.run();
+        } else {
+            SwingUtilities.invokeLater(set);
+        }
+    }
+
+    /**
+     * Re-applies the persisted configuration to the shell. Must run on the EDT.
+     */
+    private void reapplyConfig() {
+        DesktopConfig cfg = DesktopConfig.get();
+        applyFontDefaults(cfg);
+        Container content = frame.getContentPane();
+        content.remove(taskbar);
+        content.add(taskbar, cfg.getPosition() == DesktopConfig.Position.TOP
+                ? BorderLayout.NORTH : BorderLayout.SOUTH);
+        taskbar.applyConfig();
+        content.revalidate();
+        content.repaint();
+    }
+
+    /**
+     * Pushes the configured Swing UI font (family + size) into the
+     * {@link UIManager} defaults so panels built afterwards use it, mirroring
+     * {@code TitledSwingWindow.applySwingFontDefaults} on the 3D desktop. While
+     * the config still holds the built-in default the active look-and-feel's own
+     * fonts are restored, so "reset to defaults" returns to the native look.
+     */
+    private static void applyFontDefaults(DesktopConfig cfg) {
+        boolean isDefault =
+                DesktopConfig.DEFAULT_FONT_NAME.equals(cfg.getFontName())
+                && cfg.getFontSize() == DesktopConfig.DEFAULT_FONT_SIZE;
+        if (isDefault) {
+            LookAndFeel laf = UIManager.getLookAndFeel();
+            UIDefaults defs = (laf == null) ? null : laf.getDefaults();
+            if (defs != null) {
+                for (String key : FONT_KEYS) {
+                    Object v = defs.get(key);
+                    if (v != null) {
+                        UIManager.put(key, v);
+                    }
+                }
+            }
+            return;
+        }
+        FontUIResource font = new FontUIResource(
+                new Font(cfg.getFontName(), Font.PLAIN, cfg.getFontSize()));
+        for (String key : FONT_KEYS) {
+            UIManager.put(key, font);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -446,11 +581,17 @@ public class Desktop2D {
 
     /** A desktop pane that paints the wallpaper behind the MDI windows. */
     private static final class WallpaperDesktopPane extends JDesktopPane {
-        private final Image image;
+        private Image image;
 
         WallpaperDesktopPane(Image image) {
             this.image = image;
             setOpaque(true);
+        }
+
+        /** Swaps the backdrop image; repaints as the new pixels arrive. */
+        void setImage(Image image) {
+            this.image = image;
+            repaint();
         }
 
         @Override
