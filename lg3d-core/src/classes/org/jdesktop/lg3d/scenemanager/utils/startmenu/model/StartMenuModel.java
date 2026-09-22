@@ -49,11 +49,14 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.Container3D;
+import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
+import org.jogamp.vecmath.Point3f;
+import org.jogamp.vecmath.Vector3f;
 
 /**
  * The main class for defining a 3D model for the start menu. This class defines
@@ -510,25 +513,37 @@ public abstract class StartMenuModel extends Container3D {
     public void changeVisible(boolean visible, boolean redoAnim) {
         this.visible = visible;
         if (visible) {
-            if (redoAnim) {
-                setScale(0.25f);
-            }
-            changeScale(1.0f);
-            // Raise the menu toward the screen centre: up from a bottom bar,
-            // down from a top bar.
+            // Raise the menu in FRONT of every app window while keeping its
+            // on-screen position and size exactly as the original raised pose.
+            //
+            // Depth ordering is geometric, so being in front requires a world Z
+            // ahead of the front window plane (~= +0.002). But the view is
+            // perspective with the eye only ~0.34 away: moving an object from
+            // world Z -0.02 to +0.05 without compensation magnifies it ~20% and
+            // pushes it away from the screen centre (visibly left, over the
+            // application bar and the glassy taskbar). Apparent position and
+            // size are proportional to world/(eyeZ - worldZ) and to
+            // scale/(eyeZ - worldZ), so scaling the world X/Y and the node
+            // scale by r = (eyeZ - zNew)/(eyeZ - zRef) cancels the perspective
+            // change exactly: the menu pops up on top of any window yet looks
+            // like it never moved.
             boolean top = DesktopConfig.get().getPosition() == DesktopConfig.Position.TOP;
-            // The raised menu must win the depth test against app windows,
-            // but it must NOT visibly move: this view is perspective, so a
-            // large local Z pulls the menu toward the camera and magnifies /
-            // displaces it over the application bar and the glassy taskbar.
-            // Use the smallest Z that clears the front-most window plane: the
-            // taskbar docks at Z = -0.04 (GlassyTaskbar.barZ) and ZLayeredLayout
-            // puts the front app window at Z ~= -0.004 (its decoration buttons
-            // reach ~= +0.002), so a local Z of 0.045 (world ~= +0.005) sits
-            // just in front of every part of any window - enough for the
-            // hovered application list to appear on top - while staying close
-            // to the bar so its on-screen position and size are unchanged.
-            changeTranslation(-0.005f, top ? -0.015f : 0.015f, 0.045f);
+            Vector3f local = raisedTranslation(top);
+            if (local == null) {
+                // Eye position unavailable: fall back to the plain pose.
+                local = new Vector3f(-0.005f, top ? -0.015f : 0.015f, 0.02f);
+                if (redoAnim) {
+                    setScale(0.25f);
+                }
+                changeScale(1.0f);
+            } else {
+                if (redoAnim) {
+                    setScale(0.25f * raisedScale);
+                }
+                changeScale(raisedScale);
+            }
+            changeTranslation(local.x, local.y, local.z);
+            lastLocalTranslation.set(local);
             setMouseEventEnabled(true);
             
             // reset the pickable region size
@@ -536,6 +551,8 @@ public abstract class StartMenuModel extends Container3D {
         } else {
             changeScale(0.25f, 500);
             changeTranslation(-0.005f, 0.0f, 0.0f);
+            lastLocalTranslation.set(-0.005f, 0.0f, 0.0f);
+            raisedScale = 1.0f;
             if (redoAnim) {
                 setRotationAngle((float)(Math.toRadians(40) - Math.PI * 2));
                 changeRotationAngle((float)Math.toRadians(40), 1000);
@@ -543,6 +560,48 @@ public abstract class StartMenuModel extends Container3D {
             setMouseEventEnabled(false);
             setPickableRegionSize(null);
         }
+    }
+
+    /** World Z the raised menu is placed at: ahead of every window plane. */
+    private static final float RAISED_WORLD_Z = 0.05f;
+
+    /** The 2006 reference raised pose, relative to the taskbar. */
+    private static final float REF_LOCAL_X = -0.005f;
+    private static final float REF_LOCAL_Y = 0.015f;
+    private static final float REF_LOCAL_Z = 0.02f;
+
+    /** Local translation this class last applied (used to recover the parent pose). */
+    private final Vector3f lastLocalTranslation = new Vector3f(REF_LOCAL_X, 0.0f, 0.0f);
+
+    /** Perspective compensation scale for the current raise, 1.0 when hidden. */
+    private float raisedScale = 1.0f;
+
+    /**
+     * Computes the compensated raised translation. Returns {@code null} when
+     * the eye position cannot be determined, in which case the caller uses the
+     * uncompensated reference pose.
+     */
+    private Vector3f raisedTranslation(boolean top) {
+        Point3f eye = new Point3f();
+        Toolkit3D.getToolkit3D().getEyePositionInVworld(eye);
+        // Parent (taskbar) world pose = our world pose minus the local
+        // translation we last applied; the taskbar does not move or scale.
+        Vector3f world = getFinalTranslation(new Vector3f());
+        Vector3f parent = new Vector3f(world);
+        parent.sub(lastLocalTranslation);
+        float zRef = parent.z + REF_LOCAL_Z;
+        float zNew = RAISED_WORLD_Z;
+        if (eye.z <= zNew + 0.01f || eye.z <= zRef + 0.01f) {
+            return null;
+        }
+        raisedScale = (eye.z - zNew) / (eye.z - zRef);
+        float xRef = parent.x + REF_LOCAL_X;
+        float yRef = parent.y + (top ? -REF_LOCAL_Y : REF_LOCAL_Y);
+        Vector3f local = new Vector3f();
+        local.x = raisedScale * xRef - parent.x;
+        local.y = raisedScale * yRef - parent.y;
+        local.z = zNew - parent.z;
+        return local;
     }
 
     /**

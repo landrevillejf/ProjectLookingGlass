@@ -476,13 +476,16 @@ work to make it build and run on a current toolchain.
   raised the menu to a local `z = 0.02` (world `~= -0.02`), i.e. *behind* every
   window; that went unnoticed because ordinary windows never overlap the menu's
   bottom-corner popup region, but a full-screen maximized window does, so the app
-  list disappeared behind it. The raised local `z` is now `0.045` (world
-  `~= +0.005`) - the *smallest* depth that clears the front-most window plane
-  (`~= +0.002`). Because the view is perspective, a larger raise pulls the menu
-  toward the camera and visibly magnifies/displaces it over the application bar
-  and the glassy taskbar, so the depth is kept minimal: the hovered application
-  list appears in front of any window while the rest of the desktop keeps its
-  position.
+  list disappeared behind it. Raising the menu in depth alone is not enough:
+  the view is perspective with the eye ~1.0 away, so any Z raise also magnifies
+  the menu and pushes it away from the screen centre (visibly left, over the
+  application bar and the glassy taskbar). The raise is now perspective-
+  compensated: the menu moves to world `z = +0.05` (ahead of every window
+  plane) while its world X/Y and node scale are multiplied by
+  `r = (eyeZ - zNew)/(eyeZ - zRef)`, which cancels the perspective change
+  exactly. The hovered application list therefore pops up on top of any
+  window - verified in a framebuffer capture over a maximized window - while
+  its on-screen position and size, and the rest of the desktop, stay put.
 - **Maximized window pushed its title bar off the top edge** - filling exactly to
   the screen top left the title strip (and the minimize/maximize/close buttons)
   flush against / past the top edge where they cannot be clicked. Maximize now
