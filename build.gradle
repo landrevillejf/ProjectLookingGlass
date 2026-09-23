@@ -93,6 +93,7 @@ subprojects {
     def coverageFloors = [
         'lg3d-core'     : [line: 0.010, branch: 0.020],  // measured 1.45% / 2.47%
         'lg3d-widgets'  : [line: 0.480, branch: 0.400],  // measured 50.11% / 41.64%
+        'lg3d-incubator': [line: 0.004, branch: 0.001],  // measured 0.46% / 0.15% (only the four Office Swing panels are exercised; the ~185k-line 3D app tree is untested, but each panel is ~95-100% line-covered)
         'lpm-console'   : [line: 0.240, branch: 0.300],  // measured 26.7% / 36.9% (logic classes ~100%; the 853-line Swing panel is probe-verified)
         'update-manager': [line: 0.550, branch: 0.500],  // measured 56.35% / 51.54%
     ]

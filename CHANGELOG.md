@@ -10,6 +10,29 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.9.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Office apps in the 2D/Swing desktop** (`lg3d-incubator`, `lg3d-core`) — the four
+  pure-3D *Office* start-menu apps (Mail 3D, Agenda 3D, Contact 3D, Chart 3D) now
+  launch in the 2D/Swing desktop instead of appearing disabled with a "Requires the
+  3D desktop" tooltip. Each gains a plain-Swing `JPanel` counterpart in
+  `lg3d-incubator` — `MailPanel`, `AgendaPanel`, `ContactCardsPanel` and `ChartPanel`
+  — registered in `Desktop2DAppRegistry.PANEL_APPS` on the app's existing 3D main
+  class, so the *same shared `.lgcfg` descriptors* now flip from `UNAVAILABLE` to
+  `PANEL` in the 2D menu with no descriptor, icon or run-classpath change (the
+  incubator jar is already on the `:lg3d-core:run` classpath, so the reflective
+  lookup resolves — the same precedent as `WidgetGalleryPanel` and `LPMConsolePanel`).
+  The panels are idiomatic, keyboard-editable Swing (folder combo + `JList` + compose
+  card; custom-painted week grid with title/day/hour/duration/attendee editing;
+  contact list + detail card; `JTree` org hierarchy + name query) that reuse each
+  app's AWT-free model and the **same shared user `Preferences` stores**
+  (`/mail/messages`, `/agenda/appointments`, `/contacts`), so state written in one
+  desktop is visible in the other. None loads a Java 3D class, so a 3D-less JVM still
+  runs them; the week-grid constants are duplicated in `AgendaPanel` rather than
+  referenced from the `Component3D` `AgendaGrid`. A new `lg3d-incubator` JUnit 5 test
+  source set exercises all four panels headless (25 tests) against the ephemeral CI
+  `Preferences` root, `Desktop2DAppRegistryTest` asserts the four commands classify as
+  `PANEL` and map to their panel FQNs, and a conservative `lg3d-incubator` coverage
+  floor is pinned in the root build. The `mail` and `orgchart` per-app `AGENTS.md`
+  UI/UX rows now document both surfaces.
 - **Per-module role guides** (`AGENTS.md`) — every built module now ships a
   role-aware `AGENTS.md` following one shared template so all roles read each
   other's guidance coherently: *Module at a glance*, *How the roles work

@@ -11,7 +11,7 @@
 | --- | --- |
 | Status | **Production-grade** native-3D app (supported showcase) |
 | Entry point | `Mail3D.main` → `Frame3D` host |
-| Surface | **pure-3D `Frame3D`** — click-driven native-3D UI (no keyboard focus in dev mode) |
+| Surface | **pure-3D `Frame3D`** (3D desktop) **+ `MailPanel` Swing panel** (2D/Swing desktop) — both off the same `/mail/messages` store |
 | Start-menu name / group | Mail 3D / **Office** |
 | Command | `java org.jdesktop.lg3d.apps.mail.Mail3D` |
 | Descriptor | **`lg3d-apps/src/config/mail3d.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
@@ -24,6 +24,8 @@
 - **MailStore** — loads/saves messages under the `/mail/messages` `Preferences` node.
 - **MailMessage** — the message model.
 - **MailView** — the live-texture `Component3D` that renders the mailbox/reading pane.
+- **MailPanel** — the 2D/Swing counterpart (`JPanel`, no Java 3D) hosted by the Swing
+  desktop; reuses `MailStore`/`MailMessage`/`ContactDirectory` and the same nodes.
 
 ## Roles
 
@@ -52,9 +54,17 @@
 - **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
   `lg3d-apps`, so a PR may span two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icon) + `./run-lg3d.sh` + capture/log evidence.
-- **UI/UX (3D & 2D)** — **3D only**: the mailbox, reading pane and controls are
-  runtime-drawn scene-graph widgets. Follow the glassy vocabulary, depth ordering and
-  click-driven-input rules from core; verify occlusion with a capture, not numeric Z.
+- **UI/UX (3D & 2D)** — **Runs in both desktops.** In the 3D desktop the mailbox,
+  reading pane and controls are runtime-drawn scene-graph widgets: follow the glassy
+  vocabulary, depth ordering and click-driven-input rules from core; verify occlusion
+  with a capture, not numeric Z. In the 2D/Swing desktop the **same start-menu
+  descriptor** launches `MailPanel` (a plain `JPanel` registered in
+  `Desktop2DAppRegistry.PANEL_APPS` on the `Mail3D` main class), an idiomatic Swing
+  mailbox — folder combo + `JList`, reading pane, toolbar (New/Reply/Delete/Mark
+  read) and a real keyboard-editable compose card — reusing the AWT-free
+  `MailStore`/`MailMessage`/`ContactDirectory` model and the `/mail/messages` +
+  `/contacts` nodes, so state written by one desktop is visible in the other.
+  `MailPanel` must never load a Java 3D class (a 3D-less JVM runs it).
 
 ## Communication & coherence
 

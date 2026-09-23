@@ -137,6 +137,21 @@ public final class Desktop2DAppRegistry {
         // the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.update.UpdateManager",
                 "org.jdesktop.lg3d.apps.update.UpdateManagerPanel");
+        // The Office-group native-3D apps (lg3d-incubator) each ship a plain
+        // Swing panel that reuses the same AWT-free model and shared user
+        // Preferences store as the 3D app, so the one start-menu descriptor
+        // (keyed here on the 3D main class) launches the panel as an MDI frame
+        // in the 2D/Swing desktop while the 3D desktop keeps building the
+        // Frame3D. The incubator jar is on the desktop run classpath, so the
+        // reflective lookup resolves, and none of these panels loads Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.mail.Mail3D",
+                "org.jdesktop.lg3d.apps.mail.MailPanel");
+        panels.put("org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D",
+                "org.jdesktop.lg3d.apps.orgchart.ui.agenda.AgendaPanel");
+        panels.put("org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D",
+                "org.jdesktop.lg3d.apps.orgchart.ui.contact.ContactCardsPanel");
+        panels.put("org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D",
+                "org.jdesktop.lg3d.apps.orgchart.ui.chart.ChartPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
