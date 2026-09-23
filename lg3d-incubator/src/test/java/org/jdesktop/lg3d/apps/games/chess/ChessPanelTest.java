@@ -33,7 +33,7 @@ class ChessPanelTest {
         assertEquals(ChessModel.PAWN, panel.model().pieceAt(E2));
         assertEquals(ChessModel.NONE, panel.model().pieceAt(E4));
         // White pieces render as the hollow (upper) Unicode glyphs.
-        assertEquals("\u2659", panel.squareButton(E2).getText());
+        assertEquals("\u2659", panel.glyphAt(E2));
     }
 
     @Test
@@ -113,5 +113,25 @@ class ChessPanelTest {
         panel.clickSquare(-1);
         panel.clickSquare(64);
         assertEquals(-1, panel.selectedSquare());
+    }
+
+    @Test
+    void squareAtMapsPixelsToSquares() {
+        ChessPanel panel = new ChessPanel();
+        // A 400x400 board => cell = 50, origin (0,0): row 0 is rank 8.
+        panel.sizeBoardForTest(400, 400);
+        assertEquals(0, panel.squareAt(25, 25));        // a8
+        assertEquals(7, panel.squareAt(375, 25));       // h8
+        assertEquals(E2, panel.squareAt(225, 325));     // e2 = col 4, row 6 (rank 2)
+        assertEquals(63, panel.squareAt(399, 399));     // h1
+        assertEquals(-1, panel.squareAt(-5, -5));       // outside the grid
+        assertEquals(-1, panel.squareAt(1000, 1000));
+    }
+
+    @Test
+    void squareAtIsSafeBeforeTheBoardIsSized() {
+        ChessPanel panel = new ChessPanel();
+        // No layout yet: the board has zero size, so every point maps off-grid.
+        assertEquals(-1, panel.squareAt(10, 10));
     }
 }
