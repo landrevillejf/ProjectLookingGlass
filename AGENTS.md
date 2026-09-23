@@ -231,10 +231,8 @@ When completing a task, report:
 
 ## Nested AGENTS.md Files
 
-Consider creating nested AGENTS.md files for:
-
-- `lg3d-core/AGENTS.md` - Core SDK specifics, scene-graph architecture, window manager integration
-- `lg3d-incubator/AGENTS.md` - Incubator app development guidelines, dependency management for bundled jars
+Every built module has its own role-aware `AGENTS.md`. The full index and the
+shared role model live in the *Module AGENTS.md index* section below.
 
 ## Instructions Better Suited to Other Mechanisms
 
@@ -360,14 +358,42 @@ do-not-edit `lg3d-docs/`):
   `JPanel` offscreen into a texture, input forwarding, custom renderers,
   lifecycle/`dispose()`, and when to use it vs pure-3D widgets.
 
-## Nested AGENTS.md Files
+## Module AGENTS.md index & shared role model
 
-1. **`lg3d-core/AGENTS.md`** - *Present.* UI/UX rules for the scene-graph widget
-   toolkit (`org.jdesktop.lg3d.wg`, `org.jdesktop.lg3d.utils.*`): the two window
-   paths, the non-negotiable texture/transparency/threading rules, the glassy
-   vocabulary, layout conventions, `SwingNode` usage, and UI verification.
-2. **`lg3d-incubator/AGENTS.md`** - *Suggested.* Incubator app development,
-   bundled jar management, app-specific guidelines.
+Each built module ships a **role-aware `AGENTS.md`**. They all defer to this root
+file for build/exclusions/commit conventions, and to
+[`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) as the canonical desktop **UI/UX
+rulebook**. When a module file and this root file conflict, the root file wins.
+
+| Module | AGENTS.md | UI/UX surface |
+| --- | --- | --- |
+| `lg3d-escher` | [`lg3d-escher/AGENTS.md`](lg3d-escher/AGENTS.md) | none (X11 protocol library) |
+| `lg3d-core` | [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) | **canonical rulebook** (3D `Frame3D` + 2D `SwingNode`) |
+| `lg3d-demo-apps` | [`lg3d-demo-apps/AGENTS.md`](lg3d-demo-apps/AGENTS.md) | 3D + 2D |
+| `lg3d-incubator` | [`lg3d-incubator/AGENTS.md`](lg3d-incubator/AGENTS.md) | 3D (native) + 2D (Swing dialogs) |
+| `lg3d-widgets` | [`lg3d-widgets/AGENTS.md`](lg3d-widgets/AGENTS.md) | 3D layer + 2D Swing cards |
+| `lpm-console` | [`lpm-console/AGENTS.md`](lpm-console/AGENTS.md) | 2D Swing (composited X11 client) |
+| `update-manager` | [`update-manager/AGENTS.md`](update-manager/AGENTS.md) | 2D Swing |
+
+**Shared role model.** Every module `AGENTS.md` uses the same fixed template so
+all roles read each other's guidance coherently:
+
+1. **Module at a glance** — purpose, packages, dependencies, build/run commands.
+2. **How the roles work together** — the handoff summary.
+3. **Architect** — boundaries, dependency direction, contracts, exclusions.
+4. **Engineer / Developer** — the concrete do/don't coding rules.
+5. **QA** — how the change is verified (headless tests, in-JVM probe,
+   screencapture, coverage/mutation status).
+6. **Business Analyst** — the value and who the "customer" is.
+7. **Functional Analyst** — the behavioural contract and living rationale.
+8. **Project Manager** — commit scope, PR flow, definition of done.
+9. **UI/UX (3D & 2D)** — present for every module with a user interface; defers
+   to the `lg3d-core` rulebook. Marked *Not applicable* for `lg3d-escher`.
+10. **Communication & coherence** and **Commit / PR** — the single-source-of-truth
+    rule and the module-scoped Conventional Commit flow.
+
+When adding a new built module, create its `AGENTS.md` from this template and add
+a row to the table above in the same PR.
 
 ---
 

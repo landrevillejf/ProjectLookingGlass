@@ -10,7 +10,96 @@ Companion guides (read these for worked examples and API detail):
 - [`../docs/swingnode.md`](../docs/swingnode.md) — embedding Swing into the scene graph
 
 The root [`../AGENTS.md`](../AGENTS.md) still governs build, modules, Java 3D
-migration, exclusions and commit conventions. This file adds UI/UX-specific rules.
+migration, exclusions and commit conventions. This file adds UI/UX-specific rules
+and a shared **per-role view** so every role working on the core stays coherent.
+
+## Module at a glance
+
+| Item | Value |
+| --- | --- |
+| Purpose | The **scene-graph / windowing / display-server SDK and the desktop** itself. |
+| Root packages | `org.jdesktop.lg3d.sg` (scene graph), `.wg` (widgets), `.utils.*`, `.scenemanager.*`, `.displayserver.*`. |
+| Depends on | `lg3d-escher`; Jogamp Java 3D 1.7.2 + natives. |
+| Depended on by | `lg3d-demo-apps`, `lg3d-incubator`, `lg3d-widgets` (all `implementation project(':lg3d-core')`). |
+| Also hosts | In-tree replacements under `src/contrib/java` (`Math3D`, traverser, `TransparencyOrderedGroup`, `J3fLoader`, shims). |
+| Build / run | `./gradlew :lg3d-core:build` · `:lg3d-core:run` · `:lg3d-core:runtimeResources` · `./run-lg3d.sh`. |
+
+## How the roles work together
+
+lg3d-core is the **keystone**: every app module consumes its toolkit, and its
+UI/UX rulebook (the sections below) is the single source every other module's
+AGENTS.md defers to. The Architect owns the scene-graph/window boundaries and the
+exclusion policy; Engineers implement against the non-negotiable UI rules; QA
+verifies with the in-JVM probe + internal screencapture; the Analysts keep the
+window-path and texture contracts explicit; the PM tracks the cross-module blast
+radius. Disagreements are resolved in the PR, not silently in code.
+
+## Architect
+
+- Guard the **two window paths** (pure-3D `Frame3D` vs native X11) and the
+  exclusions in the root `AGENTS.md`; a feature added to only one path affects
+  only that class of window.
+- Shared utilities used by more than one app module **must live here** — the
+  module dependency direction forbids demo-apps/incubator/widgets from seeing
+  each other's classes.
+- Keep the in-tree replacements (`src/contrib/java`) and the legacy-name shims
+  behaviour-compatible with the dropped jars they stand in for.
+- Any change to the scene-graph facade, transparency ordering, or the SwingNode
+  contract is an architecture decision with repo-wide impact.
+
+## Engineer / Developer
+
+- Follow the **non-negotiable UI rules** below verbatim (Jogamp-only, upload
+  texture pixels before attaching, `Component3D` children only, sort
+  translucency yourself, respect threading).
+- Use `./gradlew :lg3d-core:compileJava` for a fast loop; `:lg3d-core:run` /
+  `./run-lg3d.sh` to launch (needs `DISPLAY`).
+- Runtime artwork resolves under a classpath `resources/` prefix; add assets to
+  the source dirs the `runtimeResources` task assembles, not to build output.
+- Add headless JUnit 5 tests under `src/test/java` for logic; verify live-graph
+  behaviour with the in-JVM probe (*Verifying UI changes*).
+
+## QA
+
+- Verify scene-graph/rendering changes with the **in-JVM probe + internal
+  screencapture** (`lg3d-core/lgscreen-*.png`); external capture is blocked under
+  GNOME/Wayland. Numeric geometry alone is not proof of a visual fix.
+- Read the desktop log for `EventProcessor` warnings before concluding an
+  interaction is broken (usually a swallowed exception, often the texture NPE).
+- `lg3d-core/lgscreen-*.png` are runtime artifacts — never commit them.
+- Coverage/mutation gates are the stated 100% JaCoCo / 0 PIT target, currently
+  **report-only**; report real evidence in the PR.
+
+## Business Analyst
+
+- Core is **platform infrastructure + the desktop shell**, not an end-user
+  feature. Its "customers" are the app modules and, ultimately, the desktop user
+  experience (windows, taskbar, start menu, backgrounds).
+- Capability changes should be justified by what they unlock for apps or the
+  shell, weighed against the JDK-21 exclusion constraints.
+
+## Functional Analyst
+
+- Specify behaviour in terms of the **window path**, the **texture/transparency
+  contract**, and the **threading model** — these are the functional invariants
+  apps rely on.
+- Keep the exclusion rationale (AWT peer, native X11, RMI, ODE) current; if a
+  path is re-enabled, the functional requirements change with it — flag to the
+  Architect and PM first.
+
+## Project Manager
+
+- Commit scope is **`lg3d-core`**. Branch → commit → push → PR against `main`;
+  never commit to `main`.
+- Core changes are high-blast-radius: schedule a cross-module impact review
+  (demo-apps / incubator / widgets) before landing.
+- Done = build + headless tests + a runtime screencapture for any visible change.
+
+## UI/UX (3D & 2D) — canonical rulebook
+
+> The sections below are the desktop-wide **UI/UX rulebook**. Every module's
+> AGENTS.md defers here for both the pure-3D (`Frame3D`) and 2D (`SwingNode`)
+> surfaces; read them before touching any UI in any module.
 
 ---
 
