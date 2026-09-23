@@ -505,3 +505,158 @@ tasks.register('verifyX11Extensions', JavaExec) {
     // default; this makes the intent explicit.
     environment 'DISPLAY', displayEnv ?: ':0'
 }
+
+// ---------------------------------------------------------------------------
+// releaseBundle: assemble the downloadable distribution archive
+// ---------------------------------------------------------------------------
+// Produces lg3d-<version>.zip under build-gradle/distributions: everything
+// needed to run the desktop from an extracted tree -- the module jars and their
+// third-party runtime dependencies under lib/, the assembled resources/
+// classpath tree, the etc/ config tree, the ext/app application codebase, a
+// lg3d.sh launcher, a README.txt and a VERSION file.
+//
+// This is the artefact .github/workflows/release.yml checksums, optionally signs
+// (armored detached PGP), references from the generated version.json and uploads
+// to the GitHub Release, so the update-manager's UpdateRepository -- which reads
+// releases/latest/download/version.json (see update-config.properties /
+// UpdateRepository.DEFAULT_UPDATE_URL) -- resolves instead of failing with
+// UpdateServerUnavailableException.
+//
+// Pass -PreleaseVersion=<v> to name the archive after the release tag; it
+// defaults to the project version. Deliberately NOT wired into `assemble`/
+// `build` (cutting a release is an explicit act): invoke it with
+// `./gradlew :lg3d-core:releaseBundle`.
+def releaseVersion = (project.findProperty('releaseVersion') ?: project.version).toString()
+def releaseLauncherDir = layout.buildDirectory.dir('release/launcher')
+
+tasks.register('releaseLauncher') {
+    group = 'application'
+    description = 'Generate the lg3d.sh launcher, README.txt and VERSION files bundled into the release archive.'
+    def outDir = releaseLauncherDir
+    def version = releaseVersion
+    inputs.property('releaseVersion', version)
+    outputs.dir(outDir)
+    doLast {
+        def dir = outDir.get().asFile
+        dir.mkdirs()
+        new File(dir, 'VERSION').text = version + '\n'
+        // Single-quoted Groovy strings keep the shell ${...} / $@ verbatim; the
+        // command is one long line so no backslash line-continuations are needed.
+        new File(dir, 'lg3d.sh').text = String.join('\n', [
+            '#!/bin/bash',
+            '# Launch the Project Looking Glass desktop from this release bundle.',
+            '# Needs a JDK/JRE 21 (on PATH or via JAVA_HOME) and an X display (DISPLAY).',
+            '# Override LG_CONFIG / DISPLAY_CONFIG to select another lgconfig / displayconfig.',
+            'set -euo pipefail',
+            'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+            'JAVA_BIN="java"',
+            'if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then',
+            '    JAVA_BIN="${JAVA_HOME}/bin/java"',
+            'fi',
+            '[ -n "${DISPLAY:-}" ] || export DISPLAY=":0"',
+            'LG_CONFIG="${LG_CONFIG:-lgconfig_1p_nox.xml}"',
+            'DISPLAY_CONFIG="${DISPLAY_CONFIG:-j3d1x1-nbfs}"',
+            'exec "${JAVA_BIN}" -Xms128m -Xmx512m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
+        ]) + '\n'
+        new File(dir, 'README.txt').text = String.join('\n', [
+            "Project Looking Glass ${version} - release bundle".toString(),
+            '=================================================',
+            '',
+            'Run the desktop with:',
+            '    bash lg3d.sh',
+            '',
+            'Requirements: a JDK/JRE 21 (on PATH or via JAVA_HOME) and an X display',
+            '(DISPLAY; defaults to :0). lg3d is a Linux X11 desktop.',
+            '',
+            'Layout:',
+            '    lib/        module jars + third-party runtime dependencies (the classpath)',
+            '    resources/  assembled artwork tree resolved as getResource("resources/...")',
+            '    etc/        lgconfig / displayconfig / logging / start-menu config tree',
+            '    ext/app/    application codebase (lg.appcodebase)',
+            '    lg3d.sh     launcher (dev mode); README.txt; VERSION',
+            '',
+            'The launcher mirrors the :lg3d-core:run task system properties. Set',
+            'LG_CONFIG / DISPLAY_CONFIG to select another configuration.'
+        ]) + '\n'
+    }
+}
+
+tasks.register('releaseBundle', Zip) {
+    group = 'application'
+    description = 'Assemble the lg3d-<version>.zip release bundle published by release.yml.'
+
+    archiveBaseName = 'lg3d'
+    archiveVersion = releaseVersion
+    archiveExtension = 'zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // Third-party runtime jars the desktop needs, resolved exactly like the run
+    // task's classpath: Java 3D + the Jogamp natives for the host platform,
+    // JavaHelp (Help Center), and the update-manager's Jackson / BouncyCastle /
+    // slf4j. jbusinessday + slf4j and the incubator ext jars are added below.
+    def releaseRuntime = configurations.detachedConfiguration(
+        dependencies.create("org.jogamp.java3d:java3d-core:${libs.versions.java3d.get()}"),
+        dependencies.create("org.jogamp.java3d:java3d-utils:${libs.versions.java3d.get()}"),
+        dependencies.create("org.jogamp.java3d:vecmath:${libs.versions.java3d.get()}"),
+        dependencies.create("org.jogamp.gluegen:gluegen-rt:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
+        dependencies.create("org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
+        dependencies.create("org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
+        dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"),
+        dependencies.create("com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson.get()}"),
+        dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.bouncycastle:bcpg-jdk18on:${libs.versions.bouncycastle.get()}"),
+        dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"))
+
+    // The specific incubator ext jars the desktop apps touch at runtime (same
+    // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl
+    // .jar would override the platform JAXP parser and break java.util.prefs).
+    def incubatorExtJars = fileTree(
+        dir: "${project(':lg3d-incubator').projectDir}/ext",
+        include: ['jai_core.jar', 'jai_codec.jar', 'jmf.jar', 'fobs4jmf.jar',
+                  'jl1.0.jar', 'commons-cli-1.0.jar', 'javanlp.jar',
+                  'nanoxml-lite-2.2.3.jar', 'prefuse.jar'])
+
+    def coreJar = tasks.named('jar')
+    def escherJar = project(':lg3d-escher').tasks.named('jar')
+    def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
+    def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
+    def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
+    def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
+    def updateManagerJar = project(':update-manager').tasks.named('jar')
+    def runtimeResources = tasks.named('runtimeResources')
+    def releaseLauncher = tasks.named('releaseLauncher')
+
+    dependsOn coreJar, escherJar, demoAppsJar, incubatorJar, widgetsJar,
+            lpmConsoleJar, updateManagerJar, runtimeResources, releaseLauncher
+
+    // lib/ : every module jar + every third-party runtime jar. These go inside
+    // an explicit into('lib') { from(...) } child spec rather than
+    // `from(a, b, c) { into 'lib' }`: with MULTIPLE sources Groovy folds the
+    // trailing closure into the vararg source list instead of treating it as the
+    // spec configurator, which makes the archive copy into itself and Gradle
+    // fails with a circular dependency on this very task.
+    into('lib') {
+        from(coreJar, escherJar, demoAppsJar, incubatorJar, widgetsJar,
+             lpmConsoleJar, updateManagerJar)
+        from(releaseRuntime)
+        from(incubatorExtJars)
+        from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
+    }
+
+    // resources/ : the assembled classpath tree. runtimeResourcesDir holds a
+    // resources/ subdir, so copying its contents into the archive root yields
+    // bundle/resources/... and the launcher puts the bundle root on -cp so
+    // getResource("resources/...") resolves (icons, wallpapers, bgmanager).
+    from(runtimeResourcesDir)
+
+    // etc/ + ext/app : the config tree and application codebase the launcher
+    // points lg.etcdir / lg.configurl / lg.appcodebase at.
+    from('src/etc') { into 'etc' }
+    from('ext/app') { into 'ext/app' }
+
+    // lg3d.sh, README.txt, VERSION (generated by the releaseLauncher task) into
+    // the archive root.
+    from(releaseLauncherDir)
+}

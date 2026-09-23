@@ -72,14 +72,33 @@ Center:
   explicitly adds the `update-manager` jar plus a detached `updateManagerLibs`
   configuration (jackson-databind, slf4j-api/nop, bcpg/bcprov-jdk18on).
 
-## Release prerequisite (out of scope here)
+## Release publishing (`.github/workflows/release.yml`)
 
-Live checks need a `version.json` asset published on the GitHub Releases
-`latest` redirect (the config comment references a `release.yml` workflow). **No
-release workflow publishes it yet** — only `.github/workflows/build.yml` exists —
-so a real check currently fails gracefully with `UpdateServerUnavailableException`
-and the panel simply reports that no update could be fetched. Producing the signed
-`version.json` (and the release archive) is a separate piece of work.
+Live checks read the `version.json` asset on the GitHub Releases `latest`
+redirect (the `update.url` default). `.github/workflows/release.yml` publishes
+it: on a published Release (or `workflow_dispatch` for a tag) it assembles
+`lg3d-<version>.zip` via `:lg3d-core:releaseBundle`, computes its size + SHA-256,
+optionally signs it (armored detached PGP `.zip.asc`, the format
+`UpdateSignatureVerifier` reads), generates `version.json` in the
+`UpdateRepository.parseUpdateInfo` schema, and uploads `version.json`,
+`changelog.md` and the bundle as Release assets. Before this workflow existed a
+real check failed gracefully with `UpdateServerUnavailableException`.
+
+Signing is secret-driven and never committed: set `RELEASE_SIGNING_KEY`
+(base64-encoded armored private key) + `RELEASE_SIGNING_PASSPHRASE` (and
+optionally `RELEASE_SIGNING_KEY_ID`) to sign; the public key is then published as
+`public-key.asc` so it can be bundled as the client keyring
+(`update.signature.public.key.resource`) to turn on `update.signature.enabled`.
+Without those secrets the release is published unsigned (`version.json` omits
+`signatureUrl` / `signingKeyId`) and the default checksum-only verification
+applies.
+
+**Remaining gap:** `UpdateInstaller` replaces a *single* running JAR
+(`JarLocator.getCurrentJarPath()`) — the single-jar model this module was ported
+from. lg3d is a multi-jar desktop launched from a classpath, so the in-app
+*apply* step is not yet wired to the bundle; `update.auto.download` /
+`update.auto.install` default to `false`, and the check → download → verify path
+is what the published metadata currently exercises.
 
 ## Build & test
 

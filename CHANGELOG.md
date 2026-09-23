@@ -33,9 +33,24 @@ work to make it build and run on a current toolchain.
   `update-manager` jar plus its runtime deps are added to the hand-assembled
   `:lg3d-core:run` classpath. Covered by the module's headless JUnit 5 suite, a
   `Desktop2DAppRegistryTest` classification case and a new headless
-  `UpdateManagerPanelTest`. Live checks degrade gracefully
-  (`UpdateServerUnavailableException`) until a release workflow publishes the
-  signed `version.json` asset.
+  `UpdateManagerPanelTest`. A new `.github/workflows/release.yml` publishes the
+  `version.json` manifest (and the signed `lg3d-<version>.zip` bundle) to the
+  GitHub Releases `latest` redirect that `update.url` targets, so a live check
+  now resolves instead of degrading to `UpdateServerUnavailableException`.
+- **Release workflow** (`.github/workflows/release.yml`) +
+  **`:lg3d-core:releaseBundle`** task — publishes the update metadata the Software
+  Update app checks for. On a published Release (or `workflow_dispatch` for a
+  tag) it builds and tests the tree, assembles `lg3d-<version>.zip` (the module
+  jars, their third-party runtime dependencies, the assembled `resources/` tree,
+  the `etc/` config tree, `ext/app` and a `lg3d.sh` launcher), computes its size +
+  SHA-256, optionally signs it with an armored detached PGP signature (`.zip.asc`,
+  the format `UpdateSignatureVerifier` reads) when the `RELEASE_SIGNING_KEY` /
+  `RELEASE_SIGNING_PASSPHRASE` secrets are set (publishing the public key as
+  `public-key.asc`), generates the `version.json` manifest
+  (`UpdateRepository.parseUpdateInfo` schema) and uploads `version.json`,
+  `changelog.md` and the bundle to the Release. Signing is secret-driven and never
+  committed; without the secrets the release is published unsigned and the
+  client's default checksum-only verification applies.
 - **LPM Console** (`lpm-console`, `org.lpmconsole`) — a graphical package-manager
   front-end for LPM (the BLFS package manager), delivered as a standalone Java 21
   Swing module and wired into the lg3d desktop start menu under the *System*
