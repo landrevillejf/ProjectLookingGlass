@@ -114,10 +114,12 @@ dependencies {
     runtimeOnly libs.slf4j.api
     runtimeOnly libs.slf4j.nop
 
-    // Unit tests for the Java 3D-free Swing panels that back the Games apps in
-    // the 2D/Swing desktop (TicTacToePanel, SudokuPanel, ChessPanel,
-    // SolitairePanel). They reuse the apps' AWT-free game engines, so they are
-    // exercised headless (a JPanel needs no X display).
+    // Unit tests for the Java 3D-free Swing panels that back the Office and
+    // Games apps in the 2D/Swing desktop (MailPanel, AgendaPanel,
+    // ContactCardsPanel, ChartPanel, TicTacToePanel, SudokuPanel, ChessPanel,
+    // SolitairePanel). They reuse the apps' AWT-free models, engines and
+    // Preferences stores, so they are exercised headless (a JPanel needs no X
+    // display).
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher
@@ -126,15 +128,18 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     // The panels are plain Swing; run headless so CI (no X display) does not
-    // fail on the JPanel/JTextField/JButton the tests build.
+    // fail on the JPanel/JTextField/JButton/JTree the tests build.
     systemProperty 'java.awt.headless', 'true'
     // The bundled ext/axis/xercesImpl.jar is an ancient Xerces that registers
     // itself as the JAXP DocumentBuilderFactory (via META-INF/services) and
     // references org.w3c.dom.ls.DocumentLS, a class long removed from the JDK.
     // Because the java.xml module owns the org.w3c.dom.ls package, a classpath
-    // jar cannot also supply it (split package). The `implementation fileTree(ext)`
-    // above pulls it onto the *test* runtime classpath, so drop it here to keep
-    // the platform XML parser intact (the :lg3d-core run classpath omits it too).
+    // jar cannot also supply it (split package), so java.util.prefs -- which
+    // ContactDirectory/ChartPanel drive through importPreferences to seed
+    // /contacts from contacts.xml -- dies with NoClassDefFoundError. The
+    // :lg3d-core run classpath already omits this jar for the same reason; the
+    // `implementation fileTree(ext)` above pulls it back onto the *test*
+    // runtime classpath, so drop it here to keep the platform XML parser intact.
     classpath = classpath.filter { !it.name.equals('xercesImpl.jar') }
 }
 

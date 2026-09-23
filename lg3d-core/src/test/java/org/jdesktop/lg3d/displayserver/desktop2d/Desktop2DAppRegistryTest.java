@@ -151,6 +151,35 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the Office-group 3D apps map to their 2D Swing panels")
+    void officeAppsAreHostedPanels() {
+        // The four Office start-menu apps are pure-3D in the 3D desktop but ship
+        // an AWT/Swing panel (in lg3d-incubator) for the 2D/Swing desktop, keyed
+        // on the 3D main class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.mail.Mail3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D"));
+
+        assertEquals("org.jdesktop.lg3d.apps.mail.MailPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.mail.Mail3D"));
+        assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.agenda.AgendaPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D"));
+        assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.contact.ContactCardsPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D"));
+        assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.chart.ChartPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D"));
+    }
+
+    @Test
     @DisplayName("the Games-group 3D apps map to their 2D Swing panels")
     void gameAppsAreHostedPanels() {
         // The four Games start-menu apps are pure-3D in the 3D desktop but ship
