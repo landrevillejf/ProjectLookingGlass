@@ -1,8 +1,10 @@
 name: Build
 
 # CI for the Project Looking Glass modernization port (Gradle 8.14 + JDK 21).
-# The lg3d modules live in git submodules, so the checkout must fetch them
-# recursively -- the Gradle build compiles their sources.
+# This is a SINGLE repository: every module (lg3d-escher, lg3d-core,
+# lg3d-demo-apps, lg3d-incubator, lg3d-widgets, lpm-console) is tracked directly
+# in this repo, so a plain checkout fetches all sources the Gradle build compiles
+# -- there are no git submodules to recurse into.
 
 on:
   push:
@@ -25,14 +27,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository (with submodules)
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          # lg3d-core / lg3d-escher / lg3d-demo-apps / lg3d-incubator are
-          # submodules; the build needs their sources. If any submodule is
-          # private, the default GITHUB_TOKEN cannot fetch it -- add a PAT or
-          # deploy key with read access in that case.
-          submodules: recursive
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -51,8 +47,18 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Compile + jar every module. This is headless: only the :lg3d-core:run
-      # task needs an X display, and it is not part of `build`.
+      # Run the unit tests as their own visible CI step so a test failure is
+      # attributed here rather than buried inside `build`. --continue runs every
+      # module's suite before failing, so one module's failure does not hide the
+      # others. The tests are Java-3D-free and run headless (java.awt.headless
+      # =true is set in each module's test task), so no X display is needed.
+      # Each test task finalizes jacocoTestReport, so coverage is produced too.
+      - name: Run unit tests
+        run: ./gradlew test --continue --stacktrace
+
+      # Compile + jar every module (`build` re-checks the now up-to-date tests).
+      # This is headless: only the :lg3d-core:run task needs an X display, and it
+      # is not part of `build`.
       - name: Build all modules
         run: ./gradlew build --stacktrace
 
@@ -60,6 +66,22 @@ jobs:
       # manager configs) assembles from lg3d-art + lg3d-core + bgmanager.
       - name: Assemble runtime resources
         run: ./gradlew :lg3d-core:runtimeResources --stacktrace
+
+      # Publish the JUnit + JaCoCo reports on every run (including failures) so
+      # test results and coverage are downloadable artifacts, not just console
+      # logs. Coverage is report-only for now (see the root build.gradle jacoco
+      # block): lg3d-core is ~1% covered and lg3d-widgets ~40%, far below the
+      # 100% goal in AGENTS.md, so no failing threshold gate is applied yet.
+      - name: Upload test & coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lg3d-test-reports
+          path: |
+            **/build-gradle/reports/tests/**
+            **/build-gradle/reports/jacoco/**
+            **/build-gradle/test-results/**
+          if-no-files-found: warn
 
       - name: Upload module jars
         if: success()

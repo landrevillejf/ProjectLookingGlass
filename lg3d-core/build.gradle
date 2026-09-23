@@ -127,9 +127,9 @@ dependencies {
     // VirtualUniverse.addGraphStructureChangeListener, ...). The old
     // 'java3d:*:1.3.1' artifacts predate those APIs. Jogamp renames the packages
     // to org.jogamp.java3d / org.jogamp.vecmath; all sources were migrated.
-    api 'org.jogamp.java3d:java3d-core:1.7.2'
-    api 'org.jogamp.java3d:java3d-utils:1.7.2'
-    api 'org.jogamp.java3d:vecmath:1.7.2'
+    api libs.java3d.core
+    api libs.java3d.utils
+    api libs.vecmath
 
     // Bundled third-party jars (odejava / nwn are excluded from the SDK build).
     //
@@ -147,16 +147,17 @@ dependencies {
     // pull in the Java-class jars transitively -- the platform-specific native
     // classifier jars must be added explicitly, otherwise startup fails with
     // UnsatisfiedLinkError (jogamp.common.jvm.JVMUtil.initialize).
-    runtimeOnly "org.jogamp.gluegen:gluegen-rt:2.6.0:${jogampNatives}"
-    runtimeOnly "org.jogamp.jogl:jogl-all:2.6.0:${jogampNatives}"
-    runtimeOnly "org.jogamp.joal:joal:2.6.0:${jogampNatives}"
+    // Version comes from the catalog; the platform classifier is computed above.
+    runtimeOnly "org.jogamp.gluegen:gluegen-rt:${libs.versions.jogampNatives.get()}:${jogampNatives}"
+    runtimeOnly "org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}:${jogampNatives}"
+    runtimeOnly "org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"
 
     // Unit tests for the Java 3D-free parts of the SDK (the 2D desktop's mode
     // resolver, its .lgcfg reader and its application registry). The legacy
     // tests/junit tree is left where it is; it predates this source set.
-    testImplementation platform('org.junit:junit-bom:5.11.4')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
 }
 
 tasks.named('test') {
@@ -281,8 +282,8 @@ tasks.register('run', JavaExec) {
     // so the slf4j provider is resolved here via a detached configuration.
     def agendaLibs = files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar')) +
         configurations.detachedConfiguration(
-            dependencies.create('org.slf4j:slf4j-api:2.0.16'),
-            dependencies.create('org.slf4j:slf4j-nop:2.0.16'))
+            dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
+            dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"))
 
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that

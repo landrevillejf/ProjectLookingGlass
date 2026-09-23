@@ -469,8 +469,42 @@ work to make it build and run on a current toolchain.
   under *Utilities* via `paint.lgcfg`. Its descriptor uses the new `swingapp`
   command verb, which opts the app into 3D window capture and launches it in-JVM,
   so its frame is captured and presented as an integrated 3D desktop window.
+- **Test coverage reporting (JaCoCo)** — the `jacoco` plugin now applies to every
+  module and each `test` task finalizes `jacocoTestReport`, emitting HTML + XML
+  under `<module>/build-gradle/reports/jacoco/test/`. It is wired **report-only**
+  (no failing threshold): the first measured baseline is lg3d-core ≈ 1.4% and
+  lg3d-widgets ≈ 40% line coverage (74 passing tests), far below the 100% goal in
+  `AGENTS.md`, so a gate would red-line every build until coverage improves.
+- **Gradle version catalog** (`gradle/libs.versions.toml`) — centralizes the
+  Java 3D (1.7.2), Jogamp-natives (2.6.0), JUnit (5.11.4) and SLF4J (2.0.16)
+  versions. `lg3d-core`, `lg3d-widgets` and `lg3d-incubator` now reference
+  `libs.*` aliases instead of hardcoding `group:name:version` strings, so a
+  dependency bump is a one-line change.
+- **`CONTRIBUTING.md`** — a contributor guide covering prerequisites (JDK 21, and
+  why Gradle 8.14 cannot run on Java 25+), build/run/test commands, the
+  single-repo module layout, the branch → PR flow, the Conventional Commit
+  convention and scopes, coding rules (Jogamp packages, generated-file and
+  exclusion cautions) and the versioning policy.
+- **`SECURITY.md`** — a security policy with a private vulnerability-disclosure
+  process (GitHub Security Advisories), supported-version scope, security design
+  notes (`ProcessBuilder` / `pkexec` / no telemetry / X11 compositor), and an
+  explicit known-risk section for the ~26 end-of-life 2006-era jars bundled under
+  `lg3d-incubator/ext/`.
 
 ### Changed
+- **CI workflow** (`.github/workflows/build.yml`) — added a dedicated, visible
+  `./gradlew test --continue` step (the tests already ran implicitly inside
+  `build` via `check`) and a `lg3d-test-reports` artifact publishing the JUnit +
+  JaCoCo reports on every run, including failures. Removed the inaccurate "the
+  lg3d modules live in git submodules / check out recursively" claim and its
+  `submodules: recursive` checkout: this is a single repository with no
+  submodules, so a plain checkout fetches every module's sources.
+- **Documentation accuracy** — `README.md` and `AGENTS.md` now state plainly that
+  this is a single repository (no git submodules), list `lpm-console` among the
+  built modules, and correct stale `1.0.1-dev` jar-name examples to the current
+  `1.9.0-dev`; `AGENTS.md`'s test-coverage and CI status notes were synced with
+  the new JaCoCo + explicit-test-step reality, and `AUDIT.md` gained a
+  *Remediation Status* section recording what this pass addressed and deferred.
 - **Java 3D** migrated from the Sun `javax.media.j3d` / `javax.vecmath` stack to
   the Jogamp-maintained **1.7.2** fork (`org.jogamp.java3d` / `org.jogamp.vecmath`)
   — the only readily available release preserving the 1.5-era API the sources rely

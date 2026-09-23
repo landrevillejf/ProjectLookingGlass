@@ -106,6 +106,6 @@ dependencies {
     // first time a holiday list is built. slf4j-nop is a silent no-op provider:
     // the desktop has no interest in jbusinessday's internal logs, and binding
     // NOP avoids the "no SLF4J providers were found" startup warning.
-    runtimeOnly 'org.slf4j:slf4j-api:2.0.16'
-    runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
+    runtimeOnly libs.slf4j.api
+    runtimeOnly libs.slf4j.nop
 }

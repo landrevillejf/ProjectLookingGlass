@@ -11,6 +11,9 @@ allprojects {
 
 subprojects {
     apply plugin: 'java-library'
+    // Test coverage measurement for the modules with test suites (lg3d-core,
+    // lg3d-widgets). Configured in the jacoco block at the end of this section.
+    apply plugin: 'jacoco'
 
     // Legacy modules ship their own 'build'/'clean' scripts (e.g. lg3d-escher),
     // so keep Gradle output in a separate directory to avoid clobbering them.
@@ -31,5 +34,25 @@ subprojects {
     tasks.withType(Jar).configureEach {
         // Preserve legacy behaviour: do not compress by default.
         zip64 = true
+    }
+
+    // -------------------------------------------------------------------------
+    // Test coverage (JaCoCo)
+    // -------------------------------------------------------------------------
+    // AGENTS.md sets 100% line/branch coverage as the eventual goal. As a first
+    // step the reports are now generated (HTML + XML) after every test run, so
+    // `build` and CI actually surface coverage instead of leaving it "Unknown
+    // (not measured)". No failing verification threshold is wired in yet: the
+    // ported codebase is ~200k lines with a small Java-3D-free test suite, so a
+    // hard gate would red-line every build. Layer jacocoTestCoverageVerification
+    // onto individual modules as their coverage becomes meaningful.
+    tasks.withType(Test).configureEach {
+        finalizedBy 'jacocoTestReport'
+    }
+    tasks.withType(JacocoReport).configureEach {
+        reports {
+            xml.required = true    // machine-readable; uploaded as a CI artifact
+            html.required = true   // human-readable browsable report
+        }
     }
 }

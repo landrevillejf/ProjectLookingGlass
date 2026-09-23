@@ -1,0 +1,36 @@
+# Centralized dependency versions for the LG3D modernization port.
+#
+# Gradle auto-loads this file as the `libs` version catalog (Gradle 7+), so every
+# module references coordinates as e.g. `libs.java3d.core` instead of hardcoding
+# group:name:version strings. Keeping the versions here means a Jogamp / JUnit /
+# SLF4J bump is a one-line change instead of an edit scattered across modules.
+#
+# The Jogamp *native* classifier jars (gluegen-rt / jogl-all / joal with a
+# platform-specific classifier such as natives-linux-amd64) are NOT declared as
+# libraries: their classifier is computed at configuration time in
+# lg3d-core/build.gradle. Those declarations reference [versions].jogampNatives
+# directly so the version still lives here.
+
+[versions]
+java3d = "1.7.2"          # Jogamp-maintained fork of the Sun Java 3D 1.5/1.6 API
+jogampNatives = "2.6.0"   # GlueGen / JOGL / JOAL native libraries
+junit = "5.11.4"          # JUnit 5 BOM (Jupiter + Platform versions follow it)
+slf4j = "2.0.16"          # SLF4J API + no-op provider (jbusinessday runtime dep)
+
+[libraries]
+# Java 3D (Jogamp). Exposed transitively by lg3d-core to every downstream module.
+java3d-core = { module = "org.jogamp.java3d:java3d-core", version.ref = "java3d" }
+java3d-utils = { module = "org.jogamp.java3d:java3d-utils", version.ref = "java3d" }
+vecmath = { module = "org.jogamp.java3d:vecmath", version.ref = "java3d" }
+
+# JUnit 5. jupiter / platform-launcher carry no explicit version: the BOM below
+# constrains them, so bumping [versions].junit moves the whole test stack.
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+# SLF4J. jbusinessday (bundled in libs/) logs through SLF4J and touches
+# LoggerFactory in a static initializer, so the API plus a silent no-op provider
+# must be on the runtime classpath.
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }

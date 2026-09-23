@@ -19,9 +19,10 @@ JDK 21 install using the Jogamp OpenGL pipeline.
 
 ## Repository layout
 
-The original project is split across several git submodules. Four of them are
-part of the Gradle build (see [`settings.gradle`](settings.gradle)); this port
-adds a fifth, in-tree module, `lg3d-widgets`:
+This is a **single repository** (no git submodules): every module is tracked
+directly here. Six modules are part of the Gradle build (see
+[`settings.gradle`](settings.gradle)) — the four ported from the original project
+plus two added by this port, `lg3d-widgets` and `lpm-console`:
 
 | Module            | In build | Role |
 | ----------------- | :------: | ---- |
@@ -30,6 +31,7 @@ adds a fifth, in-tree module, `lg3d-widgets`:
 | `lg3d-demo-apps`  | ✅ | Sample and demo applications shipped with lg3d. |
 | `lg3d-incubator`  | ✅ | Grab-bag of independent experimental lg3d apps. |
 | `lg3d-widgets`    | ✅ | **New in this port:** desktop widget API/host and built-in widgets. |
+| `lpm-console`     | ✅ | **New in this port:** standalone Swing front-end for the LPM package manager. |
 | `lg3d-art`        | assets | Wallpapers, splash art, 3D models, GDM theme (consumed at runtime). |
 | `lg3d-awt`        | ❌ | Optional custom AWT Toolkit/peer implementation — excluded (see below). |
 | `lg3d-x11`        | ❌ | Native X11 foundation window system scripts/binaries — not a Java module. |
@@ -63,10 +65,11 @@ Jars land in:
 
 ```
 lg3d-escher/build-gradle/libs/escher-0.2.2.jar
-lg3d-core/build-gradle/libs/lg3d-core-1.0.1-dev.jar
-lg3d-demo-apps/build-gradle/libs/lg3d-demo-apps-1.0.1-dev.jar
-lg3d-incubator/build-gradle/libs/lg3d-incubator-1.0.1-dev.jar
-lg3d-widgets/build-gradle/libs/lg3d-widgets-1.0.1-dev.jar
+lg3d-core/build-gradle/libs/lg3d-core-1.9.0-dev.jar
+lg3d-demo-apps/build-gradle/libs/lg3d-demo-apps-1.9.0-dev.jar
+lg3d-incubator/build-gradle/libs/lg3d-incubator-1.9.0-dev.jar
+lg3d-widgets/build-gradle/libs/lg3d-widgets-1.9.0-dev.jar
+lpm-console/build-gradle/libs/lpm-console-1.9.0-dev.jar
 ```
 
 ## Running the desktop
