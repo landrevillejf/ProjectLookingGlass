@@ -47,6 +47,43 @@ stale. Nothing here bumps the project version (that is a separate chore PR).
   supported versions, `ProcessBuilder`/`pkexec`/compositor notes, and an explicit
   known-risk section covering the bundled legacy incubator jars).
 
+### ✅ Addressed in a second pass (build-quality & supply-chain tooling)
+
+All of the following are wired **report-only / on-demand** so none can red-line
+the legacy `build`; each is a step toward the AGENTS.md 100%-coverage /
+0-mutant goal without enforcing it prematurely.
+
+- **Coverage ratchet (JaCoCo verification).** `jacocoTestCoverageVerification`
+  now runs as part of `check` for the two modules with test suites, with a
+  per-module *floor* set just below current measured coverage (lg3d-core
+  1.0% line / 2.0% branch; lg3d-widgets 35% line / 22% branch). A regression
+  below the floor fails `check`; ordinary churn stays green. Raise the floor as
+  coverage improves.
+- **Static analysis (Checkstyle).** A single shared, high-signal config
+  (`config/checkstyle/checkstyle.xml`, bug-prone patterns only — no
+  formatting/Javadoc/naming noise) runs on every module with
+  `ignoreFailures=true`, publishing XML+HTML reports that CI uploads.
+- **Mutation testing (PIT).** `info.solidsoft.pitest` is applied to
+  `lg3d-core` and `lg3d-widgets` (`./gradlew :lg3d-core:pitest`,
+  `:lg3d-widgets:pitest`), making the 0-mutant target measurable. On-demand
+  (not in `build`/`check`), `mutationThreshold=0`, and `avoidCallsTo` excludes
+  `java.awt`/`javax.swing`/`org.jogamp.*` so GUI/Java-3D calls do not produce
+  spurious headless "killed by error" noise.
+- **SBOM (CycloneDX).** `./gradlew cyclonedxBom` writes a per-module
+  `build-gradle/reports/bom.{json,xml}` manifest of resolved component versions.
+- **Dependency vulnerability scanning (OWASP Dependency-Check).**
+  `./gradlew dependencyCheckAggregate` scans every module's resolved
+  dependencies (including the bundled 2006-era incubator jars) against the NVD.
+  Report-only (`failBuildOnCVSS=11`, above the max real CVSS of 10); an optional
+  `-PnvdApiKey`/`ORG_GRADLE_PROJECT_nvdApiKey` speeds the feed download.
+- **CI security job.** `.github/workflows/build.yml` adds a `security` job
+  (SBOM + dependency-check) on `main`/`master` pushes, a weekly schedule and
+  manual dispatch — skipped on pull requests to avoid the heavy first NVD
+  download — and uploads the Checkstyle reports alongside the coverage reports.
+  The build stays **ubuntu-latest only**: lg3d is a Linux X11 desktop, so a
+  macOS/Windows matrix would validate hosts that never run it. Third-party
+  plugin/tool versions live in `gradle/libs.versions.toml`.
+
 ### ⚠️ Corrected finding
 
 - **"Tests not executed in CI" was inaccurate.** `./gradlew build` has always run
@@ -57,20 +94,21 @@ stale. Nothing here bumps the project version (that is a separate chore PR).
 ### ⏳ Deferred (each needs a dedicated change; several would break the build if naively enabled)
 
 - **Coverage / mutation gates (100% JaCoCo, 0 PIT mutants per AGENTS.md).**
-  Enforcement is intentionally **not** wired: a hard gate on a ~200k-line legacy
-  port at ~1% core coverage would red-line every build. JaCoCo stays report-only
-  until coverage is meaningful; PIT is not yet added.
+  *Measurement* is now wired (JaCoCo verification floor + on-demand PIT — see
+  the second pass above), but **hard enforcement is still deferred**: a 100% /
+  0-mutant gate on a ~200k-line legacy port at ~1% core coverage would red-line
+  every build. Raise the JaCoCo floors and lower the PIT threshold per module as
+  coverage becomes meaningful.
 - **Compiler warnings (`-nowarn`).** Left as-is: enabling `-Xlint` across the
   legacy sources floods the build with low-value warnings. Revisit selectively
   for new/test code.
-- **Static analysis (Checkstyle/SpotBugs), dependency vulnerability scanning
-  (OWASP/Snyk) and SBOM.** Not wired: on this codebase they would surface
-  thousands of style violations and known CVEs (the incubator's intentionally
-  retained 2006-era jars) and fail CI without a baseline/suppression strategy
-  first.
-- **Dependency locking, multi-platform CI matrix, `System.out.println` → logging
-  migration, artifact signing / supply-chain.** Tracked as self-contained
-  follow-ups.
+- **SpotBugs / Snyk.** Checkstyle (see above) covers high-signal style/bug
+  patterns; a deeper dataflow analysis (SpotBugs) and a hosted scanner (Snyk)
+  remain untracked follow-ups.
+- **Dependency locking, `System.out.println` → logging migration, artifact
+  signing / supply-chain attestation.** Tracked as self-contained follow-ups.
+  (A multi-platform CI matrix is deliberately **not** pursued: lg3d targets a
+  Linux X11 host only, so CI stays ubuntu-latest.)
 
 ---
 

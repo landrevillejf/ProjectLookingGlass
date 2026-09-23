@@ -1,5 +1,16 @@
 // Root build for the LG3D (Project Looking Glass) modernization port.
 // Targets JDK 21 + Gradle, replacing the original 2006-era Ant/source-1.5 build.
+
+// Third-party build-analysis plugins, resolved from the version catalog and
+// declared `apply false` here so their versions are managed once; each is
+// enabled per module below. They are report-only / on-demand and never wired
+// into the default `build` in a way that can red-line it (see each section).
+plugins {
+    alias(libs.plugins.cyclonedx) apply false
+    alias(libs.plugins.pitest) apply false
+    alias(libs.plugins.dependencyCheck) apply false
+}
+
 allprojects {
     group = 'org.jdesktop.lg3d'
     version = '1.9.0-dev'
@@ -14,6 +25,11 @@ subprojects {
     // Test coverage measurement for the modules with test suites (lg3d-core,
     // lg3d-widgets). Configured in the jacoco block at the end of this section.
     apply plugin: 'jacoco'
+    // Report-only static analysis + SBOM. Checkstyle runs with ignoreFailures
+    // (configured below); CycloneDX writes a manifest on demand. Neither is
+    // wired to fail `build`.
+    apply plugin: 'checkstyle'
+    apply plugin: 'org.cyclonedx.bom'
 
     // Legacy modules ship their own 'build'/'clean' scripts (e.g. lg3d-escher),
     // so keep Gradle output in a separate directory to avoid clobbering them.
@@ -27,8 +43,17 @@ subprojects {
 
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
-        // The legacy sources are noisy under a modern compiler; keep warnings off.
-        options.compilerArgs << '-nowarn'
+        if (name.toLowerCase().contains('test')) {
+            // New / test code is held to a higher bar: surface real warnings.
+            // No -Werror, so this informs the developer without failing build.
+            options.compilerArgs << '-Xlint:all,-options,-path,-serial,-processing'
+        } else {
+            // The legacy main sources are extremely noisy under a modern
+            // compiler (thousands of deprecation/unchecked/rawtypes warnings),
+            // so they stay suppressed. AUDIT.md "Deferred" tracks re-enabling
+            // -Xlint selectively as regions are modernized.
+            options.compilerArgs << '-nowarn'
+        }
     }
 
     tasks.withType(Jar).configureEach {
@@ -54,5 +79,84 @@ subprojects {
             xml.required = true    // machine-readable; uploaded as a CI artifact
             html.required = true   // human-readable browsable report
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Coverage ratchet (JaCoCo verification)
+    // -------------------------------------------------------------------------
+    // AGENTS.md sets 100% coverage as the eventual goal, but a hard 100% gate on
+    // this ~200k-line port (core ~1.4% line, widgets ~40%) would fail every
+    // build. Instead each module with a test suite gets a *floor* set just below
+    // its current measured coverage: a regression below the floor fails `check`,
+    // ordinary churn stays green. Raise a floor as coverage improves. Modules
+    // without a test suite get no rule (they would trivially "fail" at 0%).
+    def coverageFloors = [
+        'lg3d-core'   : [line: 0.010, branch: 0.020],  // measured 1.45% / 2.47%
+        'lg3d-widgets': [line: 0.350, branch: 0.220],  // measured 39.96% / 26.01%
+    ]
+    def floor = coverageFloors[project.name]
+    if (floor != null) {
+        tasks.named('jacocoTestCoverageVerification') {
+            dependsOn 'test'
+            violationRules {
+                rule {
+                    limit { counter = 'LINE';   value = 'COVEREDRATIO'; minimum = floor.line }
+                }
+                rule {
+                    limit { counter = 'BRANCH'; value = 'COVEREDRATIO'; minimum = floor.branch }
+                }
+            }
+        }
+        tasks.named('check') { dependsOn 'jacocoTestCoverageVerification' }
+    }
+
+    // -------------------------------------------------------------------------
+    // Checkstyle (report-only static analysis)
+    // -------------------------------------------------------------------------
+    // A single shared, high-signal config lives at config/checkstyle/. The task
+    // runs as part of `check` but with ignoreFailures=true, so it publishes an
+    // XML+HTML report (uploaded in CI) without ever red-lining the legacy build.
+    checkstyle {
+        toolVersion = libs.versions.checkstyle.get()
+        ignoreFailures = true
+        configDirectory = rootProject.file('config/checkstyle')
+    }
+    tasks.withType(Checkstyle).configureEach {
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // CycloneDX SBOM
+    // -------------------------------------------------------------------------
+    // `cyclonedxBom` writes a machine-readable Software Bill of Materials (exact
+    // resolved component versions) per module under build-gradle/reports/; CI
+    // uploads it. Addresses the audit's "No SBOM" gap for supply-chain
+    // visibility. On-demand only (not wired into build), so it never slows the
+    // compile/test path.
+}
+
+// -----------------------------------------------------------------------------
+// OWASP dependency-check (CVE scanning) - root aggregate, on-demand
+// -----------------------------------------------------------------------------
+// `./gradlew dependencyCheckAggregate` scans every module's resolved
+// dependencies (including the bundled 2006-era incubator jars) against the NVD
+// and writes HTML/JSON reports. Report-only: failBuildOnCVSS=11 is above the
+// maximum real CVSS score (10), so a finding never fails the build - the point
+// is visibility, and the known-vulnerable legacy jars are documented in
+// SECURITY.md. NOT part of `build` (the first run downloads the large NVD feed).
+// The CI security job runs it on a schedule / main pushes with continue-on-error.
+apply plugin: 'org.owasp.dependencycheck'
+dependencyCheck {
+    failBuildOnCVSS = 11f
+    formats = ['HTML', 'JSON']
+    // An NVD API key massively speeds the vulnerability-feed download.
+    // Optional: pass -PnvdApiKey=KEY or set ORG_GRADLE_PROJECT_nvdApiKey. Guard
+    // against an empty value (e.g. an unset CI secret expands to "").
+    def nvdKey = project.findProperty('nvdApiKey')?.toString()?.trim()
+    if (nvdKey) {
+        nvd { apiKey = nvdKey }
     }
 }
