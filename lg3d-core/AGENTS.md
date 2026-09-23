@@ -3,7 +3,7 @@
 Guidance for AI agents creating or modifying **user interface** in Project
 Looking Glass. This covers the scene-graph UI toolkit that lives in `lg3d-core`
 (`org.jdesktop.lg3d.wg`, `org.jdesktop.lg3d.utils.*`) and how apps in
-`lg3d-demo-apps` / `lg3d-incubator` should consume it.
+`lg3d-apps` / `lg3d-incubator` should consume it.
 
 Companion guides (read these for worked examples and API detail):
 - [`../docs/lg3d-native-apps.md`](../docs/lg3d-native-apps.md) — building native 3D apps
@@ -20,7 +20,7 @@ and a shared **per-role view** so every role working on the core stays coherent.
 | Purpose | The **scene-graph / windowing / display-server SDK and the desktop** itself. |
 | Root packages | `org.jdesktop.lg3d.sg` (scene graph), `.wg` (widgets), `.utils.*`, `.scenemanager.*`, `.displayserver.*`. |
 | Depends on | `lg3d-escher`; Jogamp Java 3D 1.7.2 + natives. |
-| Depended on by | `lg3d-demo-apps`, `lg3d-incubator`, `lg3d-widgets` (all `implementation project(':lg3d-core')`). |
+| Depended on by | `lg3d-apps`, `lg3d-incubator`, `lg3d-widgets` (all `implementation project(':lg3d-core')`). |
 | Also hosts | In-tree replacements under `src/contrib/java` (`Math3D`, traverser, `TransparencyOrderedGroup`, `J3fLoader`, shims). |
 | Build / run | `./gradlew :lg3d-core:build` · `:lg3d-core:run` · `:lg3d-core:runtimeResources` · `./run-lg3d.sh`. |
 
@@ -259,7 +259,7 @@ Agent rules:
   the window's gesture handle (move / spin / flip), and publish
   `Frame3DWindowDecoration.TITLE_BAR_HEIGHT_PROPERTY` before `changeEnabled` so
   the decoration centres its buttons on the strip, aligned with the title text.
-  `TitledSwingWindow` (`lg3d-demo-apps`) is the reference implementation.
+  `TitledSwingWindow` (`lg3d-apps`) is the reference implementation.
 - Capturing a conventional `JFrame` (`SwingNodeWindowCapture`) on a
   compositor-managed session (GNOME/Wayland): **unmap** it (`setVisible(false)`),
   never "hide" it by relocating to `(-32000,-32000)` — the compositor ignores the
@@ -305,7 +305,7 @@ See [`../docs/swingnode.md`](../docs/swingnode.md) for the full contract.
 ## Registering an app in the Start Menu
 
 Add a `*.lgcfg` (`StartMenuItemConfig`) descriptor under
-`lg3d-demo-apps/src/config/` (bundled to `config/demo`; discovery scans
+`lg3d-apps/src/config/` (bundled to `config/demo`; discovery scans
 `config/demo` and `config/incubator`). Use `command = java <MainClass>` for
 in-JVM launch, `menuGroup`, `name`, `desc`, and a
 `displayResourceUrlName = resource:///resources/images/icon/....png` icon.

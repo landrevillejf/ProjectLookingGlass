@@ -21,7 +21,7 @@
 - **Architect** — A native-3D "bookshelf" file/model browser with custom layout
   (`SkewBookshelfLayout`) and viewers for DXF/VRML. Dormant; overlaps `fm3d` and the
   production Swing File Manager. Promotion needs a descriptor move to
-  `lg3d-demo-apps/src/config` and a decision on which browser survives.
+  `lg3d-apps/src/config` and a decision on which browser survives.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
   attach, `Component3D` wrapping, translucency sorting, EDT hops). `ImageTexture`
   extends `Texture2D` — keep POT sizes. Model loading (DXF/VRML) off the render

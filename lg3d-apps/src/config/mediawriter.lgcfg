@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Media Writer (from lg3d-apps). A full featured
+ disc and USB imaging tool whose Swing panel is hosted on a SwingNode inside
+ a Frame3D via TitledSwingWindow: burn an ISO to CD or DVD, write a raw image
+ or ISO to a USB key, clone a disc or device, format a removable key, and
+ build a data disc from a folder. It enumerates real devices and drives the
+ standard Linux media tools, so every write is guarded by an inline confirm.
+ Launched in JVM via the "java <class>" command. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.mediawriter.MediaWriter</string>
+  </void>
+  <void property="desc">
+   <string>Burn CD/DVD and write or clone USB keys</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/mediawriter.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>Media Writer</string>
+  </void>
+ </object>
+</java>

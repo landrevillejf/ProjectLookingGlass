@@ -119,7 +119,7 @@ the legacy `build`; each is a step toward the AGENTS.md 100%-coverage /
 - **Clear module separation:** Well-defined module boundaries with logical separation of concerns:
   - `lg3d-escher` - Pure-Java X11 protocol library
   - `lg3d-core` - Scene-graph / windowing / display-server SDK
-  - `lg3d-demo-apps` - Sample and demo applications
+  - `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`
   - `lg3d-incubator` - Experimental applications
   - `lg3d-widgets` - Desktop widget framework (new in this port)
   - `lpm-console` - Package manager front-end (new in this port)
@@ -469,7 +469,7 @@ The recommended approach is to prioritize high-priority items first (enable test
 
 - **Total Java files:** ~3,500+ (estimated from module structure)
 - **Total lines of code:** ~200,000+ (estimated)
-- **Modules in build:** 6 (lg3d-escher, lg3d-core, lg3d-demo-apps, lg3d-incubator, lg3d-widgets, lpm-console)
+- **Modules in build:** 6 (lg3d-escher, lg3d-core, lg3d-apps, lg3d-incubator, lg3d-widgets, lpm-console)
 - **Modules excluded:** 3 (lg3d-awt, lg3d-x11, lg3d-docs)
 - **Bundled JARs:** 25+ in lg3d-incubator/ext/
 - **Test packages:** 9 total (5 in lg3d-core, 4 in lg3d-widgets)

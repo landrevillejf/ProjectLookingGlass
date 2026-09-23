@@ -2,12 +2,12 @@
 <project basedir="." default="..." name="build-demo-apps">
     <dirname property="imported.basedir" file="${ant.file.build-setup}"/>
 
-    <target name="clean-demoapps" description="Clean lg3d-demo-apps project"
+    <target name="clean-demoapps" description="Clean lg3d-apps project"
         if="demoapps.exists">
         <ant inheritAll="false" dir="${demoapps.dir}" target="clean"/>
     </target>
 
-    <target name="jar-demoapps" description="Build and jar lg3d-demo-apps project"
+    <target name="jar-demoapps" description="Build and jar lg3d-apps project"
         depends="init" if="demoapps.exists">
 	<property name="demoapps.build.platform.dir" value="${demoapps.dir}/build/${build.location}"/>
         <ant inheritAll="false" dir="${demoapps.dir}" target="jar">
@@ -21,7 +21,7 @@
         </copy>
     </target>
 
-    <target name="release-demoapps" description="Build and jar lg3d-demo-apps project"
+    <target name="release-demoapps" description="Build and jar lg3d-apps project"
         depends="init" if="demoapps.exists">
         <condition property="demoapps.build.platform.dir"
             value="${demoapps.dir}/build/${build.platform}/${build.level}"

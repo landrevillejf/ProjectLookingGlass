@@ -20,7 +20,7 @@
 
 - **Architect** — A native-3D carousel image viewer (a rotating wheel of thumbnails).
   Dormant; descriptor lives in the incubator's unscanned `config/`. Promotion needs the
-  descriptor moved to `lg3d-demo-apps/src/config`. Keep the wheel/selection event contract
+  descriptor moved to `lg3d-apps/src/config`. Keep the wheel/selection event contract
   (`SelectionEvent`, `LayoutEvent`) stable — that is its interaction surface.
 - **Engineer / Developer** — Load and decode images on `ImageLoaderThread`, never on the
   render thread; upload texture pixels **before** attach and use power-of-two textures.

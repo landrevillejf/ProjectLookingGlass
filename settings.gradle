@@ -2,7 +2,7 @@ rootProject.name = 'lg3d'
 
 include 'lg3d-escher'
 include 'lg3d-core'
-include 'lg3d-demo-apps'
+include 'lg3d-apps'
 include 'lg3d-incubator'
 // Desktop widgets: the public widget API (org.jdesktop.lg3d.widgets.api) plus
 // the desktop widget layer and the built-in clock/temperature/CPU/memory
@@ -14,7 +14,7 @@ include 'lg3d-widgets'
 include 'lpm-console'
 // Update manager: a self-contained Swing update pipeline (check / download /
 // verify / install / rollback / downgrade / scheduling / PGP signing) adapted
-// from an external module. lg3d-demo-apps wraps its settings panel in a
+// from an external module. lg3d-apps wraps its settings panel in a
 // "Software Update" start-menu app (SwingNode in 3D, MDI internal frame in 2D);
 // the :lg3d-core:run task puts its jar and runtime deps on the desktop classpath.
 include 'update-manager'

@@ -20,7 +20,7 @@
 
 - **Architect** — A minimal pure-3D weather display (a `Frame3D` + `Box`/`SimpleAppearance`
   panel). Dormant and unregistered: it has no `.lgcfg`, so it never reaches the start menu.
-  Promotion needs a descriptor added to `lg3d-demo-apps/src/config` **and** a real data
+  Promotion needs a descriptor added to `lg3d-apps/src/config` **and** a real data
   source wired in.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before attach,
   wrap nodes in `Component3D`, sort translucency, EDT hops). Any network fetch must run off

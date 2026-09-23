@@ -72,7 +72,7 @@ are no git submodules. Every module is tracked directly here.
 | ----------------- | :------: | ---- |
 | `lg3d-escher`     | ✅ | Pure-Java X11 protocol library (Escher). |
 | `lg3d-core`       | ✅ | Scene-graph / windowing / display-server SDK and the desktop. |
-| `lg3d-demo-apps`  | ✅ | Sample and demo applications. |
+| `lg3d-apps`  | ✅ | Production-grade desktop applications (plus a few samples); formerly `lg3d-demo-apps`. |
 | `lg3d-incubator`  | ✅ | Experimental applications (some excluded — see its `build.gradle`). |
 | `lg3d-widgets`    | ✅ | Desktop widget API/host and built-in widgets. |
 | `lpm-console`     | ✅ | Standalone Swing front-end for the LPM package manager. |
@@ -141,7 +141,7 @@ Conventional Commits, imperative mood, subject ≤ 50 characters:
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`.
 
 **Scopes:** use the Gradle module name for module-scoped changes
-(`lg3d-core`, `lg3d-widgets`, `lg3d-incubator`, `lg3d-demo-apps`, `lg3d-escher`,
+(`lg3d-core`, `lg3d-widgets`, `lg3d-incubator`, `lg3d-apps`, `lg3d-escher`,
 `lpm-console`), or `gradle` (build scripts), `ci` (workflows), `deps`
 (dependency bumps), `docs`, `agents`.
 

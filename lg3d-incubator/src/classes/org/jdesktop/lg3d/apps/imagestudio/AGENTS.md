@@ -14,7 +14,7 @@
 | Surface | **pure-3D `Frame3D`** — the entire UI is scene-graph nodes driven by the live-texture pattern |
 | Start-menu name / group | Image Studio / **Utilities** |
 | Command | `java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp` |
-| Descriptor | **`lg3d-demo-apps/src/config/imagestudio.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
+| Descriptor | **`lg3d-apps/src/config/imagestudio.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
 | Runtime deps | `ext/jai_core.jar` + `ext/jai_codec.jar` on the `:lg3d-core:run` classpath **and** `--add-exports java.desktop/sun.awt.image=ALL-UNNAMED` |
 | Build | `./gradlew :lg3d-incubator:build` |
 
@@ -55,9 +55,9 @@
   desktop can host a full native-3D creative tool. Production expectations apply.
 - **Functional Analyst** — Spec user-visible function (open/edit/save images, ~27 ops,
   histogram, filmstrip) plus the core contract (Frame3D host, live-texture canvas,
-  JAI classpath/export, descriptor in `lg3d-demo-apps`).
+  JAI classpath/export, descriptor in `lg3d-apps`).
 - **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
-  `lg3d-demo-apps`, so an app PR usually spans two modules — say so. Done = build +
+  `lg3d-apps`, so an app PR usually spans two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icon) + `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D-dominant**: canvas, toolbar, slider, histogram and
   filmstrip are all runtime-drawn scene-graph widgets (no PNG assets). The only 2D is

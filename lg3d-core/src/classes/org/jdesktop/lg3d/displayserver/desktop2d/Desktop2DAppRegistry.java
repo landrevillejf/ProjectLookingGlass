@@ -50,7 +50,7 @@ import org.jdesktop.lg3d.utils.system.ProcessRunner;
  * </ul>
  *
  * <p>The Swing panels are looked up reflectively by name: lg3d-core cannot
- * depend on lg3d-demo-apps, and on a machine without 3D the app's wrapper class
+ * depend on lg3d-apps, and on a machine without 3D the app's wrapper class
  * (which builds the {@code Frame3D}) must never be loaded - only its panel.</p>
  */
 public final class Desktop2DAppRegistry {
@@ -114,7 +114,7 @@ public final class Desktop2DAppRegistry {
         // its HelpCenter wrapper (the javahelp jar is on both classpaths).
         panels.put("org.jdesktop.lg3d.apps.help.HelpCenter",
                 "org.jdesktop.lg3d.apps.help.HelpCenterPanel");
-        // The widget gallery lives in lg3d-widgets (not lg3d-demo-apps); its
+        // The widget gallery lives in lg3d-widgets (not lg3d-apps); its
         // Swing panel is the pure-2D counterpart of the 3D WidgetGallery. Both
         // jars are on the desktop classpath, so the reflective lookup resolves,
         // and hosting the panel means the gallery no longer needs the 3D desktop.
@@ -122,17 +122,17 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.widgets.swing.WidgetGalleryPanel");
         // The LPM Console lives in the standalone lpm-console module (a plain
         // Swing package-manager front-end that shells out to /usr/bin/lpm), not
-        // in lg3d-demo-apps. Its jar is on the desktop run classpath, so the
+        // in lg3d-apps. Its jar is on the desktop run classpath, so the
         // reflective lookup resolves and its panel is hosted as an internal
         // frame here; in the 3D desktop the same command is captured via the
         // swingapp verb. Both jars being present is what makes this work.
         panels.put("org.lpmconsole.LPMConsole",
                 "org.lpmconsole.LPMConsolePanel");
-        // The Software Update app (lg3d-demo-apps, org.jdesktop.lg3d.apps.update)
+        // The Software Update app (lg3d-apps, org.jdesktop.lg3d.apps.update)
         // wraps the standalone update-manager module's Swing pipeline in a plain
         // panel, so it hosts here as an internal frame like the other panel apps;
         // the 3D desktop builds the same panel on a SwingNode via its
-        // UpdateManager wrapper. Both the lg3d-demo-apps and update-manager jars
+        // UpdateManager wrapper. Both the lg3d-apps and update-manager jars
         // (plus jackson/slf4j/bouncycastle) are on the desktop run classpath, so
         // the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.update.UpdateManager",

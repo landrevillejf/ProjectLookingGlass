@@ -13,7 +13,7 @@
 | Purpose | A **grab-bag of independent experimental apps** — the community/prototype "incubator". |
 | Root package | `org.jdesktop.lg3d.apps.*` (sources under `src/classes`). |
 | Depends on | `lg3d-core` **plus** bundled third-party jars under `ext/` (`fileTree ext/**/*.jar`). |
-| Depended on by | Nothing. Does **not** depend on `lg3d-demo-apps`. |
+| Depended on by | Nothing. Does **not** depend on `lg3d-apps`. |
 | Jar | `build-gradle/libs/lg3d-incubator-1.0.1-dev.jar`, on the desktop classpath via `:lg3d-core:run`. |
 | Build | `./gradlew :lg3d-incubator:build`. |
 | Legacy build | The Ant build was a per-app `subant` with `failonerror="false"`; this port compiles the whole `src/classes` tree as one source set. |
@@ -26,7 +26,7 @@
 Agenda 3D, the Games (tictactoe / sudoku / chess / solitaire), Mail 3D.
 **Ported legacy apps:** jmf23D (Algea3D), luncher, nlc, orgchart (Chart3D /
 Contact3D). Their start-menu `.lgcfg` descriptors live in
-**`lg3d-demo-apps/src/config`**, not here (see below).
+**`lg3d-apps/src/config`**, not here (see below).
 
 > **Per-app guides.** Every application package under `src/classes` ships its own
 > condensed role-aware `AGENTS.md` next to its sources (35 in total), covering the
@@ -51,8 +51,8 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
 - **Descriptor location is architectural.** Discovery scans `config/demo` and
   `config/incubator`; this module's `src/config` bundles to jar-root `config/`
   (never scanned). So an incubator app's `.lgcfg` must be added to
-  `lg3d-demo-apps/src/config`. Keep this precedent (Image Studio, Widget Gallery).
-- This module cannot see `lg3d-demo-apps` classes (no dependency). A helper
+  `lg3d-apps/src/config`. Keep this precedent (Image Studio, Widget Gallery).
+- This module cannot see `lg3d-apps` classes (no dependency). A helper
   needed by both must live in `lg3d-core` — e.g. do not try to reuse
   `TitledSwingWindow` from here.
 - **Exclusions are policy, not accidents.** Apps excluded for absent third-party
@@ -126,8 +126,8 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
 
 - Commit scope is **`lg3d-incubator`**. Branch → commit → push → PR against
   `main`; never commit to `main`.
-- Because descriptors for incubator apps land in `lg3d-demo-apps`, an app PR
-  often spans two modules — call that out and expect a `lg3d-demo-apps` change
+- Because descriptors for incubator apps land in `lg3d-apps`, an app PR
+  often spans two modules — call that out and expect a `lg3d-apps` change
   in the same PR.
 - Track runtime classpath / `ext/` changes as integration risk (they touch
   `lg3d-core`'s `run` task).
@@ -154,7 +154,7 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
   root `AGENTS.md` (build/exclusions/commits). Conflict → root wins, fix here in
   the same PR.
 - Every PR states: the app touched, live vs dormant status, the descriptor
-  location (`lg3d-demo-apps/src/config`), any `ext/`/classpath change, and the
+  location (`lg3d-apps/src/config`), any `ext/`/classpath change, and the
   screencapture/log evidence.
 
 ## Commit / PR

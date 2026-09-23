@@ -9,7 +9,7 @@
 
 ## Suite at a glance
 
-| Game | Entry point | Start-menu name / group | Command | Descriptor (`lg3d-demo-apps/src/config`) |
+| Game | Entry point | Start-menu name / group | Command | Descriptor (`lg3d-apps/src/config`) |
 | --- | --- | --- | --- | --- |
 | Tic-Tac-Toe | `tictactoe.TicTacToe3D` | Tic-Tac-Toe 3D / **Games** | `java …games.tictactoe.TicTacToe3D` | `tictactoe.lgcfg` |
 | Sudoku | `sudoku.Sudoku3D` | Sudoku 3D / **Games** | `java …games.sudoku.Sudoku3D` | `sudoku.lgcfg` |
@@ -55,11 +55,11 @@ auto-finish, undo, hints) with vector suit shapes (`Path2D`/`Ellipse2D`, no font
   the **Games** start-menu group; production expectations apply.
 - **Functional Analyst** — Spec each game as user-visible function (rules, difficulty,
   undo/hint) plus the core contract (Frame3D host, live-texture view, POT board,
-  descriptor in `lg3d-demo-apps`). Do not over-claim features — verify the model API
+  descriptor in `lg3d-apps`). Do not over-claim features — verify the model API
   (e.g. TicTacToe has `reset(humanFirst)`, not an "easy mode"; Sudoku has three
   levels, not four).
 - **Project Manager** — Commit scope `lg3d-incubator`; the four descriptors live in
-  `lg3d-demo-apps`, so a games PR usually spans two modules — say so. Done = build +
+  `lg3d-apps`, so a games PR usually spans two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icons via `GenerateAppIcons.java`) + `./run-lg3d.sh`
   + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D only**: boards, pieces/cards and control buttons are all

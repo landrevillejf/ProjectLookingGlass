@@ -20,7 +20,7 @@
 
 - **Architect** — A minimal native-3D `ls` (directory listing) demo. Dormant; overlaps
   the other 3D file browsers. Promotion needs a descriptor move to
-  `lg3d-demo-apps/src/config`.
+  `lg3d-apps/src/config`.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
   attach, `Component3D` wrapping, translucency sorting, EDT hops); directory I/O off
   the render thread. Dev mode routes no keyboard focus — click-driven only. Jogamp only.

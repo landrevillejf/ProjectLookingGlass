@@ -21,7 +21,7 @@
 - **Architect** — A minimal native-3D ping-pong game. Dormant; descriptor lives in the
   incubator's unscanned `config/`. Note the shipped `games/` suite (chess, solitaire,
   sudoku, tictactoe) is the maintained game set — this is an older standalone demo.
-  Promotion needs the descriptor moved to `lg3d-demo-apps/src/config`.
+  Promotion needs the descriptor moved to `lg3d-apps/src/config`.
 - **Engineer / Developer** — Drive the game loop from `PingPongAction` (`TimerTask`) and
   only mutate the scene graph under the core threading rules; wrap nodes in
   `Component3D`, sort translucency, hop to the EDT for any Swing. Upload texture pixels

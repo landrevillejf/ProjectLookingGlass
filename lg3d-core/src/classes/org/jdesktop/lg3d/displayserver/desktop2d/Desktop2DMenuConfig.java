@@ -57,7 +57,7 @@ import org.xml.sax.InputSource;
  * <p>Scanned locations mirror the display server's own discovery: every
  * {@code *.lgcfg} under {@code ${lg.etcdir}/lg3d}, plus the {@code config/demo}
  * and {@code config/incubator} directories on the classpath (where the
- * lg3d-demo-apps and lg3d-incubator jars bundle their descriptors).</p>
+ * lg3d-apps and lg3d-incubator jars bundle their descriptors).</p>
  */
 public final class Desktop2DMenuConfig {
 

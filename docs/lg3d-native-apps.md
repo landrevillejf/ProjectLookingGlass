@@ -289,11 +289,11 @@ the runtime classpath.
 ```
 
 - `command` — `java <fully.qualified.Main>` runs **in-JVM** on the desktop's
-  classpath (fastest; use this for apps bundled in `lg3d-demo-apps` /
+  classpath (fastest; use this for apps bundled in `lg3d-apps` /
   `lg3d-incubator`).
 - `displayResourceUrlName` — `resource:///resources/...` resolves through the
   runtime-resources classpath prefix (see the root `AGENTS.md`).
-- Place the descriptor in `lg3d-demo-apps/src/config/` (bundled to
+- Place the descriptor in `lg3d-apps/src/config/` (bundled to
   `config/demo`), following the Image Studio / Widget Gallery precedent.
 
 ---
@@ -311,8 +311,8 @@ the runtime classpath.
 ```
 
 Your app's classes must be on the `:lg3d-core:run` classpath — bundle the app in
-`lg3d-demo-apps` or `lg3d-incubator`, and put its `.lgcfg` in
-`lg3d-demo-apps/src/config/`.
+`lg3d-apps` or `lg3d-incubator`, and put its `.lgcfg` in
+`lg3d-apps/src/config/`.
 
 **Verifying UI at runtime.** X-client screenshot tools (`import`, `scrot`, AWT
 `Robot`) return black or hang under GNOME/Wayland + Xwayland. The reliable

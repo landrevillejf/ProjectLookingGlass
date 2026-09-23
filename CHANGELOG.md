@@ -18,7 +18,7 @@ work to make it build and run on a current toolchain.
   (3D & 2D)** section for every module with a user interface (marked *not
   applicable* for the `lg3d-escher` protocol library), a *Communication &
   coherence* rule and the module-scoped *Commit / PR* flow. New files for
-  `lg3d-escher`, `lg3d-demo-apps`, `lg3d-incubator`, `lg3d-widgets` and
+  `lg3d-escher`, `lg3d-apps`, `lg3d-incubator`, `lg3d-widgets` and
   `lpm-console`; `lg3d-core` and `update-manager` gain the same role sections
   while keeping their existing content (`lg3d-core` remains the canonical UI/UX
   rulebook every module defers to). The root `AGENTS.md` replaces its "consider
@@ -26,7 +26,7 @@ work to make it build and run on a current toolchain.
   Documentation only — no code, build or version change.
 - **Per-application role guides** (`AGENTS.md`) — extending the per-module effort,
   *every* application package in the two app modules now ships its own condensed
-  role-aware `AGENTS.md` beside its sources: 18 in `lg3d-demo-apps` and 35 in
+  role-aware `AGENTS.md` beside its sources: 18 in `lg3d-apps` and 35 in
   `lg3d-incubator` (native-3D showcases, ported apps, dormant prototypes,
   framework/library trees, and the **excluded** apps). Each uses the shared role
   template with an *App at a glance* table whose first row is a **Status**
@@ -34,9 +34,9 @@ work to make it build and run on a current toolchain.
   **Dormant prototype** / **Excluded from build**), plus entry point, window
   surface, start-menu descriptor location and runtime blockers. Multi-app package
   trees are covered by one guide at the package root (`games/`, `orgchart/`). The
-  existing 13 `lg3d-demo-apps` per-app files were converted to the template with
+  existing 13 `lg3d-apps` per-app files were converted to the template with
   their original in-depth reference preserved underneath. The root `AGENTS.md` and
-  both module files gained a *Per-app guides* index note, and `lg3d-demo-apps` was
+  both module files gained a *Per-app guides* index note, and `lg3d-apps` was
   reframed to make clear the module name is legacy while its apps are
   production-grade. Documentation only — no code, build or version change.
 - **Software Update** (`update-manager`, `org.jdesktop.lg3d.apps.update`) — a
@@ -96,7 +96,7 @@ work to make it build and run on a current toolchain.
   `SwingNodeWindowCapture` texture its window into the 3D desktop; its jar is
   added to the `:lg3d-core:run` classpath and a drawn package-box start-menu
   icon (`lpm-console.png`) is generated.
-- **Help Center** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.help`) — a complete,
+- **Help Center** (`lg3d-apps`, `org.jdesktop.lg3d.apps.help`) — a complete,
   navigable desktop user guide built on the latest **JavaHelp**
   (`javax.help:javahelp:2.0.05`), replacing the old static-image *Simple Sample
   Help* as the desktop's real documentation (that sample is left in place as a
@@ -109,17 +109,17 @@ work to make it build and run on a current toolchain.
   desktop, built-in apps, customizing, package management, troubleshooting and
   about) with a shared stylesheet, a target map, a hierarchical TOC and a keyword
   index; the Search navigator's database is generated at build time by JavaHelp's
-  own indexer (new `:lg3d-demo-apps:generateHelpSearchIndex` task) and bundled
+  own indexer (new `:lg3d-apps:generateHelpSearchIndex` task) and bundled
   beside the HelpSet. JavaHelp is added to the version catalog, to
-  `lg3d-demo-apps`, and (as a detached configuration) to the hand-assembled
+  `lg3d-apps`, and (as a detached configuration) to the hand-assembled
   `:lg3d-core:run` classpath so the in-JVM launch resolves `javax.help.*`. A new
   `helpcenter.lgcfg` registers it under the *Utilities* start-menu group. Covered
-  by a headless JUnit 5 test (`HelpContentTest`, new `lg3d-demo-apps/src/test`
+  by a headless JUnit 5 test (`HelpContentTest`, new `lg3d-apps/src/test`
   source set) asserting the HelpSet parses with the expected title and all three
   navigators, every map target resolves to a topic URL, and `JHelp` constructs
   under JDK 21; the 2D classification is covered in `Desktop2DAppRegistryTest`.
 - **Gradle build** (wrapper 8.14) replacing the 2006-era Ant `source 1.5` build,
-  with a JDK 21 toolchain. Modules: `lg3d-escher`, `lg3d-core`, `lg3d-demo-apps`,
+  with a JDK 21 toolchain. Modules: `lg3d-escher`, `lg3d-core`, `lg3d-apps`,
   `lg3d-incubator`; jars are emitted to `<module>/build-gradle/libs/` so the
   legacy per-module `build`/`clean` scripts are left untouched.
 - **`run-lg3d.sh`** launcher at the repository root — auto-detects/pins the JDK 21
@@ -155,7 +155,7 @@ work to make it build and run on a current toolchain.
   rather than decoded into 3D beans — and classifies each entry
   (`Desktop2DAppRegistry`): panel apps (**File Manager**, **Task Manager**,
   **Control Center**, **Calculator**, **Media Writer**) are hosted in internal
-  frames via reflection (so lg3d-core never depends on lg3d-demo-apps nor loads a
+  frames via reflection (so lg3d-core never depends on lg3d-apps nor loads a
   3D wrapper); conventional Swing apps (**Paint**, **Swing Test**) launch in-JVM
   without the 3D window capture; external commands run as child processes as in
   3D; and pure-3D apps appear **disabled** with a "Requires the 3D desktop"
@@ -277,7 +277,7 @@ work to make it build and run on a current toolchain.
   plus a trailing **Show in File Manager** row; the mouse wheel cycles the rows
   exactly as in the app list. Files open with `xdg-open`; folders and the
   trailing row open the folder in the file manager.
-- **Desktop shell: system apps** (`lg3d-demo-apps`) — **File Manager**
+- **Desktop shell: system apps** (`lg3d-apps`) — **File Manager**
   (tree + list browsing with copy / move / rename / delete-to-trash / new-folder,
   multi-select, drag-and-drop, keyboard shortcuts), **Task Manager** (live
   process table from procfs with End Task / Force Quit / Change Priority), and
@@ -316,7 +316,7 @@ work to make it build and run on a current toolchain.
   the filmstrip or a native `JFileChooser`, and save back to the current path or
   export to `~/Pictures/lg3d-imagestudio/` (PNG/JPEG via `ImageIO`, TIFF/BMP via
   the JAI codec). Registered in the start menu (Utilities) by
-  `lg3d-demo-apps/src/config/imagestudio.lgcfg`. The `lg3d-core:run` task now
+  `lg3d-apps/src/config/imagestudio.lgcfg`. The `lg3d-core:run` task now
   puts the two genuine JAI jars (`jai_core.jar`, `jai_codec.jar`) on the desktop
   classpath and exports `java.desktop/sun.awt.image` so JAI's `RasterAccessor`
   fast path works under JDK 21.
@@ -327,7 +327,7 @@ work to make it build and run on a current toolchain.
   Control** (`nlc.Main`, a command-driven 3D mascot) and the **org chart** apps
   (`orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D`). Each is
   registered in the desktop start menu by a new descriptor under
-  `lg3d-demo-apps/src/config` (`luncher`, `nlc`, `orgchart-chart`,
+  `lg3d-apps/src/config` (`luncher`, `nlc`, `orgchart-chart`,
   `orgchart-contact`), following the Image Studio precedent. The compile-time
   drift fixed was small and self-contained: vecmath's dropped
   `Color3f/Color4f(java.awt.Color)` constructors,
@@ -374,7 +374,7 @@ work to make it build and run on a current toolchain.
   or moves the creation cursor; appointments are **user-created only** (the agenda
   starts empty) and persist under `/agenda/appointments`, mirroring how Contact 3D
   stores contacts. Registered in the start menu (Office) by
-  `lg3d-demo-apps/src/config/agenda3d.lgcfg`.
+  `lg3d-apps/src/config/agenda3d.lgcfg`.
 - **Agenda 3D week grid now marks business days, holidays and weekends** — the
   `AgendaGrid` columns are anchored to real `LocalDate`s (Monday of the current
   week + offset) instead of bare indices, and each day is classified with the
@@ -411,7 +411,7 @@ work to make it build and run on a current toolchain.
   it and jumps to Sent, Back discards it. A 48x48 `mail3d.png` icon (INDIGO tile +
   `SendMail` glyph) is generated by `lg3d-art/tools/GenerateAppIcons.java`, and the
   app is registered in the start menu (Office) by
-  `lg3d-demo-apps/src/config/mail3d.lgcfg`.
+  `lg3d-apps/src/config/mail3d.lgcfg`.
 - **App icons via the bundled `IconManager` library** (`libs/IconManager-1.6.0.jar`)
   — the six start-menu apps that previously fell back to the generic
   `defaultapp.png` (**Image Studio**, **Luncher**, **Natural Language Control**,
@@ -486,9 +486,9 @@ work to make it build and run on a current toolchain.
   tableau piles, run dragging, auto-finish, undo and hints; its cards are drawn
   with **vector suit shapes** (`Path2D` / `Ellipse2D`) so it needs no extended
   font. Each game is registered in a new **Games** start-menu group by a descriptor
-  under `lg3d-demo-apps/src/config` (`tictactoe`, `sudoku`, `chess`, `solitaire`)
+  under `lg3d-apps/src/config` (`tictactoe`, `sudoku`, `chess`, `solitaire`)
   and gets a distinct 48x48 `IconManager` icon from `GenerateAppIcons.java`.
-- **Calculator** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.calculator`) — an
+- **Calculator** (`lg3d-apps`, `org.jdesktop.lg3d.apps.calculator`) — an
   advanced scientific calculator whose Swing `JPanel` is hosted on a `SwingNode`
   inside a `Frame3D` via `TitledSwingWindow` (title bar, min/max/close, live
   taskbar thumbnail). A headless recursive-descent **expression engine**
@@ -500,7 +500,7 @@ work to make it build and run on a current toolchain.
   registered in the **Utilities** start-menu group (`calculator.lgcfg`) and gets
   a 48x48 icon whose keypad glyph is drawn inside `GenerateAppIcons.java`, the
   bundled glyph set carrying nothing calculator shaped.
-- **Media Writer** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.mediawriter`) — a
+- **Media Writer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.mediawriter`) — a
   full-featured disc and USB imaging tool whose Swing `JPanel` is hosted on a
   `SwingNode` inside a `Frame3D` via `TitledSwingWindow`. A headless engine
   (`MediaWriterEngine`) drives the **real** Linux media tools — `growisofs` /
@@ -555,7 +555,7 @@ work to make it build and run on a current toolchain.
   (`-PswingApp="<fqcn> [args...]"` and `-PswingAppCp=<path[:path...]>` for the
   app's classes/jar) and `run-lg3d.sh` (`--swing-app <fqcn> [args...]`,
   `--swing-app-cp <paths>`).
-- **Paint drawing app** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.paint`) — a
+- **Paint drawing app** (`lg3d-apps`, `org.jdesktop.lg3d.apps.paint`) — a
   conventional Swing `JFrame` raster editor (brush/pencil/shape/fill/eyedropper
   tools, layers, selections, image ops, undo/redo) registered in the Start menu
   under *Utilities* via `paint.lgcfg`. Its descriptor uses the new `swingapp`
@@ -638,6 +638,16 @@ work to make it build and run on a current toolchain.
   `lg3d-incubator/ext/`.
 
 ### Changed
+- **Module rename** — `lg3d-demo-apps` → `lg3d-apps`. The module ships the
+  production-grade desktop applications that come with LG3D (plus a few
+  tutorial/sample apps); "demo" was a misleading legacy label. The Gradle
+  project, directory, jar (`archiveBaseName = 'lg3d-apps'`), the
+  `settings.gradle` include, `lg3d-core`'s project references and run-classpath
+  variable (`demoAppsJar` → `appsJar`), the CI artifact path, and every doc /
+  source reference were updated. The `config/demo` runtime resource path and the
+  `Demos` start-menu group are **legacy names intentionally left unchanged** so
+  lg3d-core's descriptor discovery keeps resolving them; historical
+  `lg3d-docs/**` was not touched.
 - **CI workflow** (`.github/workflows/build.yml`) — added a dedicated, visible
   `./gradlew test --continue` step (the tests already ran implicitly inside
   `build` via `check`) and a `lg3d-test-reports` artifact publishing the JUnit +

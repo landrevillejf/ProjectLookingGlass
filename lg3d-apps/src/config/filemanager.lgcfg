@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: the file manager (from lg3d-apps). Launched in-JVM
+ via the "java <class>" command; lives in the System menu group. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.filemanager.FileManager</string>
+  </void>
+  <void property="desc">
+   <string>Browse and manage files and folders</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///org/jdesktop/lg3d/apps/filemanager/resources/images/icon/filemanager.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>System</string>
+  </void>
+  <void property="name">
+   <string>File Manager</string>
+  </void>
+ </object>
+</java>

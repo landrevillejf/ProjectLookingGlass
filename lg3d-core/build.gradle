@@ -254,24 +254,24 @@ tasks.register('run', JavaExec) {
     description = 'Run the LG3D display server full-screen (borderless, non-X11). Use -Pwindowed for the small debug window, or -Pcompositor to run lg3d as its own X11 window manager/compositor.'
 
     // Make the demo/incubator apps and the desktop widgets available on the
-    // desktop, as the legacy launcher put lg3d-demo-apps.jar on the classpath.
-    def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
+    // desktop, as the legacy launcher put lg3d-apps.jar on the classpath.
+    def appsJar = project(':lg3d-apps').tasks.named('jar')
     def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
     def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
     // LPM Console: the standalone Swing package-manager front-end (module
-    // :lpm-console). Its start-menu descriptor lives in lg3d-demo-apps and its
+    // :lpm-console). Its start-menu descriptor lives in lg3d-apps and its
     // panel is registered in Desktop2DAppRegistry, so its jar must be on the
     // desktop run classpath for both the reflective 2D lookup and the 3D
     // "swingapp" launch to resolve org.lpmconsole.*.
     def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
     // Software Update: the standalone update-manager module's jar, wrapped by
-    // lg3d-demo-apps' org.jdesktop.lg3d.apps.update panel and registered with
+    // lg3d-apps' org.jdesktop.lg3d.apps.update panel and registered with
     // Desktop2DAppRegistry, so it must be on the desktop run classpath for both
     // the reflective 2D lookup and the 3D "java <class>" launch to resolve
     // com.protonmail.landrevillejf.swingide.update.*.
     def updateManagerJar = project(':update-manager').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
-    dependsOn demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
+    dependsOn appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
             updateManagerJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
@@ -313,10 +313,10 @@ tasks.register('run', JavaExec) {
             dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
             dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"))
 
-    // The Help Center app (lg3d-demo-apps, org.jdesktop.lg3d.apps.help) embeds a
+    // The Help Center app (lg3d-apps, org.jdesktop.lg3d.apps.help) embeds a
     // JavaHelp (javax.help) JHelp viewer. JavaHelp is a Maven dependency of
-    // lg3d-demo-apps, but this run classpath is assembled from packaged jars
-    // rather than the demo-apps runtimeClasspath, so resolve javax.help onto it
+    // lg3d-apps, but this run classpath is assembled from packaged jars
+    // rather than the lg3d-apps runtimeClasspath, so resolve javax.help onto it
     // directly -- otherwise the in-JVM start-menu launch dies with
     // NoClassDefFoundError: javax/help/JHelp.
     def javaHelpLibs = configurations.detachedConfiguration(
@@ -342,7 +342,7 @@ tasks.register('run', JavaExec) {
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
+        files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, updateManagerLibs)
 
@@ -620,7 +620,7 @@ tasks.register('releaseBundle', Zip) {
 
     def coreJar = tasks.named('jar')
     def escherJar = project(':lg3d-escher').tasks.named('jar')
-    def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
+    def appsJar = project(':lg3d-apps').tasks.named('jar')
     def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
     def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
     def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
@@ -628,7 +628,7 @@ tasks.register('releaseBundle', Zip) {
     def runtimeResources = tasks.named('runtimeResources')
     def releaseLauncher = tasks.named('releaseLauncher')
 
-    dependsOn coreJar, escherJar, demoAppsJar, incubatorJar, widgetsJar,
+    dependsOn coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
             lpmConsoleJar, updateManagerJar, runtimeResources, releaseLauncher
 
     // lib/ : every module jar + every third-party runtime jar. These go inside
@@ -638,7 +638,7 @@ tasks.register('releaseBundle', Zip) {
     // spec configurator, which makes the archive copy into itself and Gradle
     // fails with a circular dependency on this very task.
     into('lib') {
-        from(coreJar, escherJar, demoAppsJar, incubatorJar, widgetsJar,
+        from(coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
              lpmConsoleJar, updateManagerJar)
         from(releaseRuntime)
         from(incubatorExtJars)

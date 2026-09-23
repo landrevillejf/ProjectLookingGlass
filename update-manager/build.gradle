@@ -2,7 +2,7 @@
 // verify / install, plus rollback, downgrade, scheduling and optional OpenPGP
 // detached-signature verification), adapted from an external module.
 //
-// It is a plain Java library with no lg3d-core dependency: lg3d-demo-apps wraps
+// It is a plain Java library with no lg3d-core dependency: lg3d-apps wraps
 // its UpdateSettingsPanel in a "Software Update" start-menu app, and the
 // :lg3d-core:run task places this jar plus its runtime dependencies on the
 // desktop classpath. The toolchain (JDK 21), UTF-8 encoding, build-gradle output

@@ -11,7 +11,7 @@
 | Status | **Ported & live** (was excluded for API drift; ported with a jar-resource fallback) |
 | Entry point | `luncher.Luncher1` (also `Luncher2`); `GlassyCubeTaskbarItem` (`Tapp`) is the taskbar variant |
 | Surface | **pure-3D** card launcher (`GlassyCardMenu` extends `Container3D`, `TextPanel` extends `Shape3D`) |
-| Start-menu name / group | Luncher / **Utilities** — descriptor **`lg3d-demo-apps/src/config/luncher.lgcfg`** → `config/demo` (**discovered**) |
+| Start-menu name / group | Luncher / **Utilities** — descriptor **`lg3d-apps/src/config/luncher.lgcfg`** → `config/demo` (**discovered**) |
 | Command | `java org.jdesktop.lg3d.apps.luncher.Luncher1` |
 | Runtime note | `MenuConfigFileReader` originally used `getResource("etc/lg3d/MenuConfigFile.xml")` (null → NPE); fixed to fall back to a class-relative/classpath resource |
 | Build | `./gradlew :lg3d-incubator:build` |
@@ -19,7 +19,7 @@
 ## Roles
 
 - **Architect** — A native-3D card launcher menu. Unlike most incubator prototypes it
-  is **ported and registered** (its descriptor lives in `lg3d-demo-apps/src/config`).
+  is **ported and registered** (its descriptor lives in `lg3d-apps/src/config`).
   Keep the menu-config loading resilient: legacy `etc/`-relative paths are not
   installed by this port, so resource lookups must fall back to the jar/classpath.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
@@ -34,7 +34,7 @@
 - **Functional Analyst** — Spec user-visible function (open a card menu, pick an app to
   launch) plus the config-resource contract and the discovered descriptor location.
 - **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
-  `lg3d-demo-apps`, so a PR may span two modules — say so. Done = build +
+  `lg3d-apps`, so a PR may span two modules — say so. Done = build +
   `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D only**: glassy cards + text panels in a `Container3D`.
   Follow the glassy vocabulary, depth ordering and click-driven-input rules from core.
