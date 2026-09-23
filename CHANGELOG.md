@@ -482,7 +482,7 @@ work to make it build and run on a current toolchain.
   - a **JaCoCo coverage ratchet** — `jacocoTestCoverageVerification` joins
     `check` for the two modules with test suites, each with a floor set just
     below current coverage (lg3d-core 1.0% line / 2.0% branch; lg3d-widgets
-    35% line / 22% branch), so a regression fails but ordinary churn stays green;
+    48% line / 40% branch), so a regression fails but ordinary churn stays green;
   - **Checkstyle** static analysis from a single shared high-signal config
     (`config/checkstyle/checkstyle.xml`, bug-prone patterns only) with
     `ignoreFailures=true`, publishing XML+HTML reports;
@@ -507,6 +507,28 @@ work to make it build and run on a current toolchain.
   floor just below its measured 26.7% line / 36.9% branch (the panel is the bulk
   of the uncovered lines), and PIT is wired on-demand via
   `./gradlew :lpm-console:pitest`.
+- **`lg3d-widgets` widget-API unit tests** — a headless JUnit 5 suite
+  (`lg3d-widgets/src/test/java`, `java.awt.headless=true`) now covers the
+  module's Java 3D-free, peer-free logic: the immutable `WidgetDescriptor`
+  value object (field defaults, argument guards, `create()` factory,
+  `toString`), the `ServiceLoader`-backed `WidgetRegistry` singleton
+  (discovery, unmodifiable view, id lookup and both `create()` paths — a
+  test-only `StubWidgetProvider` registered through
+  `src/test/resources/META-INF/services` lets the success path run without
+  building a Java 3D `Component3D`), `BuiltinWidgetProvider.descriptors()`
+  (mirrors the shared card catalogue), and the two logic pieces of
+  `WeatherCard` — the WMO weather-code → text map and its compact
+  dependency-free JSON reader (objects, arrays, string escapes, exponents,
+  literals, whitespace tolerance and malformed-input rejection, driven
+  reflectively). Together with the existing card/layer/gallery tests this
+  lifts lg3d-widgets from ~40% to **50.1% line / 41.6% branch** (52 passing
+  tests), and the JaCoCo ratchet floor is raised to match. Under PIT the
+  targeted pure-logic units are fully killed (`WidgetDescriptor` 19/19,
+  `BuiltinWidgetProvider` 2/2, `WeatherCard.condition` 16/16); the only
+  survivors are behaviourally-equivalent mutants (redundant whitespace skips,
+  early-return pointer tweaks, log-call removals). The Swing card painting and
+  the `WeatherCard` network fetch stay probe-verified per
+  `lg3d-core/AGENTS.md`.
 - **Gradle version catalog** (`gradle/libs.versions.toml`) — centralizes the
   Java 3D (1.7.2), Jogamp-natives (2.6.0), JUnit (5.11.4) and SLF4J (2.0.16)
   versions. `lg3d-core`, `lg3d-widgets` and `lg3d-incubator` now reference
