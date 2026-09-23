@@ -494,6 +494,19 @@ work to make it build and run on a current toolchain.
     module's resolved dependencies, report-only (`failBuildOnCVSS=11`) with an
     optional `-PnvdApiKey`.
   Plugin/tool versions are declared in `gradle/libs.versions.toml`.
+- **`lpm-console` unit tests + coverage ratchet** — a headless JUnit 5 suite
+  (`lpm-console/src/test/java`, wired into the Gradle `test` task with
+  `java.awt.headless=true`) now covers the module's Java 3D-free, GUI-free logic:
+  the `LpmPackage` / `OperationResult` / `LPMCommand` / `LPMExecutionException`
+  value objects (100% line and branch), the read-only `LpmDatabase` parser
+  (pointed at a `@TempDir` through the documented `-Dlpm.dbdir` override) and the
+  `LPMExecutor` / `PrivilegeEscalator` command builders (exercised only on the
+  `/usr/bin/lpm`-absent path so no process is spawned and CI needs no LPM
+  install). The Swing frame and 853-line panel need a peer and stay probe-verified
+  per `lg3d-core/AGENTS.md`, so `lpm-console` joins the JaCoCo ratchet with a
+  floor just below its measured 26.7% line / 36.9% branch (the panel is the bulk
+  of the uncovered lines), and PIT is wired on-demand via
+  `./gradlew :lpm-console:pitest`.
 - **Gradle version catalog** (`gradle/libs.versions.toml`) — centralizes the
   Java 3D (1.7.2), Jogamp-natives (2.6.0), JUnit (5.11.4) and SLF4J (2.0.16)
   versions. `lg3d-core`, `lg3d-widgets` and `lg3d-incubator` now reference
