@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Troubleshooting and FAQ</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Troubleshooting and FAQ</h1>
+
+  <h2>The desktop will not start</h2>
+  <ul>
+    <li><strong>No JDK 21.</strong> The launcher needs a JDK 21 toolchain. Set
+        <code>JAVA_HOME</code> to a JDK 21 install and try again.</li>
+    <li><strong>No display.</strong> The desktop renders into an X display. Make
+        sure <code>DISPLAY</code> is set (it defaults to <code>:0</code>).</li>
+    <li><strong>Gradle on a too-new JVM.</strong> Gradle 8.14 cannot run on
+        Java 25+. Use the provided <code>./run-lg3d.sh</code>, which pins the
+        JDK 21 toolchain.</li>
+  </ul>
+
+  <h2>I only get a flat 2D desktop, not 3D</h2>
+  <p>
+    If Java 3D cannot initialize (no suitable graphics acceleration), the desktop
+    falls back to the <a href="desktop-2d.html">2D desktop</a>. This is expected
+    on machines without 3D support. You can also choose it deliberately with
+    <code>-2</code> or <code>-w</code>.
+  </p>
+
+  <h2>Missing icons, wallpapers or the background chooser</h2>
+  <p>
+    These assets are assembled into a runtime resources tree before launch. If
+    they are missing, reassemble it:
+  </p>
+  <pre>./run-lg3d.sh -r
+# or directly:
+./gradlew :lg3d-core:runtimeResources</pre>
+
+  <h2>A window shows frozen or blank content</h2>
+  <p>
+    Hosted Swing panels are painted offscreen. If a panel was built with the
+    platform (Synth/GTK) look and feel it can fail to paint into the offscreen
+    buffer. The desktop installs the cross-platform Metal look and feel for hosted
+    panels to avoid this; if you add your own hosted panel, install the hosted
+    look and feel before constructing it.
+  </p>
+
+  <h2>Black screen in compositor mode (<code>-x</code>)</h2>
+  <p>
+    Compositor mode claims the display as its own window manager. Start it only
+    when no other window manager holds the display, or the claim fails and you
+    may see a black screen.
+  </p>
+
+  <h2>Performance is poor</h2>
+  <ul>
+    <li>Try the flat image background instead of the 3D model
+        (drop <code>-b</code>).</li>
+    <li>Close windows you are not using; each live window is repainted into a
+        texture.</li>
+  </ul>
+
+  <h2>Where are the logs?</h2>
+  <p>
+    The desktop configures <code>java.util.logging</code> from its
+    <code>logging.properties</code>. Discovery and Start-Menu activity are logged
+    at <code>WARNING</code> by default; raise the relevant loggers to
+    <code>FINE</code> to see more detail when diagnosing a missing menu entry.
+  </p>
+
+  <div class="nav">
+    Next: <a href="about.html">About Project Looking Glass</a>
+  </div>
+</body>
+</html>

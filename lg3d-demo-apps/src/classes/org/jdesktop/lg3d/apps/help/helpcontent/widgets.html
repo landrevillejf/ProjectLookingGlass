@@ -1,0 +1,52 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Desktop Widgets</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Desktop Widgets</h1>
+
+  <p>
+    Widgets are small, always-available gadgets that live on the desktop rather
+    than in a window. They are provided by a pluggable widget framework, so new
+    widgets can be added without changing the desktop itself.
+  </p>
+
+  <h2>Built-in widgets</h2>
+  <table>
+    <tr><th>Widget</th><th>Shows</th></tr>
+    <tr><td>Clock</td><td>The current time.</td></tr>
+    <tr><td>Temperature</td><td>A temperature reading.</td></tr>
+    <tr><td>CPU</td><td>Processor load.</td></tr>
+    <tr><td>Memory</td><td>Memory usage.</td></tr>
+    <tr><td>Weather</td><td>A weather card parsed from a JSON feed.</td></tr>
+  </table>
+
+  <h2>The Widget Gallery</h2>
+  <p>
+    The <strong>Widget Gallery</strong> lets you browse the available widgets and
+    place them. It runs both as a 3D desktop window and as a plain Swing panel in
+    the <a href="desktop-2d.html">2D desktop</a>, so you can manage widgets in
+    either mode.
+  </p>
+
+  <h2>How widgets are discovered</h2>
+  <p>
+    Widgets are contributed through <em>providers</em> registered with the
+    standard Java <code>ServiceLoader</code> mechanism. A third party can add
+    widgets simply by putting a jar with the right service registration on the
+    desktop classpath &mdash; no changes to the widget module or to the desktop
+    core are needed.
+  </p>
+
+  <div class="tip">
+    <strong>Tip:</strong> Each widget declares a preferred size and a short
+    description; the gallery uses these to lay the widgets out and explain them.
+  </div>
+
+  <div class="nav">
+    Next: <a href="gestures.html">Mouse Gestures and Navigation</a>
+  </div>
+</body>
+</html>

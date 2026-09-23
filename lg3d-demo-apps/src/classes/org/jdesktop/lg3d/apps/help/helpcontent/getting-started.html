@@ -1,0 +1,78 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Getting Started</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Getting Started</h1>
+
+  <p>
+    This port of Project Looking Glass is built with Gradle and runs on
+    <strong>JDK 21</strong>. In <em>development mode</em> the whole desktop is an
+    ordinary window on your host X display, so no special window-manager setup is
+    required.
+  </p>
+
+  <h2>Requirements</h2>
+  <ul>
+    <li>A JDK 21 toolchain (the launcher auto-detects one).</li>
+    <li>An X display &mdash; the <code>DISPLAY</code> variable, defaulting to
+        <code>:0</code>.</li>
+    <li>A graphics stack able to run Jogamp Java 3D. If 3D is unavailable, the
+        desktop offers the <a href="desktop-2d.html">2D desktop</a> instead.</li>
+  </ul>
+
+  <h2>Launching the desktop</h2>
+  <p>From the repository root, run the launcher script:</p>
+  <pre>./run-lg3d.sh</pre>
+  <p>
+    This pins JDK 21, makes sure a display is present, assembles the runtime
+    resources (icons, wallpapers, backgrounds) and starts the display server
+    full-screen. The equivalent direct Gradle invocation is
+    <code>./gradlew :lg3d-core:run</code>.
+  </p>
+
+  <h2>Common launcher options</h2>
+  <table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td><code>-b</code>, <code>--background3d</code></td>
+        <td>Use the 3D model background (pinguin.j3f).</td></tr>
+    <tr><td><code>-2</code>, <code>--2d</code></td>
+        <td>Run the conventional Swing 2D (MDI) desktop.</td></tr>
+    <tr><td><code>-w</code>, <code>--swing</code></td>
+        <td>Run the 2D desktop under the Metal look and feel.</td></tr>
+    <tr><td><code>-c</code>, <code>--clean</code></td>
+        <td>Clean <code>:lg3d-core</code> before launching.</td></tr>
+    <tr><td><code>-r</code>, <code>--rebuild</code></td>
+        <td>Force the runtime resources tree to be reassembled.</td></tr>
+    <tr><td><code>-x</code>, <code>--compositor</code></td>
+        <td>Run lg3d as its own X11 window manager + compositor.</td></tr>
+    <tr><td><code>-h</code>, <code>--help</code></td>
+        <td>Print the launcher help.</td></tr>
+  </table>
+
+  <p>
+    To run the small debugging window instead of the full-screen desktop, add the
+    Gradle property <code>-Pwindowed</code> (for example
+    <code>./run-lg3d.sh -- -Pwindowed</code>).
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> Anything after <code>--</code> is passed straight to
+    Gradle, so you can combine launcher options with raw Gradle properties.
+  </div>
+
+  <h2>Opening this Help Center</h2>
+  <p>
+    Once the desktop is up, open the <a href="start-menu.html">Start Menu</a> and
+    choose <strong>Help Center</strong> under <em>Utilities</em>. You can also
+    keep it open while you work: windows can be
+    <a href="windows.html">moved, rotated and parked</a> out of the way.
+  </p>
+
+  <div class="nav">
+    Next: <a href="desktop-tour.html">A Tour of the Desktop</a>
+  </div>
+</body>
+</html>

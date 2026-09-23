@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE index PUBLIC "-//Sun Microsystems Inc.//DTD JavaHelp Index Version 2.0//EN" "http://java.sun.com/products/javahelp/index_2_0.dtd">
+<!--
+  Keyword index for the Project Looking Glass help. Entries are alphabetical;
+  each target must be declared in map.jhm.
+-->
+<index version="2.0">
+  <indexitem text="2D desktop" target="desktop-2d"/>
+  <indexitem text="applications">
+    <indexitem text="built-in apps, overview" target="apps"/>
+    <indexitem text="launching, from the start menu" target="start-menu"/>
+  </indexitem>
+  <indexitem text="background, 3D model" target="customizing"/>
+  <indexitem text="bookshelf, parking windows" target="windows"/>
+  <indexitem text="calculator" target="apps"/>
+  <indexitem text="close a window" target="windows"/>
+  <indexitem text="control center" target="customizing"/>
+  <indexitem text="desktop tour" target="desktop-tour"/>
+  <indexitem text="dock, see taskbar" target="taskbar"/>
+  <indexitem text="file manager" target="apps"/>
+  <indexitem text="flip a window" target="windows"/>
+  <indexitem text="full-screen mode" target="getting-started"/>
+  <indexitem text="gestures, mouse" target="gestures"/>
+  <indexitem text="getting started" target="getting-started"/>
+  <indexitem text="help center" target="overview"/>
+  <indexitem text="index (this navigator)" target="overview"/>
+  <indexitem text="internal frames (2D desktop)" target="desktop-2d"/>
+  <indexitem text="launching applications" target="start-menu"/>
+  <indexitem text="license" target="about"/>
+  <indexitem text="LPM Console" target="package-management"/>
+  <indexitem text="maximize a window" target="windows"/>
+  <indexitem text="menu groups" target="start-menu"/>
+  <indexitem text="minimize a window" target="windows"/>
+  <indexitem text="move a window" target="windows"/>
+  <indexitem text="navigation idioms" target="gestures"/>
+  <indexitem text="overview" target="overview"/>
+  <indexitem text="package management" target="package-management"/>
+  <indexitem text="park a window" target="windows"/>
+  <indexitem text="rotate a window" target="windows"/>
+  <indexitem text="search (navigator)" target="overview"/>
+  <indexitem text="start menu" target="start-menu"/>
+  <indexitem text="swing desktop" target="desktop-2d"/>
+  <indexitem text="task manager" target="apps"/>
+  <indexitem text="taskbar" target="taskbar"/>
+  <indexitem text="thumbnails" target="taskbar"/>
+  <indexitem text="troubleshooting" target="troubleshooting"/>
+  <indexitem text="wallpapers" target="customizing"/>
+  <indexitem text="widgets, desktop" target="widgets"/>
+  <indexitem text="window decoration" target="windows"/>
+  <indexitem text="windowed mode" target="getting-started"/>
+</index>

@@ -108,6 +108,12 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.calculator.CalculatorPanel");
         panels.put("org.jdesktop.lg3d.apps.mediawriter.MediaWriter",
                 "org.jdesktop.lg3d.apps.mediawriter.MediaWriterPanel");
+        // The Help Center is a JavaHelp (javax.help) JHelp viewer inside a plain
+        // Swing panel, so it hosts here as an internal frame just like the other
+        // panel apps; the 3D desktop launches the same panel on a SwingNode via
+        // its HelpCenter wrapper (the javahelp jar is on both classpaths).
+        panels.put("org.jdesktop.lg3d.apps.help.HelpCenter",
+                "org.jdesktop.lg3d.apps.help.HelpCenterPanel");
         // The widget gallery lives in lg3d-widgets (not lg3d-demo-apps); its
         // Swing panel is the pure-2D counterpart of the 3D WidgetGallery. Both
         // jars are on the desktop classpath, so the reflective lookup resolves,

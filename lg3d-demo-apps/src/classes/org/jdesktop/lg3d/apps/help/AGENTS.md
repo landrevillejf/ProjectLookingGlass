@@ -2,7 +2,52 @@
 
 ## Overview
 
-LG3D Help is a preliminary help application that displays the LG3D usage guide as a static image in a 3D window. It demonstrates custom window decoration, transparency effects, and thumbnail implementation.
+This package holds two help front ends:
+
+- **`Lg3dHelp`** - the legacy 2006-era *Simple Sample Help*: a preliminary app
+  that displays the LG3D usage guide as a static image in a custom-decorated 3D
+  window. It demonstrates custom window decoration, transparency effects and
+  thumbnail implementation, and is kept as a scene-graph example.
+- **`HelpCenter` / `HelpCenterPanel`** - the real desktop user guide, a
+  **JavaHelp** (`javax.help:javahelp:2.0.05`) `JHelp` viewer embedded in a plain
+  Swing panel. See [Help Center (JavaHelp)](#help-center-javahelp) below.
+
+The rest of this file documents the legacy `Lg3dHelp` sample.
+
+## Help Center (JavaHelp)
+
+- **`HelpCenterPanel`** - a plain Swing `JPanel` (no Java 3D) that loads the
+  HelpSet from the classpath
+  (`org/jdesktop/lg3d/apps/help/helpcontent/lg3d-help.hs`) via
+  `HelpSet.findHelpSet` + `new HelpSet(loader, url)` and embeds a
+  `javax.help.JHelp` viewer in a `BorderLayout`. It degrades to a readable
+  "content unavailable" pane instead of throwing, so a broken bundle can never
+  take down the hosting window.
+- **`HelpCenter`** - the 3D-desktop entry point: mirrors `Calculator`, calling
+  `TitledSwingWindow.installHostedLookAndFeel()` then
+  `TitledSwingWindow.show("Help Center", new HelpCenterPanel(), WIDTH_PX,
+  HEIGHT_PX)` to host the panel on a `SwingNode` inside a `Frame3D`.
+- **2D/Swing desktop** - `Desktop2DAppRegistry.PANEL_APPS` maps
+  `org.jdesktop.lg3d.apps.help.HelpCenter` ->
+  `org.jdesktop.lg3d.apps.help.HelpCenterPanel`, so the *same* panel is hosted as
+  an MDI internal frame; the 3D wrapper is never loaded there.
+- **Content** lives under `helpcontent/`: `lg3d-help.hs`, `map.jhm`, `toc.xml`,
+  `index.xml`, `lg3d-help.css` and fourteen HTML topics. Non-`.java` files under
+  `org/**` are bundled by the module's resources source set, so they ship inside
+  `lg3d-demo-apps.jar`.
+- **Full-text search** - the Search navigator needs a generated `JavaSearch`
+  database. The `:lg3d-demo-apps:generateHelpSearchIndex` task runs JavaHelp's
+  own indexer (`com.sun.java.help.search.Indexer -db <dir> <topics...>`) over the
+  HTML at build time; `processResources` copies the result beside the HelpSet.
+- **Dependencies** - JavaHelp is declared in `gradle/libs.versions.toml`, added to
+  `lg3d-demo-apps` as `implementation`, and resolved onto the hand-assembled
+  `:lg3d-core:run` classpath as a detached configuration (the run classpath does
+  not inherit the demo-apps dependencies).
+- **Testing** - `HelpContentTest` (`src/test/java`, headless) asserts the HelpSet
+  parses with the expected title and the TOC/Index/Search navigators, that every
+  map target resolves to a topic URL, and that `JHelp` constructs under JDK 21.
+- **Start menu** - `helpcenter.lgcfg` (Utilities group); the legacy
+  `help.lgcfg` (Simple Sample Help) is unchanged.
 
 ## Purpose
 
@@ -116,6 +161,12 @@ Launch standalone:
 ```
 
 ## Extension Points
+
+> The items below describe how the *legacy* `Lg3dHelp` sample could evolve. They
+> are all already realized by the JavaHelp **Help Center** (dynamic HTML content,
+> TOC/index/search navigation, localization via translated HelpSets), so new work
+> should extend `HelpCenter`/`HelpCenterPanel` and the `helpcontent/` bundle
+> rather than this static-image app.
 
 - **Dynamic Content**: Replace static image with rendered HTML or text
 - **Navigation**: Add back/forward buttons for multi-page help

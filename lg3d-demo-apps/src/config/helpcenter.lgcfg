@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Help Center (from lg3d-demo-apps). The desktop's built-in
+ user guide, a JavaHelp (javax.help) JHelp viewer - table of contents, keyword
+ index and full-text search over the bundled HTML topics - hosted in a Swing
+ panel. In the 3D desktop the panel is put on a SwingNode inside a Frame3D via
+ TitledSwingWindow (the "java <class>" command); in the 2D/Swing desktop the same
+ HelpCenterPanel is hosted as an MDI internal frame via Desktop2DAppRegistry. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.help.HelpCenter</string>
+  </void>
+  <void property="desc">
+   <string>Complete desktop user guide</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/lg3d-help.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>Help Center</string>
+  </void>
+ </object>
+</java>

@@ -26,6 +26,28 @@ work to make it build and run on a current toolchain.
   `SwingNodeWindowCapture` texture its window into the 3D desktop; its jar is
   added to the `:lg3d-core:run` classpath and a drawn package-box start-menu
   icon (`lpm-console.png`) is generated.
+- **Help Center** (`lg3d-demo-apps`, `org.jdesktop.lg3d.apps.help`) — a complete,
+  navigable desktop user guide built on the latest **JavaHelp**
+  (`javax.help:javahelp:2.0.05`), replacing the old static-image *Simple Sample
+  Help* as the desktop's real documentation (that sample is left in place as a
+  scene-graph demo). A `JHelp` viewer (Contents / Index / full-text Search) is
+  embedded in a plain-Swing `HelpCenterPanel`, hosted on a `SwingNode` inside a
+  `Frame3D` via `TitledSwingWindow` in the 3D desktop and, through a new
+  `Desktop2DAppRegistry` panel mapping, as an MDI internal frame in the 2D/Swing
+  desktop. The HelpSet ships fourteen authored HTML topics (overview, getting
+  started, desktop tour, windows, start menu, taskbar, widgets, gestures, the 2D
+  desktop, built-in apps, customizing, package management, troubleshooting and
+  about) with a shared stylesheet, a target map, a hierarchical TOC and a keyword
+  index; the Search navigator's database is generated at build time by JavaHelp's
+  own indexer (new `:lg3d-demo-apps:generateHelpSearchIndex` task) and bundled
+  beside the HelpSet. JavaHelp is added to the version catalog, to
+  `lg3d-demo-apps`, and (as a detached configuration) to the hand-assembled
+  `:lg3d-core:run` classpath so the in-JVM launch resolves `javax.help.*`. A new
+  `helpcenter.lgcfg` registers it under the *Utilities* start-menu group. Covered
+  by a headless JUnit 5 test (`HelpContentTest`, new `lg3d-demo-apps/src/test`
+  source set) asserting the HelpSet parses with the expected title and all three
+  navigators, every map target resolves to a topic URL, and `JHelp` constructs
+  under JDK 21; the 2D classification is covered in `Desktop2DAppRegistryTest`.
 - **Gradle build** (wrapper 8.14) replacing the 2006-era Ant `source 1.5` build,
   with a JDK 21 toolchain. Modules: `lg3d-escher`, `lg3d-core`, `lg3d-demo-apps`,
   `lg3d-incubator`; jars are emitted to `<module>/build-gradle/libs/` so the

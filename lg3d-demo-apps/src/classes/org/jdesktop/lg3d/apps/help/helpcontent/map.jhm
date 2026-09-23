@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE map PUBLIC "-//Sun Microsystems Inc.//DTD JavaHelp Map Version 2.0//EN" "http://java.sun.com/products/javahelp/map_2_0.dtd">
+<!--
+  Target -> topic map for the Project Looking Glass HelpSet. Every target named
+  in toc.xml / index.xml (and the HelpSet homeID) must be declared here.
+-->
+<map version="2.0">
+  <mapID target="overview" url="overview.html"/>
+  <mapID target="getting-started" url="getting-started.html"/>
+  <mapID target="desktop-tour" url="desktop-tour.html"/>
+  <mapID target="windows" url="windows.html"/>
+  <mapID target="start-menu" url="start-menu.html"/>
+  <mapID target="taskbar" url="taskbar.html"/>
+  <mapID target="widgets" url="widgets.html"/>
+  <mapID target="gestures" url="gestures.html"/>
+  <mapID target="desktop-2d" url="desktop-2d.html"/>
+  <mapID target="apps" url="apps.html"/>
+  <mapID target="customizing" url="customizing.html"/>
+  <mapID target="package-management" url="package-management.html"/>
+  <mapID target="troubleshooting" url="troubleshooting.html"/>
+  <mapID target="about" url="about.html"/>
+</map>
