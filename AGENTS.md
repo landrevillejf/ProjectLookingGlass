@@ -214,6 +214,10 @@ JUnit 5 test infrastructure exists and runs headless:
   current `[Unreleased]` header and do **not** touch the version, so the two
   merge cleanly in either order (merge the feature first).
 
+## Commits Attributions / pull request
+
+- When attributing the commits and p/r, use a standard git ‘Signed-off-by:’ trailer with the repo committer identity instead of agent attribution, create feature branch, and wait for approval before merging.
+
 ## Completion Report Format
 
 When completing a task, report:
@@ -255,7 +259,6 @@ Consider creating nested AGENTS.md files for:
 4. **Should there be a migration guide for adding new apps to incubator?** The current process is ad-hoc.
 5. **Should the legacy build scripts be removed?** They are currently not used but left in-tree for reference.
 ```
-
 ---
 
 ## Evidence for Repository-Specific Instructions
@@ -481,3 +484,4 @@ NullPointerException when the debuggee exits mid-step.
 
 Fixes #142
 ```
+
