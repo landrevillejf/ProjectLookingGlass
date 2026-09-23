@@ -10,6 +10,20 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.9.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Per-module role guides** (`AGENTS.md`) — every built module now ships a
+  role-aware `AGENTS.md` following one shared template so all roles read each
+  other's guidance coherently: *Module at a glance*, *How the roles work
+  together*, and dedicated **Architect / Engineer-Developer / QA / Business
+  Analyst / Functional Analyst / Project Manager** sections, plus a **UI/UX
+  (3D & 2D)** section for every module with a user interface (marked *not
+  applicable* for the `lg3d-escher` protocol library), a *Communication &
+  coherence* rule and the module-scoped *Commit / PR* flow. New files for
+  `lg3d-escher`, `lg3d-demo-apps`, `lg3d-incubator`, `lg3d-widgets` and
+  `lpm-console`; `lg3d-core` and `update-manager` gain the same role sections
+  while keeping their existing content (`lg3d-core` remains the canonical UI/UX
+  rulebook every module defers to). The root `AGENTS.md` replaces its "consider
+  creating" note with a *Module AGENTS.md index & shared role model* table.
+  Documentation only — no code, build or version change.
 - **Software Update** (`update-manager`, `org.jdesktop.lg3d.apps.update`) — a
   self-contained Swing update pipeline adapted from an external module and
   integrated as a *Utilities* start-menu app. The module checks a release
