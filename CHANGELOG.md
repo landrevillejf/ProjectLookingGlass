@@ -24,6 +24,21 @@ work to make it build and run on a current toolchain.
   rulebook every module defers to). The root `AGENTS.md` replaces its "consider
   creating" note with a *Module AGENTS.md index & shared role model* table.
   Documentation only — no code, build or version change.
+- **Per-application role guides** (`AGENTS.md`) — extending the per-module effort,
+  *every* application package in the two app modules now ships its own condensed
+  role-aware `AGENTS.md` beside its sources: 18 in `lg3d-demo-apps` and 35 in
+  `lg3d-incubator` (native-3D showcases, ported apps, dormant prototypes,
+  framework/library trees, and the **excluded** apps). Each uses the shared role
+  template with an *App at a glance* table whose first row is a **Status**
+  classifier (**Production** / **Production-grade** / **Sample-Tutorial** /
+  **Dormant prototype** / **Excluded from build**), plus entry point, window
+  surface, start-menu descriptor location and runtime blockers. Multi-app package
+  trees are covered by one guide at the package root (`games/`, `orgchart/`). The
+  existing 13 `lg3d-demo-apps` per-app files were converted to the template with
+  their original in-depth reference preserved underneath. The root `AGENTS.md` and
+  both module files gained a *Per-app guides* index note, and `lg3d-demo-apps` was
+  reframed to make clear the module name is legacy while its apps are
+  production-grade. Documentation only — no code, build or version change.
 - **Software Update** (`update-manager`, `org.jdesktop.lg3d.apps.update`) — a
   self-contained Swing update pipeline adapted from an external module and
   integrated as a *Utilities* start-menu app. The module checks a release

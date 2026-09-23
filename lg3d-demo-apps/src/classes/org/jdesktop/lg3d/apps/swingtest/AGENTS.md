@@ -1,5 +1,56 @@
 # SwingTest Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / test** (plain Swing harness) — not shipped |
+| Entry point | `TestFrame.main` (NetBeans-generated Swing `JFrame`) |
+| Surface | **2D Swing** `JFrame` (conventional widgets), brought into the desktop by window capture |
+| Start-menu name / group | Swing Test / **Tests** |
+| Command | `java org.jdesktop.lg3d.apps.swingtest.TestFrame` |
+| Descriptor | `src/config/swingtest.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `TestFrame` (NetBeans-generated) + `DialogPanel` + `MyLabel` +
+`MyTextField` — ordinary Swing widgets used to exercise hosting/capture.
+
+## Roles
+
+- **Architect** — A minimal conventional-Swing harness used to exercise how a plain
+  `JFrame` is captured into the desktop. It is a test fixture, not a window pattern to
+  copy for production apps (those use `TitledSwingWindow`/`SwingNode`).
+- **Engineer / Developer** — The frame is NetBeans-generated (`TestFrame` + `.form`);
+  regenerate rather than hand-editing generated blocks. All work is on the EDT. Keep
+  it dependency-free. Jogamp packages only where 3D is used (none expected here).
+- **QA** — Verify the frame is created and captured into the desktop (in-JVM probe +
+  internal screencapture); `SwingAppLauncher` logs only on failure, so silence means
+  it came up. A black host capture under Wayland is not a defect.
+- **Business Analyst** — Test fixture under **Tests**; no end-user product value.
+- **Functional Analyst** — Spec as a harness (show a frame with a label, text field,
+  dialog panel). No product behaviour to define.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; opportunistic.
+  Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **2D** only: a plain Swing frame. Keep it simple; it exists
+  to validate capture/hosting, not to look polished.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 SwingTest is a comprehensive Swing component testing application that validates LG3D's Swing integration. It provides a form with various Swing components (buttons, checkboxes, text fields, combo boxes, tabbed panes, dialogs) to test event handling, rendering, and interaction in the 3D environment.

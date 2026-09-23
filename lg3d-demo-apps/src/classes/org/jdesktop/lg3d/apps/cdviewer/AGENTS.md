@@ -1,5 +1,60 @@
 # CDViewer Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / demo** (fan-out CD browser) — technique showcase, not a shipped utility |
+| Entry point | `CDViewer.main` |
+| Surface | **pure-3D `Frame3D`** with a custom `LayoutManager3D` (`CDLayout`) |
+| Start-menu name / group | CD Viewer Sample — an `ApplicationDescription` **taskbar** entry, not a start-menu item |
+| Command | `java org.jdesktop.lg3d.apps.cdviewer.CDViewer` |
+| Descriptor | `src/config/cdviewer.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `CDViewer` / `CD` / `CDLayout` (`LayoutManager3D`) / `CDThumbnail` /
+`Disc` / `RingShadow`; `NaturalMotionAnimation`; optional GLSL shader via
+`-Dlg.shaderdemo`.
+
+## Roles
+
+- **Architect** — The canonical example of a **custom 3D layout** (`CDLayout` extends
+  `LayoutManager3D`) plus `NaturalMotionAnimation` for smooth fan-out transitions. It
+  is a reference for layout/animation technique, not a product.
+- **Engineer / Developer** — Obey the core UI/UX rulebook: upload texture pixels
+  before attaching (disc/thumbnail art), wrap raw `Node`s in `Component3D`, sort
+  translucency (`RingShadow`, disc sheen). The GLSL shader path is opt-in
+  (`-Dlg.shaderdemo`) and must degrade gracefully when unavailable. Jogamp only.
+- **QA** — Verify the fan-out animation and (optionally) the shader path with the
+  in-JVM probe + internal screencapture; check the log for texture NPEs. A black host
+  capture under Wayland is not a defect.
+- **Business Analyst** — Demonstration value only (shows 3D layout + motion). No
+  end-user product surface.
+- **Functional Analyst** — Spec as a demonstration (browse a set of discs in a
+  fan-out layout). Its descriptor is a taskbar `ApplicationDescription`, not a
+  start-menu item — intentional for a sample.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; opportunistic
+  changes. Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **3D only**: a `LayoutManager3D`-driven fan of textured
+  discs with natural-motion transitions and optional shader effects.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 CDViewer is a 3D demonstration application that displays a collection of CD covers in a fan-out arrangement. It showcases various LG3D API features including custom layouts, natural motion animations, mouse interactions, and thumbnail support.

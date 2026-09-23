@@ -1,5 +1,59 @@
 # Terminator Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Production** system plugin (shutdown/logout) |
+| Entry point | `Terminator` (`SceneManagerPlugin`, loaded by the scene manager); icon click runs `TerminatorDialog.main` via `AppLaunchAction` |
+| Surface | **Taskbar plugin** (`Pseudo3DIcon` in a `Tapp`) + a Swing confirmation dialog |
+| Start-menu name / group | *None* — registered as a taskbar item via a `TaskbarItemConfig` event, not a `.lgcfg` descriptor |
+| Command | `java org.jdesktop.lg3d.apps.terminator.TerminatorDialog` (from the icon's `AppLaunchAction`) |
+| Descriptor | *None* (plugin); icon `resources/images/icon/JollyRoger.png` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+## Roles
+
+- **Architect** — A `SceneManagerPlugin`, not a start-menu app: `initialize(SceneControl)`
+  builds the `Pseudo3DIcon`, attaches a `MouseClickedEventAdapter`+`AppLaunchAction`,
+  and posts a `TaskbarItemConfig` event to add the taskbar item. Keep this event-based
+  registration. The current `System.exit()` termination is a stopgap — the intended
+  design terminates via the `SceneControl` API (client-server safe).
+- **Engineer / Developer** — Follow the core UI/UX rulebook for the 3D icon
+  (`Component3D`, `Cursor3D`, texture pixels uploaded before attach). The confirm
+  dialog is a conventional Swing window on the EDT. `destroy()` should remove the
+  taskbar item (currently a TODO) — wire cleanup when you touch this. Jogamp packages.
+- **QA** — Verify the JollyRoger icon appears in the taskbar on startup and that
+  clicking it opens the confirmation dialog (in-JVM probe + internal screencapture).
+  Do **not** test the actual `System.exit()` path in CI. A black host capture under
+  Wayland is not a defect.
+- **Business Analyst** — A shipped system affordance (clean shutdown/logout).
+  Production standards apply; a broken or missing shutdown is a high-severity issue.
+- **Functional Analyst** — Spec user-visible function (click icon → confirm →
+  terminate session) plus the plugin contract (`SceneManagerPlugin`, `TaskbarItemConfig`).
+  Track the missing shutdown options / cleanup as backlog.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Because this touches session
+  termination, changes need explicit review. Done = build + `./run-lg3d.sh` + evidence.
+- **UI/UX (3D & 2D)** — 3D: a small taskbar `Pseudo3DIcon` with hover/press feedback.
+  2D: the Swing confirmation dialog. Keep the destructive-action confirmation clear.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Terminator is a system plugin that provides a shutdown/logout mechanism for LG3D. It implements the SceneManagerPlugin interface to add a taskbar item that, when clicked, launches a confirmation dialog before terminating the desktop session.

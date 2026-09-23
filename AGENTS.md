@@ -395,6 +395,28 @@ all roles read each other's guidance coherently:
 When adding a new built module, create its `AGENTS.md` from this template and add
 a row to the table above in the same PR.
 
+**Per-application `AGENTS.md`.** Inside the two app modules, *every* application
+package also ships its own role-aware `AGENTS.md` (same fixed template, condensed)
+next to its sources, so each app's status, entry point, window surface, start-menu
+descriptor location, runtime blockers and per-role guidance are discoverable in
+place. Nested-`AGENTS.md` semantics apply: a guide at a package root governs that
+whole subtree (e.g. `games/AGENTS.md` covers chess/solitaire/sudoku/tictactoe;
+`orgchart/AGENTS.md` covers the four orgchart UIs). The `Status` row is the first
+thing to read — it distinguishes **Production** / **Production-grade** apps from
+**Sample / Tutorial**, **Dormant prototype**, and **Excluded from build** code.
+
+| App module | Per-app guides | Location |
+| --- | --- | --- |
+| `lg3d-demo-apps` | 18 apps | `lg3d-demo-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
+| `lg3d-incubator` | 35 apps/libraries (incl. excluded + framework trees) | `lg3d-incubator/src/classes/.../<app>/AGENTS.md` |
+
+> **Naming reminder.** `lg3d-demo-apps` is a *legacy* module name: the apps in it
+> are **production-grade desktop software**, not throwaway demos. Only the module
+> name and the `config/demo` resource path are historical — keep them as-is.
+
+When adding a new app, create its per-app `AGENTS.md` from the same template in the
+same PR.
+
 ---
 
 ## Instructions Better Suited to Other Mechanisms

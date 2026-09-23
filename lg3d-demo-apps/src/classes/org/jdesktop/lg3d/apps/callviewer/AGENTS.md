@@ -1,5 +1,57 @@
 # CallViewer Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / preliminary** developer tool (3D source visualizer) — not a shipped utility |
+| Entry point | `SourceViewer.main` |
+| Surface | **pure-3D `Frame3D`** (source rendered into textures, call lines in 3D) |
+| Start-menu name / group | Source Viewer — the descriptor sets `ignoreConfig=true`, so it is **read but not posted** to the start menu |
+| Command | `java org.jdesktop.lg3d.apps.callviewer.SourceViewer` |
+| Descriptor | `src/config/callviewer.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `SourceWindow` / `SourceTexture` / `LineData` / `CalledByData` /
+`Line3D` / `SourceViewer`; red = direct call lines, blue = indirect.
+
+## Roles
+
+- **Architect** — An experimental visualizer: source text is rasterized into
+  **power-of-two textures** and call relationships are drawn as 3D lines. Treat it as
+  a proving ground for texture/line techniques, not a production feature.
+- **Engineer / Developer** — Obey the core UI/UX rulebook, especially **upload
+  texture pixels before attaching** (else NPE) and power-of-two texture sizes. Wrap
+  raw `Node`s in `Component3D`; sort translucency for the call lines. Jogamp only.
+- **QA** — Verify with the in-JVM probe + internal screencapture; check the log for
+  texture NPEs before calling a view broken. Preliminary code — expect rough edges.
+- **Business Analyst** — Developer-facing sample; no end-user product value. Keep
+  expectations aligned: it demonstrates a technique.
+- **Functional Analyst** — Spec as a demonstration (render a source file, draw its
+  call graph). The descriptor's `ignoreConfig=true` keeps it out of the start menu by
+  design; flip that only if it is ever promoted to a shipped tool.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; changes are
+  opportunistic. Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **3D only**: textured source panes + coloured call lines in
+  a `Frame3D`. Follow the glassy vocabulary and depth/overlay rules from core.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 CallViewer is a source code visualization tool that displays Java source files as 3D windows with call graph relationships. It renders source code as textures and draws 3D lines connecting method calls between files.

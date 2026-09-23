@@ -6,11 +6,23 @@
 > is the canonical **UI/UX** rulebook for the scene-graph toolkit. This file adds
 > module-specific guidance and a shared per-role view so **all roles stay coherent**.
 
+> **Naming note (important).** `lg3d-demo-apps` is a *historical* module name
+> inherited from Sun's 2006 tree. The applications in it are **production-grade
+> desktop software**, not throwaway demos: Calculator, Media Writer, Paint, File
+> Manager, Task Manager, Control Center, Help Center and Software Update are the
+> shipped daily-driver utilities, and `TitledSwingWindow` is the production host
+> other modules reuse. Treat this module with normal production rigor (tests,
+> review, backward compatibility). Only a few packages are genuinely
+> tutorial/sample code (`tutorial`, `swingnode`, `swingtest`, `graph`, `tapps`,
+> `callviewer`, `cdviewer`, `launcher`); each app's own `AGENTS.md` says which.
+> The `config/demo` resource path and the `demo-apps` Gradle identifier are also
+> legacy names — keep them as-is (renaming would break discovery and the build).
+
 ## Module at a glance
 
 | Item | Value |
 | --- | --- |
-| Purpose | The **sample & demo applications** shipped with the desktop, and the reference hosts other modules reuse. |
+| Purpose | The **production desktop applications** shipped with lg3d (plus a few tutorial/sample apps), and the reference hosts other modules reuse. The module *name* is legacy; the software is production-grade. |
 | Root package | `org.jdesktop.lg3d.apps.*` (sources under `src/classes`). |
 | Depends on | `lg3d-core` (SDK + transitive Jogamp Java 3D API). |
 | Depended on by | Nothing (top of the app chain). **Not** visible to `lg3d-incubator`. |
@@ -28,11 +40,19 @@ Studio, Agenda 3D, the Games, Mail 3D, and the ported jmf23D/luncher/nlc/
 orgchart apps): their `.lgcfg` files live in `src/config` because the incubator's
 own `src/config` bundles to `config/`, which discovery does **not** scan.
 
+> **Per-app guides.** Every application package under `src/classes` ships its own
+> condensed role-aware `AGENTS.md` next to its sources (18 in total). Read an app's
+> `Status` row first: it separates the **Production** daily-driver utilities from the
+> genuine **Tutorial / sample** packages listed above, so the legacy module name never
+> misleads you about an individual app's rigor.
+
 ## How the roles work together
 
-Demo-apps is the **showroom**: it proves the `lg3d-core` toolkit works and gives
-other modules copy-from references (`TitledSwingWindow`, the Calculator/
-MediaWriter SwingNode panels). The Architect keeps apps consuming core APIs
+Despite the legacy name, this module ships the desktop's **production
+applications**: it is both the daily-driver utility suite and the reference that
+proves the `lg3d-core` toolkit works, giving other modules copy-from hosts
+(`TitledSwingWindow`, the Calculator/MediaWriter SwingNode panels). The Architect
+keeps apps consuming core APIs
 rather than forking them; Engineers follow the core UI rules verbatim; QA
 verifies with the internal screencapture; Analysts keep the "what an app must do
 to be start-menu ready" contract explicit; the PM tracks that a descriptor added
@@ -91,9 +111,13 @@ UI/UX rulebook.
 
 ## Business Analyst
 
-- These apps are **demos and daily-driver utilities** (calculator, media writer,
-  file manager, task manager, help, software update). Their value is showcasing
-  the desktop and providing usable tools, not commercial features.
+- Most of these apps are **production-grade daily-driver utilities** (calculator,
+  media writer, paint, file manager, task manager, control center, help center,
+  software update). They ship to end users, so hold them to production standards:
+  real tests, review, and backward compatibility — not "it's just a demo".
+- A minority are genuine tutorial/sample code (`tutorial`, `swingnode`,
+  `swingtest`, `graph`, `tapps`, `callviewer`, `cdviewer`, `launcher`); their
+  value is teaching the toolkit, and their per-app `AGENTS.md` marks them as such.
 - New apps should justify a start-menu slot and a `menuGroup`; an app nobody can
   discover is wasted effort.
 

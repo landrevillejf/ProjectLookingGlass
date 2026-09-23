@@ -1,5 +1,60 @@
 # Tapps (3D Icons) Applications
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / demo** (3D taskbar/dock icons) — technique showcase, not shipped |
+| Entry point | No `main()`; `WebIcon` / `WebIcon2` are instantiated as `Tapp` taskbar items |
+| Surface | **pure-3D `Tapp` icons** (a Java 3D `BranchGroup` bridged in via `Java3DGraph`) |
+| Start-menu name / group | *None* — `webicon.lgcfg` sets `ignoreConfig=true` (read but not posted); these are taskbar icons |
+| Command | `org.jdesktop.lg3d.apps.tapps.WebIcon2` (taskbar item, not a start-menu launch) |
+| Descriptor | `src/config/webicon.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `WebIcon` (earth–moon system) / `WebIcon2` / `Java3DGraph` (bridges a
+raw Java 3D `BranchGroup` into lg3d) on the `Tapp` base; hover/press effects via
+`NaturalMotionAnimation` + `Translate/ScaleActionBoolean`.
+
+## Roles
+
+- **Architect** — The reference for **embedding a raw Java 3D `BranchGroup`** into the
+  lg3d scene graph via `Java3DGraph`, and for building animated `Tapp` taskbar icons.
+  Keep the Java3DGraph bridge generic; do not hard-code the earth–moon scene into it.
+- **Engineer / Developer** — Obey the core UI/UX rulebook: upload texture pixels
+  before attaching (earth/moon textures), set `ALLOW_TRANSFORM_WRITE` on animated
+  `TransformGroup`s, infinite `BoundingSphere` for always-on interpolators,
+  `setMouseEventPropagatable(true)` for nested pickable parts, `Cursor3D` on
+  interactive components. Jogamp packages only.
+- **QA** — Verify the icons animate (rotation, hover lift/scale, press scale) with the
+  in-JVM probe + internal screencapture; check the log for texture NPEs. `AppLaunchAction`
+  is commented out in `WebIcon` — a known gap, not a defect.
+- **Business Analyst** — Demonstration value only (animated 3D taskbar icons). No
+  end-user product surface; `ignoreConfig=true` keeps them out of the start menu.
+- **Functional Analyst** — Spec as a demonstration (a `Tapp` icon with rotation +
+  hover/press effects). Record the un-wired launch action as an explicit gap.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; opportunistic.
+  Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **3D only**: animated textured icons with hover-lift,
+  hover-scale and press-scale micro-interactions — the model for taskbar/dock icon UX.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Tapps contains sample 3D icon implementations that demonstrate creating interactive 3D taskbar/dock icons. These icons showcase Java 3D integration within LG3D, including rotation animations, texture mapping, and mouse interaction effects.

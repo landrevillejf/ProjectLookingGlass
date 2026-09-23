@@ -1,5 +1,60 @@
 # Screen Capture Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Production** daily-driver utility (screen snapshot) |
+| Entry point | `ScreenCaptureConfigFrame.main` (a Swing `JFrame` config dialog) |
+| Surface | **2D Swing config frame**; capture itself is a desktop event, not a 3D window |
+| Start-menu name / group | Screen Snapshot / **Utilities** |
+| Command | `java org.jdesktop.lg3d.apps.screencapture.ScreenCaptureConfigFrame` |
+| Descriptor | `src/config/screencapture.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+## Roles
+
+- **Architect** — Decoupled by design: the config frame collects the delay/target
+  and then **posts a `ScreenCaptureEvent` via `AppConnectorPrivate`** after a `Timer`
+  delay; the actual capture is performed by the desktop, not by this app. Keep the
+  event-based seam (do not capture in-process). It is held as a `WeakReference`
+  singleton so repeated launches reuse one frame.
+- **Engineer / Developer** — This is a conventional Swing `JFrame` (real layout,
+  EDT). Post the event, then let the timer fire; do not block the EDT. The
+  `JFileChooser` save path is intentionally disabled for now — do not wire it to a
+  blocking dialog without revisiting the capture flow. Jogamp packages only where 3D.
+- **QA** — Verify by launching the desktop, triggering Screen Snapshot, and checking
+  that the internal screencapture (`lg3d-core/lgscreen-*.png`) is produced after the
+  configured delay. A black *host* capture under Wayland is not a defect — use lg3d's
+  internal capture. Unit-test the delay/config logic headless where possible.
+- **Business Analyst** — A shipped utility (take a screen snapshot). It is also the
+  mechanism the project itself relies on for UI verification evidence, so reliability
+  matters. Production standards apply.
+- **Functional Analyst** — Spec user-visible function (choose delay → capture fires
+  → snapshot saved) plus the event contract with core (`ScreenCaptureEvent`). Note
+  the disabled file-chooser as a known limitation.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Done = build + `./run-lg3d.sh`
+  + a captured snapshot as evidence. Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **2D** only: a small Swing config frame. Keep it simple and
+  consistent with the platform LAF; the snapshot output is the real UX artifact.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Screen Capture is a configuration tool for taking timed snapshots of the LG3D desktop. It provides a Swing UI for specifying save directory and delay, then posts a ScreenCaptureEvent to trigger the capture after the specified delay.
