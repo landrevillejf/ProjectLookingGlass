@@ -93,6 +93,7 @@ subprojects {
     def coverageFloors = [
         'lg3d-core'   : [line: 0.010, branch: 0.020],  // measured 1.45% / 2.47%
         'lg3d-widgets': [line: 0.350, branch: 0.220],  // measured 39.96% / 26.01%
+        'lpm-console' : [line: 0.240, branch: 0.300],  // measured 26.7% / 36.9% (logic classes ~100%; the 853-line Swing panel is probe-verified)
     ]
     def floor = coverageFloors[project.name]
     if (floor != null) {

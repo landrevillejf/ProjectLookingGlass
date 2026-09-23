@@ -23,6 +23,11 @@ sourceSets {
             srcDir 'src/resources'
         }
     }
+    test {
+        java {
+            srcDir 'src/test/java'
+        }
+    }
 }
 
 application {
@@ -44,4 +49,42 @@ jar {
 dependencies {
     // No lg3d-core dependency - this is a standalone Swing app
     // that runs as an X11 client composited by lg3d
+
+    // Unit tests for the Java 3D-free, GUI-free logic: the value objects
+    // (LpmPackage / OperationResult / LPMCommand / LPMExecutionException), the
+    // read-only LpmDatabase parser (pointed at a temp dir via -Dlpm.dbdir) and
+    // the LPMExecutor / PrivilegeEscalator command builders. The Swing frame and
+    // panel need a peer and are verified with the in-JVM probe instead (see
+    // lg3d-core/AGENTS.md), so they are not unit-tested headless.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The logic tests never build a peer, but pin headless so a stray Swing
+    // touch cannot fail CI (no X display).
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check`, so run it explicitly:
+// `./gradlew :lpm-console:pitest`. mutationThreshold=0 means surviving mutants
+// never fail the build; the HTML/XML report under build-gradle/reports/pitest
+// shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI calls: they cannot run headless inside a mutation
+    // sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing']
 }
