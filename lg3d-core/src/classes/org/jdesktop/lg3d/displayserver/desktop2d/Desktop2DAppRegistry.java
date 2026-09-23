@@ -128,6 +128,15 @@ public final class Desktop2DAppRegistry {
         // swingapp verb. Both jars being present is what makes this work.
         panels.put("org.lpmconsole.LPMConsole",
                 "org.lpmconsole.LPMConsolePanel");
+        // The Software Update app (lg3d-demo-apps, org.jdesktop.lg3d.apps.update)
+        // wraps the standalone update-manager module's Swing pipeline in a plain
+        // panel, so it hosts here as an internal frame like the other panel apps;
+        // the 3D desktop builds the same panel on a SwingNode via its
+        // UpdateManager wrapper. Both the lg3d-demo-apps and update-manager jars
+        // (plus jackson/slf4j/bouncycastle) are on the desktop run classpath, so
+        // the reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.update.UpdateManager",
+                "org.jdesktop.lg3d.apps.update.UpdateManagerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

@@ -245,6 +245,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("Software Update is hosted as a panel, not gated on 3D")
+    void softwareUpdateIsAPanelApp() {
+        // The Software Update app wraps the update-manager module's Swing
+        // pipeline in a plain panel, so it runs in the 2D desktop like any other
+        // panel app; the 3D desktop builds the same panel on a SwingNode via its
+        // UpdateManager wrapper.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.update.UpdateManager"));
+        assertEquals("org.jdesktop.lg3d.apps.update.UpdateManagerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.update.UpdateManager"));
+    }
+
+    @Test
     @DisplayName("the unavailable tooltip explains the 3D requirement")
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",

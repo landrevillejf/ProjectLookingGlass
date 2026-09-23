@@ -264,8 +264,15 @@ tasks.register('run', JavaExec) {
     // desktop run classpath for both the reflective 2D lookup and the 3D
     // "swingapp" launch to resolve org.lpmconsole.*.
     def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
+    // Software Update: the standalone update-manager module's jar, wrapped by
+    // lg3d-demo-apps' org.jdesktop.lg3d.apps.update panel and registered with
+    // Desktop2DAppRegistry, so it must be on the desktop run classpath for both
+    // the reflective 2D lookup and the 3D "java <class>" launch to resolve
+    // com.protonmail.landrevillejf.swingide.update.*.
+    def updateManagerJar = project(':update-manager').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
-    dependsOn demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar, runtimeResources
+    dependsOn demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
+            updateManagerJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -315,12 +322,29 @@ tasks.register('run', JavaExec) {
     def javaHelpLibs = configurations.detachedConfiguration(
         dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"))
 
+    // The Software Update app's update-manager module parses the release manifest
+    // with Jackson (jackson-databind -> jackson-core/-annotations, resolved
+    // transitively), signs and verifies releases with Bouncycastle OpenPGP
+    // (bcpg-jdk18on + bcprov-jdk18on) and logs through slf4j. These are Maven deps
+    // of :update-manager, but this run classpath is assembled from packaged jars
+    // rather than that module's runtimeClasspath, so resolve them here directly --
+    // otherwise the in-JVM start-menu launch dies with NoClassDefFoundError.
+    // slf4j-nop is the same silent provider used for agendaLibs above: the
+    // desktop does not surface the module's internal logs.
+    def updateManagerLibs = configurations.detachedConfiguration(
+        dependencies.create("com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson.get()}"),
+        dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.bouncycastle:bcpg-jdk18on:${libs.versions.bouncycastle.get()}"),
+        dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
         files(demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-              runtimeResourcesDir, incubatorExtJars, agendaLibs, javaHelpLibs)
+              updateManagerJar, runtimeResourcesDir, incubatorExtJars,
+              agendaLibs, javaHelpLibs, updateManagerLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
