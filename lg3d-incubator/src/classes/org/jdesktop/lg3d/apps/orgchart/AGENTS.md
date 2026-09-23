@@ -12,9 +12,9 @@
 
 | App | Entry point | Base | Start-menu name / group | Descriptor |
 | --- | --- | --- | --- | --- |
-| Agenda 3D | `ui.agenda.Agenda3D.main` | `Frame3D` (native, authored for the port) | Agenda 3D / **Office** | `lg3d-demo-apps/src/config/agenda3d.lgcfg` |
-| Chart 3D | `ui.chart.Chart3D.main` | `AbstractOrgChartApp` → `Frame3D` | Chart 3D / **Office** | `lg3d-demo-apps/src/config/orgchart-chart.lgcfg` |
-| Contact 3D | `ui.contact.Contact3D.main` | `Frame3D` | Contact 3D / **Office** | `lg3d-demo-apps/src/config/orgchart-contact.lgcfg` |
+| Agenda 3D | `ui.agenda.Agenda3D.main` | `Frame3D` (native, authored for the port) | Agenda 3D / **Office** | `lg3d-apps/src/config/agenda3d.lgcfg` |
+| Chart 3D | `ui.chart.Chart3D.main` | `AbstractOrgChartApp` → `Frame3D` | Chart 3D / **Office** | `lg3d-apps/src/config/orgchart-chart.lgcfg` |
+| Contact 3D | `ui.contact.Contact3D.main` | `Frame3D` | Contact 3D / **Office** | `lg3d-apps/src/config/orgchart-contact.lgcfg` |
 | Prefuse (Buz3D) | `ui.prefuse.Prefuse3D.main` | `AbstractOrgChartApp` | Buz3D / **Office** | `lg3d-incubator/src/config/prefuse.lgcfg` — **not discovered** (incubator `src/config` bundles to `config/`, which is not scanned) |
 
 | Item | Value |
@@ -56,7 +56,7 @@
   descriptor location). Record the Prefuse descriptor-not-scanned issue explicitly so
   it is not mistaken for a broken app.
 - **Project Manager** — Commit scope `lg3d-incubator`; Agenda/Chart/Contact descriptors
-  live in `lg3d-demo-apps`, so PRs often span two modules — say so. Track `ext/` and
+  live in `lg3d-apps`, so PRs often span two modules — say so. Track `ext/` and
   run-classpath changes (prefuse, jbusinessday, slf4j) as integration risk. Done =
   build + `:lg3d-core:runtimeResources` + `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D only**: week grid, org-chart nodes, contact cards and

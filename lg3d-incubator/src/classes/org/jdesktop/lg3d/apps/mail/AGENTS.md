@@ -14,7 +14,7 @@
 | Surface | **pure-3D `Frame3D`** — click-driven native-3D UI (no keyboard focus in dev mode) |
 | Start-menu name / group | Mail 3D / **Office** |
 | Command | `java org.jdesktop.lg3d.apps.mail.Mail3D` |
-| Descriptor | **`lg3d-demo-apps/src/config/mail3d.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
+| Descriptor | **`lg3d-apps/src/config/mail3d.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
 | Persistence | Shared user `Preferences` node `/mail/messages`; reads `/contacts` (populated by Contact 3D) |
 | Build | `./gradlew :lg3d-incubator:build` |
 
@@ -50,7 +50,7 @@
   pick contacts as recipients) plus the core contract (Frame3D host, live-texture
   view, `/mail/messages` + `/contacts` Preferences nodes, descriptor location).
 - **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
-  `lg3d-demo-apps`, so a PR may span two modules — say so. Done = build +
+  `lg3d-apps`, so a PR may span two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icon) + `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D only**: the mailbox, reading pane and controls are
   runtime-drawn scene-graph widgets. Follow the glassy vocabulary, depth ordering and

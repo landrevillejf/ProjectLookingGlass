@@ -20,7 +20,7 @@
 
 - **Architect** — A native-3D periodic-table visualization. Dormant; its descriptor
   lives in the incubator's unscanned `config/`, so it never reaches the start menu.
-  Promotion needs the descriptor moved to `lg3d-demo-apps/src/config`.
+  Promotion needs the descriptor moved to `lg3d-apps/src/config`.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (upload texture pixels
   before attach, wrap raw `Node`s in `Component3D`, sort translucency, EDT hops).
   Element tiles should be power-of-two textures. Dev mode routes no keyboard focus —

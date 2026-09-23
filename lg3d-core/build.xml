@@ -148,7 +148,7 @@
         <copy todir="${release.dir.lg3d}/lib">
             <fileset dir="${build.lib.dir}/">
               <exclude name="lg3d-backgrounds.jar"/>
-              <exclude name="lg3d-demo-apps.jar"/>
+              <exclude name="lg3d-apps.jar"/>
               <exclude name="lg3d-incubator.jar"/>
             </fileset>
         </copy>
@@ -745,7 +745,7 @@ VENDOR=lg3d-core team</echo>
         <jar compress="${jar.compress}" jarfile="${build.lib.dir}/lg3d-core.jar">
             <manifest>
                 <attribute name="Main-Class" value="org.jdesktop.lg3d.displayserver.Main"/>
-                <attribute name="Class-Path" value="lg3d-demo-apps.jar lg3d-incubator.jar lg3d-backgrounds.jar ../../ext/j3d-contrib-utils.jar ../../ext/satin-v2.3.jar ../../ext/escher-0.2.2.lg.jar"/>
+                <attribute name="Class-Path" value="lg3d-apps.jar lg3d-incubator.jar lg3d-backgrounds.jar ../../ext/j3d-contrib-utils.jar ../../ext/satin-v2.3.jar ../../ext/escher-0.2.2.lg.jar"/>
             </manifest>
             <fileset dir="${build.classes.dir}/"
                 includes="org/**"
@@ -932,7 +932,7 @@ VENDOR=lg3d-core team</echo>
     <target name="run-test" depends="init">
         <java classname="org.jdesktop.lg3d.apps.swingtest.TestFrame" fork="true">
             <classpath>
-		<pathelement location="${build.dir}/current/debug/lib/lg3d-demo-apps.jar"/>
+		<pathelement location="${build.dir}/current/debug/lib/lg3d-apps.jar"/>
 		<pathelement path="${j3d.classpath}"/>
             </classpath>
 	    <env key="${env.path.name}" path="${env.path.defvalue}"/>

@@ -17,14 +17,14 @@ if exist "%scriptdir%\..\bin" goto else
     set lgdir=%scriptdir%\..\..
     set lgcoreextdir=%lgdir%\ext
     set fullpath_extdir=%fullpath%..\..\ext
-    set CLASSPATH="%lgdir%\build\current\debug\lib\lg3d-core.jar;%lgdir%\build\current\debug\lib\lg3d-demo-apps.jar;%lgcoreextdir%\j3d-contrib-utils.jar;%lgcoreextdir%\escher-0.2.2.lg.jar;%lgcoreextdir%\satin-v2.3.jar;%lgcoreextdir%\app\bgmanager.jar"
+    set CLASSPATH="%lgdir%\build\current\debug\lib\lg3d-core.jar;%lgdir%\build\current\debug\lib\lg3d-apps.jar;%lgcoreextdir%\j3d-contrib-utils.jar;%lgcoreextdir%\escher-0.2.2.lg.jar;%lgcoreextdir%\satin-v2.3.jar;%lgcoreextdir%\app\bgmanager.jar"
     set BOOTCLASSPATH="%lgdir%\build\current\debug\lib\lg3d-awt-toolkit.jar"
     goto endif
 :else
     set lgdir=%scriptdir%\..
     set lgcoreextdir=%lgdir%\ext
     set fullpath_extdir=%fullpath%..\ext
-    set CLASSPATH="%lgdir%\lib\lg3d-core.jar;%lgdir%\lib\lg3d-demo-apps.jar;%lgcoreextdir%\j3d-contrib-utils.jar;%lgcoreextdir%\escher-0.2.2.lg.jar;%lgcoreextdir%\satin-v2.3.jar;%lgcoreextdir%\app\bgmanager.jar"
+    set CLASSPATH="%lgdir%\lib\lg3d-core.jar;%lgdir%\lib\lg3d-apps.jar;%lgcoreextdir%\j3d-contrib-utils.jar;%lgcoreextdir%\escher-0.2.2.lg.jar;%lgcoreextdir%\satin-v2.3.jar;%lgcoreextdir%\app\bgmanager.jar"
     set BOOTCLASSPATH="%lgdir%\lib\lg3d-awt-toolkit.jar"
 :endif
 

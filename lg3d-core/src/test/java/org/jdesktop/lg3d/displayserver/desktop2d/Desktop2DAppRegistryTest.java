@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * external process, and which are pure-3D and therefore disabled. The parsing
  * helpers ({@code mainClass}/{@code arguments}) and the launch guards are
  * checked too; the panels themselves are exercised at runtime (they live in
- * lg3d-demo-apps, which lg3d-core must not depend on).
+ * lg3d-apps, which lg3d-core must not depend on).
  */
 class Desktop2DAppRegistryTest {
 
@@ -183,7 +183,7 @@ class Desktop2DAppRegistryTest {
     @Test
     @DisplayName("createPanel fails cleanly when the panel class is absent")
     void createPanelMissingClass() {
-        // lg3d-core does not (and must not) depend on lg3d-demo-apps, so the
+        // lg3d-core does not (and must not) depend on lg3d-apps, so the
         // panel class is not on this test classpath: the reflective lookup must
         // surface a ReflectiveOperationException rather than an Error.
         assertThrows(ReflectiveOperationException.class,

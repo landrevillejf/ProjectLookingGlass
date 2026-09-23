@@ -20,7 +20,7 @@
 	    <zipfileset dir="${build.lib.dir}">
 		<include name="lg3d-core.jar"/>
 		<include name="lg3d-awt-toolkit.jar"/>
-		<include name="lg3d-demo-apps.jar"/>
+		<include name="lg3d-apps.jar"/>
 		<include name="lg3d-bundle-readme.txt"/>
 	    </zipfileset>
 	</zip>

@@ -30,7 +30,7 @@
 // and the absence of an awt.Color constructor on vecmath Color3f/Color4f. Four
 // of them -- luncher, nlc, orgchart and jmf23D -- were small, self-contained
 // drift and have been ported to the current API; they now build. Their start-menu
-// descriptors live in lg3d-demo-apps/src/config (bundled to config/demo), because
+// descriptors live in lg3d-apps/src/config (bundled to config/demo), because
 // discovery only scans config/demo and config/incubator while this module's own
 // src/config is bundled to config/ -- the same precedent Image Studio follows.
 //

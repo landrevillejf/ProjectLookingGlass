@@ -103,7 +103,7 @@ public class DefaultConfigControl extends ConfigControl {
         // TODO search for configuration files in this order
         //        ~/.lg3d
         //        etc/lg3d/                  (actually this is in the jar)
-        //        ../lg3d-demo-apps/config
+        //        ../lg3d-apps/config
         //        ../lg3d-incubator/config
 	//
 

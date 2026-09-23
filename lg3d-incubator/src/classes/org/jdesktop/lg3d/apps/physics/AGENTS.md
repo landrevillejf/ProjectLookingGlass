@@ -35,7 +35,7 @@
   engine contract (bodies, forces, integration, collision resolution). Record the
   descriptor-not-scanned fact and the stale `PhysTest` reference.
 - **Project Manager** — Commit scope `lg3d-incubator`. Dormant — low priority; promotion
-  requires moving descriptors to `lg3d-demo-apps/src/config`.
+  requires moving descriptors to `lg3d-apps/src/config`.
 - **UI/UX (3D & 2D)** — **3D only**: physical bodies rendered as scene-graph shapes.
   Follow the glassy vocabulary and depth ordering from core.
 

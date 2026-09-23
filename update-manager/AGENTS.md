@@ -190,7 +190,7 @@ The module is **not** wired into the display server directly; it is surfaced as
 the **"Software Update"** start-menu app (Utilities group), exactly like the Help
 Center:
 
-- `lg3d-demo-apps` → `org.jdesktop.lg3d.apps.update.UpdateManagerPanel` (a plain
+- `lg3d-apps` → `org.jdesktop.lg3d.apps.update.UpdateManagerPanel` (a plain
   `JPanel` with a no-arg constructor) embeds `UpdateSettingsPanel`, drives an
   `UpdatePresenter` and builds an `UpdateService` via `createDefault()`. It never
   throws out of its constructor: if the service cannot be created it degrades to a
@@ -198,7 +198,7 @@ Center:
   (`service.initialize()`) behind `!GraphicsEnvironment.isHeadless()`.
 - `UpdateManager` is the 3D-desktop wrapper: `TitledSwingWindow.show(...)` hosts
   the panel on a `SwingNode` inside a `Frame3D`.
-- `lg3d-demo-apps/src/config/updatemanager.lgcfg` registers the start-menu item
+- `lg3d-apps/src/config/updatemanager.lgcfg` registers the start-menu item
   (`command = java org.jdesktop.lg3d.apps.update.UpdateManager`).
 - `Desktop2DAppRegistry.PANEL_APPS` maps the command to `UpdateManagerPanel`, so
   the 2D/Swing desktop hosts the *same* panel as an MDI internal frame.

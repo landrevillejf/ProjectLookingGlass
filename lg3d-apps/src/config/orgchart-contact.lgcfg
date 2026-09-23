@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Contact 3D (orgchart, from lg3d-incubator). A 3D contact
+ card browser. Launched in-JVM via the "java <class>" command; the incubator jar
+ is on the :lg3d-core:run classpath. Discovery only scans config/demo and
+ config/incubator, so, following the Image Studio / Widget Gallery precedent,
+ this descriptor lives in lg3d-apps/src/config (bundled to config/demo)
+ rather than the incubator's own src/config. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D</string>
+  </void>
+  <void property="desc">
+   <string>3D contact cards</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/contact3d.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Office</string>
+  </void>
+  <void property="name">
+   <string>Contact 3D</string>
+  </void>
+ </object>
+</java>

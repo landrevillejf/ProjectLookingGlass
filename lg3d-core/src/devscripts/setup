@@ -179,14 +179,14 @@ if [ "${RELEASE:-0}" == "0" ]; then
   if [ ${LGX11HOME:-0} == 0 ]; then
     export LGX11HOME=${BUILDPLATFORM}/lib/${OS}-${ARCH}/lg3d-x11
   fi
-  export CLASSPATH="${BUILDPLATFORM}/lib/lg3d-core.jar:${BUILDPLATFORM}/lib/lg3d-demo-apps.jar:${LGCOREEXTDIR}/j3d-contrib-utils.jar:${LGCOREEXTDIR}/escher-0.2.2.lg.jar:${LGCOREEXTDIR}/satin-v2.3.jar:${LGCOREEXTDIR}/app/bgmanager.jar:${CLASSPATH}"
+  export CLASSPATH="${BUILDPLATFORM}/lib/lg3d-core.jar:${BUILDPLATFORM}/lib/lg3d-apps.jar:${LGCOREEXTDIR}/j3d-contrib-utils.jar:${LGCOREEXTDIR}/escher-0.2.2.lg.jar:${LGCOREEXTDIR}/satin-v2.3.jar:${LGCOREEXTDIR}/app/bgmanager.jar:${CLASSPATH}"
   export BOOTCLASSPATH="${BUILDPLATFORM}/lib/lg3d-awt-toolkit.jar:${BUILDPLATFORM}/lib/fws-x11-kbd-utils.jar"
   export LD_LIBRARY_PATH=${BUILDPLATFORM}/lib/${OS}-${ARCH}:${LD_LIBRARY_PATH}
 else
   if [ ${LGX11HOME:-0} == 0 ]; then
     export LGX11HOME=${LGDIR}/lib/${OS}-${ARCH}/lg3d-x11
   fi
-  export CLASSPATH="${LGDIR}/lib/lg3d-core.jar:${LGDIR}/lib/lg3d-demo-apps.jar:${LGCOREEXTDIR}/j3d-contrib-utils.jar:${LGCOREEXTDIR}/escher-0.2.2.lg.jar:${LGCOREEXTDIR}/satin-v2.3.jar:${LGCOREEXTDIR}/app/bgmanager.jar:${CLASSPATH}"
+  export CLASSPATH="${LGDIR}/lib/lg3d-core.jar:${LGDIR}/lib/lg3d-apps.jar:${LGCOREEXTDIR}/j3d-contrib-utils.jar:${LGCOREEXTDIR}/escher-0.2.2.lg.jar:${LGCOREEXTDIR}/satin-v2.3.jar:${LGCOREEXTDIR}/app/bgmanager.jar:${CLASSPATH}"
   export BOOTCLASSPATH="${LGDIR}/lib/lg3d-awt-toolkit.jar:${LGDIR}/lib/fws-x11-kbd-utils.jar"
   export LD_LIBRARY_PATH=${LGDIR}/lib/${OS}-${ARCH}:${LD_LIBRARY_PATH}
 fi

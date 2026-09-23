@@ -21,7 +21,7 @@
 - **Architect** — A self-contained native-3D simulation. The generation loop runs on
   its own `Thread` (`GolGridReader`) — keep model stepping off the render thread and
   publish to the graph safely. Dormant; promotion needs a descriptor move to
-  `lg3d-demo-apps/src/config`.
+  `lg3d-apps/src/config`.
 - **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
   rule** if the grid is drawn into a texture (single `ImageComponent2D`, `.set()` in
   place, never re-attach; POT sizes; pixels before attach). Synchronize the reader

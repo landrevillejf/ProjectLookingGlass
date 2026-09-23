@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Mail 3D (from lg3d-incubator). A native 3D e-mail client:
+ a live-texture message list over a reading / compose pane, driven by a button
+ strip (Inbox / Sent / New / Reply / To / Subj / Body / Send / Back). The mailbox
+ is local-only, persisted to the shared user Preferences tree, and recipients are
+ drawn from the same /contacts directory Contact 3D populates. Launched in-JVM
+ via the "java <class>" command; the incubator jar is on the :lg3d-core:run
+ classpath. Discovery only scans config/demo and config/incubator, so, following
+ the Agenda 3D / Contact 3D precedent, this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo) rather than the incubator's
+ own src/config. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.mail.Mail3D</string>
+  </void>
+  <void property="desc">
+   <string>3D mail client</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/mail3d.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Office</string>
+  </void>
+  <void property="name">
+   <string>Mail 3D</string>
+  </void>
+ </object>
+</java>

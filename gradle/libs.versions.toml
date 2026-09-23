@@ -54,7 +54,7 @@ slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 # JavaHelp: the platform-independent Swing help framework (javax.help). Its
 # JHelp viewer is a plain Swing component, so the desktop Help Center hosts it
 # on a SwingNode (3D desktop) or in an MDI internal frame (2D/Swing desktop).
-# Used by lg3d-demo-apps; also resolved onto the lg3d-core run classpath.
+# Used by lg3d-apps; also resolved onto the lg3d-core run classpath.
 javahelp = { module = "javax.help:javahelp", version.ref = "javahelp" }
 
 # update-manager dependencies. Jackson parses the published version.json release

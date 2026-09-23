@@ -45,7 +45,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 ### Built Modules (in Gradle)
 - `lg3d-escher` - Pure-Java X11 protocol library
 - `lg3d-core` - Scene-graph / windowing / display-server SDK and desktop
-- `lg3d-demo-apps` - Sample and demo applications
+- `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`
 - `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
 
 ### Excluded from Build
@@ -129,12 +129,25 @@ The following incubator apps are excluded due to missing third-party libraries (
 - `apps/intel3d/**` - Missing Jini
 - `apps/browser/**` - Missing ICEsoft ICEbrowser, BeanShell
 - `apps/browser3d/**` - Missing Jini
-- `apps/wilkoaim3d/**` - Missing com.wilko AIM lib
 
-Additional exclusions due to API drift (sources predate core API snapshot):
-- `apps/luncher/**`, `apps/nlc/**` - AppLaunchAction / Pseudo3DShortcut API changes
-- `apps/orgchart/**` - FuzzyEdgePanel.setSize API changes
-- `apps/jmf23D/**` - vecmath Color3f(awt.Color) constructor removed
+One app is excluded for deep core-API drift (**not** a missing library):
+
+- `apps/wilkoaim3d/**` - targets a 2004-era core utility vocabulary that no
+  longer exists (`Frame3DToFrontEvent`, `ComponentMover`, `ResilientRotateAction`,
+  `NaturalMotionComponent3D/Container3D`, `ColorAlphaChangeAction`), the obsolete
+  2-arg event-adapter constructors and `setTexture(String)`. Its `com.wilko`
+  `jaimlib.jar` **is** bundled in `ext/` and on the classpath, so "missing AIM lib"
+  was never the real blocker; the fatal one is that its AOL AIM TOC backend was
+  discontinued by AOL in Dec 2017, so it could never log in even if rewritten.
+
+> **Ported, not excluded.** `apps/luncher/**`, `apps/nlc/**`, `apps/orgchart/**`
+> and `apps/jmf23D/**` once failed to compile against the current core API
+> (AppLaunchAction / Pseudo3DShortcut / `FuzzyEdgePanel.setSize` / vecmath
+> `Color3f(awt.Color)` drift). That drift was small and self-contained, so all four
+> were **ported to the current API and now build**; their start-menu descriptors
+> live in `lg3d-apps/src/config`. Always verify the live exclusion set against
+> [`lg3d-incubator/build.gradle`](lg3d-incubator/build.gradle) rather than trusting
+> this prose — it has been stale before.
 
 ## Runtime Resources
 
@@ -184,7 +197,7 @@ JUnit 5 test infrastructure exists and runs headless:
 
 ### Internal Dependencies
 - `lg3d-core` depends on `lg3d-escher`
-- `lg3d-demo-apps` depends on `lg3d-core`
+- `lg3d-apps` depends on `lg3d-core`
 - `lg3d-incubator` depends on `lg3d-core` plus bundled jars in `ext/`
 
 ## Compiler Configuration
@@ -199,7 +212,7 @@ JUnit 5 test infrastructure exists and runs headless:
 - No git submodules — this is a single repository (the CI workflow no longer claims otherwise)
 - Branches: `master`, `main` (CI triggers on both)
 - Concurrency: Newer push supersedes in-flight run
-- **Single repository.** `lg3d-core`, `lg3d-demo-apps`, `lg3d-incubator`,
+- **Single repository.** `lg3d-core`, `lg3d-apps`, `lg3d-incubator`,
   `lg3d-widgets`, `lpm-console`, `CHANGELOG.md` and `README.md` all live in
   **one** repo (verified: no `.gitmodules`, no `160000` gitlink entries).
 - **Stage explicitly.** Never `git add -A` / `git add .`: the working tree holds
@@ -369,7 +382,7 @@ rulebook**. When a module file and this root file conflict, the root file wins.
 | --- | --- | --- |
 | `lg3d-escher` | [`lg3d-escher/AGENTS.md`](lg3d-escher/AGENTS.md) | none (X11 protocol library) |
 | `lg3d-core` | [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) | **canonical rulebook** (3D `Frame3D` + 2D `SwingNode`) |
-| `lg3d-demo-apps` | [`lg3d-demo-apps/AGENTS.md`](lg3d-demo-apps/AGENTS.md) | 3D + 2D |
+| `lg3d-apps` | [`lg3d-apps/AGENTS.md`](lg3d-apps/AGENTS.md) | 3D + 2D |
 | `lg3d-incubator` | [`lg3d-incubator/AGENTS.md`](lg3d-incubator/AGENTS.md) | 3D (native) + 2D (Swing dialogs) |
 | `lg3d-widgets` | [`lg3d-widgets/AGENTS.md`](lg3d-widgets/AGENTS.md) | 3D layer + 2D Swing cards |
 | `lpm-console` | [`lpm-console/AGENTS.md`](lpm-console/AGENTS.md) | 2D Swing (composited X11 client) |
@@ -407,12 +420,13 @@ thing to read — it distinguishes **Production** / **Production-grade** apps fr
 
 | App module | Per-app guides | Location |
 | --- | --- | --- |
-| `lg3d-demo-apps` | 18 apps | `lg3d-demo-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
+| `lg3d-apps` | 18 apps | `lg3d-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
 | `lg3d-incubator` | 35 apps/libraries (incl. excluded + framework trees) | `lg3d-incubator/src/classes/.../<app>/AGENTS.md` |
 
-> **Naming reminder.** `lg3d-demo-apps` is a *legacy* module name: the apps in it
-> are **production-grade desktop software**, not throwaway demos. Only the module
-> name and the `config/demo` resource path are historical — keep them as-is.
+> **Naming note.** This module was renamed from the legacy `lg3d-demo-apps`: the
+> apps in it are **production-grade desktop software**, not throwaway demos. Only
+> the `config/demo` runtime resource path and the `Demos` start-menu group remain
+> historical names — keep them as-is so lg3d-core's descriptor discovery resolves.
 
 When adding a new app, create its per-app `AGENTS.md` from the same template in the
 same PR.

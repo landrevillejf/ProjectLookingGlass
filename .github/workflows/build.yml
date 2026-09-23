@@ -2,7 +2,7 @@ name: Build
 
 # CI for the Project Looking Glass modernization port (Gradle 8.14 + JDK 21).
 # This is a SINGLE repository: every module (lg3d-escher, lg3d-core,
-# lg3d-demo-apps, lg3d-incubator, lg3d-widgets, lpm-console) is tracked directly
+# lg3d-apps, lg3d-incubator, lg3d-widgets, lpm-console) is tracked directly
 # in this repo, so a plain checkout fetches all sources the Gradle build compiles
 # -- there are no git submodules to recurse into.
 
@@ -97,7 +97,7 @@ jobs:
           path: |
             lg3d-escher/build-gradle/libs/*.jar
             lg3d-core/build-gradle/libs/*.jar
-            lg3d-demo-apps/build-gradle/libs/*.jar
+            lg3d-apps/build-gradle/libs/*.jar
             lg3d-incubator/build-gradle/libs/*.jar
           if-no-files-found: error
 

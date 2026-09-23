@@ -20,7 +20,7 @@ import org.jdesktop.lg3d.wg.event.LgEvent;
  * {@link org.jdesktop.lg3d.utils.prefs.DesktopConfig}). It carries no payload:
  * listeners re-read the {@code DesktopConfig} singleton and re-apply, mirroring
  * the {@link BackgroundChangeRequestEvent} bridge between the Control Center
- * (lg3d-demo-apps) and the scene-manager taskbar (lg3d-core).
+ * (lg3d-apps) and the scene-manager taskbar (lg3d-core).
  */
 public class DesktopConfigChangeEvent extends LgEvent {
     // just a tag class

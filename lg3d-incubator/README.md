@@ -31,7 +31,7 @@ supplies the **background manager** (`org.jdesktop.lg3d.apps.bgmanager`) whose
 all Java 3D scene-graph nodes, not Swing (Swing is used only for the two native
 file dialogs). It is launched from the start menu (Utilities) with
 `java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp`. The descriptor lives in
-[`lg3d-demo-apps/src/config/imagestudio.lgcfg`](../lg3d-demo-apps/src/config/imagestudio.lgcfg)
+[`lg3d-apps/src/config/imagestudio.lgcfg`](../lg3d-apps/src/config/imagestudio.lgcfg)
 rather than this module's own `src/config`, because discovery only scans
 `config/demo` and `config/incubator` while the incubator's `src/config` is
 bundled to `config/` — the same precedent the Widget Gallery follows.
@@ -84,7 +84,7 @@ chip on the appointment block. **Contact 3D itself is unchanged.**
 
 It is launched from the start menu (Office) with
 `java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D`; the descriptor lives in
-[`lg3d-demo-apps/src/config/agenda3d.lgcfg`](../lg3d-demo-apps/src/config/agenda3d.lgcfg)
+[`lg3d-apps/src/config/agenda3d.lgcfg`](../lg3d-apps/src/config/agenda3d.lgcfg)
 for the same discovery reason Image Studio follows.
 
 | Class | Role |
@@ -119,7 +119,7 @@ because dev mode routes no keyboard focus to a `Frame3D`.
 
 All four launch from the start menu under a new **Games** group with
 `java org.jdesktop.lg3d.apps.games.<game>.<Game>3D`; the descriptors live in
-[`lg3d-demo-apps/src/config`](../lg3d-demo-apps/src/config) (`tictactoe`,
+[`lg3d-apps/src/config`](../lg3d-apps/src/config) (`tictactoe`,
 `sudoku`, `chess`, `solitaire`) for the same discovery reason Image Studio
 follows.
 
@@ -147,7 +147,7 @@ a few sample messages on first run.
 
 It is launched from the start menu (Office) with
 `java org.jdesktop.lg3d.apps.mail.Mail3D`; the descriptor lives in
-[`lg3d-demo-apps/src/config/mail3d.lgcfg`](../lg3d-demo-apps/src/config/mail3d.lgcfg)
+[`lg3d-apps/src/config/mail3d.lgcfg`](../lg3d-apps/src/config/mail3d.lgcfg)
 for the same discovery reason Image Studio follows.
 
 | Class | Role |
@@ -203,7 +203,7 @@ have been ported to the current API and now build:
 | `apps/orgchart/**` | `orgchart.ui.chart.Chart3D`, `orgchart.ui.contact.Contact3D` | `FuzzyEdgePanel.setSize(float,float,float,float)` signature. |
 
 Each is registered in the desktop **Start Menu** via a `.lgcfg` descriptor under
-[`lg3d-demo-apps/src/config`](../lg3d-demo-apps/src/config) (`algea3d`, `luncher`,
+[`lg3d-apps/src/config`](../lg3d-apps/src/config) (`algea3d`, `luncher`,
 `nlc`, `orgchart-chart`, `orgchart-contact`) rather than this module's own
 `src/config`, for the same discovery reason Image Studio follows: discovery only
 scans `config/demo` and `config/incubator`, while the incubator's `src/config` is

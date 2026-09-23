@@ -28,7 +28,7 @@ plus two added by this port, `lg3d-widgets` and `lpm-console`:
 | ----------------- | :------: | ---- |
 | `lg3d-escher`     | ✅ | Pure-Java X11 protocol library (Escher 0.2.2) bundled with lg3d. |
 | `lg3d-core`       | ✅ | The scene-graph / windowing / display-server SDK and the desktop itself. |
-| `lg3d-demo-apps`  | ✅ | Sample and demo applications shipped with lg3d. |
+| `lg3d-apps`  | ✅ | Production-grade desktop applications shipped with lg3d (plus a few samples/tutorials); formerly `lg3d-demo-apps`. |
 | `lg3d-incubator`  | ✅ | Grab-bag of independent experimental lg3d apps. |
 | `lg3d-widgets`    | ✅ | **New in this port:** desktop widget API/host and built-in widgets. |
 | `lpm-console`     | ✅ | **New in this port:** standalone Swing front-end for the LPM package manager. |
@@ -66,7 +66,7 @@ Jars land in:
 ```
 lg3d-escher/build-gradle/libs/escher-0.2.2.jar
 lg3d-core/build-gradle/libs/lg3d-core-1.9.0-dev.jar
-lg3d-demo-apps/build-gradle/libs/lg3d-demo-apps-1.9.0-dev.jar
+lg3d-apps/build-gradle/libs/lg3d-apps-1.9.0-dev.jar
 lg3d-incubator/build-gradle/libs/lg3d-incubator-1.9.0-dev.jar
 lg3d-widgets/build-gradle/libs/lg3d-widgets-1.9.0-dev.jar
 lpm-console/build-gradle/libs/lpm-console-1.9.0-dev.jar

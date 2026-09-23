@@ -20,7 +20,7 @@
 
 - **Architect** — A self-contained native-3D widget built on `Container3D` +
   `TimerTask`. Dormant: to ship it, its descriptor must move to
-  `lg3d-demo-apps/src/config` (incubator `src/config` is not scanned).
+  `lg3d-apps/src/config` (incubator `src/config` is not scanned).
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
   attach, `Component3D` wrapping, translucency sorting, EDT hops). The time action
   runs on a timer thread — hop to the correct thread before mutating the graph.
@@ -33,7 +33,7 @@
 - **Functional Analyst** — Spec as a demonstration (analog/mixed 3D clock face).
   Record the descriptor-not-scanned fact so it is not mistaken for a broken app.
 - **Project Manager** — Commit scope `lg3d-incubator`. Dormant — low priority;
-  promotion requires a descriptor move to `lg3d-demo-apps`.
+  promotion requires a descriptor move to `lg3d-apps`.
 - **UI/UX (3D & 2D)** — **3D only**: clock faces as scene-graph nodes. Follow the
   glassy vocabulary and depth ordering from core.
 

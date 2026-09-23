@@ -13,15 +13,15 @@
 | Surface | **pure-3D** file browser (`ControlBar` + `Icon`/`IconAppearance` on `Component3D`/`SimpleAppearance`) |
 | Start-menu name / group | fm3D File Manager / **Utilities** — descriptor `fm3d.lgcfg` is in `lg3d-incubator/src/config` → `config/` (**not scanned**) |
 | Command | `java org.jdesktop.lg3d.apps.fm3d.Fm3DMain` |
-| Runtime notes | Overlaps the production Swing **File Manager** in `lg3d-demo-apps`; this is the older native-3D take |
+| Runtime notes | Overlaps the production Swing **File Manager** in `lg3d-apps`; this is the older native-3D take |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 ## Roles
 
 - **Architect** — A native-3D file browser predating the production SwingNode File
   Manager. Dormant; kept for reference. Do not confuse it with
-  `lg3d-demo-apps`' `filemanager` (the shipped one). Promotion would need a
-  descriptor move to `lg3d-demo-apps/src/config`.
+  `lg3d-apps`' `filemanager` (the shipped one). Promotion would need a
+  descriptor move to `lg3d-apps/src/config`.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
   attach, `Component3D` wrapping, translucency sorting, EDT hops); file I/O off the
   render thread. Dev mode routes no keyboard focus — click-driven only. Jogamp only.
