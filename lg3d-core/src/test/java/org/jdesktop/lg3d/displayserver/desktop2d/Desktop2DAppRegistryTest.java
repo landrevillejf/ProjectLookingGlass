@@ -23,8 +23,6 @@ import javax.swing.JPanel;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DAppRegistry.Kind;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 
 /**
  * Covers how the 2D desktop classifies a start-menu command: which commands
@@ -157,33 +155,12 @@ class Desktop2DAppRegistryTest {
     // ------------------------------------------------------------------
 
     @Test
-    @EnabledOnOs({ OS.LINUX, OS.MAC })
-    @DisplayName("isExternalAvailable resolves a Unix executable token")
-    void externalAvailabilityUnix() {
+    @DisplayName("isExternalAvailable resolves the executable token")
+    void externalAvailability() {
         assertTrue(Desktop2DAppRegistry.isExternalAvailable("/bin/sh"),
-                "/bin/sh exists on every Unix host");
+                "/bin/sh exists on every supported host");
         assertTrue(Desktop2DAppRegistry.isExternalAvailable("/bin/sh -c echo hi"),
                 "only the first token is checked");
-        assertUnavailableCommandsAreRejected();
-    }
-
-    @Test
-    @EnabledOnOs(OS.WINDOWS)
-    @DisplayName("isExternalAvailable resolves a Windows executable token")
-    void externalAvailabilityWindows() {
-        // A separator-free token is resolved by searching PATH, and cmd.exe is
-        // always on the Windows system PATH. A hardcoded "/bin/sh" would not
-        // resolve here: ProcessRunner only treats a token as an absolute path
-        // when it contains File.separatorChar, which is '\' on Windows.
-        assertTrue(Desktop2DAppRegistry.isExternalAvailable("cmd.exe"),
-                "cmd.exe is on the Windows system PATH");
-        assertTrue(Desktop2DAppRegistry.isExternalAvailable("cmd.exe /c echo hi"),
-                "only the first token is checked");
-        assertUnavailableCommandsAreRejected();
-    }
-
-    /** The null / blank / impossible-token negatives hold on every platform. */
-    private static void assertUnavailableCommandsAreRejected() {
         assertFalse(Desktop2DAppRegistry.isExternalAvailable(
                 "/definitely/not/a/real/binary-xyz"));
         assertFalse(Desktop2DAppRegistry.isExternalAvailable(null));

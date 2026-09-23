@@ -27,25 +27,12 @@ concurrency:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }}, JDK 21)
-    # lg3d-core/build.gradle picks the Jogamp native classifier per OS
-    # (natives-linux-amd64 / natives-macosx-universal / natives-windows-amd64),
-    # so building on all three validates that logic. Compilation and the tests
-    # are headless (java.awt.headless=true) and Java-3D-free, and the natives are
-    # runtimeOnly, so no X display and no native load are needed to go green.
-    runs-on: ${{ matrix.os }}
-    strategy:
-      # Keep going on the other OSes when one fails, so a single-platform issue
-      # does not hide the state of the rest.
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-
-    # Run every `run:` step through bash (Git Bash on Windows) so `./gradlew`
-    # works uniformly across the matrix instead of needing gradlew.bat on Windows.
-    defaults:
-      run:
-        shell: bash
+    name: Build (JDK 21)
+    # lg3d is a Linux X11 desktop: the deployment host is always Linux, so CI
+    # builds and tests on ubuntu-latest only. Compilation and the tests are
+    # headless (java.awt.headless=true) and Java-3D-free, and the Jogamp natives
+    # are runtimeOnly, so no X display and no native load are needed to go green.
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
@@ -87,14 +74,11 @@ jobs:
       - name: Assemble runtime resources
         run: ./gradlew :lg3d-core:runtimeResources --stacktrace
 
-      # Reports and jars are identical across the three OSes (Java bytecode; the
-      # natives are runtimeOnly and not packaged), so publish them once from the
-      # ubuntu leg -- this avoids same-name artifact collisions between matrix
-      # legs and redundant uploads. Coverage/Checkstyle are report-only (see the
-      # root build.gradle): the ratchet floor sits just below current coverage,
-      # and Checkstyle runs with ignoreFailures=true.
+      # Coverage/Checkstyle are report-only (see the root build.gradle): the
+      # ratchet floor sits just below current coverage, and Checkstyle runs with
+      # ignoreFailures=true.
       - name: Upload test, coverage & checkstyle reports
-        if: always() && matrix.os == 'ubuntu-latest'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lg3d-test-reports
@@ -106,7 +90,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload module jars
-        if: success() && matrix.os == 'ubuntu-latest'
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: lg3d-jars

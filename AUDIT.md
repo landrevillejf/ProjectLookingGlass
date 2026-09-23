@@ -76,12 +76,13 @@ the legacy `build`; each is a step toward the AGENTS.md 100%-coverage /
   dependencies (including the bundled 2006-era incubator jars) against the NVD.
   Report-only (`failBuildOnCVSS=11`, above the max real CVSS of 10); an optional
   `-PnvdApiKey`/`ORG_GRADLE_PROJECT_nvdApiKey` speeds the feed download.
-- **Multi-platform CI matrix.** `.github/workflows/build.yml` now builds on
-  `ubuntu-latest`, `macos-latest` and `windows-latest` (`fail-fast: false`),
-  validating the per-OS Jogamp native classifier selection, and adds a `security`
-  job (SBOM + dependency-check) on `main`/`master` pushes, a weekly schedule and
+- **CI security job.** `.github/workflows/build.yml` adds a `security` job
+  (SBOM + dependency-check) on `main`/`master` pushes, a weekly schedule and
   manual dispatch — skipped on pull requests to avoid the heavy first NVD
-  download. Third-party plugin/tool versions live in `gradle/libs.versions.toml`.
+  download — and uploads the Checkstyle reports alongside the coverage reports.
+  The build stays **ubuntu-latest only**: lg3d is a Linux X11 desktop, so a
+  macOS/Windows matrix would validate hosts that never run it. Third-party
+  plugin/tool versions live in `gradle/libs.versions.toml`.
 
 ### ⚠️ Corrected finding
 
@@ -105,8 +106,9 @@ the legacy `build`; each is a step toward the AGENTS.md 100%-coverage /
   patterns; a deeper dataflow analysis (SpotBugs) and a hosted scanner (Snyk)
   remain untracked follow-ups.
 - **Dependency locking, `System.out.println` → logging migration, artifact
-  signing / supply-chain attestation.** Tracked as self-contained follow-ups
-  (the multi-platform CI matrix item is now addressed — see the second pass).
+  signing / supply-chain attestation.** Tracked as self-contained follow-ups.
+  (A multi-platform CI matrix is deliberately **not** pursued: lg3d targets a
+  Linux X11 host only, so CI stays ubuntu-latest.)
 
 ---
 

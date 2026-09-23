@@ -518,12 +518,12 @@ work to make it build and run on a current toolchain.
   lg3d modules live in git submodules / check out recursively" claim and its
   `submodules: recursive` checkout: this is a single repository with no
   submodules, so a plain checkout fetches every module's sources. The build job
-  now runs across a **multi-OS matrix** (`ubuntu`/`macos`/`windows`,
-  `fail-fast: false`) to validate the per-OS Jogamp native classifier selection,
-  uploads the Checkstyle reports alongside the coverage reports, and a new
-  `security` job generates the CycloneDX SBOM and runs OWASP Dependency-Check
+  now also uploads the Checkstyle reports alongside the coverage reports, and a
+  new `security` job generates the CycloneDX SBOM and runs OWASP Dependency-Check
   (continue-on-error) on `main`/`master` pushes, a weekly schedule and manual
-  dispatch — skipped on pull requests to avoid the heavy first NVD download.
+  dispatch — skipped on pull requests to avoid the heavy first NVD download. CI
+  stays **ubuntu-latest only**: lg3d is a Linux X11 desktop, so there is no
+  macOS/Windows host to validate.
 - **Documentation accuracy** — `README.md` and `AGENTS.md` now state plainly that
   this is a single repository (no git submodules), list `lpm-console` among the
   built modules, and correct stale `1.0.1-dev` jar-name examples to the current
@@ -601,14 +601,6 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
-- **`Desktop2DAppRegistryTest` assumed a Unix host** — the new multi-OS CI matrix
-  (below) exposed `isExternalAvailable resolves the executable token`, which
-  hardcoded `/bin/sh` and so failed on the Windows leg: `ProcessRunner.isAvailable`
-  only treats a token as an absolute path when it contains `File.separatorChar`
-  (`\` on Windows), so `/bin/sh` fell through to a PATH lookup and never resolved.
-  The single test is split into `@EnabledOnOs({LINUX, MAC})` and
-  `@EnabledOnOs(WINDOWS)` variants (`/bin/sh` vs the always-on-PATH `cmd.exe`),
-  sharing the null/blank/impossible-token negatives.
 - **2D/Swing desktop widgets could not be dragged** — in the conventional Swing
   desktop (`SwingWidgetLayer`, the `--2d`/`--swing` widget host) grabbing a
   widget card and moving it made the card fly off the cursor instead of
