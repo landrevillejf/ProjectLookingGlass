@@ -20,7 +20,7 @@
 | Item | Value |
 | --- | --- |
 | Status | **Production-grade** native-3D apps (Agenda/Chart/Contact are ported & registered; Prefuse is built but its descriptor is not scanned) |
-| Surface | **pure-3D `Frame3D`** — click-driven (no keyboard focus in dev mode) |
+| Surface | **pure-3D `Frame3D`** (3D desktop) **+ Swing panels `AgendaPanel`/`ContactCardsPanel`/`ChartPanel`** (2D/Swing desktop) — Agenda/Chart/Contact off the same shared stores |
 | Shared framework | `framework/` (`ServiceContext`/`Channel`/`Service`, `contact.ContactService` + `PreferenceContactService`/`LDAPContactService`) and `ui/common/` (`AbstractOrgChartApp`, `Button`, `UIUtil`, panels) |
 | Extra deps | Prefuse needs `ext/prefuse.jar`; Agenda 3D needs `libs/jbusinessday` (+ `slf4j` at runtime) |
 | Build | `./gradlew :lg3d-incubator:build` |
@@ -59,11 +59,22 @@
   live in `lg3d-apps`, so PRs often span two modules — say so. Track `ext/` and
   run-classpath changes (prefuse, jbusinessday, slf4j) as integration risk. Done =
   build + `:lg3d-core:runtimeResources` + `./run-lg3d.sh` + capture/log evidence.
-- **UI/UX (3D & 2D)** — **3D only**: week grid, org-chart nodes, contact cards and
-  buttons are runtime-drawn scene-graph widgets (Agenda 3D marks weekends/holidays and
-  navigates weeks/months/years). Follow the glassy vocabulary, depth ordering and
+- **UI/UX (3D & 2D)** — **Agenda/Chart/Contact run in both desktops.** In the 3D
+  desktop the week grid, org-chart nodes, contact cards and buttons are runtime-drawn
+  scene-graph widgets (Agenda 3D marks weekends/holidays and navigates
+  weeks/months/years): follow the glassy vocabulary, depth ordering and
   click-driven-input rules; frame-level gestures use the CTRL+right-click convention
-  (a plain right-click never reaches hosted apps — their content quad is non-propagatable).
+  (a plain right-click never reaches hosted apps — their content quad is
+  non-propagatable). In the 2D/Swing desktop the **same start-menu descriptors**
+  launch idiomatic Swing panels registered in `Desktop2DAppRegistry.PANEL_APPS` on the
+  3D main classes: `AgendaPanel` (custom-painted week grid + real keyboard editing of
+  title/day/hour/duration/attendees, duplicating the 8..18 / 7-day constants rather
+  than referencing the `Component3D` `AgendaGrid`), `ContactCardsPanel` (contact list +
+  read-only detail card off `ContactDirectory`) and `ChartPanel` (`JTree` org hierarchy
+  + query, built straight from the `/contacts` `manager` attribute). Each reuses the
+  AWT-free model and the `/contacts` + `/agenda/appointments` nodes, so state written
+  by one desktop is visible in the other, and none may ever load a Java 3D class (a
+  3D-less JVM runs them).
 
 ## Communication & coherence
 
