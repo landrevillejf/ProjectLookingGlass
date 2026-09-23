@@ -1,0 +1,112 @@
+// update-manager: a self-contained Swing update pipeline (check / download /
+// verify / install, plus rollback, downgrade, scheduling and optional OpenPGP
+// detached-signature verification), adapted from an external module.
+//
+// It is a plain Java library with no lg3d-core dependency: lg3d-demo-apps wraps
+// its UpdateSettingsPanel in a "Software Update" start-menu app, and the
+// :lg3d-core:run task places this jar plus its runtime dependencies on the
+// desktop classpath. The toolchain (JDK 21), UTF-8 encoding, build-gradle output
+// directory, checkstyle (report-only) and jacoco are inherited from the root
+// build.gradle subprojects block.
+//
+// The Maven-standard source layout (src/main/java, src/test/java,
+// src/main/resources) is kept as-is, so no sourceSet override is needed.
+
+jar {
+    archiveBaseName = 'update-manager'
+}
+
+// ---------------------------------------------------------------------------
+// version.properties
+// ---------------------------------------------------------------------------
+// ApplicationVersion resolves the running version from the /version.properties
+// classpath resource (keys app.version / build.timestamp), which the external
+// project generated at build time. Regenerate it here from the lg3d project
+// version so the update pipeline reports the desktop's own version instead of
+// falling back to 0.0.0.
+def generatedVersionDir = layout.buildDirectory.dir('generated/version')
+
+tasks.register('generateVersionFile') {
+    group = 'build'
+    description = 'Write version.properties (app.version / build.timestamp) for ApplicationVersion.'
+    def outDir = generatedVersionDir
+    inputs.property('version', project.version)
+    outputs.dir(outDir)
+    doLast {
+        def dir = outDir.get().asFile
+        dir.mkdirs()
+        def file = new File(dir, 'version.properties')
+        file.text = "app.version=${project.version}\n" +
+                "build.timestamp=${java.time.OffsetDateTime.now()}\n"
+    }
+}
+
+processResources {
+    dependsOn 'generateVersionFile'
+    from(generatedVersionDir) {
+        into ''
+    }
+}
+
+dependencies {
+    // Jackson parses the published version.json release metadata.
+    implementation libs.jackson.databind
+    // SLF4J is the module's logging facade; slf4j-nop is a silent runtime
+    // provider so the desktop does not surface the module's internal logs.
+    implementation libs.slf4j.api
+    runtimeOnly libs.slf4j.nop
+    // Bouncy Castle OpenPGP verifies the optional detached signature of a
+    // downloaded update (update.signature.enabled). bcpg pulls in bcprov, but
+    // both are declared explicitly for clarity.
+    implementation libs.bcpg.jdk18on
+    implementation libs.bcprov.jdk18on
+
+    // Lombok is compile-time only (@Slf4j / @Value); it is not a runtime dep.
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    // Headless JUnit 5 + Mockito + AssertJ back the module's test suite.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.mockito.core
+    testImplementation libs.assertj.core
+    // The tests construct the Swing dialogs/panels and the notification manager,
+    // which degrade to logging headless; Lombok must run for the test sources too.
+    testCompileOnly libs.lombok
+    testAnnotationProcessor libs.lombok
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The notification manager degrades to logging when no desktop is available.
+    // Forcing headless keeps the suite deterministic, never touches the real
+    // system tray, and is CI-safe (no X display).
+    systemProperty 'java.awt.headless', 'true'
+    // The packaged version.properties reports the real lg3d version (1.9.0-dev),
+    // but the update-detection tests assert that a fixture version (0.5.2, 1.0.0)
+    // is offered as newer. Force the running version low via the documented
+    // override property so those assertions hold regardless of the build version.
+    systemProperty 'lg3d.version', '0.0.0'
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check`, so run it explicitly:
+// `./gradlew :update-manager:pitest`. mutationThreshold=0 means surviving
+// mutants never fail the build; the HTML/XML report under
+// build-gradle/reports/pitest shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI calls: they cannot run headless inside a mutation
+    // sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing']
+}

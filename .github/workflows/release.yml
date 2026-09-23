@@ -1,0 +1,262 @@
+name: Release
+
+# Publishes the update metadata (version.json) plus the lg3d-<version>.zip
+# distribution bundle as GitHub Release assets, so the update-manager's
+# UpdateRepository -- which reads
+#   https://github.com/<owner>/<repo>/releases/latest/download/version.json
+# (see update-manager/src/main/resources/update-config.properties and
+# UpdateRepository.DEFAULT_UPDATE_URL) -- resolves instead of failing with
+# UpdateServerUnavailableException. Without this workflow a live "check for
+# updates" always degrades to "no update could be fetched".
+#
+# version.json matches the schema UpdateRepository.parseUpdateInfo expects:
+#   latestVersion, releaseDate (ISO-8601 instant), critical, breakingChanges,
+#   minJavaVersion, changelog (URL), platforms.universal.{url,size,sha256,
+#   signatureUrl?,signingKeyId?}
+#
+# Signing is OPTIONAL and secret-driven. When the repository secrets
+# RELEASE_SIGNING_KEY (base64-encoded armored PGP private key) and
+# RELEASE_SIGNING_PASSPHRASE are set, the bundle is signed with an armored
+# detached signature (lg3d-<version>.zip.asc -- exactly the format
+# UpdateSignatureVerifier reads) and the public key is published as
+# public-key.asc (bundle it as the update.signature.public.key.resource to
+# enforce update.signature.enabled=true on the client). Without those secrets the
+# release is published UNSIGNED: version.json omits signatureUrl/signingKeyId and
+# the client default update.signature.enabled=false relies on the SHA-256
+# checksum alone. NEVER commit a signing key to the repository.
+#
+# Trigger: when a Release is published, or manually (workflow_dispatch) for an
+# existing tag. The bundle is built from the tag's source, so the published
+# artefacts always match the tagged commit.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)build and publish assets for (e.g. v1.9.0)'
+        required: true
+        type: string
+      critical:
+        description: 'Mark this release critical in version.json'
+        required: false
+        type: boolean
+        default: false
+      breaking_changes:
+        description: 'Flag breaking changes in version.json'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  # Needed to upload assets to (and, for workflow_dispatch on a tag without a
+  # release yet, create) the GitHub Release.
+  contents: write
+
+# Do not cancel an in-flight release publish: a half-uploaded version.json is
+# worse than a slightly delayed one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign & publish release assets
+    # lg3d is a Linux X11 desktop and CI builds/tests headless on Linux (see
+    # build.yml); the bundle carries the linux-amd64 Jogamp natives.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "release" ]; then
+            TAG="$RELEASE_TAG"
+          else
+            TAG="$INPUT_TAG"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "ERROR: could not resolve a release tag." >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$TAG version=$VERSION"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Gate the release on the test suite, then assemble the distribution
+      # bundle named after the tag (lg3d-<version>.zip).
+      - name: Test and assemble the release bundle
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: ./gradlew test :lg3d-core:releaseBundle -PreleaseVersion="$VERSION" --stacktrace
+
+      - name: Stage bundle + changelog asset
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          ZIP="lg3d-core/build-gradle/distributions/lg3d-${VERSION}.zip"
+          test -f "$ZIP" || { echo "ERROR: missing bundle $ZIP" >&2; exit 1; }
+          STAGING="$(pwd)/release-assets"
+          mkdir -p "$STAGING"
+          cp "$ZIP" "$STAGING/"
+          # changelog.md is what version.json's `changelog` URL points at;
+          # UpdateRepository.fetchChangelog GETs it as plain text, so prefer the
+          # release notes and fall back to the tracked CHANGELOG.md.
+          if [ -n "${RELEASE_BODY:-}" ]; then
+            printf '%s\n' "$RELEASE_BODY" > "$STAGING/changelog.md"
+          else
+            cp CHANGELOG.md "$STAGING/changelog.md"
+          fi
+          ls -l "$STAGING"
+
+      # Optional PGP signing. Skipped cleanly when RELEASE_SIGNING_KEY is unset,
+      # in which case the release is published unsigned (checksum-only).
+      - name: Sign the bundle (if a signing key is configured)
+        id: sign
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          SIGNING_PASSPHRASE: ${{ secrets.RELEASE_SIGNING_PASSPHRASE }}
+          SIGNING_KEY_ID: ${{ secrets.RELEASE_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          STAGING="$(pwd)/release-assets"
+          ZIP_NAME="lg3d-${VERSION}.zip"
+          if [ -z "${SIGNING_KEY:-}" ]; then
+            echo "No RELEASE_SIGNING_KEY secret; publishing unsigned (checksum-only)."
+            echo "signing=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$SIGNING_KEY" | base64 --decode | gpg --batch --import
+          KEY_ID="${SIGNING_KEY_ID:-}"
+          if [ -z "$KEY_ID" ]; then
+            KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
+          fi
+          # Armored detached signature over the raw zip bytes -- the exact format
+          # UpdateSignatureVerifier.verifySignature parses (ArmoredInputStream ->
+          # PGPSignatureList -> verify over Files.readAllBytes). The passphrase
+          # goes through an array so a value with spaces/metacharacters is passed
+          # as a single argument (no word splitting).
+          GPG_ARGS=(--batch --yes --pinentry-mode loopback
+                    --local-user "$KEY_ID" --armor --detach-sign
+                    --output "$STAGING/$ZIP_NAME.asc")
+          if [ -n "${SIGNING_PASSPHRASE:-}" ]; then
+            GPG_ARGS+=(--passphrase "$SIGNING_PASSPHRASE")
+          fi
+          gpg "${GPG_ARGS[@]}" "$STAGING/$ZIP_NAME"
+          # Publish the public key so users can bundle it as the client keyring
+          # (update.signature.public.key.resource) to enable signature checks.
+          gpg --armor --export "$KEY_ID" > "$STAGING/public-key.asc"
+          echo "signing=true" >> "$GITHUB_OUTPUT"
+          echo "key_id=$KEY_ID" >> "$GITHUB_OUTPUT"
+          echo "Signed $ZIP_NAME with key $KEY_ID"
+
+      - name: Generate version.json
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
+          SIGNING: ${{ steps.sign.outputs.signing }}
+          KEY_ID: ${{ steps.sign.outputs.key_id }}
+          CRITICAL: ${{ inputs.critical }}
+          BREAKING: ${{ inputs.breaking_changes }}
+        run: |
+          set -euo pipefail
+          STAGING="$(pwd)/release-assets"
+          ZIP_NAME="lg3d-${VERSION}.zip"
+          SIZE="$(stat -c %s "$STAGING/$ZIP_NAME")"
+          SHA256="$(sha256sum "$STAGING/$ZIP_NAME" | awk '{print $1}')"
+          RELEASE_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          SIG_URL=""; SIG_KEY=""
+          if [ "${SIGNING:-false}" = "true" ]; then
+            SIG_URL="${BASE}/${ZIP_NAME}.asc"
+            SIG_KEY="${KEY_ID:-}"
+          fi
+          CRIT="${CRITICAL:-false}"; BRK="${BREAKING:-false}"
+          # signatureUrl / signingKeyId are omitted when unsigned: the parser
+          # treats a missing signatureUrl as "" and a missing/null signingKeyId
+          # as null, falling back to the locally configured key.
+          jq -n \
+            --arg v "$VERSION" \
+            --arg d "$RELEASE_DATE" \
+            --arg url "${BASE}/${ZIP_NAME}" \
+            --argjson size "$SIZE" \
+            --arg sha "$SHA256" \
+            --arg sig "$SIG_URL" \
+            --arg key "$SIG_KEY" \
+            --arg cl "${BASE}/changelog.md" \
+            --argjson crit "$CRIT" \
+            --argjson brk "$BRK" \
+            '{
+              latestVersion: $v,
+              releaseDate: $d,
+              critical: $crit,
+              breakingChanges: $brk,
+              minJavaVersion: "21",
+              changelog: $cl,
+              platforms: {
+                universal: (
+                  { url: $url, size: $size, sha256: $sha }
+                  + (if $sig == "" then {} else { signatureUrl: $sig } end)
+                  + (if $key == "" then {} else { signingKeyId: $key } end)
+                )
+              }
+            }' > "$STAGING/version.json"
+          echo "--- version.json ---"
+          cat "$STAGING/version.json"
+
+      - name: Publish assets to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          STAGING="$(pwd)/release-assets"
+          # On `release: published` the release already exists; for a
+          # workflow_dispatch on a tag without a release yet, create it first so
+          # the assets (and the releases/latest redirect) resolve.
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" \
+              --notes "Automated release build of ${TAG}." --target "$GITHUB_SHA"
+          fi
+          shopt -s nullglob
+          ASSETS=("$STAGING/version.json" "$STAGING/changelog.md")
+          # nullglob only drops non-matching *patterns*; the literal
+          # public-key.asc path is passed through even when absent (unsigned
+          # release), so guard every candidate with an existence test.
+          for f in "$STAGING"/lg3d-*.zip "$STAGING"/lg3d-*.zip.asc "$STAGING"/public-key.asc; do
+            [ -e "$f" ] && ASSETS+=("$f")
+          done
+          # --clobber replaces same-named assets so a re-run is idempotent.
+          gh release upload "$TAG" --clobber "${ASSETS[@]}"
+          echo "Published to release $TAG:"
+          printf '  %s\n' "${ASSETS[@]}"

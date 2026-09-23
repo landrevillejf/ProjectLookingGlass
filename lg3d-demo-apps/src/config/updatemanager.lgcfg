@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Software Update (from lg3d-demo-apps). A Swing front end
+ for the update-manager module's update pipeline: check for a new release,
+ download and verify it (PGP signed), install, and configure the update channel
+ and periodic check schedule. In the 3D desktop the UpdateManagerPanel is put on
+ a SwingNode inside a Frame3D via TitledSwingWindow (the "java <class>" command);
+ in the 2D/Swing desktop the same panel is hosted as an MDI internal frame via
+ Desktop2DAppRegistry. The update-manager jar and its runtime deps (jackson,
+ slf4j, bouncycastle) are on the desktop run classpath. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.update.UpdateManager</string>
+  </void>
+  <void property="desc">
+   <string>Check for and install desktop updates</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/system.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>Software Update</string>
+  </void>
+ </object>
+</java>

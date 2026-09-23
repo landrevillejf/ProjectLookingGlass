@@ -17,6 +17,11 @@ jogampNatives = "2.6.0"   # GlueGen / JOGL / JOAL native libraries
 junit = "5.11.4"          # JUnit 5 BOM (Jupiter + Platform versions follow it)
 slf4j = "2.0.16"          # SLF4J API + no-op provider (jbusinessday runtime dep)
 javahelp = "2.0.05"       # JavaHelp (javax.help) Swing help framework, latest release
+jackson = "2.18.3"        # Jackson databind (update-manager version.json metadata)
+bouncycastle = "1.78.1"   # Bouncy Castle OpenPGP (update-manager detached-signature verification)
+lombok = "1.18.38"        # Lombok (update-manager @Slf4j / @Value), compile-time only
+mockito = "5.7.0"         # Mockito (update-manager test doubles)
+assertj = "3.24.2"        # AssertJ fluent assertions (update-manager tests)
 checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine
@@ -51,6 +56,18 @@ slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 # on a SwingNode (3D desktop) or in an MDI internal frame (2D/Swing desktop).
 # Used by lg3d-demo-apps; also resolved onto the lg3d-core run classpath.
 javahelp = { module = "javax.help:javahelp", version.ref = "javahelp" }
+
+# update-manager dependencies. Jackson parses the published version.json release
+# metadata; Bouncy Castle (bcpg pulls in bcprov) verifies the optional OpenPGP
+# detached signature of a downloaded update; Lombok is compile-time only
+# (@Slf4j / @Value); Mockito + AssertJ back the module's headless test suite.
+# slf4j-api / slf4j-nop (above) provide the logging facade the module uses.
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+bcpg-jdk18on = { module = "org.bouncycastle:bcpg-jdk18on", version.ref = "bouncycastle" }
+bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and
