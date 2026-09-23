@@ -790,6 +790,22 @@ work to make it build and run on a current toolchain.
   becoming orphan items re-appended to the menu root.
 
 ### Fixed
+- **`UpdateScheduler` could leave a phantom pending update** (`update-manager`) —
+  `scheduleUpdate` handed the task to the `ScheduledExecutorService` *before*
+  publishing it into `scheduledTasks`. An install time inside the current second
+  makes `ChronoUnit.SECONDS.between(now, installTime)` truncate to a **zero**
+  delay, so the worker thread could run `executeScheduledUpdate` and call
+  `scheduledTasks.remove(taskId)` before the caller's `put` executed; the remove
+  was then a no-op, the entry was added afterwards and lingered forever, so
+  `getPendingCount()` never returned to zero. This surfaced as an intermittent
+  `UpdateSchedulerTest.testListenerReceivesLifecycleEvents` failure (the
+  `awaitPendingCount(0)` assertion) on loaded CI runners, where the worker wins
+  the race more often than on a fast dev machine. The task is now published to
+  `scheduledTasks` before it is scheduled: `executor.schedule(...)` establishes a
+  happens-before edge, so the worker's `remove` always sees the entry. Verified
+  with a contention harness (buggy ordering leaked 8/4000 phantom entries, fixed
+  ordering 0/4000) and 15 `UpdateSchedulerTest` runs under saturated CPUs (0
+  failures).
 - **2D/Swing desktop widgets could not be dragged** — in the conventional Swing
   desktop (`SwingWidgetLayer`, the `--2d`/`--swing` widget host) grabbing a
   widget card and moving it made the card fly off the cursor instead of

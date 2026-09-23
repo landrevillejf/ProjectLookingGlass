@@ -70,6 +70,14 @@ public class UpdateScheduler {
             autoRestart
         );
 
+        // Publish the task before handing it to the executor. An install time
+        // within the current second truncates to a zero delay, so the worker can
+        // fire immediately; if it ran before the put, its remove() would be a
+        // no-op and the task would linger in scheduledTasks forever, leaving
+        // getPendingCount() stuck above zero. schedule() establishes a
+        // happens-before edge, so this put is always visible to the worker.
+        scheduledTasks.put(taskId, task);
+
         ScheduledFuture<?> future = executor.schedule(
             () -> runScheduledUpdate(task),
             delaySeconds,
@@ -77,7 +85,6 @@ public class UpdateScheduler {
         );
 
         task.setScheduledFuture(future);
-        scheduledTasks.put(taskId, task);
 
         log.info("Update {} scheduled for {} (in {} seconds)",
             updateVersion, installTime, delaySeconds);
