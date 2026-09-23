@@ -781,6 +781,13 @@ work to make it build and run on a current toolchain.
   `nu/koidelab` (Cosmo), `archviz3d`, `intel3d`, `browser`, `browser3d`,
   `wilkoaim3d`. (`luncher`, `orgchart`, `nlc` and `jmf23D` were previously in
   this list and have since been ported — see Added.)
+- **`Demos` start-menu entry** (`lg3d-core`) — the root `Main` group in
+  `startmenu.lgcfg` no longer links to the `Demos` folder, so it (and its
+  `Tests` / `Early Prototypes` sub-folders — the tutorial/sample/prototype
+  descriptors) is dropped from both the 2D/Swing and the 3D start menu. No
+  production application lives under `Demos`; the group *definitions* are kept
+  in the descriptor so their items stay grouped (and unreachable) rather than
+  becoming orphan items re-appended to the menu root.
 
 ### Fixed
 - **2D/Swing desktop widgets could not be dragged** — in the conventional Swing

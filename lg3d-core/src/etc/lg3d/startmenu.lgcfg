@@ -17,7 +17,7 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Main menu group</string>
   </void>
   <void property="groupLinks">
-   <array class="java.lang.String" length="8">
+   <array class="java.lang.String" length="7">
     <void index="0">
      <string>Internet</string>
     </void>
@@ -34,12 +34,9 @@ startmenu.lgcfg - Basic Start Menu configuration file
      <string>Office</string>
     </void>
     <void index="5">
-     <string>Demos</string>
-    </void>
-    <void index="6">
      <string>Developers</string>
     </void>
-    <void index="7">
+    <void index="6">
      <string>System</string>
     </void>
    </array>
