@@ -137,6 +137,22 @@ public final class Desktop2DAppRegistry {
         // the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.update.UpdateManager",
                 "org.jdesktop.lg3d.apps.update.UpdateManagerPanel");
+        // The Games-group native-3D apps (lg3d-incubator) each ship a plain
+        // Swing panel that reuses the same AWT-free game engine (minimax /
+        // generator-solver / negamax / Klondike) as the 3D app, so the one
+        // start-menu descriptor (keyed here on the 3D main class) launches the
+        // panel as an MDI frame in the 2D/Swing desktop while the 3D desktop
+        // keeps building the Frame3D. The incubator jar is on the desktop run
+        // classpath, so the reflective lookup resolves, and none of these
+        // panels loads Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.games.tictactoe.TicTacToe3D",
+                "org.jdesktop.lg3d.apps.games.tictactoe.TicTacToePanel");
+        panels.put("org.jdesktop.lg3d.apps.games.sudoku.Sudoku3D",
+                "org.jdesktop.lg3d.apps.games.sudoku.SudokuPanel");
+        panels.put("org.jdesktop.lg3d.apps.games.chess.Chess3D",
+                "org.jdesktop.lg3d.apps.games.chess.ChessPanel");
+        panels.put("org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D",
+                "org.jdesktop.lg3d.apps.games.solitaire.SolitairePanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

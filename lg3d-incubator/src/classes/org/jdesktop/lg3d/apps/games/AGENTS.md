@@ -19,8 +19,8 @@
 | Item | Value |
 | --- | --- |
 | Status | **Production-grade** native-3D apps (supported showcase) |
-| Surface | **pure-3D `Frame3D`** — click-driven (no keyboard focus in dev mode) |
-| Shared pattern | Three files per game: `<Game>Model` (pure Java, no AWT) · `<Game>View` (live-texture `Component3D`) · `<Game>3D` (`Frame3D` host + `AgendaButton` strip) |
+| Surface | **pure-3D `Frame3D`** (3D desktop) **+ a Swing panel per game** (`TicTacToePanel`/`SudokuPanel`/`ChessPanel`/`SolitairePanel`, 2D/Swing desktop) — both off the same AWT-free model |
+| Shared pattern | Three files per game: `<Game>Model` (pure Java, no AWT) · `<Game>View` (live-texture `Component3D`) · `<Game>3D` (`Frame3D` host + `AgendaButton` strip); plus an optional fourth `<Game>Panel` (`JPanel`, no Java 3D) that reuses the model for the 2D/Swing desktop |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 **Engines:** TicTacToe = unbeatable full-width minimax (`bestMove()` opening
@@ -37,7 +37,12 @@ auto-finish, undo, hints) with vector suit shapes (`Path2D`/`Ellipse2D`, no font
 - **Architect** — All four share one proven shape: a plain-Java **model**, a
   live-texture **view**, and a `Frame3D` **host** with a runtime-drawn `AgendaButton`
   control strip. Keep the model free of AWT/Java 3D so it unit-tests headless; keep
-  the view/host thin. New games must follow this three-file pattern.
+  the view/host thin. New games must follow this three-file pattern. Because the
+  model is AWT-free, each game also ships an optional fourth file — a `<Game>Panel`
+  (`JPanel`) that reuses the same model for the 2D/Swing desktop and is registered in
+  `Desktop2DAppRegistry.PANEL_APPS` on the `<Game>3D` main class, so the one shared
+  descriptor serves both desktops. The panel must never load a Java 3D class (it must
+  not reference the `<Game>View`/`<Game>3D` even for constants — duplicate them).
 - **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
   rule**: one fixed-size `ImageComponent2D` (`ALLOW_IMAGE_WRITE`) attached to a
   `Texture2D` once off-live; repaint + `.set()` in place, never re-attach. Use
@@ -62,9 +67,18 @@ auto-finish, undo, hints) with vector suit shapes (`Path2D`/`Ellipse2D`, no font
   `lg3d-apps`, so a games PR usually spans two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icons via `GenerateAppIcons.java`) + `./run-lg3d.sh`
   + capture/log evidence.
-- **UI/UX (3D & 2D)** — **3D only**: boards, pieces/cards and control buttons are all
-  runtime-drawn scene-graph nodes (no PNG assets). Follow the glassy vocabulary,
-  depth ordering, hover/press feedback and click-driven-input rules from core.
+- **UI/UX (3D & 2D)** — **Runs in both desktops.** In the 3D desktop the boards,
+  pieces/cards and control buttons are all runtime-drawn scene-graph nodes (no PNG
+  assets): follow the glassy vocabulary, depth ordering, hover/press feedback and
+  click-driven-input rules from core. In the 2D/Swing desktop the **same start-menu
+  descriptor** launches an idiomatic Swing panel registered in
+  `Desktop2DAppRegistry.PANEL_APPS` on the `<Game>3D` main class: `TicTacToePanel` (a
+  3x3 grid of `JButton`s), `SudokuPanel` (a 9x9 grid of keyboard-editable
+  `JTextField`s with a difficulty combo and conflict highlighting), `ChessPanel` (an
+  8x8 button board, click-to-select / click-to-move, Unicode piece glyphs) and
+  `SolitairePanel` (a custom-painted Klondike table with click-to-select / click-to-
+  move and double-click-to-foundation). Each reuses the AWT-free model, so rules and
+  state are identical across both desktops, and none may ever load a Java 3D class.
 
 ## Communication & coherence
 

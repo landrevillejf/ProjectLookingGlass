@@ -75,6 +75,11 @@ sourceSets {
             exclude '**/*.java'
         }
     }
+    test {
+        java {
+            srcDir 'src/test/java'
+        }
+    }
 }
 
 // The desktop app descriptors under src/config are bundled at the jar root.
@@ -108,4 +113,48 @@ dependencies {
     // NOP avoids the "no SLF4J providers were found" startup warning.
     runtimeOnly libs.slf4j.api
     runtimeOnly libs.slf4j.nop
+
+    // Unit tests for the Java 3D-free Swing panels that back the Games apps in
+    // the 2D/Swing desktop (TicTacToePanel, SudokuPanel, ChessPanel,
+    // SolitairePanel). They reuse the apps' AWT-free game engines, so they are
+    // exercised headless (a JPanel needs no X display).
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The panels are plain Swing; run headless so CI (no X display) does not
+    // fail on the JPanel/JTextField/JButton the tests build.
+    systemProperty 'java.awt.headless', 'true'
+    // The bundled ext/axis/xercesImpl.jar is an ancient Xerces that registers
+    // itself as the JAXP DocumentBuilderFactory (via META-INF/services) and
+    // references org.w3c.dom.ls.DocumentLS, a class long removed from the JDK.
+    // Because the java.xml module owns the org.w3c.dom.ls package, a classpath
+    // jar cannot also supply it (split package). The `implementation fileTree(ext)`
+    // above pulls it onto the *test* runtime classpath, so drop it here to keep
+    // the platform XML parser intact (the :lg3d-core run classpath omits it too).
+    classpath = classpath.filter { !it.name.equals('xercesImpl.jar') }
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check` (mutation analysis is slow), so run it
+// explicitly: `./gradlew :lg3d-incubator:pitest`. mutationThreshold=0 means
+// surviving mutants never fail the build; the report under
+// build-gradle/reports/pitest shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI calls: they cannot run headless inside a mutation
+    // sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing']
 }
