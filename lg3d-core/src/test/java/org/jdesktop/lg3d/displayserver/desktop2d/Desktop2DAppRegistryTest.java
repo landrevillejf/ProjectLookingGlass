@@ -179,6 +179,35 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D"));
     }
 
+    @Test
+    @DisplayName("the Games-group 3D apps map to their 2D Swing panels")
+    void gameAppsAreHostedPanels() {
+        // The four Games start-menu apps are pure-3D in the 3D desktop but ship
+        // an AWT/Swing panel (in lg3d-incubator) for the 2D/Swing desktop, keyed
+        // on the 3D main class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.games.tictactoe.TicTacToe3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.games.sudoku.Sudoku3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.games.chess.Chess3D"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D"));
+
+        assertEquals("org.jdesktop.lg3d.apps.games.tictactoe.TicTacToePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.games.tictactoe.TicTacToe3D"));
+        assertEquals("org.jdesktop.lg3d.apps.games.sudoku.SudokuPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.games.sudoku.Sudoku3D"));
+        assertEquals("org.jdesktop.lg3d.apps.games.chess.ChessPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.games.chess.Chess3D"));
+        assertEquals("org.jdesktop.lg3d.apps.games.solitaire.SolitairePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------

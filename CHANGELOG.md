@@ -33,6 +33,28 @@ work to make it build and run on a current toolchain.
   `PANEL` and map to their panel FQNs, and a conservative `lg3d-incubator` coverage
   floor is pinned in the root build. The `mail` and `orgchart` per-app `AGENTS.md`
   UI/UX rows now document both surfaces.
+- **Games in the 2D/Swing desktop** (`lg3d-incubator`, `lg3d-core`) — the four
+  pure-3D *Games* start-menu apps (Tic-Tac-Toe 3D, Sudoku 3D, Chess 3D, Solitaire 3D)
+  now launch in the 2D/Swing desktop instead of appearing disabled with a "Requires
+  the 3D desktop" tooltip. Each gains a plain-Swing `JPanel` counterpart in
+  `lg3d-incubator` — `TicTacToePanel`, `SudokuPanel`, `ChessPanel` and
+  `SolitairePanel` — registered in `Desktop2DAppRegistry.PANEL_APPS` on the game's
+  existing 3D main class, so the *same shared `.lgcfg` descriptors* now flip from
+  `UNAVAILABLE` to `PANEL` in the 2D menu with no descriptor, icon or run-classpath
+  change (the incubator jar is already on the `:lg3d-core:run` classpath, so the
+  reflective lookup resolves — the same precedent as `WidgetGalleryPanel` and
+  `LPMConsolePanel`). The panels are idiomatic Swing (a 3x3 button grid; a 9x9 grid of
+  keyboard-editable fields with a difficulty combo and conflict highlighting; a
+  custom-painted 8x8 click-to-move board with Unicode piece glyphs; a custom-painted
+  Klondike table with click-to-select / click-to-move and double-click-to-foundation)
+  that reuse each game's **AWT-free engine** (`TicTacToeModel`, `SudokuModel`,
+  `ChessModel`, `SolitaireModel`), so rules and play are identical across both
+  desktops. None loads a Java 3D class, so a 3D-less JVM still runs them. A new
+  `lg3d-incubator` JUnit 5 test source set exercises all four panels headless
+  (42 tests), `Desktop2DAppRegistryTest` asserts the four commands classify as
+  `PANEL` and map to their panel FQNs, a conservative `lg3d-incubator` coverage floor
+  is pinned in the root build, report-only PIT is wired, and the `games` per-app
+  `AGENTS.md` Surface / UI-UX rows now document both surfaces.
 - **Per-module role guides** (`AGENTS.md`) — every built module now ships a
   role-aware `AGENTS.md` following one shared template so all roles read each
   other's guidance coherently: *Module at a glance*, *How the roles work
