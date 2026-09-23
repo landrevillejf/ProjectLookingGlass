@@ -601,6 +601,14 @@ work to make it build and run on a current toolchain.
   this list and have since been ported — see Added.)
 
 ### Fixed
+- **`Desktop2DAppRegistryTest` assumed a Unix host** — the new multi-OS CI matrix
+  (below) exposed `isExternalAvailable resolves the executable token`, which
+  hardcoded `/bin/sh` and so failed on the Windows leg: `ProcessRunner.isAvailable`
+  only treats a token as an absolute path when it contains `File.separatorChar`
+  (`\` on Windows), so `/bin/sh` fell through to a PATH lookup and never resolved.
+  The single test is split into `@EnabledOnOs({LINUX, MAC})` and
+  `@EnabledOnOs(WINDOWS)` variants (`/bin/sh` vs the always-on-PATH `cmd.exe`),
+  sharing the null/blank/impossible-token negatives.
 - **2D/Swing desktop widgets could not be dragged** — in the conventional Swing
   desktop (`SwingWidgetLayer`, the `--2d`/`--swing` widget host) grabbing a
   widget card and moving it made the card fly off the cursor instead of
