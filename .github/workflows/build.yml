@@ -11,6 +11,10 @@ on:
     branches: [ master, main ]
   pull_request:
     branches: [ master, main ]
+  # Weekly supply-chain scan (see the `security` job) even without a push, so
+  # newly-published CVEs against the bundled dependencies still surface.
+  schedule:
+    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -23,8 +27,25 @@ concurrency:
 
 jobs:
   build:
-    name: Build (JDK 21)
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.os }}, JDK 21)
+    # lg3d-core/build.gradle picks the Jogamp native classifier per OS
+    # (natives-linux-amd64 / natives-macosx-universal / natives-windows-amd64),
+    # so building on all three validates that logic. Compilation and the tests
+    # are headless (java.awt.headless=true) and Java-3D-free, and the natives are
+    # runtimeOnly, so no X display and no native load are needed to go green.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Keep going on the other OSes when one fails, so a single-platform issue
+      # does not hide the state of the rest.
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+
+    # Run every `run:` step through bash (Git Bash on Windows) so `./gradlew`
+    # works uniformly across the matrix instead of needing gradlew.bat on Windows.
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Check out repository
@@ -50,9 +71,8 @@ jobs:
       # Run the unit tests as their own visible CI step so a test failure is
       # attributed here rather than buried inside `build`. --continue runs every
       # module's suite before failing, so one module's failure does not hide the
-      # others. The tests are Java-3D-free and run headless (java.awt.headless
-      # =true is set in each module's test task), so no X display is needed.
-      # Each test task finalizes jacocoTestReport, so coverage is produced too.
+      # others. Each test task finalizes jacocoTestReport, and `check` also runs
+      # the jacocoTestCoverageVerification ratchet + report-only Checkstyle.
       - name: Run unit tests
         run: ./gradlew test --continue --stacktrace
 
@@ -67,24 +87,26 @@ jobs:
       - name: Assemble runtime resources
         run: ./gradlew :lg3d-core:runtimeResources --stacktrace
 
-      # Publish the JUnit + JaCoCo reports on every run (including failures) so
-      # test results and coverage are downloadable artifacts, not just console
-      # logs. Coverage is report-only for now (see the root build.gradle jacoco
-      # block): lg3d-core is ~1% covered and lg3d-widgets ~40%, far below the
-      # 100% goal in AGENTS.md, so no failing threshold gate is applied yet.
-      - name: Upload test & coverage reports
-        if: always()
+      # Reports and jars are identical across the three OSes (Java bytecode; the
+      # natives are runtimeOnly and not packaged), so publish them once from the
+      # ubuntu leg -- this avoids same-name artifact collisions between matrix
+      # legs and redundant uploads. Coverage/Checkstyle are report-only (see the
+      # root build.gradle): the ratchet floor sits just below current coverage,
+      # and Checkstyle runs with ignoreFailures=true.
+      - name: Upload test, coverage & checkstyle reports
+        if: always() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: lg3d-test-reports
           path: |
             **/build-gradle/reports/tests/**
             **/build-gradle/reports/jacoco/**
+            **/build-gradle/reports/checkstyle/**
             **/build-gradle/test-results/**
           if-no-files-found: warn
 
       - name: Upload module jars
-        if: success()
+        if: success() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: lg3d-jars
@@ -94,3 +116,57 @@ jobs:
             lg3d-demo-apps/build-gradle/libs/*.jar
             lg3d-incubator/build-gradle/libs/*.jar
           if-no-files-found: error
+
+  # Supply-chain visibility. Generates a CycloneDX SBOM for every module and runs
+  # OWASP dependency-check across all resolved dependencies (including the
+  # bundled 2006-era incubator jars). Skipped on pull_request: the first NVD feed
+  # download is large/network-heavy and would slow every PR. Runs on main/master
+  # pushes, the weekly schedule and manual dispatch. dependency-check is
+  # continue-on-error and report-only (failBuildOnCVSS=11, above the max real
+  # CVSS of 10): the retained legacy jars have known CVEs documented in
+  # SECURITY.md, so a finding informs rather than red-lines the build. Set an
+  # NVD_API_KEY repository secret to make the NVD feed download fast.
+  security:
+    name: SBOM & dependency scan
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Generate SBOM (CycloneDX)
+        run: ./gradlew cyclonedxBom --continue --stacktrace
+
+      - name: Run OWASP dependency-check
+        continue-on-error: true
+        env:
+          # Optional; empty when the secret is unset (the build.gradle guard
+          # ignores a blank key and falls back to the unauthenticated feed).
+          ORG_GRADLE_PROJECT_nvdApiKey: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAggregate --continue --stacktrace
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lg3d-security-reports
+          path: |
+            **/build-gradle/reports/bom.json
+            **/build-gradle/reports/bom.xml
+            build/reports/dependency-check-report.html
+            build/reports/dependency-check-report.json
+          if-no-files-found: warn

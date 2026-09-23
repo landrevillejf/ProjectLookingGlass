@@ -169,6 +169,27 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check` (mutation analysis is slow on a module this
+// size), so run it explicitly: `./gradlew :lg3d-core:pitest`. mutationThreshold
+// =0 means surviving mutants never fail the build; the HTML/XML report under
+// build-gradle/reports/pitest shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI / Java 3D calls: they cannot run headless inside a
+    // mutation sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing', 'org.jogamp.java3d', 'org.jogamp.vecmath']
+}
+
+// ---------------------------------------------------------------------------
 // runtimeResources: assemble the legacy top-level "resources/" classpath tree
 // ---------------------------------------------------------------------------
 // LG3D resolves its artwork through the classpath under a top-level

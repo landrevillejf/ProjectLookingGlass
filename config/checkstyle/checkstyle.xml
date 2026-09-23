@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  LG3D Checkstyle configuration (report-only).
+
+  The 2006-era sources trip thousands of purely-cosmetic rules, so this config
+  deliberately enables ONLY high-signal, bug-prone-pattern checks and omits
+  formatting / whitespace / Javadoc / naming rules. The Checkstyle task runs
+  with ignoreFailures=true (see the root build.gradle): it produces an XML+HTML
+  report that CI uploads, but never fails the build. Tighten it per module
+  (ignoreFailures=false) as that module's code is cleaned up.
+
+  Suppress a specific region with:
+      //CHECKSTYLE:OFF
+      ...legacy code...
+      //CHECKSTYLE:ON
+-->
+<module name="Checker">
+    <property name="severity" value="warning"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="TreeWalker">
+        <!-- Imports -->
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+
+        <!-- Bug-prone patterns -->
+        <module name="CovariantEquals"/>
+        <module name="EqualsHashCode"/>
+        <module name="StringLiteralEquality"/>
+        <module name="InnerAssignment"/>
+        <module name="IllegalInstantiation"/>
+        <module name="EmptyStatement"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+
+        <!-- switch correctness -->
+        <module name="MissingSwitchDefault"/>
+        <module name="DefaultComesLast"/>
+        <module name="FallThrough"/>
+
+        <!-- Structure -->
+        <module name="PackageDeclaration"/>
+
+        <!-- Region suppression -->
+        <module name="SuppressionCommentFilter"/>
+    </module>
+</module>

@@ -475,6 +475,25 @@ work to make it build and run on a current toolchain.
   (no failing threshold): the first measured baseline is lg3d-core ≈ 1.4% and
   lg3d-widgets ≈ 40% line coverage (74 passing tests), far below the 100% goal in
   `AGENTS.md`, so a gate would red-line every build until coverage improves.
+- **Build-quality & supply-chain tooling (report-only)** — a second audit-
+  remediation pass wires the tooling that makes the `AGENTS.md` 100%-coverage /
+  0-mutant goal and the supply-chain gaps *measurable* without enforcing a hard
+  gate that would red-line the ~200k-line legacy port:
+  - a **JaCoCo coverage ratchet** — `jacocoTestCoverageVerification` joins
+    `check` for the two modules with test suites, each with a floor set just
+    below current coverage (lg3d-core 1.0% line / 2.0% branch; lg3d-widgets
+    35% line / 22% branch), so a regression fails but ordinary churn stays green;
+  - **Checkstyle** static analysis from a single shared high-signal config
+    (`config/checkstyle/checkstyle.xml`, bug-prone patterns only) with
+    `ignoreFailures=true`, publishing XML+HTML reports;
+  - **PIT** mutation testing (`info.solidsoft.pitest`) on `lg3d-core` and
+    `lg3d-widgets`, on-demand via `./gradlew :lg3d-core:pitest`, with
+    `avoidCallsTo` excluding `java.awt`/`javax.swing`/`org.jogamp.*`;
+  - a **CycloneDX SBOM** per module (`./gradlew cyclonedxBom`);
+  - **OWASP Dependency-Check** (`./gradlew dependencyCheckAggregate`) across every
+    module's resolved dependencies, report-only (`failBuildOnCVSS=11`) with an
+    optional `-PnvdApiKey`.
+  Plugin/tool versions are declared in `gradle/libs.versions.toml`.
 - **Gradle version catalog** (`gradle/libs.versions.toml`) — centralizes the
   Java 3D (1.7.2), Jogamp-natives (2.6.0), JUnit (5.11.4) and SLF4J (2.0.16)
   versions. `lg3d-core`, `lg3d-widgets` and `lg3d-incubator` now reference
@@ -498,7 +517,13 @@ work to make it build and run on a current toolchain.
   JaCoCo reports on every run, including failures. Removed the inaccurate "the
   lg3d modules live in git submodules / check out recursively" claim and its
   `submodules: recursive` checkout: this is a single repository with no
-  submodules, so a plain checkout fetches every module's sources.
+  submodules, so a plain checkout fetches every module's sources. The build job
+  now runs across a **multi-OS matrix** (`ubuntu`/`macos`/`windows`,
+  `fail-fast: false`) to validate the per-OS Jogamp native classifier selection,
+  uploads the Checkstyle reports alongside the coverage reports, and a new
+  `security` job generates the CycloneDX SBOM and runs OWASP Dependency-Check
+  (continue-on-error) on `main`/`master` pushes, a weekly schedule and manual
+  dispatch — skipped on pull requests to avoid the heavy first NVD download.
 - **Documentation accuracy** — `README.md` and `AGENTS.md` now state plainly that
   this is a single repository (no git submodules), list `lpm-console` among the
   built modules, and correct stale `1.0.1-dev` jar-name examples to the current

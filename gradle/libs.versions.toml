@@ -16,6 +16,16 @@ java3d = "1.7.2"          # Jogamp-maintained fork of the Sun Java 3D 1.5/1.6 AP
 jogampNatives = "2.6.0"   # GlueGen / JOGL / JOAL native libraries
 junit = "5.11.4"          # JUnit 5 BOM (Jupiter + Platform versions follow it)
 slf4j = "2.0.16"          # SLF4J API + no-op provider (jbusinessday runtime dep)
+checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
+pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
+pitest = "1.17.0"         # PIT mutation-testing engine
+pitestJunit5 = "1.2.1"    # PIT <-> JUnit 5 bridge
+
+# Build-analysis plugins. Declared here (not hardcoded in build.gradle) so a
+# bump is a one-line change; applied with `apply false` at the root and enabled
+# per module. All run report-only / on-demand so they never red-line `build`.
+cyclonedx = "1.8.2"             # CycloneDX SBOM generation
+dependencyCheck = "10.0.4"      # OWASP dependency-check (CVE scanning)
 
 [libraries]
 # Java 3D (Jogamp). Exposed transitively by lg3d-core to every downstream module.
@@ -34,3 +44,11 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 # must be on the runtime classpath.
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+
+[plugins]
+# Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and
+# need no alias). Referenced from the root build.gradle `plugins {}` block as
+# e.g. `alias(libs.plugins.cyclonedx) apply false`.
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
+pitest = { id = "info.solidsoft.pitest", version.ref = "pitestPlugin" }
+dependencyCheck = { id = "org.owasp.dependencycheck", version.ref = "dependencyCheck" }

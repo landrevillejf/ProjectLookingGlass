@@ -73,7 +73,25 @@ Mitigations in place:
 - Incubator applications should be treated as **experimental and untrusted**;
   they are not part of the validated desktop.
 
-There is currently **no automated dependency vulnerability scanning** (e.g.
-OWASP Dependency-Check) and **no generated SBOM**. A hard CVE gate is not
-appropriate while these known-vulnerable jars are intentionally retained; see
-[`AUDIT.md`](AUDIT.md) for the tracked remediation plan.
+## Supply-chain scanning (report-only)
+
+Automated supply-chain visibility is now wired in, but deliberately
+**report-only** — a hard CVE gate is not appropriate while the known-vulnerable
+legacy jars above are intentionally retained:
+
+- **SBOM.** `./gradlew cyclonedxBom` writes a CycloneDX Software Bill of
+  Materials (exact resolved component versions) per module under
+  `<module>/build-gradle/reports/bom.{json,xml}`.
+- **Dependency vulnerability scanning.** `./gradlew dependencyCheckAggregate`
+  runs OWASP Dependency-Check across every module's resolved dependencies
+  (including the bundled incubator jars) against the NVD. It is configured with
+  `failBuildOnCVSS=11` — above the maximum real CVSS score of 10 — so a finding
+  informs rather than red-lines the build. Pass `-PnvdApiKey=KEY` (or set
+  `ORG_GRADLE_PROJECT_nvdApiKey`) to speed up the NVD feed download.
+- **CI.** The `security` job in `.github/workflows/build.yml` generates the SBOM
+  and runs the dependency scan on `main`/`master` pushes, the weekly schedule and
+  manual dispatch (skipped on pull requests to avoid the heavy first NVD
+  download), and uploads the reports as artifacts. Findings against the retained
+  legacy jars are expected and documented above.
+
+See [`AUDIT.md`](AUDIT.md) for the tracked remediation plan.
