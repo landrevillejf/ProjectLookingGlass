@@ -1,5 +1,61 @@
 # Task Manager Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Production** daily-driver utility (process monitor) |
+| Entry point | `TaskManager.main` → `TitledSwingWindow.show(...)` hosting `TaskManagerPanel` |
+| Surface | **SwingNode-in-Frame3D** (680x480); the same panel is reused in the 2D desktop |
+| Start-menu name / group | Task Manager / **System** |
+| Command | `java org.jdesktop.lg3d.apps.taskmanager.TaskManager` |
+| Descriptor | `src/config/taskmanager.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `TaskManagerPanel` (Swing UI + 2s refresh `Timer`) +
+`ProcessTableModel` (JDK 9+ `ProcessHandle`).
+
+## Roles
+
+- **Architect** — Production process monitor hosted through `TitledSwingWindow`/
+  `SwingNode`; keep the panel plain Swing so it drives both desktops. The panel owns
+  its refresh `Timer` and exposes `setOnClose(Runnable)` so the host can disable the
+  `Frame3D` — preserve that lifecycle seam.
+- **Engineer / Developer** — Follow the core UI/UX rulebook: offscreen SwingNode
+  paint, no modal dialogs (in-panel confirm before kill), EDT hops from lg3d
+  listeners, `dispose()` on discard, Metal LAF via `installHostedLookAndFeel`.
+  **Always stop the refresh timer on close** (leak guard); sample CPU off the EDT.
+  Jogamp packages only.
+- **QA** — Unit-test `ProcessTableModel`/CPU-percentage math headless (no real
+  process killing in CI). Verify the hosted window and 2s refresh with the in-JVM
+  probe + internal screencapture; a black host capture under Wayland is not a defect.
+- **Business Analyst** — A shipped system utility (view and control running
+  processes). Production standards apply; note process kill is a sensitive action.
+- **Functional Analyst** — Spec user-visible function (list, refresh, CPU/memory
+  columns, kill) plus the contract with core. Known gaps: fixed 2s interval, kill
+  not yet implemented, no sort/filter — track these as backlog, not defects.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Done = build +
+  `./run-lg3d.sh` + capture/log evidence in the PR. Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame + transparency
+  ordering. 2D: the Swing process table/toolbar panel, identical in the 2D desktop.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Task Manager is a system monitoring application that displays running processes with CPU usage information. It provides a Swing-based UI with a table showing process details and real-time CPU sampling, hosted within a 3D Frame3D using SwingNode.

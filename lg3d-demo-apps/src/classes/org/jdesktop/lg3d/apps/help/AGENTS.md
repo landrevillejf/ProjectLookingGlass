@@ -1,5 +1,64 @@
 # LG3D Help Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Production** daily-driver utility (Help Center) + a legacy sample front end (`Lg3dHelp`) |
+| Entry points | `HelpCenter.main` → `TitledSwingWindow.show(...)` hosting `HelpCenterPanel`; `Lg3dHelp.main` (legacy static-image sample) |
+| Surface | **SwingNode-in-Frame3D** (Help Center); also hosted in the 2D desktop via `Desktop2DAppRegistry.PANEL_APPS` |
+| Start-menu name / group | Help Center / **Utilities** (the legacy `Lg3dHelp` = "Simple Sample Help", a taskbar `ApplicationDescription`, not a start-menu item) |
+| Command | `java org.jdesktop.lg3d.apps.help.HelpCenter` |
+| Descriptors | `src/config/helpcenter.lgcfg` (production) + `src/config/help.lgcfg` (legacy sample) → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` (search index: `:lg3d-demo-apps:generateHelpSearchIndex`) |
+
+**Components:** `HelpCenterPanel` (JavaHelp `javax.help:javahelp:2.0.05`, 14 HTML
+topics) + the generated search index; `HelpContentTest` guards topic content.
+
+## Roles
+
+- **Architect** — Two front ends live here: the **production `HelpCenter`/
+  `HelpCenterPanel`** (JavaHelp-backed, start-menu registered, reused in the 2D
+  desktop) and the **legacy `Lg3dHelp`** sample (a static image, kept for history).
+  New work targets `HelpCenter`; do not extend `Lg3dHelp`. The JavaHelp search index
+  is generated at build time (`generateHelpSearchIndex`), not hand-maintained.
+- **Engineer / Developer** — Follow the core UI/UX rulebook for the SwingNode host
+  (offscreen paint, no modal dialogs, EDT hops, `dispose()`, Metal LAF). Help topics
+  are HTML under the app's resources; after editing topics, regenerate the search
+  index. Keep `HelpCenterPanel` plain Swing so the 2D desktop can host it. Jogamp only.
+- **QA** — `HelpContentTest` runs headless and asserts topic content/links. Verify
+  the hosted window and topic navigation with the in-JVM probe + internal
+  screencapture; a black host capture under Wayland is not a defect. Confirm the
+  search index is regenerated when topics change.
+- **Business Analyst** — Help Center is the shipped desktop user guide (complete,
+  discoverable under Utilities). Production standards apply; the legacy sample has no
+  user value and exists only for reference.
+- **Functional Analyst** — Spec user-visible function (browse/search 14 topics,
+  navigate links) plus the contract with core (SwingNode surface, PANEL_APPS reuse,
+  descriptor fields). Clearly separate `HelpCenter` (product) from `Lg3dHelp` (sample).
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Done = build (+ regenerated
+  index) + `./run-lg3d.sh` + evidence. Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame + transparency ordering.
+  2D: the JavaHelp Swing panel, identical in the 2D desktop. Keep topic styling
+  consistent with the desktop look.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 This package holds two help front ends:

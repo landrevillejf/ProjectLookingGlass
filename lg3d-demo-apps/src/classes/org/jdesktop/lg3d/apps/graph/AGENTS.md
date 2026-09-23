@@ -1,5 +1,57 @@
 # Sample Graph Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / demo** (spring-damper physics graph) — technique showcase, not shipped |
+| Entry point | `SampleGraph.main` |
+| Surface | **pure-3D `Frame3D`** with spring-damper-animated nodes |
+| Start-menu name / group | *None* — no `.lgcfg` descriptor (developer sample, launched directly) |
+| Command | `java org.jdesktop.lg3d.apps.graph.SampleGraph` |
+| Descriptor | *None* |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `SprungFrame3D` / `Spring` — a small node graph whose layout settles
+via the in-tree spring-damper (the replacement for the excluded ODE physics).
+
+## Roles
+
+- **Architect** — Demonstrates the **in-tree spring-damper** animation that replaced
+  the excluded ODE physics path. `SprungFrame3D`/`Spring` are the reference for
+  physics-driven layout; keep them decoupled from any single graph shape.
+- **Engineer / Developer** — Obey the core UI/UX rulebook (wrap raw `Node`s in
+  `Component3D`, sort translucency, texture pixels before attach). Animation state is
+  advanced off the render loop — do not touch Swing from the J3d thread. Jogamp only.
+- **QA** — Verify the graph settles (springs converge) with the in-JVM probe +
+  internal screencapture; check the log for exceptions. Little headless logic beyond
+  the spring math, which can be unit-tested if extracted.
+- **Business Analyst** — Demonstration value only (physics-based layout). No end-user
+  product surface; not start-menu registered.
+- **Functional Analyst** — Spec as a demonstration (N nodes connected by springs
+  settle into a stable layout). No descriptor is intentional for a sample.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; opportunistic.
+  Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **3D only**: spring-animated nodes/edges in a `Frame3D`.
+  Follow the glassy vocabulary and depth rules from core.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Sample Graph is a physics-based demonstration of the spring-damper system in LG3D. It creates a graph of connected nodes (frames) that interact via spring forces, demonstrating dynamic scene graph behavior.

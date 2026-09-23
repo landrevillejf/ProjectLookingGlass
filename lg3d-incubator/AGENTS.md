@@ -28,6 +28,14 @@ Agenda 3D, the Games (tictactoe / sudoku / chess / solitaire), Mail 3D.
 Contact3D). Their start-menu `.lgcfg` descriptors live in
 **`lg3d-demo-apps/src/config`**, not here (see below).
 
+> **Per-app guides.** Every application package under `src/classes` ships its own
+> condensed role-aware `AGENTS.md` next to its sources (35 in total), covering the
+> native-3D showcases, the ported apps, the dormant prototypes, the framework/library
+> trees (`edu/cmu/sun`, `org/jdesktop/lg3d/utils`, `apps/utils`), and the **excluded**
+> apps (`archviz3d`, `browser`, `browser3d`, `intel3d`, `wilkoaim3d`, `nu/koidelab/cosmo`).
+> Read an app's `Status` row first: it says whether the code is live, dormant,
+> library-only, or excluded-from-build, and where its descriptor lives.
+
 ## How the roles work together
 
 The incubator is **high-variance**: some apps are modern native-3D showcases,

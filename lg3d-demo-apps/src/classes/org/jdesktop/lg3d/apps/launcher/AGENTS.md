@@ -1,5 +1,58 @@
 # Launcher Application
 
+> Role-aware per-app guide. Module: [`lg3d-demo-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Sample / demo** (application launcher) — incomplete, not a shipped utility |
+| Entry point | `LauncherFrame.main` (NetBeans-generated Swing frame) |
+| Surface | **2D Swing** frame; launches apps via `AppLaunchAction` |
+| Start-menu name / group | Application Launcher — an `ApplicationDescription` **taskbar** entry, not a start-menu item |
+| Command | `java org.jdesktop.lg3d.apps.launcher.LauncherFrame` |
+| Descriptor | `src/config/launcher.lgcfg` → `config/demo` |
+| Build | `./gradlew :lg3d-demo-apps:build` |
+
+**Components:** `LauncherFrame` (NetBeans-generated) + `ApplicationDescription` +
+`AppLaunchAction`. Icon picking and save are **not implemented**.
+
+## Roles
+
+- **Architect** — An early launcher prototype built on `ApplicationDescription` +
+  `AppLaunchAction` (the same launch primitives the real start menu uses). It is a
+  reference for wiring a launch action, not the production launcher.
+- **Engineer / Developer** — The frame is NetBeans-generated Swing (`LauncherFrame` +
+  `.form`); regenerate rather than hand-editing generated blocks. Launch through
+  `AppLaunchAction` on the EDT. Icon/save are stubs — do not assume they persist.
+  Jogamp packages only where 3D is used.
+- **QA** — Verify the frame opens and that a configured entry triggers
+  `AppLaunchAction` (in-JVM probe + internal screencapture). Icon/save are known
+  unimplemented gaps, not defects to file.
+- **Business Analyst** — Demonstration/prototype value only; superseded by the
+  desktop's real start menu. No end-user product surface.
+- **Functional Analyst** — Spec as a prototype (list apps, click to launch). Record
+  icon-picking and save as explicit *not implemented* so nobody assumes them.
+- **Project Manager** — Commit scope `lg3d-demo-apps`. Low priority; opportunistic.
+  Branch → PR against `main`.
+- **UI/UX (3D & 2D)** — **2D** Swing launcher frame. Keep it consistent with the
+  platform LAF; it is a prototype, so polish is not expected.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR. Commit
+scope `lg3d-demo-apps`; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump; stage only intended paths (never `git add -A`).
+
+---
+
+## Detailed app reference (preserved)
+
+> The original in-depth documentation for this app is kept below.
+
 ## Overview
 
 Launcher is a Swing-based application creator tool that allows users to define and launch custom application launchers. It provides a form interface for specifying launcher properties (name, description, command, classpath, icon) and can launch applications via AppLaunchAction.
