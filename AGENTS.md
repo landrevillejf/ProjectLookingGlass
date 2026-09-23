@@ -129,12 +129,25 @@ The following incubator apps are excluded due to missing third-party libraries (
 - `apps/intel3d/**` - Missing Jini
 - `apps/browser/**` - Missing ICEsoft ICEbrowser, BeanShell
 - `apps/browser3d/**` - Missing Jini
-- `apps/wilkoaim3d/**` - Missing com.wilko AIM lib
 
-Additional exclusions due to API drift (sources predate core API snapshot):
-- `apps/luncher/**`, `apps/nlc/**` - AppLaunchAction / Pseudo3DShortcut API changes
-- `apps/orgchart/**` - FuzzyEdgePanel.setSize API changes
-- `apps/jmf23D/**` - vecmath Color3f(awt.Color) constructor removed
+One app is excluded for deep core-API drift (**not** a missing library):
+
+- `apps/wilkoaim3d/**` - targets a 2004-era core utility vocabulary that no
+  longer exists (`Frame3DToFrontEvent`, `ComponentMover`, `ResilientRotateAction`,
+  `NaturalMotionComponent3D/Container3D`, `ColorAlphaChangeAction`), the obsolete
+  2-arg event-adapter constructors and `setTexture(String)`. Its `com.wilko`
+  `jaimlib.jar` **is** bundled in `ext/` and on the classpath, so "missing AIM lib"
+  was never the real blocker; the fatal one is that its AOL AIM TOC backend was
+  discontinued by AOL in Dec 2017, so it could never log in even if rewritten.
+
+> **Ported, not excluded.** `apps/luncher/**`, `apps/nlc/**`, `apps/orgchart/**`
+> and `apps/jmf23D/**` once failed to compile against the current core API
+> (AppLaunchAction / Pseudo3DShortcut / `FuzzyEdgePanel.setSize` / vecmath
+> `Color3f(awt.Color)` drift). That drift was small and self-contained, so all four
+> were **ported to the current API and now build**; their start-menu descriptors
+> live in `lg3d-apps/src/config`. Always verify the live exclusion set against
+> [`lg3d-incubator/build.gradle`](lg3d-incubator/build.gradle) rather than trusting
+> this prose — it has been stale before.
 
 ## Runtime Resources
 
