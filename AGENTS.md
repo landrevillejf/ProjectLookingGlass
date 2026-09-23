@@ -83,10 +83,15 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 - 100% is mandatory with jacoco
 - 0 surviving mutants is mandatory with PIT
 
-> **Current status:** neither JaCoCo nor PIT is wired into the Gradle build and
-> CI runs no tests, so these gates are not yet enforceable in automation. Until
-> they are, scene-graph / rendering changes (which need a live 3D desktop) are
-> verified with the in-JVM probe + internal screencapture described in
+> **Current status:** JaCoCo is now wired into the Gradle build (report-only —
+> each `test` task finalizes `jacocoTestReport`) and CI runs the tests explicitly
+> and publishes the coverage/JUnit reports, but PIT is still not wired and **no
+> coverage or mutation gate is enforced**, so the 100% / 0-mutant targets above
+> are not yet automated. The gate is intentionally deferred: the ported codebase
+> is ~200k lines at ~1% core coverage, so enforcing it now would red-line every
+> build. Until the gates are enforceable, scene-graph / rendering changes (which
+> need a live 3D desktop) are verified with the in-JVM probe + internal
+> screencapture described in
 > [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*); report
 > that evidence in the PR instead of claiming untested success.
 
@@ -158,14 +163,18 @@ The desktop runs in development mode (`lg.fws.mode=dev`) using the standard AWT/
 
 ## Testing
 
-Minimal test infrastructure exists:
-- [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - Contains some JUnit tests
-- No automated test execution configured in CI
+JUnit 5 test infrastructure exists and runs headless:
+- `lg3d-core/src/test/java` and `lg3d-widgets/src/test/java` - active JUnit 5
+  suites (74 tests) wired into the Gradle `test` task via `useJUnitPlatform()`.
+- [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
+- `./gradlew build` runs the tests through the `check` task; each `test` task
+  finalizes `jacocoTestReport` (report-only, no enforced threshold).
 
 **CI workflow** ([.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0)):
-- Runs `./gradlew build` (headless, no X display required)
+- Runs `./gradlew test --continue` (explicit, headless test step)
+- Runs `./gradlew build` (compile + jar; re-checks the now up-to-date tests)
 - Runs `./gradlew :lg3d-core:runtimeResources` to validate resource assembly
-- Uploads module jars as artifacts
+- Uploads the JUnit + JaCoCo reports and the module jars as artifacts
 
 ## Dependencies
 
@@ -187,12 +196,12 @@ Minimal test infrastructure exists:
 
 ## Git Conventions
 
-- No git submodules (CI mentions them but repository does not use them)
+- No git submodules — this is a single repository (the CI workflow no longer claims otherwise)
 - Branches: `master`, `main` (CI triggers on both)
 - Concurrency: Newer push supersedes in-flight run
-- **Single repository.** Despite the README's "split across several git
-  submodules" wording, `lg3d-core`, `lg3d-demo-apps`, `lg3d-incubator`,
-  `lg3d-widgets`, `CHANGELOG.md` and `README.md` all live in **one** repo.
+- **Single repository.** `lg3d-core`, `lg3d-demo-apps`, `lg3d-incubator`,
+  `lg3d-widgets`, `lpm-console`, `CHANGELOG.md` and `README.md` all live in
+  **one** repo (verified: no `.gitmodules`, no `160000` gitlink entries).
 - **Stage explicitly.** Never `git add -A` / `git add .`: the working tree holds
   untracked runtime artifacts (`lg3d-core/lgscreen-*.png`, stray downloads) that
   must stay out of commits. List the intended paths.
