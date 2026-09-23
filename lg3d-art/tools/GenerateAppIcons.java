@@ -61,6 +61,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector paint brush instead of a bundled glyph. */
     private static final String BRUSH_GLYPH = "PaintBrush";
 
+    /** Glyph name that draws a built-in vector package box instead of a bundled glyph. */
+    private static final String PACKAGE_GLYPH = "PackageBox";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -85,6 +88,10 @@ public class GenerateAppIcons {
         // Paint (conventional Swing JFrame captured into the desktop); the
         // bundled glyph set has no paint brush, so it is drawn in-tool.
         {"paint.png",       IconColor.PINK,        IconCategory.GENERAL, BRUSH_GLYPH},
+        // LPM Console (standalone Swing package manager captured into the
+        // desktop); the bundled glyph set has no package box, so it is drawn
+        // in-tool like the keypad, disc and brush.
+        {"lpm-console.png", IconColor.GREEN,       IconCategory.GENERAL, PACKAGE_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -105,6 +112,8 @@ public class GenerateAppIcons {
                 glyph = drawDiscGlyph(GLYPH);
             } else if (BRUSH_GLYPH.equals(glyphName)) {
                 glyph = drawBrushGlyph(GLYPH);
+            } else if (PACKAGE_GLYPH.equals(glyphName)) {
+                glyph = drawPackageGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -197,6 +206,31 @@ public class GenerateAppIcons {
         tip.quadTo(16, 31, 15, 28);
         tip.closePath();
         g.fill(tip);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the package box glyph: a white crate with a slightly darker lid
+     * band across the top and a vertical strip of packing tape down the middle.
+     * The bundled {@code toolbarButtonGraphics} set carries nothing box shaped,
+     * so it is drawn in-tool like the keypad, disc and brush. Designed in a
+     * 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawPackageGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Box body.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(4, 8, 24, 20, 2, 2);
+        // Lid band across the top of the box.
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fillRect(4, 8, 24, 5);
+        // Packing tape down the middle.
+        g.setColor(new Color(0xC4, 0xC4, 0xC4));
+        g.fillRect(14, 8, 4, 20);
         g.dispose();
         return new ImageIcon(image);
     }

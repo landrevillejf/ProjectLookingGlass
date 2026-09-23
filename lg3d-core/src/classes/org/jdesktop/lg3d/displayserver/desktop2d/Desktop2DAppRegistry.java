@@ -114,6 +114,14 @@ public final class Desktop2DAppRegistry {
         // and hosting the panel means the gallery no longer needs the 3D desktop.
         panels.put("org.jdesktop.lg3d.widgets.gallery.WidgetGallery",
                 "org.jdesktop.lg3d.widgets.swing.WidgetGalleryPanel");
+        // The LPM Console lives in the standalone lpm-console module (a plain
+        // Swing package-manager front-end that shells out to /usr/bin/lpm), not
+        // in lg3d-demo-apps. Its jar is on the desktop run classpath, so the
+        // reflective lookup resolves and its panel is hosted as an internal
+        // frame here; in the 3D desktop the same command is captured via the
+        // swingapp verb. Both jars being present is what makes this work.
+        panels.put("org.lpmconsole.LPMConsole",
+                "org.lpmconsole.LPMConsolePanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

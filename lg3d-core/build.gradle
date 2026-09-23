@@ -236,8 +236,14 @@ tasks.register('run', JavaExec) {
     def demoAppsJar = project(':lg3d-demo-apps').tasks.named('jar')
     def incubatorJar = project(':lg3d-incubator').tasks.named('jar')
     def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
+    // LPM Console: the standalone Swing package-manager front-end (module
+    // :lpm-console). Its start-menu descriptor lives in lg3d-demo-apps and its
+    // panel is registered in Desktop2DAppRegistry, so its jar must be on the
+    // desktop run classpath for both the reflective 2D lookup and the 3D
+    // "swingapp" launch to resolve org.lpmconsole.*.
+    def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
-    dependsOn demoAppsJar, incubatorJar, widgetsJar, runtimeResources
+    dependsOn demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -282,8 +288,8 @@ tasks.register('run', JavaExec) {
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
-        files(demoAppsJar, incubatorJar, widgetsJar, runtimeResourcesDir,
-              incubatorExtJars, agendaLibs)
+        files(demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
+              runtimeResourcesDir, incubatorExtJars, agendaLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java

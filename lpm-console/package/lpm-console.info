@@ -1,0 +1,7 @@
+name=lpm-console
+version=1.0.0
+description=Graphical front-end for LPM package manager (Java 21 Swing application)
+url=https://github.com/landrevillejf/ProjectLookingGlass
+maintainer=LPM Console Team
+license=GPL-3.0
+depends=jdk-21
