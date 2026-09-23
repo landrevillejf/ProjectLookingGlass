@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: LPM Console. A graphical front end for LPM, the package
+ manager of this BLFS system. It is a conventional Swing package manager (a
+ category rail over a sortable searchable package table with a details pane, an
+ action toolbar, a collapsible log and a status bar) that only ever drives the
+ installed /usr/bin/lpm command line; it never reimplements dependency
+ resolution, checksums, locking, rollback or database writes. Package listings
+ are read read only from the LPM database, every mutation shells out to lpm with
+ no color, previews with a dry run first and confirms destructive actions in an
+ in panel overlay (modal dialogs escape the SwingNode capture). It lives in the
+ standalone lpm console module; its jar is on the desktop run classpath and its
+ panel is registered with the 2D desktop so it is hosted as an internal frame
+ there. Launched in JVM via the swingapp class command, which opts the app into
+ 3D window capture so its JFrame is presented as an integrated desktop window. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>swingapp org.lpmconsole.LPMConsole</string>
+  </void>
+  <void property="desc">
+   <string>Install, remove, upgrade and verify LPM packages</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/lpm-console.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>System</string>
+  </void>
+  <void property="name">
+   <string>LPM Console</string>
+  </void>
+ </object>
+</java>

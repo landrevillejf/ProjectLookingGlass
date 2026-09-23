@@ -1,0 +1,47 @@
+// lpm-console: Graphical front-end for LPM package manager
+//
+// A standalone Java 21 Swing application that controls LPM through its CLI.
+// Runs as an X11 client composited by lg3d, not a 3D scene-graph app.
+
+plugins {
+    id 'java'
+    id 'application'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/classes'
+        }
+        resources {
+            srcDir 'src/resources'
+        }
+    }
+}
+
+application {
+    mainClass = 'org.lpmconsole.LPMConsole'
+    applicationName = 'lpm-console'
+}
+
+jar {
+    archiveBaseName = 'lpm-console'
+    manifest {
+        attributes 'Main-Class': 'org.lpmconsole.LPMConsole'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+dependencies {
+    // No lg3d-core dependency - this is a standalone Swing app
+    // that runs as an X11 client composited by lg3d
+}
