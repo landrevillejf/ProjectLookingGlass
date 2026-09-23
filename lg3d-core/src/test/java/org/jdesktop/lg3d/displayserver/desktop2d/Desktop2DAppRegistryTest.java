@@ -232,6 +232,19 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the Help Center is hosted as a panel, not gated on 3D")
+    void helpCenterIsAPanelApp() {
+        // The Help Center is a JavaHelp viewer inside a plain Swing panel, so it
+        // runs in the 2D desktop like any other panel app; the 3D desktop builds
+        // the same panel on a SwingNode via its HelpCenter wrapper.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.help.HelpCenter"));
+        assertEquals("org.jdesktop.lg3d.apps.help.HelpCenterPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.help.HelpCenter"));
+    }
+
+    @Test
     @DisplayName("the unavailable tooltip explains the 3D requirement")
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",

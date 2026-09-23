@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Working with Windows</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Working with Windows</h1>
+
+  <p>
+    Every application opens as a window floating in the 3D room. A window has a
+    <strong>title bar</strong> across the top carrying its name and the standard
+    <em>minimize</em>, <em>maximize</em> and <em>close</em> buttons, and a
+    <strong>content area</strong> below it.
+  </p>
+
+  <p style="text-align: center;">
+    <img src="../resources/images/lg3d-wm-usage.png"
+         alt="Window manager usage diagram">
+  </p>
+
+  <h2>Moving, turning and flipping</h2>
+  <p>
+    Window gestures are performed on the <strong>title bar</strong> (or the
+    window's pickable border), so that clicks inside the content still reach the
+    application:
+  </p>
+  <table>
+    <tr><th>Gesture</th><th>Action</th></tr>
+    <tr><td>Left-drag the title bar</td><td>Move the window.</td></tr>
+    <tr><td>Middle-drag, or CTRL + left-drag</td>
+        <td>Rotate (spin) the window in 3D.</td></tr>
+    <tr><td>Right-click</td>
+        <td>Flip the window over to its "sticky note" back.</td></tr>
+  </table>
+
+  <h2>Minimize, maximize and close</h2>
+  <ul>
+    <li><strong>Minimize</strong> shrinks the window into its
+        <a href="taskbar.html">taskbar</a> thumbnail.</li>
+    <li><strong>Maximize</strong> grows the window to fill the screen. Hosted
+        Swing windows are re-laid-out at the larger native size (crisp text),
+        not simply magnified.</li>
+    <li><strong>Close</strong> ends the application window.</li>
+  </ul>
+
+  <h2>Parking on the bookshelf</h2>
+  <p>
+    Right-clicking the empty desktop background swings your open windows aside
+    onto a "bookshelf", revealing the background; clicking a parked window (or
+    right-clicking the background again) brings it back. When a window is parked
+    its spine title turns to face you, like a book on a shelf.
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> The window's content area does not forward gestures to
+    the window frame &mdash; that is deliberate, so dragging inside a text area or
+    map selects text rather than moving the whole window. Always use the title bar
+    to move or turn a window.
+  </div>
+
+  <div class="nav">
+    Next: <a href="start-menu.html">The Start Menu</a>
+  </div>
+</body>
+</html>

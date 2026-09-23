@@ -1,0 +1,51 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Customizing the Desktop</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Customizing the Desktop</h1>
+
+  <p>
+    Most day-to-day customization is done through the <strong>Control Center</strong>
+    (Start Menu &rarr; <em>System</em>). It gathers appearance, display and
+    desktop settings in one place.
+  </p>
+
+  <h2>Control Center panels</h2>
+  <ul>
+    <li><strong>Appearance</strong> &mdash; fonts and the look of the desktop.</li>
+    <li><strong>Display</strong> &mdash; display-related settings.</li>
+    <li><strong>Desktop</strong> &mdash; wallpaper and desktop behaviour.</li>
+    <li><strong>Users</strong> &mdash; user account information.</li>
+    <li><strong>System Info</strong> &mdash; details about the running system.</li>
+  </ul>
+
+  <h2>Wallpapers and backgrounds</h2>
+  <p>
+    The desktop background can be one of the bundled wallpaper images, or a 3D
+    model. Launch with <code>-b</code> (or the Gradle property
+    <code>-Pbackground3d</code>) to use the 3D model background
+    (<code>pinguin.j3f</code>) instead of a flat image. The taskbar and windows
+    sit in front of whichever background is active.
+  </p>
+
+  <h2>Fonts</h2>
+  <p>
+    The configured Swing font (family and size) is applied to hosted application
+    panels, so changing it in the Control Center re-skins the text across the
+    desktop's Swing windows &mdash; including this Help Center. Resetting to the
+    default restores the active look and feel's own fonts.
+  </p>
+
+  <div class="tip">
+    <strong>Tip:</strong> Changes made in the Control Center apply live; you do
+    not need to restart the desktop to see them.
+  </div>
+
+  <div class="nav">
+    Next: <a href="package-management.html">Managing Packages</a>
+  </div>
+</body>
+</html>

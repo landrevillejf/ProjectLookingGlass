@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE toc PUBLIC "-//Sun Microsystems Inc.//DTD JavaHelp TOC Version 2.0//EN" "http://java.sun.com/products/javahelp/toc_2_0.dtd">
+<!--
+  Contents (table-of-contents) navigator for the Project Looking Glass help.
+  Each tocitem's target must be declared in map.jhm.
+-->
+<toc version="2.0">
+  <tocitem text="Project Looking Glass Help" target="overview">
+    <tocitem text="Overview" target="overview"/>
+    <tocitem text="Getting Started" target="getting-started"/>
+    <tocitem text="A Tour of the Desktop" target="desktop-tour"/>
+    <tocitem text="Working with Windows" target="windows"/>
+    <tocitem text="The Start Menu" target="start-menu"/>
+    <tocitem text="The Taskbar" target="taskbar"/>
+    <tocitem text="Desktop Widgets" target="widgets"/>
+    <tocitem text="Mouse Gestures and Navigation" target="gestures"/>
+    <tocitem text="The 2D and Swing Desktops" target="desktop-2d"/>
+    <tocitem text="Built-in Applications" target="apps"/>
+    <tocitem text="Customizing the Desktop" target="customizing"/>
+    <tocitem text="Managing Packages" target="package-management"/>
+    <tocitem text="Troubleshooting and FAQ" target="troubleshooting"/>
+    <tocitem text="About Project Looking Glass" target="about"/>
+  </tocitem>
+</toc>

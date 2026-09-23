@@ -306,12 +306,21 @@ tasks.register('run', JavaExec) {
             dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
             dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"))
 
+    // The Help Center app (lg3d-demo-apps, org.jdesktop.lg3d.apps.help) embeds a
+    // JavaHelp (javax.help) JHelp viewer. JavaHelp is a Maven dependency of
+    // lg3d-demo-apps, but this run classpath is assembled from packaged jars
+    // rather than the demo-apps runtimeClasspath, so resolve javax.help onto it
+    // directly -- otherwise the in-JVM start-menu launch dies with
+    // NoClassDefFoundError: javax/help/JHelp.
+    def javaHelpLibs = configurations.detachedConfiguration(
+        dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
         files(demoAppsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-              runtimeResourcesDir, incubatorExtJars, agendaLibs)
+              runtimeResourcesDir, incubatorExtJars, agendaLibs, javaHelpLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java

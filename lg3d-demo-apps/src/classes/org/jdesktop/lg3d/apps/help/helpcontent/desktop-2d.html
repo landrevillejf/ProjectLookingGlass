@@ -1,0 +1,57 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>The 2D and Swing Desktops</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>The 2D and Swing Desktops</h1>
+
+  <p>
+    Alongside the 3D desktop, lg3d offers two conventional desktops. Both are
+    <em>MDI</em> (multiple-document-interface) shells: applications open as
+    internal frames inside the desktop window, so they stay integrated and
+    minimize into the desktop rather than escaping to the host system.
+  </p>
+
+  <table>
+    <tr><th>Mode</th><th>Launcher</th><th>Look and feel</th></tr>
+    <tr><td>2D desktop</td><td><code>-2</code> / <code>--2d</code></td>
+        <td>The host system look and feel.</td></tr>
+    <tr><td>Swing desktop</td><td><code>-w</code> / <code>--swing</code></td>
+        <td>The cross-platform Metal look and feel.</td></tr>
+  </table>
+
+  <p>
+    The two are identical apart from the look and feel: same wallpaper pane, same
+    internal-frame hosting and de-duplication, same Start Menu, folder menus,
+    taskbar, and application launches.
+  </p>
+
+  <h2>When you get the 2D desktop automatically</h2>
+  <p>
+    If a machine cannot run Java 3D, the desktop detects this at start-up and
+    offers the 2D desktop instead (after a confirmation prompt). Explicitly
+    passing <code>-2</code> or <code>-w</code> forces that mode with no prompt.
+  </p>
+
+  <h2>Applications in 2D</h2>
+  <p>
+    Applications whose user interface is a plain Swing panel &mdash; the File
+    Manager, Task Manager, Control Center, Calculator, Media Writer, Widget
+    Gallery, LPM Console and this <strong>Help Center</strong> &mdash; are hosted
+    as internal frames in the 2D desktop. Purely 3D applications are marked
+    "Requires the 3D desktop" and are not offered.
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> A conventional top-level window cannot be adopted by an
+    MDI desktop, so apps that insist on showing their own frame run
+    <em>beside</em> the 2D desktop rather than inside it.
+  </div>
+
+  <div class="nav">
+    Next: <a href="apps.html">Built-in Applications</a>
+  </div>
+</body>
+</html>
