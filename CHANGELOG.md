@@ -704,6 +704,21 @@ work to make it build and run on a current toolchain.
   `lg3d-incubator/ext/`.
 
 ### Changed
+- **2D/Swing app names no longer carry the "3D" marker** (`lg3d-core`) — the
+  start-menu descriptors are shared with the 3D desktop, so apps that run in the
+  2D/Swing desktop as plain Swing panels were still labelled "Mail 3D", "Chess
+  3D", "Agenda 3D", "Chart 3D", "Contact 3D", "Sudoku 3D", "Solitaire 3D" and
+  "Tic-Tac-Toe 3D" in both the menu entry and the window/taskbar title — even
+  though the 2D desktop never renders a 3D window. `Desktop2DMenuConfig` now
+  drops the "3D" marker from the display name of any item the desktop can
+  actually run (a `PANEL`, `SWING_FRAME` or `EXTERNAL` command), so they read
+  "Mail", "Chess", etc. Pure-3D apps it cannot run keep their name unchanged
+  (they appear disabled behind the "Requires the 3D desktop" tooltip, where the
+  "3D" is the point). Only leading/trailing/word-attached markers are stripped;
+  interior brand tokens such as "Lg3d Homepage" are preserved. The underlying
+  command and descriptor are untouched, so the 3D desktop is unaffected. Covered
+  by new `Desktop2DMenuConfigTest` cases and verified with an in-JVM probe over
+  the real descriptors.
 - **Module rename** — `lg3d-demo-apps` → `lg3d-apps`. The module ships the
   production-grade desktop applications that come with LG3D (plus a few
   tutorial/sample apps); "demo" was a misleading legacy label. The Gradle
