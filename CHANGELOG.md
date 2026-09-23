@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.9.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Desktop background context menu** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — right-clicking the 2D/Swing
+  desktop wallpaper (anywhere not covered by an app window or widget) now opens a
+  conventional desktop context menu. A new Java 3D-free static builder,
+  `Desktop2DContextMenu`, assembles the `JPopupMenu` driven entirely by an
+  `Actions` callback (the same testable pattern as `Desktop2DStartMenu` /
+  `Desktop2DFolderMenu`), so the menu structure and wiring are unit-tested without
+  a live desktop. It offers launchers (**Open Terminal** — shown only when a
+  terminal executable is installed — and **Open File Manager**), personalisation
+  (**Change Wallpaper**, a submenu enumerating the bundled `resources/images/background`
+  backdrops with a hard-coded fallback when the directory cannot be listed, e.g.
+  running from a jar, plus **Desktop Settings...** opening the Control Center),
+  window arrangement (**Cascade** / **Tile** / **Minimize All** / **Restore All**,
+  gated off when no windows are open) over the MDI `JDesktopPane`, and session
+  (**Refresh**, **Exit...**). `Desktop2D` registers the popup trigger on both
+  press and release (which one fires is platform-specific) and rebuilds the menu
+  each time so the arrangement entries reflect the windows currently open.
+  Covered by a headless JUnit 5 test (`Desktop2DContextMenuTest`, 10 tests)
+  asserting the entry order/separators, the conditional Terminal entry, the
+  wallpaper submenu contents and placeholder, the arrangement gating, the
+  callback wiring and the `isImage`/`displayName` helpers.
 - **Office apps in the 2D/Swing desktop** (`lg3d-incubator`, `lg3d-core`) — the four
   pure-3D *Office* start-menu apps (Mail 3D, Agenda 3D, Contact 3D, Chart 3D) now
   launch in the 2D/Swing desktop instead of appearing disabled with a "Requires the

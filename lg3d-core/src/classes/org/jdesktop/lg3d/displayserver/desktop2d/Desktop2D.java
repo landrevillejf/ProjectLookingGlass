@@ -22,18 +22,26 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.beans.PropertyVetoException;
+import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
 import javax.swing.JFrame;
+import javax.swing.JInternalFrame;
 import javax.swing.LookAndFeel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -86,6 +94,26 @@ public class Desktop2D {
         "resources/images/background/DreamLakeReflections.jpg",
     };
 
+    /** Classpath directory the "Change Wallpaper" submenu enumerates. */
+    private static final String BG_DIR = "resources/images/background";
+
+    /**
+     * Wallpapers offered when {@link #BG_DIR} cannot be listed (e.g. running
+     * from a jar). The same fallback the control center's Appearance panel
+     * uses, duplicated here so the 2D shell keeps no lg3d-apps dependency.
+     */
+    private static final List<String> WALLPAPER_FALLBACK = List.of(
+            "DreamLakeReflections.jpg",
+            "GrandCanyon-0.jpg",
+            "Leaves_and_Sky-0.jpg",
+            "Stanford-0.jpg");
+
+    /** Terminal executables tried, in order, for the "Open Terminal" entry. */
+    private static final String[] TERMINALS = {
+        "xterm", "gnome-terminal", "konsole", "xfce4-terminal",
+        "mate-terminal", "lxterminal",
+    };
+
     /**
      * UIManager font-default keys overridden by the desktop configuration. The
      * same list {@code TitledSwingWindow} uses on the 3D desktop, duplicated
@@ -129,6 +157,21 @@ public class Desktop2D {
         // window; stock MDI would also drop a desktop icon on the pane, which
         // shows the icon twice and reads as a second row above the taskbar.
         desktop.setDesktopManager(new SingleIconDesktopManager());
+
+        // Right-clicking the wallpaper (anywhere not covered by an app window or
+        // a widget) opens the desktop context menu. Both press and release are
+        // checked because which one is the popup trigger is platform-specific.
+        desktop.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                showDesktopContextMenu(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                showDesktopContextMenu(e);
+            }
+        });
 
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
@@ -278,6 +321,214 @@ public class Desktop2D {
 
     private static Path userFolder(String name) {
         return Paths.get(System.getProperty("user.home"), name);
+    }
+
+    // ------------------------------------------------------------------
+    // Desktop background context menu
+    // ------------------------------------------------------------------
+
+    /**
+     * Shows the desktop background context menu at the pointer, but only for a
+     * genuine popup trigger. The menu is rebuilt each time so its window
+     * arrangement entries reflect the windows currently open.
+     */
+    private void showDesktopContextMenu(MouseEvent e) {
+        if (!e.isPopupTrigger()) {
+            return;
+        }
+        JPopupMenu menu = Desktop2DContextMenu.build(
+                new ContextMenuActions(), enumerateWallpapers());
+        menu.show(desktop, e.getX(), e.getY());
+    }
+
+    /** Wires the context-menu entries to this desktop's operations. */
+    private final class ContextMenuActions implements Desktop2DContextMenu.Actions {
+        @Override
+        public boolean isTerminalAvailable() {
+            return terminalCommand() != null;
+        }
+
+        @Override
+        public void openTerminal() {
+            String command = terminalCommand();
+            if (command != null) {
+                Desktop2DAppRegistry.launchExternal(command);
+            }
+        }
+
+        @Override
+        public void openFileManager() {
+            Desktop2D.this.openFileManager(userFolder(""));
+        }
+
+        @Override
+        public void changeWallpaper(URL url) {
+            setWallpaper(url);
+        }
+
+        @Override
+        public void openDesktopSettings() {
+            openApp(new ItemSpec("Control Center",
+                    "java org.jdesktop.lg3d.apps.controlcenter.ControlCenter",
+                    "Configure the desktop", null, null));
+        }
+
+        @Override
+        public void cascadeWindows() {
+            cascade();
+        }
+
+        @Override
+        public void tileWindows() {
+            tile();
+        }
+
+        @Override
+        public void minimizeAllWindows() {
+            setAllIcons(true);
+        }
+
+        @Override
+        public void restoreAllWindows() {
+            setAllIcons(false);
+        }
+
+        @Override
+        public void refresh() {
+            desktop.repaint();
+        }
+
+        @Override
+        public void exit() {
+            confirmExit();
+        }
+
+        @Override
+        public int windowCount() {
+            return desktop.getAllFrames().length;
+        }
+    }
+
+    /** The first installed terminal executable, or null if none is present. */
+    private static String terminalCommand() {
+        for (String terminal : TERMINALS) {
+            if (Desktop2DAppRegistry.isExternalAvailable(terminal)) {
+                return terminal;
+            }
+        }
+        return null;
+    }
+
+    /** Staggers every window from the top-left, each offset by a fixed step. */
+    private void cascade() {
+        JInternalFrame[] frames = desktop.getAllFrames();
+        int step = 28;
+        int width = Math.max(240, desktop.getWidth() - step * frames.length);
+        int height = Math.max(180, desktop.getHeight() - step * frames.length);
+        int x = 0;
+        int y = 0;
+        for (JInternalFrame frame : frames) {
+            uniconify(frame);
+            frame.setBounds(x, y, width, height);
+            frame.toFront();
+            x += step;
+            y += step;
+        }
+    }
+
+    /** Lays every window out in a grid filling the desktop pane. */
+    private void tile() {
+        JInternalFrame[] frames = desktop.getAllFrames();
+        int count = frames.length;
+        if (count == 0) {
+            return;
+        }
+        int cols = (int) Math.ceil(Math.sqrt(count));
+        int rows = (int) Math.ceil((double) count / cols);
+        int width = Math.max(1, desktop.getWidth() / cols);
+        int height = Math.max(1, desktop.getHeight() / rows);
+        for (int i = 0; i < count; i++) {
+            JInternalFrame frame = frames[i];
+            uniconify(frame);
+            frame.setBounds((i % cols) * width, (i / cols) * height, width, height);
+            frame.toFront();
+        }
+    }
+
+    /** Minimises (true) or restores (false) every iconifiable window. */
+    private void setAllIcons(boolean icon) {
+        for (JInternalFrame frame : desktop.getAllFrames()) {
+            if (frame.isIconifiable()) {
+                try {
+                    frame.setIcon(icon);
+                } catch (PropertyVetoException pve) {
+                    logger.log(Level.FINE, "Could not change window state", pve);
+                }
+            }
+        }
+    }
+
+    /** Restores a minimised window so cascade/tile can position it. */
+    private void uniconify(JInternalFrame frame) {
+        try {
+            if (frame.isIcon()) {
+                frame.setIcon(false);
+            }
+        } catch (PropertyVetoException pve) {
+            logger.log(Level.FINE, "Could not restore window", pve);
+        }
+        frame.setVisible(true);
+    }
+
+    /**
+     * The bundled wallpapers offered under "Change Wallpaper": the images in
+     * {@link #BG_DIR} when that directory can be listed, else the
+     * {@link #WALLPAPER_FALLBACK} names. Any name that does not resolve on the
+     * classpath is skipped, so the submenu only lists usable backdrops.
+     */
+    List<Desktop2DContextMenu.Wallpaper> enumerateWallpapers() {
+        List<String> names = new ArrayList<>();
+        URL dirUrl = Desktop2D.class.getClassLoader().getResource(BG_DIR);
+        if (dirUrl != null && "file".equals(dirUrl.getProtocol())) {
+            try {
+                File[] files = new File(dirUrl.toURI()).listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isFile() && isImage(file.getName())) {
+                            names.add(file.getName());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.log(Level.FINE, "Could not list the wallpaper directory", e);
+                names.clear();
+            }
+        }
+        Collections.sort(names);
+        if (names.isEmpty()) {
+            names.addAll(WALLPAPER_FALLBACK);
+        }
+        List<Desktop2DContextMenu.Wallpaper> wallpapers = new ArrayList<>();
+        ClassLoader cl = Desktop2D.class.getClassLoader();
+        for (String name : names) {
+            URL url = cl.getResource(BG_DIR + "/" + name);
+            if (url != null) {
+                wallpapers.add(new Desktop2DContextMenu.Wallpaper(displayName(name), url));
+            }
+        }
+        return wallpapers;
+    }
+
+    /** True for a case-insensitive .jpg/.jpeg/.png filename. */
+    static boolean isImage(String name) {
+        String lower = name.toLowerCase();
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png");
+    }
+
+    /** The filename without its extension, for a tidier menu label. */
+    static String displayName(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return (dot > 0) ? filename.substring(0, dot) : filename;
     }
 
     // ------------------------------------------------------------------
