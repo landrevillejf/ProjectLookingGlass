@@ -111,6 +111,33 @@ work to make it build and run on a current toolchain.
   `ToastQueueTest`, 8; `NotificationColorsTest`, 3; `ToastLayerTest`, 17 incl.
   geometry/wrap/ellipsize and a `BufferedImage` paint smoke; `NotificationTrayTest`,
   5 — 51 tests total).
+- **Automated release train** (`ci`, `.github/workflows`, `scripts/release`) — a
+  turnkey, event-driven release lifecycle so shipping a version needs no manual
+  git/tag/notes work beyond a single approval click. A new `release-train.yml`
+  orchestrator keeps exactly one open GitHub **milestone** titled with the next
+  version (derived from the Conventional Commits merged since the last stable tag:
+  `feat`→minor, `fix`→patch, `BREAKING`→major), attaches every PR merged to `main`
+  to it, and — the moment that milestone is complete (no open items) — auto-cuts a
+  **release candidate**: it opens a `release/X.Y.Z` PR that dates the CHANGELOG and
+  drops the `-dev` suffix from the four canonical version refs, then pushes
+  `vX.Y.Z-rc.N`, which `release.yml` builds and publishes as a GitHub
+  **pre-release** (never `releases/latest`, so the update-manager is untouched by
+  an RC); further pushes to the branch re-cut `rc.N+1`. The one manual step is
+  merging the release PR, which promotes it: the train tags the final `vX.Y.Z`
+  (published as the latest release + `version.json`), closes the milestone and
+  auto-opens the follow-up `chore: bump to <next>-dev` PR that re-opens the dev
+  cycle. Release bodies are generated (`release-notes.sh`) from the curated
+  CHANGELOG section plus an attributed appendix of the merged PRs and closed
+  milestone issues, degrading gracefully when `gh` is unavailable. All decision
+  logic lives in a unit-tested shell library (`scripts/release/lib.sh` +
+  `next-version.sh` / `prepare-release.sh` / `reopen-dev.sh`) covered by 63
+  self-tests (`scripts/release/tests/run.sh`) that run in a throwaway fixture repo,
+  wired into CI via a new `release-ci` job (YAML-parse + `bash -n` + ShellCheck +
+  self-tests) in `build.yml`; every stage also has a `workflow_dispatch` override,
+  and idempotency + a daily schedule make triggering race-free. Tag/branch pushes
+  use a `RELEASE_PAT` secret so the hand-off to `release.yml` fires (GitHub's
+  anti-recursion guard ignores `GITHUB_TOKEN`-pushed tags). Documented in
+  `docs/release-process.md`.
 
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree
