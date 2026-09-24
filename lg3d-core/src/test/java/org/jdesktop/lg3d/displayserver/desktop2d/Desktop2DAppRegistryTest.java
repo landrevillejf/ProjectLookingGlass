@@ -337,6 +337,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the About window is hosted as a panel, not gated on 3D")
+    void aboutIsAPanelApp() {
+        // The About window renders a plain Swing panel (product identity,
+        // resolved version, host runtime facts, attribution / licence), so it
+        // runs in the 2D desktop like any other panel app; the 3D desktop
+        // builds the same panel on a SwingNode via its About wrapper.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.about.About"));
+        assertEquals("org.jdesktop.lg3d.apps.about.AboutPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.about.About"));
+    }
+
+    @Test
     @DisplayName("the unavailable tooltip explains the 3D requirement")
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",

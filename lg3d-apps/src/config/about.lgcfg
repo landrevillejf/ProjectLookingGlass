@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: About (from lg3d-apps). Product identity, resolved build
+ version, host runtime facts (Java 3D, Java, platform) and the attribution and
+ licence text, shown in a plain Swing panel hosted on a SwingNode inside a
+ Frame3D via TitledSwingWindow. Launched in JVM via the "java <class>" command. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.about.About</string>
+  </void>
+  <void property="desc">
+   <string>Version, credits and system information</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/lg3d-logo.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>About</string>
+  </void>
+ </object>
+</java>

@@ -78,6 +78,16 @@ processResources {
 
 jar {
     archiveBaseName = 'lg3d-apps'
+    // Stamp the canonical project version into the manifest so the About app
+    // (org.jdesktop.lg3d.apps.about.AboutInfo) can resolve the build version
+    // from AboutInfo.class.getPackage().getImplementationVersion() when run
+    // outside the Gradle run task (which instead passes -Dlg.version). Both
+    // paths read the single project.version, so no literal version is added.
+    manifest {
+        attributes(
+                'Implementation-Title': 'lg3d-apps',
+                'Implementation-Version': project.version.toString())
+    }
 }
 
 tasks.named('test') {
