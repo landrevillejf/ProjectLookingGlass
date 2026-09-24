@@ -25,11 +25,24 @@ name: Release
 # the client default update.signature.enabled=false relies on the SHA-256
 # checksum alone. NEVER commit a signing key to the repository.
 #
-# Trigger: when a Release is published, or manually (workflow_dispatch) for an
-# existing tag. The bundle is built from the tag's source, so the published
-# artefacts always match the tagged commit.
+# Trigger: pushing a `v*` version tag (the normal way to cut a release -- CI
+# builds, tests, assembles the bundle and publishes the GitHub Release + assets
+# itself, so a downstream consumer such as an LFS host fetching
+#   .../releases/latest/download/version.json
+# resolves without anyone first clicking "Publish release" in the UI), when a
+# Release is published, or manually (workflow_dispatch) for an existing tag. The
+# bundle is built from the tag's source, so the published artefacts always match
+# the tagged commit.
+#
+# NOTE: for a tag push GitHub reads THIS workflow file from the tagged commit, so
+# the `push: tags` trigger below must already be on the default branch (merged)
+# before the tag is pushed -- a tag pointing at a commit that predates this
+# trigger will not fire.
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
@@ -73,14 +86,16 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           INPUT_TAG: ${{ inputs.tag }}
+          # For a `push` on a tag, github.ref_name is the bare tag (e.g. v1.9.0).
+          REF_NAME: ${{ github.ref_name }}
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = "release" ]; then
-            TAG="$RELEASE_TAG"
-          else
-            TAG="$INPUT_TAG"
-          fi
+          case "$EVENT" in
+            release) TAG="$RELEASE_TAG" ;;
+            push)    TAG="$REF_NAME" ;;
+            *)       TAG="$INPUT_TAG" ;;   # workflow_dispatch
+          esac
           if [ -z "$TAG" ]; then
             echo "ERROR: could not resolve a release tag." >&2
             exit 1
