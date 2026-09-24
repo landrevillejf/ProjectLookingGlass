@@ -2,6 +2,8 @@
  * Project Looking Glass
  *
  * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ * Portions Copyright (c) 2026, Jean-Francois Landreville - Gradle/JDK 21
+ * modernization port and improvements. All Rights Reserved.
  *
  * The contents of this file are subject to the GNU General Public
  * License, Version 2 (the "License"); you may not use this file

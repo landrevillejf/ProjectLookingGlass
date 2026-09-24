@@ -4,6 +4,8 @@
  * $RCSfile: MouseMovedEvent3D.java,v $
  *
  * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ * Portions Copyright (c) 2026, Jean-Francois Landreville - Gradle/JDK 21
+ * modernization port and improvements. All Rights Reserved.
  *
  * Redistributions in source code form must reproduce the above
  * copyright and this condition.
