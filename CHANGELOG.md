@@ -63,6 +63,29 @@ work to make it build and run on a current toolchain.
   gains a non-toggling `focusWindow()` so committing always raises the window
   rather than minimising it. Covered by headless JUnit 5 tests
   (`WindowCyclerTest`, 15 tests; `WindowCyclerOverlayTest`, 11 tests).
+- **Session restore for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the desktop now remembers which
+  application windows were open when it last exited and reopens them, at their
+  saved size and position and in their saved minimised/maximised state, on the
+  next start. The session is captured on every window open/close and once more on
+  exit (so the final placement is what is stored), and is persisted through the
+  same user `java.util.prefs` store the desktop configuration and widget layer
+  use, so it survives a restart. Restoring relaunches each saved app quietly
+  (a failure is logged, never shown in a modal, so an app that has since become
+  unavailable cannot greet the user with a dialog at startup) and clamps every
+  restored window back on-screen, so a session saved on a larger or differently
+  arranged monitor never strands a window off-screen; windows are relaunched
+  back-to-front so the original stacking order is preserved. Only windows with a
+  start-menu descriptor command (the panel apps) are saved, so an ad hoc window
+  that cannot be relaunched is skipped rather than persisted unrestorable. The
+  logic splits into pure, headless-testable pieces — `WindowRecord` (one window's
+  identity, bounds and state, plus the on-screen clamping), `SessionSnapshot`
+  (the ordered set and its tolerant single-string encode/decode, where a corrupt
+  or partial value degrades to empty instead of throwing) and `SessionManager`
+  (capture plus save/load) behind a fakeable `SessionStore` seam — with
+  `PrefsSessionStore` the thin preferences-backed implementation and `Desktop2D`
+  the relaunch glue. Covered by headless JUnit 5 tests (`WindowRecordTest`,
+  12 tests; `SessionSnapshotTest`, 9 tests; `SessionManagerTest`, 10 tests).
 
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree

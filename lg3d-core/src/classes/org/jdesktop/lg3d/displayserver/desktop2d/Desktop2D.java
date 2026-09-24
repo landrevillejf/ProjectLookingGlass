@@ -140,6 +140,10 @@ public class Desktop2D {
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
     private final WindowCyclerOverlay windowSwitcher;
+    private final SessionManager sessionManager;
+
+    /** True while {@link #restoreSession()} is relaunching windows, to defer saves. */
+    private boolean restoring;
 
     private JPopupMenu startMenu;
     private JPopupMenu documentsMenu;
@@ -204,6 +208,10 @@ public class Desktop2D {
         windowSwitcher = new WindowCyclerOverlay(new SwitcherWindowSource());
         windowSwitcher.install(desktop);
 
+        // Persistence for the open-window session (which apps were open, and
+        // where). Restored in show(), once the desktop pane has its real size.
+        sessionManager = new SessionManager();
+
         instance = this;
         // Honour any desktop configuration persisted from a previous session
         // (taskbar position/thickness/font/icon scale/auto-hide). The wallpaper
@@ -230,6 +238,10 @@ public class Desktop2D {
     public void show() {
         frame.setVisible(true);
         frame.toFront();
+        // The pane now has its real size, so restored windows can be clamped
+        // on-screen. Done after the frame is shown rather than in the
+        // constructor, where the desktop pane is not yet laid out.
+        restoreSession();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -592,33 +604,50 @@ public class Desktop2D {
      * way the 3D desktop's app containers behave.
      */
     private void openPanelApp(ItemSpec item, Path initialDir) {
+        openPanelApp(item, initialDir, false);
+    }
+
+    /**
+     * Hosts a panel application and returns its window (or the already-open one
+     * brought forward, or null if it could not be built). When {@code quiet} is
+     * true a launch failure is only logged, never shown in a modal dialog, so
+     * restoring a session cannot greet the user with a popup for an app that has
+     * since become unavailable.
+     */
+    private Desktop2DWindow openPanelApp(ItemSpec item, Path initialDir,
+                                         boolean quiet) {
         String appName = (item.getName() == null || item.getName().isBlank())
                 ? Desktop2DAppRegistry.mainClass(item.getCommand())
                 : item.getName();
         Desktop2DWindow existing = findWindow(appName);
         if (existing != null) {
             activateWindow(existing);
-            return;
+            return existing;
         }
         try {
             JComponent panel =
                     Desktop2DAppRegistry.createPanel(item.getCommand(), initialDir);
             Icon icon = Desktop2DStartMenu.icon(item.getIconResource());
-            Desktop2DWindow window =
-                    new Desktop2DWindow(appName, icon, panel, appName);
+            Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
+                    appName, item.getCommand(), item.getIconResource());
             track(window);
             desktop.add(window);
             taskbar.windowOpened(window);
             window.showIn(desktop);
             desktop.revalidate();
             desktop.repaint();
+            saveSession();
+            return window;
         } catch (Throwable t) {
             // NoClassDefFoundError included: on a 3D-less JVM an app may still
             // drag in a Java 3D class through a shared helper.
             logger.log(Level.WARNING,
                     "Could not start " + appName + " in the 2D desktop", t);
-            showMessage("Could not start " + appName,
-                    "The application could not run in 2D mode:\n" + t);
+            if (!quiet) {
+                showMessage("Could not start " + appName,
+                        "The application could not run in 2D mode:\n" + t);
+            }
+            return null;
         }
     }
 
@@ -630,6 +659,7 @@ public class Desktop2D {
             public void internalFrameClosed(InternalFrameEvent e) {
                 windowSwitcher.cycler().forget(window);
                 taskbar.windowClosed(window);
+                saveSession();
             }
 
             @Override
@@ -698,6 +728,93 @@ public class Desktop2D {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Session persistence (which apps are open, and where)
+    // ------------------------------------------------------------------
+
+    /**
+     * Persists the current set of open application windows and their placement.
+     * A no-op while a session is being restored, so relaunching the saved
+     * windows does not repeatedly overwrite the session with a partial one.
+     */
+    private void saveSession() {
+        if (restoring) {
+            return;
+        }
+        sessionManager.save(openPanelWindows());
+    }
+
+    /** The application windows currently on the desktop, front-most first. */
+    private List<Desktop2DWindow> openPanelWindows() {
+        List<Desktop2DWindow> windows = new ArrayList<>();
+        for (JInternalFrame candidate : desktop.getAllFrames()) {
+            if (candidate instanceof Desktop2DWindow) {
+                windows.add((Desktop2DWindow) candidate);
+            }
+        }
+        return windows;
+    }
+
+    /**
+     * Relaunches the applications open when the desktop last exited and puts
+     * their windows back where they were. Runs on the EDT from {@link #show()}.
+     * A saved session that references an app which can no longer run is skipped
+     * quietly rather than blocking startup with an error dialog.
+     */
+    private void restoreSession() {
+        SessionSnapshot snapshot = sessionManager.load();
+        if (snapshot.isEmpty()) {
+            return;
+        }
+        restoring = true;
+        int restored = 0;
+        try {
+            List<WindowRecord> records = snapshot.windows();
+            // The snapshot is front-most first (getAllFrames order), so relaunch
+            // back-to-front: each window is raised as it opens, and the last one
+            // opened is the originally front-most, ending up on top.
+            for (int i = records.size() - 1; i >= 0; i--) {
+                WindowRecord record = records.get(i);
+                ItemSpec item = new ItemSpec(record.appName(), record.command(),
+                        null, null, record.iconResource());
+                Desktop2DWindow window = openPanelApp(item, null, true);
+                if (window != null) {
+                    applyRecordedState(window, record);
+                    restored++;
+                }
+            }
+        } finally {
+            restoring = false;
+        }
+        saveSession();
+        logger.log(Level.INFO,
+                "Restored {0} window(s) from the last 2D desktop session",
+                Integer.valueOf(restored));
+    }
+
+    /**
+     * Puts a freshly relaunched window back to its saved size, position and
+     * minimised/maximised state. The placement is clamped into the current
+     * desktop so a session saved on a larger screen cannot strand a window
+     * off-screen.
+     */
+    private void applyRecordedState(Desktop2DWindow window, WindowRecord record) {
+        try {
+            if (record.maximized()) {
+                window.setMaximum(true);
+            } else {
+                window.setBounds(record.restoredBounds(
+                        new Rectangle(desktop.getSize())));
+            }
+            if (record.iconified()) {
+                window.setIcon(true);
+            }
+        } catch (PropertyVetoException pve) {
+            logger.log(Level.FINE,
+                    "Could not restore the state of " + record.appName(), pve);
+        }
+    }
+
     /** Opens a file with the user's preferred application (xdg-open). */
     private void openWithSystem(Path path) {
         if (path == null) {
@@ -738,6 +855,9 @@ public class Desktop2D {
     public void exit() {
         logger.info("Shutting down the 2D desktop");
         instance = null;
+        // Capture the final placement of every open window while the frames are
+        // still realized, so the next start reopens them where they were left.
+        saveSession();
         windowSwitcher.uninstall();
         uninstallWidgetLayer();
         taskbar.stop();
