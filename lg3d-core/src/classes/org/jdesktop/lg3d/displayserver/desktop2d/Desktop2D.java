@@ -139,6 +139,7 @@ public class Desktop2D {
     private final WallpaperDesktopPane desktop;
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
+    private final WindowCyclerOverlay windowSwitcher;
 
     private JPopupMenu startMenu;
     private JPopupMenu documentsMenu;
@@ -197,6 +198,11 @@ public class Desktop2D {
 
         // Drop the built-in widgets onto the wallpaper, behind the app windows.
         installWidgetLayer();
+
+        // Install the Alt+` window switcher overlay on the desktop pane's popup
+        // layer, so it floats above every application window.
+        windowSwitcher = new WindowCyclerOverlay(new SwitcherWindowSource());
+        windowSwitcher.install(desktop);
 
         instance = this;
         // Honour any desktop configuration persisted from a previous session
@@ -618,14 +624,17 @@ public class Desktop2D {
 
     /** Registers the taskbar bookkeeping for {@code window}. */
     private void track(final Desktop2DWindow window) {
+        windowSwitcher.cycler().touch(window);
         window.addInternalFrameListener(new InternalFrameAdapter() {
             @Override
             public void internalFrameClosed(InternalFrameEvent e) {
+                windowSwitcher.cycler().forget(window);
                 taskbar.windowClosed(window);
             }
 
             @Override
             public void internalFrameActivated(InternalFrameEvent e) {
+                windowSwitcher.cycler().touch(window);
                 taskbar.windowSelected(window);
             }
 
@@ -664,6 +673,28 @@ public class Desktop2D {
             window.setSelected(true);
         } catch (java.beans.PropertyVetoException pve) {
             logger.log(Level.FINE, "Could not activate " + window.getAppName(), pve);
+        }
+    }
+
+    /**
+     * Brings {@code window} forward and gives it the focus <em>without</em> the
+     * minimise-on-second-click toggle {@link #activateWindow} applies. This is
+     * what the window switcher commits to: selecting a window from the switcher
+     * must always raise it, never hide it.
+     */
+    void focusWindow(Desktop2DWindow window) {
+        if (window == null) {
+            return;
+        }
+        try {
+            if (window.isIcon()) {
+                window.setIcon(false);
+            }
+            window.setVisible(true);
+            window.toFront();
+            window.setSelected(true);
+        } catch (java.beans.PropertyVetoException pve) {
+            logger.log(Level.FINE, "Could not focus " + window.getAppName(), pve);
         }
     }
 
@@ -707,6 +738,7 @@ public class Desktop2D {
     public void exit() {
         logger.info("Shutting down the 2D desktop");
         instance = null;
+        windowSwitcher.uninstall();
         uninstallWidgetLayer();
         taskbar.stop();
         frame.setVisible(false);
@@ -840,6 +872,36 @@ public class Desktop2D {
 
     /**
      * A desktop pane that paints the wallpaper behind the MDI windows.
+     * Feeds the window switcher the live set of application windows and raises
+     * the one the user commits to. Enumerates the MDI pane front-most first, so
+     * the switcher's MRU snapshot lines up with what is on screen.
+     */
+    private final class SwitcherWindowSource
+            implements WindowCyclerOverlay.WindowSource {
+        @Override
+        public List<Desktop2DWindow> presentWindows() {
+            List<Desktop2DWindow> present = new ArrayList<>();
+            for (JInternalFrame candidate : desktop.getAllFrames()) {
+                if (candidate instanceof Desktop2DWindow) {
+                    present.add((Desktop2DWindow) candidate);
+                }
+            }
+            return present;
+        }
+
+        @Override
+        public void focus(Desktop2DWindow window) {
+            focusWindow(window);
+        }
+    }
+
+    /**
+     * Keeps a minimised window's icon in exactly one place. Stock MDI drops a
+     * desktop icon onto the pane when a frame is iconified; the taskbar button
+     * already represents the minimised window, so the desktop icon is hidden.
+     * Clicking the taskbar button restores the window via
+     * {@link #activateWindow(Desktop2DWindow)}.
+
      */
     private static final class WallpaperDesktopPane extends JDesktopPane {
         private Image image;

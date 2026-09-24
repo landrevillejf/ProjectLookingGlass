@@ -24,6 +24,7 @@ work to make it build and run on a current toolchain.
   `Implementation-Version` (stamped from `project.version`) and then `unknown`.
   Covered by headless JUnit 5 tests (`AboutInfoTest`, `AboutPanelTest`, plus a
   new `Desktop2DAppRegistryTest` case).
+
 - **Window snapping for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — dragging an application window
   to a desktop edge snaps it on release: the left/right edges tile the window to
@@ -41,6 +42,27 @@ work to make it build and run on a current toolchain.
   snap logic headless without invoking super's rendering. Covered by headless
   JUnit 5 tests (`WindowSnapTest`, 12 tests; `SnapPreviewTest`, 6 tests;
   `SnappingDesktopManagerTest`, 11 tests).
+=======
+- **Window switcher for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a keyboard window cycler that
+  raises a translucent overlay listing the open application windows in
+  most-recently-used order and steps a highlight through them. The trigger is
+  **Alt+` (Alt+grave)** forward and **Alt+Shift+`** backward — deliberately
+  *not* Alt+Tab: the 2D desktop is an ordinary window under the host window
+  manager (GNOME/Mutter, Xwayland), which grabs Alt+Tab, Super+Tab and the
+  Ctrl+Alt+arrow workspace keys before they reach the JVM, so those never
+  arrive. Alt+grave is the conventional in-application window-cycle shortcut,
+  is not reserved by the common host WMs and clashes with no Swing/MDI default.
+  Because modifier-release detection is unreliable across platforms, the
+  selection commits itself on a short idle timer once the user stops pressing
+  (no separate confirm key, and no global binding is placed on Escape/Enter).
+  The logic splits into a pure, headless-testable `WindowCycler` (MRU tracking +
+  cycle state machine) and a `WindowCyclerOverlay` (key bindings + painting on
+  the desktop pane's popup layer) driven by a fakeable `WindowSource` seam;
+  `Desktop2D` installs it, feeds it MRU touch/forget events from `track()`, and
+  gains a non-toggling `focusWindow()` so committing always raises the window
+  rather than minimising it. Covered by headless JUnit 5 tests
+  (`WindowCyclerTest`, 15 tests; `WindowCyclerOverlayTest`, 11 tests).
 
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree
