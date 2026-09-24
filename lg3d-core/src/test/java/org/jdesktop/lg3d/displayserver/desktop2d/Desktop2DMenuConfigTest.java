@@ -194,6 +194,52 @@ class Desktop2DMenuConfigTest {
     }
 
     @Test
+    @DisplayName("the 3D marker is dropped from apps the 2D desktop runs")
+    void displayNameStrips3dForRunnableApps() {
+        // A PANEL app: hosted as a plain Swing internal frame, never a 3D window.
+        assertEquals("Mail",
+                Desktop2DMenuConfig.desktopDisplayName("Mail 3D",
+                        "java org.jdesktop.lg3d.apps.mail.Mail3D"));
+        assertEquals("Chess",
+                Desktop2DMenuConfig.desktopDisplayName("Chess 3D",
+                        "java org.jdesktop.lg3d.apps.games.chess.Chess3D"));
+        // An EXTERNAL app runs in 2D too, so its marker is dropped as well.
+        assertEquals("Browser",
+                Desktop2DMenuConfig.desktopDisplayName("3D Browser", "firefox"));
+    }
+
+    @Test
+    @DisplayName("a pure-3D app the 2D desktop cannot run keeps its 3D name")
+    void displayNameKeeps3dForUnavailableApps() {
+        assertEquals("ArchViz3D",
+                Desktop2DMenuConfig.desktopDisplayName("ArchViz3D",
+                        "java org.jdesktop.lg3d.apps.archviz3d.ArchViz3D"));
+        // A commandless item is UNAVAILABLE and keeps its name.
+        assertEquals("Mail 3D",
+                Desktop2DMenuConfig.desktopDisplayName("Mail 3D", null));
+    }
+
+    @Test
+    @DisplayName("strip3dMarker handles leading, trailing and attached forms")
+    void strip3dMarkerPositions() {
+        assertEquals("Mail", Desktop2DMenuConfig.strip3dMarker("Mail 3D"));
+        assertEquals("Tic-Tac-Toe",
+                Desktop2DMenuConfig.strip3dMarker("Tic-Tac-Toe 3D"));
+        assertEquals("Browser", Desktop2DMenuConfig.strip3dMarker("3D Browser"));
+        assertEquals("PeriodicTable",
+                Desktop2DMenuConfig.strip3dMarker("PeriodicTable3D"));
+        // An interior marker is left alone; the name is not just "3D"-hunting.
+        assertEquals("K-Web 3D UI Demo",
+                Desktop2DMenuConfig.strip3dMarker("K-Web 3D UI Demo"));
+        assertEquals("Lg3d Homepage",
+                Desktop2DMenuConfig.strip3dMarker("Lg3d Homepage"));
+        // A name that is nothing but the marker is returned unchanged.
+        assertEquals("3D", Desktop2DMenuConfig.strip3dMarker("3D"));
+        // Surrounding whitespace is trimmed.
+        assertEquals("Mail", Desktop2DMenuConfig.strip3dMarker("  Mail 3D  "));
+    }
+
+    @Test
     @DisplayName("unreadable descriptors are skipped instead of failing the menu")
     void badDescriptorsAreSkipped() throws Exception {
         List<URL> urls = new ArrayList<>();

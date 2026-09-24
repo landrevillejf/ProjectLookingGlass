@@ -333,12 +333,50 @@ public final class Desktop2DMenuConfig {
     }
 
     private static ItemSpec parseItem(Element object) {
+        String command = stringProperty(object, "command");
         return new ItemSpec(
-                stringProperty(object, "name"),
-                stringProperty(object, "command"),
+                desktopDisplayName(stringProperty(object, "name"), command),
+                command,
                 stringProperty(object, "desc"),
                 stringProperty(object, "menuGroup"),
                 stripResourceScheme(stringProperty(object, "displayResourceUrlName")));
+    }
+
+    /**
+     * The name an item is shown under in the 2D/Swing desktop. The {@code .lgcfg}
+     * descriptors are shared with the 3D desktop, where the "3D" in a name such
+     * as "Mail 3D" is accurate. But an app the 2D desktop actually runs is a
+     * plain Swing panel, a Swing frame or an external process - never a 3D
+     * window - so the "3D" marker would be misleading in both its menu entry and
+     * its window title, and is dropped. Pure-3D apps the 2D desktop cannot run
+     * keep their name unchanged: they appear disabled behind a "Requires the 3D
+     * desktop" tooltip, where the "3D" is exactly the point.
+     */
+    static String desktopDisplayName(String name, String command) {
+        if (name == null) {
+            return null;
+        }
+        if (Desktop2DAppRegistry.classify(command)
+                == Desktop2DAppRegistry.Kind.UNAVAILABLE) {
+            return name;
+        }
+        return strip3dMarker(name);
+    }
+
+    /**
+     * Removes a "3D" marker from a display name: a leading {@code 3D } prefix
+     * ({@code 3D Browser}), a trailing {@code  3D} suffix ({@code Mail 3D}) or a
+     * trailing {@code 3D} attached to a word ({@code PeriodicTable3D}). Interior
+     * occurrences are left alone, and a name that would be reduced to nothing is
+     * returned unchanged.
+     */
+    static String strip3dMarker(String name) {
+        String result = name.trim();
+        result = result.replaceFirst("(?i)^3d\\b\\s*", "");
+        result = result.replaceFirst("(?i)\\s*\\b3d$", "");
+        result = result.replaceFirst("(?<=[A-Za-z])3[dD]$", "");
+        result = result.trim().replaceAll("\\s{2,}", " ");
+        return result.isEmpty() ? name : result;
     }
 
     /**
