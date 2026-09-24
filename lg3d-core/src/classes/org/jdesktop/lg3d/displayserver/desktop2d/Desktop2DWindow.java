@@ -41,6 +41,15 @@ public class Desktop2DWindow extends JInternalFrame {
     private final String appName;
 
     /**
+     * The start-menu descriptor command this window was launched from, so the
+     * session can relaunch it; null for a window that cannot be relaunched.
+     */
+    private final String command;
+
+    /** The classpath icon resource, so a restored window keeps its art; may be null. */
+    private final String iconResource;
+
+    /**
      * @param title    the window title (the application's name)
      * @param icon     the application icon, or null for none
      * @param content  the application's Swing panel
@@ -48,8 +57,24 @@ public class Desktop2DWindow extends JInternalFrame {
      */
     public Desktop2DWindow(String title, Icon icon, JComponent content,
                            String appName) {
+        this(title, icon, content, appName, null, null);
+    }
+
+    /**
+     * @param title        the window title (the application's name)
+     * @param icon         the application icon, or null for none
+     * @param content      the application's Swing panel
+     * @param appName      the application name used by the taskbar button
+     * @param command      the descriptor command to relaunch this app from, or
+     *                     null if it cannot be relaunched (not session-saved)
+     * @param iconResource the classpath icon location, or null for none
+     */
+    public Desktop2DWindow(String title, Icon icon, JComponent content,
+                           String appName, String command, String iconResource) {
         super(title, true, true, true, true);
         this.appName = appName;
+        this.command = command;
+        this.iconResource = iconResource;
         setFrameIcon(icon);
         getContentPane().add(content);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -58,6 +83,16 @@ public class Desktop2DWindow extends JInternalFrame {
     /** The application name (taskbar button label). */
     public String getAppName() {
         return appName;
+    }
+
+    /** The descriptor command this window was launched from, or null. */
+    public String getCommand() {
+        return command;
+    }
+
+    /** The classpath icon location this window was built with, or null. */
+    public String getIconResource() {
+        return iconResource;
     }
 
     /**

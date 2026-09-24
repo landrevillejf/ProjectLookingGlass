@@ -142,6 +142,10 @@ public class Desktop2D {
     private final WindowCyclerOverlay windowSwitcher;
     private final NotificationModel notifications;
     private final ToastLayer toastLayer;
+    private final SessionManager sessionManager;
+
+    /** True while {@link #restoreSession()} is relaunching windows, to defer saves. */
+    private boolean restoring;
 
     private JPopupMenu startMenu;
     private JPopupMenu documentsMenu;
@@ -160,8 +164,9 @@ public class Desktop2D {
         desktop.setDragMode(JDesktopPane.OUTLINE_DRAG_MODE);
         // The taskbar button is the single representation of a minimised
         // window; stock MDI would also drop a desktop icon on the pane, which
-        // shows the icon twice and reads as a second row above the taskbar.
-        desktop.setDesktopManager(new SingleIconDesktopManager());
+        // shows the icon twice and reads as a second row above the taskbar. The
+        // same manager adds snap-to-edge placement while a window is dragged.
+        desktop.setDesktopManager(new SnappingDesktopManager());
 
         // Right-clicking the wallpaper (anywhere not covered by an app window or
         // a widget) opens the desktop context menu. Both press and release are
@@ -214,6 +219,10 @@ public class Desktop2D {
         toastLayer = new ToastLayer(new ToastQueue());
         toastLayer.install(desktop);
 
+        // Persistence for the open-window session (which apps were open, and
+        // where). Restored in show(), once the desktop pane has its real size.
+        sessionManager = new SessionManager();
+
         instance = this;
         // Honour any desktop configuration persisted from a previous session
         // (taskbar position/thickness/font/icon scale/auto-hide). The wallpaper
@@ -240,6 +249,10 @@ public class Desktop2D {
     public void show() {
         frame.setVisible(true);
         frame.toFront();
+        // The pane now has its real size, so restored windows can be clamped
+        // on-screen. Done after the frame is shown rather than in the
+        // constructor, where the desktop pane is not yet laid out.
+        restoreSession();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -616,33 +629,50 @@ public class Desktop2D {
      * way the 3D desktop's app containers behave.
      */
     private void openPanelApp(ItemSpec item, Path initialDir) {
+        openPanelApp(item, initialDir, false);
+    }
+
+    /**
+     * Hosts a panel application and returns its window (or the already-open one
+     * brought forward, or null if it could not be built). When {@code quiet} is
+     * true a launch failure is only logged, never shown in a modal dialog, so
+     * restoring a session cannot greet the user with a popup for an app that has
+     * since become unavailable.
+     */
+    private Desktop2DWindow openPanelApp(ItemSpec item, Path initialDir,
+                                         boolean quiet) {
         String appName = (item.getName() == null || item.getName().isBlank())
                 ? Desktop2DAppRegistry.mainClass(item.getCommand())
                 : item.getName();
         Desktop2DWindow existing = findWindow(appName);
         if (existing != null) {
             activateWindow(existing);
-            return;
+            return existing;
         }
         try {
             JComponent panel =
                     Desktop2DAppRegistry.createPanel(item.getCommand(), initialDir);
             Icon icon = Desktop2DStartMenu.icon(item.getIconResource());
-            Desktop2DWindow window =
-                    new Desktop2DWindow(appName, icon, panel, appName);
+            Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
+                    appName, item.getCommand(), item.getIconResource());
             track(window);
             desktop.add(window);
             taskbar.windowOpened(window);
             window.showIn(desktop);
             desktop.revalidate();
             desktop.repaint();
+            saveSession();
+            return window;
         } catch (Throwable t) {
             // NoClassDefFoundError included: on a 3D-less JVM an app may still
             // drag in a Java 3D class through a shared helper.
             logger.log(Level.WARNING,
                     "Could not start " + appName + " in the 2D desktop", t);
-            showMessage("Could not start " + appName,
-                    "The application could not run in 2D mode:\n" + t);
+            if (!quiet) {
+                showMessage("Could not start " + appName,
+                        "The application could not run in 2D mode:\n" + t);
+            }
+            return null;
         }
     }
 
@@ -654,6 +684,7 @@ public class Desktop2D {
             public void internalFrameClosed(InternalFrameEvent e) {
                 windowSwitcher.cycler().forget(window);
                 taskbar.windowClosed(window);
+                saveSession();
             }
 
             @Override
@@ -719,6 +750,93 @@ public class Desktop2D {
             window.setSelected(true);
         } catch (java.beans.PropertyVetoException pve) {
             logger.log(Level.FINE, "Could not focus " + window.getAppName(), pve);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Session persistence (which apps are open, and where)
+    // ------------------------------------------------------------------
+
+    /**
+     * Persists the current set of open application windows and their placement.
+     * A no-op while a session is being restored, so relaunching the saved
+     * windows does not repeatedly overwrite the session with a partial one.
+     */
+    private void saveSession() {
+        if (restoring) {
+            return;
+        }
+        sessionManager.save(openPanelWindows());
+    }
+
+    /** The application windows currently on the desktop, front-most first. */
+    private List<Desktop2DWindow> openPanelWindows() {
+        List<Desktop2DWindow> windows = new ArrayList<>();
+        for (JInternalFrame candidate : desktop.getAllFrames()) {
+            if (candidate instanceof Desktop2DWindow) {
+                windows.add((Desktop2DWindow) candidate);
+            }
+        }
+        return windows;
+    }
+
+    /**
+     * Relaunches the applications open when the desktop last exited and puts
+     * their windows back where they were. Runs on the EDT from {@link #show()}.
+     * A saved session that references an app which can no longer run is skipped
+     * quietly rather than blocking startup with an error dialog.
+     */
+    private void restoreSession() {
+        SessionSnapshot snapshot = sessionManager.load();
+        if (snapshot.isEmpty()) {
+            return;
+        }
+        restoring = true;
+        int restored = 0;
+        try {
+            List<WindowRecord> records = snapshot.windows();
+            // The snapshot is front-most first (getAllFrames order), so relaunch
+            // back-to-front: each window is raised as it opens, and the last one
+            // opened is the originally front-most, ending up on top.
+            for (int i = records.size() - 1; i >= 0; i--) {
+                WindowRecord record = records.get(i);
+                ItemSpec item = new ItemSpec(record.appName(), record.command(),
+                        null, null, record.iconResource());
+                Desktop2DWindow window = openPanelApp(item, null, true);
+                if (window != null) {
+                    applyRecordedState(window, record);
+                    restored++;
+                }
+            }
+        } finally {
+            restoring = false;
+        }
+        saveSession();
+        logger.log(Level.INFO,
+                "Restored {0} window(s) from the last 2D desktop session",
+                Integer.valueOf(restored));
+    }
+
+    /**
+     * Puts a freshly relaunched window back to its saved size, position and
+     * minimised/maximised state. The placement is clamped into the current
+     * desktop so a session saved on a larger screen cannot strand a window
+     * off-screen.
+     */
+    private void applyRecordedState(Desktop2DWindow window, WindowRecord record) {
+        try {
+            if (record.maximized()) {
+                window.setMaximum(true);
+            } else {
+                window.setBounds(record.restoredBounds(
+                        new Rectangle(desktop.getSize())));
+            }
+            if (record.iconified()) {
+                window.setIcon(true);
+            }
+        } catch (PropertyVetoException pve) {
+            logger.log(Level.FINE,
+                    "Could not restore the state of " + record.appName(), pve);
         }
     }
 
@@ -801,6 +919,9 @@ public class Desktop2D {
     public void exit() {
         logger.info("Shutting down the 2D desktop");
         instance = null;
+        // Capture the final placement of every open window while the frames are
+        // still realized, so the next start reopens them where they were left.
+        saveSession();
         windowSwitcher.uninstall();
         toastLayer.uninstall();
         uninstallWidgetLayer();
@@ -935,6 +1056,7 @@ public class Desktop2D {
     }
 
     /**
+     * A desktop pane that paints the wallpaper behind the MDI windows.
      * Feeds the window switcher the live set of application windows and raises
      * the one the user commits to. Enumerates the MDI pane front-most first, so
      * the switcher's MRU snapshot lines up with what is on screen.
@@ -964,17 +1086,8 @@ public class Desktop2D {
      * already represents the minimised window, so the desktop icon is hidden.
      * Clicking the taskbar button restores the window via
      * {@link #activateWindow(Desktop2DWindow)}.
-     */
-    private static final class SingleIconDesktopManager
-            extends javax.swing.DefaultDesktopManager {
-        @Override
-        public void iconifyFrame(javax.swing.JInternalFrame f) {
-            super.iconifyFrame(f);
-            f.getDesktopIcon().setVisible(false);
-        }
-    }
 
-    /** A desktop pane that paints the wallpaper behind the MDI windows. */
+     */
     private static final class WallpaperDesktopPane extends JDesktopPane {
         private Image image;
 
