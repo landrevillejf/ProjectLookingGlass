@@ -193,8 +193,9 @@ work to make it build and run on a current toolchain.
   now resolves instead of degrading to `UpdateServerUnavailableException`.
 - **Release workflow** (`.github/workflows/release.yml`) +
   **`:lg3d-core:releaseBundle`** task — publishes the update metadata the Software
-  Update app checks for. On a published Release (or `workflow_dispatch` for a
-  tag) it builds and tests the tree, assembles `lg3d-<version>.zip` (the module
+  Update app checks for. On a pushed `v*` version tag (the normal way to cut a
+  release), a published Release, or `workflow_dispatch` for a tag, it builds and
+  tests the tree, assembles `lg3d-<version>.zip` (the module
   jars, their third-party runtime dependencies, the assembled `resources/` tree,
   the `etc/` config tree, `ext/app` and a `lg3d.sh` launcher), computes its size +
   SHA-256, optionally signs it with an armored detached PGP signature (`.zip.asc`,
@@ -202,7 +203,13 @@ work to make it build and run on a current toolchain.
   `RELEASE_SIGNING_PASSPHRASE` secrets are set (publishing the public key as
   `public-key.asc`), generates the `version.json` manifest
   (`UpdateRepository.parseUpdateInfo` schema) and uploads `version.json`,
-  `changelog.md` and the bundle to the Release. Signing is secret-driven and never
+  `changelog.md` and the bundle to the Release. The `push: tags: v*` trigger means
+  CI now cuts the release end-to-end — the publish step `gh release create`s the
+  GitHub Release when the tag does not yet have one, so a downstream consumer
+  (e.g. an LFS host, or the Software Update app) fetching
+  `.../releases/latest/download/version.json` resolves as soon as the tag is
+  pushed, without anyone first clicking "Publish release" in the UI. Signing is
+  secret-driven and never
   committed; without the secrets the release is published unsigned and the
   client's default checksum-only verification applies.
 - **LPM Console** (`lpm-console`, `org.lpmconsole`) — a graphical package-manager
