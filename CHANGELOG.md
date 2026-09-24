@@ -7,6 +7,18 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
+## [Unreleased]
+
+### Changed
+- **Copyright attribution** — corrected the source-file headers across the tree
+  so the modernization work is credited to its actual author instead of the
+  inherited upstream notice. The from-scratch 2026 modules (`lg3d-widgets`,
+  `db-manager`) now carry `Copyright (c) 2026, Jean-Francois Landreville`; the
+  ported 2006 Sun base files keep Sun's original notice (as the GPL requires)
+  with an added `Portions Copyright (c) 2026, Jean-Francois Landreville` line
+  for the Gradle/JDK 21 modernization and improvements. `lg3d-docs/**` is left
+  untouched (historical, do-not-update). Comment-only; no functional change.
+
 ## [1.9.0] — 2026-09-24 — Gradle / JDK 21 modernization
 
 ### Added
