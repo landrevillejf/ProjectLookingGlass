@@ -182,6 +182,22 @@ work to make it build and run on a current toolchain.
   `Portions Copyright (c) 2026, Jean-Francois Landreville` line for the
   Gradle/JDK 21 modernization and improvements. `lg3d-docs/**` is left
   untouched (historical, do-not-update). Comment-only; no functional change.
+- **2D copyright attribution (follow-up)** — the earlier pass missed the whole 2D
+  desktop surface. Every file in the `displayserver/desktop2d` subsystem (2D
+  window manager, taskbar, start/context menus, notification tray + toasts,
+  session restore, window snapping/cycling, and their JUnit suites) plus the
+  SwingNode 2D capture helpers (`SwingNodeWindowCapture`, `HostedWindowResizer`)
+  is a post-import original, yet 26 of them still carried the inherited Sun
+  Microsystems notice; those now credit `Jean-Francois Landreville` alone. The
+  standalone 2D Swing modules `lpm-console` (16 files) and `update-manager`
+  (67 files) — also originals — had no header at all and now carry the same
+  `Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved` notice as
+  the already-corrected `db-manager` / `lg3d-widgets` (83 files). `SwingNode.java`
+  itself arrived in the cloned 2006 Sun base, so its Sun notice is retained (as
+  the GPL requires) with the existing `Portions` line. Authorship is taken from
+  git history (files added after the `26e7ee1` import). Comment-only; no
+  functional change — `lg3d-core`, `lpm-console` and `update-manager` all still
+  compile.
 
 ## [1.9.0] — 2026-09-24 — Gradle / JDK 21 modernization
 
