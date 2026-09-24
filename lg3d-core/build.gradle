@@ -270,9 +270,15 @@ tasks.register('run', JavaExec) {
     // the reflective 2D lookup and the 3D "java <class>" launch to resolve
     // com.protonmail.landrevillejf.swingide.update.*.
     def updateManagerJar = project(':update-manager').tasks.named('jar')
+    // Database Manager: the standalone db-manager module's jar, wrapped by
+    // lg3d-apps' org.jdesktop.lg3d.apps.dbmanager panel and registered with
+    // Desktop2DAppRegistry, so it must be on the desktop run classpath for both
+    // the reflective 2D lookup and the 3D "java <class>" launch to resolve
+    // org.jdesktop.lg3d.dbmanager.*.
+    def dbManagerJar = project(':db-manager').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-            updateManagerJar, runtimeResources
+            updateManagerJar, dbManagerJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -338,13 +344,30 @@ tasks.register('run', JavaExec) {
         dependencies.create("org.bouncycastle:bcpg-jdk18on:${libs.versions.bouncycastle.get()}"),
         dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"))
 
+    // The Database Manager app's db-manager module persists profiles/settings with
+    // Jackson, logs through slf4j, and talks to databases through JDBC drivers.
+    // The module declares those drivers as runtimeOnly, but this run classpath is
+    // assembled from packaged jars rather than that module's runtimeClasspath, so
+    // resolve them here directly -- otherwise a connect attempt dies with
+    // "No suitable driver". SQLite + H2 are the embedded/offline drivers; the
+    // PostgreSQL + MariaDB clients cover the common servers. Jackson/slf4j are
+    // repeated from updateManagerLibs so this block stays self-contained.
+    def dbManagerLibs = configurations.detachedConfiguration(
+        dependencies.create("com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson.get()}"),
+        dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
+        dependencies.create("org.xerial:sqlite-jdbc:${libs.versions.sqliteJdbc.get()}"),
+        dependencies.create("com.h2database:h2:${libs.versions.h2.get()}"),
+        dependencies.create("org.postgresql:postgresql:${libs.versions.postgresql.get()}"),
+        dependencies.create("org.mariadb.jdbc:mariadb-java-client:${libs.versions.mariadb.get()}"))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-              updateManagerJar, runtimeResourcesDir, incubatorExtJars,
-              agendaLibs, javaHelpLibs, updateManagerLibs)
+              updateManagerJar, dbManagerJar, runtimeResourcesDir, incubatorExtJars,
+              agendaLibs, javaHelpLibs, updateManagerLibs, dbManagerLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -593,8 +616,10 @@ tasks.register('releaseBundle', Zip) {
 
     // Third-party runtime jars the desktop needs, resolved exactly like the run
     // task's classpath: Java 3D + the Jogamp natives for the host platform,
-    // JavaHelp (Help Center), and the update-manager's Jackson / BouncyCastle /
-    // slf4j. jbusinessday + slf4j and the incubator ext jars are added below.
+    // JavaHelp (Help Center), the update-manager's Jackson / BouncyCastle /
+    // slf4j, and the db-manager's Jackson / slf4j + the bundled SQLite / H2 /
+    // PostgreSQL / MariaDB JDBC drivers. jbusinessday + slf4j and the incubator
+    // ext jars are added below.
     def releaseRuntime = configurations.detachedConfiguration(
         dependencies.create("org.jogamp.java3d:java3d-core:${libs.versions.java3d.get()}"),
         dependencies.create("org.jogamp.java3d:java3d-utils:${libs.versions.java3d.get()}"),
@@ -607,7 +632,11 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
         dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
         dependencies.create("org.bouncycastle:bcpg-jdk18on:${libs.versions.bouncycastle.get()}"),
-        dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"))
+        dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"),
+        dependencies.create("org.xerial:sqlite-jdbc:${libs.versions.sqliteJdbc.get()}"),
+        dependencies.create("com.h2database:h2:${libs.versions.h2.get()}"),
+        dependencies.create("org.postgresql:postgresql:${libs.versions.postgresql.get()}"),
+        dependencies.create("org.mariadb.jdbc:mariadb-java-client:${libs.versions.mariadb.get()}"))
 
     // The specific incubator ext jars the desktop apps touch at runtime (same
     // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl
@@ -625,11 +654,13 @@ tasks.register('releaseBundle', Zip) {
     def widgetsJar = project(':lg3d-widgets').tasks.named('jar')
     def lpmConsoleJar = project(':lpm-console').tasks.named('jar')
     def updateManagerJar = project(':update-manager').tasks.named('jar')
+    def dbManagerJar = project(':db-manager').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
     def releaseLauncher = tasks.named('releaseLauncher')
 
     dependsOn coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
-            lpmConsoleJar, updateManagerJar, runtimeResources, releaseLauncher
+            lpmConsoleJar, updateManagerJar, dbManagerJar, runtimeResources,
+            releaseLauncher
 
     // lib/ : every module jar + every third-party runtime jar. These go inside
     // an explicit into('lib') { from(...) } child spec rather than
@@ -639,7 +670,7 @@ tasks.register('releaseBundle', Zip) {
     // fails with a circular dependency on this very task.
     into('lib') {
         from(coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
-             lpmConsoleJar, updateManagerJar)
+             lpmConsoleJar, updateManagerJar, dbManagerJar)
         from(releaseRuntime)
         from(incubatorExtJars)
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))

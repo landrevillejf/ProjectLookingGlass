@@ -100,6 +100,13 @@ dependencies {
     // (see lg3d-core/build.gradle), so the in-JVM start-menu launch works.
     implementation project(':update-manager')
 
+    // The Database Manager app (org.jdesktop.lg3d.apps.dbmanager) wraps the
+    // db-manager module's JDBC client (DbManagerMainPanel). Its runtime deps
+    // (jackson-databind, slf4j, and the bundled SQLite/H2/PostgreSQL/MariaDB
+    // drivers) are resolved onto the lg3d-core desktop run classpath too (see
+    // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
+    implementation project(':db-manager')
+
     // Headless JUnit 5 for the HelpSet / content-integrity test.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter

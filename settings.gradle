@@ -18,6 +18,14 @@ include 'lpm-console'
 // "Software Update" start-menu app (SwingNode in 3D, MDI internal frame in 2D);
 // the :lg3d-core:run task puts its jar and runtime deps on the desktop classpath.
 include 'update-manager'
+// Database Manager: a self-contained, driver-agnostic JDBC database client
+// (connection profiles, metadata navigator, SQL editor, results grid, CSV
+// export) styled after DBeaver. Plain Java 21 Swing library with no lg3d-core
+// dependency; lg3d-apps wraps its DbManagerMainPanel in a "Database Manager"
+// start-menu app (SwingNode in 3D, MDI internal frame in 2D), and the
+// :lg3d-core:run task puts its jar plus the bundled JDBC drivers on the desktop
+// classpath.
+include 'db-manager'
 
 // lg3d-awt is intentionally NOT part of the Gradle build.
 //

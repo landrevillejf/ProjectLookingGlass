@@ -22,6 +22,15 @@ bouncycastle = "1.78.1"   # Bouncy Castle OpenPGP (update-manager detached-signa
 lombok = "1.18.38"        # Lombok (update-manager @Slf4j / @Value), compile-time only
 mockito = "5.7.0"         # Mockito (update-manager test doubles)
 assertj = "3.24.2"        # AssertJ fluent assertions (update-manager tests)
+# db-manager JDBC drivers. The core is driver-agnostic (plain JDBC), so these
+# are runtime pluggables: SQLite + H2 are embedded (offline, back the headless
+# test suite); PostgreSQL + MariaDB (which also speaks to MySQL) cover the
+# common open-source servers. Any other JDBC driver works via the app's
+# "add custom driver" mechanism (a user-supplied jar on the classpath).
+sqliteJdbc = "3.46.1.3"   # org.xerial:sqlite-jdbc (embedded SQLite, Apache-2.0)
+h2 = "2.3.232"            # com.h2database:h2 (embedded SQL engine, MPL-2.0/EPL)
+postgresql = "42.7.4"     # org.postgresql:postgresql (BSD)
+mariadb = "3.4.1"         # org.mariadb.jdbc:mariadb-java-client (LGPL-2.1)
 checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine
@@ -68,6 +77,13 @@ bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bo
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+
+# db-manager JDBC drivers (see the [versions] notes). Declared as runtime
+# pluggables; the module compiles only against the JDK's java.sql API.
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+mariadb-java-client = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and

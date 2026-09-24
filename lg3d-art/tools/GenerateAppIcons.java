@@ -64,6 +64,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector package box instead of a bundled glyph. */
     private static final String PACKAGE_GLYPH = "PackageBox";
 
+    /** Glyph name that draws a built-in vector database cylinder instead of a bundled glyph. */
+    private static final String DATABASE_GLYPH = "DatabaseCylinder";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -92,6 +95,10 @@ public class GenerateAppIcons {
         // desktop); the bundled glyph set has no package box, so it is drawn
         // in-tool like the keypad, disc and brush.
         {"lpm-console.png", IconColor.GREEN,       IconCategory.GENERAL, PACKAGE_GLYPH},
+        // Database Manager (standalone JDBC client captured into the desktop);
+        // the bundled glyph set has no database cylinder, so it is drawn in-tool
+        // like the keypad, disc, brush and package box.
+        {"dbmanager.png",   IconColor.TEAL,        IconCategory.GENERAL, DATABASE_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -114,6 +121,8 @@ public class GenerateAppIcons {
                 glyph = drawBrushGlyph(GLYPH);
             } else if (PACKAGE_GLYPH.equals(glyphName)) {
                 glyph = drawPackageGlyph(GLYPH);
+            } else if (DATABASE_GLYPH.equals(glyphName)) {
+                glyph = drawDatabaseGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -231,6 +240,32 @@ public class GenerateAppIcons {
         // Packing tape down the middle.
         g.setColor(new Color(0xC4, 0xC4, 0xC4));
         g.fillRect(14, 8, 4, 20);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the database cylinder glyph: a white drum (top ellipse, body and
+     * bottom ellipse) with two faint horizontal bands suggesting stacked platters.
+     * The bundled {@code toolbarButtonGraphics} set carries nothing database
+     * shaped, so it is drawn in-tool like the keypad, disc, brush and package box.
+     * Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawDatabaseGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Drum body + caps.
+        g.setColor(Color.WHITE);
+        g.fillRect(5, 6, 22, 18);
+        g.fillOval(5, 2, 22, 8);
+        g.fillOval(5, 18, 22, 8);
+        // Two platter bands across the body.
+        g.setColor(new Color(0xD5, 0xD5, 0xD5));
+        g.setStroke(new BasicStroke(1.4f));
+        g.drawArc(5, 7, 22, 8, 180, 180);
+        g.drawArc(5, 14, 22, 8, 180, 180);
         g.dispose();
         return new ImageIcon(image);
     }
