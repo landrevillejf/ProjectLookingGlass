@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: IDE (from lg3d-apps). The external swing-ide project: a
+ full-featured modular Java Swing IDE (multi-language code editor, Maven/Gradle/
+ Ant build tools, Git, debugger, database explorer, plugin system and more) that
+ ships as a self-contained fat jar (libs/swing-ide.jar). It is NOT loaded into
+ the desktop JVM: the SwingIde launcher forks it as a separate child process
+ (java -jar) on the lg3d display, so the IDE's own JFrame appears as an ordinary
+ top-level window and its System.exit-on-close plus its bundled third-party
+ libraries stay isolated from the desktop. Registered with the "java <class>"
+ verb, so AppLaunchAction (3D) and Desktop2DAppRegistry.launchSwingFrame (2D, via
+ SWING_FRAME_APPS) both run the launcher's main, which only forks the child. The
+ jar path is resolved from the swingide.jar system property (set by :lg3d-core:run
+ and the release lg3d.sh), else <lg.appcodebase>/libs, else the working dir. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.swingide.SwingIde</string>
+  </void>
+  <void property="desc">
+   <string>Full-featured modular Java Swing IDE: editor, build, Git, debugger, database, plugins</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/swing-ide.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>IDE</string>
+  </void>
+ </object>
+</java>

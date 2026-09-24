@@ -164,3 +164,41 @@ dependencyCheck {
         nvd { apiKey = nvdKey }
     }
 }
+
+// -----------------------------------------------------------------------------
+// fetchSwingIdeJar: fetch the vendored swing-ide fat jar on demand
+// -----------------------------------------------------------------------------
+// The IDE start-menu app (lg3d-apps, org.jdesktop.lg3d.apps.swingide) forks the
+// external swing-ide project's self-contained fat jar as a separate child
+// process. That jar is ~138 MB, above GitHub's 100 MB per-file push limit, so it
+// is NOT committed: it is built by the swing-ide project (./gradlew
+// :app:shadowJar) and fetched into libs/swing-ide.jar here (libs/swing-ide.jar
+// is gitignored). Everything degrades gracefully when it is absent -- the run
+// task / release launcher simply point -Dswingide.jar at a path that may not
+// exist yet, and the desktop reports the IDE as unavailable.
+//
+// Two ways to obtain it:
+//   * build swing-ide locally and copy app/build/libs/swing-ide-*-all.jar to
+//     libs/swing-ide.jar, or
+//   * ./gradlew fetchSwingIdeJar -PswingIdeJarUrl=<url> to download it.
+// On-demand only (never wired into build); a present jar is left untouched.
+tasks.register('fetchSwingIdeJar') {
+    group = 'application'
+    description = 'Download the swing-ide fat jar into libs/swing-ide.jar (pass -PswingIdeJarUrl=<url>); a present jar is left as-is.'
+    def dest = rootProject.file('libs/swing-ide.jar')
+    def url = project.findProperty('swingIdeJarUrl')?.toString()?.trim()
+    doLast {
+        if (dest.isFile()) {
+            logger.lifecycle("swing-ide jar already present: ${dest}")
+            return
+        }
+        if (!url) {
+            throw new GradleException("No swing-ide jar at ${dest} and no -PswingIdeJarUrl given. "
+                + 'Build swing-ide (./gradlew :app:shadowJar) and copy '
+                + "app/build/libs/swing-ide-*-all.jar to ${dest}, or re-run with -PswingIdeJarUrl=<url>.")
+        }
+        dest.parentFile.mkdirs()
+        ant.get(src: url, dest: dest, verbose: false)
+        logger.lifecycle("Fetched swing-ide jar -> ${dest}")
+    }
+}

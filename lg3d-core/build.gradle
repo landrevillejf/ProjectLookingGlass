@@ -408,6 +408,14 @@ tasks.register('run', JavaExec) {
     def displayConfig = project.hasProperty('windowed') ? 'j3d1x1' : 'j3d1x1-nbfs'
     systemProperty 'lg.displayconfigurl', "file://${etcDir}/lg3d/displayconfig/${displayConfig}"
     systemProperty 'lg.appcodebase', "file://${file('ext/app')}"
+    // The IDE start-menu app (lg3d-apps, org.jdesktop.lg3d.apps.swingide) forks
+    // the external swing-ide fat jar as a SEPARATE child process; the jar is
+    // never on the desktop classpath (it runs in its own JVM), so there is no
+    // dependency clash and the IDE's System.exit-on-close cannot tear down the
+    // desktop. The launcher resolves the jar from this absolute path. It is
+    // fetched into libs/ (see :fetchSwingIdeJar) rather than committed, because
+    // it exceeds GitHub's 100 MB per-file limit.
+    systemProperty 'swingide.jar', rootProject.file('libs/swing-ide.jar').absolutePath
     systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
     systemProperty 'j3d.sortShape3DBounds', 'true'
     systemProperty 'j3d.useFreeLists', 'false'
@@ -579,7 +587,7 @@ tasks.register('releaseLauncher') {
             '[ -n "${DISPLAY:-}" ] || export DISPLAY=":0"',
             'LG_CONFIG="${LG_CONFIG:-lgconfig_1p_nox.xml}"',
             'DISPLAY_CONFIG="${DISPLAY_CONFIG:-j3d1x1-nbfs}"',
-            'exec "${JAVA_BIN}" -Xms128m -Xmx512m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
+            'exec "${JAVA_BIN}" -Xms128m -Xmx512m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
         ]) + '\n'
         new File(dir, 'README.txt').text = String.join('\n', [
             "Project Looking Glass ${version} - release bundle".toString(),
@@ -674,6 +682,12 @@ tasks.register('releaseBundle', Zip) {
         from(releaseRuntime)
         from(incubatorExtJars)
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
+        // The external swing-ide fat jar (fetched into libs/, not committed; see
+        // :fetchSwingIdeJar). Ships at lib/swing-ide.jar, which the release
+        // lg3d.sh points -Dswingide.jar at. When it has not been fetched this is
+        // a no-op (a missing `from` file copies nothing) and the desktop simply
+        // reports the IDE as unavailable.
+        from(rootProject.file('libs/swing-ide.jar'))
     }
 
     // resources/ : the assembled classpath tree. runtimeResourcesDir holds a
