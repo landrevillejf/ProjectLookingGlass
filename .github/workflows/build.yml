@@ -103,9 +103,12 @@ jobs:
 
   # Supply-chain visibility. Generates a CycloneDX SBOM for every module and runs
   # OWASP dependency-check across all resolved dependencies (including the
-  # bundled 2006-era incubator jars). Skipped on pull_request: the first NVD feed
-  # download is large/network-heavy and would slow every PR. Runs on main/master
-  # pushes, the weekly schedule and manual dispatch. dependency-check is
+  # bundled 2006-era incubator jars). Runs ONLY on the weekly schedule and manual
+  # dispatch -- NOT on push or pull_request: the first NVD feed download is
+  # large/network-heavy and, without an NVD_API_KEY secret, can take hours (a past
+  # run hit GitHub's 6h job cap and exhausted the account's monthly Actions
+  # minutes, blocking every later job). The job is also capped with
+  # timeout-minutes so a slow NVD mirror can never hang it. dependency-check is
   # continue-on-error and report-only (failBuildOnCVSS=11, above the max real
   # CVSS of 10): the retained legacy jars have known CVEs documented in
   # SECURITY.md, so a finding informs rather than red-lines the build. Set an
@@ -113,7 +116,8 @@ jobs:
   security:
     name: SBOM & dependency scan
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
