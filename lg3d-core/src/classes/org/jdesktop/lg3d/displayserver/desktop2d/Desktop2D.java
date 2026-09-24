@@ -322,13 +322,13 @@ public class Desktop2D {
     /** The start menu, built once from the application descriptors. */
     public synchronized JPopupMenu getStartMenu() {
         if (startMenu == null) {
-            startMenu = Desktop2DStartMenu.build(menuModel,
+            startMenu = new StartMenuSearch(menuModel,
                     new Desktop2DStartMenu.Launcher() {
                         @Override
                         public void launch(ItemSpec item) {
                             openApp(item);
                         }
-                    });
+                    }).menu();
         }
         return startMenu;
     }
