@@ -14,6 +14,13 @@ build-gradle/
 *.class
 *.jar.tmp
 
+# ---- Large vendored artifacts (fetched, not committed) ----
+# The swing-ide fat jar (~138 MB) exceeds GitHub's 100 MB per-file limit, so it
+# is built by the swing-ide project and fetched into libs/ on demand (see the
+# :fetchSwingIdeJar task) rather than committed. The other libs/*.jar files are
+# small and stay tracked.
+libs/swing-ide.jar
+
 # ---- IDE: IntelliJ IDEA ----
 .idea/
 *.iml

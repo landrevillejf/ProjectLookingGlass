@@ -187,6 +187,12 @@ public final class Desktop2DAppRegistry {
         frames.add("org.jdesktop.lg3d.apps.paint.PaintApp");
         frames.add("org.jdesktop.lg3d.apps.swingtest.TestFrame");
         frames.add("org.jdesktop.lg3d.apps.screencapture.ScreenCaptureConfigFrame");
+        // The IDE (lg3d-apps, org.jdesktop.lg3d.apps.swingide) forks the
+        // external swing-ide fat jar as a separate child process. Its launcher
+        // main shows no window inside the desktop JVM (so it is not a PANEL app);
+        // running that main here simply spawns the child, whose own JFrame then
+        // appears beside the 2D desktop exactly as it does over the 3D scene.
+        frames.add("org.jdesktop.lg3d.apps.swingide.SwingIde");
         SWING_FRAME_APPS = Collections.unmodifiableSet(frames);
     }
 

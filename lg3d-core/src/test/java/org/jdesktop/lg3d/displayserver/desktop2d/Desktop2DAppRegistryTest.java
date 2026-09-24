@@ -62,6 +62,10 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.swingtest.TestFrame"));
         assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.screencapture.ScreenCaptureConfigFrame"));
+        // The IDE launcher forks the external swing-ide jar as a child process;
+        // it owns no panel, so the 2D desktop runs its main beside the desktop.
+        assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.swingide.SwingIde"));
     }
 
     @Test
