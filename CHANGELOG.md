@@ -24,6 +24,23 @@ work to make it build and run on a current toolchain.
   `Implementation-Version` (stamped from `project.version`) and then `unknown`.
   Covered by headless JUnit 5 tests (`AboutInfoTest`, `AboutPanelTest`, plus a
   new `Desktop2DAppRegistryTest` case).
+- **Window snapping for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — dragging an application window
+  to a desktop edge snaps it on release: the left/right edges tile the window to
+  that half and the top edge maximises it, with a translucent preview overlay
+  showing the target rectangle while the pointer is in the edge zone (48px by
+  default, configurable). The behaviour is added by replacing the desktop pane's
+  single-icon `DesktopManager` with a `SnappingDesktopManager` that extends
+  `DefaultDesktopManager`, so minimise-still-hides-the-desktop-icon is preserved.
+  The logic splits into a pure, headless-testable `WindowSnap` (edge-zone
+  detection + snap rectangles), a `SnapPreview` (translucent highlight painted on
+  the pane's palette layer) and the `SnappingDesktopManager` glue; because
+  `DefaultDesktopManager.dragFrame` renders through `Graphics.copyArea` /
+  `setXORMode` and needs a realized pane, the manager exposes the decision steps
+  as `updateSnap` / `takePendingZone` / `applyPendingSnap` so the tests drive the
+  snap logic headless without invoking super's rendering. Covered by headless
+  JUnit 5 tests (`WindowSnapTest`, 12 tests; `SnapPreviewTest`, 6 tests;
+  `SnappingDesktopManagerTest`, 11 tests).
 
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree

@@ -157,8 +157,9 @@ public class Desktop2D {
         desktop.setDragMode(JDesktopPane.OUTLINE_DRAG_MODE);
         // The taskbar button is the single representation of a minimised
         // window; stock MDI would also drop a desktop icon on the pane, which
-        // shows the icon twice and reads as a second row above the taskbar.
-        desktop.setDesktopManager(new SingleIconDesktopManager());
+        // shows the icon twice and reads as a second row above the taskbar. The
+        // same manager adds snap-to-edge placement while a window is dragged.
+        desktop.setDesktopManager(new SnappingDesktopManager());
 
         // Right-clicking the wallpaper (anywhere not covered by an app window or
         // a widget) opens the desktop context menu. Both press and release are
@@ -838,22 +839,8 @@ public class Desktop2D {
     }
 
     /**
-     * Keeps a minimised window's icon in exactly one place. Stock MDI drops a
-     * desktop icon onto the pane when a frame is iconified; the taskbar button
-     * already represents the minimised window, so the desktop icon is hidden.
-     * Clicking the taskbar button restores the window via
-     * {@link #activateWindow(Desktop2DWindow)}.
+     * A desktop pane that paints the wallpaper behind the MDI windows.
      */
-    private static final class SingleIconDesktopManager
-            extends javax.swing.DefaultDesktopManager {
-        @Override
-        public void iconifyFrame(javax.swing.JInternalFrame f) {
-            super.iconifyFrame(f);
-            f.getDesktopIcon().setVisible(false);
-        }
-    }
-
-    /** A desktop pane that paints the wallpaper behind the MDI windows. */
     private static final class WallpaperDesktopPane extends JDesktopPane {
         private Image image;
 
