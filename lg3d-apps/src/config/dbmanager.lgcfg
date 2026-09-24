@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Database Manager (from lg3d-apps). A driver-agnostic JDBC
+ database client (connection profiles, metadata navigator, SQL editor, results
+ grid, CSV export, transaction control) styled after DBeaver. In the 3D desktop
+ the DbManagerPanel is put on a SwingNode inside a Frame3D via TitledSwingWindow
+ (the "java <class>" command); in the 2D/Swing desktop the same panel is hosted
+ as an MDI internal frame via Desktop2DAppRegistry. The db-manager jar and its
+ runtime deps (jackson, slf4j, and the bundled SQLite/H2/PostgreSQL/MariaDB JDBC
+ drivers) are on the desktop run classpath. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.dbmanager.DbManager</string>
+  </void>
+  <void property="desc">
+   <string>Manage and query SQL databases</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/dbmanager.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>Database Manager</string>
+  </void>
+ </object>
+</java>

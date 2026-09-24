@@ -1,0 +1,76 @@
+// db-manager: a self-contained, driver-agnostic JDBC database client styled
+// after DBeaver -- connection profiles, a metadata navigator, a SQL editor, a
+// results grid, CSV export and transaction control.
+//
+// It is a plain Java library with no lg3d-core dependency: lg3d-apps wraps its
+// DbManagerMainPanel in a "Database Manager" start-menu app, and the
+// :lg3d-core:run task places this jar plus the bundled JDBC drivers on the
+// desktop classpath. The toolchain (JDK 21), UTF-8 encoding, build-gradle output
+// directory, checkstyle (report-only) and jacoco are inherited from the root
+// build.gradle subprojects block.
+//
+// The Maven-standard source layout (src/main/java, src/test/java,
+// src/main/resources) is kept as-is, so no sourceSet override is needed.
+
+jar {
+    archiveBaseName = 'db-manager'
+}
+
+dependencies {
+    // Jackson persists the connection profiles and application settings as JSON
+    // under ~/.lg3d/dbmanager/.
+    implementation libs.jackson.databind
+    // SLF4J is the logging facade; slf4j-nop is a silent runtime provider so the
+    // desktop does not surface the module's internal logs.
+    implementation libs.slf4j.api
+    runtimeOnly libs.slf4j.nop
+
+    // The core compiles only against the JDK's java.sql API; the drivers are
+    // runtime pluggables. SQLite + H2 are embedded (offline, and back the
+    // headless test suite); PostgreSQL + MariaDB cover the common open-source
+    // servers. Any other driver works via the app's "add custom driver" path.
+    runtimeOnly libs.sqlite.jdbc
+    runtimeOnly libs.h2
+    runtimeOnly libs.postgresql
+    runtimeOnly libs.mariadb.java.client
+
+    // Headless JUnit 5 + Mockito + AssertJ back the module's test suite.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.mockito.core
+    testImplementation libs.assertj.core
+    // The data-layer tests run real JDBC against an in-memory H2 / on-disk
+    // SQLite database, so those drivers are on the test runtime classpath too.
+    testRuntimeOnly libs.h2
+    testRuntimeOnly libs.sqlite.jdbc
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The Swing panels are constructed headless in the unit tests and degrade to
+    // logging; forcing headless keeps the suite deterministic and CI-safe (no X
+    // display). The JDBC tests use in-memory / temp-file databases only.
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check`, so run it explicitly:
+// `./gradlew :db-manager:pitest`. mutationThreshold=0 means surviving mutants
+// never fail the build; the HTML/XML report under build-gradle/reports/pitest
+// shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI calls: they cannot run headless inside a mutation
+    // sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing']
+}

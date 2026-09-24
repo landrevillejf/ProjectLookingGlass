@@ -1,0 +1,192 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
+package org.jdesktop.lg3d.dbmanager.ui;
+
+import java.awt.Color;
+import java.util.Set;
+import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
+
+/**
+ * Lightweight SQL syntax highlighting for a {@link JTextPane}: keywords, string
+ * literals, numbers and {@code --} / {@code /* *}{@code /} comments are colored
+ * as the user types.
+ *
+ * <p>It re-scans the whole buffer on each edit, which is fine for the query
+ * sizes a person writes by hand. Highlighting is best-effort and never throws:
+ * a caret or style glitch must not stop someone editing SQL.</p>
+ */
+public final class SqlHighlighter implements DocumentListener {
+
+    private static final Set<String> KEYWORDS = Set.of(
+            "SELECT", "FROM", "WHERE", "INSERT", "INTO", "VALUES", "UPDATE", "SET",
+            "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "ADD", "COLUMN", "INDEX",
+            "VIEW", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "ON", "AS",
+            "AND", "OR", "NOT", "NULL", "IS", "IN", "LIKE", "BETWEEN", "ORDER",
+            "GROUP", "BY", "HAVING", "LIMIT", "OFFSET", "DISTINCT", "UNION", "ALL",
+            "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "DEFAULT", "CONSTRAINT",
+            "COMMIT", "ROLLBACK", "BEGIN", "TRANSACTION", "CASE", "WHEN", "THEN",
+            "ELSE", "END", "EXISTS", "ASC", "DESC", "WITH", "GRANT", "REVOKE",
+            "COUNT", "SUM", "AVG", "MIN", "MAX", "CAST", "INT", "INTEGER",
+            "VARCHAR", "CHAR", "TEXT", "DATE", "TIMESTAMP", "BOOLEAN", "DECIMAL");
+
+    private final JTextPane textPane;
+    private final SimpleAttributeSet keywordStyle = new SimpleAttributeSet();
+    private final SimpleAttributeSet stringStyle = new SimpleAttributeSet();
+    private final SimpleAttributeSet commentStyle = new SimpleAttributeSet();
+    private final SimpleAttributeSet numberStyle = new SimpleAttributeSet();
+    private final SimpleAttributeSet plainStyle = new SimpleAttributeSet();
+    private boolean adjusting;
+
+    /**
+     * Installs highlighting on a text pane (monospaced font is the caller's choice).
+     *
+     * @param textPane the editor to color
+     */
+    public SqlHighlighter(JTextPane textPane) {
+        this.textPane = textPane;
+        StyleConstants.setForeground(keywordStyle, new Color(0x00, 0x33, 0xB3));
+        StyleConstants.setBold(keywordStyle, true);
+        StyleConstants.setForeground(stringStyle, new Color(0x06, 0x7D, 0x17));
+        StyleConstants.setForeground(commentStyle, new Color(0x8C, 0x8C, 0x8C));
+        StyleConstants.setItalic(commentStyle, true);
+        StyleConstants.setForeground(numberStyle, new Color(0x17, 0x50, 0xEB));
+        StyleConstants.setForeground(plainStyle, Color.BLACK);
+        textPane.getDocument().addDocumentListener(this);
+        highlight();
+    }
+
+    @Override
+    public void insertUpdate(DocumentEvent e) {
+        scheduleHighlight();
+    }
+
+    @Override
+    public void removeUpdate(DocumentEvent e) {
+        scheduleHighlight();
+    }
+
+    /**
+     * Re-highlights off the document notification. Swing forbids mutating a
+     * document from inside its own insert/remove notification (it throws
+     * {@code IllegalStateException: Attempt to mutate in notification}), so the
+     * rescan is deferred to the next EDT pulse once the edit has settled.
+     */
+    private void scheduleHighlight() {
+        SwingUtilities.invokeLater(this::highlight);
+    }
+
+    @Override
+    public void changedUpdate(DocumentEvent e) {
+        // Attribute-only change; nothing to re-scan.
+    }
+
+    /** Re-scans the buffer and reapplies styles. Re-entrant-safe. */
+    public void highlight() {
+        if (adjusting) {
+            return;
+        }
+        StyledDocument doc = (StyledDocument) textPane.getDocument();
+        String text;
+        try {
+            text = doc.getText(0, doc.getLength());
+        } catch (BadLocationException e) {
+            return;
+        }
+        adjusting = true;
+        try {
+            doc.setCharacterAttributes(0, text.length(), plainStyle, true);
+            scan(doc, text);
+        } finally {
+            adjusting = false;
+        }
+    }
+
+    private void scan(StyledDocument doc, String text) {
+        int i = 0;
+        int n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (c == '-' && i + 1 < n && text.charAt(i + 1) == '-') {
+                int end = text.indexOf('\n', i);
+                int stop = (end < 0) ? n : end;
+                apply(doc, i, stop - i, commentStyle);
+                i = stop;
+            } else if (c == '/' && i + 1 < n && text.charAt(i + 1) == '*') {
+                int end = text.indexOf("*/", i + 2);
+                int stop = (end < 0) ? n : end + 2;
+                apply(doc, i, stop - i, commentStyle);
+                i = stop;
+            } else if (c == '\'' || c == '"') {
+                int stop = endOfQuote(text, i, c);
+                apply(doc, i, stop - i, stringStyle);
+                i = stop;
+            } else if (Character.isDigit(c)) {
+                int stop = i;
+                while (stop < n && (Character.isDigit(text.charAt(stop)) || text.charAt(stop) == '.')) {
+                    stop++;
+                }
+                apply(doc, i, stop - i, numberStyle);
+                i = stop;
+            } else if (Character.isLetter(c) || c == '_') {
+                int stop = i;
+                while (stop < n && (Character.isLetterOrDigit(text.charAt(stop)) || text.charAt(stop) == '_')) {
+                    stop++;
+                }
+                if (KEYWORDS.contains(text.substring(i, stop).toUpperCase())) {
+                    apply(doc, i, stop - i, keywordStyle);
+                }
+                i = stop;
+            } else {
+                i++;
+            }
+        }
+    }
+
+    private static int endOfQuote(String s, int start, char quote) {
+        int i = start + 1;
+        int n = s.length();
+        while (i < n) {
+            char c = s.charAt(i);
+            if (c == quote) {
+                if (i + 1 < n && s.charAt(i + 1) == quote) {
+                    i += 2;
+                    continue;
+                }
+                return i + 1;
+            }
+            i++;
+        }
+        return n;
+    }
+
+    private static void apply(StyledDocument doc, int offset, int length, AttributeSet attrs) {
+        if (length > 0) {
+            doc.setCharacterAttributes(offset, length, attrs, true);
+        }
+    }
+
+    /** @return a fresh monospaced {@link DefaultStyledDocument} for an editor. */
+    public static DefaultStyledDocument newDocument() {
+        return new DefaultStyledDocument();
+    }
+}

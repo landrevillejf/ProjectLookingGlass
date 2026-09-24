@@ -20,9 +20,10 @@ JDK 21 install using the Jogamp OpenGL pipeline.
 ## Repository layout
 
 This is a **single repository** (no git submodules): every module is tracked
-directly here. Six modules are part of the Gradle build (see
+directly here. Eight modules are part of the Gradle build (see
 [`settings.gradle`](settings.gradle)) — the four ported from the original project
-plus two added by this port, `lg3d-widgets` and `lpm-console`:
+plus four added by this port: `lg3d-widgets`, `lpm-console`, `update-manager` and
+`db-manager`:
 
 | Module            | In build | Role |
 | ----------------- | :------: | ---- |
@@ -32,6 +33,8 @@ plus two added by this port, `lg3d-widgets` and `lpm-console`:
 | `lg3d-incubator`  | ✅ | Grab-bag of independent experimental lg3d apps. |
 | `lg3d-widgets`    | ✅ | **New in this port:** desktop widget API/host and built-in widgets. |
 | `lpm-console`     | ✅ | **New in this port:** standalone Swing front-end for the LPM package manager. |
+| `update-manager`  | ✅ | **New in this port:** self-contained Swing software-update pipeline (check / download / verify / install / rollback). |
+| `db-manager`      | ✅ | **New in this port:** driver-agnostic JDBC database client (DBeaver-style) — connection profiles, metadata navigator, SQL editor, results grid, CSV export. |
 | `lg3d-art`        | assets | Wallpapers, splash art, 3D models, GDM theme (consumed at runtime). |
 | `lg3d-awt`        | ❌ | Optional custom AWT Toolkit/peer implementation — excluded (see below). |
 | `lg3d-x11`        | ❌ | Native X11 foundation window system scripts/binaries — not a Java module. |
@@ -70,6 +73,8 @@ lg3d-apps/build-gradle/libs/lg3d-apps-1.9.0-dev.jar
 lg3d-incubator/build-gradle/libs/lg3d-incubator-1.9.0-dev.jar
 lg3d-widgets/build-gradle/libs/lg3d-widgets-1.9.0-dev.jar
 lpm-console/build-gradle/libs/lpm-console-1.9.0-dev.jar
+update-manager/build-gradle/libs/update-manager-1.9.0-dev.jar
+db-manager/build-gradle/libs/db-manager-1.9.0-dev.jar
 ```
 
 ## Running the desktop

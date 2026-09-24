@@ -317,6 +317,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("Database Manager is hosted as a panel, not gated on 3D")
+    void databaseManagerIsAPanelApp() {
+        // The Database Manager wraps the db-manager module's JDBC client in a
+        // plain Swing panel, so it runs in the 2D desktop like any other panel
+        // app; the 3D desktop builds the same panel on a SwingNode via its
+        // DbManager wrapper.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.dbmanager.DbManager"));
+        assertEquals("org.jdesktop.lg3d.apps.dbmanager.DbManagerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.dbmanager.DbManager"));
+    }
+
+    @Test
     @DisplayName("the unavailable tooltip explains the 3D requirement")
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",

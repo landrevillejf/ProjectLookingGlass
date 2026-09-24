@@ -387,6 +387,7 @@ rulebook**. When a module file and this root file conflict, the root file wins.
 | `lg3d-widgets` | [`lg3d-widgets/AGENTS.md`](lg3d-widgets/AGENTS.md) | 3D layer + 2D Swing cards |
 | `lpm-console` | [`lpm-console/AGENTS.md`](lpm-console/AGENTS.md) | 2D Swing (composited X11 client) |
 | `update-manager` | [`update-manager/AGENTS.md`](update-manager/AGENTS.md) | 2D Swing |
+| `db-manager` | [`db-manager/AGENTS.md`](db-manager/AGENTS.md) | 2D Swing |
 
 **Shared role model.** Every module `AGENTS.md` uses the same fixed template so
 all roles read each other's guidance coherently:
@@ -420,7 +421,7 @@ thing to read — it distinguishes **Production** / **Production-grade** apps fr
 
 | App module | Per-app guides | Location |
 | --- | --- | --- |
-| `lg3d-apps` | 18 apps | `lg3d-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
+| `lg3d-apps` | 19 apps | `lg3d-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
 | `lg3d-incubator` | 35 apps/libraries (incl. excluded + framework trees) | `lg3d-incubator/src/classes/.../<app>/AGENTS.md` |
 
 > **Naming note.** This module was renamed from the legacy `lg3d-demo-apps`: the

@@ -137,6 +137,15 @@ public final class Desktop2DAppRegistry {
         // the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.update.UpdateManager",
                 "org.jdesktop.lg3d.apps.update.UpdateManagerPanel");
+        // The Database Manager app (lg3d-apps, org.jdesktop.lg3d.apps.dbmanager)
+        // wraps the standalone db-manager module's JDBC client in a plain Swing
+        // panel, so it hosts here as an internal frame like the other panel apps;
+        // the 3D desktop builds the same panel on a SwingNode via its DbManager
+        // wrapper. Both the lg3d-apps and db-manager jars (plus jackson/slf4j and
+        // the bundled JDBC drivers) are on the desktop run classpath, so the
+        // reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.dbmanager.DbManager",
+                "org.jdesktop.lg3d.apps.dbmanager.DbManagerPanel");
         // The Office-group native-3D apps (lg3d-incubator) each ship a plain
         // Swing panel that reuses the same AWT-free model and shared user
         // Preferences store as the 3D app, so the one start-menu descriptor
