@@ -156,14 +156,6 @@ apply plugin: 'org.owasp.dependencycheck'
 dependencyCheck {
     failBuildOnCVSS = 11f
     formats = ['HTML', 'JSON']
-    // Pin the NVD data store (the H2 CVE cache) to a stable path under the user
-    // home. The plugin's implicit default nests a version-specific folder under
-    // GRADLE_USER_HOME, which is awkward to cache; a fixed path lets the CI
-    // security job cache ~/.dependency-check between runs so a warm scheduled
-    // scan only fetches the NVD delta instead of the full ~260k-CVE feed.
-    data {
-        directory = "${System.getProperty('user.home')}/.dependency-check"
-    }
     // An NVD API key massively speeds the vulnerability-feed download.
     // Optional: pass -PnvdApiKey=KEY or set ORG_GRADLE_PROJECT_nvdApiKey. Guard
     // against an empty value (e.g. an unset CI secret expands to "").
