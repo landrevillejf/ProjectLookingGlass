@@ -1,0 +1,451 @@
+name: Release train
+
+# Fully automated release lifecycle for the lg3d desktop: milestones, release
+# candidates and the final release, with generated notes -- a turnkey pipeline.
+#
+# DESIGN (see docs/release-process.md for the full guide):
+#
+#   * Exactly one OPEN GitHub milestone always exists, titled with the next
+#     version derived from the Conventional Commits merged since the last stable
+#     tag (feat -> minor, fix -> patch, BREAKING -> major). `sync-milestone`
+#     creates/keeps it; `assign` attaches every PR merged to main to it.
+#   * When that milestone is COMPLETE (no open items, at least one closed), CI
+#     auto-cuts a release candidate: it opens a `release/X.Y.Z` PR that dates the
+#     CHANGELOG and de-`-dev`s the four version refs, then pushes `vX.Y.Z-rc.N`.
+#     release.yml builds that tag and publishes a GitHub PRE-RELEASE (which never
+#     becomes releases/latest, so the update-manager is untouched by an RC).
+#   * Pushing more commits to the `release/X.Y.Z` branch re-cuts `rc.N+1`.
+#   * THE ONE MANUAL STEP (the approval gate): merging the `release/X.Y.Z` PR.
+#     `promote` then tags the final `vX.Y.Z` (release.yml publishes it as the
+#     LATEST release + version.json), closes the milestone, and auto-opens the
+#     `chore: bump to <next>-dev` follow-up PR that re-opens the dev cycle.
+#
+# EVERY stage also has a workflow_dispatch override, so a maintainer can drive the
+# whole pipeline by hand if the event-driven path is ever unwanted.
+#
+# REQUIRED SECRET for full automation: RELEASE_PAT -- a fine-grained personal
+# access token with Contents:Read/Write and Pull requests:Read/Write on this repo.
+# GitHub does NOT start a new workflow run from an event caused by the default
+# GITHUB_TOKEN (anti-recursion), so a GITHUB_TOKEN-pushed v* tag would NOT trigger
+# release.yml. Pushing tags/branches with RELEASE_PAT makes the hand-off fire.
+# When RELEASE_PAT is absent the jobs still run using GITHUB_TOKEN but print a
+# warning: the tag is created, yet release.yml must then be started manually via
+# its own workflow_dispatch. NEVER commit a PAT to the repository.
+
+on:
+  schedule:
+    - cron: '17 7 * * *'          # daily safety net: re-check milestone completion
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Stage to run manually'
+        required: true
+        type: choice
+        default: cut-rc
+        options: [sync-milestone, cut-rc, promote, reopen-dev]
+      version:
+        description: 'Override the derived version (X.Y.Z). Blank = derive from commits.'
+        required: false
+        type: string
+      force:
+        description: 'Act even if the milestone still has open items'
+        required: false
+        type: boolean
+        default: false
+  pull_request:
+    types: [closed]
+    branches: [main]
+  issues:
+    types: [closed]
+  repository_dispatch:
+    types: [evaluate-release]
+  push:
+    branches: ['release/**']
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Serialize release-train runs on the same ref; never cancel one mid-publish.
+concurrency:
+  group: release-train-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REPO: ${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Ensure exactly one open milestone exists, titled with the next version.
+  # ---------------------------------------------------------------------------
+  sync-milestone:
+    name: Sync the open release milestone
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+      milestone: ${{ steps.ensure.outputs.title }}
+      milestone_number: ${{ steps.ensure.outputs.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # next-version.sh walks tags..HEAD
+          persist-credentials: false
+
+      - name: Auth (gh + git)
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          DEFAULT_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TOK="${RELEASE_PAT:-$DEFAULT_TOKEN}"
+          [ -n "$RELEASE_PAT" ] || echo "::warning::RELEASE_PAT secret not set; using GITHUB_TOKEN. Tag pushes will NOT auto-trigger release.yml -- start it manually, or add RELEASE_PAT for full automation."
+          echo "GH_TOKEN=$TOK" >> "$GITHUB_ENV"
+
+      - name: Derive the next version
+        id: calc
+        run: |
+          set -euo pipefail
+          V="$(bash scripts/release/next-version.sh --quiet)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Next version derived from commits: $V"
+
+      - name: Ensure one open milestone
+        id: ensure
+        env:
+          V: ${{ steps.calc.outputs.version }}
+        run: |
+          set -euo pipefail
+          OPEN="$(gh api "repos/${REPO}/milestones?state=open&per_page=100" \
+                  --jq '.[] | "\(.number)\t\(.title)"')"
+          COUNT="$(printf '%s' "$OPEN" | grep -c . || true)"
+          if [ "$COUNT" -gt 1 ]; then
+            echo "::warning::More than one open milestone; using the first. Close extras to avoid ambiguity."
+          fi
+          if [ "$COUNT" -ge 1 ]; then
+            NUM="$(printf '%s' "$OPEN" | head -1 | cut -f1)"
+            TITLE="$(printf '%s' "$OPEN" | head -1 | cut -f2)"
+            echo "Using existing open milestone #$NUM '$TITLE'."
+          else
+            TITLE="$V"
+            NUM="$(gh api "repos/${REPO}/milestones" -X POST \
+                    -f title="$TITLE" \
+                    -f description="Release ${TITLE} (auto-managed by the Release train workflow)." \
+                    --jq '.number')"
+            echo "Created open milestone #$NUM '$TITLE'."
+          fi
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "number=$NUM" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Attach every PR merged to main to the open milestone, then ask for a release
+  # re-evaluation. Skips the pipeline's own release/* and chore/* PRs.
+  # ---------------------------------------------------------------------------
+  assign:
+    name: Assign merged PR to the milestone
+    runs-on: ubuntu-latest
+    needs: sync-milestone
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      !startsWith(github.event.pull_request.head.ref, 'release/') &&
+      !startsWith(github.event.pull_request.head.ref, 'chore/bump')
+    steps:
+      - name: Assign + re-evaluate
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          MILESTONE: ${{ needs.sync-milestone.outputs.milestone }}
+        run: |
+          set -uo pipefail
+          if [ -n "$MILESTONE" ]; then
+            gh pr edit "$PR" --repo "$REPO" --milestone "$MILESTONE" \
+              && echo "Assigned PR #$PR to milestone '$MILESTONE'." \
+              || echo "::warning::Could not assign PR #$PR to '$MILESTONE'."
+          fi
+          # Ask cut-rc to re-check completion. With RELEASE_PAT this fires the
+          # run; with a bare GITHUB_TOKEN it will not (anti-recursion) and the
+          # daily schedule covers it instead.
+          gh api "repos/${REPO}/dispatches" -X POST -f event_type=evaluate-release \
+            && echo "Dispatched evaluate-release." \
+            || echo "::warning::repository_dispatch failed; the daily schedule will re-evaluate."
+
+  # ---------------------------------------------------------------------------
+  # Cut a release candidate when the milestone is complete (or on demand).
+  # ---------------------------------------------------------------------------
+  cut-rc:
+    name: Cut a release candidate
+    runs-on: ubuntu-latest
+    needs: sync-milestone
+    if: >
+      (github.event_name == 'repository_dispatch' && github.event.action == 'evaluate-release') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'issues' && github.event.action == 'closed') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'cut-rc')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Auth (gh + git)
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          DEFAULT_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TOK="${RELEASE_PAT:-$DEFAULT_TOKEN}"
+          [ -n "$RELEASE_PAT" ] || echo "::warning::RELEASE_PAT secret not set; the RC tag will be created but release.yml must be started manually."
+          echo "GH_TOKEN=$TOK" >> "$GITHUB_ENV"
+          git config user.name  "lg3d-release-bot"
+          git config user.email "lg3d-release-bot@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${TOK}@github.com/${REPO}.git"
+
+      - name: Resolve version + completion gate
+        id: gate
+        env:
+          MILESTONE_NUMBER: ${{ needs.sync-milestone.outputs.milestone_number }}
+          OVERRIDE: ${{ inputs.version }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          V="${OVERRIDE:-}"
+          [ -n "$V" ] || V="$(bash scripts/release/next-version.sh --quiet)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+          # Idempotency: never re-cut an RC that already exists.
+          if git ls-remote --tags origin "refs/tags/v${V}-rc.*" | grep -q .; then
+            echo "An RC tag for ${V} already exists; skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if gh pr list --repo "$REPO" --state open --head "release/${V}" --json number --jq '.[0].number' | grep -q .; then
+            echo "A release/${V} PR is already open; skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # The "right moment": the milestone is complete. --force bypasses this.
+          if [ "${FORCE:-false}" != "true" ] && [ -n "$MILESTONE_NUMBER" ]; then
+            read -r OPEN CLOSED < <(gh api "repos/${REPO}/milestones/${MILESTONE_NUMBER}" \
+              --jq '"\(.open_issues) \(.closed_issues)"')
+            echo "Milestone #${MILESTONE_NUMBER}: ${OPEN} open, ${CLOSED} closed."
+            if [ "$OPEN" -ne 0 ] || [ "$CLOSED" -eq 0 ]; then
+              echo "Milestone not complete (or empty); not cutting an RC yet."
+              echo "proceed=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create the release branch, PR and RC tag
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          V: ${{ steps.gate.outputs.version }}
+          MILESTONE: ${{ needs.sync-milestone.outputs.milestone }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+          BR="release/${V}"
+          if git ls-remote --heads origin "$BR" | grep -q .; then
+            echo "Branch $BR already exists on origin; skipping to avoid a duplicate."
+            exit 0
+          fi
+          git checkout -b "$BR" origin/main
+
+          # Date the CHANGELOG and drop -dev from the four version refs.
+          bash scripts/release/prepare-release.sh "$V"
+          git add build.gradle README.md AGENTS.md CHANGELOG.md
+          git commit -s -m "chore(release): cut ${V}" \
+            -m "Automated release cut: date the CHANGELOG [Unreleased] section as [${V}] and drop the -dev suffix from build.gradle, README.md and AGENTS.md. Merge this PR to publish the ${V} release."
+          git push -u origin "$BR"
+
+          # Assemble the PR body from the same notes the release will carry.
+          bash scripts/release/release-notes.sh --version "$V" --repo "$REPO" --milestone "$MILESTONE" \
+               > /tmp/notes.md 2>/dev/null || echo "Release ${V}." > /tmp/notes.md
+          {
+            echo "_Automated by the Release train workflow. Merging this PR publishes **${V}**._"
+            echo
+            echo "**Promotion checklist**"
+            echo "- [ ] The latest \`v${V}-rc.N\` pre-release built green and was smoke-tested."
+            echo "- [ ] The CHANGELOG \`[${V}]\` section reads well."
+            echo "- [ ] No \`release/blocker\` concerns remain on the milestone."
+            echo
+            echo "Merging triggers \`promote\`, which tags \`v${V}\` (publishing the LATEST release +"
+            echo "version.json), closes the milestone and opens the \`chore: bump to <next>-dev\` PR."
+            echo
+            echo "---"
+            echo
+            cat /tmp/notes.md
+          } > /tmp/pr-body.md
+          PR_URL="$(gh pr create --repo "$REPO" --base main --head "$BR" \
+                     --title "Release ${V}" --body-file /tmp/pr-body.md \
+                     --milestone "$MILESTONE")"
+          echo "Opened release PR: $PR_URL"
+
+          # Tag the first RC -> release.yml publishes it as a pre-release.
+          git tag -a "v${V}-rc.1" -m "Release candidate v${V}-rc.1"
+          git push origin "v${V}-rc.1"
+          echo "Pushed tag v${V}-rc.1 (pre-release build starting)."
+          gh pr comment "$PR_URL" --repo "$REPO" \
+            --body "Release candidate \`v${V}-rc.1\` pushed; the pre-release build is running. Merge this PR to promote to the final \`${V}\`." || true
+
+  # ---------------------------------------------------------------------------
+  # Re-cut an RC whenever new commits land on an existing release branch.
+  # ---------------------------------------------------------------------------
+  refresh-rc:
+    name: Refresh the release candidate
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/heads/release/') &&
+      github.event.created == false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag the next rc
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+          DEFAULT_TOKEN: ${{ github.token }}
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          set -euo pipefail
+          TOK="${RELEASE_PAT:-$DEFAULT_TOKEN}"
+          git config user.name  "lg3d-release-bot"
+          git config user.email "lg3d-release-bot@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${TOK}@github.com/${REPO}.git"
+
+          BR="${GITHUB_REF#refs/heads/}"           # release/X.Y.Z
+          V="${BR#release/}"
+          git fetch --tags --force origin
+          # Highest existing rc number for this version, else 0.
+          N="$(git tag -l "v${V}-rc.*" | sed -E "s/^v${V//./\\.}-rc\.//" | sort -n | tail -1 || true)"
+          N="${N:-0}"
+          NEXT="v${V}-rc.$((N + 1))"
+          if git rev-parse "$NEXT" >/dev/null 2>&1; then
+            echo "$NEXT already exists; nothing to do."; exit 0
+          fi
+          git tag -a "$NEXT" -m "Release candidate ${NEXT}"
+          git push origin "$NEXT"
+          echo "Pushed $NEXT for the updated ${BR} branch."
+
+  # ---------------------------------------------------------------------------
+  # Promote: the release PR was MERGED (the manual approval). Tag the final
+  # release, close the milestone, and re-open the dev cycle.
+  # ---------------------------------------------------------------------------
+  promote:
+    name: Promote the merged release to final
+    runs-on: ubuntu-latest
+    needs: sync-milestone
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Auth (gh + git)
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          DEFAULT_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TOK="${RELEASE_PAT:-$DEFAULT_TOKEN}"
+          # NB: $V is not defined until the "Tag the final release" step, so this
+          # warning must not reference it (set -u would abort on an unset var).
+          [ -n "$RELEASE_PAT" ] || echo "::warning::RELEASE_PAT secret not set; the final release tag will be created but release.yml must be started manually."
+          echo "GH_TOKEN=$TOK" >> "$GITHUB_ENV"
+          git config user.name  "lg3d-release-bot"
+          git config user.email "lg3d-release-bot@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${TOK}@github.com/${REPO}.git"
+
+      - name: Tag the final release
+        env:
+          BR: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          V="${BR#release/}"
+          echo "version=$V" >> "$GITHUB_ENV"
+          git fetch --tags --force origin
+          if git rev-parse "v${V}" >/dev/null 2>&1; then
+            echo "::warning::Tag v${V} already exists; not re-tagging."
+          else
+            git tag -a "v${V}" -m "Release v${V}"
+            git push origin "v${V}"
+            echo "Pushed tag v${V} -> release.yml is publishing the LATEST release."
+          fi
+
+      - name: Close the milestone
+        env:
+          MILESTONE_NUMBER: ${{ needs.sync-milestone.outputs.milestone_number }}
+        run: |
+          set -uo pipefail
+          if [ -n "$MILESTONE_NUMBER" ]; then
+            gh api "repos/${REPO}/milestones/${MILESTONE_NUMBER}" -X PATCH -F state=closed \
+              && echo "Closed milestone #${MILESTONE_NUMBER}." \
+              || echo "::warning::Could not close milestone #${MILESTONE_NUMBER}."
+          fi
+
+      - name: Re-open the dev cycle (chore PR)
+        env:
+          V: ${{ env.version }}
+        run: |
+          set -euo pipefail
+          git checkout main
+          git pull --ff-only origin main
+          NEXT="$(bash scripts/release/next-version.sh --quiet --from "v${V}" --to HEAD --level patch)"
+          BR="chore/bump-${NEXT}-dev"
+          if git ls-remote --heads origin "$BR" | grep -q .; then
+            echo "$BR already exists; skipping the dev re-open."; exit 0
+          fi
+          git checkout -b "$BR"
+          bash scripts/release/reopen-dev.sh --released "$V" --level patch
+          git add build.gradle README.md AGENTS.md CHANGELOG.md
+          git commit -s -m "chore: bump version to ${NEXT}-dev" \
+            -m "Re-open the development cycle after the ${V} release: re-add the CHANGELOG [Unreleased] section and set build.gradle, README.md and AGENTS.md to ${NEXT}-dev."
+          git push -u origin "$BR"
+          gh pr create --repo "$REPO" --base main --head "$BR" \
+            --title "chore: bump version to ${NEXT}-dev" \
+            --body "Automated post-release step: re-opens the dev cycle at \`${NEXT}-dev\` after publishing \`${V}\`. Updates the four canonical version references." \
+            || echo "::warning::Could not open the ${NEXT}-dev bump PR."
+
+  # ---------------------------------------------------------------------------
+  # Manual helpers: run any single stage by hand (workflow_dispatch).
+  # ---------------------------------------------------------------------------
+  manual-reopen-dev:
+    name: Manually re-open the dev cycle
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'reopen-dev'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Re-open dev at the next patch -dev
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          DEFAULT_TOKEN: ${{ github.token }}
+          OVERRIDE: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          TOK="${RELEASE_PAT:-$DEFAULT_TOKEN}"
+          git config user.name  "lg3d-release-bot"
+          git config user.email "lg3d-release-bot@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${TOK}@github.com/${REPO}.git"
+          RELEASED="${OVERRIDE:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
+          NEXT="$(bash scripts/release/next-version.sh --quiet --base "$RELEASED" --level patch)"
+          BR="chore/bump-${NEXT}-dev"
+          git checkout -b "$BR"
+          bash scripts/release/reopen-dev.sh --next "${NEXT}-dev"
+          git add build.gradle README.md AGENTS.md CHANGELOG.md
+          git commit -s -m "chore: bump version to ${NEXT}-dev"
+          git push -u origin "$BR"
+          gh pr create --repo "$REPO" --base main --head "$BR" \
+            --title "chore: bump version to ${NEXT}-dev" \
+            --body "Manually re-opened the dev cycle at \`${NEXT}-dev\`." || true

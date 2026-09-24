@@ -101,6 +101,53 @@ jobs:
             lg3d-incubator/build-gradle/libs/*.jar
           if-no-files-found: error
 
+  # Lint + self-test the automated release train (scripts/release/*.sh and the
+  # workflow YAML). This is pure shell/YAML -- no JDK, no Gradle, no network --
+  # so it runs on every push and PR and fails fast if the release logic or the
+  # workflow files are broken. shellcheck ships preinstalled on ubuntu-latest;
+  # the YAML check uses the runner's python3.
+  release-ci:
+    name: Release scripts (lint + self-test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: YAML-parse every workflow
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, sys, yaml
+          bad = 0
+          for f in sorted(glob.glob('.github/workflows/*.yml')) + sorted(glob.glob('.github/workflows/*.yaml')):
+              try:
+                  yaml.safe_load(open(f))
+                  print(f'OK   {f}')
+              except Exception as e:
+                  bad += 1
+                  print(f'FAIL {f}: {e}')
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Shell syntax check (bash -n)
+        run: |
+          set -euo pipefail
+          find scripts/release -name '*.sh' -print0 | while IFS= read -r -d '' s; do
+            bash -n "$s" && echo "OK   $s"
+          done
+
+      - name: ShellCheck
+        run: |
+          set -euo pipefail
+          shellcheck --version
+          # -S warning: fail on real bugs (warning+error) but not on style/info
+          # notes -- a few expansions (e.g. the git RANGE in release-notes.sh)
+          # are intentionally unquoted. SC1091: lib.sh is sourced at runtime.
+          shellcheck -S warning -e SC1091 scripts/release/*.sh scripts/release/tests/*.sh
+
+      - name: Release-script self-tests
+        run: bash scripts/release/tests/run.sh
+
   # Supply-chain visibility. Generates a CycloneDX SBOM for every module and runs
   # OWASP dependency-check across all resolved dependencies (including the
   # bundled 2006-era incubator jars). Runs ONLY on the weekly schedule and manual

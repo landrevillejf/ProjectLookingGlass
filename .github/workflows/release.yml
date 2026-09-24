@@ -101,14 +101,30 @@ jobs:
             exit 1
           fi
           VERSION="${TAG#v}"
+          # BASE_VERSION strips any pre-release suffix (1.10.0-rc.1 -> 1.10.0);
+          # it keys the CHANGELOG section and the previous-tag range used to build
+          # the release notes.
+          BASE_VERSION="${VERSION%%-*}"
+          # A pre-release tag (rc/alpha/beta) publishes a GitHub PRE-RELEASE, which
+          # never becomes releases/latest -- so an RC cannot hijack the
+          # update-manager's releases/latest/download/version.json redirect.
+          case "$TAG" in
+            *-rc*|*-RC*|*-alpha*|*-beta*) PRERELEASE=true ;;
+            *)                            PRERELEASE=false ;;
+          esac
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Resolved tag=$TAG version=$VERSION"
+          echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$TAG version=$VERSION base=$BASE_VERSION prerelease=$PRERELEASE"
 
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.tag.outputs.tag }}
+          # Full history + tags: scripts/release/release-notes.sh walks the
+          # previous-stable-tag..HEAD range and needs every tag to resolve it.
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -131,6 +147,26 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: ./gradlew test :lg3d-core:releaseBundle -PreleaseVersion="$VERSION" --stacktrace
 
+      - name: Generate release notes
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          BASE_VERSION: ${{ steps.tag.outputs.base_version }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          STAGING="$(pwd)/release-assets"; mkdir -p "$STAGING"
+          # Best-effort: the curated CHANGELOG section for this version plus the
+          # merged-PR / closed-issue appendix. Any failure (offline, no token)
+          # falls back to a placeholder so publishing never blocks on notes.
+          bash scripts/release/release-notes.sh \
+               --version "$BASE_VERSION" --repo "$REPO" --milestone "$BASE_VERSION" \
+               > "$STAGING/RELEASE-NOTES.md" 2>/dev/null || true
+          if [ ! -s "$STAGING/RELEASE-NOTES.md" ]; then
+            printf '%s\n' "Automated release build of ${TAG}." > "$STAGING/RELEASE-NOTES.md"
+          fi
+          echo "--- release notes (head) ---"; head -40 "$STAGING/RELEASE-NOTES.md"
+
       - name: Stage bundle + changelog asset
         env:
           VERSION: ${{ steps.tag.outputs.version }}
@@ -143,9 +179,13 @@ jobs:
           mkdir -p "$STAGING"
           cp "$ZIP" "$STAGING/"
           # changelog.md is what version.json's `changelog` URL points at;
-          # UpdateRepository.fetchChangelog GETs it as plain text, so prefer the
-          # release notes and fall back to the tracked CHANGELOG.md.
-          if [ -n "${RELEASE_BODY:-}" ]; then
+          # UpdateRepository.fetchChangelog GETs it as plain text. Prefer the
+          # generated per-release notes, then an explicit Release body (when this
+          # workflow fired from a manually published Release), then the tracked
+          # CHANGELOG.md as a last resort.
+          if [ -s "$STAGING/RELEASE-NOTES.md" ]; then
+            cp "$STAGING/RELEASE-NOTES.md" "$STAGING/changelog.md"
+          elif [ -n "${RELEASE_BODY:-}" ]; then
             printf '%s\n' "$RELEASE_BODY" > "$STAGING/changelog.md"
           else
             cp CHANGELOG.md "$STAGING/changelog.md"
@@ -253,15 +293,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          PRERELEASE: ${{ steps.tag.outputs.prerelease }}
         run: |
           set -euo pipefail
           STAGING="$(pwd)/release-assets"
-          # On `release: published` the release already exists; for a
-          # workflow_dispatch on a tag without a release yet, create it first so
-          # the assets (and the releases/latest redirect) resolve.
+          TITLE="lg3d ${VERSION}"
+          PRE_FLAG=()
+          if [ "${PRERELEASE:-false}" = "true" ]; then
+            PRE_FLAG=(--prerelease)
+            TITLE="lg3d ${VERSION} (pre-release)"
+          fi
+          # On `release: published` the release already exists (the publisher set
+          # its own notes); otherwise create it from the generated notes so the
+          # assets -- and, for a STABLE release, the releases/latest redirect --
+          # resolve without anyone clicking "Publish release" in the UI.
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" \
-              --notes "Automated release build of ${TAG}." --target "$GITHUB_SHA"
+            NOTES_ARG=(--notes "Automated release build of ${TAG}.")
+            [ -s "$STAGING/RELEASE-NOTES.md" ] && NOTES_ARG=(--notes-file "$STAGING/RELEASE-NOTES.md")
+            gh release create "$TAG" --title "$TITLE" "${NOTES_ARG[@]}" \
+              "${PRE_FLAG[@]}" --target "$GITHUB_SHA"
           fi
           shopt -s nullglob
           ASSETS=("$STAGING/version.json" "$STAGING/changelog.md")
@@ -273,5 +324,5 @@ jobs:
           done
           # --clobber replaces same-named assets so a re-run is idempotent.
           gh release upload "$TAG" --clobber "${ASSETS[@]}"
-          echo "Published to release $TAG:"
+          echo "Published to release $TAG (prerelease=${PRERELEASE:-false}):"
           printf '  %s\n' "${ASSETS[@]}"
