@@ -140,6 +140,8 @@ public class Desktop2D {
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
     private final WindowCyclerOverlay windowSwitcher;
+    private final NotificationModel notifications;
+    private final ToastLayer toastLayer;
     private final SessionManager sessionManager;
 
     /** True while {@link #restoreSession()} is relaunching windows, to defer saves. */
@@ -181,6 +183,10 @@ public class Desktop2D {
             }
         });
 
+        // The notification log feeds both the taskbar tray and the toast
+        // overlay; build it before the taskbar, which constructs the tray.
+        notifications = new NotificationModel();
+
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
         content.add(desktop, BorderLayout.CENTER);
@@ -207,6 +213,11 @@ public class Desktop2D {
         // layer, so it floats above every application window.
         windowSwitcher = new WindowCyclerOverlay(new SwitcherWindowSource());
         windowSwitcher.install(desktop);
+
+        // Install the toast overlay on the popup layer as well, so transient
+        // notifications float above the application windows.
+        toastLayer = new ToastLayer(new ToastQueue());
+        toastLayer.install(desktop);
 
         // Persistence for the open-window session (which apps were open, and
         // where). Restored in show(), once the desktop pane has its real size.
@@ -252,6 +263,11 @@ public class Desktop2D {
     /** The MDI pane application windows live in. */
     JDesktopPane getDesktopPane() {
         return desktop;
+    }
+
+    /** The desktop's notification log (package-visible for the taskbar tray). */
+    NotificationModel getNotificationModel() {
+        return notifications;
     }
 
     /** A conventional look for a conventional desktop; failure is cosmetic. */
@@ -573,9 +589,18 @@ public class Desktop2D {
             case SWING_FRAME:
                 logger.log(Level.INFO, "Launching Swing app {0}", item.getName());
                 Desktop2DAppRegistry.launchSwingFrame(item.getCommand());
+                // A Swing frame opens beside the desktop with no taskbar button,
+                // so surface it as a notification the user cannot miss.
+                raiseNotification("Launched " + item.getName(),
+                        "Running in its own window, outside the desktop",
+                        Notification.Kind.INFO);
                 break;
             case EXTERNAL:
-                if (!Desktop2DAppRegistry.launchExternal(item.getCommand())) {
+                if (Desktop2DAppRegistry.launchExternal(item.getCommand())) {
+                    // An external process likewise has no taskbar presence.
+                    raiseNotification("Launched " + item.getName(), null,
+                            Notification.Kind.INFO);
+                } else {
                     showMessage("Could not start \"" + item.getName() + "\"",
                             "The command could not be executed:\n"
                             + item.getCommand());
@@ -837,6 +862,45 @@ public class Desktop2D {
     }
 
     // ------------------------------------------------------------------
+    // Notifications
+    // ------------------------------------------------------------------
+
+    /**
+     * Raises a desktop notification: adds it to the log the taskbar tray lists
+     * and pops it up as a transient toast. Must run on the EDT; the static
+     * {@link #postNotification} marshals here from any thread.
+     */
+    void raiseNotification(String title, String message,
+                           Notification.Kind kind) {
+        Notification notification = notifications.add(title, message, kind);
+        toastLayer.show(notification);
+    }
+
+    /**
+     * Raises a notification on the running 2D desktop, the notification
+     * counterpart of {@link #applyDesktopConfig()}. A no-op when the 2D desktop
+     * is not running. Safe to call from any thread; the work is done on the EDT.
+     */
+    static void postNotification(final String title, final String message,
+                                 final Notification.Kind kind) {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return;
+        }
+        Runnable post = new Runnable() {
+            @Override
+            public void run() {
+                d.raiseNotification(title, message, kind);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            post.run();
+        } else {
+            SwingUtilities.invokeLater(post);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Shutdown
     // ------------------------------------------------------------------
 
@@ -859,6 +923,7 @@ public class Desktop2D {
         // still realized, so the next start reopens them where they were left.
         saveSession();
         windowSwitcher.uninstall();
+        toastLayer.uninstall();
         uninstallWidgetLayer();
         taskbar.stop();
         frame.setVisible(false);
