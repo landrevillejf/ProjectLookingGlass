@@ -139,6 +139,11 @@ public class Desktop2DTaskbar extends JPanel {
                 desktop.getDownloadsMenu());
         rightRow.add(documentsButton);
         rightRow.add(downloadsButton);
+        // The notification-area button sits just left of the clock, the way a
+        // system tray does; it reflects the desktop's shared notification log.
+        NotificationTray notificationTray =
+                new NotificationTray(desktop.getNotificationModel());
+        rightRow.add(notificationTray.button());
         rightRow.add(clock);
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");

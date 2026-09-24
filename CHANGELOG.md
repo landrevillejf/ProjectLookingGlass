@@ -44,6 +44,32 @@ work to make it build and run on a current toolchain.
   gains a non-toggling `focusWindow()` so committing always raises the window
   rather than minimising it. Covered by headless JUnit 5 tests
   (`WindowCyclerTest`, 15 tests; `WindowCyclerOverlayTest`, 11 tests).
+- **Notification area & toasts for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a taskbar notification tray and
+  transient toast popups, the 2D desktop's counterpart of a system notification
+  area. A new taskbar button ("Notifications", carrying a live unread badge)
+  opens a popup listing the notifications raised so far — newest first, each
+  tinted by severity, click to dismiss one, "Clear all" to empty the log — and
+  opening it marks everything read. Raising a notification also pops it as a
+  toast card stacked up from the bottom-right of the desktop, which fades on its
+  own after a few seconds or dismisses on a click. The toast overlay spans the
+  desktop pane's popup layer but overrides `contains(x, y)` to claim only the
+  pixels a card covers, so a lingering toast never steals clicks from the windows
+  below. As the first real producers, launching a `SWING_FRAME` or `EXTERNAL` app
+  — which opens *beside* the desktop with no taskbar button of its own — now
+  raises an info notification so the user sees it started. Following the
+  codebase's headless-testable split, the logic lives in pure, clock-injectable
+  classes (`Notification` value + severity `Kind`, the capped observable
+  `NotificationModel` log, the expiring `ToastQueue`, the `NotificationColors`
+  palette) apart from the Swing glue (`ToastLayer` overlay, `NotificationTray`
+  button/popup); `Desktop2D` owns the model and overlay, installs the overlay on
+  the popup layer, exposes `raiseNotification()` (plus a static
+  `postNotification()` that no-ops when the 2D desktop is not running, mirroring
+  `applyDesktopConfig()`) and hands the model to the taskbar. Covered by headless
+  JUnit 5 tests (`NotificationTest`, 6; `NotificationModelTest`, 12;
+  `ToastQueueTest`, 8; `NotificationColorsTest`, 3; `ToastLayerTest`, 17 incl.
+  geometry/wrap/ellipsize and a `BufferedImage` paint smoke; `NotificationTrayTest`,
+  5 — 51 tests total).
 
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree
