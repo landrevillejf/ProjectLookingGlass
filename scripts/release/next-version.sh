@@ -62,7 +62,7 @@ if [ -z "$LEVEL" ]; then
         # Empty tree -> everything: classify all history.
         LEVEL="$(highest_bump "$(git hash-object -t tree /dev/null)" "$TO")"
     fi
-    FALLBACK=patch
+    FALLBACK="patch"
     if [ "$LEVEL" = none ]; then
         [ "$QUIET" = true ] || log_warn "no feat/fix/breaking commits in range; falling back to a patch bump."
         LEVEL="$FALLBACK"

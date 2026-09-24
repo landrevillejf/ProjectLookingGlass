@@ -8,6 +8,12 @@
 # non-zero on the first summary if any assertion failed.
 #
 # Run: bash scripts/release/tests/run.sh   (or ./scripts/release/tests/run.sh)
+#
+# Each test group sources lib.sh through the $LIB variable inside a subshell, so
+# ShellCheck cannot statically resolve the path (SC1090). The library really is
+# sourced and exercised at runtime, so the non-constant-source warning is
+# disabled file-wide here (a directive before the first command is file-scoped).
+# shellcheck disable=SC1090
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
