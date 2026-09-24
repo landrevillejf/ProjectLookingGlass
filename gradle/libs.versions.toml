@@ -40,7 +40,7 @@ pitestJunit5 = "1.2.1"    # PIT <-> JUnit 5 bridge
 # bump is a one-line change; applied with `apply false` at the root and enabled
 # per module. All run report-only / on-demand so they never red-line `build`.
 cyclonedx = "1.8.2"             # CycloneDX SBOM generation
-dependencyCheck = "10.0.4"      # OWASP dependency-check (CVE scanning)
+dependencyCheck = "13.0.0"      # OWASP dependency-check (CVE scanning)
 
 [libraries]
 # Java 3D (Jogamp). Exposed transitively by lg3d-core to every downstream module.
