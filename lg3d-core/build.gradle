@@ -377,7 +377,25 @@ tasks.register('run', JavaExec) {
     def etcDir = file('src/etc')
     def resourceDir = file('src/resources')
 
-    jvmArgs '-Xms128m', '-Xmx512m'
+    // Heap + GC sizing for the desktop JVM. The 2006-era -Xmx512m is far too
+    // small for a desktop that hosts several SwingNode power-of-two ARGB
+    // textures (a heap BufferedImage PLUS a GPU texture each), the Jogamp/Java3D
+    // runtime and embedded apps (IDE, DB manager, JavaHelp): it forces constant
+    // G1 churn and risks OutOfMemoryError. The ceilings are overridable without
+    // editing the build -- -PlgMinHeap= / -PlgMaxHeap= (or the LG3D_MIN_HEAP /
+    // LG3D_MAX_HEAP environment variables) -- so a small machine can dial them
+    // down and a workstation dial them up. G1 is selected explicitly (it is
+    // already the JDK 21 default; the legacy CMS collector this launcher once
+    // used is gone since JDK 14) with a 100 ms pause target to keep the render
+    // loop smooth. MetaspaceSize raises the FIRST metaspace GC high-water mark
+    // so the reflection-heavy start-menu class loading does not thrash early;
+    // there is deliberately NO hard MaxMetaspaceSize cap, which would trade a
+    // theoretical footprint limit for a real OOM:Metaspace regression in a
+    // desktop that loads application classes lazily.
+    def lgMinHeap = (project.findProperty('lgMinHeap') ?: System.getenv('LG3D_MIN_HEAP') ?: '256m').toString()
+    def lgMaxHeap = (project.findProperty('lgMaxHeap') ?: System.getenv('LG3D_MAX_HEAP') ?: '1536m').toString()
+    jvmArgs "-Xms${lgMinHeap}", "-Xmx${lgMaxHeap}"
+    jvmArgs '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=100', '-XX:MetaspaceSize=128m'
 
     // The vendored Java Advanced Imaging API (used by the Image Studio app) has a
     // RasterAccessor fast path that references the JDK-internal sun.awt.image
@@ -578,7 +596,8 @@ tasks.register('releaseLauncher') {
             '#!/bin/bash',
             '# Launch the Project Looking Glass desktop from this release bundle.',
             '# Needs a JDK/JRE 21 (on PATH or via JAVA_HOME) and an X display (DISPLAY).',
-            '# Override LG_CONFIG / DISPLAY_CONFIG to select another lgconfig / displayconfig.',
+            '# Override LG_CONFIG / DISPLAY_CONFIG to select another lgconfig / displayconfig,',
+            '# or LG3D_MIN_HEAP / LG3D_MAX_HEAP to resize the desktop JVM heap.',
             'set -euo pipefail',
             'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
             'JAVA_BIN="java"',
@@ -588,7 +607,10 @@ tasks.register('releaseLauncher') {
             '[ -n "${DISPLAY:-}" ] || export DISPLAY=":0"',
             'LG_CONFIG="${LG_CONFIG:-lgconfig_1p_nox.xml}"',
             'DISPLAY_CONFIG="${DISPLAY_CONFIG:-j3d1x1-nbfs}"',
-            'exec "${JAVA_BIN}" -Xms128m -Xmx512m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
+            '# Heap ceilings: override with LG3D_MIN_HEAP / LG3D_MAX_HEAP (e.g. LG3D_MAX_HEAP=3g).',
+            'LG_MIN_HEAP="${LG3D_MIN_HEAP:-256m}"',
+            'LG_MAX_HEAP="${LG3D_MAX_HEAP:-1536m}"',
+            'exec "${JAVA_BIN}" -Xms"${LG_MIN_HEAP}" -Xmx"${LG_MAX_HEAP}" -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:MetaspaceSize=128m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
         ]) + '\n'
         new File(dir, 'README.txt').text = String.join('\n', [
             "Project Looking Glass ${version} - release bundle".toString(),
@@ -608,7 +630,8 @@ tasks.register('releaseLauncher') {
             '    lg3d.sh     launcher (dev mode); README.txt; VERSION',
             '',
             'The launcher mirrors the :lg3d-core:run task system properties. Set',
-            'LG_CONFIG / DISPLAY_CONFIG to select another configuration.'
+            'LG_CONFIG / DISPLAY_CONFIG to select another configuration, or',
+            'LG3D_MIN_HEAP / LG3D_MAX_HEAP to resize the desktop JVM heap.'
         ]) + '\n'
     }
 }

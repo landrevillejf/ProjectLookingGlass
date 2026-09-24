@@ -28,4 +28,6 @@ DISP_CONFIG="-Dlg.displayconfigurl=file:///${LG3DHOME}/etc/lg3d/displayconfig/j3
  
 CLASSPATH=".:./build/lib/zoetrope.jar:$CLASSPATH"
 
-java -Xmx512m -cp ${CLASSPATH} -Dj3d.sortShape3DBounds="true" ${LG_SETTINGS} -Dlg.configurl=${LGCONFIG} ${DISP_CONFIG} org.jdesktop.lg3d.apps.zoetrope.Zoetrope $1
+# Heap ceilings are overridable (LG3D_MIN_HEAP / LG3D_MAX_HEAP); the 2006-era
+# fixed -Xmx512m is too tight for a 3D image carousel on a modern toolchain.
+java -Xms"${LG3D_MIN_HEAP:-256m}" -Xmx"${LG3D_MAX_HEAP:-1024m}" -cp ${CLASSPATH} -Dj3d.sortShape3DBounds="true" ${LG_SETTINGS} -Dlg.configurl=${LGCONFIG} ${DISP_CONFIG} org.jdesktop.lg3d.apps.zoetrope.Zoetrope $1

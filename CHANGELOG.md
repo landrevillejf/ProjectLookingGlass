@@ -140,6 +140,24 @@ work to make it build and run on a current toolchain.
   `docs/release-process.md`.
 
 ### Changed
+- **Desktop JVM memory tuning** (`lg3d-core`, `lg3d-incubator`) — raised the
+  2006-era `-Xms128m -Xmx512m` launch ceiling, which was far too small for a
+  desktop that hosts several `SwingNode` power-of-two ARGB textures (a heap
+  `BufferedImage` *plus* a GPU texture each), the Jogamp/Java3D runtime and
+  embedded apps (IDE, DB manager, JavaHelp) and so forced constant G1 churn and
+  risked `OutOfMemoryError`. The `:lg3d-core:run` task and the release-bundle
+  `lg3d.sh` it generates now default to `-Xms256m -Xmx1536m`, select G1
+  explicitly with a `-XX:MaxGCPauseMillis=100` target to keep the render loop
+  smooth, and set `-XX:MetaspaceSize=128m` so the reflection-heavy start-menu
+  class loading does not thrash early (deliberately **no** hard
+  `MaxMetaspaceSize` cap, which would trade a footprint limit for a real
+  `OOM:Metaspace` regression). Both heap ceilings are overridable without editing
+  the build — `-PlgMinHeap=` / `-PlgMaxHeap=` for the Gradle task and
+  `LG3D_MIN_HEAP` / `LG3D_MAX_HEAP` for the generated launcher — so a small
+  machine can dial down and a workstation dial up. The legacy standalone
+  `zoetrope.sh` launcher gets the same env-overridable heap (default `-Xmx1024m`,
+  a single 3D app rather than the whole desktop). Launcher/build JVM flags only;
+  no scene-graph, rendering or API change.
 - **Copyright attribution** — corrected the source-file headers across the tree
   so the modernization work is credited to its actual author instead of the
   inherited upstream notice. Authorship is taken from git history: every file
