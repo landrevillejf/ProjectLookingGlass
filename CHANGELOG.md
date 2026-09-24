@@ -9,6 +9,22 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased]
 
+### Added
+- **About** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — a new *Utilities*
+  start-menu application showing the product identity, the resolved build
+  version, the host runtime facts (Java 3D provider, Java version/vendor,
+  platform) and the attribution / licence text. Following the
+  `Calculator`/`HelpCenter` pattern it splits into a headless model
+  (`AboutInfo`), a plain Swing panel (`AboutPanel`) and a 3D wrapper (`About`,
+  via `TitledSwingWindow`), so the same panel is hosted on a `SwingNode` in the
+  3D desktop and as an MDI internal frame in the 2D/Swing desktop (registered in
+  `Desktop2DAppRegistry.PANEL_APPS`). The version is not hardcoded: it resolves
+  from a new `lg.version` system property (set by `:lg3d-core:run` to the
+  canonical `project.version`), falling back to the lg3d-apps jar manifest
+  `Implementation-Version` (stamped from `project.version`) and then `unknown`.
+  Covered by headless JUnit 5 tests (`AboutInfoTest`, `AboutPanelTest`, plus a
+  new `Desktop2DAppRegistryTest` case).
+
 ### Changed
 - **Copyright attribution** — corrected the source-file headers across the tree
   so the modernization work is credited to its actual author instead of the

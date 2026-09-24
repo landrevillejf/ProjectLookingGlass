@@ -116,6 +116,14 @@ public final class Desktop2DAppRegistry {
         // its HelpCenter wrapper (the javahelp jar is on both classpaths).
         panels.put("org.jdesktop.lg3d.apps.help.HelpCenter",
                 "org.jdesktop.lg3d.apps.help.HelpCenterPanel");
+        // The About window (lg3d-apps, org.jdesktop.lg3d.apps.about) renders a
+        // plain Swing panel of product identity, resolved version, host runtime
+        // facts and the attribution / licence text, so it hosts here as an
+        // internal frame like the other panel apps; the 3D desktop builds the
+        // same panel on a SwingNode via its About wrapper. It touches no Java
+        // 3D, so the 2D path never needs the scene graph.
+        panels.put("org.jdesktop.lg3d.apps.about.About",
+                "org.jdesktop.lg3d.apps.about.AboutPanel");
         // The widget gallery lives in lg3d-widgets (not lg3d-apps); its
         // Swing panel is the pure-2D counterpart of the 3D WidgetGallery. Both
         // jars are on the desktop classpath, so the reflective lookup resolves,

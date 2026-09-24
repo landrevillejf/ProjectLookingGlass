@@ -417,6 +417,7 @@ tasks.register('run', JavaExec) {
     // it exceeds GitHub's 100 MB per-file limit.
     systemProperty 'swingide.jar', rootProject.file('libs/swing-ide.jar').absolutePath
     systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
+    systemProperty 'lg.version', project.version.toString()
     systemProperty 'j3d.sortShape3DBounds', 'true'
     systemProperty 'j3d.useFreeLists', 'false'
 

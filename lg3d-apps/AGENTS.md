@@ -31,7 +31,7 @@
 | Build | `./gradlew :lg3d-apps:build`. |
 | Descriptors | `src/config/*.lgcfg` bundled to `config/demo` (discovery scans `config/demo` + `config/incubator`). |
 
-**Apps in this module:** calculator, callviewer, cdviewer, controlcenter,
+**Apps in this module:** about, calculator, callviewer, cdviewer, controlcenter,
 dbmanager, filemanager, graph, help, launcher, mediawriter, paint, screencapture,
 swingnode, swingtest, tapps, taskmanager, terminator, tutorial, update — plus
 the shared reference host `TitledSwingWindow.java`.
@@ -42,7 +42,7 @@ orgchart apps): their `.lgcfg` files live in `src/config` because the incubator'
 own `src/config` bundles to `config/`, which discovery does **not** scan.
 
 > **Per-app guides.** Every application package under `src/classes` ships its own
-> condensed role-aware `AGENTS.md` next to its sources (19 in total). Read an app's
+> condensed role-aware `AGENTS.md` next to its sources (20 in total). Read an app's
 > `Status` row first: it separates the **Production** daily-driver utilities from the
 > genuine **Tutorial / sample** packages listed above, so the module's history never
 > misleads you about an individual app's rigor.
