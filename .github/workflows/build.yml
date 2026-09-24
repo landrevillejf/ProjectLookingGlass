@@ -117,7 +117,11 @@ jobs:
     name: SBOM & dependency scan
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
+    # 60 min: the NVD database is cached (below), so a warm scan finishes in a
+    # few minutes; the generous cap only has to accommodate the cold first sync
+    # (tens of minutes even with an API key) while still bounding any runaway far
+    # below GitHub's 6h job limit.
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -138,6 +142,19 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         run: ./gradlew cyclonedxBom --continue --stacktrace
+
+      - name: Cache OWASP dependency-check NVD database
+        # The NVD CVE store (~/.dependency-check, an H2 database) makes the cold
+        # first sync slow: the API key only lifts the network rate limit, it does
+        # not avoid inserting ~260k CVE rows. Cache the store between runs so a
+        # scheduled scan downloads just the delta. The rolling key always saves a
+        # fresh entry and restore-keys picks up the most recent one.
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check
+          key: dc-nvd-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            dc-nvd-${{ runner.os }}-
 
       - name: Run OWASP dependency-check
         continue-on-error: true
