@@ -21,11 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -155,6 +158,73 @@ class CalendarPopupTest {
         assertNotNull(weekday);
         assertNotEquals(weekday, saturday,
                 "the weekend day is tinted while an ordinary weekday is not");
+    }
+
+    @Test
+    @DisplayName("double-clicking a day cell asks to open that date")
+    void doubleClickOpensDate() {
+        AtomicReference<LocalDate> opened = new AtomicReference<>();
+        CalendarPopup popup = new CalendarPopup(null, null, fixedClock());
+        popup.setOnOpenDate(opened::set);
+        popup.rebuild();
+        JLabel cell = cellForDay(popup, "20"); // 2026-03-20, an ordinary Friday
+        assertNotNull(cell);
+        // A double-click reaches the cell as a mouseClicked with clickCount 2.
+        fireClick(cell, 2);
+        assertEquals(LocalDate.of(2026, 3, 20), opened.get());
+    }
+
+    @Test
+    @DisplayName("a single click on a day cell does not open the agenda")
+    void singleClickDoesNotOpenDate() {
+        AtomicReference<LocalDate> opened = new AtomicReference<>();
+        CalendarPopup popup = new CalendarPopup(null, null, fixedClock());
+        popup.setOnOpenDate(opened::set);
+        popup.rebuild();
+        JLabel cell = cellForDay(popup, "20");
+        assertNotNull(cell);
+        fireClick(cell, 1);
+        assertEquals(null, opened.get(), "only a double-click opens the date");
+    }
+
+    @Test
+    @DisplayName("a padded (neighbouring-month) cell is not clickable")
+    void paddedCellIsNotClickable() {
+        CalendarPopup popup = newPopup();
+        // 2026-03-01 is a Sunday, so the grid's first week row opens with
+        // padding cells for the previous month; those carry no text and, being
+        // out of month, no double-click listener.
+        JPanel grid = (JPanel) popup.menu().getComponent(4);
+        JLabel padded = null;
+        for (int i = 7; i < 14; i++) { // 0-6 are the weekday headers
+            JLabel l = (JLabel) grid.getComponent(i);
+            if (l.getText().isEmpty()) {
+                padded = l;
+                break;
+            }
+        }
+        assertNotNull(padded, "the March 2026 grid pads its first week");
+        assertEquals(0, padded.getMouseListeners().length,
+                "a padded cell carries no double-click listener");
+    }
+
+    private static JLabel cellForDay(CalendarPopup popup, String dayText) {
+        JPanel grid = (JPanel) popup.menu().getComponent(4);
+        for (Component c : grid.getComponents()) {
+            if (c instanceof JLabel l && dayText.equals(l.getText())) {
+                return l;
+            }
+        }
+        return null;
+    }
+
+    /** Dispatches a mouseClicked of the given click count to the cell's listeners. */
+    private static void fireClick(JLabel cell, int clickCount) {
+        MouseEvent e = new MouseEvent(cell, MouseEvent.MOUSE_CLICKED,
+                System.currentTimeMillis(), 0, 0, 0, clickCount, false);
+        for (MouseListener l : cell.getMouseListeners()) {
+            l.mouseClicked(e);
+        }
     }
 
     private static JMenuItem findNavItem(JPopupMenu menu, String name) {

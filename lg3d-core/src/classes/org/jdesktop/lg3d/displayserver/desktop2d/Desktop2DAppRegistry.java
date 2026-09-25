@@ -346,6 +346,29 @@ public final class Desktop2DAppRegistry {
     }
 
     /**
+     * Navigates a hosted panel to {@code date}, if the panel supports it (a
+     * public {@code jumpToDate(LocalDate)} method). Used by the taskbar calendar
+     * to open the Agenda at a double-clicked day; a panel without the method is
+     * left untouched. Reflective, like {@link #createPanel}, so lg3d-core keeps
+     * no compile-time dependency on the panel's module.
+     */
+    public static void showDate(JComponent panel, java.time.LocalDate date) {
+        if (panel == null || date == null) {
+            return;
+        }
+        try {
+            Method navigate =
+                    panel.getClass().getMethod("jumpToDate", java.time.LocalDate.class);
+            navigate.invoke(panel, date);
+        } catch (NoSuchMethodException nsme) {
+            // This panel is not date-navigable; nothing to do.
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Could not navigate "
+                    + panel.getClass().getName() + " to " + date, e);
+        }
+    }
+
+    /**
      * Runs a {@link Kind#SWING_FRAME} app's {@code main} inside this JVM on its
      * own thread, as {@code AppLaunchAction} does in the 3D desktop. The
      * {@code swingapp} verb's 3D window capture is deliberately skipped: there

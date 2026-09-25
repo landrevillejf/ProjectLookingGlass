@@ -20,6 +20,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
@@ -27,8 +28,12 @@ import java.awt.event.MouseEvent;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
@@ -39,6 +44,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
 
 /**
  * The 2D/Swing counterpart of the native-3D {@link Agenda3D} week agenda. It
@@ -62,6 +68,17 @@ import javax.swing.SpinnerNumberModel;
  * the displayed week's dates. Editing uses real Swing widgets (an editable title
  * field, day/hour/duration spinners, an attendee picker) instead of the 3D app's
  * preset-cycling buttons, and every accepted change is saved immediately.</p>
+ *
+ * <p>The grid marks weekends and statutory holidays exactly like the 3D
+ * {@code AgendaGrid}: each column is anchored to a real date, weekend columns get
+ * a blue wash, holiday columns a red wash, and the current week's today column an
+ * accent bar. Classification is routed through the shared
+ * {@link org.jdesktop.lg3d.utils.prefs.HolidayRegions} seam backed by the bundled
+ * {@code jbusinessday} library, honouring the same persisted, locale-resolved
+ * region (Control Center &rarr; Desktop, or {@code -Dlg.agenda.holidayRegion}) so
+ * a region change is picked up on the next repaint, and degrading to plain
+ * untinted columns if the library is ever absent. A legend in the header keys the
+ * three washes.</p>
  */
 public class AgendaPanel extends JPanel {
 
@@ -85,6 +102,10 @@ public class AgendaPanel extends JPanel {
     private static final DateTimeFormatter YEAR_FMT =
             DateTimeFormatter.ofPattern("yyyy");
 
+    /** Weekend / statutory-holiday column washes, drawn behind the grid lines. */
+    private static final Color WEEKEND_BODY = new Color(0x9A, 0xB4, 0xD0, 0x2A);
+    private static final Color HOLIDAY_BODY = new Color(0xE0, 0x5A, 0x5A, 0x26);
+
     private final AppointmentStore store = new AppointmentStore();
     private final ContactDirectory directory = new ContactDirectory();
     private final List<Appointment> appointments = new ArrayList<Appointment>();
@@ -103,6 +124,15 @@ public class AgendaPanel extends JPanel {
 
     private Appointment selected;
     private LocalDate weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
+
+    /** Per-year statutory-holiday list from {@link HolidayRegions}, valid for
+     *  whichever region {@link #cachedRegion} was built from. */
+    private final Map<Integer, List<LocalDate>> holidayCache =
+            new HashMap<Integer, List<LocalDate>>();
+    /** The region {@link #holidayCache} holds; a Control Center &rarr; Desktop
+     *  change (or {@code -Dlg.agenda.holidayRegion}) is picked up on the next
+     *  redraw by clearing the cache. */
+    private String cachedRegion;
 
     public AgendaPanel() {
         super(new BorderLayout());
@@ -143,8 +173,23 @@ public class AgendaPanel extends JPanel {
 
         weekLabel.setFont(weekLabel.getFont().deriveFont(Font.BOLD, 15f));
         weekLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 6, 4));
+
+        JPanel legend = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        legend.setOpaque(false);
+        legend.add(legendChip(new Color(0x9A, 0xB4, 0xD0), "Weekend"));
+        legend.add(legendChip(new Color(0xE0, 0x5A, 0x5A), "Holiday"));
+        legend.add(legendChip(new Color(0x3D, 0x6B, 0xC4), "Today"));
+        header.add(legend, BorderLayout.CENTER);
         header.add(weekLabel, BorderLayout.SOUTH);
         return header;
+    }
+
+    /** A small coloured-square + label chip for the weekend/holiday/today legend. */
+    private JLabel legendChip(Color color, String text) {
+        JLabel chip = new JLabel("\u25A0 " + text);
+        chip.setForeground(color);
+        chip.setFont(chip.getFont().deriveFont(11f));
+        return chip;
     }
 
     private JButton navButton(String label, Runnable action) {
@@ -220,6 +265,22 @@ public class AgendaPanel extends JPanel {
 
     void jumpToToday() {
         weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
+        refreshWeekLabel();
+        grid.repaint();
+    }
+
+    /**
+     * Navigates to the week containing {@code date} and places the creation
+     * cursor on that day. Called reflectively by the 2D desktop (through
+     * {@code Desktop2DAppRegistry.showDate}) when the user double-clicks a day
+     * in the taskbar calendar popup, so the Agenda opens on that date.
+     */
+    public void jumpToDate(LocalDate date) {
+        if (date == null) {
+            return;
+        }
+        weekStart = date.with(DayOfWeek.MONDAY);
+        grid.cursorDay = clampDay(date.getDayOfWeek().getValue() - 1);
         refreshWeekLabel();
         grid.repaint();
     }
@@ -408,6 +469,77 @@ public class AgendaPanel extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // Business-day / holiday awareness (shared with the 3D AgendaGrid)
+    // ------------------------------------------------------------------
+
+    /** The real calendar date shown in day column {@code d} (0=Monday). */
+    LocalDate dateFor(int d) {
+        return weekStart.plusDays(d);
+    }
+
+    /** Column of the real today within the displayed week, or -1 when today is
+     *  not in this week (so the accent only shows on the current week). */
+    int todayColumnInWeek() {
+        long diff = ChronoUnit.DAYS.between(weekStart, LocalDate.now());
+        return (diff >= 0 && diff < DAYS) ? (int) diff : -1;
+    }
+
+    /** True when column {@code d} falls on a Saturday or Sunday. */
+    boolean isWeekendColumn(int d) {
+        return HolidayRegions.isWeekend(dateFor(d));
+    }
+
+    /** True when column {@code d} is a statutory holiday in the current region. */
+    boolean isHolidayColumn(int d) {
+        LocalDate date = dateFor(d);
+        return holidaysFor(date.getYear()).contains(date);
+    }
+
+    /** A business day is a non-weekend, non-holiday day. */
+    boolean isBusinessDayColumn(int d) {
+        return !isWeekendColumn(d) && !isHolidayColumn(d);
+    }
+
+    /** The body wash for column {@code d}, or {@code null} for a plain business day. */
+    Color columnTint(int d) {
+        if (isHolidayColumn(d)) {
+            return HOLIDAY_BODY;
+        }
+        if (isWeekendColumn(d)) {
+            return WEEKEND_BODY;
+        }
+        return null;
+    }
+
+    /**
+     * The region token to mark holidays for: an explicit
+     * {@code -Dlg.agenda.holidayRegion} system property wins (back-compat), else
+     * the same persisted, locale-resolved {@link HolidayRegions#configuredRegion()}
+     * the taskbar calendar and the 3D AgendaGrid use.
+     */
+    private String currentRegion() {
+        String override = System.getProperty("lg.agenda.holidayRegion");
+        return (override != null && !override.trim().isEmpty())
+                ? HolidayRegions.resolveRegion(override, Locale.getDefault())
+                : HolidayRegions.configuredRegion();
+    }
+
+    /** Holidays for {@code year} in the current region, cached via {@link HolidayRegions}. */
+    private List<LocalDate> holidaysFor(int year) {
+        String region = currentRegion();
+        if (!region.equals(cachedRegion)) {
+            holidayCache.clear();
+            cachedRegion = region;
+        }
+        List<LocalDate> cached = holidayCache.get(year);
+        if (cached == null) {
+            cached = HolidayRegions.holidays(region, year);
+            holidayCache.put(year, cached);
+        }
+        return cached;
+    }
+
+    // ------------------------------------------------------------------
     // The painted week grid
     // ------------------------------------------------------------------
 
@@ -416,6 +548,16 @@ public class AgendaPanel extends JPanel {
         private static final int COL_W = 96;
         private static final int ROW_H = 36;
         private static final int HEADER_H = 28;
+
+        private static final Color HEADER_BG = new Color(0x2B, 0x33, 0x40);
+        private static final Color HEADER_WEEKEND = new Color(0x2A, 0x37, 0x4C);
+        private static final Color HEADER_HOLIDAY = new Color(0x4A, 0x28, 0x30);
+        private static final Color HEADER_TODAY = new Color(0x3D, 0x6B, 0xC4);
+        private static final Color WEEKEND_TEXT = new Color(0xB8, 0xC8, 0xE0);
+        private static final Color HOLIDAY_TEXT = new Color(0xFF, 0x9E, 0x9E);
+        private static final Color GRID_LINE = new Color(0xDD, 0xE1, 0xE7);
+        private static final Color HOUR_TEXT = new Color(0x8A, 0x93, 0xA0);
+        private static final Color TODAY_WASH = new Color(0x3D, 0x6B, 0xC4, 0x14);
 
         private int cursorDay = 0;
         private int cursorHour = START_HOUR;
@@ -464,28 +606,61 @@ public class AgendaPanel extends JPanel {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             int w = getWidth();
-            // Day column headers.
-            g.setColor(new Color(0x2B, 0x33, 0x40));
-            g.fillRect(0, 0, w, HEADER_H);
-            g.setColor(Color.WHITE);
-            g.setFont(g.getFont().deriveFont(Font.BOLD));
+            int bodyH = ROW_H * ROWS;
+            int today = todayColumnInWeek();
+
+            // Weekend / statutory-holiday column washes (business days stay plain).
             for (int d = 0; d < DAYS; d++) {
+                Color tint = columnTint(d);
+                if (tint != null) {
+                    g.setColor(tint);
+                    g.fillRect(d * COL_W, HEADER_H, COL_W, bodyH);
+                }
+            }
+            // Today column accent (only when the displayed week holds today).
+            if (today >= 0) {
+                g.setColor(TODAY_WASH);
+                g.fillRect(today * COL_W, HEADER_H, COL_W, bodyH);
+            }
+
+            // Day column headers, tinted per today / holiday / weekend.
+            g.setFont(g.getFont().deriveFont(Font.BOLD));
+            FontMetrics fm = g.getFontMetrics();
+            for (int d = 0; d < DAYS; d++) {
+                boolean holiday = isHolidayColumn(d);
+                boolean weekend = !holiday && isWeekendColumn(d);
+                g.setColor(d == today ? HEADER_TODAY
+                        : holiday ? HEADER_HOLIDAY
+                        : weekend ? HEADER_WEEKEND : HEADER_BG);
+                g.fillRect(d * COL_W, 0, COL_W, HEADER_H);
+
                 String label = DAY_NAMES[d] + " "
                         + DAY_FMT.format(weekStart.plusDays(d));
-                g.drawString(label, d * COL_W + 6, HEADER_H - 9);
+                g.setColor(d == today ? Color.WHITE
+                        : holiday ? HOLIDAY_TEXT
+                        : weekend ? WEEKEND_TEXT : Color.WHITE);
+                g.drawString(label,
+                        d * COL_W + (COL_W - fm.stringWidth(label)) / 2,
+                        HEADER_H - 9);
             }
+
             // Hour rows.
             g.setFont(g.getFont().deriveFont(Font.PLAIN));
             for (int r = 0; r <= ROWS; r++) {
                 int y = HEADER_H + r * ROW_H;
-                g.setColor(new Color(0xDD, 0xE1, 0xE7));
+                g.setColor(GRID_LINE);
                 g.drawLine(0, y, w, y);
-                g.setColor(new Color(0x8A, 0x93, 0xA0));
+                g.setColor(HOUR_TEXT);
                 g.drawString(String.format("%02d:00", START_HOUR + r), 2, y + 12);
             }
             for (int d = 0; d <= DAYS; d++) {
-                g.setColor(new Color(0xDD, 0xE1, 0xE7));
-                g.drawLine(d * COL_W, HEADER_H, d * COL_W, HEADER_H + ROW_H * ROWS);
+                g.setColor(GRID_LINE);
+                g.drawLine(d * COL_W, HEADER_H, d * COL_W, HEADER_H + bodyH);
+            }
+            // Today vertical accent bar.
+            if (today >= 0) {
+                g.setColor(HEADER_TODAY);
+                g.fillRect(today * COL_W, HEADER_H, 2, bodyH);
             }
             // Creation cursor.
             if (selected == null) {

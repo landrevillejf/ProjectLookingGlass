@@ -37,6 +37,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -121,6 +122,15 @@ public class Desktop2D {
         "xterm", "gnome-terminal", "konsole", "xfce4-terminal",
         "mate-terminal", "lxterminal",
     };
+
+    /**
+     * The start-menu command that launches the Agenda panel app in the 2D
+     * desktop; the same {@code Agenda3D} descriptor the start menu uses, mapped
+     * to {@code AgendaPanel} by {@code Desktop2DAppRegistry}'s panel table. Used
+     * to open the Agenda at a date double-clicked in the taskbar calendar.
+     */
+    private static final String AGENDA_COMMAND =
+            "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D";
 
     /**
      * UIManager font-default keys overridden by the desktop configuration. The
@@ -979,6 +989,27 @@ public class Desktop2D {
                 "java org.jdesktop.lg3d.apps.filemanager.FileManager",
                 "Browse files and folders", null, null);
         openPanelApp(item, directory);
+    }
+
+    /**
+     * Opens (or brings forward) the Agenda app navigated to the week containing
+     * {@code date}. Invoked when the user double-clicks a day in the taskbar
+     * calendar popup; the panel is navigated reflectively through
+     * {@link Desktop2DAppRegistry#showDate}, so lg3d-core keeps no compile-time
+     * dependency on the Agenda panel in lg3d-incubator.
+     */
+    public void openAgendaAt(LocalDate date) {
+        if (date == null) {
+            return;
+        }
+        ItemSpec item = new ItemSpec("Agenda 3D", AGENDA_COMMAND,
+                "3D week agenda", null, "resources/images/icon/agenda3d.png");
+        Desktop2DWindow window = openPanelApp(item, null, false);
+        if (window != null && window.getContentPane().getComponentCount() > 0) {
+            JComponent panel =
+                    (JComponent) window.getContentPane().getComponent(0);
+            Desktop2DAppRegistry.showDate(panel, date);
+        }
     }
 
     /**
