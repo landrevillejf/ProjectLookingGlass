@@ -14,7 +14,9 @@
 package org.jdesktop.lg3d.apps.controlcenter;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.Image;
 import java.io.File;
 import java.io.InputStream;
@@ -39,6 +41,7 @@ import javax.swing.ListSelectionModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
 /**
@@ -68,6 +71,24 @@ public class AppearancePanel implements ControlPanel {
 
     private URL customUrl;
     private String customName;
+
+    /** Slideshow on/off selector ("Off"/"On"). */
+    private final DefaultListModel<String> onOffNames = new DefaultListModel<>();
+    private final JList<String> onOffList = new JList<>(onOffNames);
+    /** Slideshow interval selector. */
+    private final DefaultListModel<String> intervalNames = new DefaultListModel<>();
+    private final JList<String> intervalList = new JList<>(intervalNames);
+    private final JLabel folderLabel = new JLabel(" ");
+    private final List<JComponent> slideshowControls = new ArrayList<>();
+
+    /** The slideshow source folder; empty means the bundled wallpapers. */
+    private String slideshowFolder = "";
+
+    /** Interval choices offered by the slideshow selector (seconds / labels). */
+    private static final int[] INTERVAL_SECONDS = {10, 30, 60, 300, 900, 1800, 3600};
+    private static final String[] INTERVAL_LABELS = {
+            "10 seconds", "30 seconds", "1 minute", "5 minutes",
+            "15 minutes", "30 minutes", "1 hour"};
 
     public AppearancePanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -103,6 +124,7 @@ public class AppearancePanel implements ControlPanel {
 
         root.add(split, BorderLayout.CENTER);
         root.add(statusLabel, BorderLayout.SOUTH);
+        root.add(buildSlideshowPanel(), BorderLayout.NORTH);
 
         reload();
     }
@@ -140,6 +162,156 @@ public class AppearancePanel implements ControlPanel {
         if (!names.isEmpty()) {
             nameList.setSelectedIndex(0);
         }
+        loadSlideshowState();
+    }
+
+    /**
+     * Builds the wallpaper-slideshow section: an on/off {@link JList}, an
+     * interval {@link JList}, a folder chooser and an apply button. The list
+     * selectors (never a combo box or radio buttons) keep the panel working when
+     * it is hosted offscreen in a {@code SwingNode}. On the 3D desktop, where no
+     * scene-manager slideshow exists, the controls are left inert.
+     */
+    private JComponent buildSlideshowPanel() {
+        onOffNames.addElement("Off");
+        onOffNames.addElement("On");
+        for (String label : INTERVAL_LABELS) {
+            intervalNames.addElement(label);
+        }
+        onOffList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        intervalList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        onOffList.setVisibleRowCount(2);
+        intervalList.setVisibleRowCount(3);
+
+        JScrollPane onOffScroll = new JScrollPane(onOffList);
+        onOffScroll.setPreferredSize(new Dimension(72, 58));
+        JScrollPane intervalScroll = new JScrollPane(intervalList);
+        intervalScroll.setPreferredSize(new Dimension(120, 58));
+
+        JButton chooseFolder = new JButton("Choose Folder...");
+        chooseFolder.addActionListener(e -> chooseSlideshowFolder());
+        JButton bundled = new JButton("Use Bundled");
+        bundled.addActionListener(e -> useBundledWallpapers());
+        JButton applySlideshow = new JButton("Apply Slideshow");
+        applySlideshow.addActionListener(e -> applySlideshow());
+
+        JPanel selectors = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        selectors.add(new JLabel("Slideshow:"));
+        selectors.add(onOffScroll);
+        selectors.add(new JLabel("Change every:"));
+        selectors.add(intervalScroll);
+
+        JPanel folderRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        folderRow.add(new JLabel("Folder:"));
+        folderRow.add(folderLabel);
+        folderRow.add(chooseFolder);
+        folderRow.add(bundled);
+        folderRow.add(applySlideshow);
+
+        JPanel panel = new JPanel(new GridLayout(2, 1, 6, 4));
+        panel.add(selectors);
+        panel.add(folderRow);
+        panel.setBorder(BorderFactory.createTitledBorder("Wallpaper Slideshow"));
+
+        slideshowControls.add(onOffList);
+        slideshowControls.add(intervalList);
+        slideshowControls.add(chooseFolder);
+        slideshowControls.add(bundled);
+        slideshowControls.add(applySlideshow);
+        if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            setSlideshowControlsEnabled(false);
+            folderLabel.setText("(2D/Swing desktop only)");
+        }
+        return panel;
+    }
+
+    /** Reflects the persisted slideshow state in the selectors. */
+    private void loadSlideshowState() {
+        DesktopConfig cfg = DesktopConfig.get();
+        onOffList.setSelectedIndex(cfg.isSlideshowEnabled() ? 1 : 0);
+        intervalList.setSelectedIndex(intervalIndex(cfg.getSlideshowIntervalSec()));
+        slideshowFolder = cfg.getSlideshowFolder();
+        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            folderLabel.setText(folderText(slideshowFolder));
+        }
+    }
+
+    private void chooseSlideshowFolder() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose a wallpaper folder");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        if (chooser.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File dir = chooser.getSelectedFile();
+        if (dir == null || !dir.isDirectory()) {
+            return;
+        }
+        slideshowFolder = dir.getAbsolutePath();
+        folderLabel.setText(folderText(slideshowFolder));
+    }
+
+    private void useBundledWallpapers() {
+        slideshowFolder = "";
+        folderLabel.setText(folderText(slideshowFolder));
+    }
+
+    private void applySlideshow() {
+        if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            warn("The wallpaper slideshow runs on the 2D/Swing desktop only.");
+            return;
+        }
+        boolean on = onOffList.getSelectedIndex() == 1;
+        int seconds = selectedIntervalSeconds();
+        // Persist the folder and interval first, then the enable flag, so the
+        // final call restarts the running slideshow with all three in place.
+        Desktop2D.setSlideshowFolder(slideshowFolder);
+        Desktop2D.setSlideshowIntervalSec(seconds);
+        Desktop2D.setSlideshowEnabled(on);
+        statusLabel.setText(on
+                ? "Slideshow on: changing every " + intervalLabel(seconds)
+                        + " from " + folderText(slideshowFolder)
+                : "Slideshow off");
+    }
+
+    private int selectedIntervalSeconds() {
+        int i = intervalList.getSelectedIndex();
+        return (i >= 0 && i < INTERVAL_SECONDS.length)
+                ? INTERVAL_SECONDS[i] : DesktopConfig.DEFAULT_SLIDESHOW_INTERVAL_SEC;
+    }
+
+    private void setSlideshowControlsEnabled(boolean enabled) {
+        for (JComponent c : slideshowControls) {
+            c.setEnabled(enabled);
+        }
+    }
+
+    /** The selector row for a stored interval, falling back to the default. */
+    private static int intervalIndex(int seconds) {
+        for (int i = 0; i < INTERVAL_SECONDS.length; i++) {
+            if (INTERVAL_SECONDS[i] == seconds) {
+                return i;
+            }
+        }
+        for (int i = 0; i < INTERVAL_SECONDS.length; i++) {
+            if (INTERVAL_SECONDS[i] == DesktopConfig.DEFAULT_SLIDESHOW_INTERVAL_SEC) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private static String intervalLabel(int seconds) {
+        for (int i = 0; i < INTERVAL_SECONDS.length; i++) {
+            if (INTERVAL_SECONDS[i] == seconds) {
+                return INTERVAL_LABELS[i];
+            }
+        }
+        return seconds + " seconds";
+    }
+
+    private static String folderText(String folder) {
+        return (folder == null || folder.isBlank()) ? "Bundled wallpapers" : folder;
     }
 
     private List<String> enumerate() {

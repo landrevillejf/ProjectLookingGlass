@@ -54,6 +54,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.event.InternalFrameAdapter;
@@ -151,6 +152,15 @@ public class Desktop2D {
     private final SessionManager sessionManager;
     private final RunHistoryStore runHistoryStore;
     private final RunHistory runHistory;
+
+    /**
+     * The wallpaper slideshow model and the Swing timer that advances it. The
+     * model is built in the constructor; the timer is (re)started in
+     * {@link #show()} and stopped in {@link #exit()}, honouring the persisted
+     * enable/interval/folder in {@link DesktopConfig}.
+     */
+    private final WallpaperSlideshow slideshow;
+    private Timer slideshowTimer;
 
     /** Global keyboard-shortcut table and the dispatcher that feeds it. */
     private final ShortcutMap shortcuts = ShortcutMap.defaults();
@@ -251,6 +261,10 @@ public class Desktop2D {
         runHistoryStore = new PrefsRunHistoryStore();
         runHistory = runHistoryStore.load();
 
+        // The wallpaper slideshow model; its timer is started in show(), once
+        // the frame is realized. Building it here keeps the field final.
+        slideshow = new WallpaperSlideshow(slideshowImages());
+
         instance = this;
         // Honour any desktop configuration persisted from a previous session
         // (taskbar position/thickness/font/icon scale/auto-hide). The wallpaper
@@ -281,6 +295,8 @@ public class Desktop2D {
         // on-screen. Done after the frame is shown rather than in the
         // constructor, where the desktop pane is not yet laid out.
         restoreSession();
+        // Start (or leave stopped) the wallpaper slideshow per the config.
+        applySlideshowConfig();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -754,6 +770,60 @@ public class Desktop2D {
         return (dot > 0) ? filename.substring(0, dot) : filename;
     }
 
+    /**
+     * The ordered image locations the wallpaper slideshow cycles: the images in
+     * the configured folder when it names a readable directory holding at least
+     * one image, else the bundled wallpapers the "Change Wallpaper" submenu
+     * offers. Never null.
+     */
+    private List<URL> slideshowImages() {
+        String folder = DesktopConfig.get().getSlideshowFolder();
+        if (folder != null && !folder.isBlank()) {
+            List<URL> scanned = scanFolder(new File(folder));
+            if (!scanned.isEmpty()) {
+                return scanned;
+            }
+        }
+        List<URL> urls = new ArrayList<>();
+        for (Desktop2DContextMenu.Wallpaper wallpaper : enumerateWallpapers()) {
+            urls.add(wallpaper.url());
+        }
+        return urls;
+    }
+
+    /**
+     * The image files directly inside {@code dir}, as URLs sorted by name.
+     * Non-image files are skipped and a null, absent or unreadable directory
+     * yields an empty list. Package-visible static so the scan is unit-testable
+     * against a temporary directory without a live shell.
+     */
+    static List<URL> scanFolder(File dir) {
+        List<URL> urls = new ArrayList<>();
+        if (dir == null || !dir.isDirectory()) {
+            return urls;
+        }
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return urls;
+        }
+        List<File> images = new ArrayList<>();
+        for (File file : files) {
+            if (file.isFile() && isImage(file.getName())) {
+                images.add(file);
+            }
+        }
+        images.sort((a, b) -> a.getName().compareTo(b.getName()));
+        for (File file : images) {
+            try {
+                urls.add(file.toURI().toURL());
+            } catch (Exception e) {
+                logger.log(Level.FINE, "Skipping unreadable wallpaper {0}",
+                        file.getName());
+            }
+        }
+        return urls;
+    }
+
     // ------------------------------------------------------------------
     // Launching applications
     // ------------------------------------------------------------------
@@ -1134,6 +1204,7 @@ public class Desktop2D {
         if (runDialog != null) {
             runDialog.hide();
         }
+        stopSlideshowTimer();
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();
@@ -1193,6 +1264,96 @@ public class Desktop2D {
             set.run();
         } else {
             SwingUtilities.invokeLater(set);
+        }
+    }
+
+    /**
+     * (Re)builds the slideshow model from the persisted folder and starts or
+     * stops the timer to match the persisted enable flag and interval. When
+     * enabled with at least one image, the first is shown immediately and the
+     * rest follow on the interval. Must run on the EDT.
+     */
+    private void applySlideshowConfig() {
+        DesktopConfig cfg = DesktopConfig.get();
+        // The folder may have changed since the model was built, so rescan.
+        slideshow.setImages(slideshowImages());
+        stopSlideshowTimer();
+        if (!cfg.isSlideshowEnabled() || slideshow.isEmpty()) {
+            return;
+        }
+        setWallpaper(slideshow.current());
+        slideshowTimer = new Timer(cfg.getSlideshowIntervalSec() * 1000,
+                e -> advanceSlideshow());
+        slideshowTimer.start();
+    }
+
+    /** Advances the model one step and applies the image it lands on. EDT. */
+    private void advanceSlideshow() {
+        if (slideshow != null) {
+            setWallpaper(slideshow.next());
+        }
+    }
+
+    /** Stops and drops the slideshow timer, if it is running. */
+    private void stopSlideshowTimer() {
+        if (slideshowTimer != null) {
+            slideshowTimer.stop();
+            slideshowTimer = null;
+        }
+    }
+
+    /**
+     * Turns the wallpaper slideshow on or off on the running 2D desktop and
+     * persists the choice. Safe from any thread; when no shell is running the
+     * value is still written to {@link DesktopConfig} so the next start honours
+     * it. Called by the control center's Appearance panel.
+     */
+    public static void setSlideshowEnabled(final boolean enabled) {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setSlideshowEnabled(enabled);
+        cfg.save();
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d::applySlideshowConfig);
+        }
+    }
+
+    /**
+     * Sets and persists the slideshow interval in seconds (clamped by
+     * {@link DesktopConfig}), restarting the running slideshow's timer. Safe
+     * from any thread; a no-op on the live shell when none is running.
+     */
+    public static void setSlideshowIntervalSec(final int seconds) {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setSlideshowIntervalSec(seconds);
+        cfg.save();
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d::applySlideshowConfig);
+        }
+    }
+
+    /**
+     * Sets and persists the slideshow source folder (a directory path, or blank
+     * for the bundled wallpapers), rescanning the running slideshow. Safe from
+     * any thread; a no-op on the live shell when none is running.
+     */
+    public static void setSlideshowFolder(final String folder) {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setSlideshowFolder(folder);
+        cfg.save();
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d::applySlideshowConfig);
+        }
+    }
+
+    /** Runs {@code task} on the EDT, immediately if already there. */
+    private static void onEdt(Runnable task) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+        } else {
+            SwingUtilities.invokeLater(task);
         }
     }
 
