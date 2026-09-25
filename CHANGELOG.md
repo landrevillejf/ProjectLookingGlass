@@ -10,6 +10,26 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.12.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Multiple workspaces for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the desktop now groups its MDI
+  windows into several virtual workspaces (four by default). A `WorkspacePager`
+  of numbered buttons on the taskbar (left of the system indicators) highlights
+  the current workspace and shows each one's window count; clicking a button, or
+  `Alt+Shift+PageDown`/`PageUp`, switches workspace, and `Alt+Shift+1..9` moves
+  the focused window. Switching hides the windows on the workspace left and
+  shows those on the one entered (frames are only made invisible, never
+  disposed); new windows open on the current workspace, and both the window
+  switcher and the taskbar window buttons list only the current workspace's
+  windows. Following the codebase's headless-testable split, all the logic — the
+  workspace count (clamped 1..9), the current index with wrapping
+  next/previous/switchTo, and the window-to-workspace assignment — lives in a
+  pure `WorkspaceModel` seam keyed by the window's app name, while `Desktop2D`
+  drives the MDI frame visibility and the taskbar from it. The count persists in
+  `DesktopConfig` (`workspace.count`). Covered by headless JUnit 5 tests
+  (`WorkspaceModelTest`, 16; extended `ShortcutMapTest` and `ShortcutsTest` for
+  the new bindings); the Help Center *The 2D and Swing Desktops* topic documents
+  the feature.
+
 - **Wallpaper slideshow for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps` Appearance panel) —
   the desktop backdrop can now cycle automatically instead of showing one image.

@@ -85,6 +85,7 @@ public class Desktop2DTaskbar extends JPanel {
     private final Timer clockTimer;
     private final CalendarPopup calendar;
     private final TaskbarIndicators indicators;
+    private final WorkspacePager workspacePager;
 
     private final JButton startButton;
     private final JButton documentsButton;
@@ -140,6 +141,11 @@ public class Desktop2DTaskbar extends JPanel {
                 desktop.getDownloadsMenu());
         rightRow.add(documentsButton);
         rightRow.add(downloadsButton);
+        // The workspace pager sits left of the indicators: numbered buttons that
+        // switch the desktop's current workspace and show each one's window count.
+        workspacePager = new WorkspacePager(desktop.getWorkspaces(),
+                desktop::switchToWorkspace);
+        rightRow.add(workspacePager);
         // Volume/network/battery glyphs sit left of the clock, like a system tray.
         indicators = new TaskbarIndicators();
         rightRow.add(indicators);
@@ -206,9 +212,12 @@ public class Desktop2DTaskbar extends JPanel {
         }
         button.addActionListener(e -> desktop.activateWindow(window));
         buttons.put(window, button);
+        // A window's button shows only while its workspace is the current one.
+        button.setVisible(desktop.isOnCurrentWorkspace(window));
         windowButtons.add(button);
         windowButtons.revalidate();
         windowButtons.repaint();
+        workspacePager.refresh();
     }
 
     /** Removes the taskbar button of a closed application window. */
@@ -220,6 +229,7 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons.remove(button);
         windowButtons.revalidate();
         windowButtons.repaint();
+        workspacePager.refresh();
     }
 
     /** Highlights the button of the window that currently has the focus. */
@@ -227,6 +237,20 @@ public class Desktop2DTaskbar extends JPanel {
         for (Map.Entry<Desktop2DWindow, JButton> entry : buttons.entrySet()) {
             entry.getValue().setSelected(entry.getKey() == window);
         }
+    }
+
+    /**
+     * Re-syncs the workspace UI after the current workspace changes: refreshes
+     * the pager highlight and counts, and shows only the buttons of the windows
+     * on the now-current workspace. Called by {@link Desktop2D} on a switch.
+     */
+    public void refreshWorkspaces() {
+        workspacePager.refresh();
+        for (Map.Entry<Desktop2DWindow, JButton> entry : buttons.entrySet()) {
+            entry.getValue().setVisible(desktop.isOnCurrentWorkspace(entry.getKey()));
+        }
+        windowButtons.revalidate();
+        windowButtons.repaint();
     }
 
     /** Stops the clock timer; called when the desktop shuts down. */

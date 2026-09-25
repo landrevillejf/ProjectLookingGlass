@@ -171,8 +171,10 @@ match. Entries are handled by kind:
   as the 3D menu does.
 - The taskbar carries the **Start** button, one button per open window,
   **Documents** / **Downloads** folder menus (the same most-recent-first listing
-  the 3D dock stacks use), a clock and **Exit**. (The per-window buttons track
-  the MDI internal frames, which both `-2` and `--swing` use.)
+  the 3D dock stacks use), a **workspace pager** (numbered buttons that switch
+  between the desktop's multiple workspaces and show each one's window count), a
+  clock and **Exit**. (The per-window buttons track the MDI internal frames,
+  which both `-2` and `--swing` use, and list only the current workspace.)
 
 **What is disabled.** Pure Java 3D applications (the demos, Image Studio,
 Agenda 3D, Mail 3D, …) have no scene to render into, so their menu entries

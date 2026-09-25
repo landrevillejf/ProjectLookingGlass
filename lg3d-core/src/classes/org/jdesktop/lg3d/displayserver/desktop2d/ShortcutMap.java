@@ -44,6 +44,14 @@ final class ShortcutMap {
     static final String RUN_DIALOG = "run-dialog";
     static final String OPEN_TERMINAL = "open-terminal";
     static final String WINDOW_CLOSE = "window-close";
+    static final String WORKSPACE_NEXT = "workspace-next";
+    static final String WORKSPACE_PREVIOUS = "workspace-previous";
+    /**
+     * Prefix for the "move the focused window to workspace <em>n</em>" actions;
+     * the action id is this prefix followed by the 0-based workspace index
+     * (e.g. {@code move-to-workspace-2}). Bound to <em>Alt+Shift+1..9</em>.
+     */
+    static final String MOVE_TO_WORKSPACE_PREFIX = "move-to-workspace-";
 
     private final Map<KeyStroke, String> bindings;
 
@@ -86,6 +94,16 @@ final class ShortcutMap {
         map.put("alt F2", RUN_DIALOG);
         map.put("control alt T", OPEN_TERMINAL);
         map.put("control W", WINDOW_CLOSE);
+        // Workspace paging. Alt+Shift+PageDown/PageUp step through the
+        // workspaces; the host window manager reserves Ctrl+Alt+arrow and
+        // Super+digit for its own workspace switching, so those are avoided.
+        map.put("alt shift PAGE_DOWN", WORKSPACE_NEXT);
+        map.put("alt shift PAGE_UP", WORKSPACE_PREVIOUS);
+        // Alt+Shift+<n> moves the focused window to workspace n (1-based key,
+        // 0-based action id), matching the WorkspaceModel single-digit range.
+        for (int n = 1; n <= WorkspaceModel.MAX_COUNT; n++) {
+            map.put("alt shift " + n, MOVE_TO_WORKSPACE_PREFIX + (n - 1));
+        }
         return Collections.unmodifiableMap(map);
     }
 

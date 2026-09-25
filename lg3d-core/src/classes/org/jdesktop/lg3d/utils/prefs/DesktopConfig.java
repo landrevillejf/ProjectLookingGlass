@@ -55,6 +55,7 @@ public final class DesktopConfig {
     private static final String KEY_SLIDESHOW_FOLDER = "wallpaper.slideshowFolder";
     private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
+    private static final String KEY_WORKSPACE_COUNT = "workspace.count";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -93,6 +94,12 @@ public final class DesktopConfig {
     public static final int MAX_SLIDESHOW_INTERVAL_SEC = 3600;
     private static final boolean DEF_DND_ENABLED = false;
     private static final long DEF_DND_UNTIL = 0L;
+    /** Default number of 2D-desktop workspaces (virtual desktops). */
+    public static final int DEFAULT_WORKSPACE_COUNT = 4;
+    private static final int DEF_WORKSPACE_COUNT = DEFAULT_WORKSPACE_COUNT;
+    /** Minimum/maximum number of workspaces. */
+    public static final int MIN_WORKSPACE_COUNT = 1;
+    public static final int MAX_WORKSPACE_COUNT = 9;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -123,6 +130,7 @@ public final class DesktopConfig {
     private String slideshowFolder = DEF_SLIDESHOW_FOLDER;
     private boolean dndEnabled = DEF_DND_ENABLED;
     private long dndUntil = DEF_DND_UNTIL;
+    private int workspaceCount = DEF_WORKSPACE_COUNT;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -163,6 +171,8 @@ public final class DesktopConfig {
         slideshowFolder = normalizeFolder(prefs.get(KEY_SLIDESHOW_FOLDER, DEF_SLIDESHOW_FOLDER));
         dndEnabled = prefs.getBoolean(KEY_DND_ENABLED, DEF_DND_ENABLED);
         dndUntil = prefs.getLong(KEY_DND_UNTIL, DEF_DND_UNTIL);
+        workspaceCount = clampWorkspaceCount(
+                prefs.getInt(KEY_WORKSPACE_COUNT, DEF_WORKSPACE_COUNT));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -179,6 +189,7 @@ public final class DesktopConfig {
         prefs.put(KEY_SLIDESHOW_FOLDER, slideshowFolder);
         prefs.putBoolean(KEY_DND_ENABLED, dndEnabled);
         prefs.putLong(KEY_DND_UNTIL, dndUntil);
+        prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -201,6 +212,7 @@ public final class DesktopConfig {
         slideshowFolder = DEF_SLIDESHOW_FOLDER;
         dndEnabled = DEF_DND_ENABLED;
         dndUntil = DEF_DND_UNTIL;
+        workspaceCount = DEF_WORKSPACE_COUNT;
     }
 
     // ------------------------------------------------------------------
@@ -325,6 +337,15 @@ public final class DesktopConfig {
         this.dndUntil = Math.max(0L, dndUntil);
     }
 
+    /** The number of 2D-desktop workspaces (clamped to the min/max range). */
+    public int getWorkspaceCount() {
+        return workspaceCount;
+    }
+
+    public void setWorkspaceCount(int workspaceCount) {
+        this.workspaceCount = clampWorkspaceCount(workspaceCount);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -341,6 +362,10 @@ public final class DesktopConfig {
     private static int clampSlideshowInterval(int v) {
         return Math.max(MIN_SLIDESHOW_INTERVAL_SEC,
                 Math.min(MAX_SLIDESHOW_INTERVAL_SEC, v));
+    }
+
+    private static int clampWorkspaceCount(int v) {
+        return Math.max(MIN_WORKSPACE_COUNT, Math.min(MAX_WORKSPACE_COUNT, v));
     }
 
     /** Trims a folder path; null falls back to the empty (bundled) default. */

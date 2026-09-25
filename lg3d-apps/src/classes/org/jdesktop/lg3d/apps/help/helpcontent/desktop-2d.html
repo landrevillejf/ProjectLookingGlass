@@ -97,6 +97,31 @@
     before they ever reach the desktop.
   </div>
 
+  <h2>Multiple workspaces</h2>
+  <p>
+    The 2D desktop groups its windows into several <em>workspaces</em> (virtual
+    desktops), four by default. A small pager of numbered buttons sits on the
+    taskbar, to the left of the system indicators: the current workspace is
+    highlighted, and hovering a button shows how many windows it holds. Click a
+    number to switch &mdash; the windows on the workspace you leave are hidden
+    (never closed) and the ones on the workspace you enter are shown.
+  </p>
+  <p>
+    New windows open on the current workspace. To move the focused window to
+    another workspace, press <code>Alt+Shift+1</code> through
+    <code>Alt+Shift+9</code>; to step through the workspaces without the mouse,
+    press <code>Alt+Shift+PageDown</code> (next) or <code>Alt+Shift+PageUp</code>
+    (previous). The window switcher (<code>Alt+`</code>) and the taskbar window
+    buttons only ever list the current workspace, so each one stays uncluttered.
+    The number of workspaces is remembered between sessions.
+  </p>
+  <div class="note">
+    <strong>Note:</strong> Workspace paging uses <code>Alt+Shift</code> combos
+    rather than the usual <code>Ctrl+Alt+arrow</code> because, as with the window
+    switcher, your host window manager grabs those keys before they reach the
+    desktop.
+  </div>
+
   <h2>Global keyboard shortcuts</h2>
   <p>
     These work anywhere in the desktop while its window has the focus:
@@ -113,6 +138,10 @@
     <tr><td><code>Alt+F2</code></td><td>Open the run-command dialog.</td></tr>
     <tr><td><code>Alt+`</code> / <code>Alt+Shift+`</code></td>
         <td>Cycle through the open windows.</td></tr>
+    <tr><td><code>Alt+Shift+PageDown</code> / <code>Alt+Shift+PageUp</code></td>
+        <td>Switch to the next / previous workspace.</td></tr>
+    <tr><td><code>Alt+Shift+1</code> to <code>Alt+Shift+9</code></td>
+        <td>Move the focused window to that workspace.</td></tr>
   </table>
   <p>
     Combos that the host window manager reserves for itself
