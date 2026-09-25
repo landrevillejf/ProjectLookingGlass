@@ -45,6 +45,15 @@ final class BrightnessStatus {
     /** How long a privileged write may run before it is abandoned. */
     private static final long WRITE_TIMEOUT_SECONDS = 10L;
 
+    /**
+     * User-space backlight helpers tried before escalating to pkexec, in order
+     * of preference. Most are absent on a minimal host; each is probed once.
+     */
+    private static final String[] HELPER_COMMANDS = {"brightnessctl", "light", "xbacklight"};
+
+    /** pkexec needs an interactive polkit agent; try it at most once per run. */
+    private static boolean privilegedAttempted;
+
     private BrightnessStatus() {
         // no instances
     }
@@ -109,30 +118,55 @@ final class BrightnessStatus {
     }
 
     /**
-     * Sets the backlight to {@code percent} (0-100); a no-op when there is no
-     * controllable device. The write is best-effort: it first tries the sysfs
-     * node directly (writable on many setups via udev rules) and, only if that
-     * fails, escalates once through {@code pkexec}. Any failure is swallowed so
-     * dragging the slider can never throw on the EDT.
+     * True when a backlight device exists whose {@code brightness} node this
+     * process can write directly. When false the hardware backlight is not
+     * controllable unprivileged (a root-owned sysfs node with no polkit agent),
+     * and the desktop falls back to a software dim so the control still works.
      */
-    static void setBrightness(int percent) {
+    static boolean isControllable() {
+        try {
+            Optional<Path> device = findDevice();
+            return device.isPresent()
+                    && Files.isWritable(device.get().resolve("brightness"));
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sets the backlight to {@code percent} (0-100) and reports whether the
+     * hardware actually took the value. A no-op returning false when there is
+     * no controllable device. The write is best-effort and layered: the sysfs
+     * node directly (writable on many setups via udev rules), then a user-space
+     * helper ({@code brightnessctl}/{@code light}/{@code xbacklight}), and only
+     * then - once per run - {@code pkexec}. The result is verified by reading
+     * the node back, so a silently-refused write reports false and the caller
+     * can fall back to a software dim instead of believing a lie.
+     */
+    static boolean setBrightness(int percent) {
         try {
             Optional<Path> device = findDevice();
             if (device.isEmpty()) {
-                return;
+                return false;
             }
             Path dir = device.get();
             Integer max = parseInt(readFirstLine(dir.resolve("max_brightness")));
             if (max == null || max <= 0) {
-                return;
+                return false;
             }
             String raw = Integer.toString(rawFromPercent(percent, max));
             Path target = dir.resolve("brightness");
-            if (!writeDirect(target, raw)) {
-                writePrivileged(target, raw);
+            if (writeDirect(target, raw)) {
+                return raw.equals(readFirstLine(target));
             }
+            if (writeHelper(percent)) {
+                return raw.equals(readFirstLine(target));
+            }
+            writePrivileged(target, raw);
+            return raw.equals(readFirstLine(target));
         } catch (RuntimeException e) {
             // best effort: a host with no writable backlight just ignores this
+            return false;
         }
     }
 
@@ -179,7 +213,41 @@ final class BrightnessStatus {
         }
     }
 
+    /**
+     * Tries each installed user-space backlight helper. {@code brightnessctl}
+     * and {@code light} take a percentage directly; {@code xbacklight} takes a
+     * 0-100 percent as well. A missing binary fails fast and the next is tried.
+     */
+    private static boolean writeHelper(int percent) {
+        String value = Integer.toString(clamp(percent));
+        for (String command : HELPER_COMMANDS) {
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                        command, "set", value);
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                process.getInputStream().readAllBytes();
+                if (process.waitFor(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        && process.exitValue() == 0) {
+                    return true;
+                }
+            } catch (IOException | InterruptedException | RuntimeException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                // helper not installed or refused: try the next one
+            }
+        }
+        return false;
+    }
+
     private static void writePrivileged(Path target, String raw) {
+        if (privilegedAttempted) {
+            // No polkit agent answered the first time; do not block the EDT
+            // (or re-prompt the user) on every subsequent slider release.
+            return;
+        }
+        privilegedAttempted = true;
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     "pkexec", "tee", target.toString());

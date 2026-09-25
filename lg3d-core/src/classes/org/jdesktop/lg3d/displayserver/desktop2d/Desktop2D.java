@@ -142,6 +142,9 @@ public class Desktop2D {
     private static volatile Desktop2D instance;
 
     private final JFrame frame;
+
+    /** Software brightness wash over the whole desktop (glass pane). */
+    private final BrightnessDimmer brightnessDimmer;
     private final WallpaperDesktopPane desktop;
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
@@ -232,6 +235,14 @@ public class Desktop2D {
         taskbar = new Desktop2DTaskbar(this);
         content.add(taskbar, BorderLayout.SOUTH);
         frame.setContentPane(content);
+
+        // Software brightness: on a host whose hardware backlight is not
+        // writable unprivileged the taskbar slider would otherwise do nothing,
+        // so a refused percentage dims the whole desktop through the glass pane
+        // instead. The dimmer never intercepts input (contains() is false).
+        brightnessDimmer = new BrightnessDimmer();
+        frame.setGlassPane(brightnessDimmer);
+        taskbar.indicators().setSoftwareBrightness(brightnessDimmer::setPercent);
 
         Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getMaximumWindowBounds();
@@ -999,7 +1010,8 @@ public class Desktop2D {
         try {
             JComponent panel =
                     Desktop2DAppRegistry.createPanel(item.getCommand(), initialDir);
-            Icon icon = Desktop2DStartMenu.icon(item.getIconResource());
+            Icon icon = AppIcons.iconFor(
+                    appName, item.getIconResource(), Desktop2DStartMenu.ICON_SIZE);
             Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
                     appName, item.getCommand(), item.getIconResource());
             track(window);

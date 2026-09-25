@@ -166,7 +166,7 @@ public final class Desktop2DStartMenu {
             return null;
         }
         JMenuItem entry = new JMenuItem(item.getName(),
-                icon(item.getIconResource()));
+                AppIcons.iconFor(item.getName(), item.getIconResource(), ICON_SIZE));
         if (kind == Desktop2DAppRegistry.Kind.UNAVAILABLE) {
             entry.setEnabled(false);
             entry.setToolTipText(Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP);

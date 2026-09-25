@@ -10,6 +10,40 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.13.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Generated application icons for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the start menu, the window
+  frame and the taskbar button of an application now share one icon resolved
+  deterministically from its name through the bundled IconManager library
+  (`libs/IconManager-1.6.0.jar`). A name that clearly matches a known family
+  (mail, help, media, database, browser, preferences, terminal, text, ...)
+  takes the matching toolbar glyph; every other application gets a distinctive
+  glass tile carrying its initials in a stable colour derived from its name, so
+  two different apps never share an icon and the same app always resolves to the
+  same one. The resolution logic lives in a Java 3D-free `AppIcons` seam; the
+  library is a compile-only dependency placed on the desktop *run* classpath by
+  the build (and shipped in the release bundle), and every call degrades to the
+  legacy descriptor PNG — then to a placeholder tile — if it is ever absent, so
+  the desktop still starts. Covered by headless JUnit 5 tests (`AppIconsTest`,
+  7).
+
+- **Software brightness fallback and tray gauges for the 2D/Swing desktop**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`) — the taskbar
+  brightness slider now works even on hosts whose hardware backlight is not
+  controllable unprivileged (a root-owned `/sys/class/backlight` node with no
+  polkit agent). `BrightnessStatus.setBrightness` is layered (direct sysfs write,
+  then a user-space helper — `brightnessctl`/`light`/`xbacklight` — then at most
+  one `pkexec` escalation per run) and verifies the write by reading the node
+  back, so a silently-refused value reports failure; `isControllable` lets the
+  shell detect the case. When the hardware refuses, `Desktop2D` installs a
+  `BrightnessDimmer` glass pane that paints a translucent wash over the whole
+  desktop (opacity growing as brightness falls) while never intercepting input
+  (`contains()` is always false), and the requested percentage sticks instead of
+  snapping back to the unchanged hardware reading. The battery and brightness
+  indicators also gain small IconManager progress gauges, and the battery gauge
+  grades green→orange→red as the charge drains (`BatteryStatus.color`). Covered
+  by headless JUnit 5 tests (`BrightnessDimmerTest`, 4; extended
+  `BatteryStatusTest`, `BrightnessStatusTest` and `TaskbarIndicatorsTest`).
+
 - **Multiple workspaces for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — the desktop now groups its MDI
   windows into several virtual workspaces (four by default). A `WorkspacePager`

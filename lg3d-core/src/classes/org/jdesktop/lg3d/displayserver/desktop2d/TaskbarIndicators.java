@@ -14,16 +14,20 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Optional;
+import java.util.function.IntConsumer;
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JSlider;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
+import com.protonmail.landrevillejf.IconManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
 
@@ -48,6 +52,13 @@ final class TaskbarIndicators extends JPanel {
     /** Network/battery poll interval: these change slowly. */
     static final int STATUS_INTERVAL_MS = 5000;
 
+    /** Edge of the battery/brightness gauge icons, in pixels. */
+    static final int GAUGE_SIZE = 14;
+    /** Track colour behind a gauge's fill. */
+    private static final Color GAUGE_TRACK = new Color(0x33, 0x33, 0x33);
+    /** Fill colour of the brightness gauge. */
+    private static final Color BRIGHTNESS_FILL = new Color(0xF1, 0xC4, 0x0F);
+
     private final JLabel volumeLabel = new JLabel();
     private final JLabel brightnessLabel = new JLabel();
     private final JLabel networkLabel = new JLabel();
@@ -64,6 +75,20 @@ final class TaskbarIndicators extends JPanel {
     private boolean adjustingSlider;
     /** Guards against the brightness slider's own change events fighting a refresh. */
     private boolean adjustingBrightnessSlider;
+
+    /**
+     * The last percentage the user dragged the brightness slider to. While the
+     * hardware backlight is not controllable the poll must not snap the label
+     * and slider back to the unchanged hardware reading, or the control looks
+     * broken; this remembered value is what is displayed instead.
+     */
+    private Integer requestedBrightness;
+
+    /**
+     * Receives a brightness percentage the hardware refused, so the desktop can
+     * apply a software dim and the slider still visibly does something.
+     */
+    private IntConsumer softwareBrightness;
 
     TaskbarIndicators() {
         super(new FlowLayout(FlowLayout.RIGHT, 6, 0));
@@ -138,7 +163,16 @@ final class TaskbarIndicators extends JPanel {
     void refreshStatuses() {
         applyNetwork(NetworkStatus.read());
         applyBattery(BatteryStatus.read());
-        applyBrightness(BrightnessStatus.read());
+        applyBrightness(BrightnessStatus.read(), BrightnessStatus.isControllable());
+    }
+
+    /**
+     * Registers the fallback invoked with a brightness percentage the hardware
+     * backlight refused (root-owned sysfs, no polkit agent), so the desktop can
+     * dim itself in software and the control stays meaningful.
+     */
+    void setSoftwareBrightness(IntConsumer consumer) {
+        softwareBrightness = consumer;
     }
 
     /** Applies an already-read volume (headless-testable seam). */
@@ -160,13 +194,39 @@ final class TaskbarIndicators extends JPanel {
 
     /** Applies an already-read brightness, hiding the glyph when absent. */
     void applyBrightness(Optional<BrightnessStatus.Level> level) {
+        applyBrightness(level, BrightnessStatus.isControllable());
+    }
+
+    /**
+     * Applies an already-read brightness together with whether the hardware
+     * backlight is writable. When it is not, a percentage the user dragged to
+     * wins over the (unchanged) hardware reading so the value sticks.
+     */
+    void applyBrightness(Optional<BrightnessStatus.Level> level, boolean controllable) {
         BrightnessStatus.Level value = level.orElse(null);
-        brightnessLabel.setVisible(value != null);
-        brightnessLabel.setText(BrightnessStatus.glyph(value));
-        brightnessLabel.setToolTipText(BrightnessStatus.label(value));
-        if (value != null) {
-            syncBrightnessSlider(value);
+        if (value == null && requestedBrightness == null) {
+            brightnessLabel.setVisible(false);
+            return;
         }
+        brightnessLabel.setVisible(true);
+        int percent;
+        if (requestedBrightness != null && !controllable) {
+            percent = requestedBrightness;
+        } else {
+            if (value == null) {
+                return;
+            }
+            percent = value.percent();
+            if (controllable) {
+                requestedBrightness = null;
+            }
+        }
+        BrightnessStatus.Level shown = new BrightnessStatus.Level(percent);
+        brightnessLabel.setText(BrightnessStatus.glyph(shown));
+        brightnessLabel.setToolTipText(BrightnessStatus.label(shown)
+                + (controllable ? "" : " (software dim)"));
+        brightnessLabel.setIcon(gauge(percent, BRIGHTNESS_FILL));
+        syncBrightnessSlider(shown);
     }
 
     /** Applies an already-read battery level, hiding the glyph when absent. */
@@ -179,6 +239,7 @@ final class TaskbarIndicators extends JPanel {
         Level value = level.get();
         batteryLabel.setText(BatteryStatus.glyph(value));
         batteryLabel.setToolTipText(BatteryStatus.label(value));
+        batteryLabel.setIcon(gauge(value.percent(), BatteryStatus.color(value)));
     }
 
     /** Stops the polling timers; called when the desktop shuts down. */
@@ -203,6 +264,14 @@ final class TaskbarIndicators extends JPanel {
 
     String brightnessText() {
         return brightnessLabel.getText();
+    }
+
+    Icon batteryIcon() {
+        return batteryLabel.getIcon();
+    }
+
+    Icon brightnessIcon() {
+        return brightnessLabel.getIcon();
     }
 
     boolean volumeVisible() {
@@ -256,17 +325,43 @@ final class TaskbarIndicators extends JPanel {
         if (adjustingBrightnessSlider || brightnessSlider.getValueIsAdjusting()) {
             return;
         }
-        int percent = brightnessSlider.getValue();
-        BrightnessStatus.setBrightness(percent);
-        brightnessLabel.setText(
-                BrightnessStatus.glyph(new BrightnessStatus.Level(percent)));
+        applyUserBrightness(brightnessSlider.getValue());
+    }
+
+    /**
+     * Commits a brightness percentage the user dragged the slider to: tries the
+     * hardware, falls back to the software dim when it refuses, and shows the
+     * requested value immediately so the control always responds.
+     */
+    void applyUserBrightness(int percent) {
+        requestedBrightness = percent;
+        boolean applied = BrightnessStatus.setBrightness(percent);
+        if (!applied && softwareBrightness != null) {
+            softwareBrightness.accept(percent);
+        }
+        BrightnessStatus.Level shown = new BrightnessStatus.Level(percent);
+        brightnessLabel.setText(BrightnessStatus.glyph(shown));
+        brightnessLabel.setIcon(gauge(percent, BRIGHTNESS_FILL));
     }
 
     private void showBrightnessPopup() {
         // Refresh from the OS first so the slider opens at the real level.
-        applyBrightness(BrightnessStatus.read());
+        applyBrightness(BrightnessStatus.read(), BrightnessStatus.isControllable());
         int width = brightnessSlider.getPreferredSize().width;
         int height = brightnessPopup.getPreferredSize().height;
         brightnessPopup.show(brightnessLabel, -width / 4, -height);
+    }
+
+    /**
+     * A small filled gauge icon for a 0-100 percentage, or null when IconManager
+     * is not on the run classpath (the text glyph still carries the value).
+     */
+    private static Icon gauge(int percent, Color fill) {
+        try {
+            return IconManager.createProgressIcon(
+                    percent / 100.0, GAUGE_SIZE, fill, GAUGE_TRACK);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 }

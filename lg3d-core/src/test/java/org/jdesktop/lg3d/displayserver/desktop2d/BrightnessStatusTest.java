@@ -15,6 +15,7 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
@@ -98,11 +99,25 @@ class BrightnessStatusTest {
     }
 
     @Test
-    @DisplayName("read()/setBrightness() never throw headless")
+    @DisplayName("read()/setBrightness() never throw headless and agree on control")
     void readAndWriteAreSafeHeadless() {
         // On a box with no controllable backlight read() is empty and the write
-        // is a no-op; either way neither call may throw.
+        // reports false; either way neither call may throw.
         assertTrue(BrightnessStatus.read() != null);
-        BrightnessStatus.setBrightness(40);
+        boolean applied = BrightnessStatus.setBrightness(40);
+        if (BrightnessStatus.isControllable()) {
+            assertTrue(applied, "a writable backlight must take the value");
+        } else {
+            assertFalse(applied, "an unwritable backlight must report refusal");
+        }
+    }
+
+    @Test
+    @DisplayName("a controllable backlight is always readable")
+    void controllableImpliesReadable() {
+        if (BrightnessStatus.isControllable()) {
+            assertTrue(BrightnessStatus.read().isPresent(),
+                    "a writable device must also be readable");
+        }
     }
 }

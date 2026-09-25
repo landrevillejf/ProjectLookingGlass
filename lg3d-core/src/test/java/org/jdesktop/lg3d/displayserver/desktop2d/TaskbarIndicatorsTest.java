@@ -16,9 +16,12 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.Kind;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
@@ -114,5 +117,47 @@ class TaskbarIndicatorsTest {
         assertTrue(indicators.brightnessVisible());
         indicators.applyBrightness(Optional.empty());
         assertFalse(indicators.brightnessVisible(), "no backlight means no glyph");
+    }
+
+    @Test
+    @DisplayName("a present battery carries a gauge icon")
+    void batteryGaugeIcon() {
+        indicators.applyBattery(Optional.of(new Level(63, true)));
+        assertNotNull(indicators.batteryIcon(), "the battery shows a filled gauge");
+    }
+
+    @Test
+    @DisplayName("a present backlight carries a gauge icon")
+    void brightnessGaugeIcon() {
+        indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(60)));
+        assertNotNull(indicators.brightnessIcon(), "the brightness shows a filled gauge");
+    }
+
+    @Test
+    @DisplayName("a refused hardware write dims in software and the value sticks")
+    void brightnessFallsBackToSoftwareDimAndSticks() {
+        // Only meaningful where the backlight is NOT writable: there the slider
+        // must still produce a visible, persistent change.
+        assumeFalse(BrightnessStatus.isControllable());
+        AtomicInteger dimmed = new AtomicInteger(-1);
+        indicators.setSoftwareBrightness(dimmed::set);
+
+        indicators.applyUserBrightness(40);
+        assertEquals(40, dimmed.get(), "a refused write must reach the software dim");
+        assertEquals("Bri 40%", indicators.brightnessText());
+
+        // The poll reads the unchanged hardware value but must not snap back.
+        indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(79)), false);
+        assertEquals("Bri 40%", indicators.brightnessText(),
+                "the dragged value wins while the hardware is not controllable");
+    }
+
+    @Test
+    @DisplayName("a controllable backlight lets the hardware reading win the poll")
+    void brightnessPollReflectsControllableHardware() {
+        indicators.applyUserBrightness(40);
+        indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(79)), true);
+        assertEquals("Bri 79%", indicators.brightnessText(),
+                "a writable backlight reports its own value back");
     }
 }
