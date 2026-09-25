@@ -83,6 +83,8 @@ public class Desktop2DTaskbar extends JPanel {
     private final Map<Desktop2DWindow, JButton> buttons = new LinkedHashMap<>();
     private final JLabel clock = new JLabel();
     private final Timer clockTimer;
+    private final CalendarPopup calendar;
+    private final TaskbarIndicators indicators;
 
     private final JButton startButton;
     private final JButton documentsButton;
@@ -138,12 +140,17 @@ public class Desktop2DTaskbar extends JPanel {
                 desktop.getDownloadsMenu());
         rightRow.add(documentsButton);
         rightRow.add(downloadsButton);
+        // Volume/network/battery glyphs sit left of the clock, like a system tray.
+        indicators = new TaskbarIndicators();
+        rightRow.add(indicators);
         // The notification-area button sits just left of the clock, the way a
         // system tray does; it reflects the desktop's shared notification log.
         NotificationTray notificationTray =
                 new NotificationTray(desktop.getNotificationModel());
         rightRow.add(notificationTray.button());
         rightRow.add(clock);
+        // Clicking the clock opens a calendar with a small agenda for today.
+        calendar = new CalendarPopup(clock, desktop.getNotificationModel());
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");
         exit.addActionListener(e -> desktop.confirmExit());
@@ -224,6 +231,7 @@ public class Desktop2DTaskbar extends JPanel {
     /** Stops the clock timer; called when the desktop shuts down. */
     public void stop() {
         clockTimer.stop();
+        indicators.stop();
         stopAutoHide();
     }
 
