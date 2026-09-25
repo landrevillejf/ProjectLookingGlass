@@ -65,9 +65,17 @@ work to make it build and run on a current toolchain.
   region* list in the Control Center's **Desktop** panel, persisted in
   `DesktopConfig` (`calendar.holidayRegion`) beside the other desktop settings;
   explicit tokens cover `US`, `CA`, `CA:<PROVINCE>` (e.g. `CA:QUEBEC`) and
-  `US:<STATE>`. `jbusinessday` + slf4j move onto lg3d-core's compile/test
-  classpath (previously run-classpath-only). Covered by headless JUnit 5 tests
-  (`HolidayCalendarTest`, 10).
+  `US:<STATE>`. The region-token grammar and the `jbusinessday` calls live in a
+  new shared public `HolidayRegions` helper (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.prefs`) that `HolidayCalendar` delegates to, so the
+  orgchart **Agenda** grid (`lg3d-incubator`) now marks the *same* holidays from
+  the *same* persisted, locale-resolved preference instead of its old
+  US-defaulting `lg.agenda.holidayRegion` system property — which is still
+  honoured as an explicit override and re-read on each redraw, so a Control
+  Center change applies to both surfaces without a restart. `jbusinessday` +
+  slf4j move onto lg3d-core's compile/test classpath (previously
+  run-classpath-only). Covered by headless JUnit 5 tests (`HolidayRegionsTest`,
+  10; `HolidayCalendarTest`, 5).
 
 - **Global keyboard shortcuts for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — a set of desktop-wide key
