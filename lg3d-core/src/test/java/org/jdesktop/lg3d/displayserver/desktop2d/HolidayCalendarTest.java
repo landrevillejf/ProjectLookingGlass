@@ -20,79 +20,32 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Locale;
+import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Covers {@link HolidayCalendar}'s headless behaviour: the pure region-token
- * resolution (explicit tokens win, {@code AUTO}/blank fall back to the locale's
- * country), the {@code jbusinessday}-backed holiday lists per region, weekend
- * classification, and the per-year memoisation.
+ * Covers {@link HolidayCalendar}'s headless instance behaviour: the region it
+ * resolves to (delegated to {@link HolidayRegions}), weekend/holiday
+ * classification for that region, and the per-year memoisation. The pure
+ * region-token/holiday-list logic itself is covered by
+ * {@code org.jdesktop.lg3d.utils.prefs.HolidayRegionsTest}.
  */
 class HolidayCalendarTest {
 
     @Test
-    @DisplayName("an explicit region token is trimmed and upper-cased")
-    void resolveExplicitRegion() {
-        assertEquals("US", HolidayCalendar.resolveRegion("us", Locale.CANADA));
-        assertEquals("CA", HolidayCalendar.resolveRegion(" CA ", Locale.US));
-        assertEquals("CA:QUEBEC",
-                HolidayCalendar.resolveRegion("ca:quebec", Locale.US));
+    @DisplayName("the default constructor uses the persisted, locale-resolved region")
+    void defaultConstructorUsesConfiguredRegion() {
+        assertEquals(HolidayRegions.configuredRegion(), new HolidayCalendar().region());
     }
 
     @Test
-    @DisplayName("AUTO/blank/null resolve from the locale's country")
-    void resolveAutoRegion() {
-        assertEquals("CA", HolidayCalendar.resolveRegion("AUTO", Locale.CANADA));
-        assertEquals("CA", HolidayCalendar.resolveRegion("auto", Locale.CANADA));
-        assertEquals("US", HolidayCalendar.resolveRegion("AUTO", Locale.US));
-        assertEquals("US", HolidayCalendar.resolveRegion(null, Locale.FRANCE));
-        assertEquals("US", HolidayCalendar.resolveRegion("  ", Locale.JAPAN));
-        assertEquals("US", HolidayCalendar.resolveRegion("AUTO", null));
-    }
-
-    @Test
-    @DisplayName("US federal holidays include Independence Day")
-    void usFederalHolidays() {
-        List<LocalDate> us = HolidayCalendar.computeHolidays("US", 2026);
-        assertTrue(us.contains(LocalDate.of(2026, 7, 4)));
-        assertTrue(us.contains(LocalDate.of(2026, 12, 25)));
-    }
-
-    @Test
-    @DisplayName("Canadian federal holidays include Canada Day")
-    void canadianFederalHolidays() {
-        List<LocalDate> ca = HolidayCalendar.computeHolidays("CA", 2026);
-        assertTrue(ca.contains(LocalDate.of(2026, 7, 1)));
-        assertFalse(ca.contains(LocalDate.of(2026, 7, 4)),
-                "US Independence Day is not a Canadian federal holiday");
-    }
-
-    @Test
-    @DisplayName("a province token adds that province's holiday (Quebec's St-Jean)")
-    void provinceHolidays() {
-        List<LocalDate> qc = HolidayCalendar.computeHolidays("CA:QUEBEC", 2026);
-        assertTrue(qc.contains(LocalDate.of(2026, 6, 24)),
-                "St-Jean-Baptiste Day is a Quebec statutory holiday");
-        assertTrue(qc.contains(LocalDate.of(2026, 7, 1)));
-    }
-
-    @Test
-    @DisplayName("an unknown province/state token degrades to no holidays, not a throw")
-    void unknownSubdivisionDegrades() {
-        assertTrue(HolidayCalendar.computeHolidays("CA:NOTAPROVINCE", 2026).isEmpty());
-        assertTrue(HolidayCalendar.computeHolidays("US:NOTASTATE", 2026).isEmpty());
-    }
-
-    @Test
-    @DisplayName("an unrecognised region falls back to US federal")
-    void unknownRegionFallsBackToUs() {
-        List<LocalDate> xx = HolidayCalendar.computeHolidays("XX", 2026);
-        assertTrue(xx.contains(LocalDate.of(2026, 7, 4)));
-        assertTrue(HolidayCalendar.computeHolidays(null, 2026)
-                .contains(LocalDate.of(2026, 7, 4)));
+    @DisplayName("AUTO resolves from the injected locale; explicit tokens win")
+    void resolvesRegionThroughHelper() {
+        assertEquals("CA", new HolidayCalendar("AUTO", Locale.CANADA).region());
+        assertEquals("US", new HolidayCalendar("AUTO", Locale.US).region());
+        assertEquals("CA:QUEBEC", new HolidayCalendar("ca:quebec", Locale.US).region());
     }
 
     @Test
