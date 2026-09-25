@@ -49,22 +49,28 @@ final class TaskbarIndicators extends JPanel {
     static final int STATUS_INTERVAL_MS = 5000;
 
     private final JLabel volumeLabel = new JLabel();
+    private final JLabel brightnessLabel = new JLabel();
     private final JLabel networkLabel = new JLabel();
     private final JLabel batteryLabel = new JLabel();
     private final JSlider volumeSlider = new JSlider(0, 100, 0);
     private final JPopupMenu volumePopup = new JPopupMenu();
+    private final JSlider brightnessSlider = new JSlider(0, 100, 0);
+    private final JPopupMenu brightnessPopup = new JPopupMenu();
 
     private final Timer volumeTimer;
     private final Timer statusTimer;
 
     /** Guards against the slider's own change events fighting a refresh. */
     private boolean adjustingSlider;
+    /** Guards against the brightness slider's own change events fighting a refresh. */
+    private boolean adjustingBrightnessSlider;
 
     TaskbarIndicators() {
         super(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         setOpaque(false);
 
-        for (JLabel label : new JLabel[] {volumeLabel, networkLabel, batteryLabel}) {
+        for (JLabel label : new JLabel[] {
+                volumeLabel, brightnessLabel, networkLabel, batteryLabel}) {
             label.setOpaque(false);
             add(label);
         }
@@ -88,6 +94,25 @@ final class TaskbarIndicators extends JPanel {
         volumeSlider.addChangeListener(this::onSliderChange);
         volumePopup.add(volumeSlider);
 
+        brightnessLabel.setToolTipText("Brightness");
+        brightnessLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                showBrightnessPopup();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                showBrightnessPopup();
+            }
+        });
+
+        brightnessSlider.setMajorTickSpacing(25);
+        brightnessSlider.setMinorTickSpacing(5);
+        brightnessSlider.setPaintTicks(true);
+        brightnessSlider.addChangeListener(this::onBrightnessSliderChange);
+        brightnessPopup.add(brightnessSlider);
+
         volumeTimer = new Timer(VOLUME_INTERVAL_MS, e -> refreshVolume());
         volumeTimer.setRepeats(true);
         statusTimer = new Timer(STATUS_INTERVAL_MS, e -> refreshStatuses());
@@ -109,10 +134,11 @@ final class TaskbarIndicators extends JPanel {
         applyVolume(VolumeStatus.read());
     }
 
-    /** Reads and applies the network and battery state. */
+    /** Reads and applies the network, battery and brightness state. */
     void refreshStatuses() {
         applyNetwork(NetworkStatus.read());
         applyBattery(BatteryStatus.read());
+        applyBrightness(BrightnessStatus.read());
     }
 
     /** Applies an already-read volume (headless-testable seam). */
@@ -130,6 +156,17 @@ final class TaskbarIndicators extends JPanel {
     void applyNetwork(State state) {
         networkLabel.setText(NetworkStatus.glyph(state));
         networkLabel.setToolTipText(NetworkStatus.label(state));
+    }
+
+    /** Applies an already-read brightness, hiding the glyph when absent. */
+    void applyBrightness(Optional<BrightnessStatus.Level> level) {
+        BrightnessStatus.Level value = level.orElse(null);
+        brightnessLabel.setVisible(value != null);
+        brightnessLabel.setText(BrightnessStatus.glyph(value));
+        brightnessLabel.setToolTipText(BrightnessStatus.label(value));
+        if (value != null) {
+            syncBrightnessSlider(value);
+        }
     }
 
     /** Applies an already-read battery level, hiding the glyph when absent. */
@@ -164,12 +201,20 @@ final class TaskbarIndicators extends JPanel {
         return batteryLabel.getText();
     }
 
+    String brightnessText() {
+        return brightnessLabel.getText();
+    }
+
     boolean volumeVisible() {
         return volumeLabel.isVisible();
     }
 
     boolean batteryVisible() {
         return batteryLabel.isVisible();
+    }
+
+    boolean brightnessVisible() {
+        return brightnessLabel.isVisible();
     }
 
     private void syncSlider(VolumeStatus.Level value) {
@@ -196,5 +241,32 @@ final class TaskbarIndicators extends JPanel {
         int width = volumeSlider.getPreferredSize().width;
         int height = volumePopup.getPreferredSize().height;
         volumePopup.show(volumeLabel, -width / 4, -height);
+    }
+
+    private void syncBrightnessSlider(BrightnessStatus.Level value) {
+        adjustingBrightnessSlider = true;
+        try {
+            brightnessSlider.setValue(BrightnessStatus.clamp(value.percent()));
+        } finally {
+            adjustingBrightnessSlider = false;
+        }
+    }
+
+    private void onBrightnessSliderChange(ChangeEvent e) {
+        if (adjustingBrightnessSlider || brightnessSlider.getValueIsAdjusting()) {
+            return;
+        }
+        int percent = brightnessSlider.getValue();
+        BrightnessStatus.setBrightness(percent);
+        brightnessLabel.setText(
+                BrightnessStatus.glyph(new BrightnessStatus.Level(percent)));
+    }
+
+    private void showBrightnessPopup() {
+        // Refresh from the OS first so the slider opens at the real level.
+        applyBrightness(BrightnessStatus.read());
+        int width = brightnessSlider.getPreferredSize().width;
+        int height = brightnessPopup.getPreferredSize().height;
+        brightnessPopup.show(brightnessLabel, -width / 4, -height);
     }
 }
