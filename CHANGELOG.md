@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.10.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Global keyboard shortcuts for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a set of desktop-wide key
+  bindings that work wherever the desktop frame has the focus: **Ctrl+Alt+D**
+  show-desktop (minimise all), **Alt+Shift+←/→** snap the focused window to the
+  left/right half and **Alt+Shift+↑** maximise it (reusing the drag-snap
+  geometry), **Ctrl+Alt+T** open a terminal, **Ctrl+W** close the focused window,
+  and **Alt+F2** reserved for the run-command dialog. `Desktop2D` installs a
+  `KeyEventDispatcher` on the `KeyboardFocusManager` that only acts while its own
+  frame is frontmost, resolves the press through the table and consumes it; the
+  Alt+` window switcher is deliberately *not* in the table, so it falls through
+  untouched, and combos the host window manager grabs (Super+key, Ctrl+Alt+arrow)
+  are avoided. Following the codebase's headless-testable split, the table
+  (`ShortcutMap`: keystroke-spec → action id, with tolerant parsing) and the
+  resolve-and-dispatch switch (`Shortcuts.handle` / `Shortcuts.dispatch` over a
+  small `Shortcuts.Target` interface) are pure, so a fake target records which
+  action fired without a focus manager or display; `Desktop2D` supplies the real
+  target. Covered by headless JUnit 5 tests (`ShortcutMapTest`, 11;
+  `ShortcutsTest`, 7 — 18 tests total).
+
 - **Taskbar system indicators for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — a volume / network / battery
   cluster in the taskbar's right-hand row, left of the clock, in the style of a
@@ -43,6 +62,7 @@ work to make it build and run on a current toolchain.
   I/O) and the popup wiring in `StartMenuSearch`, which reuses the existing
   `Desktop2DStartMenu` item renderer and category-tree builder. Covered by
   headless JUnit 5 tests (`AppSearchTest`, 9; `StartMenuSearchTest`, 6).
+
 
 - **About** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — a new *Utilities*
   start-menu application showing the product identity, the resolved build
