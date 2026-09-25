@@ -80,19 +80,30 @@ public final class Desktop2DStartMenu {
      */
     public static JPopupMenu build(MenuModel model, Launcher launcher) {
         JPopupMenu menu = new JPopupMenu();
+        appendTree(menu, model, launcher);
+        return menu;
+    }
+
+    /**
+     * Appends the whole category tree for {@code model} to {@code container}
+     * (root items, one sub-menu per linked group, then orphan items). Extracted
+     * from {@link #build} so the searchable menu can re-render the normal tree
+     * into an existing popup whenever its query is cleared.
+     */
+    static void appendTree(JComponent container, MenuModel model,
+                           Launcher launcher) {
         GroupSpec root = model.getRootGroup();
         if (root == null) {
             JMenuItem none = new JMenuItem(NO_APPS_LABEL);
             none.setEnabled(false);
-            menu.add(none);
-            return menu;
+            addTo(container, none);
+            return;
         }
         Set<String> ancestors = new LinkedHashSet<>();
         ancestors.add(root.getName());
-        appendItems(menu, model.getItemsOf(root.getName()), launcher);
-        appendGroups(menu, model, root, launcher, ancestors, 1);
-        appendItems(menu, model.getOrphanItems(), launcher);
-        return menu;
+        appendItems(container, model.getItemsOf(root.getName()), launcher);
+        appendGroups(container, model, root, launcher, ancestors, 1);
+        appendItems(container, model.getOrphanItems(), launcher);
     }
 
     /** Adds {@code group}'s own items, then a sub-menu per linked group. */
