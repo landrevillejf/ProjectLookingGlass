@@ -98,7 +98,7 @@ final class WindowCyclerOverlay extends JComponent {
         void focus(Desktop2DWindow window);
     }
 
-    private final WindowCycler cycler = new WindowCycler();
+    private final WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
     private final WindowSource source;
     private final Timer commitTimer;
     private JDesktopPane host;
@@ -117,7 +117,7 @@ final class WindowCyclerOverlay extends JComponent {
     }
 
     /** The window's own MRU tracker, so {@code Desktop2D} can feed it events. */
-    WindowCycler cycler() {
+    WindowCycler<Desktop2DWindow> cycler() {
         return cycler;
     }
 

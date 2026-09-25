@@ -10,6 +10,35 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Alt+Tab-style window switcher for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.switcher`;
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — Ctrl+Alt+Tab steps forward and
+  Ctrl+Alt+Shift+Tab steps backward through the open `Frame3D` windows in
+  most-recently-used order, showing a translucent card of window titles on the HUD
+  layer and committing the highlighted window to front on a short idle timer. The
+  third window-management feature ported off the taskbar, without touching
+  `GlassyTaskbar`; it is the `Frame3D` counterpart of the 2D desktop's
+  `WindowCyclerOverlay`. The MRU list and cycle state machine are *not*
+  re-invented: the package-private 2D `WindowCycler` was generalized to a `public`
+  generic `WindowCycler<T>` *in place* (the 2D desktop keeps
+  `WindowCycler<Desktop2DWindow>`, the 3D one uses `WindowCycler<Frame3D>`), so both
+  share one model. The plugin tracks the live window set through
+  `Frame3DAddedEvent`/`Frame3DRemovedEvent` and the MRU order through
+  `Component3DToFrontEvent`, and binds the trigger on a global `KeyEvent3D`
+  listener. Plain Alt+Tab is deliberately not used (the host window manager grabs
+  it in dev mode) and committing is an idle timer rather than a key release
+  (modifier-release detection is unreliable), exactly mirroring the 2D overlay's
+  proven semantics. The card lists window *titles* (highlighted selected row) —
+  the same information the 2D overlay's icon+name rows convey — rather than live
+  3D thumbnails, because a `Frame3D`'s `Thumbnail` is a single-parented
+  `Component3D` already owned by the taskbar and cannot be reparented onto the HUD
+  without stealing it from the bar. Covered by headless JUnit 5 tests
+  (`WindowSwitcherKeysTest` 4, `WindowSwitcherPanelTest` 11, plus the generalized
+  `WindowCyclerTest`) and probe-verified on the live desktop (three real windows
+  tracked in MRU order, trigger opens the session and steps the highlight, the
+  card paints with the correct selected row at each step, and the 600 ms
+  idle-commit brings the selection to front and hides the card, with `lgscreen`
+  captures at each step).
 - **Edge window snapping for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.scenemanager.utils.snap`; `org.jdesktop.lg3d.displayserver.desktop2d`)
   — drag a `Frame3D` so its left / right / top edge reaches the matching screen

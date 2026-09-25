@@ -117,6 +117,23 @@
   </void>
  </object>
 
+ <!-- Alt+Tab-style window switcher for the native 3D desktop: Ctrl+Alt+Tab steps
+ through the open Frame3D windows in most-recently-used order (Ctrl+Alt+Shift+Tab
+ steps back), showing a translucent card of window titles on the HUD layer above,
+ and commits the highlighted window to front on a short idle timer. From lg3d-core
+ (scenemanager.utils.switcher). MUST be registered AFTER DesktopHudPlugin so its
+ layer() is live at init; getPluginRoot() returns null because the card is
+ parented to the HUD layer. Shares the pure WindowCycler MRU model with the 2D
+ desktop. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.switcher.WindowSwitcherPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
