@@ -4,7 +4,7 @@
 
 Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsystems 3D desktop. The codebase has been migrated from Ant + Java 1.5 to Gradle 8.14 + JDK 21, with Java 3D migrated from Sun's `javax.media.j3d` to Jogamp's `org.jogamp.java3d` 1.7.2.
 
-**Project coordinates:** `org.jdesktop.lg3d:1.14.0`
+**Project coordinates:** `org.jdesktop.lg3d:1.14.1-dev`
 
 ## Build System
 
