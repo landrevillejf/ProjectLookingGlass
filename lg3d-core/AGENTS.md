@@ -7,6 +7,7 @@ Looking Glass. This covers the scene-graph UI toolkit that lives in `lg3d-core`
 
 Companion guides (read these for worked examples and API detail):
 - [`../docs/lg3d-native-apps.md`](../docs/lg3d-native-apps.md) — building native 3D apps
+- [`../docs/lg3d-native-apps-advanced.md`](../docs/lg3d-native-apps-advanced.md) — **advanced/full-featured** native apps: the complete component, appearance, event-adapter, action, animation, cursor and scene-graph-utility reference
 - [`../docs/swingnode.md`](../docs/swingnode.md) — embedding Swing into the scene graph
 
 The root [`../AGENTS.md`](../AGENTS.md) still governs build, modules, Java 3D
@@ -177,7 +178,12 @@ misleading here.
 
 ## Preferred UI vocabulary
 
-Build from the existing glassy toolkit instead of new geometry or PNG assets:
+Build from the existing glassy toolkit instead of new geometry or PNG assets.
+For the **exhaustive** vocabulary — every widget in `utils.shape`, every action
+in `utils.action`, every adapter in `utils.eventadapter`, the animation classes,
+all `Cursor3D` constants, `Toolkit3D` metrics and the scene-graph traversers —
+see [`../docs/lg3d-native-apps-advanced.md`](../docs/lg3d-native-apps-advanced.md)
+(the full component index and the advanced MVC/`Component3D` patterns).
 
 - **Panels/shapes:** `GlassyPanel`, `GlassyBentPanel`, `GlassyCurvedPanel`,
   `GlassyDisc`, `GlassyRingPanel`, `Box` (`org.jdesktop.lg3d.utils.shape`).

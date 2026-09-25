@@ -367,6 +367,13 @@ do-not-edit `lg3d-docs/`):
   apps: `Frame3D`/`Component3D`, layout, the glassy widget vocabulary, event
   adapters + actions, transparency ordering, the live-graph texture rule, and
   Start-Menu (`.lgcfg`) registration.
+- [`docs/lg3d-native-apps-advanced.md`](docs/lg3d-native-apps-advanced.md) -
+  advanced/full-featured native apps: the complete component reference (every
+  `utils.shape` widget, `utils.action`, `utils.eventadapter`, animation classes,
+  all `Cursor3D` constants, `Toolkit3D` metrics, `ModelLoader`, scene-graph
+  traversers), the MVC/observable-model pattern, custom `Component3D` controls,
+  `SwingNode` hosting and a pitfall table. This is the exhaustive companion to
+  the guide above and the reference the UI/UX rulebook defers to.
 - [`docs/swingnode.md`](docs/swingnode.md) - `SwingNode`: rendering a Swing
   `JPanel` offscreen into a texture, input forwarding, custom renderers,
   lifecycle/`dispose()`, and when to use it vs pure-3D widgets.
