@@ -10,6 +10,20 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.10.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Help Center coverage for the 2D/Swing desktop features** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.help`) — the JavaHelp user guide now documents the
+  desktop conveniences added this cycle. *The 2D and Swing Desktops* topic gains
+  sections for type-to-search Start Menu filtering, edge window snapping, the
+  **Alt+`** window switcher, the global keyboard-shortcut table, the **Alt+F2**
+  run-command dialog, notifications and toasts, the volume / network / battery
+  taskbar indicators, the clock's calendar popup and session restore; *The
+  Taskbar* and *The Start Menu* topics cross-link to it, and *Built-in
+  Applications* now lists the **About** app. The keyword index gains an entry for
+  each concept. This is a content-only change — no new topic — so `map.jhm`,
+  `toc.xml` and the `HelpContentTest` target set are unchanged, and the full-text
+  search index is regenerated at build time by
+  `:lg3d-apps:generateHelpSearchIndex`.
+
 - **Alt+F2 run-command dialog for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — pressing `Alt+F2` opens a
   lightweight run box that launches a start-menu application by name or runs an

@@ -50,6 +50,143 @@
     <em>beside</em> the 2D desktop rather than inside it.
   </div>
 
+  <p>
+    Beyond hosting applications, the 2D and Swing desktops add a set of everyday
+    conveniences &mdash; live Start Menu search, window snapping, a keyboard window
+    switcher, desktop-wide shortcuts, a run-command box, notifications, taskbar
+    system indicators, a clock calendar and session restore. Each is described
+    below; all of them behave the same in the 2D and the Swing desktop.
+  </p>
+
+  <h2>Searching the Start Menu</h2>
+  <p>
+    The <a href="start-menu.html">Start Menu</a> opens with a search field across
+    the top. Start typing and every configured application is filtered live into a
+    single ranked list: an exact name match comes first, then a name that
+    <em>starts with</em> what you typed, then a word-boundary match
+    (<code>man</code> in <em>File&nbsp;Manager</em>), then any other name match,
+    and lastly a match found only in the description or command. Ties keep the
+    original menu order, and at most a dozen results are shown so the list stays
+    short. Press <code>Enter</code> to launch the top match or <code>Esc</code> to
+    close; clearing the field brings back the normal category tree.
+  </p>
+
+  <h2>Snapping windows to the screen edges</h2>
+  <p>
+    Drag an application window to the edge of the desktop and release to snap it:
+    the left or right edge tiles the window to that half of the screen, and the top
+    edge maximizes it. While the pointer is inside the edge zone a translucent
+    preview shows the rectangle the window will take. The edge zone is 48 pixels
+    wide by default and is configurable.
+  </p>
+
+  <h2>Switching between windows</h2>
+  <p>
+    Press <code>Alt+`</code> (Alt and the grave / backtick key) to raise a
+    translucent overlay that lists the open windows in most-recently-used order and
+    steps a highlight through them; <code>Alt+Shift+`</code> steps the other way.
+    Release the keys and pause briefly, and the highlighted window is brought to
+    the front &mdash; there is no separate confirm key.
+  </p>
+  <div class="note">
+    <strong>Note:</strong> The switcher deliberately uses <code>Alt+`</code> rather
+    than <code>Alt+Tab</code>. The 2D desktop is an ordinary window under your host
+    window manager (GNOME/Mutter, Xwayland), which grabs <code>Alt+Tab</code>,
+    <code>Super+Tab</code> and the <code>Ctrl+Alt+arrow</code> workspace keys
+    before they ever reach the desktop.
+  </div>
+
+  <h2>Global keyboard shortcuts</h2>
+  <p>
+    These work anywhere in the desktop while its window has the focus:
+  </p>
+  <table>
+    <tr><th>Keys</th><th>Action</th></tr>
+    <tr><td><code>Ctrl+Alt+D</code></td>
+        <td>Show the desktop (minimize all windows).</td></tr>
+    <tr><td><code>Alt+Shift+Left</code> / <code>Alt+Shift+Right</code></td>
+        <td>Snap the focused window to the left / right half.</td></tr>
+    <tr><td><code>Alt+Shift+Up</code></td><td>Maximize the focused window.</td></tr>
+    <tr><td><code>Ctrl+Alt+T</code></td><td>Open a terminal.</td></tr>
+    <tr><td><code>Ctrl+W</code></td><td>Close the focused window.</td></tr>
+    <tr><td><code>Alt+F2</code></td><td>Open the run-command dialog.</td></tr>
+    <tr><td><code>Alt+`</code> / <code>Alt+Shift+`</code></td>
+        <td>Cycle through the open windows.</td></tr>
+  </table>
+  <p>
+    Combos that the host window manager reserves for itself
+    (<code>Super</code>+key, <code>Ctrl+Alt+arrow</code>) are intentionally left
+    alone, so the desktop never fights your system.
+  </p>
+
+  <h2>The run-command dialog (Alt+F2)</h2>
+  <p>
+    Press <code>Alt+F2</code> to open a small run box. Type the name of a Start
+    Menu application to launch it, or type an external command (for example
+    <code>xterm</code> or <code>firefox --private-window</code>) to run it as a
+    separate process. <code>Enter</code> runs it, <code>Esc</code> closes the box,
+    and <code>Up</code> / <code>Down</code> recall the last 20 entries, which are
+    remembered between sessions. If what you typed matches no application and is
+    not an available command, the box stays open and says so, letting you correct
+    it.
+  </p>
+
+  <h2>Notifications and toasts</h2>
+  <p>
+    The taskbar carries a <strong>Notifications</strong> button with a live unread
+    badge. Click it to open the list of notifications raised so far &mdash; newest
+    first, tinted by severity &mdash; then click one to dismiss it, or choose
+    <em>Clear all</em> to empty the log; opening the list marks everything read.
+    When a notification arrives it also pops as a small <em>toast</em> card stacked
+    up from the bottom-right corner, which fades after a few seconds or dismisses
+    on a click. Because an application that opens <em>beside</em> the desktop has
+    no taskbar button of its own, launching one raises an info notification so you
+    can see that it started.
+  </p>
+
+  <h2>Taskbar system indicators</h2>
+  <p>
+    To the left of the clock sits a small system tray with live volume, network and
+    battery glyphs, each with a detailed tooltip:
+  </p>
+  <table>
+    <tr><th>Indicator</th><th>Glyph</th><th>Meaning</th></tr>
+    <tr><td>Volume</td><td><code>Vol 42%</code> / <code>Vol x</code></td>
+        <td>Master volume; <code>x</code> when muted. Click it for a slider.</td></tr>
+    <tr><td>Network</td>
+        <td><code>Net ==</code> / <code>Net ))</code> / <code>Net --</code></td>
+        <td>Ethernet / Wi-Fi / offline.</td></tr>
+    <tr><td>Battery</td><td><code>Bat 85%</code> (with a <code>+</code>)</td>
+        <td>Charge level; <code>+</code> while charging.</td></tr>
+  </table>
+  <p>
+    The readings refresh on their own &mdash; volume every second, network and
+    battery every five seconds. Everything degrades gracefully: with no sound card,
+    no battery, or on a non-Linux host, the corresponding glyph is simply hidden
+    rather than showing nonsense.
+  </p>
+
+  <h2>The clock and its calendar</h2>
+  <p>
+    Click the taskbar clock to open a calendar above it. The month grid runs
+    Monday-first with today highlighted and the neighbouring months' days dimmed at
+    the edges; <code>&laquo;</code> and <code>&raquo;</code> step through the
+    months. A small agenda footer lists the notifications raised today, or reads
+    &ldquo;No events today&rdquo;.
+  </p>
+
+  <h2>Restoring your session</h2>
+  <p>
+    The desktop remembers which application windows were open when you last exited
+    and reopens them on your next start &mdash; at their saved size and position,
+    in their saved minimized / maximized state, and back-to-front so the original
+    stacking order is kept. Every restored window is clamped back on-screen, so a
+    session saved on a larger or differently arranged monitor never strands a
+    window off-screen. Only windows that can be relaunched from a Start Menu
+    descriptor are remembered; an app that has since become unavailable is skipped
+    quietly rather than greeted with an error dialog at start-up.
+  </p>
+
   <div class="nav">
     Next: <a href="apps.html">Built-in Applications</a>
   </div>
