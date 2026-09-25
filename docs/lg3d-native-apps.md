@@ -11,8 +11,12 @@ with the glassy 3D widget vocabulary rather than as ordinary Swing windows.
 > confuse the two.
 
 For embedding real Swing UI into the scene graph, see
-[`swingnode.md`](./swingnode.md). For the rules an AI agent must follow when
-touching UI, see [`../lg3d-core/AGENTS.md`](../lg3d-core/AGENTS.md).
+[`swingnode.md`](./swingnode.md). For the **full-featured** treatment — the
+complete widget/action/event-adapter/animation/cursor reference, MVC structure,
+custom `Component3D` controls and a pitfall table — see
+[`lg3d-native-apps-advanced.md`](./lg3d-native-apps-advanced.md). For the rules
+an AI agent must follow when touching UI, see
+[`../lg3d-core/AGENTS.md`](../lg3d-core/AGENTS.md).
 
 ---
 
