@@ -98,4 +98,21 @@ class TaskbarIndicatorsTest {
         indicators.applyVolume(Optional.empty());
         assertFalse(indicators.volumeVisible());
     }
+
+    @Test
+    @DisplayName("a present backlight shows its glyph and is visible")
+    void brightnessPresent() {
+        indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(60)));
+        assertTrue(indicators.brightnessVisible());
+        assertEquals("Bri 60%", indicators.brightnessText());
+    }
+
+    @Test
+    @DisplayName("an absent backlight hides the brightness glyph")
+    void brightnessAbsent() {
+        indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(60)));
+        assertTrue(indicators.brightnessVisible());
+        indicators.applyBrightness(Optional.empty());
+        assertFalse(indicators.brightnessVisible(), "no backlight means no glyph");
+    }
 }

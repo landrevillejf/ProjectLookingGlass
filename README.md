@@ -221,7 +221,8 @@ JNA.
   multi-monitor position, scale, with a timed auto-revert), Users (add / edit /
   password / groups / remove via `pkexec`), System (live CPU / memory / disk /
   kernel / distro), and Appearance (wallpaper chooser that changes the live
-  desktop background).
+  desktop background, plus a wallpaper slideshow that cycles the bundled images
+  or a folder of your own on a chosen interval).
 - **Calculator** (Utilities menu) — scientific calculator whose Swing panel is
   hosted on a `SwingNode`: expression engine with parentheses, powers,
   factorial, `%`, `mod`, DEG/RAD trigonometry, `pi`/`e`/`Ans`, a memory

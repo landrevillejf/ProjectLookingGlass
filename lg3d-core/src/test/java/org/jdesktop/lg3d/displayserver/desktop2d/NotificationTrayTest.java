@@ -82,4 +82,26 @@ class NotificationTrayTest {
         tray.dispose();
         assertEquals("Notifications", tray.button().getText());
     }
+
+    @Test
+    @DisplayName("the DND badge prefix is applied only when active")
+    void dndBadgeLabel() {
+        assertEquals("Notifications", NotificationTray.badgeLabel(0, false));
+        assertEquals("[DND] Notifications", NotificationTray.badgeLabel(0, true));
+        assertEquals("[DND] Notifications (2)", NotificationTray.badgeLabel(2, true));
+    }
+
+    @Test
+    @DisplayName("the button shows the DND marker while Do Not Disturb is on")
+    void buttonTracksDnd() {
+        NotificationModel model = new NotificationModel();
+        DoNotDisturb dnd = new DoNotDisturb();
+        NotificationTray tray = new NotificationTray(model, dnd);
+        assertEquals("Notifications", tray.button().getText());
+        dnd.enable();                       // fires the tray listener
+        assertEquals("[DND] Notifications", tray.button().getText());
+        dnd.disable();
+        assertEquals("Notifications", tray.button().getText());
+        tray.dispose();
+    }
 }

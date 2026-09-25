@@ -27,6 +27,7 @@ import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -51,6 +52,7 @@ class Desktop2DContextMenuTest {
             "---",
             "Change Wallpaper",
             "Desktop Settings...",
+            "Do Not Disturb",
             "---",
             "Cascade Windows",
             "Tile Windows",
@@ -68,6 +70,7 @@ class Desktop2DContextMenuTest {
         final List<URL> wallpaperUrls = new ArrayList<>();
         boolean terminalAvailable = true;
         int windowCount = 1;
+        boolean dndActive = false;
 
         @Override
         public boolean isTerminalAvailable() {
@@ -93,6 +96,17 @@ class Desktop2DContextMenuTest {
         @Override
         public void openDesktopSettings() {
             calls.add("openDesktopSettings");
+        }
+
+        @Override
+        public boolean isDoNotDisturbActive() {
+            return dndActive;
+        }
+
+        @Override
+        public void toggleDoNotDisturb() {
+            calls.add("toggleDoNotDisturb");
+            dndActive = !dndActive;
         }
 
         @Override
@@ -306,6 +320,7 @@ class Desktop2DContextMenuTest {
         fire(find(menu, "Open Terminal"));
         fire(find(menu, "Open File Manager"));
         fire(find(menu, "Desktop Settings..."));
+        fire(find(menu, "Do Not Disturb"));
         fire(find(menu, "Cascade Windows"));
         fire(find(menu, "Tile Windows"));
         fire(find(menu, "Minimize All Windows"));
@@ -317,12 +332,29 @@ class Desktop2DContextMenuTest {
                 "openTerminal",
                 "openFileManager",
                 "openDesktopSettings",
+                "toggleDoNotDisturb",
                 "cascadeWindows",
                 "tileWindows",
                 "minimizeAllWindows",
                 "restoreAllWindows",
                 "refresh",
                 "exit"), actions.calls);
+    }
+
+    @Test
+    @DisplayName("the Do Not Disturb entry reflects the current state")
+    void dndEntryReflectsState() {
+        RecordingActions actions = new RecordingActions();
+        actions.dndActive = true;
+        JPopupMenu menu = Desktop2DContextMenu.build(actions, List.of());
+        JCheckBoxMenuItem dnd =
+                (JCheckBoxMenuItem) find(menu, "Do Not Disturb");
+        assertNotNull(dnd);
+        assertTrue(dnd.isSelected(), "the checkbox is ticked while DND is active");
+
+        actions.dndActive = false;
+        JPopupMenu off = Desktop2DContextMenu.build(actions, List.of());
+        assertFalse(((JCheckBoxMenuItem) find(off, "Do Not Disturb")).isSelected());
     }
 
     // ------------------------------------------------------------------

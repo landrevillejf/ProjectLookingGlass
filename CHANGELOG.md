@@ -30,6 +30,61 @@ work to make it build and run on a current toolchain.
   the new bindings); the Help Center *The 2D and Swing Desktops* topic documents
   the feature.
 
+- **Wallpaper slideshow for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps` Appearance panel) —
+  the desktop backdrop can now cycle automatically instead of showing one image.
+  The Control Center's *Appearance* panel gains a **Wallpaper Slideshow** section
+  (a `JList` on/off selector, a `JList` interval from 10 seconds to an hour, and
+  a folder chooser) that drives the running shell through new `Desktop2D`
+  statics; the slideshow cycles the images directly inside the chosen folder, or
+  the wallpapers bundled with the shell when no folder is set. The on/off,
+  interval and folder persist in `DesktopConfig` (`wallpaper.slideshowEnabled`,
+  `wallpaper.slideshowIntervalSec`, `wallpaper.slideshowFolder`) and are restored
+  on start. Following the codebase's headless-testable split, the cycling
+  arithmetic (wraparound next/previous/at, defensive on empty and single-image
+  lists) lives in a pure `WallpaperSlideshow` seam and the folder scan in a
+  static `Desktop2D.scanFolder`, while a `javax.swing.Timer` owned by `Desktop2D`
+  advances the model and calls the existing `setWallpaper(URL)`; the timer starts
+  and stops with the shell. On the 3D desktop the new controls are inert. Covered
+  by headless JUnit 5 tests (`WallpaperSlideshowTest`, `Desktop2DWallpaperScanTest`,
+  `DesktopConfigSlideshowTest`); the Help Center *The 2D and Swing Desktops* topic
+  documents the feature.
+
+- **Do Not Disturb for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a DND switch that suppresses
+  the transient notification toasts without dropping anything from the log: the
+  `NotificationModel` still records every notification (so the tray/history and
+  the calendar agenda stay complete), only the pop-up is gated. `ERROR`
+  notifications always surface, so a genuine failure is never silenced. DND is
+  toggled from the notification-tray popup (an on/off checkbox plus a "for 1
+  hour" entry) or from the desktop right-click context menu, and while active the
+  tray button is prefixed with a `[DND]` marker. The state (on/off and an
+  optional absolute deadline) persists in `DesktopConfig`
+  (`notifications.dndEnabled` / `notifications.dndUntil`) and is restored on
+  startup, where an already-expired deadline comes back off rather than stuck.
+  Following the codebase's headless-testable split, the state machine and the
+  suppression matrix live in a pure `DoNotDisturb` seam that takes the current
+  time rather than reading a clock, apart from the thin `NotificationTray` /
+  `Desktop2DContextMenu` wiring. Covered by headless JUnit 5 tests
+  (`DoNotDisturbTest`, 11; extended `NotificationTrayTest` and
+  `Desktop2DContextMenuTest`).
+
+- **Screen-brightness control for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a brightness glyph joins the
+  taskbar's system-indicator cluster, beside the volume control. It renders a
+  compact `Bri 60%` label with a detailed tooltip, and clicking it opens a small
+  slider popup that drives the panel backlight, polled on the existing slow
+  (5 s) indicator timer. Following the codebase's headless-testable split, the
+  scaling/formatting lives in a pure `BrightnessStatus` seam (raw↔percentage
+  maths, the sysfs parse, the glyph/label) over `/sys/class/backlight/*`, apart
+  from the thin Swing `TaskbarIndicators` wiring whose `applyBrightness` takes an
+  already-read value. The write is best-effort — it tries the sysfs node
+  directly and escalates once through `pkexec` only if it is not user-writable —
+  and, as with the volume/battery/network probes, a host with no controllable
+  backlight (a desktop, non-Linux, headless CI) simply hides the glyph rather
+  than showing garbage. Covered by headless JUnit 5 tests
+  (`BrightnessStatusTest`, 8; extended `TaskbarIndicatorsTest`).
+
 - **Help Center coverage for the 2D/Swing desktop features** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.help`) — the JavaHelp user guide now documents the
   desktop conveniences added this cycle. *The 2D and Swing Desktops* topic gains
