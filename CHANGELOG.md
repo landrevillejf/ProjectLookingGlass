@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Multiple workspaces (virtual desktops) for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.workspace`; `org.jdesktop.lg3d.displayserver.desktop2d`)
+  — the first window-management feature ported off the taskbar, without touching
+  `GlassyTaskbar`. `WorkspacePlugin` (registered in `glassy.lgcfg` right after
+  `ToastOverlayPlugin`, so `DesktopHudPlugin.layer()` is live at init) partitions
+  the open `Frame3D`s of the single `StandardAppContainer`: each frame is tracked
+  through `Frame3DAddedEvent`/`Frame3DRemovedEvent`, assigned to the workspace that
+  is current when it opens, and shown or hidden with `setVisible` on every switch.
+  The pure bookkeeping lives in `WorkspaceRegistry` (a window id → visibility-sink
+  map on top of the desktop-agnostic `WorkspaceModel`, promoted to `public` *in
+  place*), whose one rule is "a registered window is visible exactly when it sits
+  on the current workspace"; every mutator re-applies it, so a switch can never
+  show a window on two workspaces or hide one on the workspace being entered. The
+  multi-`AppContainer` plumbing was evaluated and rejected (its own comments say
+  `setCurrentAppContainer` does not add the container to the scene graph,
+  `setEnabled` only flips a flag, and `StandardAppContainer.initialize()` registers
+  global to-front listeners that would migrate frames back into container 0). A
+  clickable HUD pager (`WorkspacePager3D`, a `SwingNode` over the pure-Swing
+  `WorkspacePagerPanel`: one numbered cell per workspace with per-workspace window
+  dots, flanked by prev/next arrows) is mounted in the top-left corner of the HUD
+  layer; keystrokes mirror the 2D desktop's `ShortcutMap` — Alt+Shift+Page
+  Down/Page Up page, Alt+Shift+1..9 move the front window — because the host window
+  manager grabs Ctrl+Alt+arrow in dev mode. Activating a window from the
+  (workspace-unaware) taskbar follows it to its workspace instead of focusing an
+  invisible frame, and teardown releases every window so none stays hidden.
+  Covered by headless JUnit 5 tests (`WorkspaceRegistryTest` 18, `WorkspaceKeysTest`
+  9, `WorkspacePagerPanelTest` 16) and probe-verified on the live desktop
+  (open/switch/move/pager-click/release with `lgscreen` captures at each step).
 - **Calendar widget for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-widgets`,
   `org.jdesktop.lg3d.widgets.builtin`; `lg3d-incubator` Agenda 3D) — the 2D

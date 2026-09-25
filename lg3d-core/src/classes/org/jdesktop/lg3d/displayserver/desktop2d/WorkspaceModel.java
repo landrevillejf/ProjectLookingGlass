@@ -25,12 +25,18 @@ import java.util.Set;
  * desktop: a fixed number of workspaces, a current one, and which window lives
  * where.
  *
- * <p>Windows are identified by a stable string id — the shell uses
+ * <p>Windows are identified by a stable string id — the 2D shell uses
  * {@link Desktop2DWindow#getAppName()}, which is unique among the open windows —
  * so the model holds no Swing and no window references and stays deterministic
  * and headless-testable. {@link Desktop2D} owns an instance and drives the MDI
  * frame visibility, the taskbar window buttons and the {@link WorkspacePager}
  * from it; the model itself never touches the desktop.</p>
+ *
+ * <p>Because it is desktop-agnostic, the native 3D desktop reuses this same
+ * model: {@code org.jdesktop.lg3d.scenemanager.utils.workspace.WorkspaceRegistry}
+ * keys it by {@link org.jdesktop.lg3d.wg.Frame3D} identity instead of MDI frame
+ * name and drives {@code Frame3D} visibility from it, so both desktops offer the
+ * same workspace count, wrapping and assignment semantics.</p>
  *
  * <p>Indexes are 0-based and always wrapped into range, so {@code switchTo},
  * {@code next} and {@code previous} can never select a workspace that does not
@@ -38,14 +44,14 @@ import java.util.Set;
  * shrinking it pulls any out-of-range assignment and the current index back into
  * range rather than dropping windows.</p>
  */
-final class WorkspaceModel {
+public final class WorkspaceModel {
 
     /** How many workspaces a fresh desktop offers by default. */
-    static final int DEFAULT_COUNT = 4;
+    public static final int DEFAULT_COUNT = 4;
     /** Fewest workspaces allowed (a single workspace disables paging). */
-    static final int MIN_COUNT = 1;
+    public static final int MIN_COUNT = 1;
     /** Most workspaces allowed, matching the single-digit move shortcuts. */
-    static final int MAX_COUNT = 9;
+    public static final int MAX_COUNT = 9;
 
     /** Number of workspaces. */
     private int count;
@@ -59,7 +65,7 @@ final class WorkspaceModel {
     /**
      * Builds a model with {@code count} workspaces (clamped), showing the first.
      */
-    WorkspaceModel(int count) {
+    public WorkspaceModel(int count) {
         this.count = clampCount(count);
         this.current = 0;
     }
@@ -70,12 +76,12 @@ final class WorkspaceModel {
     }
 
     /** How many workspaces there are. */
-    int count() {
+    public int count() {
         return count;
     }
 
     /** The index of the workspace currently shown. */
-    int current() {
+    public int current() {
         return current;
     }
 
@@ -100,18 +106,18 @@ final class WorkspaceModel {
      * Shows the workspace at {@code index} (wrapped into range) and returns the
      * new current index.
      */
-    int switchTo(int index) {
+    public int switchTo(int index) {
         current = Math.floorMod(index, count);
         return current;
     }
 
     /** Shows the next workspace, wrapping to the first, and returns its index. */
-    int next() {
+    public int next() {
         return switchTo(current + 1);
     }
 
     /** Shows the previous workspace, wrapping to the last, and returns its index. */
-    int previous() {
+    public int previous() {
         return switchTo(current - 1);
     }
 
@@ -119,7 +125,7 @@ final class WorkspaceModel {
      * Puts {@code windowId} on the workspace at {@code index} (wrapped). A null
      * id is ignored; re-assigning moves the window rather than duplicating it.
      */
-    void assign(String windowId, int index) {
+    public void assign(String windowId, int index) {
         if (windowId == null) {
             return;
         }
@@ -130,20 +136,20 @@ final class WorkspaceModel {
      * Removes {@code windowId} (e.g. its window closed). Forgets nothing else;
      * an unknown or null id is a no-op.
      */
-    void unassign(String windowId) {
+    public void unassign(String windowId) {
         if (windowId != null) {
             assignment.remove(windowId);
         }
     }
 
     /** The workspace {@code windowId} is on, or -1 when it is not assigned. */
-    int workspaceOf(String windowId) {
+    public int workspaceOf(String windowId) {
         Integer index = (windowId == null) ? null : assignment.get(windowId);
         return (index == null) ? -1 : index;
     }
 
     /** True when {@code windowId} sits on the workspace currently shown. */
-    boolean isOnCurrent(String windowId) {
+    public boolean isOnCurrent(String windowId) {
         return workspaceOf(windowId) == current;
     }
 
@@ -151,7 +157,7 @@ final class WorkspaceModel {
      * The window ids on the workspace at {@code index} (wrapped), in assignment
      * order. Never null; empty when that workspace holds nothing.
      */
-    Set<String> windowsOn(int index) {
+    public Set<String> windowsOn(int index) {
         int target = Math.floorMod(index, count);
         Set<String> result = new LinkedHashSet<>();
         for (Map.Entry<String, Integer> entry : assignment.entrySet()) {
@@ -163,7 +169,7 @@ final class WorkspaceModel {
     }
 
     /** How many windows sit on the workspace at {@code index} (wrapped). */
-    int countOn(int index) {
+    public int countOn(int index) {
         return windowsOn(index).size();
     }
 
