@@ -59,6 +59,20 @@
   </void>
  </object>
 
+ <!-- Front-most desktop HUD layer (toasts, window switcher, run dialog, context
+ menu, snap preview, workspace pager, brightness dim). From lg3d-core
+ (scenemanager.utils.hud). getPluginRoot() returns a screen-sized container that
+ floats IN FRONT of every application window - the non-taskbar integration surface
+ for the overlay chrome ported from the 2D/Swing desktop. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.hud.DesktopHudPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
