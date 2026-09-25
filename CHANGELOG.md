@@ -28,6 +28,22 @@ work to make it build and run on a current toolchain.
   an already-read value so they are driven headless. Covered by headless JUnit 5
   tests (`BatteryStatusTest`, 7; `NetworkStatusTest`, 8; `VolumeStatusTest`, 7;
   `TaskbarIndicatorsTest`, 6 — 28 tests total).
+
+- **Type-to-search start menu for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the start menu now opens with a
+  search field across the top: typing filters every configured application live
+  to a flat, ranked list, and clearing the field restores the normal category
+  tree. Ranking is predictable — an exact name match beats a name prefix, which
+  beats a word-boundary match ("man" in "File Manager"), which beats a plain name
+  substring, which beats a match only in the description or command — with ties
+  keeping descriptor order and results capped at 12 so the popup stays short.
+  Enter launches the top match and Esc closes the menu; each open starts fresh
+  from the full tree with the caret in the field. Following the codebase's
+  headless-testable split, the matching lives in a pure `AppSearch` (no Swing, no
+  I/O) and the popup wiring in `StartMenuSearch`, which reuses the existing
+  `Desktop2DStartMenu` item renderer and category-tree builder. Covered by
+  headless JUnit 5 tests (`AppSearchTest`, 9; `StartMenuSearchTest`, 6).
+
 - **About** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — a new *Utilities*
   start-menu application showing the product identity, the resolved build
   version, the host runtime facts (Java 3D provider, Java version/vendor,
