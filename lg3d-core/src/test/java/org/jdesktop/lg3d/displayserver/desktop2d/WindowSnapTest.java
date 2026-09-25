@@ -14,6 +14,7 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -124,5 +125,107 @@ class WindowSnapTest {
         assertNull(WindowSnap.boundsFor(null, DESKTOP));
         assertNull(WindowSnap.boundsFor(Zone.LEFT, null));
         assertNull(WindowSnap.boundsFor(Zone.LEFT, new Rectangle(0, 0, 0, 0)));
+    }
+
+    // ------------------------------------------------- float (world-unit) API
+    //
+    // The float overloads are the desktop-agnostic entry point the native 3D
+    // desktop feeds world units through. A y-up screen centred on the origin:
+    //   left = -0.18, top = 0.13, right = 0.18, bottom = -0.13.
+
+    private static final float SL = -0.18f;
+    private static final float ST = 0.13f;
+    private static final float SR = 0.18f;
+    private static final float SB = -0.13f;
+    private static final float T = 0.012f;
+
+    private static Zone rect(float left, float top, float right, float bottom) {
+        return WindowSnap.zoneForRect(left, top, right, bottom, SL, ST, SR, SB, T);
+    }
+
+    @Test
+    @DisplayName("zoneForRect: the top edge maximises, even in a top corner")
+    void rectTopMaximises() {
+        // A window whose top edge reaches the screen top, centred horizontally.
+        assertEquals(Zone.MAXIMIZE, rect(-0.05f, ST, 0.05f, 0.0f));
+        // Top corner: the top edge wins over the left edge.
+        assertEquals(Zone.MAXIMIZE, rect(SL, ST, SL + 0.05f, 0.0f));
+    }
+
+    @Test
+    @DisplayName("zoneForRect: the left and right edges half-snap below the top")
+    void rectSides() {
+        assertEquals(Zone.LEFT, rect(SL, 0.0f, SL + 0.05f, -0.05f));
+        assertEquals(Zone.RIGHT, rect(SR - 0.05f, 0.0f, SR, -0.05f));
+    }
+
+    @Test
+    @DisplayName("zoneForRect: a window away from every edge does not snap")
+    void rectCentreNoSnap() {
+        assertEquals(Zone.NONE, rect(-0.05f, 0.05f, 0.05f, -0.05f));
+    }
+
+    @Test
+    @DisplayName("zoneForRect: the threshold boundary is inclusive")
+    void rectThresholdInclusive() {
+        // Exactly threshold from the left edge snaps; just past it does not.
+        assertEquals(Zone.LEFT, rect(SL + T, 0.0f, SL + T + 0.05f, -0.05f));
+        assertEquals(Zone.NONE, rect(SL + T + 0.001f, 0.0f, SL + T + 0.06f, -0.05f));
+    }
+
+    @Test
+    @DisplayName("zoneForRect: degenerate inputs never snap")
+    void rectDegenerate() {
+        // Inverted window rectangle (right <= left).
+        assertEquals(Zone.NONE, rect(0.05f, 0.05f, -0.05f, -0.05f));
+        // Inverted window rectangle (bottom >= top).
+        assertEquals(Zone.NONE, rect(-0.05f, -0.05f, 0.05f, 0.05f));
+        // Non-positive threshold.
+        assertEquals(Zone.NONE,
+                WindowSnap.zoneForRect(SL, 0.0f, SL + 0.05f, -0.05f, SL, ST, SR, SB, 0f));
+        // Degenerate screen (right <= left).
+        assertEquals(Zone.NONE,
+                WindowSnap.zoneForRect(SL, 0.0f, SL + 0.05f, -0.05f, 0.1f, ST, -0.1f, SB, T));
+        // Degenerate screen (top <= bottom).
+        assertEquals(Zone.NONE,
+                WindowSnap.zoneForRect(SL, 0.0f, SL + 0.05f, -0.05f, SL, -0.1f, SR, 0.1f, T));
+    }
+
+    @Test
+    @DisplayName("boundsForRect: the halves split the screen width exactly")
+    void rectEvenSplit() {
+        float width = SR - SL;
+        float height = ST - SB;
+        assertArrayEquals(new float[] { SL, ST, width * 0.5f, height },
+                WindowSnap.boundsForRect(Zone.LEFT, SL, ST, SR, SB), 1e-6f);
+        assertArrayEquals(new float[] { SL + width * 0.5f, ST, width * 0.5f, height },
+                WindowSnap.boundsForRect(Zone.RIGHT, SL, ST, SR, SB), 1e-6f);
+    }
+
+    @Test
+    @DisplayName("boundsForRect: maximise covers the whole screen")
+    void rectMaximise() {
+        assertArrayEquals(new float[] { SL, ST, SR - SL, ST - SB },
+                WindowSnap.boundsForRect(Zone.MAXIMIZE, SL, ST, SR, SB), 1e-6f);
+    }
+
+    @Test
+    @DisplayName("boundsForRect: NONE and degenerate screens have no bounds")
+    void rectNoBounds() {
+        assertNull(WindowSnap.boundsForRect(Zone.NONE, SL, ST, SR, SB));
+        assertNull(WindowSnap.boundsForRect(null, SL, ST, SR, SB));
+        assertNull(WindowSnap.boundsForRect(Zone.LEFT, 0.1f, ST, -0.1f, SB));
+        assertNull(WindowSnap.boundsForRect(Zone.LEFT, SL, -0.1f, SR, 0.1f));
+    }
+
+    @Test
+    @DisplayName("centreOf: the centre of a bounds rectangle, y-up")
+    void rectCentre() {
+        // Left half of the screen: cx at the quarter mark, cy at the mid height.
+        float[] bounds = WindowSnap.boundsForRect(Zone.LEFT, SL, ST, SR, SB);
+        float[] centre = WindowSnap.centreOf(bounds);
+        assertEquals(SL + (SR - SL) * 0.25f, centre[0], 1e-6f);
+        assertEquals((ST + SB) * 0.5f, centre[1], 1e-6f);
+        assertNull(WindowSnap.centreOf(null));
     }
 }

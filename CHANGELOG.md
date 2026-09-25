@@ -10,6 +10,32 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Edge window snapping for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.snap`; `org.jdesktop.lg3d.displayserver.desktop2d`)
+  — drag a `Frame3D` so its left / right / top edge reaches the matching screen
+  edge and, on release, it fills that half of the usable area (or the whole area
+  at the top), with a translucent preview quad on the HUD layer lighting the
+  target while the drag is over it. The second window-management feature ported
+  off the taskbar, without touching `GlassyTaskbar`; it is the `Frame3D`
+  counterpart of the 2D desktop's `SnappingDesktopManager` + `SnapPreview`. The
+  zone vocabulary and the half/maximise target rule are *not* re-invented: the
+  package-private 2D `WindowSnap` model was promoted to `public` *in place* with
+  float (`zoneForRect`/`boundsForRect`/`centreOf`) overloads that both desktops
+  now share, and the pure world-space plumbing (`WindowSnap3D`) maps a dragged
+  window's centre translation + preferred size + uniform scale onto that model,
+  on a usable region that mirrors the decoration's maximise (screen minus the
+  taskbar's reserved strips and title-bar headroom). Because
+  `Component3DMover` posts a `Component3DManualMoveEvent` only on drag start and
+  release (it calls `setTranslation` directly during the drag), `WindowSnapPlugin`
+  (registered in `glassy.lgcfg` right after `WorkspacePlugin`) arms a short poll
+  timer on drag start to track the preview and commits on release exactly the way
+  the decoration maximises: a hosted Swing window is resized in native pixels
+  (`HostedWindowResizer`) so its text stays crisp, a pure-3D window is uniformly
+  scaled with an aspect-preserving fit, then both re-centre and come to front.
+  Covered by headless JUnit 5 tests (`WindowSnap3DTest`, 10; extended
+  `WindowSnapTest` with the float-rect cases) and probe-verified on the live
+  desktop (LEFT / RIGHT / MAXIMIZE resolve, preview visible mid-drag, committed
+  extents matching the usable rect, with `lgscreen` captures at each step).
 - **Multiple workspaces (virtual desktops) for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.scenemanager.utils.workspace`; `org.jdesktop.lg3d.displayserver.desktop2d`)
   — the first window-management feature ported off the taskbar, without touching
