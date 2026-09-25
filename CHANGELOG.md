@@ -10,6 +10,39 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.16.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **GPU shader foundation + soft drop shadows for the native 3D desktop**
+  (`lg3d-core`, `org.jdesktop.lg3d.utils.shape`; `org.jdesktop.lg3d.sg`) — the
+  first increment of the 3D-modernization roadmap: an opt-in GLSL effect library
+  that starts using the programmable-shader path the port inherited from Java 3D
+  1.7 but never exercised (until now only `cdviewer`'s hard-coded `dimple` demo
+  touched it, and even that had its uniforms commented out). `ShaderEffects` is a
+  small factory over the `sg` facade's `ShaderAppearance`/`GLSLShaderProgram`/
+  `SourceCodeShader` plumbing that loads GLSL from classpath resources
+  (`utils/shape/resources/`, the same model as `dimple.vert`) and is gated behind
+  a new runtime toggle `lg.shaders` (default **off**), so the desktop renders
+  pixel-identically through the fixed-function path until the effects are turned
+  on and live-verified; a `null` program (missing resources, or no GL context —
+  e.g. the headless unit-test JVM) makes every caller fall back to the legacy
+  widget rather than throwing mid-scene-graph-build. The first effect,
+  `SoftShadow`, supersedes the 2006 baked `RectShadow` behind `Frame3D` windows:
+  instead of a 28-vertex ring of Gouraud-interpolated per-vertex alpha, a single
+  quad runs an SDF (signed-distance-field) fragment shader that ramps the shadow
+  alpha from the window edge out to transparent across a per-side penumbra
+  (`uSoftNESW`), giving a smooth, resolution-independent falloff that stays a
+  constant world width at any window size and resizes in place (`uHalfWin` is
+  written live, matching `RectShadow.setSize`). `Frame3DWindowDecoration` now
+  prefers `SoftShadow` when `lg.shaders` is on and keeps `RectShadow` otherwise.
+  Enabling uniforms at all required completing the facade: `ShaderAttributeSet`,
+  `ShaderAttributeValue`, `ShaderAttributeObject` and `ShaderAttribute` had
+  `createWrapped()` stubs that threw `"Not Implemented"` and no `j3dwrapper`
+  delegates, so a facade shader could compile a program but had no way to pass a
+  uniform value — those delegates are now implemented against the raw jogamp
+  objects (this is why `dimple` baked its uniforms as constants). The pure seams
+  (`lg.shaders` parsing, the uniform binding order, the missing-resource
+  fallback and the shadow-quad layout math) are covered by headless JUnit 5 tests
+  (`ShaderEffectsTest` 4, `SoftShadowTest` 3), and the GLSL render itself is
+  verified by an offscreen Java 3D probe through the *facade* path (dark core →
+  smooth penumbra ramp → background, pixel-sampled).
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent

@@ -97,6 +97,10 @@ sourceSets {
             include 'core-gestures.gsa'
             include 'lg3d/**'          // src/etc/lg3d config tree
             include 'org/jdesktop/lg3d/appkit/resource/**'
+            // GLSL shader sources loaded via Class.getResource relative to
+            // ShaderEffects (org.jdesktop.lg3d.utils.shape), e.g. the soft-drop-
+            // shadow SDF pair; they live beside the classes under src/classes.
+            include 'org/jdesktop/lg3d/utils/shape/resources/**'
         }
     }
     test {
