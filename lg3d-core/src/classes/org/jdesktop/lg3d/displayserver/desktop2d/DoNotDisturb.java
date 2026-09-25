@@ -31,10 +31,10 @@ import java.util.List;
  * epoch milliseconds — so expiry is deterministic and unit-testable headless.
  * Pure state and listeners (no Swing, no Java 3D).</p>
  */
-final class DoNotDisturb {
+public final class DoNotDisturb {
 
     /** A common "on for a while" duration offered by the tray popup. */
-    static final long ONE_HOUR_MILLIS = 60L * 60L * 1000L;
+    public static final long ONE_HOUR_MILLIS = 60L * 60L * 1000L;
 
     private final List<Runnable> listeners = new ArrayList<>();
 
@@ -43,7 +43,7 @@ final class DoNotDisturb {
     private long untilMillis;
 
     /** A DND that starts off. */
-    DoNotDisturb() {
+    public DoNotDisturb() {
         this(false, 0L);
     }
 
@@ -55,7 +55,7 @@ final class DoNotDisturb {
      * @param untilMillis  the absolute deadline (0 = indefinite); only meaningful
      *                     when {@code enabled}
      */
-    DoNotDisturb(boolean enabled, long untilMillis) {
+    public DoNotDisturb(boolean enabled, long untilMillis) {
         this.enabled = enabled;
         this.untilMillis = enabled ? Math.max(0L, untilMillis) : 0L;
     }
@@ -64,17 +64,17 @@ final class DoNotDisturb {
      * Whether DND is actually suppressing right now: on, and either indefinite or
      * not yet past its deadline.
      */
-    boolean active(long nowMillis) {
+    public boolean active(long nowMillis) {
         return enabled && (untilMillis == 0L || nowMillis < untilMillis);
     }
 
     /** Turns DND on indefinitely. */
-    void enable() {
+    public void enable() {
         set(true, 0L);
     }
 
     /** Turns DND on until {@code durationMillis} after {@code nowMillis}. */
-    void enableFor(long durationMillis, long nowMillis) {
+    public void enableFor(long durationMillis, long nowMillis) {
         if (durationMillis <= 0L) {
             enable();
             return;
@@ -83,12 +83,12 @@ final class DoNotDisturb {
     }
 
     /** Turns DND off. */
-    void disable() {
+    public void disable() {
         set(false, 0L);
     }
 
     /** Flips DND on (indefinitely) or off. */
-    void toggle(long nowMillis) {
+    public void toggle(long nowMillis) {
         if (active(nowMillis)) {
             disable();
         } else {
@@ -101,17 +101,17 @@ final class DoNotDisturb {
      * hidden) at {@code nowMillis}. Errors always pass; everything else is
      * suppressed only while DND is active.
      */
-    boolean shouldSuppress(Notification.Kind kind, long nowMillis) {
+    public boolean shouldSuppress(Notification.Kind kind, long nowMillis) {
         return active(nowMillis) && isSuppressible(kind);
     }
 
     /** The raw on/off flag, ignoring any deadline (for persistence). */
-    boolean isEnabled() {
+    public boolean isEnabled() {
         return enabled;
     }
 
     /** The absolute deadline in epoch millis, or 0 when indefinite (persistence). */
-    long untilMillis() {
+    public long untilMillis() {
         return untilMillis;
     }
 
@@ -119,19 +119,19 @@ final class DoNotDisturb {
      * Whether {@code kind} is hideable by DND at all. Pure so it can be tested
      * without any state: only {@link Notification.Kind#ERROR} is exempt.
      */
-    static boolean isSuppressible(Notification.Kind kind) {
+    public static boolean isSuppressible(Notification.Kind kind) {
         return kind != Notification.Kind.ERROR;
     }
 
     /** Registers a callback invoked on every state change. */
-    void addListener(Runnable listener) {
+    public void addListener(Runnable listener) {
         if (listener != null) {
             listeners.add(listener);
         }
     }
 
     /** Deregisters a previously added callback. */
-    void removeListener(Runnable listener) {
+    public void removeListener(Runnable listener) {
         listeners.remove(listener);
     }
 

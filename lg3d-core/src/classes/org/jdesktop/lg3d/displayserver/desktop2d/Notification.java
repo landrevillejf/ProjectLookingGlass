@@ -25,10 +25,10 @@ import java.util.Objects;
  * @see NotificationModel
  * @see ToastQueue
  */
-final class Notification {
+public final class Notification {
 
     /** How urgent a notification is; drives the toast/tray accent colour. */
-    enum Kind {
+    public enum Kind {
         /** Ordinary information. */
         INFO,
         /** Something the user should notice but that is not fatal. */
@@ -63,24 +63,24 @@ final class Notification {
         this.timestampMillis = timestampMillis;
     }
 
-    long id() {
+    public long id() {
         return id;
     }
 
-    String title() {
+    public String title() {
         return title;
     }
 
     /** The body text, or null when the notification has none. */
-    String message() {
+    public String message() {
         return message;
     }
 
-    Kind kind() {
+    public Kind kind() {
         return kind;
     }
 
-    long timestampMillis() {
+    public long timestampMillis() {
         return timestampMillis;
     }
 

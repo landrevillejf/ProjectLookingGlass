@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Notification toasts on the native 3D desktop** (`lg3d-core`
+  `org.jdesktop.lg3d.scenemanager.utils.hud`; `lg3d-widgets`
+  `org.jdesktop.lg3d.widgets.hud`) — the first end-to-end feature ported from the
+  2D/Swing desktop onto the front-most HUD layer, without touching `GlassyTaskbar`.
+  `NotificationService` (lg3d-core) is the 3D desktop's notification entry point:
+  a thread-safe singleton wrapping the existing 2D models (`NotificationModel` log,
+  `ToastQueue` transient popups, `DoNotDisturb` gate), so a notification posted
+  from any thread is logged, gated (errors always pass DND) and raised as a toast.
+  To reuse them from the 3D plugins those package-private models were promoted to
+  `public` *in place* (no files moved). `ToastOverlayPlugin` (lg3d-widgets,
+  registered from `glassy.lgcfg` right after `DesktopHudPlugin` so its `layer()`
+  is live at init) mounts a `ToastOverlay3D` on the HUD layer: a pool of up to four
+  fixed-size, opaque, mouse-transparent `ToastCard3D` cards (accent stripe by
+  `Notification.Kind`, bold title, dimmed body, each a `SwingNode`) anchored in the
+  bottom-right, newest at the bottom and stacked upward. A repeating EDT timer
+  polls `visibleToasts()` for the auto-fade and a service listener refreshes
+  immediately on post/dismiss. The pure stacking-layout math and the service's
+  log/toast split, DND gate, TTL expiry and dismissal are covered by headless
+  JUnit 5 tests (`NotificationServiceTest`, 15; `ToastOverlay3DTest`, 4).
 - **Front-most desktop HUD overlay layer for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.scenemanager.utils.hud`) — foundation for porting the
   2D/Swing desktop's transient overlay chrome (notification toasts, the Alt+Tab

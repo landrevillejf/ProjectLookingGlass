@@ -33,10 +33,10 @@ import java.util.function.LongSupplier;
  * "now" is supplied by the caller's clock rather than read here, keeping every
  * method unit-testable headless.</p>
  */
-final class NotificationModel {
+public final class NotificationModel {
 
     /** How many notifications the log retains before evicting the oldest. */
-    static final int DEFAULT_CAPACITY = 50;
+    public static final int DEFAULT_CAPACITY = 50;
 
     private final int capacity;
     private final LongSupplier clock;
@@ -47,7 +47,7 @@ final class NotificationModel {
     private int unread;
 
     /** A log with the default capacity on the wall clock. */
-    NotificationModel() {
+    public NotificationModel() {
         this(DEFAULT_CAPACITY, System::currentTimeMillis);
     }
 
@@ -55,7 +55,7 @@ final class NotificationModel {
      * @param capacity the most notifications retained; must be at least 1
      * @param clock    supplies each notification's timestamp
      */
-    NotificationModel(int capacity, LongSupplier clock) {
+    public NotificationModel(int capacity, LongSupplier clock) {
         if (capacity < 1) {
             throw new IllegalArgumentException("capacity must be >= 1: " + capacity);
         }
@@ -69,7 +69,7 @@ final class NotificationModel {
      *
      * @return the notification that was added
      */
-    Notification add(String title, String message, Notification.Kind kind) {
+    public Notification add(String title, String message, Notification.Kind kind) {
         Notification notification =
                 new Notification(nextId++, title, message, kind, clock.getAsLong());
         items.addFirst(notification);
@@ -86,7 +86,7 @@ final class NotificationModel {
      *
      * @return true if one was removed
      */
-    boolean remove(long id) {
+    public boolean remove(long id) {
         boolean removed = items.removeIf(n -> n.id() == id);
         if (removed) {
             unread = Math.max(0, unread - 1);
@@ -96,7 +96,7 @@ final class NotificationModel {
     }
 
     /** Empties the log and resets the unread count. */
-    void clear() {
+    public void clear() {
         if (items.isEmpty() && unread == 0) {
             return;
         }
@@ -106,15 +106,15 @@ final class NotificationModel {
     }
 
     /** The logged notifications, newest first. Never null; unmodifiable. */
-    List<Notification> notifications() {
+    public List<Notification> notifications() {
         return Collections.unmodifiableList(new ArrayList<>(items));
     }
 
-    int size() {
+    public int size() {
         return items.size();
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return items.isEmpty();
     }
 
@@ -122,12 +122,12 @@ final class NotificationModel {
      * How many notifications have been raised since the last
      * {@link #markAllRead()}, never more than the number actually retained.
      */
-    int unreadCount() {
+    public int unreadCount() {
         return Math.min(unread, items.size());
     }
 
     /** Marks every retained notification as seen (clears the tray badge). */
-    void markAllRead() {
+    public void markAllRead() {
         if (unread == 0) {
             return;
         }
@@ -136,14 +136,14 @@ final class NotificationModel {
     }
 
     /** Registers a callback invoked on every change to the log. */
-    void addListener(Runnable listener) {
+    public void addListener(Runnable listener) {
         if (listener != null) {
             listeners.add(listener);
         }
     }
 
     /** Deregisters a previously added callback. */
-    void removeListener(Runnable listener) {
+    public void removeListener(Runnable listener) {
         listeners.remove(listener);
     }
 
