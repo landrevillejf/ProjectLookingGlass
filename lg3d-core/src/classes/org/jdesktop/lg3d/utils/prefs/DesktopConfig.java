@@ -50,6 +50,8 @@ public final class DesktopConfig {
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
     private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
+    private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
+    private static final String KEY_DND_UNTIL = "notifications.dndUntil";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -70,6 +72,8 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_HOLIDAY_REGION = "AUTO";
     private static final String DEF_HOLIDAY_REGION = DEFAULT_HOLIDAY_REGION;
+    private static final boolean DEF_DND_ENABLED = false;
+    private static final long DEF_DND_UNTIL = 0L;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -95,6 +99,8 @@ public final class DesktopConfig {
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
     private String holidayRegion = DEF_HOLIDAY_REGION;
+    private boolean dndEnabled = DEF_DND_ENABLED;
+    private long dndUntil = DEF_DND_UNTIL;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -129,6 +135,8 @@ public final class DesktopConfig {
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
         holidayRegion = normalizeRegion(prefs.get(KEY_HOLIDAY_REGION, DEF_HOLIDAY_REGION));
+        dndEnabled = prefs.getBoolean(KEY_DND_ENABLED, DEF_DND_ENABLED);
+        dndUntil = prefs.getLong(KEY_DND_UNTIL, DEF_DND_UNTIL);
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -140,6 +148,8 @@ public final class DesktopConfig {
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
         prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
+        prefs.putBoolean(KEY_DND_ENABLED, dndEnabled);
+        prefs.putLong(KEY_DND_UNTIL, dndUntil);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -157,6 +167,8 @@ public final class DesktopConfig {
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
         holidayRegion = DEF_HOLIDAY_REGION;
+        dndEnabled = DEF_DND_ENABLED;
+        dndUntil = DEF_DND_UNTIL;
     }
 
     // ------------------------------------------------------------------
@@ -228,6 +240,27 @@ public final class DesktopConfig {
 
     public void setHolidayRegion(String holidayRegion) {
         this.holidayRegion = normalizeRegion(holidayRegion);
+    }
+
+    /** Whether Do Not Disturb is switched on (ignoring any deadline). */
+    public boolean isDoNotDisturbEnabled() {
+        return dndEnabled;
+    }
+
+    public void setDoNotDisturbEnabled(boolean dndEnabled) {
+        this.dndEnabled = dndEnabled;
+        if (!dndEnabled) {
+            this.dndUntil = DEF_DND_UNTIL;
+        }
+    }
+
+    /** The absolute epoch millis a timed DND ends, or 0 when indefinite. */
+    public long getDoNotDisturbUntil() {
+        return dndUntil;
+    }
+
+    public void setDoNotDisturbUntil(long dndUntil) {
+        this.dndUntil = Math.max(0L, dndUntil);
     }
 
     // ------------------------------------------------------------------
