@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 class WidgetRegistryTest {
 
     private static final List<String> BUILTINS =
-            List.of("clock", "temperature", "cpu", "memory", "weather");
+            List.of("clock", "temperature", "cpu", "memory", "indicators", "weather");
 
     /** Every id the registry is expected to discover on the test classpath. */
     private static final List<String> DISCOVERED =

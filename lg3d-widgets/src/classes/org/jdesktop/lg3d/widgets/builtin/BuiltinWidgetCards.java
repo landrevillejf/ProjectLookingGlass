@@ -16,8 +16,8 @@ package org.jdesktop.lg3d.widgets.builtin;
 import java.util.List;
 
 /**
- * The catalogue of built-in widget cards (clock, temperature, CPU, memory and
- * weather), as pure-Swing {@link WidgetCardSpec}s.
+ * The catalogue of built-in widget cards (clock, temperature, CPU, memory,
+ * system indicators and weather), as pure-Swing {@link WidgetCardSpec}s.
  *
  * <p>This is the single source of the built-in widgets' metadata. The 2D
  * desktop's gallery and widget layer build directly from it, and the 3D
@@ -40,6 +40,8 @@ public final class BuiltinWidgetCards {
                 ICON_PREFIX + "system.png", 150, 110, CpuCard::new),
         new WidgetCardSpec(MemoryCard.ID, "Memory", "System",
                 ICON_PREFIX + "system.png", 160, 110, MemoryCard::new),
+        new WidgetCardSpec(SystemIndicatorsCard.ID, "System Indicators", "System",
+                ICON_PREFIX + "system.png", 160, 130, SystemIndicatorsCard::new),
         new WidgetCardSpec(WeatherCard.ID, "Weather", "Web",
                 ICON_PREFIX + "leaf.png", 200, 160, WeatherCard::new)
     );

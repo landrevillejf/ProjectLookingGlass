@@ -10,6 +10,23 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **System-indicator widget for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-widgets`,
+  `org.jdesktop.lg3d.widgets.builtin`) — network link, master volume, screen
+  brightness and battery charge now appear on the 3D desktop as a placeable
+  built-in widget (gallery → *System*), the counterpart of the 2D/Swing taskbar's
+  `TaskbarIndicators`. It reuses the *same* pure platform seams — `NetworkStatus`,
+  `VolumeStatus`, `BrightnessStatus` and `BatteryStatus` — so both desktops read
+  and format the hardware identically; to let the widget card import them those
+  package-private seams were promoted to `public` *in place* (no files moved).
+  `SystemIndicatorsCard` polls every 5 s into volatile fields and paints one row
+  per present indicator (accent bullet, glyph text, and a percentage bar for
+  volume/brightness/battery); each indicator hides itself when its probe reports
+  nothing (no sound card / backlight / battery, non-Linux host), the network row
+  always shows (online/offline) and a fully-barren host falls back to a single dim
+  "No indicators" row. The pure row assembly (`SystemIndicatorsCard.rows`) is
+  covered by headless JUnit 5 tests (`SystemIndicatorsCardTest`, 8; the extended
+  catalogue/provider/registry tests now expect six built-ins).
 - **Notification toasts on the native 3D desktop** (`lg3d-core`
   `org.jdesktop.lg3d.scenemanager.utils.hud`; `lg3d-widgets`
   `org.jdesktop.lg3d.widgets.hud`) — the first end-to-end feature ported from the

@@ -33,14 +33,14 @@ import javax.sound.sampled.Port;
  * {@link Optional#empty()} / no-op when no master control exists (headless CI,
  * no sound card), so the indicator hides itself instead of failing.</p>
  */
-final class VolumeStatus {
+public final class VolumeStatus {
 
     private VolumeStatus() {
         // no instances
     }
 
     /** A volume reading: master percentage (0-100) and mute state. */
-    record Level(int percent, boolean muted) {
+    public record Level(int percent, boolean muted) {
     }
 
     /** Clamps a percentage into 0-100. */
@@ -68,7 +68,7 @@ final class VolumeStatus {
     }
 
     /** Reads the master volume, or empty when no master control is available. */
-    static Optional<Level> read() {
+    public static Optional<Level> read() {
         try {
             Port.Info info = findMasterPort();
             if (info == null) {
@@ -172,7 +172,7 @@ final class VolumeStatus {
     }
 
     /** Compact taskbar text: {@code "Vol x"} muted, {@code "Vol 42%"} otherwise, {@code "Vol --"} unknown. */
-    static String glyph(Level level) {
+    public static String glyph(Level level) {
         if (level == null) {
             return "Vol --";
         }
@@ -183,7 +183,7 @@ final class VolumeStatus {
     }
 
     /** Detailed tooltip text. */
-    static String label(Level level) {
+    public static String label(Level level) {
         if (level == null) {
             return "Volume: unavailable";
         }
