@@ -158,6 +158,8 @@ public class Desktop2DTaskbar extends JPanel {
         rightRow.add(clock);
         // Clicking the clock opens a calendar with a small agenda for today.
         calendar = new CalendarPopup(clock, desktop.getNotificationModel());
+        // Double-clicking a day in that calendar opens the Agenda at that date.
+        calendar.setOnOpenDate(desktop::openAgendaAt);
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");
         exit.addActionListener(e -> desktop.confirmExit());

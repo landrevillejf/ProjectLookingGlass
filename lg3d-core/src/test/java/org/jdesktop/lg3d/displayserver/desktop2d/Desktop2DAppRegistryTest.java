@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import javax.swing.JPanel;
+import java.time.LocalDate;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DAppRegistry.Kind;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -354,5 +355,33 @@ class Desktop2DAppRegistryTest {
     void unavailableTooltip() {
         assertEquals("Requires the 3D desktop",
                 Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP);
+    }
+
+    @Test
+    @DisplayName("showDate navigates a panel that has a jumpToDate hook")
+    void showDateNavigatesDatePanels() {
+        DatePanel panel = new DatePanel();
+        LocalDate date = LocalDate.of(2026, 3, 20);
+        Desktop2DAppRegistry.showDate(panel, date);
+        assertEquals(date, panel.shown);
+    }
+
+    @Test
+    @DisplayName("showDate tolerates null and panels without the hook")
+    void showDateIsSafe() {
+        Desktop2DAppRegistry.showDate(null, LocalDate.now());
+        Desktop2DAppRegistry.showDate(new DatePanel(), null);
+        // A plain JPanel has no jumpToDate(LocalDate): the reflective lookup
+        // must swallow the NoSuchMethodException instead of propagating it.
+        Desktop2DAppRegistry.showDate(new JPanel(), LocalDate.now());
+    }
+
+    /** A stand-in for a date-navigable panel (the real one is AgendaPanel). */
+    public static class DatePanel extends JPanel {
+        LocalDate shown;
+
+        public void jumpToDate(LocalDate date) {
+            this.shown = date;
+        }
     }
 }

@@ -7,6 +7,39 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
+## [Unreleased]
+
+### Added
+- **Double-click a calendar day to open the Agenda at that date** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-incubator` Agenda panel) —
+  in the 2D/Swing desktop, double-clicking a day cell in the taskbar clock's
+  calendar popup now opens (or brings forward) the Agenda app navigated to the
+  week containing that day, with the creation cursor placed on it. The day cells
+  are plain `JLabel`s, not `MenuElement`s, so the popup's `MenuSelectionManager`
+  leaves them alone and never dismisses on a click over them; they therefore
+  receive the physical mouse events through normal Swing dispatch and can see the
+  second click of a double-click. Because `lg3d-core` cannot depend on
+  `lg3d-incubator`, `Desktop2D.openAgendaAt` reaches the hosted `AgendaPanel`
+  through a new reflective `Desktop2DAppRegistry.showDate` hook (mirroring
+  `setCloseCallback`) that calls the panel's new public `jumpToDate(LocalDate)`;
+  a panel without the hook is left untouched. Covered by headless JUnit 5 tests
+  (extended `CalendarPopupTest`, `Desktop2DAppRegistryTest` and
+  `AgendaPanelTest`).
+- **Weekend and holiday marking in the 2D/Swing desktop Agenda** (`lg3d-incubator`,
+  `org.jdesktop.lg3d.apps.orgchart.ui.agenda`) — the Swing `AgendaPanel` week grid
+  (the 2D/Swing counterpart of the native-3D `AgendaGrid`) now colours weekends and
+  statutory holidays to match the 3D app: each column is anchored to a real date,
+  weekend columns get a blue wash, holiday columns a red wash, and the current
+  week's today column an accent bar, with a header legend keying the three. Holiday
+  and weekend classification is routed through the shared public
+  `org.jdesktop.lg3d.utils.prefs.HolidayRegions` seam backed by the bundled
+  `jbusinessday` library (`libs/jbusinessday-0.9.1-SNAPSHOT.jar`), honouring the
+  same persisted, locale-resolved region the taskbar calendar and the 3D agenda use
+  (Control Center → Desktop, or `-Dlg.agenda.holidayRegion` as an explicit
+  override) and re-reading it per repaint so a region change applies without a
+  restart; the classification degrades to plain untinted columns if the library is
+  ever absent. Covered by headless JUnit 5 tests (extended `AgendaPanelTest`, +5).
+
 ## [1.14.0] — 2026-09-25 — Gradle / JDK 21 modernization
 
 ### Added

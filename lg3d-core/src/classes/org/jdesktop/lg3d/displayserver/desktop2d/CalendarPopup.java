@@ -25,6 +25,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -79,6 +80,13 @@ final class CalendarPopup {
     private final JLabel title = new JLabel();
 
     private YearMonth viewMonth;
+
+    /**
+     * Invoked with the date of a day cell the user double-clicked, or null when
+     * the interaction is not wired. The 2D desktop sets this to open the Agenda
+     * at that day.
+     */
+    private Consumer<LocalDate> onOpenDate;
 
     CalendarPopup(JLabel anchor, NotificationModel model) {
         this(anchor, model, Clock.systemDefaultZone());
@@ -161,6 +169,28 @@ final class CalendarPopup {
         return menu;
     }
 
+    /**
+     * Sets the callback invoked with the date of a day cell the user
+     * double-clicks; the 2D desktop wires this to open the Agenda at that day.
+     * A null callback disables the interaction.
+     */
+    void setOnOpenDate(Consumer<LocalDate> onOpenDate) {
+        this.onOpenDate = onOpenDate;
+    }
+
+    /**
+     * Hides the popup and asks the desktop to open {@code date} in the Agenda.
+     * Triggered by a double-click on a day cell; a no-op when no callback is
+     * wired (e.g. headless tests that never set one).
+     */
+    private void openDate(LocalDate date) {
+        if (onOpenDate == null || date == null) {
+            return;
+        }
+        menu.setVisible(false);
+        onOpenDate.accept(date);
+    }
+
     /** Rebuilds the popup's contents for {@link #viewMonth}. */
     void rebuild() {
         menu.removeAll();
@@ -215,6 +245,22 @@ final class CalendarPopup {
                     cell.setForeground(HOLIDAY_FOREGROUND);
                 } else if (holidays.isWeekend(date)) {
                     cell.setForeground(WEEKEND_FOREGROUND);
+                }
+                if (!padded) {
+                    // A day cell is a plain JLabel, not a MenuElement, so the
+                    // popup's MenuSelectionManager ignores it and never
+                    // dismisses on a click over it: the cell receives the
+                    // physical mouse events through normal Swing dispatch and
+                    // can therefore see the second click of a double-click.
+                    final LocalDate cellDate = date;
+                    cell.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            if (e.getClickCount() == 2) {
+                                openDate(cellDate);
+                            }
+                        }
+                    });
                 }
                 grid.add(cell);
             }
