@@ -86,6 +86,22 @@
   </void>
  </object>
 
+ <!-- Multiple workspaces (virtual desktops) for the native 3D desktop: partitions
+ the open Frame3D windows, shows/hides them per workspace and mounts a clickable
+ pager in the top-left corner of the HUD layer above. From lg3d-core
+ (scenemanager.utils.workspace). MUST be registered AFTER DesktopHudPlugin so its
+ layer() is live at init; getPluginRoot() returns null because the pager is
+ parented to the HUD layer. Keystrokes mirror the 2D desktop: Alt+Shift+Page
+ Down/Page Up page, Alt+Shift+1..9 move the front window. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.workspace.WorkspacePlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
