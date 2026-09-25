@@ -34,10 +34,10 @@ import java.util.List;
  * empty history, and an individual malformed entry is skipped rather than
  * fatal, so a bad value can never stop the dialog from opening.</p>
  */
-final class RunHistory {
+public final class RunHistory {
 
     /** How many recent entries are kept. */
-    static final int MAX_ENTRIES = 20;
+    public static final int MAX_ENTRIES = 20;
 
     /** Separator between URL-encoded entries; never appears in encoded output. */
     private static final char ENTRY_SEP = '\n';
@@ -45,7 +45,7 @@ final class RunHistory {
     private final List<String> entries;
 
     /** An empty history. */
-    RunHistory() {
+    public RunHistory() {
         this.entries = new ArrayList<>();
     }
 
@@ -59,7 +59,7 @@ final class RunHistory {
      * an existing duplicate is promoted rather than repeated, and the tail is
      * trimmed back to {@link #MAX_ENTRIES}.
      */
-    void add(String command) {
+    public void add(String command) {
         if (command == null) {
             return;
         }
@@ -75,25 +75,25 @@ final class RunHistory {
     }
 
     /** The entries, most-recent-first, as an unmodifiable snapshot. */
-    List<String> entries() {
+    public List<String> entries() {
         return Collections.unmodifiableList(new ArrayList<>(entries));
     }
 
-    int size() {
+    public int size() {
         return entries.size();
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return entries.isEmpty();
     }
 
     /** Forgets every entry. */
-    void clear() {
+    public void clear() {
         entries.clear();
     }
 
     /** The single-string persisted form; an empty history encodes to "". */
-    String encode() {
+    public String encode() {
         StringBuilder sb = new StringBuilder();
         for (String entry : entries) {
             if (sb.length() > 0) {
@@ -109,7 +109,7 @@ final class RunHistory {
      * corrupt input yields an empty history; a malformed entry is dropped and
      * the rest are kept, capped at {@link #MAX_ENTRIES}.
      */
-    static RunHistory decode(String encoded) {
+    public static RunHistory decode(String encoded) {
         List<String> decoded = new ArrayList<>();
         if (encoded != null && !encoded.isBlank()) {
             for (String chunk : split(encoded)) {

@@ -134,6 +134,24 @@
   </void>
  </object>
 
+ <!-- Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop:
+ Alt+F2 raises a translucent "run command" card on the HUD layer that resolves a
+ typed application name or external command (reusing the 2D desktop's RunResolver
+ and persisted RunHistory) and launches it through AppLaunchAction; Ctrl+Alt+T
+ opens a terminal. From lg3d-core (scenemanager.utils.run). MUST be registered
+ AFTER DesktopHudPlugin so its layer() is live at init; getPluginRoot() returns
+ null because the card is parented to the HUD layer. Claims only the run-dialog
+ and open-terminal bindings from the shared ShortcutMap; the snap and workspace
+ bindings stay with WindowSnapPlugin and WorkspacePlugin. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.run.RunDialogPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">

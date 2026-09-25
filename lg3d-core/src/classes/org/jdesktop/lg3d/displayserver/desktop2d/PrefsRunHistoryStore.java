@@ -33,7 +33,7 @@ import org.jdesktop.lg3d.utils.prefs.LgPreferencesHelper;
  * store failure is logged and swallowed: losing the run history must never stop
  * the dialog from opening.</p>
  */
-final class PrefsRunHistoryStore implements RunHistoryStore {
+public final class PrefsRunHistoryStore implements RunHistoryStore {
 
     private static final Logger logger = Logger.getLogger("lg.desktop2d");
 
@@ -43,12 +43,12 @@ final class PrefsRunHistoryStore implements RunHistoryStore {
     private final Preferences prefs;
 
     /** Uses the desktop2d package's user preferences node. */
-    PrefsRunHistoryStore() {
+    public PrefsRunHistoryStore() {
         this(LgPreferencesHelper.userNodeForPackage(PrefsRunHistoryStore.class));
     }
 
     /** Uses an explicit node; package-visible so the store can be injected. */
-    PrefsRunHistoryStore(Preferences prefs) {
+    public PrefsRunHistoryStore(Preferences prefs) {
         this.prefs = prefs;
     }
 

@@ -22,7 +22,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
  *
  * @see PrefsRunHistoryStore
  */
-interface RunHistoryStore {
+public interface RunHistoryStore {
 
     /** Persists {@code history}, replacing any previously saved history. */
     void save(RunHistory history);

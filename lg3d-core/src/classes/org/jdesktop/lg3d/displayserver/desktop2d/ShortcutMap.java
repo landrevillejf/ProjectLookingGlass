@@ -34,24 +34,24 @@ import javax.swing.KeyStroke;
  * <p>The window switcher's <em>Alt+`</em> binding is deliberately <strong>not</strong>
  * in this map, so the dispatcher never claims it and the switcher keeps working.</p>
  */
-final class ShortcutMap {
+public final class ShortcutMap {
 
     // Action ids. Kept as strings so they can be logged and customised.
-    static final String SHOW_DESKTOP = "show-desktop";
-    static final String SNAP_LEFT = "snap-left";
-    static final String SNAP_RIGHT = "snap-right";
-    static final String SNAP_MAXIMIZE = "snap-maximize";
-    static final String RUN_DIALOG = "run-dialog";
-    static final String OPEN_TERMINAL = "open-terminal";
-    static final String WINDOW_CLOSE = "window-close";
-    static final String WORKSPACE_NEXT = "workspace-next";
-    static final String WORKSPACE_PREVIOUS = "workspace-previous";
+    public static final String SHOW_DESKTOP = "show-desktop";
+    public static final String SNAP_LEFT = "snap-left";
+    public static final String SNAP_RIGHT = "snap-right";
+    public static final String SNAP_MAXIMIZE = "snap-maximize";
+    public static final String RUN_DIALOG = "run-dialog";
+    public static final String OPEN_TERMINAL = "open-terminal";
+    public static final String WINDOW_CLOSE = "window-close";
+    public static final String WORKSPACE_NEXT = "workspace-next";
+    public static final String WORKSPACE_PREVIOUS = "workspace-previous";
     /**
      * Prefix for the "move the focused window to workspace <em>n</em>" actions;
      * the action id is this prefix followed by the 0-based workspace index
      * (e.g. {@code move-to-workspace-2}). Bound to <em>Alt+Shift+1..9</em>.
      */
-    static final String MOVE_TO_WORKSPACE_PREFIX = "move-to-workspace-";
+    public static final String MOVE_TO_WORKSPACE_PREFIX = "move-to-workspace-";
 
     private final Map<KeyStroke, String> bindings;
 
@@ -60,7 +60,7 @@ final class ShortcutMap {
      * to action id. Unparseable specs and null/blank actions are skipped, so a
      * bad custom entry can never break the whole table.
      */
-    ShortcutMap(Map<String, String> specToAction) {
+    public ShortcutMap(Map<String, String> specToAction) {
         Map<KeyStroke, String> parsed = new LinkedHashMap<>();
         if (specToAction != null) {
             for (Map.Entry<String, String> entry : specToAction.entrySet()) {
@@ -75,7 +75,7 @@ final class ShortcutMap {
     }
 
     /** The map carrying the default bindings. */
-    static ShortcutMap defaults() {
+    public static ShortcutMap defaults() {
         return new ShortcutMap(defaultBindings());
     }
 
@@ -85,7 +85,7 @@ final class ShortcutMap {
      * Xwayland) grabs Super+key and Ctrl+Alt+arrow before the JVM sees them, so
      * those are avoided here (and reserved for workspace switching later).
      */
-    static Map<String, String> defaultBindings() {
+    public static Map<String, String> defaultBindings() {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("control alt D", SHOW_DESKTOP);
         map.put("alt shift LEFT", SNAP_LEFT);
@@ -108,7 +108,7 @@ final class ShortcutMap {
     }
 
     /** Parses a keystroke spec, or null when it is blank/invalid. */
-    static KeyStroke parse(String spec) {
+    public static KeyStroke parse(String spec) {
         if (spec == null) {
             return null;
         }
@@ -120,7 +120,7 @@ final class ShortcutMap {
     }
 
     /** The action bound to {@code stroke}, or empty when it is not bound. */
-    Optional<String> actionFor(KeyStroke stroke) {
+    public Optional<String> actionFor(KeyStroke stroke) {
         if (stroke == null) {
             return Optional.empty();
         }
@@ -128,22 +128,22 @@ final class ShortcutMap {
     }
 
     /** The action bound to a keystroke spec string, or empty. */
-    Optional<String> actionForSpec(String spec) {
+    public Optional<String> actionForSpec(String spec) {
         return actionFor(parse(spec));
     }
 
     /** True when {@code stroke} is bound to some action. */
-    boolean isBound(KeyStroke stroke) {
+    public boolean isBound(KeyStroke stroke) {
         return actionFor(stroke).isPresent();
     }
 
     /** The set of bound action ids (may be fewer than the bindings if shared). */
-    Set<String> actions() {
+    public Set<String> actions() {
         return Collections.unmodifiableSet(new java.util.LinkedHashSet<>(bindings.values()));
     }
 
     /** How many keystrokes are bound. */
-    int size() {
+    public int size() {
         return bindings.size();
     }
 }
