@@ -15,14 +15,18 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Container;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -38,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.DesktopManager;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
@@ -47,6 +52,7 @@ import javax.swing.LookAndFeel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
@@ -143,6 +149,11 @@ public class Desktop2D {
     private final ToastLayer toastLayer;
     private final SessionManager sessionManager;
 
+    /** Global keyboard-shortcut table and the dispatcher that feeds it. */
+    private final ShortcutMap shortcuts = ShortcutMap.defaults();
+    private final Shortcuts.Target shortcutActions = new ShortcutActions();
+    private KeyEventDispatcher shortcutDispatcher;
+
     /** True while {@link #restoreSession()} is relaunching windows, to defer saves. */
     private boolean restoring;
 
@@ -217,6 +228,10 @@ public class Desktop2D {
         // notifications float above the application windows.
         toastLayer = new ToastLayer(new ToastQueue());
         toastLayer.install(desktop);
+
+        // Global keyboard shortcuts (show desktop, snap, terminal, close...),
+        // resolved while this frame has the focus.
+        installShortcuts();
 
         // Persistence for the open-window session (which apps were open, and
         // where). Restored in show(), once the desktop pane has its real size.
@@ -322,13 +337,13 @@ public class Desktop2D {
     /** The start menu, built once from the application descriptors. */
     public synchronized JPopupMenu getStartMenu() {
         if (startMenu == null) {
-            startMenu = Desktop2DStartMenu.build(menuModel,
+            startMenu = new StartMenuSearch(menuModel,
                     new Desktop2DStartMenu.Launcher() {
                         @Override
                         public void launch(ItemSpec item) {
                             openApp(item);
                         }
-                    });
+                    }).menu();
         }
         return startMenu;
     }
@@ -514,6 +529,112 @@ public class Desktop2D {
             logger.log(Level.FINE, "Could not restore window", pve);
         }
         frame.setVisible(true);
+    }
+
+    // ------------------------------------------------------------------
+    // Global keyboard shortcuts
+    // ------------------------------------------------------------------
+
+    /**
+     * Installs a {@link KeyEventDispatcher} that resolves the desktop's global
+     * shortcuts while this frame has the focus. Added to the current
+     * {@link KeyboardFocusManager}; removed again in {@link #exit()}.
+     */
+    private void installShortcuts() {
+        shortcutDispatcher = new KeyEventDispatcher() {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                return handleShortcutKey(e);
+            }
+        };
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(shortcutDispatcher);
+    }
+
+    /** Detaches the dispatcher, so the focus manager no longer holds it. */
+    private void uninstallShortcuts() {
+        if (shortcutDispatcher != null) {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                    .removeKeyEventDispatcher(shortcutDispatcher);
+            shortcutDispatcher = null;
+        }
+    }
+
+    /**
+     * Handles one key event: only while this desktop's own frame has the focus,
+     * a key-press is resolved through {@link #shortcuts} and, when bound,
+     * dispatched and consumed. The Alt+` window switcher is deliberately not in
+     * the map, so it returns false here and falls through to Swing untouched.
+     */
+    private boolean handleShortcutKey(KeyEvent e) {
+        if (e.getID() != KeyEvent.KEY_PRESSED) {
+            return false;
+        }
+        Component source = e.getComponent();
+        if (source == null || SwingUtilities.getWindowAncestor(source) != frame) {
+            return false;
+        }
+        return Shortcuts.dispatch(
+                KeyStroke.getKeyStrokeForEvent(e), shortcuts, shortcutActions);
+    }
+
+    /** Snaps the selected window to {@code zone} via the snapping manager. */
+    private void snapSelected(WindowSnap.Zone zone) {
+        JInternalFrame selected = desktop.getSelectedFrame();
+        DesktopManager manager = desktop.getDesktopManager();
+        if (selected instanceof JComponent
+                && manager instanceof SnappingDesktopManager) {
+            ((SnappingDesktopManager) manager).applyPendingSnap(selected, zone);
+        }
+    }
+
+    /** Closes the selected window, if there is one and it is closable. */
+    private void closeSelected() {
+        JInternalFrame selected = desktop.getSelectedFrame();
+        if (selected != null && selected.isClosable()) {
+            selected.doDefaultCloseAction();
+        }
+    }
+
+    /** Maps the shortcut action ids onto this desktop's window operations. */
+    private final class ShortcutActions implements Shortcuts.Target {
+        @Override
+        public void showDesktop() {
+            setAllIcons(true);
+        }
+
+        @Override
+        public void snapLeft() {
+            snapSelected(WindowSnap.Zone.LEFT);
+        }
+
+        @Override
+        public void snapRight() {
+            snapSelected(WindowSnap.Zone.RIGHT);
+        }
+
+        @Override
+        public void snapMaximize() {
+            snapSelected(WindowSnap.Zone.MAXIMIZE);
+        }
+
+        @Override
+        public void runDialog() {
+            // Wired up by the Alt+F2 run-command dialog (a later feature).
+        }
+
+        @Override
+        public void openTerminal() {
+            String command = terminalCommand();
+            if (command != null) {
+                Desktop2DAppRegistry.launchExternal(command);
+            }
+        }
+
+        @Override
+        public void closeWindow() {
+            closeSelected();
+        }
     }
 
     /**
@@ -922,6 +1043,7 @@ public class Desktop2D {
         // still realized, so the next start reopens them where they were left.
         saveSession();
         windowSwitcher.uninstall();
+        uninstallShortcuts();
         toastLayer.uninstall();
         uninstallWidgetLayer();
         taskbar.stop();

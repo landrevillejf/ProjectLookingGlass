@@ -25,6 +25,62 @@ work to make it build and run on a current toolchain.
   popup's month navigation are covered without a display. Covered by headless
   JUnit 5 tests (`CalendarModelTest`, 10; `CalendarPopupTest`, 6 — 16 tests
   total).
+
+- **Global keyboard shortcuts for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a set of desktop-wide key
+  bindings that work wherever the desktop frame has the focus: **Ctrl+Alt+D**
+  show-desktop (minimise all), **Alt+Shift+←/→** snap the focused window to the
+  left/right half and **Alt+Shift+↑** maximise it (reusing the drag-snap
+  geometry), **Ctrl+Alt+T** open a terminal, **Ctrl+W** close the focused window,
+  and **Alt+F2** reserved for the run-command dialog. `Desktop2D` installs a
+  `KeyEventDispatcher` on the `KeyboardFocusManager` that only acts while its own
+  frame is frontmost, resolves the press through the table and consumes it; the
+  Alt+` window switcher is deliberately *not* in the table, so it falls through
+  untouched, and combos the host window manager grabs (Super+key, Ctrl+Alt+arrow)
+  are avoided. Following the codebase's headless-testable split, the table
+  (`ShortcutMap`: keystroke-spec → action id, with tolerant parsing) and the
+  resolve-and-dispatch switch (`Shortcuts.handle` / `Shortcuts.dispatch` over a
+  small `Shortcuts.Target` interface) are pure, so a fake target records which
+  action fired without a focus manager or display; `Desktop2D` supplies the real
+  target. Covered by headless JUnit 5 tests (`ShortcutMapTest`, 11;
+  `ShortcutsTest`, 7 — 18 tests total).
+
+- **Taskbar system indicators for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a volume / network / battery
+  cluster in the taskbar's right-hand row, left of the clock, in the style of a
+  conventional system tray. Each indicator renders a compact text glyph
+  (`Vol 42%` / `Vol x` when muted, `Net ==` ethernet / `Net ))` wi-fi / `Net --`
+  offline, `Bat 85%` with a `+` while charging) plus a detailed tooltip; clicking
+  the volume glyph opens a small slider popup that drives the master gain, and two
+  `javax.swing.Timer`s keep the readings live (1 s for volume, 5 s for
+  network/battery). Every probe degrades gracefully — no sound card, no battery or
+  a non-Linux host simply hides that glyph rather than showing garbage — and the
+  cluster is stopped with the bar on shutdown. Following the codebase's
+  headless-testable split, the parsing/formatting lives in pure seams
+  (`BatteryStatus` reading `/sys/class/power_supply/BAT*`, `NetworkStatus` walking
+  `NetworkInterface`, `VolumeStatus` over the `javax.sound.sampled` master port)
+  apart from the thin Swing `TaskbarIndicators` panel, whose `applyX` methods take
+  an already-read value so they are driven headless. Covered by headless JUnit 5
+  tests (`BatteryStatusTest`, 7; `NetworkStatusTest`, 8; `VolumeStatusTest`, 7;
+  `TaskbarIndicatorsTest`, 6 — 28 tests total).
+
+- **Type-to-search start menu for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the start menu now opens with a
+  search field across the top: typing filters every configured application live
+  to a flat, ranked list, and clearing the field restores the normal category
+  tree. Ranking is predictable — an exact name match beats a name prefix, which
+  beats a word-boundary match ("man" in "File Manager"), which beats a plain name
+  substring, which beats a match only in the description or command — with ties
+  keeping descriptor order and results capped at 12 so the popup stays short.
+  Enter launches the top match and Esc closes the menu; each open starts fresh
+  from the full tree with the caret in the field. Following the codebase's
+  headless-testable split, the matching lives in a pure `AppSearch` (no Swing, no
+  I/O) and the popup wiring in `StartMenuSearch`, which reuses the existing
+  `Desktop2DStartMenu` item renderer and category-tree builder. Covered by
+  headless JUnit 5 tests (`AppSearchTest`, 9; `StartMenuSearchTest`, 6).
+
+
+
 - **About** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — a new *Utilities*
   start-menu application showing the product identity, the resolved build
   version, the host runtime facts (Java 3D provider, Java version/vendor,
