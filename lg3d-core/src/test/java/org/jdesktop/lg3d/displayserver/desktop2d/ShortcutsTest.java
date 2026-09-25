@@ -70,6 +70,21 @@ class ShortcutsTest {
         public void closeWindow() {
             fired.add(ShortcutMap.WINDOW_CLOSE);
         }
+
+        @Override
+        public void workspaceNext() {
+            fired.add(ShortcutMap.WORKSPACE_NEXT);
+        }
+
+        @Override
+        public void workspacePrevious() {
+            fired.add(ShortcutMap.WORKSPACE_PREVIOUS);
+        }
+
+        @Override
+        public void moveWindowToWorkspace(int index) {
+            fired.add(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX + index);
+        }
     }
 
     @Test

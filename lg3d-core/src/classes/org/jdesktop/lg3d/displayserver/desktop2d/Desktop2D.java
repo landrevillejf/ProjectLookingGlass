@@ -151,6 +151,13 @@ public class Desktop2D {
     private final RunHistoryStore runHistoryStore;
     private final RunHistory runHistory;
 
+    /**
+     * The multiple-workspace (virtual desktop) model: which window lives on
+     * which workspace and which workspace is shown now. Built before the
+     * taskbar, whose pager reads it.
+     */
+    private final WorkspaceModel workspaces;
+
     /** Global keyboard-shortcut table and the dispatcher that feeds it. */
     private final ShortcutMap shortcuts = ShortcutMap.defaults();
     private final Shortcuts.Target shortcutActions = new ShortcutActions();
@@ -199,6 +206,10 @@ public class Desktop2D {
         // The notification log feeds both the taskbar tray and the toast
         // overlay; build it before the taskbar, which constructs the tray.
         notifications = new NotificationModel();
+
+        // The workspace model must exist before the taskbar builds its pager,
+        // which reads the workspace count and current index.
+        workspaces = new WorkspaceModel(DesktopConfig.get().getWorkspaceCount());
 
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
@@ -276,6 +287,10 @@ public class Desktop2D {
         // on-screen. Done after the frame is shown rather than in the
         // constructor, where the desktop pane is not yet laid out.
         restoreSession();
+        // Restored windows all land on the current workspace; make the MDI frame
+        // visibility and the taskbar pager match before the shell is used.
+        applyWorkspaceVisibility();
+        taskbar.refreshWorkspaces();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -291,6 +306,60 @@ public class Desktop2D {
     /** The desktop's notification log (package-visible for the taskbar tray). */
     NotificationModel getNotificationModel() {
         return notifications;
+    }
+
+    /**
+     * The multiple-workspace model (package-visible for the taskbar, whose pager
+     * and window buttons reflect only the current workspace).
+     */
+    WorkspaceModel getWorkspaces() {
+        return workspaces;
+    }
+
+    /**
+     * Switches to the workspace at {@code index} (wrapped into range), shows its
+     * windows, hides the others and re-syncs the taskbar. Driven by the pager
+     * buttons and the workspace shortcuts.
+     */
+    void switchToWorkspace(int index) {
+        workspaces.switchTo(index);
+        applyWorkspaceVisibility();
+        taskbar.refreshWorkspaces();
+    }
+
+    /**
+     * True when {@code window} is on the workspace shown now, so its taskbar
+     * button and MDI frame should be visible.
+     */
+    boolean isOnCurrentWorkspace(Desktop2DWindow window) {
+        return window != null && workspaces.isOnCurrent(window.getAppName());
+    }
+
+    /**
+     * Shows the windows on the current workspace and hides those on every other
+     * one, without disposing anything: paging only toggles MDI frame visibility.
+     * The front-most now-visible window is selected so the desktop is never left
+     * with a hidden frame holding the selection.
+     */
+    private void applyWorkspaceVisibility() {
+        Desktop2DWindow front = null;
+        for (JInternalFrame candidate : desktop.getAllFrames()) {
+            if (candidate instanceof Desktop2DWindow) {
+                Desktop2DWindow window = (Desktop2DWindow) candidate;
+                boolean here = workspaces.isOnCurrent(window.getAppName());
+                window.setVisible(here);
+                if (here && front == null && !window.isIcon()) {
+                    front = window;
+                }
+            }
+        }
+        if (front != null) {
+            try {
+                front.setSelected(true);
+            } catch (java.beans.PropertyVetoException pve) {
+                logger.log(Level.FINE, "Could not select " + front.getAppName(), pve);
+            }
+        }
     }
 
     /** A conventional look for a conventional desktop; failure is cosmetic. */
@@ -681,6 +750,28 @@ public class Desktop2D {
         public void closeWindow() {
             closeSelected();
         }
+
+        @Override
+        public void workspaceNext() {
+            switchToWorkspace(workspaces.next());
+        }
+
+        @Override
+        public void workspacePrevious() {
+            switchToWorkspace(workspaces.previous());
+        }
+
+        @Override
+        public void moveWindowToWorkspace(int index) {
+            JInternalFrame selected = desktop.getSelectedFrame();
+            if (selected instanceof Desktop2DWindow) {
+                Desktop2DWindow window = (Desktop2DWindow) selected;
+                workspaces.assign(window.getAppName(), index);
+                applyWorkspaceVisibility();
+                taskbar.refreshWorkspaces();
+                saveSession();
+            }
+        }
     }
 
     /**
@@ -823,6 +914,8 @@ public class Desktop2D {
                     appName, item.getCommand(), item.getIconResource());
             track(window);
             desktop.add(window);
+            // A new window opens on the workspace currently shown.
+            workspaces.assign(window.getAppName(), workspaces.current());
             taskbar.windowOpened(window);
             window.showIn(desktop);
             desktop.revalidate();
@@ -849,6 +942,7 @@ public class Desktop2D {
             @Override
             public void internalFrameClosed(InternalFrameEvent e) {
                 windowSwitcher.cycler().forget(window);
+                workspaces.unassign(window.getAppName());
                 taskbar.windowClosed(window);
                 saveSession();
             }
@@ -1237,7 +1331,11 @@ public class Desktop2D {
         public List<Desktop2DWindow> presentWindows() {
             List<Desktop2DWindow> present = new ArrayList<>();
             for (JInternalFrame candidate : desktop.getAllFrames()) {
-                if (candidate instanceof Desktop2DWindow) {
+                // The switcher lists only the current workspace's windows, so
+                // Alt+` cycles within a workspace rather than across all of them.
+                if (candidate instanceof Desktop2DWindow
+                        && workspaces.isOnCurrent(
+                                ((Desktop2DWindow) candidate).getAppName())) {
                     present.add((Desktop2DWindow) candidate);
                 }
             }

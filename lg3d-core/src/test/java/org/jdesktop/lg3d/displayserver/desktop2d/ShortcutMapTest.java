@@ -38,12 +38,13 @@ class ShortcutMapTest {
     @DisplayName("the defaults bind every documented action")
     void defaultsBindAllActions() {
         ShortcutMap map = ShortcutMap.defaults();
-        assertEquals(7, map.size(), "one binding per default action");
+        assertEquals(18, map.size(), "one binding per default action");
         assertTrue(map.actions().containsAll(java.util.List.of(
                 ShortcutMap.SHOW_DESKTOP, ShortcutMap.SNAP_LEFT,
                 ShortcutMap.SNAP_RIGHT, ShortcutMap.SNAP_MAXIMIZE,
                 ShortcutMap.RUN_DIALOG, ShortcutMap.OPEN_TERMINAL,
-                ShortcutMap.WINDOW_CLOSE)));
+                ShortcutMap.WINDOW_CLOSE, ShortcutMap.WORKSPACE_NEXT,
+                ShortcutMap.WORKSPACE_PREVIOUS)));
     }
 
     @Test
@@ -57,6 +58,14 @@ class ShortcutMapTest {
         assertEquals(ShortcutMap.RUN_DIALOG, map.actionForSpec("alt F2").orElseThrow());
         assertEquals(ShortcutMap.OPEN_TERMINAL, map.actionForSpec("control alt T").orElseThrow());
         assertEquals(ShortcutMap.WINDOW_CLOSE, map.actionForSpec("control W").orElseThrow());
+        assertEquals(ShortcutMap.WORKSPACE_NEXT,
+                map.actionForSpec("alt shift PAGE_DOWN").orElseThrow());
+        assertEquals(ShortcutMap.WORKSPACE_PREVIOUS,
+                map.actionForSpec("alt shift PAGE_UP").orElseThrow());
+        assertEquals(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX + "0",
+                map.actionForSpec("alt shift 1").orElseThrow());
+        assertEquals(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX + "8",
+                map.actionForSpec("alt shift 9").orElseThrow());
     }
 
     @Test
@@ -131,10 +140,13 @@ class ShortcutMapTest {
     }
 
     @Test
-    @DisplayName("the default binding table is the seven documented combos")
+    @DisplayName("the default binding table is the eighteen documented combos")
     void defaultBindingsTable() {
         Map<String, String> bindings = ShortcutMap.defaultBindings();
-        assertEquals(7, bindings.size());
+        assertEquals(18, bindings.size());
         assertEquals(ShortcutMap.RUN_DIALOG, bindings.get("alt F2"));
+        assertEquals(ShortcutMap.WORKSPACE_NEXT, bindings.get("alt shift PAGE_DOWN"));
+        // Alt+Shift+<n> is 1-based on the key, 0-based in the action id.
+        assertEquals(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX + "4", bindings.get("alt shift 5"));
     }
 }

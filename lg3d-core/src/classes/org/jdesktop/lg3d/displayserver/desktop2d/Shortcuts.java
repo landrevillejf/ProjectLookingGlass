@@ -48,6 +48,15 @@ final class Shortcuts {
         void openTerminal();
 
         void closeWindow();
+
+        /** Steps to the next workspace (wrapping). */
+        void workspaceNext();
+
+        /** Steps to the previous workspace (wrapping). */
+        void workspacePrevious();
+
+        /** Moves the focused window to the workspace at {@code index} (0-based). */
+        void moveWindowToWorkspace(int index);
     }
 
     /**
@@ -82,9 +91,25 @@ final class Shortcuts {
             case ShortcutMap.RUN_DIALOG -> target.runDialog();
             case ShortcutMap.OPEN_TERMINAL -> target.openTerminal();
             case ShortcutMap.WINDOW_CLOSE -> target.closeWindow();
-            default -> {
-                // An unmapped action id: nothing to do.
-            }
+            case ShortcutMap.WORKSPACE_NEXT -> target.workspaceNext();
+            case ShortcutMap.WORKSPACE_PREVIOUS -> target.workspacePrevious();
+            default -> dispatchMoveToWorkspace(actionId, target);
+        }
+    }
+
+    /**
+     * Fires {@code moveWindowToWorkspace} for a {@code move-to-workspace-<n>}
+     * action id; any other (unknown) id is ignored, as is a malformed index.
+     */
+    private static void dispatchMoveToWorkspace(String actionId, Target target) {
+        if (!actionId.startsWith(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX)) {
+            return;
+        }
+        String suffix = actionId.substring(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX.length());
+        try {
+            target.moveWindowToWorkspace(Integer.parseInt(suffix));
+        } catch (NumberFormatException e) {
+            // A malformed move-to-workspace id: nothing to do.
         }
     }
 }

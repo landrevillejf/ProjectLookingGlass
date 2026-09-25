@@ -50,6 +50,7 @@ public final class DesktopConfig {
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
     private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
+    private static final String KEY_WORKSPACE_COUNT = "workspace.count";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -70,6 +71,12 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_HOLIDAY_REGION = "AUTO";
     private static final String DEF_HOLIDAY_REGION = DEFAULT_HOLIDAY_REGION;
+    /** Default number of 2D-desktop workspaces (virtual desktops). */
+    public static final int DEFAULT_WORKSPACE_COUNT = 4;
+    private static final int DEF_WORKSPACE_COUNT = DEFAULT_WORKSPACE_COUNT;
+    /** Minimum/maximum number of workspaces. */
+    public static final int MIN_WORKSPACE_COUNT = 1;
+    public static final int MAX_WORKSPACE_COUNT = 9;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -95,6 +102,7 @@ public final class DesktopConfig {
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
     private String holidayRegion = DEF_HOLIDAY_REGION;
+    private int workspaceCount = DEF_WORKSPACE_COUNT;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -129,6 +137,8 @@ public final class DesktopConfig {
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
         holidayRegion = normalizeRegion(prefs.get(KEY_HOLIDAY_REGION, DEF_HOLIDAY_REGION));
+        workspaceCount = clampWorkspaceCount(
+                prefs.getInt(KEY_WORKSPACE_COUNT, DEF_WORKSPACE_COUNT));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -140,6 +150,7 @@ public final class DesktopConfig {
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
         prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
+        prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -157,6 +168,7 @@ public final class DesktopConfig {
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
         holidayRegion = DEF_HOLIDAY_REGION;
+        workspaceCount = DEF_WORKSPACE_COUNT;
     }
 
     // ------------------------------------------------------------------
@@ -230,6 +242,15 @@ public final class DesktopConfig {
         this.holidayRegion = normalizeRegion(holidayRegion);
     }
 
+    /** The number of 2D-desktop workspaces (clamped to the min/max range). */
+    public int getWorkspaceCount() {
+        return workspaceCount;
+    }
+
+    public void setWorkspaceCount(int workspaceCount) {
+        this.workspaceCount = clampWorkspaceCount(workspaceCount);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -241,6 +262,10 @@ public final class DesktopConfig {
 
     private static int clampFontSize(int v) {
         return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, v));
+    }
+
+    private static int clampWorkspaceCount(int v) {
+        return Math.max(MIN_WORKSPACE_COUNT, Math.min(MAX_WORKSPACE_COUNT, v));
     }
 
     private static Position parsePosition(String s) {
