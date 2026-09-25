@@ -41,7 +41,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("touch orders the tracked windows most-recent-first")
     void touchOrdersMostRecentFirst() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -54,7 +54,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("re-touching a window promotes it to the front")
     void retouchPromotes() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -68,7 +68,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("untracked present windows are appended in the given order")
     void untrackedAppended() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -79,7 +79,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("windows no longer present are filtered out")
     void absentFiltered() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -92,7 +92,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("a tracked window that is not present is ignored")
     void staleTrackedIgnored() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow gone = window("gone");
         Desktop2DWindow a = window("a");
         cycler.touch(gone);
@@ -102,7 +102,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("forget drops a window from the MRU history")
     void forgetDrops() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         cycler.touch(a);
@@ -115,7 +115,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("null windows and null lists are tolerated")
     void nullSafe() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         cycler.touch(null);
         cycler.forget(null);
         assertTrue(cycler.ordered(null).isEmpty());
@@ -124,7 +124,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("open refuses when there are fewer than two windows")
     void openNeedsTwo() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         assertFalse(cycler.open(List.of()));
         assertFalse(cycler.isActive());
         assertFalse(cycler.open(List.of(window("solo"))));
@@ -135,7 +135,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("open activates and highlights the current window (index 0)")
     void openHighlightsCurrent() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         assertTrue(cycler.open(List.of(a, b)));
@@ -148,7 +148,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("advance walks forward and wraps")
     void advanceWraps() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -164,7 +164,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("advanceBack walks backward and wraps without going negative")
     void advanceBackWraps() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         Desktop2DWindow c = window("c");
@@ -178,7 +178,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("advance and advanceBack are no-ops while inactive")
     void advanceNoOpWhenInactive() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         cycler.advance();
         cycler.advanceBack();
         assertFalse(cycler.isActive());
@@ -188,7 +188,7 @@ class WindowCyclerTest {
     @Test
     @DisplayName("commit returns the highlighted window and closes the session")
     void commitReturnsAndCloses() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         cycler.open(List.of(a, b));
@@ -201,14 +201,14 @@ class WindowCyclerTest {
     @Test
     @DisplayName("commit while inactive returns null")
     void commitInactiveNull() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         assertNull(cycler.commit());
     }
 
     @Test
     @DisplayName("cancel closes the session without selecting anything")
     void cancelCloses() {
-        WindowCycler cycler = new WindowCycler();
+        WindowCycler<Desktop2DWindow> cycler = new WindowCycler<>();
         Desktop2DWindow a = window("a");
         Desktop2DWindow b = window("b");
         cycler.open(List.of(a, b));

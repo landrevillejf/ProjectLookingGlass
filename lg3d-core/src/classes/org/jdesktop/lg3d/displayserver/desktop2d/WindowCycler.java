@@ -19,15 +19,21 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * The most-recently-used window list and cycle state machine behind the 2D
- * desktop's window switcher.
+ * The most-recently-used window list and cycle state machine behind a desktop's
+ * window switcher.
  *
  * <p>This is the pure-logic half: it tracks which application window was used
  * most recently ({@link #touch}/{@link #forget}) and, once a cycle session is
  * {@linkplain #open(List) open}, walks a highlight index forward and backward
  * through the MRU-ordered snapshot. It paints nothing and touches no Java 3D,
- * so the cycling behaviour is unit-testable headless; {@link WindowCyclerOverlay}
+ * so the cycling behaviour is unit-testable headless; a switcher overlay (the
+ * 2D {@link WindowCyclerOverlay}, or the native 3D desktop's HUD switcher)
  * renders whatever this exposes.</p>
+ *
+ * <p>The class is desktop-agnostic and generic over the window type: the 2D
+ * desktop cycles {@code WindowCycler<Desktop2DWindow>} while the native 3D
+ * desktop cycles {@code WindowCycler<org.jdesktop.lg3d.wg.Frame3D>}, so both
+ * share one MRU/cycle model instead of each re-inventing it.</p>
  *
  * <p>A session opens on the first trigger and highlights index 0 (the window
  * that currently has the focus). The first {@link #advance()} then moves to
@@ -36,22 +42,23 @@ import java.util.List;
  * window and closes the session; {@link #cancel()} closes it without selecting
  * anything.</p>
  *
- * <p>Confined to the event dispatch thread, like the rest of the switcher.</p>
+ * <p>Confined to a single thread (the event dispatch thread on the 2D desktop,
+ * the lg3d event thread on the 3D one), like the rest of the switcher.</p>
  */
-final class WindowCycler {
+public final class WindowCycler<T> {
 
     /**
      * Windows ordered least-recently-used first, so the tail is the current
      * window. A {@link LinkedHashSet} gives O(1) remove-on-touch while keeping
      * insertion order.
      */
-    private final LinkedHashSet<Desktop2DWindow> mru = new LinkedHashSet<>();
+    private final LinkedHashSet<T> mru = new LinkedHashSet<>();
 
-    private List<Desktop2DWindow> session = List.of();
+    private List<T> session = List.of();
     private int index = -1;
 
     /** Records {@code window} as the most recently used. Null-safe. */
-    void touch(Desktop2DWindow window) {
+    public void touch(T window) {
         if (window == null) {
             return;
         }
@@ -60,7 +67,7 @@ final class WindowCycler {
     }
 
     /** Drops {@code window} from the MRU history (it closed). Null-safe. */
-    void forget(Desktop2DWindow window) {
+    public void forget(T window) {
         if (window == null) {
             return;
         }
@@ -68,22 +75,22 @@ final class WindowCycler {
     }
 
     /** Whether a cycle session is currently open. */
-    boolean isActive() {
+    public boolean isActive() {
         return index >= 0;
     }
 
     /** The MRU-ordered snapshot this session cycles through (empty if none). */
-    List<Desktop2DWindow> items() {
+    public List<T> items() {
         return session;
     }
 
     /** The highlighted index, or {@code -1} when no session is open. */
-    int selectedIndex() {
+    public int selectedIndex() {
         return index;
     }
 
     /** The highlighted window, or null when no session is open. */
-    Desktop2DWindow selected() {
+    public T selected() {
         return isActive() ? session.get(index) : null;
     }
 
@@ -93,8 +100,8 @@ final class WindowCycler {
      * leaving the session closed, when there are fewer than two windows &mdash;
      * there is nothing to switch to.
      */
-    boolean open(List<Desktop2DWindow> present) {
-        List<Desktop2DWindow> ordered = ordered(present);
+    public boolean open(List<T> present) {
+        List<T> ordered = ordered(present);
         if (ordered.size() < 2) {
             cancel();
             return false;
@@ -110,18 +117,18 @@ final class WindowCycler {
      * never tracked, appended in the given order. The result is a snapshot; it
      * never mutates the MRU history.
      */
-    List<Desktop2DWindow> ordered(List<Desktop2DWindow> present) {
-        List<Desktop2DWindow> source = (present == null) ? List.of() : present;
-        List<Desktop2DWindow> ordered = new ArrayList<>(source.size());
-        List<Desktop2DWindow> tracked = new ArrayList<>(mru);
+    public List<T> ordered(List<T> present) {
+        List<T> source = (present == null) ? List.of() : present;
+        List<T> ordered = new ArrayList<>(source.size());
+        List<T> tracked = new ArrayList<>(mru);
         // mru holds least-recent first, so walk it backwards for most-recent.
         for (int i = tracked.size() - 1; i >= 0; i--) {
-            Desktop2DWindow window = tracked.get(i);
+            T window = tracked.get(i);
             if (source.contains(window)) {
                 ordered.add(window);
             }
         }
-        for (Desktop2DWindow window : source) {
+        for (T window : source) {
             if (!ordered.contains(window)) {
                 ordered.add(window);
             }
@@ -130,14 +137,14 @@ final class WindowCycler {
     }
 
     /** Moves the highlight one window forward, wrapping. No-op when closed. */
-    void advance() {
+    public void advance() {
         if (isActive()) {
             index = (index + 1) % session.size();
         }
     }
 
     /** Moves the highlight one window backward, wrapping. No-op when closed. */
-    void advanceBack() {
+    public void advanceBack() {
         if (isActive()) {
             index = (index - 1 + session.size()) % session.size();
         }
@@ -147,14 +154,14 @@ final class WindowCycler {
      * Returns the highlighted window and closes the session, or null when no
      * session is open. The caller brings the returned window forward.
      */
-    Desktop2DWindow commit() {
-        Desktop2DWindow selected = selected();
+    public T commit() {
+        T selected = selected();
         cancel();
         return selected;
     }
 
     /** Closes the session without selecting anything. */
-    void cancel() {
+    public void cancel() {
         session = List.of();
         index = -1;
     }
