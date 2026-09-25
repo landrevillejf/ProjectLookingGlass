@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  * or an unreadable/malformed value, so the indicator simply hides itself rather
  * than showing garbage.</p>
  */
-final class BatteryStatus {
+public final class BatteryStatus {
 
     /** Base of the Linux power-supply sysfs tree. */
     private static final String POWER_SUPPLY_DIR = "/sys/class/power_supply";
@@ -53,7 +53,7 @@ final class BatteryStatus {
     }
 
     /** A battery reading: charge percentage and whether it is charging. */
-    record Level(int percent, boolean charging) {
+    public record Level(int percent, boolean charging) {
     }
 
     /**
@@ -84,7 +84,7 @@ final class BatteryStatus {
     }
 
     /** Reads the first battery's charge, or empty when there is none. */
-    static Optional<Level> read() {
+    public static Optional<Level> read() {
         try {
             Path base = Paths.get(POWER_SUPPLY_DIR);
             if (!Files.isDirectory(base)) {
@@ -107,7 +107,7 @@ final class BatteryStatus {
     }
 
     /** Compact taskbar text, e.g. {@code "Bat 85%"} / {@code "Bat 85% +"} (charging). */
-    static String glyph(Level level) {
+    public static String glyph(Level level) {
         if (level == null) {
             return "";
         }
@@ -115,7 +115,7 @@ final class BatteryStatus {
     }
 
     /** Detailed tooltip text. */
-    static String label(Level level) {
+    public static String label(Level level) {
         if (level == null) {
             return "No battery";
         }
@@ -128,7 +128,7 @@ final class BatteryStatus {
      * the colour grades from green to red as the charge drains, so the taskbar
      * gauge reads at a glance without parsing the percentage.
      */
-    static Color color(Level level) {
+    public static Color color(Level level) {
         if (level == null) {
             return ABSENT;
         }

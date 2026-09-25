@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  * indicator hides itself rather than showing garbage — mirroring
  * {@link VolumeStatus} and {@link BatteryStatus}.</p>
  */
-final class BrightnessStatus {
+public final class BrightnessStatus {
 
     /** Base of the Linux backlight sysfs tree. */
     private static final String BACKLIGHT_DIR = "/sys/class/backlight";
@@ -59,7 +59,7 @@ final class BrightnessStatus {
     }
 
     /** A brightness reading: backlight level as a percentage (0-100). */
-    record Level(int percent) {
+    public record Level(int percent) {
     }
 
     /** Clamps a percentage into 0-100. */
@@ -103,7 +103,7 @@ final class BrightnessStatus {
     }
 
     /** Reads the first backlight device's level, or empty when there is none. */
-    static Optional<Level> read() {
+    public static Optional<Level> read() {
         try {
             Optional<Path> device = findDevice();
             if (device.isEmpty()) {
@@ -123,7 +123,7 @@ final class BrightnessStatus {
      * controllable unprivileged (a root-owned sysfs node with no polkit agent),
      * and the desktop falls back to a software dim so the control still works.
      */
-    static boolean isControllable() {
+    public static boolean isControllable() {
         try {
             Optional<Path> device = findDevice();
             return device.isPresent()
@@ -171,7 +171,7 @@ final class BrightnessStatus {
     }
 
     /** Compact taskbar text: {@code "Bri 60%"}, or {@code "Bri --"} when unknown. */
-    static String glyph(Level level) {
+    public static String glyph(Level level) {
         if (level == null) {
             return "Bri --";
         }
@@ -179,7 +179,7 @@ final class BrightnessStatus {
     }
 
     /** Detailed tooltip text. */
-    static String label(Level level) {
+    public static String label(Level level) {
         if (level == null) {
             return "Brightness: unavailable";
         }

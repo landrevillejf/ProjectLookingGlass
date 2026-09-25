@@ -28,24 +28,24 @@ import java.util.Enumeration;
  * {@link State#offline()} when nothing usable is found so the indicator shows a
  * "no network" glyph rather than throwing.</p>
  */
-final class NetworkStatus {
+public final class NetworkStatus {
 
     private NetworkStatus() {
         // no instances
     }
 
     /** The kind of active connection. */
-    enum Kind {
+    public enum Kind {
         ETHERNET,
         WIFI,
         OFFLINE
     }
 
     /** A network reading: whether we are online and over what kind of link. */
-    record State(boolean online, Kind kind) {
+    public record State(boolean online, Kind kind) {
 
         /** The offline singleton. */
-        static State offline() {
+        public static State offline() {
             return new State(false, Kind.OFFLINE);
         }
     }
@@ -75,7 +75,7 @@ final class NetworkStatus {
     }
 
     /** Reads the current link state, or {@link State#offline()} on any error. */
-    static State read() {
+    public static State read() {
         try {
             Enumeration<NetworkInterface> interfaces =
                     NetworkInterface.getNetworkInterfaces();
@@ -99,7 +99,7 @@ final class NetworkStatus {
     }
 
     /** Compact taskbar text: {@code "Net =="} ethernet, {@code "Net ))"} wifi, {@code "Net --"} offline. */
-    static String glyph(State state) {
+    public static String glyph(State state) {
         if (state == null) {
             return "Net --";
         }
@@ -111,7 +111,7 @@ final class NetworkStatus {
     }
 
     /** Detailed tooltip text. */
-    static String label(State state) {
+    public static String label(State state) {
         if (state == null || !state.online()) {
             return "Network: offline";
         }
