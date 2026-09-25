@@ -46,11 +46,11 @@ class BuiltinWidgetCardsTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the catalogue lists the six built-ins in gallery order")
+    @DisplayName("the catalogue lists the seven built-ins in gallery order")
     void catalogueListsTheBuiltins() {
         List<WidgetCardSpec> all = BuiltinWidgetCards.all();
-        assertEquals(6, all.size());
-        assertEquals(List.of("clock", "temperature", "cpu", "memory", "indicators", "weather"),
+        assertEquals(7, all.size());
+        assertEquals(List.of("clock", "calendar", "temperature", "cpu", "memory", "indicators", "weather"),
                 all.stream().map(WidgetCardSpec::id).toList());
     }
 

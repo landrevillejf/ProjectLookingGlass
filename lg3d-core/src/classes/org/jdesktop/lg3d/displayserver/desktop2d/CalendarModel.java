@@ -29,16 +29,18 @@ import java.util.Locale;
  * <p>Every method is deterministic given an injected {@link Clock}, so the grid
  * layout — including leap-year Februaries and 31-day months starting on each
  * weekday — is unit-testable headless. {@link CalendarPopup} is the thin Swing
- * view that renders this model.</p>
+ * view that renders this model on the 2D desktop; the {@code lg3d-widgets}
+ * built-in {@code CalendarCard} is a second, Java 3D-free view of the same model
+ * on the 3D desktop, so the month layout is written exactly once.</p>
  */
-final class CalendarModel {
+public final class CalendarModel {
 
     /** Rows in the rendered grid: six weeks always cover any month. */
-    static final int WEEKS = 6;
+    public static final int WEEKS = 6;
     /** Columns in the grid: the seven ISO days, Monday first. */
-    static final int DAYS = 7;
+    public static final int DAYS = 7;
     /** The value a {@link #weeksOfMonth} cell holds when it is outside the month. */
-    static final int OUT_OF_MONTH = 0;
+    public static final int OUT_OF_MONTH = 0;
 
     private CalendarModel() {
         // no instances
@@ -48,7 +50,7 @@ final class CalendarModel {
      * The date of the grid's first (top-left) cell for {@code month}: the Monday
      * on or before the first of the month, so the grid is ISO Monday-first.
      */
-    static LocalDate firstCellOfMonth(YearMonth month) {
+    public static LocalDate firstCellOfMonth(YearMonth month) {
         LocalDate first = month.atDay(1);
         // DayOfWeek.getValue(): Monday=1 .. Sunday=7; step back to Monday.
         return first.minusDays(first.getDayOfWeek().getValue() - 1L);
@@ -59,7 +61,7 @@ final class CalendarModel {
      * Monday-first, with {@link #OUT_OF_MONTH} (0) in the leading/trailing cells
      * that belong to the neighbouring months. Always exactly six rows.
      */
-    static int[][] weeksOfMonth(YearMonth month) {
+    public static int[][] weeksOfMonth(YearMonth month) {
         int[][] grid = new int[WEEKS][DAYS];
         LocalDate start = firstCellOfMonth(month);
         for (int week = 0; week < WEEKS; week++) {
@@ -77,32 +79,32 @@ final class CalendarModel {
      * The actual date of a grid cell, including the neighbouring-month days the
      * grid pads with. Lets the view resolve any cell to a {@link LocalDate}.
      */
-    static LocalDate cellDate(YearMonth month, int week, int dayOfWeek) {
+    public static LocalDate cellDate(YearMonth month, int week, int dayOfWeek) {
         return firstCellOfMonth(month).plusWeeks(week).plusDays(dayOfWeek);
     }
 
     /** True when {@code date} falls inside {@code month}. */
-    static boolean isInMonth(LocalDate date, YearMonth month) {
+    public static boolean isInMonth(LocalDate date, YearMonth month) {
         return date != null && month != null && YearMonth.from(date).equals(month);
     }
 
     /** True when {@code date} is "today" according to {@code clock}. */
-    static boolean isToday(LocalDate date, Clock clock) {
+    public static boolean isToday(LocalDate date, Clock clock) {
         return date != null && clock != null && date.equals(LocalDate.now(clock));
     }
 
     /** The current month according to {@code clock}. */
-    static YearMonth currentMonth(Clock clock) {
+    public static YearMonth currentMonth(Clock clock) {
         return YearMonth.now(clock);
     }
 
     /** The current date according to {@code clock}. */
-    static LocalDate today(Clock clock) {
+    public static LocalDate today(Clock clock) {
         return LocalDate.now(clock);
     }
 
     /** A human month title, e.g. {@code "March 2026"}. */
-    static String title(YearMonth month) {
+    public static String title(YearMonth month) {
         if (month == null) {
             return "";
         }
@@ -111,7 +113,7 @@ final class CalendarModel {
     }
 
     /** The single-letter weekday headers, Monday-first. */
-    static String[] weekdayHeaders() {
+    public static String[] weekdayHeaders() {
         String[] headers = new String[DAYS];
         for (int i = 0; i < DAYS; i++) {
             headers[i] = DayOfWeek.of(i + 1)

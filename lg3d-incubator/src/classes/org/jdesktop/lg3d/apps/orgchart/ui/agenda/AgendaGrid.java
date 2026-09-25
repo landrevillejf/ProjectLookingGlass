@@ -278,6 +278,22 @@ public class AgendaGrid extends Component3D {
         setCursor(todayIndex(), cursorHour);
     }
 
+    /**
+     * Clears the selection and jumps to the week containing {@code date},
+     * centring that day's column. The 3D calendar widget calls this (through
+     * {@link Agenda3D#jumpToDate}) to open the Agenda at a day the user
+     * double-clicked; a null date is ignored.
+     */
+    public void jumpToDate(LocalDate date) {
+        if (date == null) {
+            return;
+        }
+        this.selected = null;
+        this.weekStart = date.with(DayOfWeek.MONDAY);
+        // DayOfWeek.getValue(): Mon=1..Sun=7 -> column index Mon=0..Sun=6.
+        setCursor(date.getDayOfWeek().getValue() - 1, cursorHour);
+    }
+
     /** Cycles the displayed week by {@code weeks} (negative moves back). */
     public void shiftWeeks(int weeks) {
         this.weekStart = weekStart.plusWeeks(weeks);
