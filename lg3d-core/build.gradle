@@ -152,11 +152,27 @@ dependencies {
     runtimeOnly "org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}:${jogampNatives}"
     runtimeOnly "org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"
 
+    // The 2D desktop's calendar popup (displayserver.desktop2d) marks statutory
+    // holidays and weekends with the bundled jbusinessday library from the
+    // repo-root libs/. Compile-only here: it is placed on the desktop *run*
+    // classpath by the run task's agendaLibs below (together with slf4j, which
+    // jbusinessday touches in a static initializer), mirroring how lg3d-incubator's
+    // Agenda app consumes it. Keeping it off the packaged/api classpath means the
+    // jar is not re-bundled and the calendar degrades gracefully (no holiday tint)
+    // if the library is ever absent at runtime.
+    compileOnly files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
+    compileOnly libs.slf4j.api
+
     // Unit tests for the Java 3D-free parts of the SDK (the 2D desktop's mode
     // resolver, its .lgcfg reader and its application registry). The legacy
     // tests/junit tree is left where it is; it predates this source set.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
+    // Tests classify real holidays/weekends through jbusinessday, so the library
+    // and a silent slf4j provider are on the test classpath (headless, no GUI).
+    testImplementation files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
+    testImplementation libs.slf4j.api
+    testRuntimeOnly libs.slf4j.nop
     testRuntimeOnly libs.junit.platform.launcher
 }
 

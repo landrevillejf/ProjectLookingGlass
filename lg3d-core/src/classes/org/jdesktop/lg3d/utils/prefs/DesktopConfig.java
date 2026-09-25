@@ -49,6 +49,7 @@ public final class DesktopConfig {
     private static final String KEY_AUTO_HIDE = "taskbar.autoHide";
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
+    private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -60,6 +61,15 @@ public final class DesktopConfig {
     public static final int DEFAULT_FONT_SIZE = 12;
     private static final String DEF_FONT_NAME = DEFAULT_FONT_NAME;
     private static final int DEF_FONT_SIZE = DEFAULT_FONT_SIZE;
+    /**
+     * Default holiday region for the calendar: {@code "AUTO"} resolves the
+     * statutory-holiday set from the system {@link java.util.Locale} (Canada ->
+     * Canadian federal, otherwise US federal). Any explicit token overrides it:
+     * {@code "US"}, {@code "CA"} (Canadian federal), {@code "CA:<PROVINCE>"} or
+     * {@code "US:<STATE>"} (e.g. {@code "CA:QUEBEC"}).
+     */
+    public static final String DEFAULT_HOLIDAY_REGION = "AUTO";
+    private static final String DEF_HOLIDAY_REGION = DEFAULT_HOLIDAY_REGION;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -84,6 +94,7 @@ public final class DesktopConfig {
     private boolean autoHide = DEF_AUTO_HIDE;
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
+    private String holidayRegion = DEF_HOLIDAY_REGION;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -117,6 +128,7 @@ public final class DesktopConfig {
         fontName = prefs.get(KEY_FONT_NAME, DEF_FONT_NAME);
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
+        holidayRegion = normalizeRegion(prefs.get(KEY_HOLIDAY_REGION, DEF_HOLIDAY_REGION));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -127,6 +139,7 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_AUTO_HIDE, autoHide);
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
+        prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -143,6 +156,7 @@ public final class DesktopConfig {
         autoHide = DEF_AUTO_HIDE;
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
+        holidayRegion = DEF_HOLIDAY_REGION;
     }
 
     // ------------------------------------------------------------------
@@ -207,6 +221,15 @@ public final class DesktopConfig {
         this.fontSize = clampFontSize(fontSize);
     }
 
+    /** The configured holiday-region token (never null/blank; {@code "AUTO"} by default). */
+    public String getHolidayRegion() {
+        return holidayRegion;
+    }
+
+    public void setHolidayRegion(String holidayRegion) {
+        this.holidayRegion = normalizeRegion(holidayRegion);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -229,5 +252,14 @@ public final class DesktopConfig {
             }
         }
         return Position.BOTTOM;
+    }
+
+    /** Trims/upper-cases a region token; null or blank falls back to {@code AUTO}. */
+    private static String normalizeRegion(String s) {
+        if (s == null) {
+            return DEF_HOLIDAY_REGION;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? DEF_HOLIDAY_REGION : t.toUpperCase(java.util.Locale.ROOT);
     }
 }
