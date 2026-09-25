@@ -83,6 +83,7 @@ public class Desktop2DTaskbar extends JPanel {
     private final Map<Desktop2DWindow, JButton> buttons = new LinkedHashMap<>();
     private final JLabel clock = new JLabel();
     private final Timer clockTimer;
+    private final CalendarPopup calendar;
     private final TaskbarIndicators indicators;
 
     private final JButton startButton;
@@ -148,6 +149,8 @@ public class Desktop2DTaskbar extends JPanel {
                 new NotificationTray(desktop.getNotificationModel());
         rightRow.add(notificationTray.button());
         rightRow.add(clock);
+        // Clicking the clock opens a calendar with a small agenda for today.
+        calendar = new CalendarPopup(clock, desktop.getNotificationModel());
         JButton exit = new JButton("Exit");
         exit.setToolTipText("Leave the 2D desktop");
         exit.addActionListener(e -> desktop.confirmExit());

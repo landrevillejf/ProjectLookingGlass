@@ -10,6 +10,22 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.10.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Calendar popup for the 2D/Swing desktop clock** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — clicking the taskbar clock now
+  opens a calendar above it: a month grid laid out ISO Monday-first with today
+  highlighted and neighbouring-month days padded/dimmed, `«`/`»` buttons to step
+  through the months, and a small "agenda" footer listing the notifications
+  raised today (reusing the desktop's `NotificationModel`), or "No events today".
+  Following the codebase's headless-testable split, the date maths lives in a
+  pure `java.time` `CalendarModel` (`firstCellOfMonth`, the 6×7
+  `weeksOfMonth` grid, `cellDate`, `isToday`/`isInMonth`, the month `title`) that
+  takes an injected `Clock`, apart from the thin Swing `CalendarPopup` view whose
+  clock is injectable and whose agenda filter is a pure static helper — so the
+  grid layout (including leap-year February and every start-weekday) and the
+  popup's month navigation are covered without a display. Covered by headless
+  JUnit 5 tests (`CalendarModelTest`, 10; `CalendarPopupTest`, 6 — 16 tests
+  total).
+
 - **Global keyboard shortcuts for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — a set of desktop-wide key
   bindings that work wherever the desktop frame has the focus: **Ctrl+Alt+D**
@@ -62,6 +78,7 @@ work to make it build and run on a current toolchain.
   I/O) and the popup wiring in `StartMenuSearch`, which reuses the existing
   `Desktop2DStartMenu` item renderer and category-tree builder. Covered by
   headless JUnit 5 tests (`AppSearchTest`, 9; `StartMenuSearchTest`, 6).
+
 
 
 - **About** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — a new *Utilities*
