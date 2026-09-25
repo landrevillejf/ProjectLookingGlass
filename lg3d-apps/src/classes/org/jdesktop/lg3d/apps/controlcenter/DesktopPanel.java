@@ -38,7 +38,8 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
 /**
  * Desktop configuration panel: taskbar thickness, docking position, icon size,
- * the Swing application UI font, and the taskbar auto-hide toggle. Edits are
+ * the Swing application UI font, the taskbar auto-hide toggle, and the calendar's
+ * holiday region. Edits are
  * written to {@link DesktopConfig} (persisted via {@code java.util.prefs}) and
  * applied live by posting a {@link DesktopConfigChangeEvent} - the same bridge
  * pattern {@link AppearancePanel} uses for the wallpaper, so the running taskbar
@@ -71,6 +72,19 @@ public class DesktopPanel implements ControlPanel {
 
     private static final String[] AUTO_HIDE_LABELS = { "Off", "On" };
 
+    // Holiday region for the 2D desktop's calendar popup. "AUTO" resolves from
+    // the system locale; the rest are explicit jbusinessday region tokens
+    // persisted in DesktopConfig (see HolidayCalendar's token grammar).
+    private static final String[] HOLIDAY_REGION_LABELS = {
+        "Automatic (system locale)", "United States (federal)", "Canada (federal)",
+        "Canada \u2013 Quebec", "Canada \u2013 Ontario",
+        "Canada \u2013 British Columbia", "Canada \u2013 Alberta"
+    };
+    private static final String[] HOLIDAY_REGION_VALUES = {
+        "AUTO", "US", "CA", "CA:QUEBEC", "CA:ONTARIO",
+        "CA:BRITISH_COLUMBIA", "CA:ALBERTA"
+    };
+
     private static final String[] FALLBACK_FONTS = {
         "SansSerif", "Serif", "Monospaced", "Dialog"
     };
@@ -83,6 +97,7 @@ public class DesktopPanel implements ControlPanel {
     private final JList<String> fontSizeList = new JList<>(SIZE_LABELS);
     private final JList<String> autoHideList = new JList<>(AUTO_HIDE_LABELS);
     private final JList<String> fontList = new JList<>(fontFamilies());
+    private final JList<String> holidayRegionList = new JList<>(HOLIDAY_REGION_LABELS);
     private final JLabel statusLabel = new JLabel(" ");
 
     public DesktopPanel() {
@@ -93,6 +108,7 @@ public class DesktopPanel implements ControlPanel {
         left.add(listBlock("Taskbar thickness", barList, 4));
         left.add(listBlock("Icon size", iconList, 4));
         left.add(listBlock("Taskbar auto-hide", autoHideList, 2));
+        left.add(listBlock("Calendar holiday region", holidayRegionList, 4));
         left.add(Box.createVerticalGlue());
 
         JPanel right = new JPanel();
@@ -172,6 +188,7 @@ public class DesktopPanel implements ControlPanel {
                 cfg.getPosition() == DesktopConfig.Position.TOP ? 1 : 0);
         selectNearest(fontSizeList, SIZE_VALUES, cfg.getFontSize());
         autoHideList.setSelectedIndex(cfg.isAutoHide() ? 1 : 0);
+        holidayRegionList.setSelectedIndex(regionIndex(cfg.getHolidayRegion()));
         fontList.setSelectedValue(cfg.getFontName(), true);
         if (fontList.getSelectedValue() == null && fontList.getModel().getSize() > 0) {
             fontList.setSelectedIndex(0);
@@ -187,6 +204,7 @@ public class DesktopPanel implements ControlPanel {
                 ? DesktopConfig.Position.TOP : DesktopConfig.Position.BOTTOM);
         cfg.setFontSize(SIZE_VALUES[index(fontSizeList, SIZE_VALUES.length)]);
         cfg.setAutoHide(index(autoHideList, 2) == 1);
+        cfg.setHolidayRegion(HOLIDAY_REGION_VALUES[index(holidayRegionList, HOLIDAY_REGION_VALUES.length)]);
         String family = fontList.getSelectedValue();
         if (family != null) {
             cfg.setFontName(family);
@@ -232,6 +250,18 @@ public class DesktopPanel implements ControlPanel {
     private static int index(JList<String> list, int count) {
         int i = list.getSelectedIndex();
         return (i < 0 || i >= count) ? 0 : i;
+    }
+
+    /** The list row for a stored region token; unknown tokens fall back to row 0 (Automatic). */
+    private static int regionIndex(String token) {
+        if (token != null) {
+            for (int i = 0; i < HOLIDAY_REGION_VALUES.length; i++) {
+                if (HOLIDAY_REGION_VALUES[i].equalsIgnoreCase(token.trim())) {
+                    return i;
+                }
+            }
+        }
+        return 0;
     }
 
     private static void selectNearest(JList<String> list, float[] values, float target) {
