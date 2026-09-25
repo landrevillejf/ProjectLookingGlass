@@ -14,6 +14,7 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import java.awt.Color;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,6 +36,17 @@ final class BatteryStatus {
 
     /** Base of the Linux power-supply sysfs tree. */
     private static final String POWER_SUPPLY_DIR = "/sys/class/power_supply";
+
+    /** Gauge colour while the pack is charging. */
+    private static final Color CHARGING = new Color(0x2E, 0xCC, 0x71);
+    /** Gauge colour for a comfortable charge. */
+    private static final Color HEALTHY = new Color(0x27, 0xAE, 0x60);
+    /** Gauge colour once the charge is getting low. */
+    private static final Color LOW = new Color(0xE6, 0x7E, 0x22);
+    /** Gauge colour for a critically low charge. */
+    private static final Color CRITICAL = new Color(0xC0, 0x39, 0x2B);
+    /** Gauge colour when there is no battery at all. */
+    private static final Color ABSENT = new Color(0x7F, 0x8C, 0x8D);
 
     private BatteryStatus() {
         // no instances
@@ -109,6 +121,27 @@ final class BatteryStatus {
         }
         return "Battery " + level.percent() + "% ("
                 + (level.charging() ? "charging" : "on battery") + ")";
+    }
+
+    /**
+     * The gauge colour for a reading: a charging pack is highlighted, otherwise
+     * the colour grades from green to red as the charge drains, so the taskbar
+     * gauge reads at a glance without parsing the percentage.
+     */
+    static Color color(Level level) {
+        if (level == null) {
+            return ABSENT;
+        }
+        if (level.charging()) {
+            return CHARGING;
+        }
+        if (level.percent() <= 15) {
+            return CRITICAL;
+        }
+        if (level.percent() <= 35) {
+            return LOW;
+        }
+        return HEALTHY;
     }
 
     private static String readFirstLine(Path file) {

@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
 import java.util.Optional;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.junit.jupiter.api.DisplayName;
@@ -88,5 +89,18 @@ class BatteryStatusTest {
         assertEquals("No battery", BatteryStatus.label(null));
         assertEquals("Battery 40% (on battery)", BatteryStatus.label(new Level(40, false)));
         assertEquals("Battery 40% (charging)", BatteryStatus.label(new Level(40, true)));
+    }
+
+    @Test
+    @DisplayName("the gauge colour grades green to red as the charge drains")
+    void colorGradesWithCharge() {
+        assertEquals(new Color(0x7F, 0x8C, 0x8D), BatteryStatus.color(null));
+        assertEquals(new Color(0x2E, 0xCC, 0x71), BatteryStatus.color(new Level(50, true)));
+        assertEquals(new Color(0xC0, 0x39, 0x2B), BatteryStatus.color(new Level(10, false)));
+        assertEquals(new Color(0xC0, 0x39, 0x2B), BatteryStatus.color(new Level(15, false)));
+        assertEquals(new Color(0xE6, 0x7E, 0x22), BatteryStatus.color(new Level(16, false)));
+        assertEquals(new Color(0xE6, 0x7E, 0x22), BatteryStatus.color(new Level(35, false)));
+        assertEquals(new Color(0x27, 0xAE, 0x60), BatteryStatus.color(new Level(36, false)));
+        assertEquals(new Color(0x27, 0xAE, 0x60), BatteryStatus.color(new Level(100, false)));
     }
 }

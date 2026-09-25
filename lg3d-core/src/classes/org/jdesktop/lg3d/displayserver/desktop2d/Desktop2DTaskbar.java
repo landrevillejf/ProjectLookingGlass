@@ -253,6 +253,11 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons.repaint();
     }
 
+    /** The system-indicator cluster (volume, brightness, network, battery). */
+    TaskbarIndicators indicators() {
+        return indicators;
+    }
+
     /** Stops the clock timer; called when the desktop shuts down. */
     public void stop() {
         clockTimer.stop();

@@ -162,6 +162,14 @@ dependencies {
     // if the library is ever absent at runtime.
     compileOnly files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
     compileOnly libs.slf4j.api
+    // The 2D desktop renders its application icons (start menu, window/taskbar
+    // buttons) and its battery/brightness tray gauges with the bundled
+    // IconManager library from the repo-root libs/. Compile-only here: it is
+    // placed on the desktop *run* classpath by the run task's iconManagerLib
+    // below, mirroring jbusinessday, so the jar is not re-bundled into the core
+    // jar and the desktop degrades gracefully (legacy classpath PNGs / plain
+    // text glyphs) if the library is ever absent at runtime.
+    compileOnly files(rootProject.file('libs/IconManager-1.6.0.jar'))
 
     // Unit tests for the Java 3D-free parts of the SDK (the 2D desktop's mode
     // resolver, its .lgcfg reader and its application registry). The legacy
@@ -172,6 +180,9 @@ dependencies {
     // and a silent slf4j provider are on the test classpath (headless, no GUI).
     testImplementation files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
     testImplementation libs.slf4j.api
+    // The icon-resolution and tray-gauge seams build real IconManager icons, so
+    // the library is on the test classpath too (headless, no GUI shown).
+    testImplementation files(rootProject.file('libs/IconManager-1.6.0.jar'))
     testRuntimeOnly libs.slf4j.nop
     testRuntimeOnly libs.junit.platform.launcher
 }
@@ -335,6 +346,13 @@ tasks.register('run', JavaExec) {
             dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
             dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"))
 
+    // The 2D desktop's application icons and tray gauges are drawn with the
+    // bundled IconManager library from the repo-root libs/. It is a compile-only
+    // dependency of lg3d-core and is not packaged into that jar, so it must be
+    // placed on the desktop run classpath explicitly -- otherwise the start menu
+    // and taskbar die with NoClassDefFoundError the first time an icon resolves.
+    def iconManagerLib = files(rootProject.file('libs/IconManager-1.6.0.jar'))
+
     // The Help Center app (lg3d-apps, org.jdesktop.lg3d.apps.help) embeds a
     // JavaHelp (javax.help) JHelp viewer. JavaHelp is a Maven dependency of
     // lg3d-apps, but this run classpath is assembled from packaged jars
@@ -383,7 +401,8 @@ tasks.register('run', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, runtimeResourcesDir, incubatorExtJars,
-              agendaLibs, javaHelpLibs, updateManagerLibs, dbManagerLibs)
+              agendaLibs, javaHelpLibs, updateManagerLibs, dbManagerLibs,
+              iconManagerLib)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -722,6 +741,9 @@ tasks.register('releaseBundle', Zip) {
         from(releaseRuntime)
         from(incubatorExtJars)
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
+        // The bundled IconManager library the 2D desktop draws its application
+        // icons and tray gauges with (compile-only above, so it must ship here).
+        from(rootProject.file('libs/IconManager-1.6.0.jar'))
         // The external swing-ide fat jar (fetched into libs/, not committed; see
         // :fetchSwingIdeJar). Ships at lib/swing-ide.jar, which the release
         // lg3d.sh points -Dswingide.jar at. When it has not been fetched this is
