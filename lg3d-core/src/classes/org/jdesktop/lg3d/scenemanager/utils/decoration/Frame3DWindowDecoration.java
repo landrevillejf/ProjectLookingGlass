@@ -32,7 +32,9 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.shape.RectShadow;
+import org.jdesktop.lg3d.utils.shape.ShaderEffects;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
+import org.jdesktop.lg3d.utils.shape.SoftShadow;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
@@ -122,7 +124,11 @@ public class Frame3DWindowDecoration extends Component3D {
     // Chrome rebuilt / repositioned by relayout() on hosted-window resize.
     private Component3D backdrop;
     private GlassyPanel bodyDeco;
+    // Exactly one of these is non-null: the GPU soft shadow when lg.shaders is
+    // on and its program assembles, else the baked 2006 RectShadow ring. Both
+    // are Shape3D children of backdrop and both resize in place via setSize().
     private RectShadow bodyShadow;
+    private SoftShadow bodySoftShadow;
     private Component3D minimizeButton;
     private Component3D maximizeButton;
     private Component3D closeButton;
@@ -261,14 +267,25 @@ public class Frame3DWindowDecoration extends Component3D {
             frameHeight + DECO_WIDTH * 2,
             BODY_DEPTH,
             bodyApp);
-        bodyShadow = new RectShadow(
-            frameWidth + DECO_WIDTH * 2,
-            frameHeight + DECO_WIDTH * 2,
-            shadowN, shadowE, shadowS, shadowW, shadowI,
-            -BODY_DEPTH,
-            0.2f);
+        float w = frameWidth + DECO_WIDTH * 2;
+        float h = frameHeight + DECO_WIDTH * 2;
+        // Prefer the GPU soft shadow when the shader effects are enabled and the
+        // program assembles; SoftShadow.create returns null otherwise, so fall
+        // back to the baked RectShadow (the default, keeping the desktop
+        // pixel-identical until lg.shaders is turned on and live-verified).
+        bodySoftShadow = ShaderEffects.isEnabled()
+            ? SoftShadow.create(
+                w, h, shadowN, shadowE, shadowS, shadowW, -BODY_DEPTH, 0.2f)
+            : null;
+        if (bodySoftShadow == null) {
+            bodyShadow = new RectShadow(
+                w, h, shadowN, shadowE, shadowS, shadowW, shadowI,
+                -BODY_DEPTH,
+                0.2f);
+        }
         backdrop.addChild(bodyDeco);
-        backdrop.addChild(bodyShadow);
+        backdrop.addChild(
+            bodySoftShadow != null ? bodySoftShadow : bodyShadow);
     }
 
     /** Pins the min/max/close buttons to the top-right of the current size. */
@@ -321,6 +338,9 @@ public class Frame3DWindowDecoration extends Component3D {
         }
         if (bodyShadow != null) {
             bodyShadow.setSize(w, h);
+        }
+        if (bodySoftShadow != null) {
+            bodySoftShadow.setSize(w, h);
         }
         positionButtons();
     }

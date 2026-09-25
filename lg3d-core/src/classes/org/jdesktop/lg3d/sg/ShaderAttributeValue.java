@@ -60,7 +60,13 @@ public class ShaderAttributeValue extends ShaderAttributeObject {
      */
     public ShaderAttributeValue(String attrName, Object value) {
         super(attrName);
-        setValue(value);
+        // The raw jogamp ShaderAttributeValue requires (attrName, value) at
+        // construction, which are only available here - not in createWrapped(),
+        // which the base constructor runs before these args exist. So build the
+        // wrapper here, exactly as SourceCodeShader does.
+        wrapped = instantiate( SceneGraphSetup.getWrapperPackage()+"ShaderAttributeValue",
+                               new Class[] {String.class, Object.class},
+                               new Object[] {attrName, value} );
     }
     
     // Implement abstract getValue method
@@ -74,8 +80,8 @@ public class ShaderAttributeValue extends ShaderAttributeObject {
     }
     
     protected void createWrapped() {
-        //TODO
-        throw new RuntimeException("Not Implemented");
+        // No-op: wrapped is built in the constructor, which has the
+        // (attrName, value) args the raw jogamp object requires.
     }
     
 }

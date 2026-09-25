@@ -211,8 +211,7 @@ public class ShaderAttributeSet extends NodeComponent {
 
 
     public void createWrapped() {
-        // TODO implement
-        throw new RuntimeException("Not Implemented");
+        wrapped = instantiate( SceneGraphSetup.getWrapperPackage()+"ShaderAttributeSet" );
     }
 
 }
