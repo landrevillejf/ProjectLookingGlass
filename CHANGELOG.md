@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
+## [Unreleased] — 1.16.0-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
