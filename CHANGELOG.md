@@ -53,6 +53,30 @@ work to make it build and run on a current toolchain.
   JUnit 5 tests (`CalendarModelTest`, 10; `CalendarPopupTest`, 6 — 16 tests
   total).
 
+- **Holiday and weekend marking in the 2D/Swing desktop calendar** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps` Control Center) — the
+  clock's calendar popup now tints statutory holidays (red) and weekend days
+  (blue) in its month grid, classified by the bundled `jbusinessday` library
+  through a new region-aware `HolidayCalendar` seam (memoised per year, and
+  defensive: a missing `jbusinessday`/slf4j runtime or an unknown region simply
+  leaves the day untinted rather than breaking the calendar). The region defaults
+  to `AUTO` — resolved from the system locale (Canada → Canadian federal,
+  otherwise US federal) — and is user-configurable via a new *Calendar holiday
+  region* list in the Control Center's **Desktop** panel, persisted in
+  `DesktopConfig` (`calendar.holidayRegion`) beside the other desktop settings;
+  explicit tokens cover `US`, `CA`, `CA:<PROVINCE>` (e.g. `CA:QUEBEC`) and
+  `US:<STATE>`. The region-token grammar and the `jbusinessday` calls live in a
+  new shared public `HolidayRegions` helper (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.prefs`) that `HolidayCalendar` delegates to, so the
+  orgchart **Agenda** grid (`lg3d-incubator`) now marks the *same* holidays from
+  the *same* persisted, locale-resolved preference instead of its old
+  US-defaulting `lg.agenda.holidayRegion` system property — which is still
+  honoured as an explicit override and re-read on each redraw, so a Control
+  Center change applies to both surfaces without a restart. `jbusinessday` +
+  slf4j move onto lg3d-core's compile/test classpath (previously
+  run-classpath-only). Covered by headless JUnit 5 tests (`HolidayRegionsTest`,
+  10; `HolidayCalendarTest`, 5).
+
 - **Global keyboard shortcuts for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — a set of desktop-wide key
   bindings that work wherever the desktop frame has the focus: **Ctrl+Alt+D**
@@ -297,6 +321,20 @@ work to make it build and run on a current toolchain.
   git history (files added after the `26e7ee1` import). Comment-only; no
   functional change — `lg3d-core`, `lpm-console` and `update-manager` all still
   compile.
+
+### Fixed
+- **Calendar month navigation in the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the `«`/`»` prev/next-month
+  controls in the clock's calendar popup did nothing on a real click. They were
+  plain `JButton`s nested in a header `JPanel` inside the `JPopupMenu`, but a
+  popup routes mouse events through Swing's `MenuSelectionManager`, which only
+  dispatches real clicks to direct `MenuElement` children — so the button actions
+  never fired and a click merely dismissed the popup. The existing unit tests
+  missed this because they called `next()`/`prev()` directly (and `doClick()`
+  fires programmatically). The controls are now `JMenuItem`s, which a popup does
+  dispatch to; selecting one dismisses the popup, so `next()`/`prev()` re-open it
+  on the next EDT tick to keep it visible at the new month. The null-anchor
+  headless construction path is unchanged.
 
 ## [1.9.0] — 2026-09-24 — Gradle / JDK 21 modernization
 

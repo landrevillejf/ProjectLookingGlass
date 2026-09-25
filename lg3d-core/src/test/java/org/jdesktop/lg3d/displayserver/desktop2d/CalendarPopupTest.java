@@ -15,14 +15,21 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
+import java.awt.Component;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -117,5 +124,54 @@ class CalendarPopupTest {
                 Notification.Kind.INFO, millisOn(TODAY, 9));
         assertTrue(CalendarPopup.agendaFor(List.of(n), null, ZONE).isEmpty());
         assertTrue(CalendarPopup.agendaFor(List.of(n), TODAY, null).isEmpty());
+    }
+
+    @Test
+    @DisplayName("prev/next are menu items whose action navigates the month")
+    void navMenuItemsDriveMonth() {
+        CalendarPopup popup = newPopup();
+        JMenuItem next = findNavItem(popup.menu(), "next");
+        assertNotNull(next, "next is a JMenuItem, which a popup dispatches real clicks to");
+        assertNotNull(findNavItem(popup.menu(), "prev"));
+        // Drive the wired action the way a real selection does (null anchor, so
+        // the re-show is skipped and this stays headless).
+        next.getActionListeners()[0].actionPerformed(null);
+        assertEquals(YearMonth.of(2026, 4), popup.viewMonth());
+        // rebuild() replaces the items, so re-find before each navigation
+        findNavItem(popup.menu(), "prev").getActionListeners()[0].actionPerformed(null);
+        findNavItem(popup.menu(), "prev").getActionListeners()[0].actionPerformed(null);
+        assertEquals(YearMonth.of(2026, 2), popup.viewMonth());
+    }
+
+    @Test
+    @DisplayName("the grid tints a weekend day differently from an ordinary weekday")
+    void gridTintsWeekend() {
+        CalendarPopup popup = newPopup();
+        // menu layout: prev(0), title(1), next(2), separator(3), grid(4), ...
+        JPanel grid = (JPanel) popup.menu().getComponent(4);
+        Color saturday = foregroundOf(grid, "14"); // 2026-03-14 is a Saturday
+        Color weekday = foregroundOf(grid, "17");  // 2026-03-17 is an ordinary Tuesday
+        assertNotNull(saturday);
+        assertNotNull(weekday);
+        assertNotEquals(weekday, saturday,
+                "the weekend day is tinted while an ordinary weekday is not");
+    }
+
+    private static JMenuItem findNavItem(JPopupMenu menu, String name) {
+        for (Component c : menu.getComponents()) {
+            if (c instanceof JMenuItem mi && name.equals(mi.getName())) {
+                return mi;
+            }
+        }
+        return null;
+    }
+
+    private static Color foregroundOf(JPanel grid, String dayText) {
+        for (Component c : grid.getComponents()) {
+            if (c instanceof JLabel l && dayText.equals(l.getText())) {
+                return l.getForeground();
+            }
+        }
+        return null;
     }
 }

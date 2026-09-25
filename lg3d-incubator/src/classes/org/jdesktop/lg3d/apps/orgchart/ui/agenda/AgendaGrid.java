@@ -35,8 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import io.github.landrevillejf.jbusinessday.JBusinessDay;
-import io.github.landrevillejf.jbusinessday.utils.canada.CanadianHolidayUtil;
-import io.github.landrevillejf.jbusinessday.utils.usa.AmericanHolidayUtil;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Geometry;
 import org.jdesktop.lg3d.sg.GeometryArray;
@@ -49,6 +47,7 @@ import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.utils.action.ActionFloat3;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
@@ -88,10 +87,6 @@ public class AgendaGrid extends Component3D {
     static final String[] DAY_NAMES = {
         "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
     };
-
-    /** Holiday calendar region for jbusinessday: "US" or "CA" (federal). */
-    private static final String REGION =
-            System.getProperty("lg.agenda.holidayRegion", "US");
 
     // Power-of-two texture the grid is rasterized into.
     private static final int TW = 1024;
@@ -165,9 +160,14 @@ public class AgendaGrid extends Component3D {
     /** Monday of the displayed week; column d shows weekStart+d. Advanced by the
      *  week/month/year navigation so the user can cycle back and forth. */
     private LocalDate weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
-    /** Per-year federal-holiday cache supplied by the jbusinessday library. */
+    /** Per-year holiday cache supplied by the shared {@link HolidayRegions}
+     *  helper, valid for whichever region {@link #cachedRegion} was built from. */
     private final Map<Integer, List<LocalDate>> holidayCache =
             new HashMap<Integer, List<LocalDate>>();
+    /** The region {@link #holidayCache} currently holds; a preference change
+     *  (Control Center -&gt; Desktop, or {@code -Dlg.agenda.holidayRegion}) is
+     *  picked up on the next redraw by clearing the cache. */
+    private String cachedRegion;
 
     public AgendaGrid(float width, float height) {
         this.width = width;
@@ -370,7 +370,7 @@ public class AgendaGrid extends Component3D {
     }
 
     private boolean isWeekend(int d) {
-        return JBusinessDay.isWeekend(dateFor(d));
+        return HolidayRegions.isWeekend(dateFor(d));
     }
 
     private boolean isHoliday(int d) {
@@ -384,13 +384,30 @@ public class AgendaGrid extends Component3D {
         return JBusinessDay.isBusinessDay(date, holidaysFor(date.getYear()));
     }
 
-    /** Federal holidays for {@code year}, cached, from jbusinessday. */
+    /**
+     * The region token to mark holidays for: an explicit
+     * {@code -Dlg.agenda.holidayRegion} system property wins (back-compat), else
+     * the same persisted, locale-resolved {@link HolidayRegions#configuredRegion()}
+     * the taskbar calendar uses. Resolved per redraw so a Control Center change
+     * applies without restarting the app.
+     */
+    private String currentRegion() {
+        String override = System.getProperty("lg.agenda.holidayRegion");
+        return (override != null && !override.trim().isEmpty())
+                ? HolidayRegions.resolveRegion(override, Locale.getDefault())
+                : HolidayRegions.configuredRegion();
+    }
+
+    /** Holidays for {@code year} in the current region, cached via {@link HolidayRegions}. */
     private List<LocalDate> holidaysFor(int year) {
+        String region = currentRegion();
+        if (!region.equals(cachedRegion)) {
+            holidayCache.clear();
+            cachedRegion = region;
+        }
         List<LocalDate> cached = holidayCache.get(year);
         if (cached == null) {
-            cached = "CA".equalsIgnoreCase(REGION)
-                    ? CanadianHolidayUtil.getCanadianFederalHolidays(year)
-                    : AmericanHolidayUtil.getFederalHolidays(year);
+            cached = HolidayRegions.holidays(region, year);
             holidayCache.put(year, cached);
         }
         return cached;

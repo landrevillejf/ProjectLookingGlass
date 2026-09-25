@@ -14,7 +14,6 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
@@ -26,24 +25,34 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
 /**
  * The calendar/agenda popup behind the 2D taskbar clock: clicking the clock
- * opens a month grid (ISO Monday-first, today highlighted) with prev/next-month
- * buttons, and below it a small "agenda" of the notifications raised today.
+ * opens a month grid (ISO Monday-first, today highlighted, statutory holidays
+ * and weekend days tinted) with prev/next-month controls, and below it a small
+ * "agenda" of the notifications raised today.
  *
- * <p>This is the thin Swing view over the pure {@link CalendarModel}; the clock
- * is injectable so the grid and the agenda can be built headless in tests, and
- * the agenda filter ({@link #agendaFor}) is a pure static helper. The popup is
- * only ever <em>shown</em> on a real display, but constructing and rebuilding it
- * needs none.</p>
+ * <p>This is the thin Swing view over the pure {@link CalendarModel}; holiday and
+ * weekend classification is delegated to {@link HolidayCalendar} (region-aware,
+ * backed by {@code jbusinessday}), and the clock is injectable so the grid and
+ * the agenda can be built headless in tests. The agenda filter
+ * ({@link #agendaFor}) is a pure static helper. The popup is only ever
+ * <em>shown</em> on a real display, but constructing and rebuilding it needs
+ * none.</p>
+ *
+ * <p>The prev/next controls are {@link JMenuItem}s, not {@code JButton}s: a
+ * {@link JPopupMenu} routes mouse events through Swing's {@code
+ * MenuSelectionManager}, which only dispatches real clicks to {@code MenuElement}
+ * children, so a button nested in a header panel is silently swallowed. Selecting
+ * a nav item dismisses the popup, so {@link #next()}/{@link #prev()} re-open it on
+ * the next EDT tick to keep it visible at the new month.</p>
  */
 final class CalendarPopup {
 
@@ -53,6 +62,10 @@ final class CalendarPopup {
     private static final Color PADDED_FOREGROUND = Color.GRAY;
     /** Text drawn on the highlighted today cell. */
     private static final Color TODAY_FOREGROUND = Color.WHITE;
+    /** A statutory holiday's foreground (a muted red, legible on the light popup). */
+    private static final Color HOLIDAY_FOREGROUND = new Color(0xB0, 0x30, 0x30);
+    /** A weekend (Sat/Sun) day's foreground (a muted blue). */
+    private static final Color WEEKEND_FOREGROUND = new Color(0x3A, 0x5A, 0xA0);
 
     private static final String NO_EVENTS_LABEL = "No events today";
     private static final String PREV_TEXT = "\u00AB";
@@ -98,21 +111,44 @@ final class CalendarPopup {
         viewMonth = CalendarModel.currentMonth(clock);
         rebuild();
         if (anchor != null) {
-            int height = menu.getPreferredSize().height;
-            menu.show(anchor, 0, -height);
+            showMenu();
         }
     }
 
-    /** Advances to the next month. */
+    /**
+     * Advances to the next month. Because the prev/next controls are
+     * {@link JMenuItem}s (a {@link JPopupMenu} only routes real clicks to
+     * {@code MenuElement} children), selecting one dismisses the popup, so this
+     * re-opens it on the next EDT tick to keep it visible at the new month.
+     */
     void next() {
         viewMonth = viewMonth.plusMonths(1);
         rebuild();
+        reshow();
     }
 
-    /** Steps back to the previous month. */
+    /** Steps back to the previous month, re-opening the popup as {@link #next()} does. */
     void prev() {
         viewMonth = viewMonth.minusMonths(1);
         rebuild();
+        reshow();
+    }
+
+    /** Positions and shows the popup just above the clock anchor. */
+    private void showMenu() {
+        menu.show(anchor, 0, -menu.getPreferredSize().height);
+    }
+
+    /**
+     * Re-opens the popup after a nav item dismissed it. Deferred to the next EDT
+     * tick so it runs after the menu-selection machinery finishes hiding the
+     * popup; a no-op when there is no anchor (headless construction/tests).
+     */
+    private void reshow() {
+        if (anchor == null) {
+            return;
+        }
+        SwingUtilities.invokeLater(this::showMenu);
     }
 
     /** The month currently rendered. Package-private for tests. */
@@ -128,29 +164,31 @@ final class CalendarPopup {
     /** Rebuilds the popup's contents for {@link #viewMonth}. */
     void rebuild() {
         menu.removeAll();
-        menu.add(buildHeader());
-        menu.add(buildGrid());
+        // Nav controls are direct JMenuItem children, the only components a
+        // JPopupMenu dispatches real clicks to (a JButton nested in a JPanel is
+        // swallowed by the MenuSelectionManager and never fires).
+        JMenuItem prevItem = new JMenuItem(PREV_TEXT);
+        prevItem.setName("prev");
+        prevItem.setHorizontalAlignment(SwingConstants.CENTER);
+        prevItem.addActionListener(e -> prev());
+        JMenuItem nextItem = new JMenuItem(NEXT_TEXT);
+        nextItem.setName("next");
+        nextItem.setHorizontalAlignment(SwingConstants.CENTER);
+        nextItem.addActionListener(e -> next());
+        title.setText(CalendarModel.title(viewMonth));
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+        menu.add(prevItem);
+        menu.add(title);
+        menu.add(nextItem);
+        menu.addSeparator();
+        menu.add(buildGrid(new HolidayCalendar()));
         menu.addSeparator();
         for (JComponent row : buildAgenda()) {
             menu.add(row);
         }
     }
 
-    private JComponent buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        JButton prevButton = new JButton(PREV_TEXT);
-        prevButton.addActionListener(e -> prev());
-        JButton nextButton = new JButton(NEXT_TEXT);
-        nextButton.addActionListener(e -> next());
-        title.setText(CalendarModel.title(viewMonth));
-        title.setHorizontalAlignment(SwingConstants.CENTER);
-        header.add(prevButton, BorderLayout.WEST);
-        header.add(title, BorderLayout.CENTER);
-        header.add(nextButton, BorderLayout.EAST);
-        return header;
-    }
-
-    private JComponent buildGrid() {
+    private JComponent buildGrid(HolidayCalendar holidays) {
         JPanel grid = new JPanel(new GridLayout(0, CalendarModel.DAYS, 2, 2));
         for (String headerText : CalendarModel.weekdayHeaders()) {
             JLabel day = new JLabel(headerText, SwingConstants.CENTER);
@@ -173,6 +211,10 @@ final class CalendarPopup {
                     cell.setForeground(TODAY_FOREGROUND);
                 } else if (padded) {
                     cell.setForeground(PADDED_FOREGROUND);
+                } else if (holidays.isHoliday(date)) {
+                    cell.setForeground(HOLIDAY_FOREGROUND);
+                } else if (holidays.isWeekend(date)) {
+                    cell.setForeground(WEEKEND_FOREGROUND);
                 }
                 grid.add(cell);
             }
