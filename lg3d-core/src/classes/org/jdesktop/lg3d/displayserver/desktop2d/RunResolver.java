@@ -39,10 +39,10 @@ import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.MenuModel;
  * table can be exercised headless and deterministically; the no-argument
  * overload supplies the real {@link Desktop2DAppRegistry#isExternalAvailable}.</p>
  */
-final class RunResolver {
+public final class RunResolver {
 
     /** What a resolved run-dialog entry should do. */
-    enum Type {
+    public enum Type {
         /** Launch a start-menu application (an {@link ItemSpec}). */
         APP,
         /** Run an external command as a child process. */
@@ -56,32 +56,32 @@ final class RunResolver {
      * (for {@link Type#APP}) or {@link #command()} (for {@link Type#COMMAND}) is
      * meaningful; both are null for {@link Type#NOT_FOUND}.
      */
-    record Decision(Type type, ItemSpec item, String command) {
+    public record Decision(Type type, ItemSpec item, String command) {
 
         /** A decision that launches {@code item}. */
-        static Decision app(ItemSpec item) {
+        public static Decision app(ItemSpec item) {
             return new Decision(Type.APP, item, item.getCommand());
         }
 
         /** A decision that runs {@code command} externally. */
-        static Decision command(String command) {
+        public static Decision command(String command) {
             return new Decision(Type.COMMAND, null, command);
         }
 
         /** A decision that matches nothing. */
-        static Decision notFound() {
+        public static Decision notFound() {
             return new Decision(Type.NOT_FOUND, null, null);
         }
 
-        boolean isApp() {
+        public boolean isApp() {
             return type == Type.APP;
         }
 
-        boolean isCommand() {
+        public boolean isCommand() {
             return type == Type.COMMAND;
         }
 
-        boolean isNotFound() {
+        public boolean isNotFound() {
             return type == Type.NOT_FOUND;
         }
     }
@@ -95,7 +95,7 @@ final class RunResolver {
      * ({@link Desktop2DAppRegistry#isExternalAvailable}) to decide whether an
      * external command is runnable.
      */
-    static Decision resolve(String input, MenuModel model) {
+    public static Decision resolve(String input, MenuModel model) {
         return resolve(input, model, Desktop2DAppRegistry::isExternalAvailable);
     }
 
@@ -104,7 +104,7 @@ final class RunResolver {
      * to decide whether an external command's executable is present. The
      * injected predicate keeps the decision table testable without a PATH.
      */
-    static Decision resolve(String input, MenuModel model,
+    public static Decision resolve(String input, MenuModel model,
                             Predicate<String> externalAvailable) {
         if (input == null) {
             return Decision.notFound();

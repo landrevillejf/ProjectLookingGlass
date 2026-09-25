@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
+  (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent
+  "run command" card on the HUD layer that resolves a typed application name or
+  external command and launches it through `AppLaunchAction`; Ctrl+Alt+T opens
+  the first terminal emulator on the PATH. The first Phase-5 feature ported off
+  the taskbar, without touching `GlassyTaskbar`; it is the `Frame3D` counterpart
+  of the 2D desktop's `KeyEventDispatcher` + `RunDialog`. The seams are *not*
+  re-invented: `RunDialogPlugin` reuses the shared `ShortcutMap` binding table,
+  the `RunResolver` decision table and the persisted `RunHistory`/
+  `RunHistoryStore`, so both desktops share one shortcut table, one resolver and
+  one command history (those 2D classes were widened from package-private to
+  `public` *in place* to expose the seam). The dialog itself is the
+  headless-testable pure-Swing `RunDialogPanel` hosted on the HUD by
+  `RunDialog3D` on a `SwingNode`. Because a hosted `SwingNode` only delivers
+  `KeyEvent3D` while it holds pointer-following lg3d focus, the plugin owns one
+  global key listener and, while the card is up, marshals every keystroke onto
+  the EDT straight to `RunDialogPanel.dispatch` instead of relying on AWT focus;
+  a `volatile` showing flag is flipped synchronously on the lg3d thread so a
+  keystroke arriving right after Alt+F2 still routes to the card. The plugin
+  claims only the run-dialog and open-terminal bindings — the snap, show-desktop,
+  window-close and workspace bindings stay with `WindowSnapPlugin` and
+  `WorkspacePlugin`, so the plugins never double-bind. `getPluginRoot()` returns
+  null because the card is parented to the HUD layer (registered after
+  `DesktopHudPlugin` in `glassy.lgcfg` so its `layer()` is live at init). Covered
+  by headless JUnit 5 tests (`RunDialogPanelTest` 17: type/backspace, up/down
+  history recall, submit resolve/not-found/persist, Escape close, ellipsize and
+  dispatch filtering).
 - **Alt+Tab-style window switcher for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.scenemanager.utils.switcher`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Ctrl+Alt+Tab steps forward and

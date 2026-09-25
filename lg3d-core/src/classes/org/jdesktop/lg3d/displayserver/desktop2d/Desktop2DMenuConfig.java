@@ -168,7 +168,7 @@ public final class Desktop2DMenuConfig {
         private final List<ItemSpec> items;
         private final Map<String, GroupSpec> groupsByName;
 
-        MenuModel(List<GroupSpec> groups, List<ItemSpec> items) {
+        public MenuModel(List<GroupSpec> groups, List<ItemSpec> items) {
             this.groups = Collections.unmodifiableList(new ArrayList<>(groups));
             this.items = Collections.unmodifiableList(new ArrayList<>(items));
             Map<String, GroupSpec> byName = new LinkedHashMap<>();
