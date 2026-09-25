@@ -157,13 +157,15 @@
 
   <h2>Taskbar system indicators</h2>
   <p>
-    To the left of the clock sits a small system tray with live volume, network and
-    battery glyphs, each with a detailed tooltip:
+    To the left of the clock sits a small system tray with live volume,
+    brightness, network and battery glyphs, each with a detailed tooltip:
   </p>
   <table>
     <tr><th>Indicator</th><th>Glyph</th><th>Meaning</th></tr>
     <tr><td>Volume</td><td><code>Vol 42%</code> / <code>Vol x</code></td>
         <td>Master volume; <code>x</code> when muted. Click it for a slider.</td></tr>
+    <tr><td>Brightness</td><td><code>Bri 60%</code></td>
+        <td>Screen backlight level. Click it for a slider.</td></tr>
     <tr><td>Network</td>
         <td><code>Net ==</code> / <code>Net ))</code> / <code>Net --</code></td>
         <td>Ethernet / Wi-Fi / offline.</td></tr>
@@ -171,10 +173,10 @@
         <td>Charge level; <code>+</code> while charging.</td></tr>
   </table>
   <p>
-    The readings refresh on their own &mdash; volume every second, network and
-    battery every five seconds. Everything degrades gracefully: with no sound card,
-    no battery, or on a non-Linux host, the corresponding glyph is simply hidden
-    rather than showing nonsense.
+    The readings refresh on their own &mdash; volume every second, brightness,
+    network and battery every five seconds. Everything degrades gracefully: with
+    no sound card, no controllable backlight, no battery, or on a non-Linux host,
+    the corresponding glyph is simply hidden rather than showing nonsense.
   </p>
 
   <h2>The clock and its calendar</h2>

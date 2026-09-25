@@ -29,6 +29,22 @@ work to make it build and run on a current toolchain.
   (`DoNotDisturbTest`, 11; extended `NotificationTrayTest` and
   `Desktop2DContextMenuTest`).
 
+- **Screen-brightness control for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a brightness glyph joins the
+  taskbar's system-indicator cluster, beside the volume control. It renders a
+  compact `Bri 60%` label with a detailed tooltip, and clicking it opens a small
+  slider popup that drives the panel backlight, polled on the existing slow
+  (5 s) indicator timer. Following the codebase's headless-testable split, the
+  scaling/formatting lives in a pure `BrightnessStatus` seam (raw↔percentage
+  maths, the sysfs parse, the glyph/label) over `/sys/class/backlight/*`, apart
+  from the thin Swing `TaskbarIndicators` wiring whose `applyBrightness` takes an
+  already-read value. The write is best-effort — it tries the sysfs node
+  directly and escalates once through `pkexec` only if it is not user-writable —
+  and, as with the volume/battery/network probes, a host with no controllable
+  backlight (a desktop, non-Linux, headless CI) simply hides the glyph rather
+  than showing garbage. Covered by headless JUnit 5 tests
+  (`BrightnessStatusTest`, 8; extended `TaskbarIndicatorsTest`).
+
 - **Help Center coverage for the 2D/Swing desktop features** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.help`) — the JavaHelp user guide now documents the
   desktop conveniences added this cycle. *The 2D and Swing Desktops* topic gains
