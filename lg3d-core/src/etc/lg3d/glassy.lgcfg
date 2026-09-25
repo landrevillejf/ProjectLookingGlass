@@ -73,6 +73,19 @@
   </void>
  </object>
 
+ <!-- Notification toast stack, mounted on the front-most HUD layer above. From
+ lg3d-widgets (widgets.hud). MUST be registered AFTER DesktopHudPlugin so its
+ layer() is live at init. Native 3D counterpart of the 2D desktop's toast layer;
+ getPluginRoot() returns null because the overlay is parented to the HUD layer. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.widgets.hud.ToastOverlayPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">

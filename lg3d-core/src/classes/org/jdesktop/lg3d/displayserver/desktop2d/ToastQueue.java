@@ -31,13 +31,13 @@ import java.util.List;
  * unit-testable headless, and the {@link ToastLayer} drives them from its
  * repaint timer.</p>
  */
-final class ToastQueue {
+public final class ToastQueue {
 
     /** How long a toast stays up before it fades on its own. */
-    static final long DEFAULT_TTL_MILLIS = 4500L;
+    public static final long DEFAULT_TTL_MILLIS = 4500L;
 
     /** The most toasts stacked at once; the oldest is dropped past this. */
-    static final int DEFAULT_MAX_VISIBLE = 4;
+    public static final int DEFAULT_MAX_VISIBLE = 4;
 
     /** One queued toast and the instant it expires. */
     private static final class Entry {
@@ -56,7 +56,7 @@ final class ToastQueue {
     /** Oldest at the head, newest at the tail. */
     private final Deque<Entry> entries = new ArrayDeque<>();
 
-    ToastQueue() {
+    public ToastQueue() {
         this(DEFAULT_TTL_MILLIS, DEFAULT_MAX_VISIBLE);
     }
 
@@ -64,7 +64,7 @@ final class ToastQueue {
      * @param ttlMillis  how long each toast stays up; must be positive
      * @param maxVisible the most toasts stacked at once; must be at least 1
      */
-    ToastQueue(long ttlMillis, int maxVisible) {
+    public ToastQueue(long ttlMillis, int maxVisible) {
         if (ttlMillis <= 0) {
             throw new IllegalArgumentException("ttlMillis must be positive: " + ttlMillis);
         }
@@ -80,7 +80,7 @@ final class ToastQueue {
      * {@code nowMillis}, dropping the oldest if that exceeds the visible cap. A
      * null notification is ignored.
      */
-    void push(Notification notification, long nowMillis) {
+    public void push(Notification notification, long nowMillis) {
         if (notification == null) {
             return;
         }
@@ -95,7 +95,7 @@ final class ToastQueue {
      * first (so index 0 is the most recent, which the layer stacks at the
      * bottom).
      */
-    List<Notification> visible(long nowMillis) {
+    public List<Notification> visible(long nowMillis) {
         entries.removeIf(entry -> entry.expiresAt <= nowMillis);
         List<Notification> result = new ArrayList<>(entries.size());
         for (Entry entry : entries) {
@@ -111,29 +111,29 @@ final class ToastQueue {
      *
      * @return true if a toast was dismissed
      */
-    boolean dismiss(long id) {
+    public boolean dismiss(long id) {
         return entries.removeIf(entry -> entry.notification.id() == id);
     }
 
     /** Dismisses every toast immediately. */
-    void clear() {
+    public void clear() {
         entries.clear();
     }
 
     /** The number of toasts queued, ignoring expiry (peek; does not evict). */
-    int size() {
+    public int size() {
         return entries.size();
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return entries.isEmpty();
     }
 
-    long ttlMillis() {
+    public long ttlMillis() {
         return ttlMillis;
     }
 
-    int maxVisible() {
+    public int maxVisible() {
         return maxVisible;
     }
 }
