@@ -10,6 +10,19 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.10.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Alt+F2 run-command dialog for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — pressing `Alt+F2` opens a
+  lightweight run box that launches a start-menu application by name or runs an
+  external command, with `Enter` to run, `Escape` to close and `Up`/`Down` to
+  recall the last 20 entries (persisted beside the saved session in the user
+  preferences). The decision logic splits into a pure, headless-testable
+  `RunResolver` (exact case-insensitive app-name match → that `ItemSpec`, else an
+  available external command → `Desktop2DAppRegistry.launchExternal`, else "not
+  found") and a `RunHistory` model (add/promote/trim plus a URL-encoded persisted
+  form) behind a `RunHistoryStore` seam (`PrefsRunHistoryStore`); the `RunDialog`
+  itself is a `JPopupMenu`, so the whole widget constructs headless. Covered by
+  headless JUnit 5 tests (`RunResolverTest`, `RunHistoryTest`).
+
 - **Calendar popup for the 2D/Swing desktop clock** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — clicking the taskbar clock now
   opens a calendar above it: a month grid laid out ISO Monday-first with today
@@ -78,6 +91,7 @@ work to make it build and run on a current toolchain.
   I/O) and the popup wiring in `StartMenuSearch`, which reuses the existing
   `Desktop2DStartMenu` item renderer and category-tree builder. Covered by
   headless JUnit 5 tests (`AppSearchTest`, 9; `StartMenuSearchTest`, 6).
+
 
 
 
