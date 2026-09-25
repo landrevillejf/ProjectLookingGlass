@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
@@ -27,30 +28,49 @@ import javax.swing.JPopupMenu;
  * <p>It is the view over a {@link NotificationModel}, registering itself as a
  * listener so the badge tracks the log live. Opening the popup marks everything
  * read (clearing the badge), each entry dismisses that one notification, and
- * "Clear all" empties the log. Only the button is placed in the taskbar; the
- * popup is built fresh each time it opens so it always reflects the current
- * log.</p>
+ * "Clear all" empties the log. The popup also carries the Do Not Disturb
+ * controls (an on/off checkbox and an "for 1 hour" entry) over an optional
+ * {@link DoNotDisturb}; while DND is active the button is prefixed with a
+ * {@code [DND]} marker. Only the button is placed in the taskbar; the popup is
+ * built fresh each time it opens so it always reflects the current log.</p>
  */
 final class NotificationTray {
 
     private final NotificationModel model;
+    private final DoNotDisturb dnd;
     private final JButton button;
     private final JPopupMenu menu;
     /** The model callback, held so {@link #dispose()} removes the same instance. */
     private final Runnable listener;
+    /** The DND callback, held so {@link #dispose()} removes the same instance. */
+    private final Runnable dndListener;
 
     /**
      * @param model the desktop's notification log this tray reflects
      */
     NotificationTray(NotificationModel model) {
+        this(model, null);
+    }
+
+    /**
+     * @param model the desktop's notification log this tray reflects
+     * @param dnd   the desktop's Do Not Disturb state, or null to omit the DND
+     *              controls (e.g. in a log-only tray)
+     */
+    NotificationTray(NotificationModel model, DoNotDisturb dnd) {
         this.model = model;
+        this.dnd = dnd;
         this.button = new JButton();
         this.button.setToolTipText("Desktop notifications");
         this.button.addActionListener(e -> open());
         this.menu = new JPopupMenu();
         this.listener = this::refresh;
+        this.dndListener = this::refresh;
         if (model != null) {
             model.addListener(listener);
+        }
+        if (dnd != null) {
+            dnd.addListener(dndListener);
         }
         refresh();
     }
@@ -62,7 +82,12 @@ final class NotificationTray {
 
     /** Syncs the button's badge to the model's unread count. */
     void refresh() {
-        button.setText(badgeLabel(model == null ? 0 : model.unreadCount()));
+        boolean dndActive = dnd != null && dnd.active(System.currentTimeMillis());
+        int unread = (model == null) ? 0 : model.unreadCount();
+        button.setText(badgeLabel(unread, dndActive));
+        button.setToolTipText(dndActive
+                ? "Desktop notifications (Do Not Disturb on)"
+                : "Desktop notifications");
     }
 
     /** Marks the log read, rebuilds the popup and shows it above the button. */
@@ -86,6 +111,10 @@ final class NotificationTray {
 
     private void rebuildMenu() {
         menu.removeAll();
+        if (dnd != null) {
+            addDndControls();
+            menu.addSeparator();
+        }
         List<Notification> items =
                 (model == null) ? List.of() : model.notifications();
         if (items.isEmpty()) {
@@ -107,6 +136,25 @@ final class NotificationTray {
         menu.add(clear);
     }
 
+    /** Adds the Do Not Disturb on/off checkbox and "for 1 hour" entry. */
+    private void addDndControls() {
+        boolean active = dnd.active(System.currentTimeMillis());
+        JCheckBoxMenuItem toggle = new JCheckBoxMenuItem("Do Not Disturb", active);
+        toggle.addActionListener(e -> {
+            if (dnd.active(System.currentTimeMillis())) {
+                dnd.disable();
+            } else {
+                dnd.enable();
+            }
+        });
+        menu.add(toggle);
+        JMenuItem forHour = new JMenuItem("Do Not Disturb for 1 hour");
+        forHour.setEnabled(!active);
+        forHour.addActionListener(e ->
+                dnd.enableFor(DoNotDisturb.ONE_HOUR_MILLIS, System.currentTimeMillis()));
+        menu.add(forHour);
+    }
+
     private void remove(long id) {
         if (model != null) {
             model.remove(id);
@@ -124,6 +172,9 @@ final class NotificationTray {
         if (model != null) {
             model.removeListener(listener);
         }
+        if (dnd != null) {
+            dnd.removeListener(dndListener);
+        }
     }
 
     /**
@@ -132,6 +183,15 @@ final class NotificationTray {
      */
     static String badgeLabel(int unread) {
         return (unread > 0) ? "Notifications (" + unread + ")" : "Notifications";
+    }
+
+    /**
+     * The button label with an optional {@code [DND]} marker prefix when Do Not
+     * Disturb is active.
+     */
+    static String badgeLabel(int unread, boolean dndActive) {
+        String base = badgeLabel(unread);
+        return dndActive ? "[DND] " + base : base;
     }
 
     /**

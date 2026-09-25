@@ -147,6 +147,7 @@ public class Desktop2D {
     private final Desktop2DMenuConfig.MenuModel menuModel;
     private final WindowCyclerOverlay windowSwitcher;
     private final NotificationModel notifications;
+    private final DoNotDisturb dnd;
     private final ToastLayer toastLayer;
     private final SessionManager sessionManager;
     private final RunHistoryStore runHistoryStore;
@@ -209,6 +210,10 @@ public class Desktop2D {
         // The notification log feeds both the taskbar tray and the toast
         // overlay; build it before the taskbar, which constructs the tray.
         notifications = new NotificationModel();
+        // Do Not Disturb gates the transient toast (never the log). Restored
+        // from the persisted desktop config and written back on every change.
+        dnd = restoreDoNotDisturb();
+        dnd.addListener(this::persistDoNotDisturb);
 
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
@@ -307,6 +312,11 @@ public class Desktop2D {
     /** The desktop's notification log (package-visible for the taskbar tray). */
     NotificationModel getNotificationModel() {
         return notifications;
+    }
+
+    /** The desktop's Do Not Disturb state (package-visible for the taskbar tray). */
+    DoNotDisturb getDoNotDisturb() {
+        return dnd;
     }
 
     /** A conventional look for a conventional desktop; failure is cosmetic. */
@@ -484,6 +494,16 @@ public class Desktop2D {
             openApp(new ItemSpec("Control Center",
                     "java org.jdesktop.lg3d.apps.controlcenter.ControlCenter",
                     "Configure the desktop", null, null));
+        }
+
+        @Override
+        public boolean isDoNotDisturbActive() {
+            return dnd.active(System.currentTimeMillis());
+        }
+
+        @Override
+        public void toggleDoNotDisturb() {
+            dnd.toggle(System.currentTimeMillis());
         }
 
         @Override
@@ -1109,7 +1129,26 @@ public class Desktop2D {
     void raiseNotification(String title, String message,
                            Notification.Kind kind) {
         Notification notification = notifications.add(title, message, kind);
-        toastLayer.show(notification);
+        // The log always records it (so the tray/history stay complete); only
+        // the transient toast is gated by Do Not Disturb.
+        if (!dnd.shouldSuppress(kind, System.currentTimeMillis())) {
+            toastLayer.show(notification);
+        }
+    }
+
+    /** Builds the DND state from the persisted desktop config. */
+    private static DoNotDisturb restoreDoNotDisturb() {
+        DesktopConfig cfg = DesktopConfig.get();
+        return new DoNotDisturb(
+                cfg.isDoNotDisturbEnabled(), cfg.getDoNotDisturbUntil());
+    }
+
+    /** Writes the current DND state back to the persisted desktop config. */
+    private void persistDoNotDisturb() {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setDoNotDisturbEnabled(dnd.isEnabled());
+        cfg.setDoNotDisturbUntil(dnd.untilMillis());
+        cfg.save();
     }
 
     /**

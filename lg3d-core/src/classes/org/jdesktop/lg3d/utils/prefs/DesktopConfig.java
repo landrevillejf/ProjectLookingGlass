@@ -53,6 +53,8 @@ public final class DesktopConfig {
     private static final String KEY_SLIDESHOW_ENABLED = "wallpaper.slideshowEnabled";
     private static final String KEY_SLIDESHOW_INTERVAL = "wallpaper.slideshowIntervalSec";
     private static final String KEY_SLIDESHOW_FOLDER = "wallpaper.slideshowFolder";
+    private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
+    private static final String KEY_DND_UNTIL = "notifications.dndUntil";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -89,6 +91,8 @@ public final class DesktopConfig {
     /** Minimum/maximum slideshow interval, in seconds. */
     public static final int MIN_SLIDESHOW_INTERVAL_SEC = 10;
     public static final int MAX_SLIDESHOW_INTERVAL_SEC = 3600;
+    private static final boolean DEF_DND_ENABLED = false;
+    private static final long DEF_DND_UNTIL = 0L;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -117,6 +121,8 @@ public final class DesktopConfig {
     private boolean slideshowEnabled = DEF_SLIDESHOW_ENABLED;
     private int slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
     private String slideshowFolder = DEF_SLIDESHOW_FOLDER;
+    private boolean dndEnabled = DEF_DND_ENABLED;
+    private long dndUntil = DEF_DND_UNTIL;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -155,6 +161,8 @@ public final class DesktopConfig {
         slideshowIntervalSec = clampSlideshowInterval(
                 prefs.getInt(KEY_SLIDESHOW_INTERVAL, DEF_SLIDESHOW_INTERVAL));
         slideshowFolder = normalizeFolder(prefs.get(KEY_SLIDESHOW_FOLDER, DEF_SLIDESHOW_FOLDER));
+        dndEnabled = prefs.getBoolean(KEY_DND_ENABLED, DEF_DND_ENABLED);
+        dndUntil = prefs.getLong(KEY_DND_UNTIL, DEF_DND_UNTIL);
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -169,6 +177,8 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_SLIDESHOW_ENABLED, slideshowEnabled);
         prefs.putInt(KEY_SLIDESHOW_INTERVAL, slideshowIntervalSec);
         prefs.put(KEY_SLIDESHOW_FOLDER, slideshowFolder);
+        prefs.putBoolean(KEY_DND_ENABLED, dndEnabled);
+        prefs.putLong(KEY_DND_UNTIL, dndUntil);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -189,6 +199,8 @@ public final class DesktopConfig {
         slideshowEnabled = DEF_SLIDESHOW_ENABLED;
         slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
         slideshowFolder = DEF_SLIDESHOW_FOLDER;
+        dndEnabled = DEF_DND_ENABLED;
+        dndUntil = DEF_DND_UNTIL;
     }
 
     // ------------------------------------------------------------------
@@ -290,6 +302,27 @@ public final class DesktopConfig {
 
     public void setSlideshowFolder(String folder) {
         this.slideshowFolder = normalizeFolder(folder);
+    }
+
+    /** Whether Do Not Disturb is switched on (ignoring any deadline). */
+    public boolean isDoNotDisturbEnabled() {
+        return dndEnabled;
+    }
+
+    public void setDoNotDisturbEnabled(boolean dndEnabled) {
+        this.dndEnabled = dndEnabled;
+        if (!dndEnabled) {
+            this.dndUntil = DEF_DND_UNTIL;
+        }
+    }
+
+    /** The absolute epoch millis a timed DND ends, or 0 when indefinite. */
+    public long getDoNotDisturbUntil() {
+        return dndUntil;
+    }
+
+    public void setDoNotDisturbUntil(long dndUntil) {
+        this.dndUntil = Math.max(0L, dndUntil);
     }
 
     // ------------------------------------------------------------------

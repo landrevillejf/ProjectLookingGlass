@@ -146,7 +146,8 @@ public class Desktop2DTaskbar extends JPanel {
         // The notification-area button sits just left of the clock, the way a
         // system tray does; it reflects the desktop's shared notification log.
         NotificationTray notificationTray =
-                new NotificationTray(desktop.getNotificationModel());
+                new NotificationTray(desktop.getNotificationModel(),
+                        desktop.getDoNotDisturb());
         rightRow.add(notificationTray.button());
         rightRow.add(clock);
         // Clicking the clock opens a calendar with a small agenda for today.
