@@ -17,6 +17,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.awt.event.ActionListener;
 import java.net.URL;
 import java.util.List;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -40,6 +41,7 @@ public final class Desktop2DContextMenu {
     static final String FILE_MANAGER = "Open File Manager";
     static final String CHANGE_WALLPAPER = "Change Wallpaper";
     static final String DESKTOP_SETTINGS = "Desktop Settings...";
+    static final String DO_NOT_DISTURB = "Do Not Disturb";
     static final String CASCADE = "Cascade Windows";
     static final String TILE = "Tile Windows";
     static final String MINIMIZE_ALL = "Minimize All Windows";
@@ -66,6 +68,12 @@ public final class Desktop2DContextMenu {
         void changeWallpaper(URL url);
 
         void openDesktopSettings();
+
+        /** True when notification toasts are currently suppressed (Do Not Disturb). */
+        boolean isDoNotDisturbActive();
+
+        /** Flips Do Not Disturb on or off. */
+        void toggleDoNotDisturb();
 
         void cascadeWindows();
 
@@ -109,6 +117,7 @@ public final class Desktop2DContextMenu {
         // Personalisation.
         menu.add(wallpaperMenu(actions, wallpapers));
         menu.add(item(DESKTOP_SETTINGS, e -> actions.openDesktopSettings()));
+        menu.add(dndItem(actions));
         menu.addSeparator();
 
         // Window arrangement (meaningless with no windows open).
@@ -135,6 +144,14 @@ public final class Desktop2DContextMenu {
     private static JMenuItem gated(String label, boolean enabled, ActionListener listener) {
         JMenuItem entry = item(label, listener);
         entry.setEnabled(enabled);
+        return entry;
+    }
+
+    private static JMenuItem dndItem(Actions actions) {
+        JCheckBoxMenuItem entry =
+                new JCheckBoxMenuItem(DO_NOT_DISTURB, actions.isDoNotDisturbActive());
+        entry.setToolTipText("Suppress notification pop-ups (errors still show)");
+        entry.addActionListener(e -> actions.toggleDoNotDisturb());
         return entry;
     }
 

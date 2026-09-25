@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.12.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Do Not Disturb for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a DND switch that suppresses
+  the transient notification toasts without dropping anything from the log: the
+  `NotificationModel` still records every notification (so the tray/history and
+  the calendar agenda stay complete), only the pop-up is gated. `ERROR`
+  notifications always surface, so a genuine failure is never silenced. DND is
+  toggled from the notification-tray popup (an on/off checkbox plus a "for 1
+  hour" entry) or from the desktop right-click context menu, and while active the
+  tray button is prefixed with a `[DND]` marker. The state (on/off and an
+  optional absolute deadline) persists in `DesktopConfig`
+  (`notifications.dndEnabled` / `notifications.dndUntil`) and is restored on
+  startup, where an already-expired deadline comes back off rather than stuck.
+  Following the codebase's headless-testable split, the state machine and the
+  suppression matrix live in a pure `DoNotDisturb` seam that takes the current
+  time rather than reading a clock, apart from the thin `NotificationTray` /
+  `Desktop2DContextMenu` wiring. Covered by headless JUnit 5 tests
+  (`DoNotDisturbTest`, 11; extended `NotificationTrayTest` and
+  `Desktop2DContextMenuTest`).
+
 - **Screen-brightness control for the 2D/Swing desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — a brightness glyph joins the
   taskbar's system-indicator cluster, beside the volume control. It renders a
