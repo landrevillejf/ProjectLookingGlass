@@ -23,6 +23,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -38,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.AbstractAction;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
@@ -47,6 +49,8 @@ import javax.swing.LookAndFeel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JRootPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
@@ -142,6 +146,8 @@ public class Desktop2D {
     private final NotificationModel notifications;
     private final ToastLayer toastLayer;
     private final SessionManager sessionManager;
+    private final RunHistoryStore runHistoryStore;
+    private final RunHistory runHistory;
 
     /** True while {@link #restoreSession()} is relaunching windows, to defer saves. */
     private boolean restoring;
@@ -149,6 +155,7 @@ public class Desktop2D {
     private JPopupMenu startMenu;
     private JPopupMenu documentsMenu;
     private JPopupMenu downloadsMenu;
+    private RunDialog runDialog;
 
     /**
      * Builds the desktop shell. Does not show it; call {@link #start()} (or
@@ -221,6 +228,13 @@ public class Desktop2D {
         // Persistence for the open-window session (which apps were open, and
         // where). Restored in show(), once the desktop pane has its real size.
         sessionManager = new SessionManager();
+
+        // The Alt+F2 run dialog: its command history persists beside the saved
+        // session, and the binding lives on the frame's root pane so the dialog
+        // opens whenever the desktop window has focus.
+        runHistoryStore = new PrefsRunHistoryStore();
+        runHistory = runHistoryStore.load();
+        installRunDialogBinding();
 
         instance = this;
         // Honour any desktop configuration persisted from a previous session
@@ -357,6 +371,62 @@ public class Desktop2D {
 
     private static Path userFolder(String name) {
         return Paths.get(System.getProperty("user.home"), name);
+    }
+
+    // ------------------------------------------------------------------
+    // Alt+F2 run dialog
+    // ------------------------------------------------------------------
+
+    /**
+     * Binds Alt+F2 on the frame's root pane so the run dialog opens whenever the
+     * desktop window has focus. This is a deliberately self-contained binding: if
+     * the global shortcut dispatcher ({@code ShortcutMap}/{@code Shortcuts}) is
+     * present, its {@code run-dialog} action should call {@link #showRunDialog()}
+     * and this root-pane binding be dropped, so Alt+F2 is handled in one place.
+     */
+    private void installRunDialogBinding() {
+        JRootPane root = frame.getRootPane();
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke("alt F2"), "run-dialog");
+        root.getActionMap().put("run-dialog", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showRunDialog();
+            }
+        });
+    }
+
+    /**
+     * Opens the Alt+F2 run dialog (building it on first use), centred over the
+     * desktop. A resolved entry launches a start-menu application or runs an
+     * external command; the dialog records it in the persisted history.
+     */
+    void showRunDialog() {
+        if (runDialog == null) {
+            runDialog = new RunDialog(menuModel, runHistory, runHistoryStore,
+                    new RunDialog.Runner() {
+                        @Override
+                        public void run(RunResolver.Decision decision) {
+                            launchRun(decision);
+                        }
+                    });
+        }
+        runDialog.show(frame.getContentPane());
+    }
+
+    /** Carries out a resolved run-dialog entry via the normal launch path. */
+    private void launchRun(RunResolver.Decision decision) {
+        if (decision == null || decision.isNotFound()) {
+            return;
+        }
+        if (decision.isApp()) {
+            openApp(decision.item());
+        } else if (decision.isCommand()) {
+            // Synthesise an ItemSpec so a raw command reuses openApp's external
+            // launch path, including its success toast and failure dialog.
+            openApp(new ItemSpec(decision.command(), decision.command(),
+                    null, null, null));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -924,6 +994,9 @@ public class Desktop2D {
         windowSwitcher.uninstall();
         toastLayer.uninstall();
         uninstallWidgetLayer();
+        if (runDialog != null) {
+            runDialog.hide();
+        }
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();
