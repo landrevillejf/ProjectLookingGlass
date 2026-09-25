@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased]
+## [1.15.0] — 2026-09-25 — Gradle / JDK 21 modernization
 
 ### Added
 - **Double-click a calendar day to open the Agenda at that date** (`lg3d-core`,
