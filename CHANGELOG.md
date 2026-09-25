@@ -10,6 +10,26 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.12.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Wallpaper slideshow for the 2D/Swing desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps` Appearance panel) —
+  the desktop backdrop can now cycle automatically instead of showing one image.
+  The Control Center's *Appearance* panel gains a **Wallpaper Slideshow** section
+  (a `JList` on/off selector, a `JList` interval from 10 seconds to an hour, and
+  a folder chooser) that drives the running shell through new `Desktop2D`
+  statics; the slideshow cycles the images directly inside the chosen folder, or
+  the wallpapers bundled with the shell when no folder is set. The on/off,
+  interval and folder persist in `DesktopConfig` (`wallpaper.slideshowEnabled`,
+  `wallpaper.slideshowIntervalSec`, `wallpaper.slideshowFolder`) and are restored
+  on start. Following the codebase's headless-testable split, the cycling
+  arithmetic (wraparound next/previous/at, defensive on empty and single-image
+  lists) lives in a pure `WallpaperSlideshow` seam and the folder scan in a
+  static `Desktop2D.scanFolder`, while a `javax.swing.Timer` owned by `Desktop2D`
+  advances the model and calls the existing `setWallpaper(URL)`; the timer starts
+  and stops with the shell. On the 3D desktop the new controls are inert. Covered
+  by headless JUnit 5 tests (`WallpaperSlideshowTest`, `Desktop2DWallpaperScanTest`,
+  `DesktopConfigSlideshowTest`); the Help Center *The 2D and Swing Desktops* topic
+  documents the feature.
+
 - **Help Center coverage for the 2D/Swing desktop features** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.help`) — the JavaHelp user guide now documents the
   desktop conveniences added this cycle. *The 2D and Swing Desktops* topic gains

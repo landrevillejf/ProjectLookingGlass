@@ -50,6 +50,9 @@ public final class DesktopConfig {
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
     private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
+    private static final String KEY_SLIDESHOW_ENABLED = "wallpaper.slideshowEnabled";
+    private static final String KEY_SLIDESHOW_INTERVAL = "wallpaper.slideshowIntervalSec";
+    private static final String KEY_SLIDESHOW_FOLDER = "wallpaper.slideshowFolder";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -70,6 +73,22 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_HOLIDAY_REGION = "AUTO";
     private static final String DEF_HOLIDAY_REGION = DEFAULT_HOLIDAY_REGION;
+    /** Whether the wallpaper slideshow cycles by default (off). */
+    public static final boolean DEFAULT_SLIDESHOW_ENABLED = false;
+    private static final boolean DEF_SLIDESHOW_ENABLED = DEFAULT_SLIDESHOW_ENABLED;
+    /** Default wallpaper-slideshow interval, in seconds (5 minutes). */
+    public static final int DEFAULT_SLIDESHOW_INTERVAL_SEC = 300;
+    private static final int DEF_SLIDESHOW_INTERVAL = DEFAULT_SLIDESHOW_INTERVAL_SEC;
+    /**
+     * Default slideshow source folder: the empty string means the wallpapers
+     * bundled with the shell (the same set the "Change Wallpaper" menu lists),
+     * rather than a directory on disk.
+     */
+    public static final String DEFAULT_SLIDESHOW_FOLDER = "";
+    private static final String DEF_SLIDESHOW_FOLDER = DEFAULT_SLIDESHOW_FOLDER;
+    /** Minimum/maximum slideshow interval, in seconds. */
+    public static final int MIN_SLIDESHOW_INTERVAL_SEC = 10;
+    public static final int MAX_SLIDESHOW_INTERVAL_SEC = 3600;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -95,6 +114,9 @@ public final class DesktopConfig {
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
     private String holidayRegion = DEF_HOLIDAY_REGION;
+    private boolean slideshowEnabled = DEF_SLIDESHOW_ENABLED;
+    private int slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
+    private String slideshowFolder = DEF_SLIDESHOW_FOLDER;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -129,6 +151,10 @@ public final class DesktopConfig {
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
         holidayRegion = normalizeRegion(prefs.get(KEY_HOLIDAY_REGION, DEF_HOLIDAY_REGION));
+        slideshowEnabled = prefs.getBoolean(KEY_SLIDESHOW_ENABLED, DEF_SLIDESHOW_ENABLED);
+        slideshowIntervalSec = clampSlideshowInterval(
+                prefs.getInt(KEY_SLIDESHOW_INTERVAL, DEF_SLIDESHOW_INTERVAL));
+        slideshowFolder = normalizeFolder(prefs.get(KEY_SLIDESHOW_FOLDER, DEF_SLIDESHOW_FOLDER));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -140,6 +166,9 @@ public final class DesktopConfig {
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
         prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
+        prefs.putBoolean(KEY_SLIDESHOW_ENABLED, slideshowEnabled);
+        prefs.putInt(KEY_SLIDESHOW_INTERVAL, slideshowIntervalSec);
+        prefs.put(KEY_SLIDESHOW_FOLDER, slideshowFolder);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -157,6 +186,9 @@ public final class DesktopConfig {
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
         holidayRegion = DEF_HOLIDAY_REGION;
+        slideshowEnabled = DEF_SLIDESHOW_ENABLED;
+        slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
+        slideshowFolder = DEF_SLIDESHOW_FOLDER;
     }
 
     // ------------------------------------------------------------------
@@ -230,6 +262,36 @@ public final class DesktopConfig {
         this.holidayRegion = normalizeRegion(holidayRegion);
     }
 
+    /** True when the wallpaper slideshow cycles rather than showing one image. */
+    public boolean isSlideshowEnabled() {
+        return slideshowEnabled;
+    }
+
+    public void setSlideshowEnabled(boolean slideshowEnabled) {
+        this.slideshowEnabled = slideshowEnabled;
+    }
+
+    /** The slideshow interval, in seconds (clamped to the min/max range). */
+    public int getSlideshowIntervalSec() {
+        return slideshowIntervalSec;
+    }
+
+    public void setSlideshowIntervalSec(int seconds) {
+        this.slideshowIntervalSec = clampSlideshowInterval(seconds);
+    }
+
+    /**
+     * The slideshow source folder: a directory path, or the empty string for the
+     * wallpapers bundled with the shell. Never null.
+     */
+    public String getSlideshowFolder() {
+        return slideshowFolder;
+    }
+
+    public void setSlideshowFolder(String folder) {
+        this.slideshowFolder = normalizeFolder(folder);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -241,6 +303,16 @@ public final class DesktopConfig {
 
     private static int clampFontSize(int v) {
         return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, v));
+    }
+
+    private static int clampSlideshowInterval(int v) {
+        return Math.max(MIN_SLIDESHOW_INTERVAL_SEC,
+                Math.min(MAX_SLIDESHOW_INTERVAL_SEC, v));
+    }
+
+    /** Trims a folder path; null falls back to the empty (bundled) default. */
+    private static String normalizeFolder(String s) {
+        return (s == null) ? DEF_SLIDESHOW_FOLDER : s.trim();
     }
 
     private static Position parsePosition(String s) {
