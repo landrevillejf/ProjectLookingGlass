@@ -24,7 +24,7 @@ import org.jdesktop.lg3d.widgets.api.WidgetProvider;
 
 /**
  * Contributes the widgets bundled with the lg3d-widgets module (clock,
- * temperature, CPU, memory, system indicators and weather) to the
+ * calendar, temperature, CPU, memory, system indicators and weather) to the
  * {@link org.jdesktop.lg3d.widgets.api.WidgetRegistry}.
  *
  * <p>Registered through
@@ -41,6 +41,7 @@ public class BuiltinWidgetProvider implements WidgetProvider {
 
     static {
         WIDGETS.put(ClockWidget.ID, ClockWidget::new);
+        WIDGETS.put(CalendarWidget.ID, CalendarWidget::new);
         WIDGETS.put(TemperatureWidget.ID, TemperatureWidget::new);
         WIDGETS.put(CpuWidget.ID, CpuWidget::new);
         WIDGETS.put(MemoryWidget.ID, MemoryWidget::new);

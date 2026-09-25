@@ -42,15 +42,17 @@ import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
  * cells. A holiday lookup never throws: if {@code jbusinessday} (or its slf4j
  * dependency) is missing at runtime, or a token names an unknown province/state,
  * the day is simply treated as an ordinary day rather than breaking the
- * calendar.</p>
+ * calendar. The {@code lg3d-widgets} built-in {@code CalendarCard} reuses this
+ * same classifier so the 3D desktop marks the identical holidays from the
+ * identical preference.</p>
  */
-final class HolidayCalendar {
+public final class HolidayCalendar {
 
     private final String region;
     private final Map<Integer, List<LocalDate>> cache = new HashMap<>();
 
     /** Uses the region persisted in {@link DesktopConfig}, resolved against the default locale. */
-    HolidayCalendar() {
+    public HolidayCalendar() {
         this(DesktopConfig.get().getHolidayRegion());
     }
 
@@ -70,12 +72,12 @@ final class HolidayCalendar {
     }
 
     /** True when {@code date} is a statutory holiday in this calendar's region. */
-    boolean isHoliday(LocalDate date) {
+    public boolean isHoliday(LocalDate date) {
         return date != null && holidays(date.getYear()).contains(date);
     }
 
     /** True when {@code date} falls on a Saturday or Sunday. */
-    boolean isWeekend(LocalDate date) {
+    public boolean isWeekend(LocalDate date) {
         return HolidayRegions.isWeekend(date);
     }
 

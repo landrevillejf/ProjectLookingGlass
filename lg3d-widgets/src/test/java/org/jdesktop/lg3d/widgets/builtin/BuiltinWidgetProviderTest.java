@@ -33,13 +33,13 @@ import org.junit.jupiter.api.Test;
 class BuiltinWidgetProviderTest {
 
     private static final List<String> IDS =
-            List.of("clock", "temperature", "cpu", "memory", "indicators", "weather");
+            List.of("clock", "calendar", "temperature", "cpu", "memory", "indicators", "weather");
 
     @Test
-    @DisplayName("descriptors() lists the six built-ins in catalogue order")
+    @DisplayName("descriptors() lists the seven built-ins in catalogue order")
     void listsAllBuiltins() {
         List<WidgetDescriptor> out = new BuiltinWidgetProvider().descriptors();
-        assertEquals(6, out.size());
+        assertEquals(7, out.size());
         assertEquals(IDS, out.stream().map(WidgetDescriptor::id).toList());
     }
 

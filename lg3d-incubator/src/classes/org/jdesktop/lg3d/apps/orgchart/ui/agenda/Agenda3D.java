@@ -15,6 +15,7 @@
  */
 package org.jdesktop.lg3d.apps.orgchart.ui.agenda;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
@@ -51,6 +52,11 @@ import org.jogamp.vecmath.Vector3f;
  * calendar, and {@code Today} snaps back to the current week. The grid's title
  * band shows the displayed week's month range and year, so the year is always
  * visible while paging.</p>
+ *
+ * <p>When launched with an ISO-8601 {@code yyyy-MM-dd} argument - as the 3D
+ * calendar widget does when the user double-clicks a day - the grid opens on
+ * that day's week instead of the current one (see {@link #parseInitialDate}).
+ * Launched with no argument (the start menu), it opens on today as before.</p>
  */
 public class Agenda3D extends Frame3D {
 
@@ -76,7 +82,51 @@ public class Agenda3D extends Frame3D {
     private int controlRows = 3;
 
     public static void main(String[] args) {
-        new Agenda3D();
+        Agenda3D agenda = new Agenda3D();
+        LocalDate date = parseInitialDate(args);
+        if (date != null) {
+            agenda.jumpToDate(date);
+        }
+    }
+
+    /**
+     * Opens the Agenda on the week containing {@code date}. Invoked by
+     * {@link #main} when the app was launched with a day to show (the 3D
+     * calendar widget's double-click); a null date is a no-op.
+     */
+    public void jumpToDate(LocalDate date) {
+        if (grid != null && date != null) {
+            grid.jumpToDate(date);
+        }
+    }
+
+    /**
+     * Parses an optional ISO-8601 {@code yyyy-MM-dd} date from the launch args.
+     * {@code AppLaunchAction} delivers a {@code java <main> <date>} command to
+     * {@code main} as a single trailing string, so this scans every arg's
+     * whitespace-delimited tokens and returns the first that parses as a date,
+     * or null. A missing or malformed date never blocks the launch.
+     */
+    static LocalDate parseInitialDate(String[] args) {
+        if (args == null) {
+            return null;
+        }
+        for (String arg : args) {
+            if (arg == null) {
+                continue;
+            }
+            for (String token : arg.trim().split("\\s+")) {
+                if (token.isEmpty()) {
+                    continue;
+                }
+                try {
+                    return LocalDate.parse(token);
+                } catch (RuntimeException ignored) {
+                    // Not a date token; keep scanning the remaining args.
+                }
+            }
+        }
+        return null;
     }
 
     public Agenda3D() {

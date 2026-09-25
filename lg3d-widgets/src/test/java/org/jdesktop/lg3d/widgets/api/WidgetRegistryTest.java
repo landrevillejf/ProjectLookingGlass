@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * singleton that aggregates every {@link WidgetProvider} on the classpath.
  *
  * <p>On the test classpath the registry discovers two providers: the module's
- * own {@code BuiltinWidgetProvider} (the five built-in ids) and this module's
+ * own {@code BuiltinWidgetProvider} (the seven built-in ids) and this module's
  * test-only {@link StubWidgetProvider}, registered through
  * {@code src/test/resources/META-INF/services}. The stub contributes a
  * Java 3D-free widget so {@link WidgetRegistry#create(String)} can be driven
@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 class WidgetRegistryTest {
 
     private static final List<String> BUILTINS =
-            List.of("clock", "temperature", "cpu", "memory", "indicators", "weather");
+            List.of("clock", "calendar", "temperature", "cpu", "memory", "indicators", "weather");
 
     /** Every id the registry is expected to discover on the test classpath. */
     private static final List<String> DISCOVERED =

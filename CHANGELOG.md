@@ -10,6 +10,29 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Calendar widget for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-widgets`,
+  `org.jdesktop.lg3d.widgets.builtin`; `lg3d-incubator` Agenda 3D) — the 2D
+  taskbar clock's calendar popup is now a placeable built-in widget on the 3D
+  desktop (gallery → *Clock*), the counterpart of the 2D `CalendarPopup`. It lays
+  the month out as the same ISO Monday-first grid, highlights today, tints
+  statutory holidays (red) and weekend days (blue), steps between months with the
+  `<` / `>` header arrows or the mouse wheel, and — on a double-click of a day
+  cell — opens the Agenda 3D app navigated to that day's week. It reuses the *same*
+  pure `CalendarModel` grid and `HolidayCalendar` region/holiday classifier the 2D
+  popup uses (both promoted to `public` *in place*, no files moved), so both
+  desktops mark identical days from the identical persisted preference. Like every
+  built-in card it is pure Swing (no Java 3D): the 3D `CalendarWidget` hosts it on
+  a `SwingNode` and wires the double-click to launch
+  `java …agenda.Agenda3D <ISO-date>` in-JVM through the same `AppLaunchAction` the
+  start menu uses (loose coupling — no compile dependency on the incubator app);
+  `Agenda3D.main` parses the optional date and the new `AgendaGrid.jumpToDate`
+  centres that week. Interaction is driven from `mouseClicked` (a hosted
+  `SwingNode` panel reliably receives `MOUSE_CLICKED` with the click count
+  preserved, but not always the `PRESSED`/`RELEASED` pair a `JButton` needs), and
+  the pixel→date / pixel→nav hit-tests are pure statics. Covered by headless
+  JUnit 5 tests (`CalendarCardTest`, 12; the extended catalogue/provider/registry
+  tests now expect seven built-ins).
 - **System-indicator widget for the native 3D desktop** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-widgets`,
   `org.jdesktop.lg3d.widgets.builtin`) — network link, master volume, screen
