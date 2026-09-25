@@ -10,6 +10,21 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.15.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Front-most desktop HUD overlay layer for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.hud`) — foundation for porting the
+  2D/Swing desktop's transient overlay chrome (notification toasts, the Alt+Tab
+  window switcher, the run dialog, the desktop context menu, the window snap
+  preview, the workspace pager and the brightness dim) to the 3D desktop without
+  touching `GlassyTaskbar`. `DesktopHudPlugin` (registered from `glassy.lgcfg`)
+  contributes a screen-sized `DesktopHudLayer` that floats *in front of* every
+  application window: it is lifted toward the eye to `eye.z * 0.4` and its node
+  scale is multiplied by the perspective-compensation factor `r = (eye.z - frontZ)
+  / eye.z`, mirroring `StartMenuModel.compensatedFrontPose`, so it still spans the
+  whole screen at natural size while sorting over a maximized window. Overlays are
+  placed by fractional screen coordinates (like the behind-apps `WidgetLayer`) and
+  z-stacked for concurrent popups; the live layer is reachable in-JVM via
+  `DesktopHudPlugin.layer()`. The pure front-pose, placement and on-screen clamp
+  math is covered by headless JUnit 5 tests (`DesktopHudLayerTest`).
 - **Double-click a calendar day to open the Agenda at that date** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-incubator` Agenda panel) —
   in the 2D/Swing desktop, double-clicking a day cell in the taskbar clock's
