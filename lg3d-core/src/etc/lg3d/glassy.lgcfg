@@ -102,6 +102,21 @@
   </void>
  </object>
 
+ <!-- Edge window snapping for the native 3D desktop: drag a Frame3D so its
+ left/right/top edge reaches the matching screen edge and, on release, it fills
+ that half (or the whole usable area at the top), with a translucent preview quad
+ on the HUD layer above while dragging. From lg3d-core (scenemanager.utils.snap).
+ MUST be registered AFTER DesktopHudPlugin so its layer() is live at init;
+ getPluginRoot() returns null because the preview is parented to the HUD layer. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">
+  <void property="pluginClass">
+   <string>org.jdesktop.lg3d.scenemanager.utils.snap.WindowSnapPlugin</string>
+  </void>
+  <void property="singletonPlugin">
+   <boolean>true</boolean>
+  </void>
+ </object>
+
  <!-- Documents + Downloads folder stacks on the taskbar's right side,
  immediately before Exit. From lg3d-core (scenemanager.utils.taskbar.stack). -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPluginConfig">

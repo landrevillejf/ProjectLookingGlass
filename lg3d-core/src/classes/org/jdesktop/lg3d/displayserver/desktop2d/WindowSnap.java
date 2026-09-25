@@ -28,14 +28,21 @@ import java.awt.Rectangle;
  * mirrors the snap-to-edge behaviour of a conventional desktop window manager,
  * which the MDI {@code JDesktopPane} does not provide on its own.</p>
  *
- * <p>This class is pure AWT geometry with no Swing, painting or Java 3D, so the
+ * <p>Because it is desktop-agnostic, the native 3D desktop reuses the same zone
+ * vocabulary and the same half/maximise target rule through the float
+ * ({@code zoneForRect}/{@code boundsForRect}) overloads below, which work in
+ * world units on a dragged {@code Frame3D}'s bounding rectangle instead of a
+ * pointer in pixels; {@code org.jdesktop.lg3d.scenemanager.utils.snap} is the
+ * 3D glue that feeds them.</p>
+ *
+ * <p>This class is pure geometry with no Swing, painting or Java 3D, so the
  * snap decision is unit-testable headless; {@link SnappingDesktopManager} and
  * {@link SnapPreview} are the thin Swing glue that consume it.</p>
  */
-final class WindowSnap {
+public final class WindowSnap {
 
     /** Which edge of the desktop a dragged window should snap to. */
-    enum Zone {
+    public enum Zone {
         /** Not near an edge: leave the window where the user dropped it. */
         NONE,
         /** Near the left edge: occupy the left half. */
@@ -55,6 +62,72 @@ final class WindowSnap {
 
     private WindowSnap() {
         // no instances
+    }
+
+    /**
+     * The snap zone for a dragged window's bounding rectangle, in any
+     * consistent unit (the 3D desktop passes world units). The rectangle is
+     * given as {@code (left, top, right, bottom)} with {@code top > bottom}
+     * (a y-up space) and the screen the same way; the top edge wins over the
+     * side edges so dragging into the top corner maximises rather than
+     * half-snaps. Returns {@link Zone#NONE} for degenerate inputs or a
+     * rectangle away from every edge.
+     *
+     * @param threshold the edge proximity, in the same unit, that triggers a snap
+     */
+    public static Zone zoneForRect(float left, float top, float right, float bottom,
+            float screenLeft, float screenTop, float screenRight, float screenBottom,
+            float threshold) {
+        if (!(right > left) || !(top > bottom) || threshold <= 0f
+                || !(screenRight > screenLeft) || !(screenTop > screenBottom)) {
+            return Zone.NONE;
+        }
+        if (screenTop - top <= threshold) {
+            return Zone.MAXIMIZE;
+        }
+        if (left - screenLeft <= threshold) {
+            return Zone.LEFT;
+        }
+        if (screenRight - right <= threshold) {
+            return Zone.RIGHT;
+        }
+        return Zone.NONE;
+    }
+
+    /**
+     * The rectangle a window occupies when snapped to {@code zone}, as
+     * {@code {left, top, width, height}} in the same unit and orientation as
+     * {@link #zoneForRect}. The left/right halves split the screen width
+     * exactly; {@code MAXIMIZE} returns the whole screen. Returns null for
+     * {@link Zone#NONE} or a degenerate screen.
+     */
+    public static float[] boundsForRect(Zone zone, float screenLeft, float screenTop,
+            float screenRight, float screenBottom) {
+        if (zone == null || !(screenRight > screenLeft) || !(screenTop > screenBottom)) {
+            return null;
+        }
+        float width = screenRight - screenLeft;
+        float height = screenTop - screenBottom;
+        switch (zone) {
+            case LEFT:
+                return new float[] { screenLeft, screenTop, width * 0.5f, height };
+            case RIGHT:
+                return new float[] { screenLeft + width * 0.5f, screenTop,
+                        width * 0.5f, height };
+            case MAXIMIZE:
+                return new float[] { screenLeft, screenTop, width, height };
+            case NONE:
+            default:
+                return null;
+        }
+    }
+
+    /** The centre {@code {cx, cy}} of a {@link #boundsForRect} result, or null. */
+    public static float[] centreOf(float[] bounds) {
+        if (bounds == null) {
+            return null;
+        }
+        return new float[] { bounds[0] + bounds[2] * 0.5f, bounds[1] - bounds[3] * 0.5f };
     }
 
     /**
