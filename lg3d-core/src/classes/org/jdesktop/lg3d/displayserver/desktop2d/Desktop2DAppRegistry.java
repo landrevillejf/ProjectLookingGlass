@@ -195,6 +195,15 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.games.chess.ChessPanel");
         panels.put("org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D",
                 "org.jdesktop.lg3d.apps.games.solitaire.SolitairePanel");
+        // The Periodic Table (lg3d-incubator) ships a plain Swing reference
+        // panel that renders the element grid without Java 3D, so the one
+        // start-menu descriptor (keyed here on the 3D main class) launches the
+        // panel as an MDI frame in the 2D/Swing desktop while the 3D desktop
+        // keeps building the Frame3D. As with the games, the incubator jar is on
+        // the desktop run classpath so the reflective lookup resolves, and the
+        // panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D",
+                "org.jdesktop.lg3d.apps.periodictable.PeriodicTablePanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

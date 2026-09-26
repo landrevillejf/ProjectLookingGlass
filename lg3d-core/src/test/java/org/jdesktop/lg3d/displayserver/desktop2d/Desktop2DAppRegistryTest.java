@@ -214,6 +214,19 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D"));
     }
 
+    @Test
+    @DisplayName("the Periodic Table 3D app maps to its 2D Swing panel")
+    void periodicTableIsHostedPanel() {
+        // The Periodic Table is pure-3D in the 3D desktop but ships a plain
+        // Swing reference panel (in lg3d-incubator) for the 2D/Swing desktop,
+        // keyed on the 3D main class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D"));
+        assertEquals("org.jdesktop.lg3d.apps.periodictable.PeriodicTablePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------
