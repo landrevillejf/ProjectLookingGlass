@@ -635,6 +635,47 @@ public class Desktop2D {
         }
 
         @Override
+        public boolean canLockScreen() {
+            return SessionPowerStatus.canLock();
+        }
+
+        @Override
+        public boolean canSuspend() {
+            return SessionPowerStatus.canSuspend();
+        }
+
+        @Override
+        public boolean canPowerOff() {
+            return SessionPowerStatus.canPowerOff();
+        }
+
+        @Override
+        public void lockScreen() {
+            SessionPowerStatus.lock();
+        }
+
+        @Override
+        public void suspend() {
+            SessionPowerStatus.suspend();
+        }
+
+        @Override
+        public void reboot() {
+            if (confirmPowerAction("Reboot the machine?\nOpen applications will be closed.",
+                    "Reboot")) {
+                SessionPowerStatus.reboot();
+            }
+        }
+
+        @Override
+        public void shutDown() {
+            if (confirmPowerAction("Shut down the machine?\nOpen applications will be closed.",
+                    "Shut Down")) {
+                SessionPowerStatus.powerOff();
+            }
+        }
+
+        @Override
         public void refresh() {
             desktop.repaint();
         }
@@ -1357,6 +1398,18 @@ public class Desktop2D {
         if (answer == JOptionPane.OK_OPTION) {
             exit();
         }
+    }
+
+    /**
+     * Asks the user to confirm a destructive power action (reboot / shut down),
+     * following the {@link #confirmExit()} pattern.
+     *
+     * @return true when the user chose OK
+     */
+    private boolean confirmPowerAction(String message, String title) {
+        int answer = JOptionPane.showConfirmDialog(frame, message, title,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+        return answer == JOptionPane.OK_OPTION;
     }
 
     /** Stops the taskbar clock, disposes the window and exits the JVM. */

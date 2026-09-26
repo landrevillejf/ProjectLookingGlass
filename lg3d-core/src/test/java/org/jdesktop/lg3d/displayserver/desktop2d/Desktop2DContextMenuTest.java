@@ -59,6 +59,12 @@ class Desktop2DContextMenuTest {
             "Minimize All Windows",
             "Restore All Windows",
             "---",
+            "Lock Screen",
+            "Suspend",
+            "---",
+            "Reboot...",
+            "Shut Down...",
+            "---",
             "Refresh",
             "Exit...");
 
@@ -71,6 +77,9 @@ class Desktop2DContextMenuTest {
         boolean terminalAvailable = true;
         int windowCount = 1;
         boolean dndActive = false;
+        boolean lockAvailable = true;
+        boolean suspendAvailable = true;
+        boolean powerOffAvailable = true;
 
         @Override
         public boolean isTerminalAvailable() {
@@ -127,6 +136,41 @@ class Desktop2DContextMenuTest {
         @Override
         public void restoreAllWindows() {
             calls.add("restoreAllWindows");
+        }
+
+        @Override
+        public boolean canLockScreen() {
+            return lockAvailable;
+        }
+
+        @Override
+        public boolean canSuspend() {
+            return suspendAvailable;
+        }
+
+        @Override
+        public boolean canPowerOff() {
+            return powerOffAvailable;
+        }
+
+        @Override
+        public void lockScreen() {
+            calls.add("lockScreen");
+        }
+
+        @Override
+        public void suspend() {
+            calls.add("suspend");
+        }
+
+        @Override
+        public void reboot() {
+            calls.add("reboot");
+        }
+
+        @Override
+        public void shutDown() {
+            calls.add("shutDown");
         }
 
         @Override
@@ -325,6 +369,10 @@ class Desktop2DContextMenuTest {
         fire(find(menu, "Tile Windows"));
         fire(find(menu, "Minimize All Windows"));
         fire(find(menu, "Restore All Windows"));
+        fire(find(menu, "Lock Screen"));
+        fire(find(menu, "Suspend"));
+        fire(find(menu, "Reboot..."));
+        fire(find(menu, "Shut Down..."));
         fire(find(menu, "Refresh"));
         fire(find(menu, "Exit..."));
 
@@ -337,8 +385,72 @@ class Desktop2DContextMenuTest {
                 "tileWindows",
                 "minimizeAllWindows",
                 "restoreAllWindows",
+                "lockScreen",
+                "suspend",
+                "reboot",
+                "shutDown",
                 "refresh",
                 "exit"), actions.calls);
+    }
+
+    @Test
+    @DisplayName("power entries are omitted when their tools are unavailable")
+    void powerEntriesOmittedWhenUnavailable() {
+        RecordingActions actions = new RecordingActions();
+        actions.lockAvailable = false;
+        actions.suspendAvailable = false;
+        actions.powerOffAvailable = false;
+        JPopupMenu menu = Desktop2DContextMenu.build(actions, List.of());
+
+        for (String label : List.of("Lock Screen", "Suspend", "Reboot...",
+                "Shut Down...")) {
+            assertNull(find(menu, label), label + " must be absent when unavailable");
+        }
+        // With no power entries the arrangement group flows straight into the
+        // session group, exactly as before the power group existed.
+        assertEquals(List.of(
+                "Open Terminal",
+                "Open File Manager",
+                "---",
+                "Change Wallpaper",
+                "Desktop Settings...",
+                "Do Not Disturb",
+                "---",
+                "Cascade Windows",
+                "Tile Windows",
+                "Minimize All Windows",
+                "Restore All Windows",
+                "---",
+                "Refresh",
+                "Exit..."), describe(menu));
+    }
+
+    @Test
+    @DisplayName("lock-only hosts show Lock Screen but no power entries")
+    void lockOnlyMenu() {
+        RecordingActions actions = new RecordingActions();
+        actions.suspendAvailable = false;
+        actions.powerOffAvailable = false;
+        JPopupMenu menu = Desktop2DContextMenu.build(actions, List.of());
+
+        assertNotNull(find(menu, "Lock Screen"));
+        assertNull(find(menu, "Suspend"));
+        assertNull(find(menu, "Reboot..."));
+        assertNull(find(menu, "Shut Down..."));
+    }
+
+    @Test
+    @DisplayName("power-off-only hosts show Reboot/Shut Down but no lock or suspend")
+    void powerOffOnlyMenu() {
+        RecordingActions actions = new RecordingActions();
+        actions.lockAvailable = false;
+        actions.suspendAvailable = false;
+        JPopupMenu menu = Desktop2DContextMenu.build(actions, List.of());
+
+        assertNull(find(menu, "Lock Screen"));
+        assertNull(find(menu, "Suspend"));
+        assertNotNull(find(menu, "Reboot..."));
+        assertNotNull(find(menu, "Shut Down..."));
     }
 
     @Test
