@@ -15,6 +15,7 @@ package org.jdesktop.lg3d.utils.schedule;
 
 import java.net.URL;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
@@ -93,7 +94,7 @@ public final class ScheduleService {
         // The wallpaper and lighting schedules are independent opt-ins: each is
         // applied only when its own toggle is on, so either can run alone.
         if (cfg.isWallpaperScheduleEnabled()) {
-            String targetWallpaper = resolveWallpaper(now, cfg);
+            String targetWallpaper = resolveWallpaper(now, cfg.getWallpaperSchedule());
             if (!targetWallpaper.equals(lastAppliedWallpaper)) {
                 applyWallpaper(targetWallpaper);
                 lastAppliedWallpaper = targetWallpaper;
@@ -105,11 +106,13 @@ public final class ScheduleService {
             // across each transition ramp, so it is applied unconditionally
             // rather than only on a discrete change like the wallpaper. The
             // one-minute tick steps a 30-minute ramp in ~30 small increments,
-            // which reads as a smooth fade without a second timer.
+            // which reads as a smooth fade without a second timer. The lighting
+            // schedule uses its OWN dawn/dusk times, independent of the
+            // wallpaper entries.
             float factor = DayNightCurve.dayFactor(
                     now,
-                    LocalTime.of(cfg.getDaylightHour(), cfg.getDaylightMinute()),
-                    LocalTime.of(cfg.getNightlightHour(), cfg.getNightlightMinute()),
+                    LocalTime.of(cfg.getLightingDawnHour(), cfg.getLightingDawnMinute()),
+                    LocalTime.of(cfg.getLightingDuskHour(), cfg.getLightingDuskMinute()),
                     cfg.getRampMinutes());
             applyDayNight(factor);
             lastLightingFactor = factor;
@@ -143,17 +146,33 @@ public final class ScheduleService {
     }
 
     /**
-     * Returns the wallpaper filename that should be showing at {@code now}:
-     * the daylight wallpaper while the clock is inside the daylight window,
-     * otherwise the nightlight wallpaper. Pure and deterministic (the clock is
-     * injected) so the schedule decision is unit-testable headlessly.
+     * Returns the wallpaper filename that should be showing at {@code now}: the
+     * entry with the latest time at or before {@code now}; before the first
+     * entry of the day it wraps to the last entry (the previous day's). Pure and
+     * deterministic (the clock and the entry list are injected) so the schedule
+     * decision is unit-testable headlessly.
      */
-    static String resolveWallpaper(LocalTime now, DesktopConfig cfg) {
-        LocalTime daylightTime = LocalTime.of(cfg.getDaylightHour(), cfg.getDaylightMinute());
-        LocalTime nightlightTime = LocalTime.of(cfg.getNightlightHour(), cfg.getNightlightMinute());
-        return isTimeBetween(now, daylightTime, nightlightTime)
-                ? cfg.getDaylightWallpaper()
-                : cfg.getNightlightWallpaper();
+    static String resolveWallpaper(LocalTime now, List<ScheduleEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return ScheduleEntry.DEFAULT_WALLPAPER;
+        }
+        int nowMinute = now.getHour() * 60 + now.getMinute();
+        ScheduleEntry active = null;
+        for (ScheduleEntry e : entries) {
+            if (e.minuteOfDay() <= nowMinute
+                    && (active == null || e.minuteOfDay() >= active.minuteOfDay())) {
+                active = e;
+            }
+        }
+        if (active == null) {
+            // Before the first entry of the day: carry the last (previous day's).
+            for (ScheduleEntry e : entries) {
+                if (active == null || e.minuteOfDay() >= active.minuteOfDay()) {
+                    active = e;
+                }
+            }
+        }
+        return active.wallpaper();
     }
 
     /**

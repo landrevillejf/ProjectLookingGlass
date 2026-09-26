@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalTime;
+import java.util.List;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -86,40 +87,43 @@ class ScheduleServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("resolveWallpaper picks the daylight wallpaper inside the daylight window")
-    void resolvesDaylight() {
-        cfg.setDaylightHour(7);
-        cfg.setDaylightMinute(0);
-        cfg.setNightlightHour(20);
-        cfg.setNightlightMinute(0);
-        cfg.setDaylightWallpaper("day.jpg");
-        cfg.setNightlightWallpaper("night.jpg");
-        assertEquals("day.jpg", ScheduleService.resolveWallpaper(LocalTime.of(12, 0), cfg));
+    @DisplayName("resolveWallpaper picks the entry with the latest time at or before now")
+    void resolvesLatestPassedEntry() {
+        List<ScheduleEntry> entries = List.of(
+                new ScheduleEntry(7, 0, "day.jpg"),
+                new ScheduleEntry(13, 30, "noon.jpg"),
+                new ScheduleEntry(20, 0, "night.jpg"));
+        assertEquals("day.jpg", ScheduleService.resolveWallpaper(LocalTime.of(7, 0), entries));
+        assertEquals("day.jpg", ScheduleService.resolveWallpaper(LocalTime.of(12, 0), entries));
+        assertEquals("noon.jpg", ScheduleService.resolveWallpaper(LocalTime.of(13, 30), entries));
+        assertEquals("night.jpg", ScheduleService.resolveWallpaper(LocalTime.of(23, 30), entries));
     }
 
     @Test
-    @DisplayName("resolveWallpaper picks the nightlight wallpaper outside the daylight window")
-    void resolvesNightlight() {
-        cfg.setDaylightHour(7);
-        cfg.setDaylightMinute(0);
-        cfg.setNightlightHour(20);
-        cfg.setNightlightMinute(0);
-        cfg.setDaylightWallpaper("day.jpg");
-        cfg.setNightlightWallpaper("night.jpg");
-        assertEquals("night.jpg", ScheduleService.resolveWallpaper(LocalTime.of(23, 30), cfg));
+    @DisplayName("resolveWallpaper wraps to the last entry before the first entry of the day")
+    void resolvesWrapBeforeFirstEntry() {
+        List<ScheduleEntry> entries = List.of(
+                new ScheduleEntry(7, 0, "day.jpg"),
+                new ScheduleEntry(20, 0, "night.jpg"));
+        // 03:00 is before the first entry: carry the previous day's last (night).
+        assertEquals("night.jpg", ScheduleService.resolveWallpaper(LocalTime.of(3, 0), entries));
     }
 
     @Test
-    @DisplayName("resolveWallpaper honours a daylight window that crosses midnight")
+    @DisplayName("resolveWallpaper honours entries that cross midnight")
     void resolvesAcrossMidnight() {
-        cfg.setDaylightHour(22);
-        cfg.setDaylightMinute(0);
-        cfg.setNightlightHour(6);
-        cfg.setNightlightMinute(0);
-        cfg.setDaylightWallpaper("day.jpg");
-        cfg.setNightlightWallpaper("night.jpg");
-        assertEquals("day.jpg", ScheduleService.resolveWallpaper(LocalTime.of(23, 0), cfg));
-        assertEquals("night.jpg", ScheduleService.resolveWallpaper(LocalTime.of(12, 0), cfg));
+        List<ScheduleEntry> entries = List.of(
+                new ScheduleEntry(6, 0, "day.jpg"),
+                new ScheduleEntry(22, 0, "night.jpg"));
+        assertEquals("night.jpg", ScheduleService.resolveWallpaper(LocalTime.of(23, 0), entries));
+        assertEquals("day.jpg", ScheduleService.resolveWallpaper(LocalTime.of(12, 0), entries));
+    }
+
+    @Test
+    @DisplayName("resolveWallpaper returns the default wallpaper for an empty list")
+    void resolvesEmptyToDefault() {
+        assertEquals(ScheduleEntry.DEFAULT_WALLPAPER,
+                ScheduleService.resolveWallpaper(LocalTime.of(12, 0), List.of()));
     }
 
     // ------------------------------------------------------------------
@@ -195,8 +199,8 @@ class ScheduleServiceTest {
         // left alone; a filename with no classpath resource is logged and skipped.
         cfg.setWallpaperScheduleEnabled(true);
         cfg.setLightingScheduleEnabled(false);
-        cfg.setDaylightWallpaper("no-such-wallpaper-xyz-123.jpg");
-        cfg.setNightlightWallpaper("no-such-wallpaper-xyz-123.jpg");
+        cfg.setWallpaperSchedule(List.of(
+                new ScheduleEntry(0, 0, "no-such-wallpaper-xyz-123.jpg")));
         assertDoesNotThrow(svc::checkNow);
     }
 }
