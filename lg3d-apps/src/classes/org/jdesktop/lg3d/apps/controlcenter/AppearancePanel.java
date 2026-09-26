@@ -260,6 +260,9 @@ public class AppearancePanel implements ControlPanel {
         newTheme.addActionListener(e -> newTheme());
         JButton deleteTheme = new JButton("Delete");
         deleteTheme.addActionListener(e -> deleteTheme());
+        JButton systemLook = new JButton("System Look");
+        systemLook.setToolTipText("Revert to the native platform look and feel (GTK/Synth)");
+        systemLook.addActionListener(e -> useSystemLook());
 
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         row.add(new JLabel("Metal theme:"));
@@ -268,6 +271,7 @@ public class AppearancePanel implements ControlPanel {
         buttons.add(applyTheme);
         buttons.add(newTheme);
         buttons.add(deleteTheme);
+        buttons.add(systemLook);
         row.add(buttons);
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -286,7 +290,9 @@ public class AppearancePanel implements ControlPanel {
         }
         String current = DesktopConfig.get().getMetalTheme();
         if (current == null || current.isBlank()) {
-            themeList.setSelectedIndex(themeSpecs.isEmpty() ? -1 : 0);
+            // No Metal theme is active (the native platform look is showing),
+            // so leave nothing selected rather than implying one is applied.
+            themeList.clearSelection();
         } else {
             themeList.setSelectedValue(current, true);
         }
@@ -306,6 +312,18 @@ public class AppearancePanel implements ControlPanel {
         }
         MetalThemeManager.apply(spec);
         statusLabel.setText("Metal theme applied: " + spec.name());
+    }
+
+    /**
+     * Reverts the 2D desktop to the native platform look-and-feel (GTK/Synth),
+     * undoing any applied Metal theme, and clears the persisted selection so the
+     * next start-up keeps the native look. The list selection is dropped to show
+     * that no Metal theme is active.
+     */
+    private void useSystemLook() {
+        MetalThemeManager.applySystem();
+        themeList.clearSelection();
+        statusLabel.setText("Restored the system look and feel (native GTK/Synth)");
     }
 
     /**

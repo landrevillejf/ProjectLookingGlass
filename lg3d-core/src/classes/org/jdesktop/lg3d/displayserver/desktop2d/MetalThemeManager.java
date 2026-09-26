@@ -117,6 +117,20 @@ public final class MetalThemeManager {
     }
 
     /**
+     * Reverts the 2D desktop to the native platform look-and-feel (GTK/Synth on
+     * Linux) that the shell starts on, undoing any applied Metal theme. Clears
+     * the persisted selection so the next start-up keeps the native look too
+     * ({@link #applyStored()} is then a no-op), and refreshes every open window.
+     * Safe from any thread; the look-and-feel work runs on the EDT.
+     */
+    public static void applySystem() {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setMetalTheme("");
+        cfg.save();
+        onEdt(MetalThemeManager::applySystemLive);
+    }
+
+    /**
      * Re-applies the persisted theme, if one was chosen. Called from the 2D
      * shell's {@code reapplyConfig()}; a no-op while the stored theme name is
      * blank (the default), so the desktop keeps its native look until the user
@@ -209,6 +223,17 @@ public final class MetalThemeManager {
             refreshWindows();
         } catch (Exception e) {
             logger.log(Level.FINE, "Could not apply the Metal theme " + spec.name(), e);
+        }
+    }
+
+    /** Restores the native platform look-and-feel. Must run on the EDT. */
+    private static void applySystemLive() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            appliedName = null;
+            refreshWindows();
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Could not restore the system look and feel", e);
         }
     }
 

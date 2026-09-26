@@ -103,7 +103,10 @@ work to make it build and run on a current toolchain.
   desktop). The manager lists the built-in *Steel* and *Ocean* palettes plus any
   user themes, and offers Apply / New… / Delete: *New…* derives a full palette
   from a name and one accent colour (`JColorChooser`), and *Delete* removes a
-  user theme (built-ins are protected). Because the 2D shell starts on the
+  user theme (built-ins are protected). A *System Look* button reverts the shell
+  to the native platform look-and-feel (GTK/Synth) it started on, clearing the
+  persisted selection so the next start-up keeps the native look too. Because
+  the 2D shell starts on the
   platform look-and-feel (GTK/Synth) and Metal themes only affect Metal,
   applying a theme switches the shell onto Metal with the chosen palette and
   refreshes every open window live. The selection and the encoded custom-theme
