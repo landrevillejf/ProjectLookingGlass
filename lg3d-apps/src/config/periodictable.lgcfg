@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Periodic Table (periodictable, from lg3d-incubator). A
+ reference table of the 118 elements. Native-3D in the 3D desktop
+ (PeriodicTable3D builds the element grid as scene-graph nodes); in the 2D/Swing
+ desktop the same command is hosted as an MDI internal frame from the plain
+ Swing PeriodicTablePanel via Desktop2DAppRegistry.PANEL_APPS. Launched in-JVM
+ via the "java <class>" command; the incubator jar is on the :lg3d-core:run
+ classpath. Discovery only scans config/demo and config/incubator, so, following
+ the Chess 3D / Agenda 3D precedent, this descriptor lives in lg3d-apps/src/config
+ (bundled to config/demo) rather than the incubator's own unscanned src/config.
+ The "Education" menuGroup is declared in lg3d-core/src/etc/lg3d/startmenu.lgcfg
+ (group definition + link from "Main"); without that declaration the item names no
+ known group and Desktop2DMenuConfig would append it to the menu root as an
+ orphan instead of filing it under its category. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D</string>
+  </void>
+  <void property="desc">
+   <string>Reference table of the 118 elements</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///org/jdesktop/lg3d/apps/periodictable/resources/PeriodicTable3D.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Education</string>
+  </void>
+  <void property="name">
+   <string>Periodic Table</string>
+  </void>
+ </object>
+</java>
