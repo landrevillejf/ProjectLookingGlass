@@ -79,6 +79,21 @@ work to make it build and run on a current toolchain.
   applies to newly opened windows on the 3D desktop; the `-Pshaders` dev flag
   still force-enables the whole shader path. Covered by headless JUnit 5 tests
   (`DesktopConfigWindowGlassTest` 3).
+- **Printing and network management in the Control Center, on both desktops**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — two new category panels, registered
+  in every desktop mode so the same management UI is reachable from the 3D
+  desktop and the conventional Swing (2D) desktop. *Printing* lists the CUPS
+  queues (`lpstat -a`), marks the system default and offers Set Default
+  (`lpoptions -d`) and Print Test Page (`lp`); *Network* lists the saved
+  NetworkManager connections with type and active device (`nmcli -t connection
+  show`) and offers Connect / Disconnect (`nmcli connection up/down`). Both are
+  pure Swing over two new platform seams that follow the established
+  probe+pure-parse shape (`PrinterStatus`, `NetworkConnections`: parsing,
+  formatting and command-building are pure and unit-tested; the probes degrade
+  to empty / false on a host without CUPS / NetworkManager rather than
+  throwing). Covered by headless JUnit 5 tests (`PrinterStatusTest` 6,
+  `NetworkConnectionsTest` 6).
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent

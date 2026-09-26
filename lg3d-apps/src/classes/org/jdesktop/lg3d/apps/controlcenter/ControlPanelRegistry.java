@@ -20,20 +20,22 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Discovers the control center's category panels. The five built-in panels
- * (Display, Users, System, Appearance, Desktop) are registered on first access;
- * extra panels can be contributed with {@link #register(ControlPanel)} before
- * the control center window is built.
+ * Discovers the control center's category panels. The seven built-in panels
+ * (Display, Users, System, Appearance, Desktop, Network, Printing) are
+ * registered on first access; extra panels can be contributed with
+ * {@link #register(ControlPanel)} before the control center window is built.
  *
- * <p>All five register in every desktop mode, so the control center shows the
+ * <p>All seven register in every desktop mode, so the control center shows the
  * same categories on the 3D desktop and on the conventional Swing (2D) desktop.
  * The Appearance and Desktop panels drive whichever desktop is running: on the
  * 3D desktop they post events through lg3d's connector (wallpaper textures,
  * taskbar re-layout), and on the 2D desktop they call into
  * {@link org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D} instead, so the
- * same settings take live effect there. Each panel is still built defensively -
- * one that cannot be constructed in this JVM (a missing Java 3D runtime, say)
- * is skipped rather than taking the whole control center with it.</p>
+ * same settings take live effect there. The Network and Printing panels are
+ * pure Swing over platform seams (NetworkManager / CUPS), so they behave
+ * identically in both modes. Each panel is still built defensively - one that
+ * cannot be constructed in this JVM (a missing Java 3D runtime, say) is skipped
+ * rather than taking the whole control center with it.</p>
  */
 public final class ControlPanelRegistry {
 
@@ -62,6 +64,8 @@ public final class ControlPanelRegistry {
             addDefault(SystemInfoPanel::new, "System");
             addDefault(AppearancePanel::new, "Appearance");
             addDefault(DesktopPanel::new, "Desktop");
+            addDefault(NetworkPanel::new, "Network");
+            addDefault(PrintingPanel::new, "Printing");
         }
         return new ArrayList<>(PANELS);
     }
