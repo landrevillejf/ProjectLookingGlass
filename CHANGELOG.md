@@ -27,6 +27,28 @@ work to make it build and run on a current toolchain.
   bundled background collection, with an “Apply Now” shortcut. The pure
   clock-decision logic is covered headlessly; the live wallpaper application is
   verified at runtime.
+- **Daylight/nightlight scene lighting on the schedule** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.schedule`, `scenemanager.utils.globallights`,
+  `displayserver.desktop2d`; `lg3d-apps` control center) — the daylight/nightlight
+  schedule now modulates the desktop's *lighting*, not just its wallpaper. On the
+  native 3D desktop, `StandardGlobalLights` keeps its ambient + key + fill lights
+  reachable and `ALLOW_COLOR_WRITE`-capable so `ScheduleService` can re-tint them
+  live between a daylight palette (the historical rig, so daytime is unchanged)
+  and a dimmer, cooler nightlight palette. On the conventional 2D/Swing desktop —
+  which has no scene graph — a `NightTintOverlay` on the desktop pane's popup layer
+  paints a cool translucent veil over the wallpaper and windows (the taskbar stays
+  crisp). Both are driven by one pure, clock-injected blend factor
+  (`DayNightCurve.dayFactor`) that ramps smoothly across a configurable window
+  centred on each transition and handles a daylight window crossing midnight.
+  A new `schedule.rampMinutes` preference (default 30, 0–180) sets the fade width.
+  The wallpaper and lighting schedules are now **independent on/off toggles**
+  (`schedule.wallpaperEnabled` / `schedule.lightingEnabled`), so either, both or
+  neither can run off the same daylight/nightlight times, and switching lighting
+  off restores neutral daylight. All of it is exposed in the Control Center
+  **Schedule** panel, which also gained a fix for the daylight/nightlight time
+  spinners previously sharing one model. The curve, config clamping, toggle
+  independence and veil painting are covered headlessly; the live 3D light re-tint
+  is verified at runtime.
 - **GPU shader foundation + soft drop shadows for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.utils.shape`; `org.jdesktop.lg3d.sg`) — the
   first increment of the 3D-modernization roadmap: an opt-in GLSL effect library

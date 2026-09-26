@@ -163,6 +163,7 @@ public class Desktop2D {
     private final NotificationModel notifications;
     private final DoNotDisturb dnd;
     private final ToastLayer toastLayer;
+    private final NightTintOverlay nightTint;
     private final SessionManager sessionManager;
     private final RunHistoryStore runHistoryStore;
     private final RunHistory runHistory;
@@ -279,6 +280,12 @@ public class Desktop2D {
         // notifications float above the application windows.
         toastLayer = new ToastLayer(new ToastQueue());
         toastLayer.install(desktop);
+
+        // The day/night veil: a cool translucent wash over the whole desktop,
+        // the 2D counterpart of re-tinting the 3D scene lights. Driven by the
+        // daylight/nightlight schedule; invisible (factor 0) until night falls.
+        nightTint = new NightTintOverlay();
+        nightTint.install(desktop);
 
         // Global keyboard shortcuts (show desktop, snap, terminal, close...),
         // resolved while this frame has the focus.
@@ -1401,6 +1408,30 @@ public class Desktop2D {
             public void run() {
                 d.desktop.setImage(
                         java.awt.Toolkit.getDefaultToolkit().createImage(url));
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            set.run();
+        } else {
+            SwingUtilities.invokeLater(set);
+        }
+    }
+
+    /**
+     * Applies the day/night blend {@code factor} (0 = full daylight, 1 = full
+     * night) to the 2D night veil - the counterpart of re-tinting the 3D scene
+     * lights. A no-op when the 2D desktop is not running. Safe to call from any
+     * thread; the repaint is marshalled onto the EDT.
+     */
+    public static void setNightTint(final float factor) {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return;
+        }
+        Runnable set = new Runnable() {
+            @Override
+            public void run() {
+                d.nightTint.setFactor(factor);
             }
         };
         if (SwingUtilities.isEventDispatchThread()) {

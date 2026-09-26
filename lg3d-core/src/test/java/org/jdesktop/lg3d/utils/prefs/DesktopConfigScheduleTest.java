@@ -41,7 +41,9 @@ class DesktopConfigScheduleTest {
     @DisplayName("the schedule defaults are off, 07:00 daylight, 20:00 night, no wallpapers")
     void defaults() {
         cfg.resetToDefaults();
-        assertFalse(cfg.isScheduleEnabled());
+        assertFalse(cfg.isWallpaperScheduleEnabled());
+        assertFalse(cfg.isLightingScheduleEnabled());
+        assertFalse(cfg.isScheduleEnabled(), "off when both toggles are off");
         assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_HOUR, cfg.getDaylightHour());
         assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_MINUTE, cfg.getDaylightMinute());
         assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_HOUR, cfg.getNightlightHour());
@@ -54,12 +56,21 @@ class DesktopConfigScheduleTest {
     }
 
     @Test
-    @DisplayName("the enable flag round-trips")
+    @DisplayName("the wallpaper and lighting enable flags round-trip independently")
     void enableRoundTrips() {
-        cfg.setScheduleEnabled(true);
-        assertTrue(cfg.isScheduleEnabled());
-        cfg.setScheduleEnabled(false);
-        assertFalse(cfg.isScheduleEnabled());
+        cfg.setWallpaperScheduleEnabled(true);
+        assertTrue(cfg.isWallpaperScheduleEnabled());
+        assertFalse(cfg.isLightingScheduleEnabled(), "lighting is independent of wallpaper");
+        assertTrue(cfg.isScheduleEnabled(), "either toggle makes the schedule active");
+
+        cfg.setLightingScheduleEnabled(true);
+        cfg.setWallpaperScheduleEnabled(false);
+        assertFalse(cfg.isWallpaperScheduleEnabled());
+        assertTrue(cfg.isLightingScheduleEnabled());
+
+        cfg.setLightingScheduleEnabled(false);
+        assertFalse(cfg.isLightingScheduleEnabled());
+        assertFalse(cfg.isScheduleEnabled(), "off only when both toggles are off");
     }
 
     @Test
@@ -121,16 +132,34 @@ class DesktopConfigScheduleTest {
     }
 
     @Test
+    @DisplayName("the transition ramp defaults to 30 and clamps to 0-180 minutes")
+    void rampMinutesClamped() {
+        cfg.resetToDefaults();
+        assertEquals(DesktopConfig.DEFAULT_RAMP_MINUTES, cfg.getRampMinutes());
+        assertEquals(30, DesktopConfig.DEFAULT_RAMP_MINUTES);
+        cfg.setRampMinutes(-10);
+        assertEquals(DesktopConfig.MIN_RAMP_MINUTES, cfg.getRampMinutes());
+        cfg.setRampMinutes(999);
+        assertEquals(DesktopConfig.MAX_RAMP_MINUTES, cfg.getRampMinutes());
+        cfg.setRampMinutes(45);
+        assertEquals(45, cfg.getRampMinutes(), "an in-range value is kept");
+    }
+
+    @Test
     @DisplayName("resetToDefaults restores the schedule fields")
     void resetRestoresSchedule() {
-        cfg.setScheduleEnabled(true);
+        cfg.setWallpaperScheduleEnabled(true);
+        cfg.setLightingScheduleEnabled(true);
         cfg.setDaylightHour(3);
         cfg.setNightlightMinute(15);
         cfg.setDaylightWallpaper("x.jpg");
+        cfg.setRampMinutes(120);
         cfg.resetToDefaults();
-        assertFalse(cfg.isScheduleEnabled());
+        assertFalse(cfg.isWallpaperScheduleEnabled());
+        assertFalse(cfg.isLightingScheduleEnabled());
         assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_HOUR, cfg.getDaylightHour());
         assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_MINUTE, cfg.getNightlightMinute());
         assertEquals("", cfg.getDaylightWallpaper());
+        assertEquals(DesktopConfig.DEFAULT_RAMP_MINUTES, cfg.getRampMinutes());
     }
 }
