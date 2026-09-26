@@ -35,6 +35,7 @@ import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Node;
+import org.jdesktop.lg3d.sg.Switch;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
@@ -42,6 +43,7 @@ import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.jdesktop.lg3d.utils.shape.FrostedGlassPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -79,12 +81,29 @@ public class GlassyTaskbar extends Taskbar {
      *  past the tapered tip of the tilted glass shelf and reads as hanging off
      *  the end of the bar. */
     private static final float RIGHT_GROUP_INSET_BAR_HEIGHTS = 0.25f;
+    /** Frosted-edge band width as a fraction of the quad height. The bar keeps
+     *  square corners (radius 0) and the panel's default band is derived from
+     *  the radius, so the frost would vanish without an explicit band. */
+    private static final float BAR_FROST_BAND_RATIO = 0.25f;
     private static Appearance barApp
 	= new SimpleAppearance(
 	    0.6f, 1.0f, 0.6f, 1.0f,
 	    SimpleAppearance.DISABLE_CULLING);
     
     private GlassyPanel bottomBar;
+    /** Frosted slab top face; built whenever the shader program assembles and
+     *  selected live by {@link #barSwitch}. Resizes in place via
+     *  {@code setSize}, so {@code applyConfig} never rebuilds it (removing a
+     *  live Shape3D child is forbidden). */
+    private FrostedGlassPanel bottomBarFrosted;
+    /** Frosted front-edge strip that gives the slab the classic shelf's
+     *  visible thickness; child of {@link #bottomBarEdgeComp}, {@code null}
+     *  when the shader program cannot assemble. */
+    private FrostedGlassPanel bottomBarFrostedEdge;
+    private Component3D bottomBarEdgeComp;
+    /** Live shelf-style selector: child 0 = {@link #bottomBar} (classic box),
+     *  child 1 = the frosted slab; flipped in place on Apply. */
+    private Switch barSwitch;
     private Component3D bottomBarComp;
     private Container3D appThumbnails;
     private Container3D shortcuts;
@@ -115,16 +134,49 @@ public class GlassyTaskbar extends Taskbar {
         final float height = (toolkit3d.getScreenHeight()!=0f) ? toolkit3d.getScreenHeight() : 100f;
                 
 	setPreferredSize(new Vector3f(width, barHeight, barHeight));
-	bottomBar
-	    = new GlassyPanel(
-		width, 
-		barHeight,
-		barDepth, 
-                barDepth * 0.1f,
-		barApp);
+	// Both shelf styles are built up front and parked in a Switch so a live
+	// Window-glass Apply flips the bar in place: child 0 = the classic glass
+	// box (thickness, bevel, transparency ramp), child 1 = the GPU frosted
+	// slab - a square frosted quad for the top face (the bar's pickable hover
+	// surface) plus a narrow frosted quad rotated into the viewer-facing
+	// front edge for the classic shelf's visible thickness, frost
+	// concentrated at the edges via an explicit band, corners always square
+	// (the rounded-corner preference applies to window decorations only).
+	// FrostedGlassPanel.create returns null when the shader program cannot
+	// assemble, then the Switch stays on the classic box.
+	bottomBar = new GlassyPanel(
+	    width,
+	    barHeight,
+	    barDepth,
+	    barDepth * 0.1f,
+	    barApp);
+	bottomBarFrosted = FrostedGlassPanel.create(width, barHeight, 0.0f, 0.0f,
+	    barHeight * BAR_FROST_BAND_RATIO);
         
 	bottomBarComp = new Component3D();
-	bottomBarComp.addChild(bottomBar);
+	barSwitch = new Switch();
+	barSwitch.setCapability(Switch.ALLOW_SWITCH_WRITE);
+	barSwitch.addChild(bottomBar);
+	if (bottomBarFrosted != null) {
+	    // The slab top face is the bar's pickable hover surface.
+	    bottomBarFrosted.setPickable(true);
+	    bottomBarFrostedEdge = FrostedGlassPanel.create(
+		width, barDepth, 0.0f, 0.0f, barDepth * BAR_FROST_BAND_RATIO);
+	    bottomBarEdgeComp = new Component3D();
+	    if (bottomBarFrostedEdge != null) {
+		bottomBarEdgeComp.addChild(bottomBarFrostedEdge);
+		bottomBarEdgeComp.setRotationAxis(1.0f, 0.0f, 0.0f);
+		bottomBarEdgeComp.setRotationAngle((float) Math.toRadians(90));
+		positionFrostedEdge();
+	    }
+	    // Deterministic back-to-front blending of the two transparent quads.
+	    TransparencyOrderedGroup barGlass = new TransparencyOrderedGroup();
+	    barGlass.addChild(bottomBarFrosted);
+	    barGlass.addChild(bottomBarEdgeComp);
+	    barSwitch.addChild(barGlass);
+	}
+	barSwitch.setWhichChild(frostedBarChild());
+	bottomBarComp.addChild(barSwitch);
 	bottomBarComp.setRotationAxis(1.0f, 0.0f, 0.0f);
 	bottomBarComp.setRotationAngle(shelfRotRadians());
 	bottomBarComp.setTranslation(0.0f, shelfYOffset(), barHeight * SHELF_Z_OFFSET);
@@ -321,6 +373,20 @@ public class GlassyTaskbar extends Taskbar {
         applyConfig(width, height, 200);
     }
 
+    /** Pins the frosted front-edge strip under the front lip of the slab top
+     *  face (bottomBarComp local space; the comp's shelf rotation mirrors it
+     *  automatically for top docking). */
+    private void positionFrostedEdge() {
+        bottomBarEdgeComp.setTranslation(
+            0.0f, -barHeight * 0.5f, -barDepth * 0.5f);
+    }
+
+    /** The Switch index of the shelf style the persisted preference selects. */
+    private int frostedBarChild() {
+        return DesktopConfig.get().isFrostedGlass() && bottomBarFrosted != null
+            ? 1 : 0;
+    }
+
     /**
      * Re-lays-out the bar from the current {@link DesktopConfig}: thickness
      * (barScale), docking edge (position), icon size (iconScale) and the
@@ -334,7 +400,19 @@ public class GlassyTaskbar extends Taskbar {
         Pseudo3DIcon.setIconScale(cfg.getIconScale());
 
         setPreferredSize(new Vector3f(width, barHeight, barHeight));
-        bottomBar.setSize(width, barHeight);
+        if (bottomBar != null) {
+            bottomBar.setSize(width, barHeight);
+        }
+        if (bottomBarFrosted != null) {
+            bottomBarFrosted.setSize(width, barHeight);
+        }
+        if (bottomBarFrostedEdge != null) {
+            bottomBarFrostedEdge.setSize(width, barDepth);
+            positionFrostedEdge();
+        }
+        if (barSwitch != null) {
+            barSwitch.setWhichChild(frostedBarChild());
+        }
         // Mirror the bar tilt and the glass-shelf orientation for the docking
         // edge in use, so a top-docked bar is the vertical reflection of the
         // bottom one instead of leaning the same (wrong-looking) way.

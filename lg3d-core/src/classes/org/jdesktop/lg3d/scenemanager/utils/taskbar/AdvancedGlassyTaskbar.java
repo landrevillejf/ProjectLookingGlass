@@ -42,12 +42,15 @@ import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.BoundingBox;
 import org.jdesktop.lg3d.sg.Node;
+import org.jdesktop.lg3d.sg.Switch;
+import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.jdesktop.lg3d.utils.shape.FrostedGlassPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -69,6 +72,10 @@ public class AdvancedGlassyTaskbar extends Taskbar {
     private float barZ = -0.04f;
     private static float thumbnailZ = -0.023f;
     private static float iconSpacing = 0.0025f;
+    /** Frosted-edge band width as a fraction of the quad height. The bar keeps
+     *  square corners (radius 0) and the panel's default band is derived from
+     *  the radius, so the frost would vanish without an explicit band. */
+    private static final float BAR_FROST_BAND_RATIO = 0.25f;
     private static Appearance barApp
 	= new SimpleAppearance(
 	    0.6f, 1.0f, 0.6f, 1.0f,
@@ -110,25 +117,68 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         //barZ = barZ*(float)eye.z/0.46f; // 0.46 default eye Z distance
         //barHeight = barHeight*(float)eye.z/0.46f; this doesn't work
         tskbar.cont.setPreferredSize(new Vector3f(width, barHeight, barHeight));
-        tskbar.bottomBar
-	    = new GlassyPanel(
-		width - 0.02f, 
-		barHeight,
-		barDepth, 
+        // Both shelf styles are built up front and parked in a Switch so a
+        // live Window-glass Apply flips the bar in place: child 0 = the
+        // classic glass box (thickness, bevel, transparency ramp), child 1 =
+        // the GPU frosted slab - a square frosted quad for the top face (the
+        // bar's pickable hover surface) plus a narrow frosted quad rotated
+        // into the viewer-facing front edge for the classic shelf's visible
+        // thickness, frost concentrated at the edges via an explicit band,
+        // corners always square (the rounded-corner preference applies to
+        // window decorations only).
+        tskbar.bottomBar = new GlassyPanel(
+                width - 0.02f,
+                barHeight,
+                barDepth,
                 barDepth * 0.1f,
-		barApp);
-        
-        // Move the bounds of the bottomBar back so that the transparency sorting
-        // in Java 3D renders it first and the icons second.
+                barApp);
+        // Move the bounds of the bottomBar back so that the transparency
+        // sorting in Java 3D renders it first and the icons second.
         // This also requires a bug fix which is in Java 3D 1.3.2
         tskbar.bottomBar.setBoundsAutoCompute(false);
-        tskbar.bottomBar.setBounds(
-                new BoundingBox(
-                    new Point3f(-0.5f * width, -0.5f * barHeight, -0.5f), 
-                    new Point3f( 0.5f * width,  0.5f * barHeight,  0.0f)));
+        tskbar.bottomBar.setBounds(new BoundingBox(
+                new Point3f(-0.5f * width, -0.5f * barHeight, -0.5f), 
+                new Point3f( 0.5f * width,  0.5f * barHeight,  0.0f)));
+        tskbar.bottomBarFrosted = FrostedGlassPanel.create(
+                width - 0.02f, barHeight, 0.0f, 0.0f,
+                barHeight * BAR_FROST_BAND_RATIO);
 
 	Component3D bottomBarComp = new Component3D();
-	bottomBarComp.addChild(tskbar.bottomBar);
+        tskbar.barSwitch = new Switch();
+        tskbar.barSwitch.setCapability(Switch.ALLOW_SWITCH_WRITE);
+        tskbar.barSwitch.addChild(tskbar.bottomBar);
+        if (tskbar.bottomBarFrosted != null) {
+            // The slab top face is the bar's pickable hover surface.
+            tskbar.bottomBarFrosted.setPickable(true);
+            // Move the bounds of the bar back so that the transparency sorting
+            // in Java 3D renders it first and the icons second.
+            // This also requires a bug fix which is in Java 3D 1.3.2
+            BoundingBox barBounds = new BoundingBox(
+                    new Point3f(-0.5f * width, -0.5f * barHeight, -0.5f), 
+                    new Point3f( 0.5f * width,  0.5f * barHeight,  0.0f));
+            tskbar.bottomBarFrosted.setBoundsAutoCompute(false);
+            tskbar.bottomBarFrosted.setBounds(barBounds);
+            tskbar.bottomBarFrostedEdge = FrostedGlassPanel.create(
+                    width - 0.02f, barDepth, 0.0f, 0.0f,
+                    barDepth * BAR_FROST_BAND_RATIO);
+            tskbar.bottomBarEdgeComp = new Component3D();
+            if (tskbar.bottomBarFrostedEdge != null) {
+                tskbar.bottomBarEdgeComp.addChild(tskbar.bottomBarFrostedEdge);
+                tskbar.bottomBarEdgeComp.setRotationAxis(1.0f, 0.0f, 0.0f);
+                tskbar.bottomBarEdgeComp.setRotationAngle(
+                        (float) Math.toRadians(90));
+                tskbar.bottomBarEdgeComp.setTranslation(
+                        0.0f, -barHeight * 0.5f, -barDepth * 0.5f);
+            }
+            // Deterministic back-to-front blending of the two transparent
+            // quads.
+            TransparencyOrderedGroup barGlass = new TransparencyOrderedGroup();
+            barGlass.addChild(tskbar.bottomBarFrosted);
+            barGlass.addChild(tskbar.bottomBarEdgeComp);
+            tskbar.barSwitch.addChild(barGlass);
+        }
+        tskbar.barSwitch.setWhichChild(frostedBarChild(tskbar));
+        bottomBarComp.addChild(tskbar.barSwitch);
 	bottomBarComp.setRotationAxis(1.0f, 0.0f, 0.0f);
 	bottomBarComp.setRotationAngle((float)Math.toRadians(-90));
 	bottomBarComp.setTranslation(0.0f, barHeight * -0.51f, barHeight * -0.3f);
@@ -473,7 +523,20 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         Pseudo3DIcon.setIconScale(cfg.getIconScale());
         for (TasbarInstance taskbar : taskbarInstList) {
             taskbar.cont.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
-            taskbar.bottomBar.setSize(width - 0.02f, barHeight);
+            if (taskbar.bottomBar != null) {
+                taskbar.bottomBar.setSize(width - 0.02f, barHeight);
+            }
+            if (taskbar.bottomBarFrosted != null) {
+                taskbar.bottomBarFrosted.setSize(width - 0.02f, barHeight);
+            }
+            if (taskbar.bottomBarFrostedEdge != null) {
+                taskbar.bottomBarFrostedEdge.setSize(width - 0.02f, barDepth);
+                taskbar.bottomBarEdgeComp.setTranslation(
+                        0.0f, -barHeight * 0.5f, -barDepth * 0.5f);
+            }
+            if (taskbar.barSwitch != null) {
+                taskbar.barSwitch.setWhichChild(frostedBarChild(taskbar));
+            }
             taskbar.cont.changeTranslation(0.0f, dockedY(height), 0.0f, animMs);
             taskbar.themes.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
             taskbar.appThumbnails.setPreferredSize(new Vector3f(width - 0.02f, barHeight, barHeight));
@@ -568,10 +631,23 @@ public class AdvancedGlassyTaskbar extends Taskbar {
         return null;
     }
     
+    /** The Switch index of the shelf style the persisted preference selects. */
+    private static int frostedBarChild(TasbarInstance tskbar) {
+        return DesktopConfig.get().isFrostedGlass()
+                && tskbar.bottomBarFrosted != null ? 1 : 0;
+    }
+
     static class TasbarInstance {
 	Container3D cont;
 	Container3D appThumbnails;
 	GlassyPanel bottomBar;
+	/** Frosted slab top face; null in the classic style. */
+	FrostedGlassPanel bottomBarFrosted;
+	/** Frosted front-edge strip + its rotation comp; null in classic style. */
+	FrostedGlassPanel bottomBarFrostedEdge;
+	Component3D bottomBarEdgeComp;
+	/** Live shelf-style selector: child 0 = classic box, child 1 = slab. */
+	Switch barSwitch;
 	Container3D themes;
     }
 }

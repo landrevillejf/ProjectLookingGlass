@@ -60,17 +60,27 @@ public class FrostedGlassPanel extends Shape3D {
     /** Default tint: a cool, lightly-blue frosted white at 35% base opacity. */
     static final Color4f DEFAULT_TINT = new Color4f(0.85f, 0.90f, 1.00f, 0.35f);
 
-    /** Frosted band width as a fraction of the corner radius. */
-    private static final float EDGE_OF_RADIUS = 0.6f;
+    /**
+     * Default frosted band width as a fraction of the corner radius. Callers
+     * that want a frosted edge on a square panel (radius 0 - e.g. the glass
+     * taskbar shelf) must pass an explicit band through the {@code frostBand}
+     * {@link #create} overloads, since {@code 0 * EDGE_OF_RADIUS} would collapse
+     * the frost to nothing and leave a flat, uniform tint.
+     */
+    public static final float EDGE_OF_RADIUS = 0.6f;
 
     /** Anti-alias half-width as a fraction of the panel's smaller side. */
     private static final float AA_OF_MIN_SIDE = 0.005f;
 
-    private final float cornerRadius;
+    private float cornerRadius;
+    private final float frostBand;
     private final float zShift;
 
     private final QuadArray geometry;
     private final ShaderAttributeValue halfWindow;
+    private final ShaderAttributeValue radiusUniform;
+    private float lastWidth;
+    private float lastHeight;
 
     /**
      * Builds a frosted-glass rounded panel with the {@link #DEFAULT_TINT}, or
@@ -88,6 +98,25 @@ public class FrostedGlassPanel extends Shape3D {
     }
 
     /**
+     * Builds a frosted-glass panel with the {@link #DEFAULT_TINT} and an
+     * explicit frosted-edge band width, or returns {@code null} when the GPU
+     * shader program cannot be assembled. Use this when the band must survive a
+     * zero (square) corner radius - the default band is derived from the radius
+     * and would vanish with it.
+     *
+     * @param width        panel width (world units)
+     * @param height       panel height (world units)
+     * @param cornerRadius rounded-corner radius (clamped to half the smaller side)
+     * @param zShift       z the quad is parked at
+     * @param frostBand    frosted band width measured inward from the border
+     *                     (clamped to half the smaller side)
+     */
+    public static FrostedGlassPanel create(float width, float height,
+            float cornerRadius, float zShift, float frostBand) {
+        return create(width, height, cornerRadius, zShift, DEFAULT_TINT, frostBand);
+    }
+
+    /**
      * Builds a frosted-glass rounded panel with an explicit tint, or returns
      * {@code null} when the GPU shader program cannot be assembled so the caller
      * can fall back to a fixed-function {@link GlassyPanel}.
@@ -100,17 +129,41 @@ public class FrostedGlassPanel extends Shape3D {
      */
     public static FrostedGlassPanel create(float width, float height,
             float cornerRadius, float zShift, Color4f tint) {
+        return create(width, height, cornerRadius, zShift, tint,
+                cornerRadius * EDGE_OF_RADIUS);
+    }
+
+    /**
+     * Builds a frosted-glass panel with an explicit tint <em>and</em> an
+     * explicit frosted-edge band width, or returns {@code null} when the GPU
+     * shader program cannot be assembled so the caller can fall back to a
+     * fixed-function {@link GlassyPanel}.
+     *
+     * @param width        panel width (world units)
+     * @param height       panel height (world units)
+     * @param cornerRadius rounded-corner radius (clamped to half the smaller side)
+     * @param zShift       z the quad is parked at
+     * @param tint         rgb glass tint, w base opacity of the clear centre
+     * @param frostBand    frosted band width measured inward from the border
+     *                     (clamped to half the smaller side)
+     */
+    public static FrostedGlassPanel create(float width, float height,
+            float cornerRadius, float zShift, Color4f tint, float frostBand) {
         ShaderProgram program = ShaderEffects.frostedGlassProgram();
         if (program == null) {
             return null;
         }
-        return new FrostedGlassPanel(program, width, height, cornerRadius, zShift, tint);
+        return new FrostedGlassPanel(program, width, height, cornerRadius, zShift,
+                tint, frostBand);
     }
 
     private FrostedGlassPanel(ShaderProgram program, float width, float height,
-            float cornerRadius, float zShift, Color4f tint) {
+            float cornerRadius, float zShift, Color4f tint, float frostBand) {
         this.cornerRadius = clampRadius(width, height, cornerRadius);
+        this.frostBand = clampFrostBand(width, height, frostBand);
         this.zShift = zShift;
+        this.lastWidth = width;
+        this.lastHeight = height;
 
         // A decorative glass overlay: never intercept picks meant for the window
         // content behind/above it (same role SoftShadow plays for the shadow).
@@ -120,16 +173,18 @@ public class FrostedGlassPanel extends Shape3D {
         geometry.setCapability(GeometryArray.ALLOW_COORDINATE_WRITE);
         setGeometry(geometry);
 
-        // uHalfWin is rewritten on every setSize(), so it needs write access on
-        // the live graph; radius, frost band, AA width and tint are constant.
+        // uHalfWin is rewritten on every setSize() and uRadius on every
+        // setCornerRadius(), so both need write access on the live graph; the
+        // frost band, AA width and tint are constant.
         halfWindow = ShaderEffects.uniform("uHalfWin",
                 new Vector2f(width * 0.5f, height * 0.5f), true);
+        radiusUniform = ShaderEffects.uniform("uRadius",
+                Float.valueOf(this.cornerRadius), true);
         ShaderAttributeSet attrs = new ShaderAttributeSet();
         attrs.put(halfWindow);
-        attrs.put(ShaderEffects.uniform("uRadius",
-                Float.valueOf(this.cornerRadius), false));
+        attrs.put(radiusUniform);
         attrs.put(ShaderEffects.uniform("uEdge",
-                Float.valueOf(this.cornerRadius * EDGE_OF_RADIUS), false));
+                Float.valueOf(this.frostBand), false));
         attrs.put(ShaderEffects.uniform("uAa",
                 Float.valueOf(Math.min(width, height) * AA_OF_MIN_SIDE), false));
         attrs.put(ShaderEffects.uniform("uTint",
@@ -171,6 +226,19 @@ public class FrostedGlassPanel extends Shape3D {
     public void setSize(float width, float height) {
         geometry.setCoordinates(0, layoutCoords(width, height, zShift));
         halfWindow.setValue(new Vector2f(width * 0.5f, height * 0.5f));
+        lastWidth = width;
+        lastHeight = height;
+    }
+
+    /**
+     * Re-rounds (or squares) the panel in place: rewrites the {@code uRadius}
+     * uniform, which was built with live-write capability, so a live rounded-
+     * corner toggle restyles an open window without rebuilding its glass. The
+     * frost band, AA width and tint keep the sizes they were built with.
+     */
+    public void setCornerRadius(float cornerRadius) {
+        this.cornerRadius = clampRadius(lastWidth, lastHeight, cornerRadius);
+        radiusUniform.setValue(Float.valueOf(this.cornerRadius));
     }
 
     /**
@@ -178,6 +246,13 @@ public class FrostedGlassPanel extends Shape3D {
      */
     public float getCornerRadius() {
         return cornerRadius;
+    }
+
+    /**
+     * The frosted-edge band width this panel was built with (already clamped).
+     */
+    public float getFrostBand() {
+        return frostBand;
     }
 
     /**
@@ -208,5 +283,16 @@ public class FrostedGlassPanel extends Shape3D {
     static float clampRadius(float width, float height, float radius) {
         float max = Math.min(width, height) * 0.5f;
         return Math.max(0.0f, Math.min(radius, max));
+    }
+
+    /**
+     * Clamps a requested frosted-edge band width into {@code [0,
+     * min(width,height)/2]}: a band wider than half the smaller side would
+     * never fade back to the clear-glass centre (the frost would cover the whole
+     * panel), so it is capped there. Pure so the clamp is headless-testable.
+     */
+    static float clampFrostBand(float width, float height, float band) {
+        float max = Math.min(width, height) * 0.5f;
+        return Math.max(0.0f, Math.min(band, max));
     }
 }

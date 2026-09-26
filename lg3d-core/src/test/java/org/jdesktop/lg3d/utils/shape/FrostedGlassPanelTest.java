@@ -66,4 +66,27 @@ class FrostedGlassPanelTest {
     void clampRejectsNegativeRadius() {
         assertEquals(0.0f, FrostedGlassPanel.clampRadius(2.0f, 4.0f, -1.0f), EPS);
     }
+
+    @Test
+    @DisplayName("a frost band within range passes through unchanged")
+    void clampKeepsValidFrostBand() {
+        assertEquals(0.5f, FrostedGlassPanel.clampFrostBand(2.0f, 4.0f, 0.5f), EPS);
+        // a zero band is legal: a square panel with no frosted edge at all
+        assertEquals(0.0f, FrostedGlassPanel.clampFrostBand(2.0f, 4.0f, 0.0f), EPS);
+    }
+
+    @Test
+    @DisplayName("a frost band wider than half the smaller side is capped so the centre stays clear")
+    void clampCapsOversizedFrostBand() {
+        // min(2,4)/2 = 1, so 3 collapses to 1 (the frost would otherwise cover
+        // the whole panel and never fade to the clear-glass centre)
+        assertEquals(1.0f, FrostedGlassPanel.clampFrostBand(2.0f, 4.0f, 3.0f), EPS);
+        assertEquals(0.5f, FrostedGlassPanel.clampFrostBand(3.0f, 1.0f, 9.0f), EPS);
+    }
+
+    @Test
+    @DisplayName("a negative frost band is clamped to zero")
+    void clampRejectsNegativeFrostBand() {
+        assertEquals(0.0f, FrostedGlassPanel.clampFrostBand(2.0f, 4.0f, -1.0f), EPS);
+    }
 }
