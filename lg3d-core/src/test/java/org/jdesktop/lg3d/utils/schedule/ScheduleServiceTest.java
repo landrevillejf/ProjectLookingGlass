@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalTime;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,5 +154,27 @@ class ScheduleServiceTest {
     @DisplayName("stop() cancels the daemon timer without throwing")
     void stopCancels() {
         assertDoesNotThrow(() -> ScheduleService.get().stop());
+    }
+
+    @Test
+    @DisplayName("applyDayNight is a safe no-op when no desktop is running (3D and 2D)")
+    void applyDayNightNoOpWithoutDesktop() {
+        ScheduleService svc = ScheduleService.get();
+        // 3D path: StandardGlobalLights.live() is null in the headless test JVM,
+        // so nothing is constructed and no jogamp object is touched.
+        assertDoesNotThrow(() -> svc.applyDayNight(0.5f));
+
+        // 2D path: Desktop2D.setNightTint no-ops when no shell is running.
+        String prev = System.getProperty(Desktop2D.MODE_PROPERTY);
+        System.setProperty(Desktop2D.MODE_PROPERTY, "true");
+        try {
+            assertDoesNotThrow(() -> svc.applyDayNight(1.0f));
+        } finally {
+            if (prev == null) {
+                System.clearProperty(Desktop2D.MODE_PROPERTY);
+            } else {
+                System.setProperty(Desktop2D.MODE_PROPERTY, prev);
+            }
+        }
     }
 }

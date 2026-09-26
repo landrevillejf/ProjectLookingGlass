@@ -64,6 +64,9 @@ public class SchedulePanel implements ControlPanel {
     private final JSpinner nightlightHourSpinner;
     private final JSpinner nightlightMinuteSpinner;
 
+    /** Day/night transition ramp width, in minutes. */
+    private final JSpinner rampSpinner;
+
     /** Wallpaper selectors. */
     private final DefaultListModel<String> daylightWallpapers = new DefaultListModel<>();
     private final JList<String> daylightList = new JList<>(daylightWallpapers);
@@ -81,14 +84,17 @@ public class SchedulePanel implements ControlPanel {
         JScrollPane onOffScroll = new JScrollPane(onOffList);
         onOffScroll.setPreferredSize(new Dimension(72, 58));
 
-        // Build time spinners
-        SpinnerNumberModel hourModel = new SpinnerNumberModel(0, 0, 23, 1);
-        SpinnerNumberModel minuteModel = new SpinnerNumberModel(0, 0, 59, 1);
-
-        daylightHourSpinner = new JSpinner(hourModel);
-        daylightMinuteSpinner = new JSpinner(minuteModel);
-        nightlightHourSpinner = new JSpinner(hourModel);
-        nightlightMinuteSpinner = new JSpinner(minuteModel);
+        // Build time spinners. Each spinner gets its OWN model: sharing one
+        // SpinnerNumberModel between the daylight and nightlight spinners would
+        // link them, so both periods could never hold different times.
+        daylightHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
+        daylightMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
+        nightlightHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
+        nightlightMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
+        rampSpinner = new JSpinner(new SpinnerNumberModel(
+                DesktopConfig.DEFAULT_RAMP_MINUTES,
+                DesktopConfig.MIN_RAMP_MINUTES,
+                DesktopConfig.MAX_RAMP_MINUTES, 5));
 
         // Build wallpaper selectors
         daylightList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -102,7 +108,17 @@ public class SchedulePanel implements ControlPanel {
         JPanel enablePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         enablePanel.add(new JLabel("Schedule:"));
         enablePanel.add(onOffScroll);
+        enablePanel.add(new JLabel("Transition (min):"));
+        enablePanel.add(rampSpinner);
         enablePanel.setBorder(BorderFactory.createTitledBorder("Enable Schedule"));
+
+        JLabel helpLabel = new JLabel(
+                "<html><i>At the scheduled times the desktop switches wallpaper and fades the "
+                + "scene lighting (3D) or a night veil (2D) between daylight and nightlight. "
+                + "Transition is the fade width in minutes (0 = instant).</i></html>");
+        JPanel northPanel = new JPanel(new BorderLayout(0, 4));
+        northPanel.add(enablePanel, BorderLayout.NORTH);
+        northPanel.add(helpLabel, BorderLayout.SOUTH);
 
         // Build daylight section
         JPanel daylightTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -146,7 +162,7 @@ public class SchedulePanel implements ControlPanel {
         center.add(nightlightPanel);
 
         JPanel main = new JPanel(new BorderLayout(6, 6));
-        main.add(enablePanel, BorderLayout.NORTH);
+        main.add(northPanel, BorderLayout.NORTH);
         main.add(center, BorderLayout.CENTER);
         main.add(buttonPanel, BorderLayout.SOUTH);
 
@@ -187,6 +203,7 @@ public class SchedulePanel implements ControlPanel {
         daylightMinuteSpinner.setValue(cfg.getDaylightMinute());
         nightlightHourSpinner.setValue(cfg.getNightlightHour());
         nightlightMinuteSpinner.setValue(cfg.getNightlightMinute());
+        rampSpinner.setValue(cfg.getRampMinutes());
 
         // Load wallpaper lists
         daylightWallpapers.clear();
@@ -219,6 +236,7 @@ public class SchedulePanel implements ControlPanel {
         cfg.setDaylightMinute((Integer) daylightMinuteSpinner.getValue());
         cfg.setNightlightHour((Integer) nightlightHourSpinner.getValue());
         cfg.setNightlightMinute((Integer) nightlightMinuteSpinner.getValue());
+        cfg.setRampMinutes((Integer) rampSpinner.getValue());
 
         // Save wallpapers
         String daylightWallpaper = daylightList.getSelectedValue();
@@ -231,7 +249,7 @@ public class SchedulePanel implements ControlPanel {
         // Start or stop the schedule service
         if (enabled) {
             org.jdesktop.lg3d.utils.schedule.ScheduleService.get();
-            statusLabel.setText("Schedule enabled: wallpaper will change at configured times");
+            statusLabel.setText("Schedule enabled: wallpaper and day/night lighting follow the configured times");
         } else {
             statusLabel.setText("Schedule disabled");
         }
@@ -239,7 +257,7 @@ public class SchedulePanel implements ControlPanel {
 
     private void applyNow() {
         org.jdesktop.lg3d.utils.schedule.ScheduleService.get().checkNow();
-        statusLabel.setText("Applied wallpaper for current time period");
+        statusLabel.setText("Applied wallpaper and lighting for the current time period");
     }
 
     private List<String> enumerate() {

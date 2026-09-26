@@ -66,6 +66,7 @@ public final class DesktopConfig {
     private static final String KEY_NIGHTLIGHT_MINUTE = "schedule.nightlightMinute";
     private static final String KEY_DAYLIGHT_WALLPAPER = "schedule.daylightWallpaper";
     private static final String KEY_NIGHTLIGHT_WALLPAPER = "schedule.nightlightWallpaper";
+    private static final String KEY_RAMP_MINUTES = "schedule.rampMinutes";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -142,6 +143,12 @@ public final class DesktopConfig {
     /** Default nightlight wallpaper: empty string means use bundled default. */
     public static final String DEFAULT_NIGHTLIGHT_WALLPAPER = "";
     private static final String DEF_NIGHTLIGHT_WALLPAPER = DEFAULT_NIGHTLIGHT_WALLPAPER;
+    /** Default daylight-to-night light transition width, in minutes. */
+    public static final int DEFAULT_RAMP_MINUTES = 30;
+    private static final int DEF_RAMP_MINUTES = DEFAULT_RAMP_MINUTES;
+    /** Minimum/maximum {@code rampMinutes} (0 is a hard step). */
+    public static final int MIN_RAMP_MINUTES = 0;
+    public static final int MAX_RAMP_MINUTES = 180;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -183,6 +190,7 @@ public final class DesktopConfig {
     private int nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
     private String daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
     private String nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
+    private int rampMinutes = DEF_RAMP_MINUTES;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -236,6 +244,7 @@ public final class DesktopConfig {
         nightlightMinute = clampMinute(prefs.getInt(KEY_NIGHTLIGHT_MINUTE, DEF_NIGHTLIGHT_MINUTE));
         daylightWallpaper = normalizeWallpaper(prefs.get(KEY_DAYLIGHT_WALLPAPER, DEF_DAYLIGHT_WALLPAPER));
         nightlightWallpaper = normalizeWallpaper(prefs.get(KEY_NIGHTLIGHT_WALLPAPER, DEF_NIGHTLIGHT_WALLPAPER));
+        rampMinutes = clampRampMinutes(prefs.getInt(KEY_RAMP_MINUTES, DEF_RAMP_MINUTES));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -263,6 +272,7 @@ public final class DesktopConfig {
         prefs.putInt(KEY_NIGHTLIGHT_MINUTE, nightlightMinute);
         prefs.put(KEY_DAYLIGHT_WALLPAPER, daylightWallpaper);
         prefs.put(KEY_NIGHTLIGHT_WALLPAPER, nightlightWallpaper);
+        prefs.putInt(KEY_RAMP_MINUTES, rampMinutes);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -296,6 +306,7 @@ public final class DesktopConfig {
         nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
         daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
         nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
+        rampMinutes = DEF_RAMP_MINUTES;
     }
 
     // ------------------------------------------------------------------
@@ -539,6 +550,19 @@ public final class DesktopConfig {
         this.nightlightWallpaper = normalizeWallpaper(wallpaper);
     }
 
+    /**
+     * The width, in minutes, of each daylight/nightlight transition window:
+     * the light (3D) and veil (2D) ramp smoothly across this many minutes
+     * centred on each transition time. 0 is a hard step.
+     */
+    public int getRampMinutes() {
+        return rampMinutes;
+    }
+
+    public void setRampMinutes(int minutes) {
+        this.rampMinutes = clampRampMinutes(minutes);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -604,6 +628,11 @@ public final class DesktopConfig {
     /** Clamps minute to valid range 0-59. */
     private static int clampMinute(int v) {
         return Math.max(0, Math.min(59, v));
+    }
+
+    /** Clamps the transition width to the valid {@code rampMinutes} range. */
+    private static int clampRampMinutes(int v) {
+        return Math.max(MIN_RAMP_MINUTES, Math.min(MAX_RAMP_MINUTES, v));
     }
 
     /** Trims wallpaper filename; null falls back to empty (default). */

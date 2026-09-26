@@ -121,16 +121,32 @@ class DesktopConfigScheduleTest {
     }
 
     @Test
+    @DisplayName("the transition ramp defaults to 30 and clamps to 0-180 minutes")
+    void rampMinutesClamped() {
+        cfg.resetToDefaults();
+        assertEquals(DesktopConfig.DEFAULT_RAMP_MINUTES, cfg.getRampMinutes());
+        assertEquals(30, DesktopConfig.DEFAULT_RAMP_MINUTES);
+        cfg.setRampMinutes(-10);
+        assertEquals(DesktopConfig.MIN_RAMP_MINUTES, cfg.getRampMinutes());
+        cfg.setRampMinutes(999);
+        assertEquals(DesktopConfig.MAX_RAMP_MINUTES, cfg.getRampMinutes());
+        cfg.setRampMinutes(45);
+        assertEquals(45, cfg.getRampMinutes(), "an in-range value is kept");
+    }
+
+    @Test
     @DisplayName("resetToDefaults restores the schedule fields")
     void resetRestoresSchedule() {
         cfg.setScheduleEnabled(true);
         cfg.setDaylightHour(3);
         cfg.setNightlightMinute(15);
         cfg.setDaylightWallpaper("x.jpg");
+        cfg.setRampMinutes(120);
         cfg.resetToDefaults();
         assertFalse(cfg.isScheduleEnabled());
         assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_HOUR, cfg.getDaylightHour());
         assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_MINUTE, cfg.getNightlightMinute());
         assertEquals("", cfg.getDaylightWallpaper());
+        assertEquals(DesktopConfig.DEFAULT_RAMP_MINUTES, cfg.getRampMinutes());
     }
 }

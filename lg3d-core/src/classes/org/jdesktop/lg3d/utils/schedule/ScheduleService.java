@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
+import org.jdesktop.lg3d.scenemanager.utils.globallights.StandardGlobalLights;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
@@ -87,10 +88,44 @@ public final class ScheduleService {
             return;
         }
 
-        String targetWallpaper = resolveWallpaper(LocalTime.now(), cfg);
+        LocalTime now = LocalTime.now();
+
+        String targetWallpaper = resolveWallpaper(now, cfg);
         if (!targetWallpaper.equals(lastAppliedWallpaper)) {
             applyWallpaper(targetWallpaper);
             lastAppliedWallpaper = targetWallpaper;
+        }
+
+        // Re-tint the scene every tick: the day/night blend factor moves
+        // gradually across each transition ramp, so it is applied
+        // unconditionally rather than only on a discrete change like the
+        // wallpaper. The one-minute tick steps a 30-minute ramp in ~30 small
+        // increments, which reads as a smooth fade without a second timer.
+        applyDayNight(DayNightCurve.dayFactor(
+                now,
+                LocalTime.of(cfg.getDaylightHour(), cfg.getDaylightMinute()),
+                LocalTime.of(cfg.getNightlightHour(), cfg.getNightlightMinute()),
+                cfg.getRampMinutes()));
+    }
+
+    /**
+     * Applies the day/night blend {@code factor} (0 = full daylight, 1 = full
+     * night) to the running desktop: the 2D night veil on the conventional
+     * desktop, the 3D scene-light rig otherwise. Both paths are no-ops when the
+     * corresponding desktop is not running, so this is safe to call headlessly.
+     */
+    void applyDayNight(float factor) {
+        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
+            Desktop2D.setNightTint(factor);
+            return;
+        }
+        StandardGlobalLights lights = StandardGlobalLights.live();
+        if (lights != null) {
+            try {
+                lights.applyDayNight(factor);
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to apply day/night scene lighting", e);
+            }
         }
     }
 
