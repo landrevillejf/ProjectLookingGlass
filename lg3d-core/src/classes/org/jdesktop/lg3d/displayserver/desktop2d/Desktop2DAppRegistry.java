@@ -155,6 +155,15 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.dbmanager.DbManager",
                 "org.jdesktop.lg3d.apps.dbmanager.DbManagerPanel");
+        // The FTP Client app (lg3d-apps, org.jdesktop.lg3d.apps.ftpclient)
+        // wraps the standalone ftp-client module's file-transfer client in a
+        // plain Swing panel, so it hosts here as an internal frame like the
+        // other panel apps; the 3D desktop builds the same panel on a SwingNode
+        // via its FtpClient wrapper. Both the lg3d-apps and ftp-client jars
+        // (plus commons-net/jsch/jackson/slf4j/bouncycastle) are on the desktop
+        // run classpath, so the reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.ftpclient.FtpClient",
+                "org.jdesktop.lg3d.apps.ftpclient.FtpClientPanel");
         // The Office-group native-3D apps (lg3d-incubator) each ship a plain
         // Swing panel that reuses the same AWT-free model and shared user
         // Preferences store as the 3D app, so the one start-menu descriptor

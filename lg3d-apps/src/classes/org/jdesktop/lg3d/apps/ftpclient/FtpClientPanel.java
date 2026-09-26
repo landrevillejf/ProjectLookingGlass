@@ -1,0 +1,100 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
+package org.jdesktop.lg3d.apps.ftpclient;
+
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import org.jdesktop.lg3d.ftpclient.ui.FtpClientMainPanel;
+
+/**
+ * The FTP Client content: the {@code ftp-client} module's file-transfer client
+ * (site profiles, a dual local | remote browser, and a transfer queue with
+ * retry, resume and cancellation over FTP, FTPS and SFTP) presented as a
+ * self-contained panel.
+ *
+ * <p>This is a plain Swing {@link JPanel} with a no-argument constructor, so it
+ * is hosted two ways exactly like the Database Manager app: in the 3D desktop the
+ * {@link FtpClient} wrapper puts it on a {@code SwingNode} inside a {@code Frame3D}
+ * via {@code TitledSwingWindow}; in the 2D/Swing desktop {@code Desktop2DAppRegistry}
+ * constructs it reflectively and hosts it in an MDI internal frame. It touches no
+ * Java 3D, so the 2D path never needs the scene graph.</p>
+ *
+ * <p>If the {@code ftp-client} module cannot be instantiated (for example a
+ * missing runtime dependency) the panel degrades to a readable message instead of
+ * throwing, so a broken bundle can never take down the window that hosts it.</p>
+ */
+public class FtpClientPanel extends JPanel {
+
+    /** Panel size in native pixels; the wrapper hands these to TitledSwingWindow. */
+    public static final int WIDTH_PX = FtpClientMainPanel.WIDTH_PX;
+    public static final int HEIGHT_PX = FtpClientMainPanel.HEIGHT_PX;
+
+    /** The embedded client, or {@code null} when it could not be created. */
+    private final FtpClientMainPanel inner;
+
+    public FtpClientPanel() {
+        super(new BorderLayout());
+        setOpaque(true);
+        setBackground(Color.WHITE);
+        setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
+
+        FtpClientMainPanel created = null;
+        try {
+            created = new FtpClientMainPanel();
+        } catch (RuntimeException | LinkageError e) {
+            // A missing runtime dependency must not escape the constructor:
+            // fall back to an explanatory pane instead.
+            created = null;
+        }
+        this.inner = created;
+
+        if (inner == null) {
+            add(buildUnavailablePane(), BorderLayout.CENTER);
+            return;
+        }
+        add(inner, BorderLayout.CENTER);
+    }
+
+    /** @return the embedded client panel, or {@code null} when unavailable. */
+    public FtpClientMainPanel getMainPanel() {
+        return inner;
+    }
+
+    /** Releases the client's open session when the host window closes. */
+    public void dispose() {
+        if (inner != null) {
+            inner.dispose();
+        }
+    }
+
+    private static JPanel buildUnavailablePane() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(true);
+        panel.setBackground(Color.WHITE);
+        JLabel label = new JLabel(
+                "<html><div style='text-align:center;'>"
+                + "<h2>FTP Client unavailable</h2>"
+                + "<p>The file-transfer client could not be started.</p>"
+                + "</div></html>",
+                SwingConstants.CENTER);
+        label.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+        panel.add(label, BorderLayout.CENTER);
+        return panel;
+    }
+}

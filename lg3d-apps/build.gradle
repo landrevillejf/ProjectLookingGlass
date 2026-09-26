@@ -117,6 +117,13 @@ dependencies {
     // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
     implementation project(':db-manager')
 
+    // The FTP Client app (org.jdesktop.lg3d.apps.ftpclient) wraps the
+    // ftp-client module's file-transfer client (FtpClientMainPanel). Its
+    // runtime deps (commons-net, jsch, jackson-databind, slf4j, bouncycastle)
+    // are resolved onto the lg3d-core desktop run classpath too (see
+    // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
+    implementation project(':ftp-client')
+
     // Headless JUnit 5 for the HelpSet / content-integrity test.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter

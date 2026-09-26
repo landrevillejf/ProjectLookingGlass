@@ -1,0 +1,79 @@
+// ftp-client: a self-contained, secure file-transfer client -- site profiles,
+// a dual-pane local/remote browser, a resumable transfer queue with retries and
+// progress, speaking FTP and FTPS (Apache Commons Net) and SFTP (the JSch
+// mwiede fork).
+//
+// It is a plain Java library with no lg3d-core dependency: lg3d-apps wraps its
+// FtpClientMainPanel in an "FTP Client" start-menu app, and the :lg3d-core:run
+// task places this jar plus the protocol/runtime libraries on the desktop
+// classpath. The toolchain (JDK 21), UTF-8 encoding, build-gradle output
+// directory, checkstyle (report-only) and jacoco are inherited from the root
+// build.gradle subprojects block.
+//
+// The Maven-standard source layout (src/main/java, src/test/java,
+// src/main/resources) is kept as-is, so no sourceSet override is needed.
+
+jar {
+    archiveBaseName = 'ftp-client'
+}
+
+dependencies {
+    // Apache Commons Net implements the FTP / FTPS client (FTPS negotiates TLS
+    // through the JDK's JSSE, so no extra provider is needed).
+    implementation libs.commons.net
+    // The JSch mwiede fork is a maintained drop-in replacement for the abandoned
+    // com.jcraft.jsch (identical com.jcraft.jsch.* package names, modern cipher
+    // and host-key algorithms) and provides the SFTP client.
+    implementation libs.jsch
+    // Jackson persists the site profiles and application settings as JSON under
+    // ~/.lg3d/ftpclient/.
+    implementation libs.jackson.databind
+    // SLF4J is the logging facade; slf4j-nop is a silent runtime provider so the
+    // desktop does not surface the module's internal logs.
+    implementation libs.slf4j.api
+    runtimeOnly libs.slf4j.nop
+    // Bouncy Castle extends the JSch fork's host-key / cipher coverage (e.g.
+    // Ed25519 keys); JSch falls back to its pure-Java algorithms without it, so
+    // it is a runtime pluggable rather than a compile dependency.
+    runtimeOnly libs.bcprov.jdk18on
+
+    // Headless JUnit 5 + Mockito + AssertJ back the module's test suite.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.mockito.core
+    testImplementation libs.assertj.core
+    // MockFtpServer is an in-JVM FTP server: the round-trip tests connect a real
+    // FtpRemoteClient to it (list / upload / download / resume / delete) with no
+    // external server, keeping the suite deterministic and CI-safe.
+    testImplementation libs.mockftpserver
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The Swing panels are constructed headless in the unit tests and degrade to
+    // logging; forcing headless keeps the suite deterministic and CI-safe (no X
+    // display). The FTP round-trip tests bind an ephemeral loopback port only.
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check`, so run it explicitly:
+// `./gradlew :ftp-client:pitest`. mutationThreshold=0 means surviving mutants
+// never fail the build; the HTML/XML report under build-gradle/reports/pitest
+// shows which mutants the tests catch.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+    // Do not mutate into GUI calls: they cannot run headless inside a mutation
+    // sandbox and would only produce spurious "killed by error" noise.
+    avoidCallsTo = ['java.awt', 'javax.swing']
+}

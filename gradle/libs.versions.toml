@@ -31,6 +31,14 @@ sqliteJdbc = "3.46.1.3"   # org.xerial:sqlite-jdbc (embedded SQLite, Apache-2.0)
 h2 = "2.3.232"            # com.h2database:h2 (embedded SQL engine, MPL-2.0/EPL)
 postgresql = "42.7.4"     # org.postgresql:postgresql (BSD)
 mariadb = "3.4.1"         # org.mariadb.jdbc:mariadb-java-client (LGPL-2.1)
+# ftp-client transfer libraries. Apache Commons Net implements the FTP / FTPS
+# client (TLS via the JDK's JSSE); the JSch mwiede fork is a maintained drop-in
+# replacement for the abandoned com.jcraft.jsch (same package names, modern
+# cipher / host-key algorithms) and provides the SFTP client. MockFtpServer is
+# an in-JVM FTP server used only by the module's headless round-trip tests.
+commonsNet = "3.13.0"     # commons-net:commons-net (Apache-2.0)
+jsch = "2.28.7"           # com.github.mwiede:jsch (BSD; SFTP)
+mockFtpServer = "3.2.0"   # org.mockftpserver:MockFtpServer (Apache-2.0, test-only)
 checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine
@@ -84,6 +92,14 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 mariadb-java-client = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
+
+# ftp-client transfer libraries (see the [versions] notes). Commons Net backs
+# the FTP / FTPS client and the JSch mwiede fork the SFTP client; both are
+# compile dependencies of the module. MockFtpServer is test-only: an embedded
+# FTP server the round-trip tests connect to (no external server in CI).
+commons-net = { module = "commons-net:commons-net", version.ref = "commonsNet" }
+jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
+mockftpserver = { module = "org.mockftpserver:MockFtpServer", version.ref = "mockFtpServer" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and

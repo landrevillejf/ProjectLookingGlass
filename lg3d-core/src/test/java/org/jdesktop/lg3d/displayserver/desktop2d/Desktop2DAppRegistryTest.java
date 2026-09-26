@@ -337,6 +337,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("FTP Client is hosted as a panel, not gated on 3D")
+    void ftpClientIsAPanelApp() {
+        // The FTP Client wraps the ftp-client module's file-transfer client in a
+        // plain Swing panel, so it runs in the 2D desktop like any other panel
+        // app; the 3D desktop builds the same panel on a SwingNode via its
+        // FtpClient wrapper.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.ftpclient.FtpClient"));
+        assertEquals("org.jdesktop.lg3d.apps.ftpclient.FtpClientPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.ftpclient.FtpClient"));
+    }
+
+    @Test
     @DisplayName("the About window is hosted as a panel, not gated on 3D")
     void aboutIsAPanelApp() {
         // The About window renders a plain Swing panel (product identity,
