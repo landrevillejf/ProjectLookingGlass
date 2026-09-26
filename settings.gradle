@@ -26,6 +26,13 @@ include 'update-manager'
 // :lg3d-core:run task puts its jar plus the bundled JDBC drivers on the desktop
 // classpath.
 include 'db-manager'
+// FTP Client: a self-contained, secure file-transfer client speaking FTP and
+// FTPS (Apache Commons Net) and SFTP (the JSch mwiede fork). Plain Java 21
+// Swing library with no lg3d-core dependency; lg3d-apps wraps its
+// FtpClientMainPanel in an "FTP Client" start-menu app (SwingNode in 3D, MDI
+// internal frame in 2D), and the :lg3d-core:run task puts its jar plus its
+// protocol/runtime libraries on the desktop classpath.
+include 'ftp-client'
 
 // lg3d-awt is intentionally NOT part of the Gradle build.
 //
