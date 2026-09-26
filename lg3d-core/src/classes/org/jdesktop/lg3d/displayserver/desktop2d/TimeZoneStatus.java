@@ -78,9 +78,14 @@ public final class TimeZoneStatus {
         return parseBoolean(parseProperty(showOutput, "NTP"));
     }
 
-    /** The local-time string from {@code timedatectl show} output; {@code ""} when absent. */
+    /**
+     * The local-time string from {@code timedatectl show} output; {@code ""} when
+     * absent. Older systemd exposes it as {@code LocalTime}; newer builds report
+     * the same wall-clock value as {@code TimeUSec}, so fall back to that.
+     */
     static String parseLocalTime(String showOutput) {
-        return parseProperty(showOutput, "LocalTime");
+        String local = parseProperty(showOutput, "LocalTime");
+        return local.isEmpty() ? parseProperty(showOutput, "TimeUSec") : local;
     }
 
     /** Parses {@code timedatectl list-timezones} output into zone ids, skipping blanks. */

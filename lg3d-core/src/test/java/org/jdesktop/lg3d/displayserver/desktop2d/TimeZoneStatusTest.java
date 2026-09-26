@@ -72,6 +72,21 @@ class TimeZoneStatusTest {
     }
 
     @Test
+    @DisplayName("the local time falls back to TimeUSec on systemd without LocalTime")
+    void parsesLocalTimeFallback() {
+        assertEquals("Sat 2026-09-26 10:59:22 EDT",
+                TimeZoneStatus.parseLocalTime("Timezone=America/New_York\n"
+                        + "TimeUSec=Sat 2026-09-26 10:59:22 EDT\n"
+                        + "RTCTimeUSec=Sat 2026-09-26 14:59:22 UTC\n"),
+                "newer systemd reports the wall clock as TimeUSec");
+        assertEquals("Fri 2026-01-02 15:04:05 EST",
+                TimeZoneStatus.parseLocalTime(SHOW + "TimeUSec=ignored\n"),
+                "LocalTime wins when both properties are present");
+        assertEquals("", TimeZoneStatus.parseLocalTime("Timezone=UTC\n"),
+                "no local-time property at all is empty");
+    }
+
+    @Test
     @DisplayName("list-timezones output yields one zone per line, skipping blanks")
     void parsesTimezones() {
         List<String> zones = TimeZoneStatus.parseTimezones(
