@@ -452,6 +452,29 @@ work to make it build and run on a current toolchain.
   restart; the classification degrades to plain untinted columns if the library is
   ever absent. Covered by headless JUnit 5 tests (extended `AgendaPanelTest`, +5).
 
+### Changed
+- **The Schedule's wallpaper and lighting schedules are now fully independent**
+  (`lg3d-core`, `org.jdesktop.lg3d.utils.schedule` / `utils.prefs`; `lg3d-apps`
+  control center) — the daylight/nightlight schedule no longer conflates a
+  wallpaper swap with a lighting fade sharing one pair of times. The **wallpaper
+  schedule** becomes a dynamic, ordered list of `(time -> wallpaper)` entries the
+  user adds or removes freely (two, four, ten…), modelled by a new pure
+  `ScheduleEntry` value type and persisted under indexed `schedule.wp.count` /
+  `schedule.wp.<i>.{hour,minute,file}` keys; `ScheduleService.resolveWallpaper`
+  now picks the latest entry at or before the clock, wrapping to the previous
+  day's last entry before the first of the day (replacing the fixed two-slot
+  day/night pick). The **lighting schedule** keeps its day/night fade but gains
+  its **own** `schedule.lightingDawn{Hour,Minute}` / `schedule.lightingDusk*`
+  times alongside the existing `schedule.rampMinutes`, so it no longer borrows
+  the wallpaper times. The Control Center **Schedule** panel is rebuilt as two
+  separately bordered sections: a wallpaper entry list with Add/Remove and a
+  per-entry time + wallpaper editor, and a photo-free lighting section with
+  dawn/dusk/transition spinners only (still `JList`, never a combo box, for the
+  offscreen `SwingNode`). Legacy daylight/nightlight preferences are migrated
+  into the entry list on first load rather than discarded. Covered by headless
+  JUnit 5 tests (`DesktopConfigScheduleTest`, `ScheduleServiceTest` and a
+  two-section `SchedulePanelTest` layout check).
+
 ## [1.14.0] — 2026-09-25 — Gradle / JDK 21 modernization
 
 ### Added
