@@ -152,10 +152,13 @@ application descriptors the 3D menu reads, so the groups, items, order and icons
 match. Entries are handled by kind:
 
 - **Panel apps** — **File Manager**, **Task Manager**, **Control Center**,
-  **Calculator**, **Media Writer** and the **Widget Gallery** (the same Swing
-  panels the 3D desktop hosts on a `SwingNode`, minus the 3D) — open as internal
-  frames inside the desktop window under both `-2` and `-w` / `--swing` (Metal
-  look and feel under `-w`).
+  **Calculator**, **Media Writer**, **Widget Gallery**, **Help Center**,
+  **About**, **LPM Console**, **Software Update**, **Database Manager**,
+  **FTP Client**, **Mail**, **Agenda**, **Contact**, **Chart**, the four games
+  (**Chess**, **Solitaire**, **Sudoku**, **Tic-Tac-Toe**) and the **Periodic
+  Table** (the same Swing panels the 3D desktop hosts on a `SwingNode`, minus
+  the 3D) — open as internal frames inside the desktop window under both `-2`
+  and `-w` / `--swing` (Metal look and feel under `-w`).
 - **Desktop widgets** run natively in 2D: the `lg3d-widgets` cards (clock,
   temperature, CPU, memory, weather) are pure Swing and are drawn as draggable
   components on the desktop pane by a `SwingWidgetLayer`, sharing the 3D host's
@@ -176,14 +179,23 @@ match. Entries are handled by kind:
   between the desktop's multiple workspaces and show each one's window count), a
   clock and **Exit**. (The per-window buttons track the MDI internal frames,
   which both `-2` and `--swing` use, and list only the current workspace.)
+- **Desktop context menu** — right-clicking the desktop background offers the
+  window-arrangement entries plus a power/session group: **Lock Screen**,
+  **Suspend**, a separator, then **Reboot...** and **Shut Down...** (the last
+  two ask for confirmation first, like Exit). Every entry is availability-gated
+  on `loginctl` / `systemctl` / `xdg-screensaver`, so on a host without them it
+  simply does not appear.
 
-**What is disabled.** Pure Java 3D applications (the demos, Image Studio,
-Agenda 3D, Mail 3D, …) have no scene to render into, so their menu entries
-appear **greyed out** with the tooltip *“Requires the 3D desktop”* rather than
-being hidden. (The widgets are *not* in this category — see above.) The Control
-Center omits its **Appearance** and
-**Desktop** panels, which drive the 3D scene. The 3D desktop and its boot path
-are otherwise untouched.
+**What is disabled.** Pure Java 3D applications have no scene to render into, so
+their menu entries appear **greyed out** with the tooltip *“Requires the 3D
+desktop”* rather than being hidden; the remaining ones are the sample and
+tutorial entries (**Tutorial 1–3**, **Swing Node Test**) plus **Image Studio**,
+**Luncher** and **Natural Language Control**. (The widgets are *not* in this
+category — see above. The incubator's other 3D-only apps do not appear in the
+menu at all, because their descriptors are not among the discovered ones.) The
+Control Center registers all of its panels in every mode; its **Appearance** and
+**Desktop** panels drive whichever desktop is running. The 3D desktop and its
+boot path are otherwise untouched.
 
 ## Desktop shell features
 
