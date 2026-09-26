@@ -60,4 +60,29 @@ class DesktopConfigWindowGlassTest {
         cfg.resetToDefaults();
         assertFalse(cfg.isFrostedGlass());
     }
+
+    @Test
+    @DisplayName("rounded corners default to on, matching the frosted look")
+    void defaultIsRounded() {
+        cfg.resetToDefaults();
+        assertTrue(cfg.isRoundedCorners());
+        assertTrue(DesktopConfig.DEFAULT_ROUNDED_CORNERS);
+    }
+
+    @Test
+    @DisplayName("the rounded-corners flag round-trips")
+    void roundedRoundTrips() {
+        cfg.setRoundedCorners(false);
+        assertFalse(cfg.isRoundedCorners());
+        cfg.setRoundedCorners(true);
+        assertTrue(cfg.isRoundedCorners());
+    }
+
+    @Test
+    @DisplayName("resetToDefaults returns rounded corners to on")
+    void resetReturnsToRounded() {
+        cfg.setRoundedCorners(false);
+        cfg.resetToDefaults();
+        assertTrue(cfg.isRoundedCorners());
+    }
 }

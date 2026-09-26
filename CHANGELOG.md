@@ -10,6 +10,46 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.26.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Frosted-glass taskbar shelf and a rounded-corner toggle** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.taskbar` / `utils.decoration` /
+  `utils.shape` / `utils.prefs`; `lg3d-apps` control center) — the **Frosted
+  (GPU)** window-glass style now extends to the glass taskbar shelf, not just
+  window decorations. In both the active `GlassyTaskbar` and the
+  (currently descriptor-disabled) `AdvancedGlassyTaskbar`, when the frosted
+  style is chosen and the shader program assembles the shelf becomes a
+  frosted slab: a square `FrostedGlassPanel` quad for the top face (the bar's
+  pickable hover surface) plus a second frosted quad rotated into the
+  viewer-facing front edge, so the bar keeps the classic shelf's visible
+  thickness while staying the same transparent, frosted glass as the windows.
+  Both quads sit in a `TransparencyOrderedGroup` for deterministic
+  back-to-front blending and resize in place via `setSize`, so a live Shape3D
+  child is never removed; with shaders unavailable or the classic style
+  chosen, the original `GlassyPanel` box is built exactly as before — the
+  classic path is untouched. Applying the Window-glass choice in the Control
+  Center now restyles the running desktop **immediately**: both shelf styles
+  are built up front and parked in a scene-graph `Switch` (same for the
+  window-decoration glass bodies), and the Apply button persists the choice
+  and posts a `DesktopConfigChangeEvent` that flips every open window and the
+  bar in place — no restart, no "applies to newly opened windows". The
+  `-Pshaders` dev flag pre-selects the frosted style in memory only, and
+  `FrostedGlassPanel` gained a live `setCornerRadius` (uniform write) so the
+  rounded-corner toggle also takes effect on the fly.
+  To make the frost work on a square panel, `FrostedGlassPanel`'s frosted-edge
+  band is decoupled from the corner radius (new `frostBand` `create` overloads
+  plus a clamped, headless-tested `clampFrostBand`): previously the band was
+  derived as `radius x 0.6`, so a zero radius collapsed the frost to nothing and
+  left a flat, uniform tint. Frosted window decorations now pass the band
+  explicitly too, so toggling rounded corners off yields square corners that
+  still show the frosted edges. A new **Rounded corners** On/Off selector joins
+  the Window Glass section of the Control Center's *Appearance* panel (3D-only,
+  a `JList` for the offscreen `SwingNode`), persisted as `window.roundedCorners`
+  on `DesktopConfig` (default **on**, matching the look the frosted windows have
+  always had); it applies to window decorations only — the bar shelf keeps
+  square corners, and the classic `GlassyPanel` path is always square and
+  unaffected. Covered by headless JUnit 5 tests
+  (`DesktopConfigWindowGlassTest`, extended to 6 for the rounded-corners default
+  / round-trip / reset; `FrostedGlassPanelTest`, extended to 7 for the frost-band
+  clamp).
 - **FTP / FTPS / SFTP file-transfer client** (`ftp-client`, a new self-contained
   Gradle module `org.jdesktop.lg3d.ftpclient`, wrapped by an `lg3d-apps` host
   shim) — a protocol-neutral, FileZilla-style transfer client surfaced as the

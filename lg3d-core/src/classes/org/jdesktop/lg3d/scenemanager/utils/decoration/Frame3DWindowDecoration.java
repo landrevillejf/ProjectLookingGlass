@@ -15,14 +15,19 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.decoration;
 
+import java.lang.ref.WeakReference;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import org.jogamp.vecmath.Vector3f;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
+import org.jdesktop.lg3d.sg.Switch;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.AppearanceChangeAction;
@@ -44,6 +49,9 @@ import org.jdesktop.lg3d.wg.HostedWindowResizer;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.wg.event.Component3DToFrontEvent;
 import org.jdesktop.lg3d.wg.event.InputEvent3D;
+import org.jdesktop.lg3d.wg.event.LgEvent;
+import org.jdesktop.lg3d.wg.event.LgEventConnector;
+import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 
@@ -133,6 +141,9 @@ public class Frame3DWindowDecoration extends Component3D {
     // whichever is live must stay pickable + propagatable (see backdrop below).
     private GlassyPanel bodyDeco;
     private FrostedGlassPanel bodyFrosted;
+    /** Live glass-style selector: child 0 = {@link #bodyDeco} (classic),
+     *  child 1 = {@link #bodyFrosted}; flipped in place on Apply. */
+    private Switch bodySwitch;
     // Exactly one of these is non-null: the GPU soft shadow when lg.shaders is
     // on and its program assembles, else the baked 2006 RectShadow ring. Both
     // are Shape3D children of backdrop and both resize in place via setSize().
@@ -190,6 +201,7 @@ public class Frame3DWindowDecoration extends Component3D {
         // did nothing for both native 3D apps and Swing-to-Node windows.
         backdrop = new Component3D();
         populateBackdrop();
+        registerLive(this);
         backdrop.setTranslation(0.0f, 0.0f, -BODY_DEPTH);
         backdrop.setPickable(true);
         backdrop.setMouseEventPropagatable(true);
@@ -273,30 +285,36 @@ public class Frame3DWindowDecoration extends Component3D {
     private void populateBackdrop() {
         float w = frameWidth + DECO_WIDTH * 2;
         float h = frameHeight + DECO_WIDTH * 2;
-        boolean shaders = ShaderEffects.isEnabled();
-        // The frosted body is a user preference (Control Center > Appearance >
-        // Window glass); the -Pshaders dev flag also forces the whole shader
-        // path on, so either turns the frosted body on.
-        boolean frosted = shaders || DesktopConfig.get().isFrostedGlass();
-        // Prefer the GPU frosted-glass body when the shader effects are enabled
-        // and the program assembles; FrostedGlassPanel.create returns null
-        // otherwise, so fall back to the fixed-function GlassyPanel (the
-        // default, keeping the desktop pixel-identical until the frosted style
-        // is turned on and live-verified). The panel builds itself non-pickable
-        // (decorative by default), but here it IS the window body / gesture
-        // handle, so re-enable pickability to keep flip/rotate reachable.
-        bodyFrosted = frosted
-            ? FrostedGlassPanel.create(w, h, frostRadius, 0.0f)
-            : null;
+        // Both glass bodies are built up front and parked in a Switch so a
+        // live Window-glass Apply (Control Center > Appearance) flips every
+        // open window in place: child 0 = the fixed-function GlassyPanel,
+        // child 1 = the GPU frosted panel (null only when the shader program
+        // cannot assemble, then the Switch stays on the classic body). The
+        // frosted panel builds itself non-pickable (decorative by default),
+        // but here it IS the window body / gesture handle, so re-enable
+        // pickability to keep flip/rotate reachable. The frosted band is
+        // passed explicitly (the panel default derives it from the corner
+        // radius) so square-cornered frosted windows - rounded corners toggled
+        // off - still get the frosted-edge look instead of a flat, uniform
+        // tint.
+        bodyDeco = new GlassyPanel(w, h, BODY_DEPTH, bodyApp);
+        bodyFrosted = FrostedGlassPanel.create(w, h, cornerRadiusFor(), 0.0f,
+            frostRadius * FrostedGlassPanel.EDGE_OF_RADIUS);
         if (bodyFrosted != null) {
             bodyFrosted.setPickable(true);
-        } else {
-            bodyDeco = new GlassyPanel(w, h, BODY_DEPTH, bodyApp);
         }
+        bodySwitch = new Switch();
+        bodySwitch.setCapability(Switch.ALLOW_SWITCH_WRITE);
+        bodySwitch.addChild(bodyDeco);
+        if (bodyFrosted != null) {
+            bodySwitch.addChild(bodyFrosted);
+        }
+        bodySwitch.setWhichChild(glassChildIndex());
         // Prefer the GPU soft shadow when the shader effects are enabled and the
         // program assembles; SoftShadow.create returns null otherwise, so fall
         // back to the baked RectShadow (the default, keeping the desktop
         // pixel-identical until lg.shaders is turned on and live-verified).
+        boolean shaders = ShaderEffects.isEnabled();
         bodySoftShadow = shaders
             ? SoftShadow.create(
                 w, h, shadowN, shadowE, shadowS, shadowW, -BODY_DEPTH, 0.2f)
@@ -307,9 +325,75 @@ public class Frame3DWindowDecoration extends Component3D {
                 -BODY_DEPTH,
                 0.2f);
         }
-        backdrop.addChild(bodyFrosted != null ? bodyFrosted : bodyDeco);
+        backdrop.addChild(bodySwitch);
         backdrop.addChild(
             bodySoftShadow != null ? bodySoftShadow : bodyShadow);
+    }
+
+    /** The Switch index of the glass body the persisted preference selects. */
+    private int glassChildIndex() {
+        return DesktopConfig.get().isFrostedGlass() && bodyFrosted != null
+            ? 1 : 0;
+    }
+
+    /** Applies the persisted window-glass and rounded-corner choices to this
+     *  open window in place (Switch flip plus live {@code uRadius} rewrite). */
+    private void applyGlassStyle() {
+        if (bodySwitch != null) {
+            bodySwitch.setWhichChild(glassChildIndex());
+        }
+        if (bodyFrosted != null) {
+            bodyFrosted.setCornerRadius(cornerRadiusFor());
+        }
+    }
+
+    /** Restyles every live decoration; weak refs of closed windows drop. */
+    private static void restyleAll() {
+        synchronized (LIVE_DECORATIONS) {
+            LIVE_DECORATIONS.removeIf(ref -> ref.get() == null);
+            for (WeakReference<Frame3DWindowDecoration> ref
+                    : new HashSet<>(LIVE_DECORATIONS)) {
+                Frame3DWindowDecoration deco = ref.get();
+                if (deco != null) {
+                    deco.applyGlassStyle();
+                }
+            }
+        }
+    }
+
+    /** Open decorations restyled on {@link DesktopConfigChangeEvent}; weak so
+     *  closed windows leave the set without an explicit dispose hook. */
+    private static final Set<WeakReference<Frame3DWindowDecoration>>
+        LIVE_DECORATIONS = new HashSet<>();
+    private static boolean restyleListenerInstalled = false;
+
+    private static void registerLive(Frame3DWindowDecoration deco) {
+        synchronized (LIVE_DECORATIONS) {
+            LIVE_DECORATIONS.add(new WeakReference<>(deco));
+            if (!restyleListenerInstalled) {
+                restyleListenerInstalled = true;
+                LgEventConnector.getLgEventConnector().addListener(
+                    LgEventSource.ALL_SOURCES,
+                    new LgEventListener() {
+                        public void processEvent(LgEvent evt) {
+                            restyleAll();
+                        }
+                        public Class<LgEvent>[] getTargetEventClasses() {
+                            return new Class[] {DesktopConfigChangeEvent.class};
+                        }
+                    });
+            }
+        }
+    }
+
+    /**
+     * The frosted-body corner radius to build with: the rounded
+     * {@link #frostRadius} when the user has rounded corners on (the default),
+     * or {@code 0} for square corners. Only consulted when the frosted body is
+     * actually built, so the classic {@code GlassyPanel} path is unaffected.
+     */
+    private static float cornerRadiusFor() {
+        return DesktopConfig.get().isRoundedCorners() ? frostRadius : 0.0f;
     }
 
     /** Pins the min/max/close buttons to the top-right of the current size. */

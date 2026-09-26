@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.prefs.Preferences;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.utils.schedule.ScheduleEntry;
+import org.jdesktop.lg3d.utils.shape.ShaderEffects;
 
 /**
  * User-facing desktop configuration: taskbar thickness, position, icon size,
@@ -60,6 +61,7 @@ public final class DesktopConfig {
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
     private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
+    private static final String KEY_ROUNDED_CORNERS = "window.roundedCorners";
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
@@ -128,6 +130,14 @@ public final class DesktopConfig {
     /** Default window-glass style: the fixed-function 2006 GlassyPanel. */
     public static final boolean DEFAULT_FROSTED_GLASS = false;
     private static final boolean DEF_FROSTED_GLASS = DEFAULT_FROSTED_GLASS;
+    /**
+     * Default rounded-corner state for the GPU frosted glass: on, matching the
+     * look the frosted window body has always had. Only meaningful when the
+     * frosted glass is in use; the fixed-function {@code GlassyPanel} is always
+     * square.
+     */
+    public static final boolean DEFAULT_ROUNDED_CORNERS = true;
+    private static final boolean DEF_ROUNDED_CORNERS = DEFAULT_ROUNDED_CORNERS;
     /**
      * Default Metal theme name for the 2D desktop: the empty string means "no
      * Metal theme chosen", so the shell keeps its native platform look until
@@ -211,6 +221,7 @@ public final class DesktopConfig {
     private long dndUntil = DEF_DND_UNTIL;
     private int workspaceCount = DEF_WORKSPACE_COUNT;
     private boolean frostedGlass = DEF_FROSTED_GLASS;
+    private boolean roundedCorners = DEF_ROUNDED_CORNERS;
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
@@ -266,6 +277,13 @@ public final class DesktopConfig {
         workspaceCount = clampWorkspaceCount(
                 prefs.getInt(KEY_WORKSPACE_COUNT, DEF_WORKSPACE_COUNT));
         frostedGlass = prefs.getBoolean(KEY_FROSTED_GLASS, DEF_FROSTED_GLASS);
+        // The -Pshaders dev flag pre-selects the frosted style in memory only
+        // (never persisted): the preference stays the single live source of
+        // truth that Apply writes and every open window and the bar listen to.
+        if (ShaderEffects.isEnabled()) {
+            frostedGlass = true;
+        }
+        roundedCorners = prefs.getBoolean(KEY_ROUNDED_CORNERS, DEF_ROUNDED_CORNERS);
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
@@ -350,6 +368,7 @@ public final class DesktopConfig {
         prefs.putLong(KEY_DND_UNTIL, dndUntil);
         prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
         prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
+        prefs.putBoolean(KEY_ROUNDED_CORNERS, roundedCorners);
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
@@ -391,6 +410,7 @@ public final class DesktopConfig {
         dndUntil = DEF_DND_UNTIL;
         workspaceCount = DEF_WORKSPACE_COUNT;
         frostedGlass = DEF_FROSTED_GLASS;
+        roundedCorners = DEF_ROUNDED_CORNERS;
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
         scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
@@ -415,8 +435,10 @@ public final class DesktopConfig {
     /**
      * Whether decorated {@code Frame3D} windows use the GPU frosted-glass body
      * ({@code FrostedGlassPanel}) instead of the fixed-function 2006
-     * {@code GlassyPanel}. Read when a window decoration is built, so it takes
-     * effect on newly opened windows.
+     * {@code GlassyPanel}. Decorations and the taskbar shelf listen for
+     * {@code DesktopConfigChangeEvent} and flip their glass {@code Switch} in
+     * place, so a change takes effect immediately on every open window and the
+     * bar - no restart needed.
      */
     public boolean isFrostedGlass() {
         return frostedGlass;
@@ -424,6 +446,23 @@ public final class DesktopConfig {
 
     public void setFrostedGlass(boolean frostedGlass) {
         this.frostedGlass = frostedGlass;
+    }
+
+    /**
+     * Whether the GPU frosted glass of <em>window decorations</em> renders with
+     * anti-aliased rounded corners ({@code true}) or square corners
+     * ({@code false}). The frosted taskbar shelf is deliberately excluded - it
+     * always keeps square corners - and the fixed-function {@code GlassyPanel}
+     * is always square. On {@code DesktopConfigChangeEvent} every open
+     * decoration rewrites the frosted corner radius live, so a change takes
+     * effect immediately on existing windows.
+     */
+    public boolean isRoundedCorners() {
+        return roundedCorners;
+    }
+
+    public void setRoundedCorners(boolean roundedCorners) {
+        this.roundedCorners = roundedCorners;
     }
 
     /**

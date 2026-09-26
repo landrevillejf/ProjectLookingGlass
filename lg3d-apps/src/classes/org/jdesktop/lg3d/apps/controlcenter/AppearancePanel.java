@@ -44,6 +44,7 @@ import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
@@ -87,6 +88,10 @@ public class AppearancePanel implements ControlPanel {
     /** Window-glass style selector ("Glassy"/"Frosted"). 3D desktop only. */
     private final DefaultListModel<String> glassNames = new DefaultListModel<>();
     private final JList<String> glassList = new JList<>(glassNames);
+    /** Rounded-corner toggle ("On"/"Off") for the frosted window glass;
+     *  deliberately not applied to the taskbar shelf. 3D desktop only. */
+    private final DefaultListModel<String> cornerNames = new DefaultListModel<>();
+    private final JList<String> cornerList = new JList<>(cornerNames);
 
     /** Metal theme manager (2D desktop only): theme names + parallel specs. */
     private final DefaultListModel<String> themeNames = new DefaultListModel<>();
@@ -208,34 +213,59 @@ public class AppearancePanel implements ControlPanel {
         JScrollPane glassScroll = new JScrollPane(glassList);
         glassScroll.setPreferredSize(new Dimension(150, 58));
 
+        cornerNames.addElement("On");
+        cornerNames.addElement("Off");
+        cornerList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        cornerList.setVisibleRowCount(2);
+        JScrollPane cornerScroll = new JScrollPane(cornerList);
+        cornerScroll.setPreferredSize(new Dimension(90, 58));
+
         JButton applyGlass = new JButton("Apply");
         applyGlass.addActionListener(e -> applyGlass());
 
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        row.add(new JLabel("Window glass:"));
-        row.add(glassScroll);
-        row.add(applyGlass);
+        JPanel glassRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        glassRow.add(new JLabel("Window glass:"));
+        glassRow.add(glassScroll);
+
+        JPanel cornerRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        cornerRow.add(new JLabel("Rounded corners:"));
+        cornerRow.add(cornerScroll);
+        cornerRow.add(applyGlass);
+
+        JPanel rows = new JPanel(new GridLayout(0, 1, 6, 6));
+        rows.add(glassRow);
+        rows.add(cornerRow);
 
         JPanel panel = new JPanel(new BorderLayout());
-        panel.add(row, BorderLayout.CENTER);
+        panel.add(rows, BorderLayout.CENTER);
         panel.setBorder(BorderFactory.createTitledBorder("Window Glass"));
         return panel;
     }
 
     /** Reflects the persisted window-glass style in the selector. */
     private void loadGlassState() {
-        glassList.setSelectedIndex(DesktopConfig.get().isFrostedGlass() ? 1 : 0);
+        DesktopConfig cfg = DesktopConfig.get();
+        glassList.setSelectedIndex(cfg.isFrostedGlass() ? 1 : 0);
+        cornerList.setSelectedIndex(cfg.isRoundedCorners() ? 0 : 1);
     }
 
     private void applyGlass() {
         boolean frosted = glassList.getSelectedIndex() == 1;
+        boolean rounded = cornerList.getSelectedIndex() == 0;
         DesktopConfig cfg = DesktopConfig.get();
         cfg.setFrostedGlass(frosted);
+        cfg.setRoundedCorners(rounded);
         cfg.save();
+        // Restyle every open window and the bar right now: the decorations and
+        // the taskbars listen for this event and flip their glass Switch /
+        // rewrite the frosted corner radius in place.
+        LgEventConnector.getLgEventConnector().postEvent(
+                new DesktopConfigChangeEvent(), null);
         statusLabel.setText((frosted
                 ? "Window glass: Frosted (GPU)"
                 : "Window glass: Glassy (classic)")
-                + " - applies to newly opened windows");
+                + ", rounded corners " + (rounded ? "on" : "off")
+                + " - applied to open windows and the bar, and saved");
     }
 
     /**
