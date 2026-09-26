@@ -59,6 +59,13 @@ public final class DesktopConfig {
     private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
+    private static final String KEY_SCHEDULE_ENABLED = "schedule.enabled";
+    private static final String KEY_DAYLIGHT_HOUR = "schedule.daylightHour";
+    private static final String KEY_DAYLIGHT_MINUTE = "schedule.daylightMinute";
+    private static final String KEY_NIGHTLIGHT_HOUR = "schedule.nightlightHour";
+    private static final String KEY_NIGHTLIGHT_MINUTE = "schedule.nightlightMinute";
+    private static final String KEY_DAYLIGHT_WALLPAPER = "schedule.daylightWallpaper";
+    private static final String KEY_NIGHTLIGHT_WALLPAPER = "schedule.nightlightWallpaper";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -116,6 +123,25 @@ public final class DesktopConfig {
     /** Default set of user-created Metal themes: none (empty encoded list). */
     public static final String DEFAULT_METAL_CUSTOM_THEMES = "";
     private static final String DEF_METAL_CUSTOM_THEMES = DEFAULT_METAL_CUSTOM_THEMES;
+    /** Whether the daylight/nightlight schedule is enabled by default (off). */
+    public static final boolean DEFAULT_SCHEDULE_ENABLED = false;
+    private static final boolean DEF_SCHEDULE_ENABLED = DEFAULT_SCHEDULE_ENABLED;
+    /** Default daylight transition time: 7:00 AM. */
+    public static final int DEFAULT_DAYLIGHT_HOUR = 7;
+    public static final int DEFAULT_DAYLIGHT_MINUTE = 0;
+    private static final int DEF_DAYLIGHT_HOUR = DEFAULT_DAYLIGHT_HOUR;
+    private static final int DEF_DAYLIGHT_MINUTE = DEFAULT_DAYLIGHT_MINUTE;
+    /** Default nightlight transition time: 8:00 PM. */
+    public static final int DEFAULT_NIGHTLIGHT_HOUR = 20;
+    public static final int DEFAULT_NIGHTLIGHT_MINUTE = 0;
+    private static final int DEF_NIGHTLIGHT_HOUR = DEFAULT_NIGHTLIGHT_HOUR;
+    private static final int DEF_NIGHTLIGHT_MINUTE = DEFAULT_NIGHTLIGHT_MINUTE;
+    /** Default daylight wallpaper: empty string means use bundled default. */
+    public static final String DEFAULT_DAYLIGHT_WALLPAPER = "";
+    private static final String DEF_DAYLIGHT_WALLPAPER = DEFAULT_DAYLIGHT_WALLPAPER;
+    /** Default nightlight wallpaper: empty string means use bundled default. */
+    public static final String DEFAULT_NIGHTLIGHT_WALLPAPER = "";
+    private static final String DEF_NIGHTLIGHT_WALLPAPER = DEFAULT_NIGHTLIGHT_WALLPAPER;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -150,6 +176,13 @@ public final class DesktopConfig {
     private boolean frostedGlass = DEF_FROSTED_GLASS;
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
+    private boolean scheduleEnabled = DEF_SCHEDULE_ENABLED;
+    private int daylightHour = DEF_DAYLIGHT_HOUR;
+    private int daylightMinute = DEF_DAYLIGHT_MINUTE;
+    private int nightlightHour = DEF_NIGHTLIGHT_HOUR;
+    private int nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
+    private String daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
+    private String nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -196,6 +229,13 @@ public final class DesktopConfig {
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
+        scheduleEnabled = prefs.getBoolean(KEY_SCHEDULE_ENABLED, DEF_SCHEDULE_ENABLED);
+        daylightHour = clampHour(prefs.getInt(KEY_DAYLIGHT_HOUR, DEF_DAYLIGHT_HOUR));
+        daylightMinute = clampMinute(prefs.getInt(KEY_DAYLIGHT_MINUTE, DEF_DAYLIGHT_MINUTE));
+        nightlightHour = clampHour(prefs.getInt(KEY_NIGHTLIGHT_HOUR, DEF_NIGHTLIGHT_HOUR));
+        nightlightMinute = clampMinute(prefs.getInt(KEY_NIGHTLIGHT_MINUTE, DEF_NIGHTLIGHT_MINUTE));
+        daylightWallpaper = normalizeWallpaper(prefs.get(KEY_DAYLIGHT_WALLPAPER, DEF_DAYLIGHT_WALLPAPER));
+        nightlightWallpaper = normalizeWallpaper(prefs.get(KEY_NIGHTLIGHT_WALLPAPER, DEF_NIGHTLIGHT_WALLPAPER));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -216,6 +256,13 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
+        prefs.putBoolean(KEY_SCHEDULE_ENABLED, scheduleEnabled);
+        prefs.putInt(KEY_DAYLIGHT_HOUR, daylightHour);
+        prefs.putInt(KEY_DAYLIGHT_MINUTE, daylightMinute);
+        prefs.putInt(KEY_NIGHTLIGHT_HOUR, nightlightHour);
+        prefs.putInt(KEY_NIGHTLIGHT_MINUTE, nightlightMinute);
+        prefs.put(KEY_DAYLIGHT_WALLPAPER, daylightWallpaper);
+        prefs.put(KEY_NIGHTLIGHT_WALLPAPER, nightlightWallpaper);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -242,6 +289,13 @@ public final class DesktopConfig {
         frostedGlass = DEF_FROSTED_GLASS;
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
+        scheduleEnabled = DEF_SCHEDULE_ENABLED;
+        daylightHour = DEF_DAYLIGHT_HOUR;
+        daylightMinute = DEF_DAYLIGHT_MINUTE;
+        nightlightHour = DEF_NIGHTLIGHT_HOUR;
+        nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
+        daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
+        nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
     }
 
     // ------------------------------------------------------------------
@@ -416,6 +470,75 @@ public final class DesktopConfig {
         this.workspaceCount = clampWorkspaceCount(workspaceCount);
     }
 
+    /** Whether the daylight/nightlight schedule is enabled. */
+    public boolean isScheduleEnabled() {
+        return scheduleEnabled;
+    }
+
+    public void setScheduleEnabled(boolean scheduleEnabled) {
+        this.scheduleEnabled = scheduleEnabled;
+    }
+
+    /** The hour (0-23) when daylight wallpaper should be applied. */
+    public int getDaylightHour() {
+        return daylightHour;
+    }
+
+    public void setDaylightHour(int hour) {
+        this.daylightHour = clampHour(hour);
+    }
+
+    /** The minute (0-59) when daylight wallpaper should be applied. */
+    public int getDaylightMinute() {
+        return daylightMinute;
+    }
+
+    public void setDaylightMinute(int minute) {
+        this.daylightMinute = clampMinute(minute);
+    }
+
+    /** The hour (0-23) when nightlight wallpaper should be applied. */
+    public int getNightlightHour() {
+        return nightlightHour;
+    }
+
+    public void setNightlightHour(int hour) {
+        this.nightlightHour = clampHour(hour);
+    }
+
+    /** The minute (0-59) when nightlight wallpaper should be applied. */
+    public int getNightlightMinute() {
+        return nightlightMinute;
+    }
+
+    public void setNightlightMinute(int minute) {
+        this.nightlightMinute = clampMinute(minute);
+    }
+
+    /**
+     * The daylight wallpaper filename (from the bundled background directory),
+     * or empty string for the default.
+     */
+    public String getDaylightWallpaper() {
+        return daylightWallpaper;
+    }
+
+    public void setDaylightWallpaper(String wallpaper) {
+        this.daylightWallpaper = normalizeWallpaper(wallpaper);
+    }
+
+    /**
+     * The nightlight wallpaper filename (from the bundled background directory),
+     * or empty string for the default.
+     */
+    public String getNightlightWallpaper() {
+        return nightlightWallpaper;
+    }
+
+    public void setNightlightWallpaper(String wallpaper) {
+        this.nightlightWallpaper = normalizeWallpaper(wallpaper);
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -471,5 +594,20 @@ public final class DesktopConfig {
         }
         String t = s.trim();
         return t.isEmpty() ? DEF_HOLIDAY_REGION : t.toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /** Clamps hour to valid range 0-23. */
+    private static int clampHour(int v) {
+        return Math.max(0, Math.min(23, v));
+    }
+
+    /** Clamps minute to valid range 0-59. */
+    private static int clampMinute(int v) {
+        return Math.max(0, Math.min(59, v));
+    }
+
+    /** Trims wallpaper filename; null falls back to empty (default). */
+    private static String normalizeWallpaper(String s) {
+        return (s == null) ? DEF_DAYLIGHT_WALLPAPER : s.trim();
     }
 }

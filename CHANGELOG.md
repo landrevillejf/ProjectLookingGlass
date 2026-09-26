@@ -10,6 +10,23 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.22.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Schedule-based daylight/nightlight wallpapers** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.schedule`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — an opt-in, time-of-day wallpaper
+  scheduler customizable from the Control Center. `DesktopConfig` gains seven
+  persisted keys (`schedule.enabled`, daylight/nightlight hour+minute, and the
+  daylight/nightlight wallpaper filenames; default off, 07:00 → 20:00, clamped
+  to valid ranges). `ScheduleService` is a daemon-timer service that re-checks
+  every minute, resolves the wallpaper for the current time (correctly handling
+  a daylight window that crosses midnight) and applies it — through a
+  `BackgroundChangeRequestEvent` on the 3D desktop and `Desktop2D.setWallpaper`
+  on the conventional 2D/Swing desktop — only when it changes. It is started
+  from `Desktop2D.show()` so a persisted schedule is honoured at login, and the
+  new Control Center **Schedule** panel (registered after Printing) lets the
+  user enable it, set both transition times and pick each wallpaper from the
+  bundled background collection, with an “Apply Now” shortcut. The pure
+  clock-decision logic is covered headlessly; the live wallpaper application is
+  verified at runtime.
 - **GPU shader foundation + soft drop shadows for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.utils.shape`; `org.jdesktop.lg3d.sg`) — the
   first increment of the 3D-modernization roadmap: an opt-in GLSL effect library
