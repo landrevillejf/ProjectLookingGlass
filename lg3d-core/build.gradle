@@ -464,6 +464,13 @@ tasks.register('run', JavaExec) {
     // to fall back to the 800x600 windowed config (j3d1x1) for debugging.
     def displayConfig = project.hasProperty('windowed') ? 'j3d1x1' : 'j3d1x1-nbfs'
     systemProperty 'lg.displayconfigurl', "file://${etcDir}/lg3d/displayconfig/${displayConfig}"
+    // Opt-in GPU shader effects (SoftShadow + the FrostedGlassPanel window
+    // body). Off by default so the desktop renders pixel-identically through
+    // the fixed-function path; pass -Pshaders (e.g. ./run-lg3d.sh -- -Pshaders)
+    // to turn the GLSL path on for live verification.
+    if (project.hasProperty('shaders')) {
+        systemProperty 'lg.shaders', 'true'
+    }
     systemProperty 'lg.appcodebase', "file://${file('ext/app')}"
     // The IDE start-menu app (lg3d-apps, org.jdesktop.lg3d.apps.swingide) forks
     // the external swing-ide fat jar as a SEPARATE child process; the jar is

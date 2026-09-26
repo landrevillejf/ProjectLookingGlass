@@ -29,6 +29,7 @@ import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
 import org.jdesktop.lg3d.utils.eventaction.Component3DRotator;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
+import org.jdesktop.lg3d.utils.shape.FrostedGlassPanel;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.shape.RectShadow;
@@ -109,6 +110,8 @@ public class Frame3DWindowDecoration extends Component3D {
     private static final float shadowS = 0.002f;
     private static final float shadowW = 0.001f;
     private static final float shadowI = 0.001f;
+    // Corner radius of the frosted-glass window body (world units).
+    private static final float frostRadius = 0.012f;
 
     private static final int flipDuration = 500;
     private static final int flipResetDelay = 1000;
@@ -123,7 +126,12 @@ public class Frame3DWindowDecoration extends Component3D {
 
     // Chrome rebuilt / repositioned by relayout() on hosted-window resize.
     private Component3D backdrop;
+    // Exactly one of these is non-null: the GPU frosted-glass body when
+    // lg.shaders is on and its program assembles, else the fixed-function 2006
+    // GlassyPanel slab. The body is the window's pickable gesture handle, so
+    // whichever is live must stay pickable + propagatable (see backdrop below).
     private GlassyPanel bodyDeco;
+    private FrostedGlassPanel bodyFrosted;
     // Exactly one of these is non-null: the GPU soft shadow when lg.shaders is
     // on and its program assembles, else the baked 2006 RectShadow ring. Both
     // are Shape3D children of backdrop and both resize in place via setSize().
@@ -262,18 +270,29 @@ public class Frame3DWindowDecoration extends Component3D {
      * existing geometry in place rather than rebuilding it.
      */
     private void populateBackdrop() {
-        bodyDeco = new GlassyPanel(
-            frameWidth + DECO_WIDTH * 2,
-            frameHeight + DECO_WIDTH * 2,
-            BODY_DEPTH,
-            bodyApp);
         float w = frameWidth + DECO_WIDTH * 2;
         float h = frameHeight + DECO_WIDTH * 2;
+        boolean shaders = ShaderEffects.isEnabled();
+        // Prefer the GPU frosted-glass body when the shader effects are enabled
+        // and the program assembles; FrostedGlassPanel.create returns null
+        // otherwise, so fall back to the fixed-function GlassyPanel (the
+        // default, keeping the desktop pixel-identical until lg.shaders is
+        // turned on and live-verified). The panel builds itself non-pickable
+        // (decorative by default), but here it IS the window body / gesture
+        // handle, so re-enable pickability to keep flip/rotate reachable.
+        bodyFrosted = shaders
+            ? FrostedGlassPanel.create(w, h, frostRadius, 0.0f)
+            : null;
+        if (bodyFrosted != null) {
+            bodyFrosted.setPickable(true);
+        } else {
+            bodyDeco = new GlassyPanel(w, h, BODY_DEPTH, bodyApp);
+        }
         // Prefer the GPU soft shadow when the shader effects are enabled and the
         // program assembles; SoftShadow.create returns null otherwise, so fall
         // back to the baked RectShadow (the default, keeping the desktop
         // pixel-identical until lg.shaders is turned on and live-verified).
-        bodySoftShadow = ShaderEffects.isEnabled()
+        bodySoftShadow = shaders
             ? SoftShadow.create(
                 w, h, shadowN, shadowE, shadowS, shadowW, -BODY_DEPTH, 0.2f)
             : null;
@@ -283,7 +302,7 @@ public class Frame3DWindowDecoration extends Component3D {
                 -BODY_DEPTH,
                 0.2f);
         }
-        backdrop.addChild(bodyDeco);
+        backdrop.addChild(bodyFrosted != null ? bodyFrosted : bodyDeco);
         backdrop.addChild(
             bodySoftShadow != null ? bodySoftShadow : bodyShadow);
     }
@@ -335,6 +354,9 @@ public class Frame3DWindowDecoration extends Component3D {
         float h = frameHeight + DECO_WIDTH * 2;
         if (bodyDeco != null) {
             bodyDeco.setSize(w, h);
+        }
+        if (bodyFrosted != null) {
+            bodyFrosted.setSize(w, h);
         }
         if (bodyShadow != null) {
             bodyShadow.setSize(w, h);
