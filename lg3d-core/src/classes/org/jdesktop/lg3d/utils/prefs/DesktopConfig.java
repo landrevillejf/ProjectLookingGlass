@@ -68,6 +68,7 @@ public final class DesktopConfig {
     private static final String KEY_DAYLIGHT_WALLPAPER = "schedule.daylightWallpaper";
     private static final String KEY_NIGHTLIGHT_WALLPAPER = "schedule.nightlightWallpaper";
     private static final String KEY_RAMP_MINUTES = "schedule.rampMinutes";
+    private static final String KEY_SHORTCUTS_CUSTOM = "shortcuts.custom";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -156,6 +157,14 @@ public final class DesktopConfig {
     public static final int MIN_RAMP_MINUTES = 0;
     public static final int MAX_RAMP_MINUTES = 180;
 
+    /**
+     * The empty default for the custom keyboard-shortcut overrides: no
+     * overrides, so every binding keeps its built-in default (the
+     * {@code ShortcutMap.defaultBindings()} value).
+     */
+    public static final String DEFAULT_SHORTCUTS_CUSTOM = "";
+    private static final String DEF_SHORTCUTS_CUSTOM = DEFAULT_SHORTCUTS_CUSTOM;
+
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
     public static final float MAX_SCALE = 2.0f;
@@ -198,6 +207,7 @@ public final class DesktopConfig {
     private String daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
     private String nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
     private int rampMinutes = DEF_RAMP_MINUTES;
+    private String shortcutsCustom = DEF_SHORTCUTS_CUSTOM;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -255,6 +265,7 @@ public final class DesktopConfig {
         daylightWallpaper = normalizeWallpaper(prefs.get(KEY_DAYLIGHT_WALLPAPER, DEF_DAYLIGHT_WALLPAPER));
         nightlightWallpaper = normalizeWallpaper(prefs.get(KEY_NIGHTLIGHT_WALLPAPER, DEF_NIGHTLIGHT_WALLPAPER));
         rampMinutes = clampRampMinutes(prefs.getInt(KEY_RAMP_MINUTES, DEF_RAMP_MINUTES));
+        shortcutsCustom = normalizeShortcuts(prefs.get(KEY_SHORTCUTS_CUSTOM, DEF_SHORTCUTS_CUSTOM));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -284,6 +295,7 @@ public final class DesktopConfig {
         prefs.put(KEY_DAYLIGHT_WALLPAPER, daylightWallpaper);
         prefs.put(KEY_NIGHTLIGHT_WALLPAPER, nightlightWallpaper);
         prefs.putInt(KEY_RAMP_MINUTES, rampMinutes);
+        prefs.put(KEY_SHORTCUTS_CUSTOM, shortcutsCustom);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -319,6 +331,7 @@ public final class DesktopConfig {
         daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
         nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
         rampMinutes = DEF_RAMP_MINUTES;
+        shortcutsCustom = DEF_SHORTCUTS_CUSTOM;
     }
 
     // ------------------------------------------------------------------
@@ -596,6 +609,73 @@ public final class DesktopConfig {
         this.rampMinutes = clampRampMinutes(minutes);
     }
 
+    /**
+     * The encoded custom keyboard-shortcut overrides: a {@code ;}-separated
+     * list of {@code action=keyspec} pairs (e.g. {@code run-dialog=alt F2})
+     * that replace the matching default bindings. Never null; empty means "all
+     * defaults". Read by {@code Desktop2D} when it builds the shortcut table.
+     */
+    public String getCustomShortcuts() {
+        return shortcutsCustom;
+    }
+
+    public void setCustomShortcuts(String encoded) {
+        this.shortcutsCustom = normalizeShortcuts(encoded);
+    }
+
+    /**
+     * Parses the encoded custom-shortcut string into an action -> keystroke-spec
+     * map, skipping blank/malformed entries (a keystroke spec may contain spaces
+     * but never {@code ;} or {@code =}, so the split is unambiguous). Pure so it
+     * can be unit-tested headless.
+     */
+    public static java.util.Map<String, String> parseCustomShortcuts(String encoded) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (encoded == null) {
+            return out;
+        }
+        for (String entry : encoded.split(";")) {
+            String pair = entry.trim();
+            if (pair.isEmpty()) {
+                continue;
+            }
+            int eq = pair.indexOf('=');
+            if (eq <= 0 || eq == pair.length() - 1) {
+                continue;
+            }
+            String action = pair.substring(0, eq).trim();
+            String spec = pair.substring(eq + 1).trim();
+            if (!action.isEmpty() && !spec.isEmpty()) {
+                out.put(action, spec);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Serializes an action -> keystroke-spec map back into the encoded
+     * {@code action=keyspec;...} form, skipping null/blank keys or values. The
+     * inverse of {@link #parseCustomShortcuts(String)}.
+     */
+    public static String serializeCustomShortcuts(java.util.Map<String, String> actionToSpec) {
+        if (actionToSpec == null || actionToSpec.isEmpty()) {
+            return DEFAULT_SHORTCUTS_CUSTOM;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<String, String> e : actionToSpec.entrySet()) {
+            String action = e.getKey();
+            String spec = e.getValue();
+            if (action == null || action.isBlank() || spec == null || spec.isBlank()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(';');
+            }
+            sb.append(action.trim()).append('=').append(spec.trim());
+        }
+        return sb.toString();
+    }
+
     // ------------------------------------------------------------------
 
     private static float clampScale(float v) {
@@ -671,5 +751,10 @@ public final class DesktopConfig {
     /** Trims wallpaper filename; null falls back to empty (default). */
     private static String normalizeWallpaper(String s) {
         return (s == null) ? DEF_DAYLIGHT_WALLPAPER : s.trim();
+    }
+
+    /** Trims the encoded custom-shortcut list; null falls back to empty. */
+    private static String normalizeShortcuts(String s) {
+        return (s == null) ? DEF_SHORTCUTS_CUSTOM : s.trim();
     }
 }

@@ -143,7 +143,7 @@ public final class BrightnessStatus {
      * the node back, so a silently-refused write reports false and the caller
      * can fall back to a software dim instead of believing a lie.
      */
-    static boolean setBrightness(int percent) {
+    public static boolean setBrightness(int percent) {
         try {
             Optional<Path> device = findDevice();
             if (device.isEmpty()) {

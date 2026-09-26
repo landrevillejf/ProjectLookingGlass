@@ -149,4 +149,51 @@ class ShortcutMapTest {
         // Alt+Shift+<n> is 1-based on the key, 0-based in the action id.
         assertEquals(ShortcutMap.MOVE_TO_WORKSPACE_PREFIX + "4", bindings.get("alt shift 5"));
     }
+
+    @Test
+    @DisplayName("mergeBindings with no overrides returns the defaults")
+    void mergeNoOverrides() {
+        assertEquals(ShortcutMap.defaultBindings(), ShortcutMap.mergeBindings(null));
+        assertEquals(ShortcutMap.defaultBindings(), ShortcutMap.mergeBindings(Map.of()));
+    }
+
+    @Test
+    @DisplayName("mergeBindings replaces an overridden action's default spec")
+    void mergeOverridesAction() {
+        Map<String, String> merged =
+                ShortcutMap.mergeBindings(Map.of(ShortcutMap.RUN_DIALOG, "control alt R"));
+        assertEquals(18, merged.size(), "the old binding is dropped, the new one added");
+        assertEquals(ShortcutMap.RUN_DIALOG, merged.get("control alt R"));
+        assertNull(merged.get("alt F2"), "the default alt F2 -> run-dialog binding is gone");
+    }
+
+    @Test
+    @DisplayName("mergeBindings keeps unrelated defaults and adds a new action")
+    void mergeAddsNewAction() {
+        Map<String, String> merged =
+                ShortcutMap.mergeBindings(Map.of("custom-action", "control alt R"));
+        assertEquals(19, merged.size());
+        assertEquals("custom-action", merged.get("control alt R"));
+        assertEquals(ShortcutMap.SHOW_DESKTOP, merged.get("control alt D"), "defaults survive");
+    }
+
+    @Test
+    @DisplayName("mergeBindings ignores null/blank actions and specs")
+    void mergeIgnoresBlanks() {
+        Map<String, String> custom = new HashMap<>();
+        custom.put(null, "control alt R");
+        custom.put("   ", "control alt Y");
+        custom.put(ShortcutMap.OPEN_TERMINAL, "   ");
+        assertEquals(ShortcutMap.defaultBindings(), ShortcutMap.mergeBindings(custom),
+                "a blank action or spec never removes a default without replacing it");
+    }
+
+    @Test
+    @DisplayName("a merged table feeds the ShortcutMap constructor")
+    void mergedTableBuildsMap() {
+        ShortcutMap map = new ShortcutMap(
+                ShortcutMap.mergeBindings(Map.of(ShortcutMap.RUN_DIALOG, "control alt R")));
+        assertEquals(ShortcutMap.RUN_DIALOG, map.actionForSpec("control alt R").orElseThrow());
+        assertTrue(map.actionForSpec("alt F2").isEmpty(), "the overridden default is gone");
+    }
 }

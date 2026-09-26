@@ -107,6 +107,38 @@ public final class ShortcutMap {
         return Collections.unmodifiableMap(map);
     }
 
+    /**
+     * Overlays {@code customActionToSpec} (an action -> keystroke-spec table, as
+     * decoded from {@code DesktopConfig.getCustomShortcuts()}) onto
+     * {@link #defaultBindings()}: any default binding whose action is overridden
+     * is dropped, then each custom action -> spec is added. The result is a
+     * spec -> action table ready for {@link #ShortcutMap(Map)}. Pure so it can be
+     * unit-tested headless; null/blank custom actions or specs are ignored, so a
+     * bad override can never remove a default without replacing it.
+     */
+    public static Map<String, String> mergeBindings(Map<String, String> customActionToSpec) {
+        Map<String, String> merged = new LinkedHashMap<>(defaultBindings());
+        if (customActionToSpec == null || customActionToSpec.isEmpty()) {
+            return merged;
+        }
+        Set<String> overridden = new java.util.LinkedHashSet<>();
+        for (Map.Entry<String, String> e : customActionToSpec.entrySet()) {
+            if (e.getKey() != null && !e.getKey().isBlank()
+                    && e.getValue() != null && !e.getValue().isBlank()) {
+                overridden.add(e.getKey().trim());
+            }
+        }
+        merged.values().removeIf(overridden::contains);
+        for (Map.Entry<String, String> e : customActionToSpec.entrySet()) {
+            String action = e.getKey();
+            String spec = e.getValue();
+            if (action != null && !action.isBlank() && spec != null && !spec.isBlank()) {
+                merged.put(spec.trim(), action.trim());
+            }
+        }
+        return merged;
+    }
+
     /** Parses a keystroke spec, or null when it is blank/invalid. */
     public static KeyStroke parse(String spec) {
         if (spec == null) {
