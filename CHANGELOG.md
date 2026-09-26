@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.18.0-dev — Gradle / JDK 21 modernization
+## [Unreleased] — 1.19.0-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **GPU shader foundation + soft drop shadows for the native 3D desktop**
