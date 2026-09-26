@@ -13,7 +13,7 @@ plugins {
 
 allprojects {
     group = 'org.jdesktop.lg3d'
-    version = '1.23.0-dev'
+    version = '1.24.0-dev'
 
     repositories {
         mavenCentral()
