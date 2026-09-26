@@ -1500,6 +1500,10 @@ public class Desktop2D {
     private void reapplyConfig() {
         DesktopConfig cfg = DesktopConfig.get();
         applyFontDefaults(cfg);
+        // Re-skin the shell with the persisted Metal theme, if the user chose
+        // one in the control center. A no-op while none is selected, so the
+        // native platform look is kept by default.
+        MetalThemeManager.applyStored();
         Container content = frame.getContentPane();
         content.remove(taskbar);
         content.add(taskbar, cfg.getPosition() == DesktopConfig.Position.TOP

@@ -57,6 +57,8 @@ public final class DesktopConfig {
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
     private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
+    private static final String KEY_METAL_THEME = "metal.theme";
+    private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -104,6 +106,16 @@ public final class DesktopConfig {
     /** Default window-glass style: the fixed-function 2006 GlassyPanel. */
     public static final boolean DEFAULT_FROSTED_GLASS = false;
     private static final boolean DEF_FROSTED_GLASS = DEFAULT_FROSTED_GLASS;
+    /**
+     * Default Metal theme name for the 2D desktop: the empty string means "no
+     * Metal theme chosen", so the shell keeps its native platform look until
+     * the user picks one in the control center's theme manager.
+     */
+    public static final String DEFAULT_METAL_THEME = "";
+    private static final String DEF_METAL_THEME = DEFAULT_METAL_THEME;
+    /** Default set of user-created Metal themes: none (empty encoded list). */
+    public static final String DEFAULT_METAL_CUSTOM_THEMES = "";
+    private static final String DEF_METAL_CUSTOM_THEMES = DEFAULT_METAL_CUSTOM_THEMES;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -136,6 +148,8 @@ public final class DesktopConfig {
     private long dndUntil = DEF_DND_UNTIL;
     private int workspaceCount = DEF_WORKSPACE_COUNT;
     private boolean frostedGlass = DEF_FROSTED_GLASS;
+    private String metalTheme = DEF_METAL_THEME;
+    private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -179,6 +193,9 @@ public final class DesktopConfig {
         workspaceCount = clampWorkspaceCount(
                 prefs.getInt(KEY_WORKSPACE_COUNT, DEF_WORKSPACE_COUNT));
         frostedGlass = prefs.getBoolean(KEY_FROSTED_GLASS, DEF_FROSTED_GLASS);
+        metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
+        metalCustomThemes = normalizeCustomThemes(
+                prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -197,6 +214,8 @@ public final class DesktopConfig {
         prefs.putLong(KEY_DND_UNTIL, dndUntil);
         prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
         prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
+        prefs.put(KEY_METAL_THEME, metalTheme);
+        prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -221,6 +240,8 @@ public final class DesktopConfig {
         dndUntil = DEF_DND_UNTIL;
         workspaceCount = DEF_WORKSPACE_COUNT;
         frostedGlass = DEF_FROSTED_GLASS;
+        metalTheme = DEF_METAL_THEME;
+        metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     }
 
     // ------------------------------------------------------------------
@@ -243,6 +264,33 @@ public final class DesktopConfig {
 
     public void setFrostedGlass(boolean frostedGlass) {
         this.frostedGlass = frostedGlass;
+    }
+
+    /**
+     * The name of the Metal theme the 2D desktop is skinned with, or the empty
+     * string when no Metal theme has been chosen (the native platform look is
+     * kept). Read at start-up by
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager#applyStored()}.
+     */
+    public String getMetalTheme() {
+        return metalTheme;
+    }
+
+    public void setMetalTheme(String metalTheme) {
+        this.metalTheme = normalizeThemeName(metalTheme);
+    }
+
+    /**
+     * The encoded list of user-created Metal themes (see
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec#encodeAll}).
+     * Never null; empty means no custom themes.
+     */
+    public String getMetalCustomThemes() {
+        return metalCustomThemes;
+    }
+
+    public void setMetalCustomThemes(String metalCustomThemes) {
+        this.metalCustomThemes = normalizeCustomThemes(metalCustomThemes);
     }
 
     public void setBarScale(float barScale) {
@@ -393,6 +441,16 @@ public final class DesktopConfig {
     /** Trims a folder path; null falls back to the empty (bundled) default. */
     private static String normalizeFolder(String s) {
         return (s == null) ? DEF_SLIDESHOW_FOLDER : s.trim();
+    }
+
+    /** Trims a Metal theme name; null falls back to the empty (native) default. */
+    private static String normalizeThemeName(String s) {
+        return (s == null) ? DEF_METAL_THEME : s.trim();
+    }
+
+    /** Trims the encoded custom-theme list; null falls back to empty. */
+    private static String normalizeCustomThemes(String s) {
+        return (s == null) ? DEF_METAL_CUSTOM_THEMES : s.trim();
     }
 
     private static Position parsePosition(String s) {
