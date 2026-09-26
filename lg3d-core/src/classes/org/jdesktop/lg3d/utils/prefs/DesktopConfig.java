@@ -59,7 +59,8 @@ public final class DesktopConfig {
     private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
-    private static final String KEY_SCHEDULE_ENABLED = "schedule.enabled";
+    private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
+    private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
     private static final String KEY_DAYLIGHT_HOUR = "schedule.daylightHour";
     private static final String KEY_DAYLIGHT_MINUTE = "schedule.daylightMinute";
     private static final String KEY_NIGHTLIGHT_HOUR = "schedule.nightlightHour";
@@ -124,9 +125,14 @@ public final class DesktopConfig {
     /** Default set of user-created Metal themes: none (empty encoded list). */
     public static final String DEFAULT_METAL_CUSTOM_THEMES = "";
     private static final String DEF_METAL_CUSTOM_THEMES = DEFAULT_METAL_CUSTOM_THEMES;
-    /** Whether the daylight/nightlight schedule is enabled by default (off). */
-    public static final boolean DEFAULT_SCHEDULE_ENABLED = false;
-    private static final boolean DEF_SCHEDULE_ENABLED = DEFAULT_SCHEDULE_ENABLED;
+    /**
+     * Whether the schedule swaps the wallpaper / re-lights the scene by default.
+     * The two are independent opt-ins: either, both or neither can be enabled.
+     */
+    public static final boolean DEFAULT_SCHEDULE_WALLPAPER_ENABLED = false;
+    private static final boolean DEF_SCHEDULE_WALLPAPER_ENABLED = DEFAULT_SCHEDULE_WALLPAPER_ENABLED;
+    public static final boolean DEFAULT_SCHEDULE_LIGHTING_ENABLED = false;
+    private static final boolean DEF_SCHEDULE_LIGHTING_ENABLED = DEFAULT_SCHEDULE_LIGHTING_ENABLED;
     /** Default daylight transition time: 7:00 AM. */
     public static final int DEFAULT_DAYLIGHT_HOUR = 7;
     public static final int DEFAULT_DAYLIGHT_MINUTE = 0;
@@ -183,7 +189,8 @@ public final class DesktopConfig {
     private boolean frostedGlass = DEF_FROSTED_GLASS;
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
-    private boolean scheduleEnabled = DEF_SCHEDULE_ENABLED;
+    private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
+    private boolean scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
     private int daylightHour = DEF_DAYLIGHT_HOUR;
     private int daylightMinute = DEF_DAYLIGHT_MINUTE;
     private int nightlightHour = DEF_NIGHTLIGHT_HOUR;
@@ -237,7 +244,10 @@ public final class DesktopConfig {
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
-        scheduleEnabled = prefs.getBoolean(KEY_SCHEDULE_ENABLED, DEF_SCHEDULE_ENABLED);
+        scheduleWallpaperEnabled = prefs.getBoolean(
+                KEY_SCHEDULE_WALLPAPER_ENABLED, DEF_SCHEDULE_WALLPAPER_ENABLED);
+        scheduleLightingEnabled = prefs.getBoolean(
+                KEY_SCHEDULE_LIGHTING_ENABLED, DEF_SCHEDULE_LIGHTING_ENABLED);
         daylightHour = clampHour(prefs.getInt(KEY_DAYLIGHT_HOUR, DEF_DAYLIGHT_HOUR));
         daylightMinute = clampMinute(prefs.getInt(KEY_DAYLIGHT_MINUTE, DEF_DAYLIGHT_MINUTE));
         nightlightHour = clampHour(prefs.getInt(KEY_NIGHTLIGHT_HOUR, DEF_NIGHTLIGHT_HOUR));
@@ -265,7 +275,8 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
-        prefs.putBoolean(KEY_SCHEDULE_ENABLED, scheduleEnabled);
+        prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
+        prefs.putBoolean(KEY_SCHEDULE_LIGHTING_ENABLED, scheduleLightingEnabled);
         prefs.putInt(KEY_DAYLIGHT_HOUR, daylightHour);
         prefs.putInt(KEY_DAYLIGHT_MINUTE, daylightMinute);
         prefs.putInt(KEY_NIGHTLIGHT_HOUR, nightlightHour);
@@ -299,7 +310,8 @@ public final class DesktopConfig {
         frostedGlass = DEF_FROSTED_GLASS;
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
-        scheduleEnabled = DEF_SCHEDULE_ENABLED;
+        scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
+        scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
         daylightHour = DEF_DAYLIGHT_HOUR;
         daylightMinute = DEF_DAYLIGHT_MINUTE;
         nightlightHour = DEF_NIGHTLIGHT_HOUR;
@@ -481,13 +493,34 @@ public final class DesktopConfig {
         this.workspaceCount = clampWorkspaceCount(workspaceCount);
     }
 
-    /** Whether the daylight/nightlight schedule is enabled. */
-    public boolean isScheduleEnabled() {
-        return scheduleEnabled;
+    /**
+     * Whether the schedule swaps the wallpaper at the daylight/nightlight times.
+     * Independent of {@link #isLightingScheduleEnabled()}.
+     */
+    public boolean isWallpaperScheduleEnabled() {
+        return scheduleWallpaperEnabled;
     }
 
-    public void setScheduleEnabled(boolean scheduleEnabled) {
-        this.scheduleEnabled = scheduleEnabled;
+    public void setWallpaperScheduleEnabled(boolean enabled) {
+        this.scheduleWallpaperEnabled = enabled;
+    }
+
+    /**
+     * Whether the schedule fades the scene lighting (3D) or night veil (2D) at
+     * the daylight/nightlight times. Independent of
+     * {@link #isWallpaperScheduleEnabled()}.
+     */
+    public boolean isLightingScheduleEnabled() {
+        return scheduleLightingEnabled;
+    }
+
+    public void setLightingScheduleEnabled(boolean enabled) {
+        this.scheduleLightingEnabled = enabled;
+    }
+
+    /** True when either the wallpaper or the lighting schedule is enabled. */
+    public boolean isScheduleEnabled() {
+        return scheduleWallpaperEnabled || scheduleLightingEnabled;
     }
 
     /** The hour (0-23) when daylight wallpaper should be applied. */

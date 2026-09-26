@@ -40,11 +40,15 @@ work to make it build and run on a current toolchain.
   crisp). Both are driven by one pure, clock-injected blend factor
   (`DayNightCurve.dayFactor`) that ramps smoothly across a configurable window
   centred on each transition and handles a daylight window crossing midnight.
-  A new `schedule.rampMinutes` preference (default 30, 0–180) sets the fade width
-  and is exposed in the Control Center **Schedule** panel, which also gained a fix
-  for the daylight/nightlight time spinners previously sharing one model. The
-  curve, config clamping and veil painting are covered headlessly; the live 3D
-  light re-tint is verified at runtime.
+  A new `schedule.rampMinutes` preference (default 30, 0–180) sets the fade width.
+  The wallpaper and lighting schedules are now **independent on/off toggles**
+  (`schedule.wallpaperEnabled` / `schedule.lightingEnabled`), so either, both or
+  neither can run off the same daylight/nightlight times, and switching lighting
+  off restores neutral daylight. All of it is exposed in the Control Center
+  **Schedule** panel, which also gained a fix for the daylight/nightlight time
+  spinners previously sharing one model. The curve, config clamping, toggle
+  independence and veil painting are covered headlessly; the live 3D light re-tint
+  is verified at runtime.
 - **GPU shader foundation + soft drop shadows for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.utils.shape`; `org.jdesktop.lg3d.sg`) — the
   first increment of the 3D-modernization roadmap: an opt-in GLSL effect library

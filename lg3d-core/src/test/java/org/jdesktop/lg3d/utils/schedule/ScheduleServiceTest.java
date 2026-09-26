@@ -46,7 +46,8 @@ class ScheduleServiceTest {
     @BeforeEach
     void disable() {
         cfg.resetToDefaults();
-        cfg.setScheduleEnabled(false);
+        cfg.setWallpaperScheduleEnabled(false);
+        cfg.setLightingScheduleEnabled(false);
     }
 
     @AfterEach
@@ -146,7 +147,8 @@ class ScheduleServiceTest {
         ScheduleService a = ScheduleService.get();
         ScheduleService b = ScheduleService.get();
         assertSame(a, b);
-        cfg.setScheduleEnabled(false);
+        cfg.setWallpaperScheduleEnabled(false);
+        cfg.setLightingScheduleEnabled(false);
         assertDoesNotThrow(a::checkNow);
     }
 
@@ -176,5 +178,25 @@ class ScheduleServiceTest {
                 System.setProperty(Desktop2D.MODE_PROPERTY, prev);
             }
         }
+    }
+
+    @Test
+    @DisplayName("checkNow honours each toggle independently without throwing")
+    void checkNowHonoursIndependentToggles() {
+        ScheduleService svc = ScheduleService.get();
+
+        // Lighting only: the wallpaper branch is skipped and applyDayNight no-ops
+        // headlessly (StandardGlobalLights.live() is null, no 2D shell running).
+        cfg.setWallpaperScheduleEnabled(false);
+        cfg.setLightingScheduleEnabled(true);
+        assertDoesNotThrow(svc::checkNow);
+
+        // Wallpaper only: resolveWallpaper/applyWallpaper run while lighting is
+        // left alone; a filename with no classpath resource is logged and skipped.
+        cfg.setWallpaperScheduleEnabled(true);
+        cfg.setLightingScheduleEnabled(false);
+        cfg.setDaylightWallpaper("no-such-wallpaper-xyz-123.jpg");
+        cfg.setNightlightWallpaper("no-such-wallpaper-xyz-123.jpg");
+        assertDoesNotThrow(svc::checkNow);
     }
 }

@@ -27,9 +27,11 @@ import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
 /**
- * Service that automatically switches wallpapers based on a time schedule.
- * Checks every minute whether the current time has crossed a daylight/nightlight
- * transition threshold and applies the appropriate wallpaper if configured.
+ * Service that applies the daylight/nightlight schedule: it can switch the
+ * wallpaper and/or re-tint the scene lighting, each an independent opt-in
+ * ({@link DesktopConfig#isWallpaperScheduleEnabled()} and
+ * {@link DesktopConfig#isLightingScheduleEnabled()}). It checks every minute
+ * whether the clock has crossed a transition and applies whatever is enabled.
  */
 public final class ScheduleService {
 
@@ -40,6 +42,8 @@ public final class ScheduleService {
     private static volatile ScheduleService instance;
     private final Timer timer;
     private String lastAppliedWallpaper;
+    /** Last lighting blend applied, so turning the schedule off can reset it. */
+    private float lastLightingFactor = 0.0f;
 
     private ScheduleService() {
         this.timer = new Timer("LG3D-ScheduleService", true);
@@ -84,28 +88,37 @@ public final class ScheduleService {
      */
     private void checkAndApply() {
         DesktopConfig cfg = DesktopConfig.get();
-        if (!cfg.isScheduleEnabled()) {
-            return;
-        }
-
         LocalTime now = LocalTime.now();
 
-        String targetWallpaper = resolveWallpaper(now, cfg);
-        if (!targetWallpaper.equals(lastAppliedWallpaper)) {
-            applyWallpaper(targetWallpaper);
-            lastAppliedWallpaper = targetWallpaper;
+        // The wallpaper and lighting schedules are independent opt-ins: each is
+        // applied only when its own toggle is on, so either can run alone.
+        if (cfg.isWallpaperScheduleEnabled()) {
+            String targetWallpaper = resolveWallpaper(now, cfg);
+            if (!targetWallpaper.equals(lastAppliedWallpaper)) {
+                applyWallpaper(targetWallpaper);
+                lastAppliedWallpaper = targetWallpaper;
+            }
         }
 
-        // Re-tint the scene every tick: the day/night blend factor moves
-        // gradually across each transition ramp, so it is applied
-        // unconditionally rather than only on a discrete change like the
-        // wallpaper. The one-minute tick steps a 30-minute ramp in ~30 small
-        // increments, which reads as a smooth fade without a second timer.
-        applyDayNight(DayNightCurve.dayFactor(
-                now,
-                LocalTime.of(cfg.getDaylightHour(), cfg.getDaylightMinute()),
-                LocalTime.of(cfg.getNightlightHour(), cfg.getNightlightMinute()),
-                cfg.getRampMinutes()));
+        if (cfg.isLightingScheduleEnabled()) {
+            // Re-tint every tick: the day/night blend factor moves gradually
+            // across each transition ramp, so it is applied unconditionally
+            // rather than only on a discrete change like the wallpaper. The
+            // one-minute tick steps a 30-minute ramp in ~30 small increments,
+            // which reads as a smooth fade without a second timer.
+            float factor = DayNightCurve.dayFactor(
+                    now,
+                    LocalTime.of(cfg.getDaylightHour(), cfg.getDaylightMinute()),
+                    LocalTime.of(cfg.getNightlightHour(), cfg.getNightlightMinute()),
+                    cfg.getRampMinutes());
+            applyDayNight(factor);
+            lastLightingFactor = factor;
+        } else if (lastLightingFactor != 0.0f) {
+            // Lighting was just switched off: restore neutral daylight once so
+            // the scene (or 2D veil) is not left stuck at night.
+            applyDayNight(0.0f);
+            lastLightingFactor = 0.0f;
+        }
     }
 
     /**
