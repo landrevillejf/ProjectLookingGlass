@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.23.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Four new fully-controllable Control Center system panels over new platform
+  seams** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — the Control Center grows from thirteen
+  categories to seventeen by surfacing four standard system settings, each backed
+  by a new pure platform seam that follows the established `PrinterStatus` /
+  `NetworkConnections` shape (parsing, formatting and command-building are pure
+  and unit-tested; the public probes degrade to empty / false / a read-only note
+  when the tool, hardware or X server is absent rather than throwing). Four new
+  panels — **Date & Time** (`TimeZoneStatus` over `timedatectl`: a time-zone list
+  + Set and an NTP toggle), **Language & Region** (`LocaleStatus` over
+  `localectl`: the current LANG + a locale list + Set, with an “applies to new
+  sessions” note), **Mouse & Keyboard** (`InputSettings` over `xset`: pointer
+  acceleration/threshold and key-repeat rate/delay presets + a repeat toggle, with
+  a Wayland warning) and **Bluetooth** (`BluetoothStatus` over
+  `bluetoothctl`/`rfkill`: a power toggle, controller and device lists with
+  Connect/Disconnect, and a hard-/soft-block note when no adapter is present) —
+  are pure Swing (`JList` / `JCheckBox` / `JButton` only, never a combo box or raw
+  key-capture, so they keep working hosted offscreen in a `SwingNode`) and actually
+  change OS settings rather than only displaying them; these persist in the OS
+  through their own tools, not in `DesktopConfig`. All four are registered in
+  `ControlPanelRegistry` in the final seventeen-panel order, and the
+  `controlcenter` `AGENTS.md` was refreshed (the stale panel list and the
+  “tabbed”/`JTabbedPane` and “UI-only, no persistence” claims were corrected to
+  the real `JList` + `CardLayout` shell, the `ControlPanel` interface and the seam
+  inventory). Covered by headless JUnit 5 tests (`TimeZoneStatusTest` 5,
+  `LocaleStatusTest` 5, `InputSettingsTest` 6, `BluetoothStatusTest` 6, and one
+  construction smoke test per panel — `DateTimePanelTest` 4, `LocalePanelTest` 4,
+  `InputPanelTest` 5, `BluetoothPanelTest` 4).
 - **Five new fully-controllable Control Center panels over existing seams**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`,
   `org.jdesktop.lg3d.utils.prefs`; `lg3d-apps`,
