@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: FTP Client (from lg3d-apps). A protocol neutral file
+ transfer client (site profiles, dual local and remote browser, transfer queue
+ with retry, resume and cancellation) over FTP, FTPS and SFTP, in the FileZilla
+ tradition. In the 3D desktop the FtpClientPanel is put on a SwingNode inside a
+ Frame3D via TitledSwingWindow (the "java <class>" command); in the 2D/Swing
+ desktop the same panel is hosted as an MDI internal frame via
+ Desktop2DAppRegistry. The ftp-client jar and its runtime deps (commons-net,
+ jsch, jackson, slf4j, bouncycastle) are on the desktop run classpath. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.ftpclient.FtpClient</string>
+  </void>
+  <void property="desc">
+   <string>Transfer files over FTP, FTPS and SFTP</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/ftpclient.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Internet</string>
+  </void>
+  <void property="name">
+   <string>FTP Client</string>
+  </void>
+ </object>
+</java>
