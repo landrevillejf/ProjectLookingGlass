@@ -67,6 +67,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector database cylinder instead of a bundled glyph. */
     private static final String DATABASE_GLYPH = "DatabaseCylinder";
 
+    /** Glyph name that draws a built-in vector transfer (up/down arrow) pair instead of a bundled glyph. */
+    private static final String TRANSFER_GLYPH = "TransferArrows";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -99,6 +102,11 @@ public class GenerateAppIcons {
         // the bundled glyph set has no database cylinder, so it is drawn in-tool
         // like the keypad, disc, brush and package box.
         {"dbmanager.png",   IconColor.TEAL,        IconCategory.GENERAL, DATABASE_GLYPH},
+        // FTP Client (standalone FTP/FTPS/SFTP transfer client captured into the
+        // desktop); the bundled glyph set has no upload/download transfer pair,
+        // so it is drawn in-tool like the keypad, disc, brush, package box and
+        // database cylinder.
+        {"ftpclient.png",   IconColor.BLUE,        IconCategory.GENERAL, TRANSFER_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -123,6 +131,8 @@ public class GenerateAppIcons {
                 glyph = drawPackageGlyph(GLYPH);
             } else if (DATABASE_GLYPH.equals(glyphName)) {
                 glyph = drawDatabaseGlyph(GLYPH);
+            } else if (TRANSFER_GLYPH.equals(glyphName)) {
+                glyph = drawTransferGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -266,6 +276,46 @@ public class GenerateAppIcons {
         g.setStroke(new BasicStroke(1.4f));
         g.drawArc(5, 7, 22, 8, 180, 180);
         g.drawArc(5, 14, 22, 8, 180, 180);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the transfer glyph: a white upload arrow beside a white download
+     * arrow (two opposing vertical shafts, one capped pointing up, the other
+     * pointing down), the conventional FileZilla-style transfer mark. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing transfer shaped,
+     * so it is drawn in-tool like the keypad, disc, brush, package box and
+     * database cylinder. Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawTransferGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Upload arrow (left): shaft topped by an upward-pointing head.
+        GeneralPath up = new GeneralPath();
+        up.moveTo(10, 3);
+        up.lineTo(15, 10);
+        up.lineTo(12, 10);
+        up.lineTo(12, 29);
+        up.lineTo(8, 29);
+        up.lineTo(8, 10);
+        up.lineTo(5, 10);
+        up.closePath();
+        g.fill(up);
+        // Download arrow (right): shaft bottomed by a downward-pointing head.
+        GeneralPath down = new GeneralPath();
+        down.moveTo(22, 3);
+        down.lineTo(26, 3);
+        down.lineTo(26, 22);
+        down.lineTo(29, 22);
+        down.lineTo(24, 29);
+        down.lineTo(19, 22);
+        down.lineTo(22, 22);
+        down.closePath();
+        g.fill(down);
         g.dispose();
         return new ImageIcon(image);
     }
