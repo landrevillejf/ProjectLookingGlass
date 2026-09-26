@@ -68,6 +68,17 @@ work to make it build and run on a current toolchain.
   seams (the frosted-glass uniform binding order, the missing-resource fallback and
   the quad-layout / corner-radius clamp math) are covered by headless JUnit 5 tests
   (`ShaderEffectsTest` +2, `FrostedGlassPanelTest` 4).
+- **Window-glass style choice in the Control Center (Appearance)** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.prefs`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — frosted-vs-glassy is now a user
+  setting, not just a launch flag: `AppearancePanel` grew a "Window Glass"
+  section with a two-entry `JList` (Glassy (classic) / Frosted (GPU)) and an
+  Apply button that persists the new `DesktopConfig` preference
+  (`window.frostedGlass`, `isFrostedGlass`/`setFrostedGlass`, default Glassy).
+  `Frame3DWindowDecoration` reads it when it builds a window body, so the choice
+  applies to newly opened windows on the 3D desktop; the `-Pshaders` dev flag
+  still force-enables the whole shader path. Covered by headless JUnit 5 tests
+  (`DesktopConfigWindowGlassTest` 3).
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent
