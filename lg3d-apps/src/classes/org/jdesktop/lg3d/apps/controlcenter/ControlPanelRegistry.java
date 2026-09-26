@@ -21,8 +21,9 @@ import java.util.logging.Logger;
 
 /**
  * Discovers the control center's category panels. The built-in panels
- * (Appearance, Desktop, Display, Sound, Power, Shortcuts, Notifications,
- * Workspaces, Network, Printing, Users, System, Schedule) are registered on
+ * (Appearance, Desktop, Display, Sound, Power, Mouse & Keyboard, Shortcuts,
+ * Notifications, Workspaces, Network, Bluetooth, Printing, Date & Time,
+ * Language & Region, Users, System, Schedule) are registered on
  * first access; extra panels can be contributed with
  * {@link #register(ControlPanel)} before the control center window is built.
  *
@@ -36,10 +37,13 @@ import java.util.logging.Logger;
  * Workspaces and Shortcuts panels are pure Swing over platform seams and the same
  * {@code Desktop2D} control-center hooks, degrading to a read-only or empty state
  * when the backing hardware, tool or 2D shell is absent, so they behave the same
- * in both modes. The Network and Printing panels are pure Swing over platform
- * seams (NetworkManager / CUPS). Each panel is still built defensively - one that
- * cannot be constructed in this JVM (a missing Java 3D runtime, say) is skipped
- * rather than taking the whole control center with it.</p>
+ * in both modes. The Network, Printing, Bluetooth, Date & Time, Language & Region
+ * and Mouse & Keyboard panels are pure Swing over their platform seams
+ * (NetworkManager, CUPS, bluetoothctl/rfkill, timedatectl, localectl and xset),
+ * each degrading to a read-only or "unavailable" state when its tool, hardware or
+ * X server is absent. Every panel is still built defensively - one that cannot be
+ * constructed in this JVM (a missing Java 3D runtime, say) is skipped rather than
+ * taking the whole control center with it.</p>
  */
 public final class ControlPanelRegistry {
 
@@ -68,11 +72,15 @@ public final class ControlPanelRegistry {
             addDefault(DisplayPanel::new, "Display");
             addDefault(SoundPanel::new, "Sound");
             addDefault(PowerPanel::new, "Power");
+            addDefault(InputPanel::new, "Mouse & Keyboard");
             addDefault(ShortcutsPanel::new, "Shortcuts");
             addDefault(NotificationsPanel::new, "Notifications");
             addDefault(WorkspacesPanel::new, "Workspaces");
             addDefault(NetworkPanel::new, "Network");
+            addDefault(BluetoothPanel::new, "Bluetooth");
             addDefault(PrintingPanel::new, "Printing");
+            addDefault(DateTimePanel::new, "Date & Time");
+            addDefault(LocalePanel::new, "Language & Region");
             addDefault(UsersPanel::new, "Users");
             addDefault(SystemInfoPanel::new, "System");
             addDefault(SchedulePanel::new, "Schedule");
