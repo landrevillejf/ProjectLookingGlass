@@ -20,6 +20,7 @@ import java.util.TimerTask;
 
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
@@ -273,14 +274,18 @@ public class Frame3DWindowDecoration extends Component3D {
         float w = frameWidth + DECO_WIDTH * 2;
         float h = frameHeight + DECO_WIDTH * 2;
         boolean shaders = ShaderEffects.isEnabled();
+        // The frosted body is a user preference (Control Center > Appearance >
+        // Window glass); the -Pshaders dev flag also forces the whole shader
+        // path on, so either turns the frosted body on.
+        boolean frosted = shaders || DesktopConfig.get().isFrostedGlass();
         // Prefer the GPU frosted-glass body when the shader effects are enabled
         // and the program assembles; FrostedGlassPanel.create returns null
         // otherwise, so fall back to the fixed-function GlassyPanel (the
-        // default, keeping the desktop pixel-identical until lg.shaders is
-        // turned on and live-verified). The panel builds itself non-pickable
+        // default, keeping the desktop pixel-identical until the frosted style
+        // is turned on and live-verified). The panel builds itself non-pickable
         // (decorative by default), but here it IS the window body / gesture
         // handle, so re-enable pickability to keep flip/rotate reachable.
-        bodyFrosted = shaders
+        bodyFrosted = frosted
             ? FrostedGlassPanel.create(w, h, frostRadius, 0.0f)
             : null;
         if (bodyFrosted != null) {

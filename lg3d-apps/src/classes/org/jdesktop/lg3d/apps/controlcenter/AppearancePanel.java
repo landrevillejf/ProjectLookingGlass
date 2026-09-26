@@ -81,6 +81,10 @@ public class AppearancePanel implements ControlPanel {
     private final JLabel folderLabel = new JLabel(" ");
     private final List<JComponent> slideshowControls = new ArrayList<>();
 
+    /** Window-glass style selector ("Glassy"/"Frosted"). */
+    private final DefaultListModel<String> glassNames = new DefaultListModel<>();
+    private final JList<String> glassList = new JList<>(glassNames);
+
     /** The slideshow source folder; empty means the bundled wallpapers. */
     private String slideshowFolder = "";
 
@@ -124,7 +128,10 @@ public class AppearancePanel implements ControlPanel {
 
         root.add(split, BorderLayout.CENTER);
         root.add(statusLabel, BorderLayout.SOUTH);
-        root.add(buildSlideshowPanel(), BorderLayout.NORTH);
+        JPanel north = new JPanel(new GridLayout(0, 1, 6, 6));
+        north.add(buildGlassPanel());
+        north.add(buildSlideshowPanel());
+        root.add(north, BorderLayout.NORTH);
 
         reload();
     }
@@ -162,7 +169,54 @@ public class AppearancePanel implements ControlPanel {
         if (!names.isEmpty()) {
             nameList.setSelectedIndex(0);
         }
+        loadGlassState();
         loadSlideshowState();
+    }
+
+    /**
+     * Builds the window-glass style section: a two-entry {@link JList}
+     * (Glassy / Frosted) plus an apply button. A list selector (never a combo
+     * box or radio buttons) keeps the panel working when it is hosted offscreen
+     * in a {@code SwingNode}. The choice is persisted on {@link DesktopConfig}
+     * and read when a window decoration is built, so it applies to newly opened
+     * windows on the 3D desktop.
+     */
+    private JComponent buildGlassPanel() {
+        glassNames.addElement("Glassy (classic)");
+        glassNames.addElement("Frosted (GPU)");
+        glassList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        glassList.setVisibleRowCount(2);
+        JScrollPane glassScroll = new JScrollPane(glassList);
+        glassScroll.setPreferredSize(new Dimension(150, 58));
+
+        JButton applyGlass = new JButton("Apply");
+        applyGlass.addActionListener(e -> applyGlass());
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        row.add(new JLabel("Window glass:"));
+        row.add(glassScroll);
+        row.add(applyGlass);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(row, BorderLayout.CENTER);
+        panel.setBorder(BorderFactory.createTitledBorder("Window Glass"));
+        return panel;
+    }
+
+    /** Reflects the persisted window-glass style in the selector. */
+    private void loadGlassState() {
+        glassList.setSelectedIndex(DesktopConfig.get().isFrostedGlass() ? 1 : 0);
+    }
+
+    private void applyGlass() {
+        boolean frosted = glassList.getSelectedIndex() == 1;
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setFrostedGlass(frosted);
+        cfg.save();
+        statusLabel.setText((frosted
+                ? "Window glass: Frosted (GPU)"
+                : "Window glass: Glassy (classic)")
+                + " - applies to newly opened windows");
     }
 
     /**

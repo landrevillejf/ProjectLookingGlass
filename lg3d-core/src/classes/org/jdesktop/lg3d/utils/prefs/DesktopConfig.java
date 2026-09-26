@@ -56,6 +56,7 @@ public final class DesktopConfig {
     private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
+    private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
 
     // Defaults and ranges.
     private static final float DEF_BAR_SCALE = 1.0f;
@@ -100,6 +101,9 @@ public final class DesktopConfig {
     /** Minimum/maximum number of workspaces. */
     public static final int MIN_WORKSPACE_COUNT = 1;
     public static final int MAX_WORKSPACE_COUNT = 9;
+    /** Default window-glass style: the fixed-function 2006 GlassyPanel. */
+    public static final boolean DEFAULT_FROSTED_GLASS = false;
+    private static final boolean DEF_FROSTED_GLASS = DEFAULT_FROSTED_GLASS;
 
     /** Minimum/maximum {@code barScale} and {@code iconScale}. */
     public static final float MIN_SCALE = 0.6f;
@@ -131,6 +135,7 @@ public final class DesktopConfig {
     private boolean dndEnabled = DEF_DND_ENABLED;
     private long dndUntil = DEF_DND_UNTIL;
     private int workspaceCount = DEF_WORKSPACE_COUNT;
+    private boolean frostedGlass = DEF_FROSTED_GLASS;
 
     private DesktopConfig() {
         this.prefs = LgPreferencesHelper.userNodeForPackage(DesktopConfig.class);
@@ -173,6 +178,7 @@ public final class DesktopConfig {
         dndUntil = prefs.getLong(KEY_DND_UNTIL, DEF_DND_UNTIL);
         workspaceCount = clampWorkspaceCount(
                 prefs.getInt(KEY_WORKSPACE_COUNT, DEF_WORKSPACE_COUNT));
+        frostedGlass = prefs.getBoolean(KEY_FROSTED_GLASS, DEF_FROSTED_GLASS);
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -190,6 +196,7 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_DND_ENABLED, dndEnabled);
         prefs.putLong(KEY_DND_UNTIL, dndUntil);
         prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
+        prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
         try {
             prefs.flush();
         } catch (Exception e) {
@@ -213,6 +220,7 @@ public final class DesktopConfig {
         dndEnabled = DEF_DND_ENABLED;
         dndUntil = DEF_DND_UNTIL;
         workspaceCount = DEF_WORKSPACE_COUNT;
+        frostedGlass = DEF_FROSTED_GLASS;
     }
 
     // ------------------------------------------------------------------
@@ -221,6 +229,20 @@ public final class DesktopConfig {
 
     public float getBarScale() {
         return barScale;
+    }
+
+    /**
+     * Whether decorated {@code Frame3D} windows use the GPU frosted-glass body
+     * ({@code FrostedGlassPanel}) instead of the fixed-function 2006
+     * {@code GlassyPanel}. Read when a window decoration is built, so it takes
+     * effect on newly opened windows.
+     */
+    public boolean isFrostedGlass() {
+        return frostedGlass;
+    }
+
+    public void setFrostedGlass(boolean frostedGlass) {
+        this.frostedGlass = frostedGlass;
     }
 
     public void setBarScale(float barScale) {
