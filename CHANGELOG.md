@@ -43,6 +43,26 @@ work to make it build and run on a current toolchain.
   (`ShaderEffectsTest` 4, `SoftShadowTest` 3), and the GLSL render itself is
   verified by an offscreen Java 3D probe through the *facade* path (dark core →
   smooth penumbra ramp → background, pixel-sampled).
+- **GPU frosted-glass rounded panel for the native 3D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.shape`) — the second increment of the 3D-modernization
+  shader roadmap, built on the same opt-in `ShaderEffects` GLSL factory and
+  `lg.shaders` gate as `SoftShadow`. `FrostedGlassPanel` is the additive, modern
+  alternative to the 2006 `GlassyPanel` (left untouched — it has ~65 callers): a
+  single quad whose per-fragment colour and alpha come from the exact signed
+  distance to a rounded rectangle, so fragments outside the silhouette are
+  discarded (genuinely round, anti-aliased corners rather than a tessellated box
+  with hard aliasing edges), a thin `fwidth`-driven band smooths the border at any
+  zoom, and a frosted band just inside the edge lightens the tint and lifts its
+  opacity toward the clear-glass centre. Like `SoftShadow` it is a non-pickable
+  `Shape3D` sized in place (`setSize` rewrites the vertex buffer and the live
+  `uHalfWin` uniform), needs `ShaderEffects.frostedGlassProgram()`, and is created
+  through `FrostedGlassPanel.create(...)` which returns `null` on a missing
+  program (no GL context, resources unavailable) so a caller can fall back to a
+  fixed-function `GlassyPanel` rather than throwing mid-scene-graph-build; a caller
+  that adopts it as a pickable window body must call `setPickable(true)`. The pure
+  seams (the frosted-glass uniform binding order, the missing-resource fallback and
+  the quad-layout / corner-radius clamp math) are covered by headless JUnit 5 tests
+  (`ShaderEffectsTest` +2, `FrostedGlassPanelTest` 4).
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent

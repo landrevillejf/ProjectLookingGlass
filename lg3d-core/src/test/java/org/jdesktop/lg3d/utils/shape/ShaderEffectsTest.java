@@ -69,6 +69,14 @@ class ShaderEffectsTest {
     }
 
     @Test
+    @DisplayName("the frosted-glass program declares its five uniforms in binding order")
+    void frostedGlassUniformNames() {
+        assertArrayEquals(
+            new String[] { "uHalfWin", "uRadius", "uEdge", "uAa", "uTint" },
+            ShaderEffects.FROSTED_GLASS_UNIFORMS);
+    }
+
+    @Test
     @DisplayName("a program whose GLSL resources are missing yields null, not a throw")
     void missingResourcesYieldNull() {
         assertNull(ShaderEffects.program(
@@ -85,5 +93,11 @@ class ShaderEffectsTest {
         // fixed-function widget. With a GL context it returns a real program.
         // Either way it must never propagate the failure to the scene-graph build.
         assertDoesNotThrow(ShaderEffects::softShadowProgram);
+    }
+
+    @Test
+    @DisplayName("building the frosted-glass program never throws, with or without a GL context")
+    void frostedGlassProgramIsSafeWithoutGl() {
+        assertDoesNotThrow(ShaderEffects::frostedGlassProgram);
     }
 }

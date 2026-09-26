@@ -59,6 +59,11 @@ public final class ShaderEffects {
         "uHalfWin", "uSoftNESW", "uAlpha",
     };
 
+    /** The frosted-glass rounded-panel program's uniform names, in binding order. */
+    static final String[] FROSTED_GLASS_UNIFORMS = {
+        "uHalfWin", "uRadius", "uEdge", "uAa", "uTint",
+    };
+
     private ShaderEffects() {
         // static factory
     }
@@ -81,6 +86,18 @@ public final class ShaderEffects {
     public static ShaderProgram softShadowProgram() {
         return program("resources/softshadow.vert", "resources/softshadow.frag",
                 SOFT_SHADOW_UNIFORMS);
+    }
+
+    /**
+     * Builds the frosted-glass rounded-panel {@link ShaderProgram} from the
+     * bundled GLSL, or returns {@code null} when the sources are missing or the
+     * program cannot be assembled - the same graceful-fallback contract as
+     * {@link #softShadowProgram()} so a caller can drop back to a legacy
+     * {@link GlassyPanel} when shaders are off or unavailable.
+     */
+    public static ShaderProgram frostedGlassProgram() {
+        return program("resources/frostedglass.vert", "resources/frostedglass.frag",
+                FROSTED_GLASS_UNIFORMS);
     }
 
     /**
