@@ -33,10 +33,26 @@ import javax.swing.JSpinner;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.jdesktop.lg3d.utils.schedule.ScheduleEntry;
+import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 
 /**
- * Schedule panel for configuring automatic daylight/nightlight wallpaper transitions.
- * Allows users to set transition times and select wallpapers for each period.
+ * Schedule panel: two <strong>independent</strong> schedules that no longer
+ * share any control.
+ *
+ * <ul>
+ *   <li><b>Wallpaper schedule</b> - its own on/off plus a dynamic, ordered list
+ *       of {@code (time -> wallpaper)} entries. The user adds or removes entries
+ *       freely (two, four, ten...) and edits each one's time and wallpaper on
+ *       its own.</li>
+ *   <li><b>Lighting schedule</b> - its own on/off plus its own dawn and dusk
+ *       times and fade width. It fades the scene light (3D) or the night veil
+ *       (2D) and deliberately carries <b>no wallpaper list</b>.</li>
+ * </ul>
+ *
+ * <p>Choice controls are {@code JList} selectors (never combo boxes) because the
+ * Control Center is rendered offscreen inside a SwingNode where popup editors
+ * misbehave. Construction is headless-safe (no window is realised).</p>
  */
 public class SchedulePanel implements ControlPanel {
 
@@ -52,33 +68,40 @@ public class SchedulePanel implements ControlPanel {
     private final JPanel root = new JPanel(new BorderLayout(8, 8));
     private final JLabel statusLabel = new JLabel(" ");
 
-    /** Wallpaper / lighting schedule enable selectors (independent toggles). */
+    // --- Wallpaper schedule controls -------------------------------------
     private final DefaultListModel<String> wallpaperOnOffNames = new DefaultListModel<>();
     private final JList<String> wallpaperOnOffList = new JList<>(wallpaperOnOffNames);
+    /** The variable-length entry list, rendered as "HH:MM  -  wallpaper". */
+    private final DefaultListModel<String> entryNames = new DefaultListModel<>();
+    private final JList<String> entryList = new JList<>(entryNames);
+    private final JButton addButton = new JButton("Add");
+    private final JButton removeButton = new JButton("Remove");
+    /** Per-selected-entry editor. */
+    private final JSpinner entryHourSpinner =
+            new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
+    private final JSpinner entryMinuteSpinner =
+            new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
+    private final DefaultListModel<String> entryWallpaperNames = new DefaultListModel<>();
+    private final JList<String> entryWallpaperList = new JList<>(entryWallpaperNames);
+
+    // --- Lighting schedule controls (no wallpaper list) ------------------
     private final DefaultListModel<String> lightingOnOffNames = new DefaultListModel<>();
     private final JList<String> lightingOnOffList = new JList<>(lightingOnOffNames);
-
-    /** Daylight time spinners. */
-    private final JSpinner daylightHourSpinner;
-    private final JSpinner daylightMinuteSpinner;
-
-    /** Nightlight time spinners. */
-    private final JSpinner nightlightHourSpinner;
-    private final JSpinner nightlightMinuteSpinner;
-
-    /** Day/night transition ramp width, in minutes. */
+    private final JSpinner dawnHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
+    private final JSpinner dawnMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
+    private final JSpinner duskHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
+    private final JSpinner duskMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
     private final JSpinner rampSpinner;
 
-    /** Wallpaper selectors. */
-    private final DefaultListModel<String> daylightWallpapers = new DefaultListModel<>();
-    private final JList<String> daylightList = new JList<>(daylightWallpapers);
-    private final DefaultListModel<String> nightlightWallpapers = new DefaultListModel<>();
-    private final JList<String> nightlightList = new JList<>(nightlightWallpapers);
+    /** Working copy of the wallpaper entries being edited (committed on Apply). */
+    private final List<ScheduleEntry> working = new ArrayList<>();
+    /** Index of the entry currently loaded into the per-entry editor. */
+    private int editingIndex = -1;
 
     public SchedulePanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Build the two independent enable/disable selectors
+        // On/off selectors (independent per schedule).
         wallpaperOnOffNames.addElement("Off");
         wallpaperOnOffNames.addElement("On");
         wallpaperOnOffList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -93,88 +116,112 @@ public class SchedulePanel implements ControlPanel {
         JScrollPane lightingOnOffScroll = new JScrollPane(lightingOnOffList);
         lightingOnOffScroll.setPreferredSize(new Dimension(72, 58));
 
-        // Build time spinners. Each spinner gets its OWN model: sharing one
-        // SpinnerNumberModel between the daylight and nightlight spinners would
-        // link them, so both periods could never hold different times.
-        daylightHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
-        daylightMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
-        nightlightHourSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 23, 1));
-        nightlightMinuteSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 59, 1));
         rampSpinner = new JSpinner(new SpinnerNumberModel(
                 DesktopConfig.DEFAULT_RAMP_MINUTES,
                 DesktopConfig.MIN_RAMP_MINUTES,
                 DesktopConfig.MAX_RAMP_MINUTES, 5));
 
-        // Build wallpaper selectors
-        daylightList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        nightlightList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane daylightScroll = new JScrollPane(daylightList);
-        daylightScroll.setPreferredSize(new Dimension(200, 120));
-        JScrollPane nightlightScroll = new JScrollPane(nightlightList);
-        nightlightScroll.setPreferredSize(new Dimension(200, 120));
+        // Wallpaper entry list + per-entry wallpaper selector.
+        entryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane entryScroll = new JScrollPane(entryList);
+        entryScroll.setPreferredSize(new Dimension(320, 110));
+        entryWallpaperList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane entryWallpaperScroll = new JScrollPane(entryWallpaperList);
+        entryWallpaperScroll.setPreferredSize(new Dimension(200, 96));
 
-        // Build enable section: wallpaper and lighting are independent toggles
-        JPanel enablePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        enablePanel.add(new JLabel("Wallpaper:"));
-        enablePanel.add(wallpaperOnOffScroll);
-        enablePanel.add(new JLabel("Lighting:"));
-        enablePanel.add(lightingOnOffScroll);
-        enablePanel.add(new JLabel("Transition (min):"));
-        enablePanel.add(rampSpinner);
-        enablePanel.setBorder(BorderFactory.createTitledBorder("Enable Schedule"));
+        entryList.addListSelectionListener(ev -> {
+            if (ev.getValueIsAdjusting()) {
+                return;
+            }
+            int idx = entryList.getSelectedIndex();
+            if (idx >= 0 && idx != editingIndex) {
+                commitEditor();
+                loadEditor(idx);
+            }
+        });
+        addButton.addActionListener(e -> addEntry());
+        removeButton.addActionListener(e -> removeEntry());
 
-        JLabel helpLabel = new JLabel(
-                "<html><i>At the scheduled times the desktop can switch wallpaper and/or fade the "
-                + "scene lighting (3D) or a night veil (2D) between daylight and nightlight - each "
-                + "is an independent on/off. Transition is the lighting fade width in minutes "
-                + "(0 = instant).</i></html>");
-        JPanel northPanel = new JPanel(new BorderLayout(0, 4));
-        northPanel.add(enablePanel, BorderLayout.NORTH);
-        northPanel.add(helpLabel, BorderLayout.SOUTH);
+        // --- Wallpaper section layout ---
+        JPanel wpEnable = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        wpEnable.add(new JLabel("Enabled:"));
+        wpEnable.add(wallpaperOnOffScroll);
 
-        // Build daylight section
-        JPanel daylightTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        daylightTimePanel.add(new JLabel("Daylight at:"));
-        daylightTimePanel.add(daylightHourSpinner);
-        daylightTimePanel.add(new JLabel(":"));
-        daylightTimePanel.add(daylightMinuteSpinner);
+        JPanel wpButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        wpButtons.add(addButton);
+        wpButtons.add(removeButton);
 
-        JPanel daylightPanel = new JPanel(new BorderLayout(6, 6));
-        daylightPanel.add(daylightTimePanel, BorderLayout.NORTH);
-        daylightPanel.add(daylightScroll, BorderLayout.CENTER);
-        daylightPanel.setBorder(BorderFactory.createTitledBorder("Daylight Wallpaper"));
+        JPanel wpEditor = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        wpEditor.add(new JLabel("At:"));
+        wpEditor.add(entryHourSpinner);
+        wpEditor.add(new JLabel(":"));
+        wpEditor.add(entryMinuteSpinner);
+        wpEditor.add(new JLabel("Wallpaper:"));
+        wpEditor.add(entryWallpaperScroll);
 
-        // Build nightlight section
-        JPanel nightlightTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        nightlightTimePanel.add(new JLabel("Nightlight at:"));
-        nightlightTimePanel.add(nightlightHourSpinner);
-        nightlightTimePanel.add(new JLabel(":"));
-        nightlightTimePanel.add(nightlightMinuteSpinner);
+        JPanel wpSouth = new JPanel(new BorderLayout(0, 4));
+        wpSouth.add(wpButtons, BorderLayout.NORTH);
+        wpSouth.add(wpEditor, BorderLayout.SOUTH);
 
-        JPanel nightlightPanel = new JPanel(new BorderLayout(6, 6));
-        nightlightPanel.add(nightlightTimePanel, BorderLayout.NORTH);
-        nightlightPanel.add(nightlightScroll, BorderLayout.CENTER);
-        nightlightPanel.setBorder(BorderFactory.createTitledBorder("Nightlight Wallpaper"));
+        JPanel wallpaperPanel = new JPanel(new BorderLayout(6, 6));
+        wallpaperPanel.add(wpEnable, BorderLayout.NORTH);
+        wallpaperPanel.add(entryScroll, BorderLayout.CENTER);
+        wallpaperPanel.add(wpSouth, BorderLayout.SOUTH);
+        wallpaperPanel.setBorder(BorderFactory.createTitledBorder(
+                "Wallpaper schedule (time -> wallpaper, add as many as you like)"));
 
-        // Build apply button
+        // --- Lighting section layout (times only, no photos) ---
+        JPanel lgEnable = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        lgEnable.add(new JLabel("Enabled:"));
+        lgEnable.add(lightingOnOffScroll);
+
+        JPanel dawnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        dawnPanel.add(new JLabel("Dawn at:"));
+        dawnPanel.add(dawnHourSpinner);
+        dawnPanel.add(new JLabel(":"));
+        dawnPanel.add(dawnMinuteSpinner);
+
+        JPanel duskPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        duskPanel.add(new JLabel("Dusk at:"));
+        duskPanel.add(duskHourSpinner);
+        duskPanel.add(new JLabel(":"));
+        duskPanel.add(duskMinuteSpinner);
+
+        JPanel rampPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        rampPanel.add(new JLabel("Transition (min):"));
+        rampPanel.add(rampSpinner);
+
+        JPanel lightingPanel = new JPanel(new GridLayout(4, 1, 2, 2));
+        lightingPanel.add(lgEnable);
+        lightingPanel.add(dawnPanel);
+        lightingPanel.add(duskPanel);
+        lightingPanel.add(rampPanel);
+        lightingPanel.setBorder(BorderFactory.createTitledBorder(
+                "Lighting schedule (day/night fade - no wallpaper)"));
+
+        // --- Apply buttons ---
         JButton applyButton = new JButton("Apply Schedule");
         applyButton.addActionListener(e -> applySchedule());
-
         JButton applyNowButton = new JButton("Apply Now");
         applyNowButton.addActionListener(e -> applyNow());
-        applyNowButton.setToolTipText("Immediately apply the wallpaper for the current time period");
-
+        applyNowButton.setToolTipText("Immediately apply the enabled schedule(s) for the current time");
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         buttonPanel.add(applyButton);
         buttonPanel.add(applyNowButton);
 
-        // Layout
+        JLabel helpLabel = new JLabel(
+                "<html><i>The wallpaper and lighting schedules are independent: each has its own "
+                + "on/off and its own times. The wallpaper schedule is a list of time-&gt;wallpaper "
+                + "entries you add or remove (2, 4, 10...). The lighting schedule only fades the "
+                + "scene light (3D) or night veil (2D) between its dawn and dusk times and needs no "
+                + "wallpaper. Transition is the fade width in minutes (0 = instant).</i></html>");
+
         JPanel center = new JPanel(new GridLayout(2, 1, 6, 6));
-        center.add(daylightPanel);
-        center.add(nightlightPanel);
+        center.add(wallpaperPanel);
+        center.add(lightingPanel);
 
         JPanel main = new JPanel(new BorderLayout(6, 6));
-        main.add(northPanel, BorderLayout.NORTH);
+        main.add(helpLabel, BorderLayout.NORTH);
         main.add(center, BorderLayout.CENTER);
         main.add(buttonPanel, BorderLayout.SOUTH);
 
@@ -204,86 +251,149 @@ public class SchedulePanel implements ControlPanel {
         reload();
     }
 
+    // ------------------------------------------------------------------
+    // Model <-> UI
+    // ------------------------------------------------------------------
+
     private void reload() {
         DesktopConfig cfg = DesktopConfig.get();
 
-        // Load enable states (independent)
         wallpaperOnOffList.setSelectedIndex(cfg.isWallpaperScheduleEnabled() ? 1 : 0);
         lightingOnOffList.setSelectedIndex(cfg.isLightingScheduleEnabled() ? 1 : 0);
 
-        // Load times
-        daylightHourSpinner.setValue(cfg.getDaylightHour());
-        daylightMinuteSpinner.setValue(cfg.getDaylightMinute());
-        nightlightHourSpinner.setValue(cfg.getNightlightHour());
-        nightlightMinuteSpinner.setValue(cfg.getNightlightMinute());
+        // Lighting's own times + ramp.
+        dawnHourSpinner.setValue(cfg.getLightingDawnHour());
+        dawnMinuteSpinner.setValue(cfg.getLightingDawnMinute());
+        duskHourSpinner.setValue(cfg.getLightingDuskHour());
+        duskMinuteSpinner.setValue(cfg.getLightingDuskMinute());
         rampSpinner.setValue(cfg.getRampMinutes());
 
-        // Load wallpaper lists
-        daylightWallpapers.clear();
-        nightlightWallpapers.clear();
+        // Wallpaper entries working copy. Drop the editing index first so the
+        // entry-list selection listener cannot commit stale spinner values from
+        // the previous show into the freshly reloaded entries.
+        editingIndex = -1;
+        working.clear();
+        working.addAll(cfg.getWallpaperSchedule());
+
+        // Per-entry wallpaper choices.
+        entryWallpaperNames.clear();
         for (String name : enumerate()) {
-            daylightWallpapers.addElement(name);
-            nightlightWallpapers.addElement(name);
+            entryWallpaperNames.addElement(name);
         }
 
-        // Select current wallpapers
-        String daylightWallpaper = cfg.getDaylightWallpaper();
-        String nightlightWallpaper = cfg.getNightlightWallpaper();
-        if (!daylightWallpaper.isEmpty()) {
-            daylightList.setSelectedValue(daylightWallpaper, true);
-        }
-        if (!nightlightWallpaper.isEmpty()) {
-            nightlightList.setSelectedValue(nightlightWallpaper, true);
+        refreshEntryList();
+        if (!working.isEmpty()) {
+            entryList.setSelectedIndex(0);
+            loadEditor(0);
         }
     }
 
+    /** Rebuilds the entry list display from the working copy. */
+    private void refreshEntryList() {
+        entryNames.clear();
+        for (ScheduleEntry e : working) {
+            entryNames.addElement(label(e));
+        }
+    }
+
+    private static String label(ScheduleEntry e) {
+        String wp = e.wallpaper().isEmpty() ? "(default)" : e.wallpaper();
+        return e.formatTime() + "  -  " + wp;
+    }
+
+    /** Writes the per-entry editor back into the working copy. */
+    private void commitEditor() {
+        if (editingIndex < 0 || editingIndex >= working.size()) {
+            return;
+        }
+        String wp = entryWallpaperList.getSelectedValue();
+        working.set(editingIndex, new ScheduleEntry(
+                (Integer) entryHourSpinner.getValue(),
+                (Integer) entryMinuteSpinner.getValue(),
+                wp != null ? wp : ScheduleEntry.DEFAULT_WALLPAPER));
+        entryNames.set(editingIndex, label(working.get(editingIndex)));
+    }
+
+    /** Loads the working entry at {@code idx} into the per-entry editor. */
+    private void loadEditor(int idx) {
+        editingIndex = idx;
+        ScheduleEntry e = working.get(idx);
+        entryHourSpinner.setValue(e.hour());
+        entryMinuteSpinner.setValue(e.minute());
+        if (!e.wallpaper().isEmpty()) {
+            entryWallpaperList.setSelectedValue(e.wallpaper(), true);
+        }
+    }
+
+    private void addEntry() {
+        commitEditor();
+        working.add(new ScheduleEntry(12, 0, ScheduleEntry.DEFAULT_WALLPAPER));
+        refreshEntryList();
+        int last = working.size() - 1;
+        entryList.setSelectedIndex(last);
+        loadEditor(last);
+    }
+
+    private void removeEntry() {
+        int idx = entryList.getSelectedIndex();
+        if (idx < 0 || working.size() <= 1) {
+            return; // keep at least one entry
+        }
+        commitEditor();
+        working.remove(idx);
+        refreshEntryList();
+        int next = Math.min(idx, working.size() - 1);
+        entryList.setSelectedIndex(next);
+        loadEditor(next);
+    }
+
+    // ------------------------------------------------------------------
+    // Apply
+    // ------------------------------------------------------------------
+
     private void applySchedule() {
+        commitEditor();
         DesktopConfig cfg = DesktopConfig.get();
 
-        // Save enable states (independent)
         boolean wallpaperOn = wallpaperOnOffList.getSelectedIndex() == 1;
         boolean lightingOn = lightingOnOffList.getSelectedIndex() == 1;
         cfg.setWallpaperScheduleEnabled(wallpaperOn);
         cfg.setLightingScheduleEnabled(lightingOn);
 
-        // Save times
-        cfg.setDaylightHour((Integer) daylightHourSpinner.getValue());
-        cfg.setDaylightMinute((Integer) daylightMinuteSpinner.getValue());
-        cfg.setNightlightHour((Integer) nightlightHourSpinner.getValue());
-        cfg.setNightlightMinute((Integer) nightlightMinuteSpinner.getValue());
-        cfg.setRampMinutes((Integer) rampSpinner.getValue());
+        cfg.setWallpaperSchedule(working);
 
-        // Save wallpapers
-        String daylightWallpaper = daylightList.getSelectedValue();
-        String nightlightWallpaper = nightlightList.getSelectedValue();
-        cfg.setDaylightWallpaper(daylightWallpaper != null ? daylightWallpaper : "");
-        cfg.setNightlightWallpaper(nightlightWallpaper != null ? nightlightWallpaper : "");
+        cfg.setLightingDawnHour((Integer) dawnHourSpinner.getValue());
+        cfg.setLightingDawnMinute((Integer) dawnMinuteSpinner.getValue());
+        cfg.setLightingDuskHour((Integer) duskHourSpinner.getValue());
+        cfg.setLightingDuskMinute((Integer) duskMinuteSpinner.getValue());
+        cfg.setRampMinutes((Integer) rampSpinner.getValue());
 
         cfg.save();
 
-        // Ensure the service is running and apply immediately, so the toggles and
-        // time edits take effect now (and switching lighting off clears the veil /
-        // restores daylight) instead of waiting for the next minute tick.
-        org.jdesktop.lg3d.utils.schedule.ScheduleService.get().checkNow();
-        statusLabel.setText(describeSchedule(wallpaperOn, lightingOn));
+        ScheduleService.get().checkNow();
+        statusLabel.setText(describeSchedule(wallpaperOn, lightingOn, working.size()));
     }
 
     /** Human-readable summary of which schedules are now active. */
-    private static String describeSchedule(boolean wallpaperOn, boolean lightingOn) {
+    private static String describeSchedule(boolean wallpaperOn, boolean lightingOn, int entries) {
         if (wallpaperOn && lightingOn) {
-            return "Schedule enabled: wallpaper and day/night lighting follow the configured times";
+            return "Schedule enabled: " + entries
+                    + " wallpaper entries and the day/night lighting follow their own times";
         } else if (wallpaperOn) {
-            return "Schedule enabled: wallpaper follows the configured times (lighting off)";
+            return "Schedule enabled: " + entries
+                    + " wallpaper entries follow their times (lighting off)";
         } else if (lightingOn) {
-            return "Schedule enabled: day/night lighting follows the configured times (wallpaper off)";
+            return "Schedule enabled: day/night lighting follows its own times (wallpaper off)";
         }
         return "Schedule disabled";
     }
 
     private void applyNow() {
-        org.jdesktop.lg3d.utils.schedule.ScheduleService.get().checkNow();
+        ScheduleService.get().checkNow();
         statusLabel.setText("Applied the enabled schedule(s) for the current time period");
     }
+
+    // ------------------------------------------------------------------
 
     private List<String> enumerate() {
         List<String> result = new ArrayList<>();
