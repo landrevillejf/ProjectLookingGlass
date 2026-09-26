@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.27.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Power/session actions in the 2D desktop context menu** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the desktop background
+  right-click menu grows a power/session group between the window-arrangement
+  entries and Refresh: **Lock Screen**, **Suspend**, a separator, then
+  **Reboot...** and **Shut Down...**. A new `SessionPowerStatus` seam follows the
+  established `PrinterStatus` / `TimeZoneStatus` shape: the command builders are
+  pure and unit-tested (`lockCommand` prefers `loginctl lock-session`, falling
+  back to `xdg-screensaver lock`, else null; `suspend`/`reboot`/`poweroff` map to
+  their `systemctl` verbs), the `available()` probes are thin wrappers over
+  `PrinterStatus.exec`, and the actions are fire-and-forget child processes
+  launched like `Desktop2DAppRegistry.launchExternal` (the `DISPLAY` inherited,
+  the output drained, no exception propagated). Each entry is availability-gated
+  exactly like the existing Terminal item, so on a host without
+  `loginctl`/`systemctl`/`xdg-screensaver` it simply does not appear; Reboot and
+  Shut Down ask for confirmation (the `confirmExit()` pattern) while Lock and
+  Suspend act immediately. Covered by headless JUnit 5 tests
+  (`SessionPowerStatusTest` for the builders and lock fallback precedence;
+  `Desktop2DContextMenuTest` extended for the new entries' presence, ordering
+  and gating).
 
 ## [1.27.0] — 2026-09-26 — Gradle / JDK 21 modernization
 

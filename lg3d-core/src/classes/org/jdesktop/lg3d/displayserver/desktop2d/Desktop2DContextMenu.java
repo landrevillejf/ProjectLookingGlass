@@ -31,8 +31,8 @@ import javax.swing.JPopupMenu;
  * the menu structure and its wiring are unit-testable without a live desktop.
  * The menu offers the operations common to a conventional desktop, grouped as
  * launchers (terminal, file manager), personalisation (wallpaper, control
- * center), window arrangement (the MDI cascade/tile/minimise/restore) and
- * session (refresh, exit).</p>
+ * center), window arrangement (the MDI cascade/tile/minimise/restore), power
+ * (lock/suspend/reboot/shut down) and session (refresh, exit).</p>
  */
 public final class Desktop2DContextMenu {
 
@@ -46,6 +46,10 @@ public final class Desktop2DContextMenu {
     static final String TILE = "Tile Windows";
     static final String MINIMIZE_ALL = "Minimize All Windows";
     static final String RESTORE_ALL = "Restore All Windows";
+    static final String LOCK_SCREEN = "Lock Screen";
+    static final String SUSPEND = "Suspend";
+    static final String REBOOT = "Reboot...";
+    static final String SHUT_DOWN = "Shut Down...";
     static final String REFRESH = "Refresh";
     static final String EXIT = "Exit...";
 
@@ -82,6 +86,23 @@ public final class Desktop2DContextMenu {
         void minimizeAllWindows();
 
         void restoreAllWindows();
+
+        /** True when a session lock tool is installed; hides the entry otherwise. */
+        boolean canLockScreen();
+
+        /** True when the machine can be suspended; hides the entry otherwise. */
+        boolean canSuspend();
+
+        /** True when the machine can be rebooted/powered off; hides those entries. */
+        boolean canPowerOff();
+
+        void lockScreen();
+
+        void suspend();
+
+        void reboot();
+
+        void shutDown();
 
         void refresh();
 
@@ -127,6 +148,28 @@ public final class Desktop2DContextMenu {
         menu.add(gated(MINIMIZE_ALL, hasWindows, e -> actions.minimizeAllWindows()));
         menu.add(gated(RESTORE_ALL, hasWindows, e -> actions.restoreAllWindows()));
         menu.addSeparator();
+
+        // Session power / lock (each omitted when the tool is unavailable).
+        boolean hasPowerEntries = false;
+        if (actions.canLockScreen()) {
+            menu.add(item(LOCK_SCREEN, e -> actions.lockScreen()));
+            hasPowerEntries = true;
+        }
+        if (actions.canSuspend()) {
+            menu.add(item(SUSPEND, e -> actions.suspend()));
+            hasPowerEntries = true;
+        }
+        if (actions.canPowerOff()) {
+            if (hasPowerEntries) {
+                menu.addSeparator();
+            }
+            menu.add(item(REBOOT, e -> actions.reboot()));
+            menu.add(item(SHUT_DOWN, e -> actions.shutDown()));
+            hasPowerEntries = true;
+        }
+        if (hasPowerEntries) {
+            menu.addSeparator();
+        }
 
         // Session.
         menu.add(item(REFRESH, e -> actions.refresh()));
