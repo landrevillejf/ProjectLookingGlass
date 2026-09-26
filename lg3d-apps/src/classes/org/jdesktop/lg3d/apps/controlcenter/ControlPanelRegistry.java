@@ -66,6 +66,7 @@ public final class ControlPanelRegistry {
             addDefault(DesktopPanel::new, "Desktop");
             addDefault(NetworkPanel::new, "Network");
             addDefault(PrintingPanel::new, "Printing");
+            addDefault(SchedulePanel::new, "Schedule");
         }
         return new ArrayList<>(PANELS);
     }

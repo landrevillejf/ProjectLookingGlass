@@ -1,0 +1,271 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
+package org.jdesktop.lg3d.apps.controlcenter;
+
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridLayout;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.ListSelectionModel;
+import javax.swing.SpinnerNumberModel;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+
+/**
+ * Schedule panel for configuring automatic daylight/nightlight wallpaper transitions.
+ * Allows users to set transition times and select wallpapers for each period.
+ */
+public class SchedulePanel implements ControlPanel {
+
+    private static final String BG_DIR = "resources/images/background";
+
+    /** Used when the classpath directory cannot be listed (e.g. jar-only). */
+    private static final List<String> FALLBACK = List.of(
+            "DreamLakeReflections.jpg",
+            "GrandCanyon-0.jpg",
+            "Leaves_and_Sky-0.jpg",
+            "Stanford-0.jpg");
+
+    private final JPanel root = new JPanel(new BorderLayout(8, 8));
+    private final JLabel statusLabel = new JLabel(" ");
+
+    /** Enable/disable schedule selector. */
+    private final DefaultListModel<String> onOffNames = new DefaultListModel<>();
+    private final JList<String> onOffList = new JList<>(onOffNames);
+
+    /** Daylight time spinners. */
+    private final JSpinner daylightHourSpinner;
+    private final JSpinner daylightMinuteSpinner;
+
+    /** Nightlight time spinners. */
+    private final JSpinner nightlightHourSpinner;
+    private final JSpinner nightlightMinuteSpinner;
+
+    /** Wallpaper selectors. */
+    private final DefaultListModel<String> daylightWallpapers = new DefaultListModel<>();
+    private final JList<String> daylightList = new JList<>(daylightWallpapers);
+    private final DefaultListModel<String> nightlightWallpapers = new DefaultListModel<>();
+    private final JList<String> nightlightList = new JList<>(nightlightWallpapers);
+
+    public SchedulePanel() {
+        root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Build enable/disable selector
+        onOffNames.addElement("Off");
+        onOffNames.addElement("On");
+        onOffList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        onOffList.setVisibleRowCount(2);
+        JScrollPane onOffScroll = new JScrollPane(onOffList);
+        onOffScroll.setPreferredSize(new Dimension(72, 58));
+
+        // Build time spinners
+        SpinnerNumberModel hourModel = new SpinnerNumberModel(0, 0, 23, 1);
+        SpinnerNumberModel minuteModel = new SpinnerNumberModel(0, 0, 59, 1);
+
+        daylightHourSpinner = new JSpinner(hourModel);
+        daylightMinuteSpinner = new JSpinner(minuteModel);
+        nightlightHourSpinner = new JSpinner(hourModel);
+        nightlightMinuteSpinner = new JSpinner(minuteModel);
+
+        // Build wallpaper selectors
+        daylightList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        nightlightList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane daylightScroll = new JScrollPane(daylightList);
+        daylightScroll.setPreferredSize(new Dimension(200, 120));
+        JScrollPane nightlightScroll = new JScrollPane(nightlightList);
+        nightlightScroll.setPreferredSize(new Dimension(200, 120));
+
+        // Build enable section
+        JPanel enablePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        enablePanel.add(new JLabel("Schedule:"));
+        enablePanel.add(onOffScroll);
+        enablePanel.setBorder(BorderFactory.createTitledBorder("Enable Schedule"));
+
+        // Build daylight section
+        JPanel daylightTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        daylightTimePanel.add(new JLabel("Daylight at:"));
+        daylightTimePanel.add(daylightHourSpinner);
+        daylightTimePanel.add(new JLabel(":"));
+        daylightTimePanel.add(daylightMinuteSpinner);
+
+        JPanel daylightPanel = new JPanel(new BorderLayout(6, 6));
+        daylightPanel.add(daylightTimePanel, BorderLayout.NORTH);
+        daylightPanel.add(daylightScroll, BorderLayout.CENTER);
+        daylightPanel.setBorder(BorderFactory.createTitledBorder("Daylight Wallpaper"));
+
+        // Build nightlight section
+        JPanel nightlightTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        nightlightTimePanel.add(new JLabel("Nightlight at:"));
+        nightlightTimePanel.add(nightlightHourSpinner);
+        nightlightTimePanel.add(new JLabel(":"));
+        nightlightTimePanel.add(nightlightMinuteSpinner);
+
+        JPanel nightlightPanel = new JPanel(new BorderLayout(6, 6));
+        nightlightPanel.add(nightlightTimePanel, BorderLayout.NORTH);
+        nightlightPanel.add(nightlightScroll, BorderLayout.CENTER);
+        nightlightPanel.setBorder(BorderFactory.createTitledBorder("Nightlight Wallpaper"));
+
+        // Build apply button
+        JButton applyButton = new JButton("Apply Schedule");
+        applyButton.addActionListener(e -> applySchedule());
+
+        JButton applyNowButton = new JButton("Apply Now");
+        applyNowButton.addActionListener(e -> applyNow());
+        applyNowButton.setToolTipText("Immediately apply the wallpaper for the current time period");
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttonPanel.add(applyButton);
+        buttonPanel.add(applyNowButton);
+
+        // Layout
+        JPanel center = new JPanel(new GridLayout(2, 1, 6, 6));
+        center.add(daylightPanel);
+        center.add(nightlightPanel);
+
+        JPanel main = new JPanel(new BorderLayout(6, 6));
+        main.add(enablePanel, BorderLayout.NORTH);
+        main.add(center, BorderLayout.CENTER);
+        main.add(buttonPanel, BorderLayout.SOUTH);
+
+        root.add(main, BorderLayout.CENTER);
+        root.add(statusLabel, BorderLayout.SOUTH);
+
+        reload();
+    }
+
+    @Override
+    public String displayName() {
+        return "Schedule";
+    }
+
+    @Override
+    public javax.swing.Icon icon() {
+        return null;
+    }
+
+    @Override
+    public JComponent component() {
+        return root;
+    }
+
+    @Override
+    public void onShow() {
+        reload();
+    }
+
+    private void reload() {
+        DesktopConfig cfg = DesktopConfig.get();
+
+        // Load enable state
+        onOffList.setSelectedIndex(cfg.isScheduleEnabled() ? 1 : 0);
+
+        // Load times
+        daylightHourSpinner.setValue(cfg.getDaylightHour());
+        daylightMinuteSpinner.setValue(cfg.getDaylightMinute());
+        nightlightHourSpinner.setValue(cfg.getNightlightHour());
+        nightlightMinuteSpinner.setValue(cfg.getNightlightMinute());
+
+        // Load wallpaper lists
+        daylightWallpapers.clear();
+        nightlightWallpapers.clear();
+        for (String name : enumerate()) {
+            daylightWallpapers.addElement(name);
+            nightlightWallpapers.addElement(name);
+        }
+
+        // Select current wallpapers
+        String daylightWallpaper = cfg.getDaylightWallpaper();
+        String nightlightWallpaper = cfg.getNightlightWallpaper();
+        if (!daylightWallpaper.isEmpty()) {
+            daylightList.setSelectedValue(daylightWallpaper, true);
+        }
+        if (!nightlightWallpaper.isEmpty()) {
+            nightlightList.setSelectedValue(nightlightWallpaper, true);
+        }
+    }
+
+    private void applySchedule() {
+        DesktopConfig cfg = DesktopConfig.get();
+
+        // Save enable state
+        boolean enabled = onOffList.getSelectedIndex() == 1;
+        cfg.setScheduleEnabled(enabled);
+
+        // Save times
+        cfg.setDaylightHour((Integer) daylightHourSpinner.getValue());
+        cfg.setDaylightMinute((Integer) daylightMinuteSpinner.getValue());
+        cfg.setNightlightHour((Integer) nightlightHourSpinner.getValue());
+        cfg.setNightlightMinute((Integer) nightlightMinuteSpinner.getValue());
+
+        // Save wallpapers
+        String daylightWallpaper = daylightList.getSelectedValue();
+        String nightlightWallpaper = nightlightList.getSelectedValue();
+        cfg.setDaylightWallpaper(daylightWallpaper != null ? daylightWallpaper : "");
+        cfg.setNightlightWallpaper(nightlightWallpaper != null ? nightlightWallpaper : "");
+
+        cfg.save();
+
+        // Start or stop the schedule service
+        if (enabled) {
+            org.jdesktop.lg3d.utils.schedule.ScheduleService.get();
+            statusLabel.setText("Schedule enabled: wallpaper will change at configured times");
+        } else {
+            statusLabel.setText("Schedule disabled");
+        }
+    }
+
+    private void applyNow() {
+        org.jdesktop.lg3d.utils.schedule.ScheduleService.get().checkNow();
+        statusLabel.setText("Applied wallpaper for current time period");
+    }
+
+    private List<String> enumerate() {
+        List<String> result = new ArrayList<>();
+        java.net.URL dirUrl = getClass().getClassLoader().getResource(BG_DIR);
+        if (dirUrl != null && "file".equals(dirUrl.getProtocol())) {
+            try {
+                File dir = new File(dirUrl.toURI());
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        String lower = f.getName().toLowerCase();
+                        if (f.isFile() && (lower.endsWith(".jpg")
+                                || lower.endsWith(".jpeg") || lower.endsWith(".png"))) {
+                            result.add(f.getName());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                result.clear();
+            }
+        }
+        Collections.sort(result);
+        if (result.isEmpty()) {
+            result.addAll(FALLBACK);
+        }
+        return result;
+    }
+}

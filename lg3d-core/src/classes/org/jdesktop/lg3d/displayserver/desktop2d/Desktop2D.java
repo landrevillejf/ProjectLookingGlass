@@ -64,6 +64,7 @@ import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.basic.BasicDesktopPaneUI;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 import org.jdesktop.lg3d.utils.system.Opener;
 
 /**
@@ -333,6 +334,11 @@ public class Desktop2D {
         taskbar.refreshWorkspaces();
         // Start (or leave stopped) the wallpaper slideshow per the config.
         applySlideshowConfig();
+        // Honour a persisted daylight/nightlight wallpaper schedule: starting
+        // the service applies the wallpaper for the current time and keeps
+        // re-checking every minute. It self-gates on the schedule-enabled
+        // preference, so this is a no-op when the feature is off.
+        ScheduleService.get();
     }
 
     /** The desktop window (package-visible for diagnostics). */
