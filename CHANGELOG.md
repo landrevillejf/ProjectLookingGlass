@@ -7,6 +7,10 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
+## [Unreleased] — 1.27.1-dev — Gradle / JDK 21 modernization
+
+### Added
+
 ## [1.27.0] — 2026-09-26 — Gradle / JDK 21 modernization
 
 ### Added
