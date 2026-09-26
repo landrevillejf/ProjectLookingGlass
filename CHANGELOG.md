@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.27.1-dev — Gradle / JDK 21 modernization
+## [Unreleased] — 1.28.0-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **Power/session actions in the 2D desktop context menu** (`lg3d-core`,
