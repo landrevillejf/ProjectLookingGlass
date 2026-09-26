@@ -94,6 +94,27 @@ work to make it build and run on a current toolchain.
   to empty / false on a host without CUPS / NetworkManager rather than
   throwing). Covered by headless JUnit 5 tests (`PrinterStatusTest` 6,
   `NetworkConnectionsTest` 6).
+- **Metal theme manager for the conventional 2D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — the 2D desktop can now change and
+  create Swing *Metal* themes, and the Control Center's Appearance panel shows a
+  "Metal Theme" manager in place of the classic/frosted window-glass selector
+  (which is 3D-only, driving `Frame3D` decoration, and is now gated to the 3D
+  desktop). The manager lists the built-in *Steel* and *Ocean* palettes plus any
+  user themes, and offers Apply / New… / Delete: *New…* derives a full palette
+  from a name and one accent colour (`JColorChooser`), and *Delete* removes a
+  user theme (built-ins are protected). Because the 2D shell starts on the
+  platform look-and-feel (GTK/Synth) and Metal themes only affect Metal,
+  applying a theme switches the shell onto Metal with the chosen palette and
+  refreshes every open window live. The selection and the encoded custom-theme
+  list persist through two new `DesktopConfig` preferences (`metal.theme`,
+  `metal.customThemes`), and `Desktop2D.reapplyConfig()` re-applies the stored
+  theme at start-up — a no-op while none is chosen (the blank default), so the
+  desktop keeps its native look until the user picks one. The pure seam
+  (`MetalThemeSpec`: the palettes, the compact encode/decode serialisation and
+  the accent derivation) and the `CustomMetalTheme` bridge are display-
+  independent; covered by headless JUnit 5 tests (`MetalThemeSpecTest` 7,
+  `DesktopConfigMetalThemeTest` 4).
 - **Global keyboard shortcuts + Alt+F2 run dialog for the native 3D desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.utils.run`;
   `org.jdesktop.lg3d.displayserver.desktop2d`) — Alt+F2 raises a translucent
