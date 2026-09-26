@@ -16,17 +16,22 @@ package org.jdesktop.lg3d.utils.prefs;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
+import org.jdesktop.lg3d.utils.schedule.ScheduleEntry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Covers the daylight/nightlight schedule fields on {@link DesktopConfig}:
- * their defaults, the hour/minute clamping and the wallpaper normalisation.
- * The setters only mutate in-memory state (no {@code save()}), and each test
- * restores the defaults afterwards, so the shared singleton is left clean.
+ * Covers the restructured schedule on {@link DesktopConfig}: the independent
+ * wallpaper/lighting enable flags, the variable-length wallpaper entry list
+ * (sorted, defensive copies, clamped) and the lighting schedule's own dawn/dusk
+ * times. The setters only mutate in-memory state (no {@code save()}), and each
+ * test restores the defaults afterwards, so the shared singleton is left clean.
  */
 class DesktopConfigScheduleTest {
 
@@ -38,21 +43,24 @@ class DesktopConfigScheduleTest {
     }
 
     @Test
-    @DisplayName("the schedule defaults are off, 07:00 daylight, 20:00 night, no wallpapers")
+    @DisplayName("defaults: both schedules off, two wallpaper entries, lighting 07:00/20:00")
     void defaults() {
         cfg.resetToDefaults();
         assertFalse(cfg.isWallpaperScheduleEnabled());
         assertFalse(cfg.isLightingScheduleEnabled());
         assertFalse(cfg.isScheduleEnabled(), "off when both toggles are off");
-        assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_HOUR, cfg.getDaylightHour());
-        assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_MINUTE, cfg.getDaylightMinute());
-        assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_HOUR, cfg.getNightlightHour());
-        assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_MINUTE, cfg.getNightlightMinute());
-        assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_WALLPAPER, cfg.getDaylightWallpaper());
-        assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_WALLPAPER, cfg.getNightlightWallpaper());
-        assertEquals(7, DesktopConfig.DEFAULT_DAYLIGHT_HOUR);
-        assertEquals(20, DesktopConfig.DEFAULT_NIGHTLIGHT_HOUR);
-        assertEquals("", DesktopConfig.DEFAULT_DAYLIGHT_WALLPAPER);
+
+        List<ScheduleEntry> entries = cfg.getWallpaperSchedule();
+        assertEquals(2, entries.size(), "the default schedule mirrors the old day/night pair");
+        assertEquals(7, entries.get(0).hour());
+        assertEquals(0, entries.get(0).minute());
+        assertEquals("", entries.get(0).wallpaper());
+        assertEquals(20, entries.get(1).hour());
+
+        assertEquals(DesktopConfig.DEFAULT_LIGHTING_DAWN_HOUR, cfg.getLightingDawnHour());
+        assertEquals(DesktopConfig.DEFAULT_LIGHTING_DUSK_HOUR, cfg.getLightingDuskHour());
+        assertEquals(7, DesktopConfig.DEFAULT_LIGHTING_DAWN_HOUR);
+        assertEquals(20, DesktopConfig.DEFAULT_LIGHTING_DUSK_HOUR);
     }
 
     @Test
@@ -74,61 +82,85 @@ class DesktopConfigScheduleTest {
     }
 
     @Test
-    @DisplayName("the daylight hour is clamped to 0-23")
-    void daylightHourClamped() {
-        cfg.setDaylightHour(-5);
-        assertEquals(0, cfg.getDaylightHour());
-        cfg.setDaylightHour(99);
-        assertEquals(23, cfg.getDaylightHour());
-        cfg.setDaylightHour(6);
-        assertEquals(6, cfg.getDaylightHour(), "an in-range value is kept");
+    @DisplayName("the wallpaper entry list round-trips and is returned sorted by time")
+    void entryListRoundTrip() {
+        List<ScheduleEntry> unsorted = new ArrayList<>(List.of(
+                new ScheduleEntry(20, 0, "night.jpg"),
+                new ScheduleEntry(7, 0, "day.jpg"),
+                new ScheduleEntry(13, 30, "noon.jpg")));
+        cfg.setWallpaperSchedule(unsorted);
+
+        List<ScheduleEntry> read = cfg.getWallpaperSchedule();
+        assertEquals(3, read.size());
+        assertEquals("day.jpg", read.get(0).wallpaper());
+        assertEquals("noon.jpg", read.get(1).wallpaper());
+        assertEquals("night.jpg", read.get(2).wallpaper());
     }
 
     @Test
-    @DisplayName("the nightlight hour is clamped to 0-23")
-    void nightlightHourClamped() {
-        cfg.setNightlightHour(-1);
-        assertEquals(0, cfg.getNightlightHour());
-        cfg.setNightlightHour(24);
-        assertEquals(23, cfg.getNightlightHour());
-        cfg.setNightlightHour(22);
-        assertEquals(22, cfg.getNightlightHour());
+    @DisplayName("getWallpaperSchedule returns a defensive copy and set copies its input")
+    void entryListIsDefensive() {
+        List<ScheduleEntry> source = new ArrayList<>(List.of(new ScheduleEntry(9, 0, "a.jpg")));
+        cfg.setWallpaperSchedule(source);
+
+        // Mutating the caller's list after set must not affect the config.
+        source.add(new ScheduleEntry(10, 0, "b.jpg"));
+        assertEquals(1, cfg.getWallpaperSchedule().size());
+
+        // Mutating the returned list must not affect the config either.
+        List<ScheduleEntry> read = cfg.getWallpaperSchedule();
+        read.add(new ScheduleEntry(11, 0, "c.jpg"));
+        assertEquals(1, cfg.getWallpaperSchedule().size());
+        assertNotSame(read, cfg.getWallpaperSchedule());
     }
 
     @Test
-    @DisplayName("the daylight minute is clamped to 0-59")
-    void daylightMinuteClamped() {
-        cfg.setDaylightMinute(-10);
-        assertEquals(0, cfg.getDaylightMinute());
-        cfg.setDaylightMinute(120);
-        assertEquals(59, cfg.getDaylightMinute());
-        cfg.setDaylightMinute(30);
-        assertEquals(30, cfg.getDaylightMinute());
+    @DisplayName("a null or empty wallpaper schedule falls back to the defaults")
+    void emptyScheduleFallsBackToDefaults() {
+        cfg.setWallpaperSchedule(null);
+        assertEquals(DesktopConfig.DEFAULT_WALLPAPER_SCHEDULE, cfg.getWallpaperSchedule());
+        cfg.setWallpaperSchedule(List.of());
+        assertEquals(DesktopConfig.DEFAULT_WALLPAPER_SCHEDULE, cfg.getWallpaperSchedule());
     }
 
     @Test
-    @DisplayName("the nightlight minute is clamped to 0-59")
-    void nightlightMinuteClamped() {
-        cfg.setNightlightMinute(-1);
-        assertEquals(0, cfg.getNightlightMinute());
-        cfg.setNightlightMinute(60);
-        assertEquals(59, cfg.getNightlightMinute());
-        cfg.setNightlightMinute(45);
-        assertEquals(45, cfg.getNightlightMinute());
+    @DisplayName("entry times and wallpapers are clamped/normalised by the value type")
+    void entriesClamped() {
+        cfg.setWallpaperSchedule(List.of(new ScheduleEntry(99, 120, "  x.jpg  ")));
+        ScheduleEntry e = cfg.getWallpaperSchedule().get(0);
+        assertEquals(23, e.hour(), "hour clamps to 0-23");
+        assertEquals(59, e.minute(), "minute clamps to 0-59");
+        assertEquals("x.jpg", e.wallpaper(), "wallpaper is trimmed");
     }
 
     @Test
-    @DisplayName("the wallpaper filenames are trimmed and null falls back to empty")
-    void wallpapersNormalized() {
-        cfg.setDaylightWallpaper("  GrandCanyon-0.jpg  ");
-        assertEquals("GrandCanyon-0.jpg", cfg.getDaylightWallpaper());
-        cfg.setDaylightWallpaper(null);
-        assertEquals("", cfg.getDaylightWallpaper());
+    @DisplayName("the lighting dawn/dusk times are independent of the wallpaper entries")
+    void lightingTimesIndependent() {
+        cfg.setWallpaperSchedule(List.of(new ScheduleEntry(5, 0, "a.jpg")));
+        cfg.setLightingDawnHour(6);
+        cfg.setLightingDawnMinute(15);
+        cfg.setLightingDuskHour(21);
+        cfg.setLightingDuskMinute(45);
 
-        cfg.setNightlightWallpaper("Stanford-0.jpg");
-        assertEquals("Stanford-0.jpg", cfg.getNightlightWallpaper());
-        cfg.setNightlightWallpaper(null);
-        assertEquals("", cfg.getNightlightWallpaper());
+        assertEquals(6, cfg.getLightingDawnHour());
+        assertEquals(15, cfg.getLightingDawnMinute());
+        assertEquals(21, cfg.getLightingDuskHour());
+        assertEquals(45, cfg.getLightingDuskMinute());
+        // The wallpaper entries keep their own, unrelated time.
+        assertEquals(5, cfg.getWallpaperSchedule().get(0).hour());
+    }
+
+    @Test
+    @DisplayName("the lighting dawn/dusk hours and minutes are clamped")
+    void lightingTimesClamped() {
+        cfg.setLightingDawnHour(-5);
+        assertEquals(0, cfg.getLightingDawnHour());
+        cfg.setLightingDawnHour(99);
+        assertEquals(23, cfg.getLightingDawnHour());
+        cfg.setLightingDuskMinute(-1);
+        assertEquals(0, cfg.getLightingDuskMinute());
+        cfg.setLightingDuskMinute(60);
+        assertEquals(59, cfg.getLightingDuskMinute());
     }
 
     @Test
@@ -150,16 +182,16 @@ class DesktopConfigScheduleTest {
     void resetRestoresSchedule() {
         cfg.setWallpaperScheduleEnabled(true);
         cfg.setLightingScheduleEnabled(true);
-        cfg.setDaylightHour(3);
-        cfg.setNightlightMinute(15);
-        cfg.setDaylightWallpaper("x.jpg");
+        cfg.setWallpaperSchedule(List.of(new ScheduleEntry(3, 0, "x.jpg")));
+        cfg.setLightingDawnHour(1);
+        cfg.setLightingDuskMinute(15);
         cfg.setRampMinutes(120);
         cfg.resetToDefaults();
         assertFalse(cfg.isWallpaperScheduleEnabled());
         assertFalse(cfg.isLightingScheduleEnabled());
-        assertEquals(DesktopConfig.DEFAULT_DAYLIGHT_HOUR, cfg.getDaylightHour());
-        assertEquals(DesktopConfig.DEFAULT_NIGHTLIGHT_MINUTE, cfg.getNightlightMinute());
-        assertEquals("", cfg.getDaylightWallpaper());
+        assertEquals(DesktopConfig.DEFAULT_WALLPAPER_SCHEDULE, cfg.getWallpaperSchedule());
+        assertEquals(DesktopConfig.DEFAULT_LIGHTING_DAWN_HOUR, cfg.getLightingDawnHour());
+        assertEquals(DesktopConfig.DEFAULT_LIGHTING_DUSK_MINUTE, cfg.getLightingDuskMinute());
         assertEquals(DesktopConfig.DEFAULT_RAMP_MINUTES, cfg.getRampMinutes());
     }
 }

@@ -15,8 +15,11 @@
  */
 package org.jdesktop.lg3d.utils.prefs;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.prefs.Preferences;
 import java.util.logging.Logger;
+import org.jdesktop.lg3d.utils.schedule.ScheduleEntry;
 
 /**
  * User-facing desktop configuration: taskbar thickness, position, icon size,
@@ -61,13 +64,22 @@ public final class DesktopConfig {
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
     private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
-    private static final String KEY_DAYLIGHT_HOUR = "schedule.daylightHour";
-    private static final String KEY_DAYLIGHT_MINUTE = "schedule.daylightMinute";
-    private static final String KEY_NIGHTLIGHT_HOUR = "schedule.nightlightHour";
-    private static final String KEY_NIGHTLIGHT_MINUTE = "schedule.nightlightMinute";
-    private static final String KEY_DAYLIGHT_WALLPAPER = "schedule.daylightWallpaper";
-    private static final String KEY_NIGHTLIGHT_WALLPAPER = "schedule.nightlightWallpaper";
+    /** Wallpaper-schedule entries: a count plus per-index hour/minute/file. */
+    private static final String KEY_WP_COUNT = "schedule.wp.count";
+    private static final String KEY_WP_PREFIX = "schedule.wp.";
+    /** The lighting schedule's own dawn/dusk times (independent of wallpaper). */
+    private static final String KEY_LIGHTING_DAWN_HOUR = "schedule.lightingDawnHour";
+    private static final String KEY_LIGHTING_DAWN_MINUTE = "schedule.lightingDawnMinute";
+    private static final String KEY_LIGHTING_DUSK_HOUR = "schedule.lightingDuskHour";
+    private static final String KEY_LIGHTING_DUSK_MINUTE = "schedule.lightingDuskMinute";
     private static final String KEY_RAMP_MINUTES = "schedule.rampMinutes";
+    /** Legacy two-slot keys, read only to migrate into the entry list. */
+    private static final String KEY_LEGACY_DAYLIGHT_HOUR = "schedule.daylightHour";
+    private static final String KEY_LEGACY_DAYLIGHT_MINUTE = "schedule.daylightMinute";
+    private static final String KEY_LEGACY_NIGHTLIGHT_HOUR = "schedule.nightlightHour";
+    private static final String KEY_LEGACY_NIGHTLIGHT_MINUTE = "schedule.nightlightMinute";
+    private static final String KEY_LEGACY_DAYLIGHT_WALLPAPER = "schedule.daylightWallpaper";
+    private static final String KEY_LEGACY_NIGHTLIGHT_WALLPAPER = "schedule.nightlightWallpaper";
     private static final String KEY_SHORTCUTS_CUSTOM = "shortcuts.custom";
 
     // Defaults and ranges.
@@ -134,22 +146,25 @@ public final class DesktopConfig {
     private static final boolean DEF_SCHEDULE_WALLPAPER_ENABLED = DEFAULT_SCHEDULE_WALLPAPER_ENABLED;
     public static final boolean DEFAULT_SCHEDULE_LIGHTING_ENABLED = false;
     private static final boolean DEF_SCHEDULE_LIGHTING_ENABLED = DEFAULT_SCHEDULE_LIGHTING_ENABLED;
-    /** Default daylight transition time: 7:00 AM. */
-    public static final int DEFAULT_DAYLIGHT_HOUR = 7;
-    public static final int DEFAULT_DAYLIGHT_MINUTE = 0;
-    private static final int DEF_DAYLIGHT_HOUR = DEFAULT_DAYLIGHT_HOUR;
-    private static final int DEF_DAYLIGHT_MINUTE = DEFAULT_DAYLIGHT_MINUTE;
-    /** Default nightlight transition time: 8:00 PM. */
-    public static final int DEFAULT_NIGHTLIGHT_HOUR = 20;
-    public static final int DEFAULT_NIGHTLIGHT_MINUTE = 0;
-    private static final int DEF_NIGHTLIGHT_HOUR = DEFAULT_NIGHTLIGHT_HOUR;
-    private static final int DEF_NIGHTLIGHT_MINUTE = DEFAULT_NIGHTLIGHT_MINUTE;
-    /** Default daylight wallpaper: empty string means use bundled default. */
-    public static final String DEFAULT_DAYLIGHT_WALLPAPER = "";
-    private static final String DEF_DAYLIGHT_WALLPAPER = DEFAULT_DAYLIGHT_WALLPAPER;
-    /** Default nightlight wallpaper: empty string means use bundled default. */
-    public static final String DEFAULT_NIGHTLIGHT_WALLPAPER = "";
-    private static final String DEF_NIGHTLIGHT_WALLPAPER = DEFAULT_NIGHTLIGHT_WALLPAPER;
+    /** Default lighting dawn transition time: 7:00 AM. */
+    public static final int DEFAULT_LIGHTING_DAWN_HOUR = 7;
+    public static final int DEFAULT_LIGHTING_DAWN_MINUTE = 0;
+    private static final int DEF_LIGHTING_DAWN_HOUR = DEFAULT_LIGHTING_DAWN_HOUR;
+    private static final int DEF_LIGHTING_DAWN_MINUTE = DEFAULT_LIGHTING_DAWN_MINUTE;
+    /** Default lighting dusk transition time: 8:00 PM. */
+    public static final int DEFAULT_LIGHTING_DUSK_HOUR = 20;
+    public static final int DEFAULT_LIGHTING_DUSK_MINUTE = 0;
+    private static final int DEF_LIGHTING_DUSK_HOUR = DEFAULT_LIGHTING_DUSK_HOUR;
+    private static final int DEF_LIGHTING_DUSK_MINUTE = DEFAULT_LIGHTING_DUSK_MINUTE;
+    /**
+     * Default wallpaper schedule: two entries (morning / evening) mirroring the
+     * historical daylight/nightlight pair. Users add or remove entries freely.
+     */
+    public static final List<ScheduleEntry> DEFAULT_WALLPAPER_SCHEDULE = List.of(
+            new ScheduleEntry(DEFAULT_LIGHTING_DAWN_HOUR, DEFAULT_LIGHTING_DAWN_MINUTE,
+                    ScheduleEntry.DEFAULT_WALLPAPER),
+            new ScheduleEntry(DEFAULT_LIGHTING_DUSK_HOUR, DEFAULT_LIGHTING_DUSK_MINUTE,
+                    ScheduleEntry.DEFAULT_WALLPAPER));
     /** Default daylight-to-night light transition width, in minutes. */
     public static final int DEFAULT_RAMP_MINUTES = 30;
     private static final int DEF_RAMP_MINUTES = DEFAULT_RAMP_MINUTES;
@@ -200,12 +215,12 @@ public final class DesktopConfig {
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
     private boolean scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
-    private int daylightHour = DEF_DAYLIGHT_HOUR;
-    private int daylightMinute = DEF_DAYLIGHT_MINUTE;
-    private int nightlightHour = DEF_NIGHTLIGHT_HOUR;
-    private int nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
-    private String daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
-    private String nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
+    private List<ScheduleEntry> wallpaperSchedule =
+            new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
+    private int lightingDawnHour = DEF_LIGHTING_DAWN_HOUR;
+    private int lightingDawnMinute = DEF_LIGHTING_DAWN_MINUTE;
+    private int lightingDuskHour = DEF_LIGHTING_DUSK_HOUR;
+    private int lightingDuskMinute = DEF_LIGHTING_DUSK_MINUTE;
     private int rampMinutes = DEF_RAMP_MINUTES;
     private String shortcutsCustom = DEF_SHORTCUTS_CUSTOM;
 
@@ -258,14 +273,65 @@ public final class DesktopConfig {
                 KEY_SCHEDULE_WALLPAPER_ENABLED, DEF_SCHEDULE_WALLPAPER_ENABLED);
         scheduleLightingEnabled = prefs.getBoolean(
                 KEY_SCHEDULE_LIGHTING_ENABLED, DEF_SCHEDULE_LIGHTING_ENABLED);
-        daylightHour = clampHour(prefs.getInt(KEY_DAYLIGHT_HOUR, DEF_DAYLIGHT_HOUR));
-        daylightMinute = clampMinute(prefs.getInt(KEY_DAYLIGHT_MINUTE, DEF_DAYLIGHT_MINUTE));
-        nightlightHour = clampHour(prefs.getInt(KEY_NIGHTLIGHT_HOUR, DEF_NIGHTLIGHT_HOUR));
-        nightlightMinute = clampMinute(prefs.getInt(KEY_NIGHTLIGHT_MINUTE, DEF_NIGHTLIGHT_MINUTE));
-        daylightWallpaper = normalizeWallpaper(prefs.get(KEY_DAYLIGHT_WALLPAPER, DEF_DAYLIGHT_WALLPAPER));
-        nightlightWallpaper = normalizeWallpaper(prefs.get(KEY_NIGHTLIGHT_WALLPAPER, DEF_NIGHTLIGHT_WALLPAPER));
+        wallpaperSchedule = loadWallpaperSchedule();
+        lightingDawnHour = clampHour(
+                prefs.getInt(KEY_LIGHTING_DAWN_HOUR, DEF_LIGHTING_DAWN_HOUR));
+        lightingDawnMinute = clampMinute(
+                prefs.getInt(KEY_LIGHTING_DAWN_MINUTE, DEF_LIGHTING_DAWN_MINUTE));
+        lightingDuskHour = clampHour(
+                prefs.getInt(KEY_LIGHTING_DUSK_HOUR, DEF_LIGHTING_DUSK_HOUR));
+        lightingDuskMinute = clampMinute(
+                prefs.getInt(KEY_LIGHTING_DUSK_MINUTE, DEF_LIGHTING_DUSK_MINUTE));
         rampMinutes = clampRampMinutes(prefs.getInt(KEY_RAMP_MINUTES, DEF_RAMP_MINUTES));
         shortcutsCustom = normalizeShortcuts(prefs.get(KEY_SHORTCUTS_CUSTOM, DEF_SHORTCUTS_CUSTOM));
+    }
+
+    /**
+     * Reads the wallpaper-schedule entry list. When the new {@code count} key is
+     * absent (first run after an upgrade) the legacy two-slot daylight/nightlight
+     * scalars are migrated into entries so saved preferences are not lost; with
+     * no legacy values either, the defaults are used.
+     */
+    private List<ScheduleEntry> loadWallpaperSchedule() {
+        int count = prefs.getInt(KEY_WP_COUNT, -1);
+        if (count < 0) {
+            return migrateLegacyWallpaperSchedule();
+        }
+        List<ScheduleEntry> out = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            int hour = clampHour(prefs.getInt(KEY_WP_PREFIX + i + ".hour", 0));
+            int minute = clampMinute(prefs.getInt(KEY_WP_PREFIX + i + ".minute", 0));
+            String file = normalizeWallpaper(prefs.get(KEY_WP_PREFIX + i + ".file",
+                    ScheduleEntry.DEFAULT_WALLPAPER));
+            out.add(new ScheduleEntry(hour, minute, file));
+        }
+        if (out.isEmpty()) {
+            out.addAll(DEFAULT_WALLPAPER_SCHEDULE);
+        }
+        return out;
+    }
+
+    /** Seeds the entry list from the legacy daylight/nightlight scalars. */
+    private List<ScheduleEntry> migrateLegacyWallpaperSchedule() {
+        boolean legacy = prefs.get(KEY_LEGACY_DAYLIGHT_WALLPAPER, null) != null
+                || prefs.get(KEY_LEGACY_NIGHTLIGHT_WALLPAPER, null) != null
+                || prefs.get(KEY_LEGACY_DAYLIGHT_HOUR, null) != null
+                || prefs.get(KEY_LEGACY_NIGHTLIGHT_HOUR, null) != null;
+        if (!legacy) {
+            return new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
+        }
+        List<ScheduleEntry> out = new ArrayList<>();
+        out.add(new ScheduleEntry(
+                clampHour(prefs.getInt(KEY_LEGACY_DAYLIGHT_HOUR, DEF_LIGHTING_DAWN_HOUR)),
+                clampMinute(prefs.getInt(KEY_LEGACY_DAYLIGHT_MINUTE, DEF_LIGHTING_DAWN_MINUTE)),
+                normalizeWallpaper(prefs.get(KEY_LEGACY_DAYLIGHT_WALLPAPER,
+                        ScheduleEntry.DEFAULT_WALLPAPER))));
+        out.add(new ScheduleEntry(
+                clampHour(prefs.getInt(KEY_LEGACY_NIGHTLIGHT_HOUR, DEF_LIGHTING_DUSK_HOUR)),
+                clampMinute(prefs.getInt(KEY_LEGACY_NIGHTLIGHT_MINUTE, DEF_LIGHTING_DUSK_MINUTE)),
+                normalizeWallpaper(prefs.get(KEY_LEGACY_NIGHTLIGHT_WALLPAPER,
+                        ScheduleEntry.DEFAULT_WALLPAPER))));
+        return out;
     }
 
     /** Writes all in-memory values to the backing preferences node. */
@@ -288,12 +354,17 @@ public final class DesktopConfig {
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
         prefs.putBoolean(KEY_SCHEDULE_LIGHTING_ENABLED, scheduleLightingEnabled);
-        prefs.putInt(KEY_DAYLIGHT_HOUR, daylightHour);
-        prefs.putInt(KEY_DAYLIGHT_MINUTE, daylightMinute);
-        prefs.putInt(KEY_NIGHTLIGHT_HOUR, nightlightHour);
-        prefs.putInt(KEY_NIGHTLIGHT_MINUTE, nightlightMinute);
-        prefs.put(KEY_DAYLIGHT_WALLPAPER, daylightWallpaper);
-        prefs.put(KEY_NIGHTLIGHT_WALLPAPER, nightlightWallpaper);
+        prefs.putInt(KEY_WP_COUNT, wallpaperSchedule.size());
+        for (int i = 0; i < wallpaperSchedule.size(); i++) {
+            ScheduleEntry e = wallpaperSchedule.get(i);
+            prefs.putInt(KEY_WP_PREFIX + i + ".hour", e.hour());
+            prefs.putInt(KEY_WP_PREFIX + i + ".minute", e.minute());
+            prefs.put(KEY_WP_PREFIX + i + ".file", e.wallpaper());
+        }
+        prefs.putInt(KEY_LIGHTING_DAWN_HOUR, lightingDawnHour);
+        prefs.putInt(KEY_LIGHTING_DAWN_MINUTE, lightingDawnMinute);
+        prefs.putInt(KEY_LIGHTING_DUSK_HOUR, lightingDuskHour);
+        prefs.putInt(KEY_LIGHTING_DUSK_MINUTE, lightingDuskMinute);
         prefs.putInt(KEY_RAMP_MINUTES, rampMinutes);
         prefs.put(KEY_SHORTCUTS_CUSTOM, shortcutsCustom);
         try {
@@ -324,12 +395,11 @@ public final class DesktopConfig {
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
         scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
         scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
-        daylightHour = DEF_DAYLIGHT_HOUR;
-        daylightMinute = DEF_DAYLIGHT_MINUTE;
-        nightlightHour = DEF_NIGHTLIGHT_HOUR;
-        nightlightMinute = DEF_NIGHTLIGHT_MINUTE;
-        daylightWallpaper = DEF_DAYLIGHT_WALLPAPER;
-        nightlightWallpaper = DEF_NIGHTLIGHT_WALLPAPER;
+        wallpaperSchedule = new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
+        lightingDawnHour = DEF_LIGHTING_DAWN_HOUR;
+        lightingDawnMinute = DEF_LIGHTING_DAWN_MINUTE;
+        lightingDuskHour = DEF_LIGHTING_DUSK_HOUR;
+        lightingDuskMinute = DEF_LIGHTING_DUSK_MINUTE;
         rampMinutes = DEF_RAMP_MINUTES;
         shortcutsCustom = DEF_SHORTCUTS_CUSTOM;
     }
@@ -536,64 +606,61 @@ public final class DesktopConfig {
         return scheduleWallpaperEnabled || scheduleLightingEnabled;
     }
 
-    /** The hour (0-23) when daylight wallpaper should be applied. */
-    public int getDaylightHour() {
-        return daylightHour;
-    }
-
-    public void setDaylightHour(int hour) {
-        this.daylightHour = clampHour(hour);
-    }
-
-    /** The minute (0-59) when daylight wallpaper should be applied. */
-    public int getDaylightMinute() {
-        return daylightMinute;
-    }
-
-    public void setDaylightMinute(int minute) {
-        this.daylightMinute = clampMinute(minute);
-    }
-
-    /** The hour (0-23) when nightlight wallpaper should be applied. */
-    public int getNightlightHour() {
-        return nightlightHour;
-    }
-
-    public void setNightlightHour(int hour) {
-        this.nightlightHour = clampHour(hour);
-    }
-
-    /** The minute (0-59) when nightlight wallpaper should be applied. */
-    public int getNightlightMinute() {
-        return nightlightMinute;
-    }
-
-    public void setNightlightMinute(int minute) {
-        this.nightlightMinute = clampMinute(minute);
-    }
-
     /**
-     * The daylight wallpaper filename (from the bundled background directory),
-     * or empty string for the default.
+     * The wallpaper schedule: an ordered, variable-length list of
+     * {@link ScheduleEntry} (time -> wallpaper). Returns a defensive copy sorted
+     * by time of day; never null (at least the defaults). Independent of the
+     * lighting schedule, which carries its own times and no wallpapers.
      */
-    public String getDaylightWallpaper() {
-        return daylightWallpaper;
+    public List<ScheduleEntry> getWallpaperSchedule() {
+        List<ScheduleEntry> copy = new ArrayList<>(wallpaperSchedule);
+        copy.sort(null);
+        return copy;
     }
 
-    public void setDaylightWallpaper(String wallpaper) {
-        this.daylightWallpaper = normalizeWallpaper(wallpaper);
+    /** Replaces the wallpaper schedule with a defensive copy of {@code entries}. */
+    public void setWallpaperSchedule(List<ScheduleEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            this.wallpaperSchedule = new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
+        } else {
+            this.wallpaperSchedule = new ArrayList<>(entries);
+        }
     }
 
-    /**
-     * The nightlight wallpaper filename (from the bundled background directory),
-     * or empty string for the default.
-     */
-    public String getNightlightWallpaper() {
-        return nightlightWallpaper;
+    /** The hour (0-23) of the lighting schedule's dawn (day) transition. */
+    public int getLightingDawnHour() {
+        return lightingDawnHour;
     }
 
-    public void setNightlightWallpaper(String wallpaper) {
-        this.nightlightWallpaper = normalizeWallpaper(wallpaper);
+    public void setLightingDawnHour(int hour) {
+        this.lightingDawnHour = clampHour(hour);
+    }
+
+    /** The minute (0-59) of the lighting schedule's dawn (day) transition. */
+    public int getLightingDawnMinute() {
+        return lightingDawnMinute;
+    }
+
+    public void setLightingDawnMinute(int minute) {
+        this.lightingDawnMinute = clampMinute(minute);
+    }
+
+    /** The hour (0-23) of the lighting schedule's dusk (night) transition. */
+    public int getLightingDuskHour() {
+        return lightingDuskHour;
+    }
+
+    public void setLightingDuskHour(int hour) {
+        this.lightingDuskHour = clampHour(hour);
+    }
+
+    /** The minute (0-59) of the lighting schedule's dusk (night) transition. */
+    public int getLightingDuskMinute() {
+        return lightingDuskMinute;
+    }
+
+    public void setLightingDuskMinute(int minute) {
+        this.lightingDuskMinute = clampMinute(minute);
     }
 
     /**
@@ -750,7 +817,7 @@ public final class DesktopConfig {
 
     /** Trims wallpaper filename; null falls back to empty (default). */
     private static String normalizeWallpaper(String s) {
-        return (s == null) ? DEF_DAYLIGHT_WALLPAPER : s.trim();
+        return (s == null) ? ScheduleEntry.DEFAULT_WALLPAPER : s.trim();
     }
 
     /** Trims the encoded custom-shortcut list; null falls back to empty. */
