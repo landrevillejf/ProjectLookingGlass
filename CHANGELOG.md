@@ -59,7 +59,12 @@ work to make it build and run on a current toolchain.
   through `FrostedGlassPanel.create(...)` which returns `null` on a missing
   program (no GL context, resources unavailable) so a caller can fall back to a
   fixed-function `GlassyPanel` rather than throwing mid-scene-graph-build; a caller
-  that adopts it as a pickable window body must call `setPickable(true)`. The pure
+  that adopts it as a pickable window body must call `setPickable(true)` —
+  `Frame3DWindowDecoration` now does exactly that, preferring the frosted body
+  over the fixed-function `GlassyPanel` when `lg.shaders` is on (re-enabling
+  pickability so the flip/rotate gesture handle survives) and keeping
+  `GlassyPanel` otherwise; the `:lg3d-core:run` task grew a `-Pshaders` passthrough
+  so the GLSL path can be turned on for live verification. The pure
   seams (the frosted-glass uniform binding order, the missing-resource fallback and
   the quad-layout / corner-radius clamp math) are covered by headless JUnit 5 tests
   (`ShaderEffectsTest` +2, `FrostedGlassPanelTest` 4).
