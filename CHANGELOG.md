@@ -10,6 +10,33 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.23.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Five new fully-controllable Control Center panels over existing seams**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`,
+  `org.jdesktop.lg3d.utils.prefs`; `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter`) — the Control Center grows from eight
+  categories to thirteen by surfacing capabilities the desktop already had. Five
+  new panels — **Sound**, **Power**, **Notifications**, **Workspaces** and
+  **Shortcuts** — are pure Swing (`JList` / `JCheckBox` / `JButton` /
+  `JTextField` only, never a combo box or raw key-capture, so they keep working
+  hosted offscreen in a `SwingNode`) and actually change settings rather than
+  only displaying them. *Sound* drives the master volume and mute through the
+  `VolumeStatus` seam; *Power* shows the battery (`BatteryStatus`), a brightness
+  preset list driving the `BrightnessStatus` backlight seam and the thermal
+  sensors (`ThermalService`) on a 2 s refresh; *Notifications* and *Workspaces*
+  reach the live 2D shell — Do Not Disturb, the notification log, the workspace
+  count and workspace switching — through new public EDT-safe `Desktop2D` hooks
+  that no-op / return an empty snapshot in 3D mode or headless and persist to
+  `DesktopConfig` where a key exists; *Shortcuts* rebinds the global keys through
+  a new `DesktopConfig` `shortcuts.custom` override (`ShortcutMap.mergeBindings`
+  overlays it on the built-in defaults) applied live via
+  `Desktop2D.applyShortcuts()`. To expose these, `VolumeStatus.setVolume`/
+  `setMuted` and `BrightnessStatus.setBrightness` were widened from
+  package-private to `public` (bodies unchanged), and every panel degrades to an
+  explanatory read-only / empty state when its backing hardware, tool or 2D shell
+  is absent. Covered by headless JUnit 5 tests (`ShortcutMapTest` +5,
+  `DesktopConfigShortcutsTest` 7, `Desktop2DControlHooksTest` 6, and one
+  construction smoke test per panel — `SoundPanelTest` 4, `PowerPanelTest` 4,
+  `NotificationsPanelTest` 4, `WorkspacesPanelTest` 4, `ShortcutsPanelTest` 6).
 - **Schedule-based daylight/nightlight wallpapers** (`lg3d-core`,
   `org.jdesktop.lg3d.utils.schedule`; `lg3d-apps`,
   `org.jdesktop.lg3d.apps.controlcenter`) — an opt-in, time-of-day wallpaper

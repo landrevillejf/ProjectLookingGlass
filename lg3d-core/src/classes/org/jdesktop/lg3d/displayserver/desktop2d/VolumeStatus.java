@@ -91,7 +91,7 @@ public final class VolumeStatus {
     }
 
     /** Sets the master volume (0-100); a no-op when no master control exists. */
-    static void setVolume(int percent) {
+    public static void setVolume(int percent) {
         try {
             Port.Info info = findMasterPort();
             if (info == null) {
@@ -110,7 +110,7 @@ public final class VolumeStatus {
     }
 
     /** Sets the master mute; a no-op when no master control exists. */
-    static void setMuted(boolean muted) {
+    public static void setMuted(boolean muted) {
         try {
             Port.Info info = findMasterPort();
             if (info == null) {

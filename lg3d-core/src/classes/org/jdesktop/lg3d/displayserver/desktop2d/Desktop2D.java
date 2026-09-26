@@ -184,8 +184,13 @@ public class Desktop2D {
     private final WallpaperSlideshow slideshow;
     private Timer slideshowTimer;
 
-    /** Global keyboard-shortcut table and the dispatcher that feeds it. */
-    private final ShortcutMap shortcuts = ShortcutMap.defaults();
+    /**
+     * Global keyboard-shortcut table and the dispatcher that feeds it. The map
+     * is rebuilt from {@link DesktopConfig} (the defaults overlaid by any
+     * persisted custom overrides) by {@link #applyShortcuts()}, so a control
+     * center change takes effect without a restart; hence it is not final.
+     */
+    private ShortcutMap shortcuts = buildShortcuts();
     private final Shortcuts.Target shortcutActions = new ShortcutActions();
     private KeyEventDispatcher shortcutDispatcher;
 
@@ -743,6 +748,20 @@ public class Desktop2D {
                     .removeKeyEventDispatcher(shortcutDispatcher);
             shortcutDispatcher = null;
         }
+    }
+
+    /**
+     * Builds the shortcut table from the persisted config: the default bindings
+     * overlaid by any custom {@code action=keyspec} overrides decoded from
+     * {@link DesktopConfig#getCustomShortcuts()}. Backs both the {@link #shortcuts}
+     * field initializer and {@link #applyShortcuts()}, so the live table and a
+     * fresh start always agree.
+     */
+    private static ShortcutMap buildShortcuts() {
+        DesktopConfig cfg = DesktopConfig.get();
+        java.util.Map<String, String> custom =
+                DesktopConfig.parseCustomShortcuts(cfg.getCustomShortcuts());
+        return new ShortcutMap(ShortcutMap.mergeBindings(custom));
     }
 
     /**
@@ -1520,6 +1539,227 @@ public class Desktop2D {
         if (d != null) {
             onEdt(d::applySlideshowConfig);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Control-center hooks: notifications, Do Not Disturb, workspaces and
+    // shortcuts. Each is a no-op (or returns an empty/default snapshot) when no
+    // 2D shell is running, so the panels also work in 3D mode and headless.
+    // Writes persist to DesktopConfig even with no live shell, mirroring the
+    // setSlideshow* hooks above.
+    // ------------------------------------------------------------------
+
+    /** Do Not Disturb state for the control center: on/off and any deadline. */
+    public record DoNotDisturbSnapshot(boolean enabled, long untilMillis) {
+        /** True when DND is suppressing right now (on and not past a deadline). */
+        public boolean active() {
+            return enabled && (untilMillis == 0L
+                    || System.currentTimeMillis() < untilMillis);
+        }
+    }
+
+    /** One logged notification, as handed to the control center. */
+    public record NotificationEntry(long id, String title, String message,
+                                    Notification.Kind kind, long timestampMillis) {
+    }
+
+    /** The notification log (newest first) plus the unread count. */
+    public record NotificationSnapshot(List<NotificationEntry> entries, int unread) {
+    }
+
+    /** The workspace layout: count, current index, per-index window counts. */
+    public record WorkspaceSnapshot(int count, int current, List<Integer> windowCounts) {
+    }
+
+    /**
+     * Turns Do Not Disturb on (indefinitely) or off and persists the choice, so
+     * the next start honours it. When a 2D shell is running the live state is
+     * updated on the EDT (its change listener does the persisting); otherwise the
+     * value is written straight to {@link DesktopConfig}. Safe from any thread.
+     */
+    public static void setDoNotDisturb(final boolean enabled) {
+        final Desktop2D d = instance;
+        if (d == null) {
+            DesktopConfig cfg = DesktopConfig.get();
+            cfg.setDoNotDisturbEnabled(enabled);
+            if (enabled) {
+                cfg.setDoNotDisturbUntil(0L);
+            }
+            cfg.save();
+            return;
+        }
+        onEdt(() -> {
+            if (enabled) {
+                d.dnd.enable();
+            } else {
+                d.dnd.disable();
+            }
+        });
+    }
+
+    /**
+     * Turns Do Not Disturb on for {@code millis} from now (indefinitely when
+     * {@code millis <= 0}) and persists the deadline. Live update on the EDT when
+     * a 2D shell is running; otherwise written straight to {@link DesktopConfig}.
+     * Safe from any thread.
+     */
+    public static void setDoNotDisturbFor(final long millis) {
+        final long now = System.currentTimeMillis();
+        final Desktop2D d = instance;
+        if (d == null) {
+            DesktopConfig cfg = DesktopConfig.get();
+            cfg.setDoNotDisturbEnabled(true);
+            cfg.setDoNotDisturbUntil(millis > 0L ? now + millis : 0L);
+            cfg.save();
+            return;
+        }
+        onEdt(() -> d.dnd.enableFor(millis, now));
+    }
+
+    /**
+     * The 2D desktop's Do Not Disturb state for the control center. Falls back to
+     * the persisted config when no shell is running, so the panel still shows the
+     * last-set state in 3D mode or headless. Safe to call from any thread.
+     */
+    public static DoNotDisturbSnapshot doNotDisturbSnapshot() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            DesktopConfig cfg = DesktopConfig.get();
+            return new DoNotDisturbSnapshot(
+                    cfg.isDoNotDisturbEnabled(), cfg.getDoNotDisturbUntil());
+        }
+        return new DoNotDisturbSnapshot(d.dnd.isEnabled(), d.dnd.untilMillis());
+    }
+
+    /**
+     * A snapshot of the 2D desktop's notification log (newest first) plus the
+     * unread count. Empty when no shell is running. Safe to call from any thread.
+     */
+    public static NotificationSnapshot notificationSnapshot() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return new NotificationSnapshot(List.of(), 0);
+        }
+        List<NotificationEntry> entries = new ArrayList<>();
+        for (Notification n : d.notifications.notifications()) {
+            entries.add(new NotificationEntry(n.id(), n.title(), n.message(),
+                    n.kind(), n.timestampMillis()));
+        }
+        return new NotificationSnapshot(
+                Collections.unmodifiableList(entries), d.notifications.unreadCount());
+    }
+
+    /**
+     * Marks every logged notification read (clears the tray badge). A no-op when
+     * no 2D shell is running. Safe from any thread; runs on the EDT.
+     */
+    public static void markNotificationsRead() {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d.notifications::markAllRead);
+        }
+    }
+
+    /**
+     * Empties the notification log. A no-op when no 2D shell is running. Safe
+     * from any thread; runs on the EDT.
+     */
+    public static void clearNotifications() {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d.notifications::clear);
+        }
+    }
+
+    /**
+     * Sets the number of workspaces (clamped to
+     * {@link WorkspaceModel#MIN_COUNT}..{@link WorkspaceModel#MAX_COUNT}) and
+     * persists it, resizing the live model and re-syncing the pager when a 2D
+     * shell is running. Safe from any thread.
+     */
+    public static void setWorkspaceCount(final int count) {
+        final DesktopConfig cfg = DesktopConfig.get();
+        cfg.setWorkspaceCount(count);
+        cfg.save();
+        final Desktop2D d = instance;
+        if (d != null) {
+            final int clamped = cfg.getWorkspaceCount();
+            onEdt(() -> {
+                d.workspaces.setCount(clamped);
+                d.applyWorkspaceVisibility();
+                d.taskbar.refreshWorkspaces();
+            });
+        }
+    }
+
+    /**
+     * Switches the running 2D desktop to the workspace at {@code index} (wrapped
+     * into range). A no-op when no shell is running. Safe from any thread; runs
+     * on the EDT.
+     */
+    public static void switchWorkspace(final int index) {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(() -> d.switchToWorkspace(index));
+        }
+    }
+
+    /**
+     * The 2D desktop's workspace layout (count, current index and the window
+     * count on each) for the control center. When no shell is running, reports
+     * the persisted count with zero windows on each, so the panel still renders.
+     * Safe to call from any thread.
+     */
+    public static WorkspaceSnapshot workspaceSnapshot() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            int count = DesktopConfig.get().getWorkspaceCount();
+            return new WorkspaceSnapshot(count, 0,
+                    new ArrayList<>(Collections.nCopies(count, 0)));
+        }
+        int count = d.workspaces.count();
+        List<Integer> counts = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            counts.add(d.workspaces.countOn(i));
+        }
+        return new WorkspaceSnapshot(count, d.workspaces.current(), counts);
+    }
+
+    /**
+     * Rebuilds the running 2D desktop's shortcut table from {@link DesktopConfig}
+     * and re-registers the key dispatcher, so a control-center change takes
+     * effect immediately. A no-op when no shell is running. Safe from any thread;
+     * runs on the EDT.
+     */
+    public static void applyShortcuts() {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(() -> {
+                d.shortcuts = buildShortcuts();
+                d.uninstallShortcuts();
+                d.installShortcuts();
+            });
+        }
+    }
+
+    /**
+     * The effective shortcut bindings (action id -> keystroke spec) for the
+     * control center: the defaults overlaid by the persisted custom overrides.
+     * Empty when no 2D shell is running. Safe to call from any thread.
+     */
+    public static java.util.Map<String, String> shortcutBindings() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return java.util.Map.of();
+        }
+        java.util.Map<String, String> specToAction = ShortcutMap.mergeBindings(
+                DesktopConfig.parseCustomShortcuts(
+                        DesktopConfig.get().getCustomShortcuts()));
+        java.util.Map<String, String> actionToSpec = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<String, String> e : specToAction.entrySet()) {
+            actionToSpec.put(e.getValue(), e.getKey());
+        }
+        return actionToSpec;
     }
 
     /** Runs {@code task} on the EDT, immediately if already there. */

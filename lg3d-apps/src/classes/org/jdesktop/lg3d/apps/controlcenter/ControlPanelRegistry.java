@@ -20,20 +20,24 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Discovers the control center's category panels. The seven built-in panels
- * (Display, Users, System, Appearance, Desktop, Network, Printing) are
- * registered on first access; extra panels can be contributed with
+ * Discovers the control center's category panels. The built-in panels
+ * (Appearance, Desktop, Display, Sound, Power, Shortcuts, Notifications,
+ * Workspaces, Network, Printing, Users, System, Schedule) are registered on
+ * first access; extra panels can be contributed with
  * {@link #register(ControlPanel)} before the control center window is built.
  *
- * <p>All seven register in every desktop mode, so the control center shows the
+ * <p>Every panel registers in each desktop mode, so the control center shows the
  * same categories on the 3D desktop and on the conventional Swing (2D) desktop.
  * The Appearance and Desktop panels drive whichever desktop is running: on the
  * 3D desktop they post events through lg3d's connector (wallpaper textures,
  * taskbar re-layout), and on the 2D desktop they call into
  * {@link org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D} instead, so the
- * same settings take live effect there. The Network and Printing panels are
- * pure Swing over platform seams (NetworkManager / CUPS), so they behave
- * identically in both modes. Each panel is still built defensively - one that
+ * same settings take live effect there. The Sound, Power, Notifications,
+ * Workspaces and Shortcuts panels are pure Swing over platform seams and the same
+ * {@code Desktop2D} control-center hooks, degrading to a read-only or empty state
+ * when the backing hardware, tool or 2D shell is absent, so they behave the same
+ * in both modes. The Network and Printing panels are pure Swing over platform
+ * seams (NetworkManager / CUPS). Each panel is still built defensively - one that
  * cannot be constructed in this JVM (a missing Java 3D runtime, say) is skipped
  * rather than taking the whole control center with it.</p>
  */
@@ -59,13 +63,18 @@ public final class ControlPanelRegistry {
     public static synchronized List<ControlPanel> panels() {
         if (!defaultsAdded) {
             defaultsAdded = true;
-            addDefault(DisplayPanel::new, "Display");
-            addDefault(UsersPanel::new, "Users");
-            addDefault(SystemInfoPanel::new, "System");
             addDefault(AppearancePanel::new, "Appearance");
             addDefault(DesktopPanel::new, "Desktop");
+            addDefault(DisplayPanel::new, "Display");
+            addDefault(SoundPanel::new, "Sound");
+            addDefault(PowerPanel::new, "Power");
+            addDefault(ShortcutsPanel::new, "Shortcuts");
+            addDefault(NotificationsPanel::new, "Notifications");
+            addDefault(WorkspacesPanel::new, "Workspaces");
             addDefault(NetworkPanel::new, "Network");
             addDefault(PrintingPanel::new, "Printing");
+            addDefault(UsersPanel::new, "Users");
+            addDefault(SystemInfoPanel::new, "System");
             addDefault(SchedulePanel::new, "Schedule");
         }
         return new ArrayList<>(PANELS);
