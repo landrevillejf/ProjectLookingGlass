@@ -21,7 +21,7 @@
         </javac>
     </target>
 
-    <target name="extras" description="Extra steps for JSaddle build">
+    <target name="extras" description="Extra steps for SmallToolKit build">
         <copy todir="${build.classes.dir}/org/jdesktop/lg3d/apps/smalltoolkit/sample/resources">
             <fileset dir="${javasrc.dir}/org/jdesktop/lg3d/apps/smalltoolkit/sample/resources" />
         </copy>
