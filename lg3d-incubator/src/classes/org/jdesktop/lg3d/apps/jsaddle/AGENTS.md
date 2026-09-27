@@ -8,31 +8,41 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Dormant prototype** (2006-era; compiles only if the JPedal jars are present) |
+| Status | **Live** (2006-era prototype revived: PDF backend rewritten from JPedal to Apache PDFBox for JDK 21) |
 | Entry point | `jsaddle.Main` |
 | Surface | Hybrid: a Swing `FileChooser` (`javax.swing.JPanel`) plus 3D thumbnail actions (`Thumbnail3DTimeFrameAction`, `ThumbnailFilmLikeAction`) |
-| Start-menu name / group | jsaddle (JPedal-based PDF Viewer) / **Media** — descriptor `jsaddle.lgcfg` is in `lg3d-incubator/src/config` → `config/` (**not scanned**) |
+| Start-menu name / group | PDF Viewer / **Media** — live descriptor `jsaddle.lgcfg` is in `lg3d-apps/src/config` → `config/demo` (**scanned**); the inert duplicate under `lg3d-incubator/src/config` → `config/` is never discovered |
 | Command | `java org.jdesktop.lg3d.apps.jsaddle.Main` |
-| Runtime blocker | Needs the commercial **JPedal** PDF library (`jpedalSTD.jar`, `cid.jar`, `bcprov-jdk14.jar`) — not in the repo, not on Maven Central |
+| PDF backend | **Apache PDFBox** (`org.apache.pdfbox:pdfbox`, Apache-2.0, Maven Central) — `PdfManager` renders each page with `Loader.loadPDF` + `PDFRenderer.renderImageWithDPI`. The commercial JPedal jars (`jpedalSTD`/`cid`/`bcprov-jdk14`) are no longer used. |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 ## Roles
 
-- **Architect** — A PDF viewer built on the proprietary JPedal library. Dormant and
-  **dependency-blocked** (JPedal is commercial and absent). Do not attempt to build or
-  revive it without first supplying a PDF backend (JPedal or a replacement such as
-  PDFBox).
-- **Engineer / Developer** — If ever revived: render pages into a live texture (single
-  `ImageComponent2D`, `.set()` per page, never re-attach; POT sizes) and keep the Swing
-  file chooser on the EDT. Obey the core UI/UX rulebook. Jogamp packages only.
-- **QA** — Classify as **dependency-blocked**: it cannot run without JPedal. Do not
-  file "won't open PDFs" as a regression; record the missing-library blocker.
-- **Business Analyst** — Historical prototype; no product value while JPedal is
-  unavailable/licensed.
-- **Functional Analyst** — Document the missing-library blocker explicitly so a future
-  port re-triages with a real PDF backend.
-- **Project Manager** — Commit scope `lg3d-incubator`. Dormant/blocked — do not
-  schedule without resolving the JPedal dependency.
+- **Architect** — A PDF viewer whose backend is isolated in `PdfManager`, an
+  adapter that returns each page as a `BufferedImage`. It was rewritten from the
+  proprietary JPedal library to **Apache PDFBox** (Apache-2.0), so the app now
+  builds and runs with an open-source backend. PDFBox is a Maven dependency of
+  `lg3d-incubator` **and** must be resolved onto the hand-assembled
+  `:lg3d-core:run` classpath (see the `pdfboxLibs` detached configuration in
+  `lg3d-core/build.gradle`) or the in-JVM launch dies with `NoClassDefFoundError:
+  org/apache/pdfbox/Loader`. The live start-menu descriptor lives in
+  `lg3d-apps/src/config` (discovery only scans `config/demo`/`config/incubator`).
+- **Engineer / Developer** — Keep the JPedal→PDFBox seam confined to `PdfManager`:
+  the 3D viewer (`ViewerContainer`, `JSaddleManager`, `ThumbnailViewerContainer`)
+  only consumes `BufferedImage`, so it must not learn about PDFBox. Page numbers
+  exposed by `PdfManager` are 1-based; PDFBox is 0-based, so convert inside the
+  adapter. Obey the core UI/UX rulebook and the live-texture discipline; Jogamp
+  packages only.
+- **QA** — No longer dependency-blocked: verify the backend headless (PDFBox
+  renders a page to a non-null `BufferedImage` with no X display) and the 3D view
+  with the in-JVM probe + internal screencapture. `PdfManager` is AWT-free apart
+  from `BufferedImage`, so it is the natural unit-test seam.
+- **Business Analyst** — A revived, genuinely useful desktop app: an open-source
+  3D PDF viewer with page-flip animations and a thumbnail filmstrip.
+- **Functional Analyst** — The exclusion/blocker rationale is now historical:
+  JPedal was commercial and absent; PDFBox is the open-source replacement.
+- **Project Manager** — Commit scope `lg3d-incubator` (the descriptor + icon touch
+  `lg3d-apps`/`lg3d-core`, so the PR spans modules — call that out). Live.
 - **UI/UX (3D & 2D)** — Hybrid **2D** Swing file chooser + **3D** page/thumbnail view.
   Follow the glassy vocabulary and depth ordering from core.
 

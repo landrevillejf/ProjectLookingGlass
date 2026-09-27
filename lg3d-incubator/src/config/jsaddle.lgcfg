@@ -22,7 +22,7 @@
    <string>jsaddle</string>
   </void>
   <void property="classpathJars">
-   <string>jsaddle.jar ../jpedalSTD.jar ../cid.jar ../bcprov-jdk14.jar ../jai_core.jar ../jai_codec.jar</string>
+   <string>jsaddle.jar</string>
   </void>
  </object>
 -->
@@ -31,7 +31,7 @@
    <string>java org.jdesktop.lg3d.apps.jsaddle.Main</string>
   </void>
   <void property="desc">
-   <string>jsaddle - JPedal based PDF Viewer for LG3D prototype</string>
+   <string>jsaddle - Apache PDFBox based PDF Viewer for LG3D</string>
   </void>
   <void property="displayResourceType">
    <string>ICON</string>
@@ -46,7 +46,7 @@
    <string>JSaddle</string>
   </void>
   <void property="classpathJars">
-   <string>jsaddle.jar ../jpedalSTD.jar ../cid.jar ../bcprov-jdk14.jar ../jai_core.jar ../jai_codec.jar</string>
+   <string>jsaddle.jar</string>
   </void>
  </object>
 </java>

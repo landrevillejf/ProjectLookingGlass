@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: jsaddle PDF Viewer (from lg3d-incubator). A native 3D
+ PDF viewer: pages are rendered off the live graph into textures and flipped
+ with page turn animations plus a thumbnail filmstrip. It was rewritten for
+ JDK 21 on Apache PDFBox (Apache 2.0), replacing the commercial JPedal library
+ the 2006 era prototype was written against. Launched in JVM via the
+ "java <class>" command; the incubator jar and the PDFBox jars are on the
+ :lg3d-core:run classpath. Discovery only scans config/demo and config/incubator,
+ so, following the Image Studio precedent, this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo) rather than the incubator's own
+ src/config. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.jsaddle.Main</string>
+  </void>
+  <void property="desc">
+   <string>PDF viewer (Apache PDFBox)</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/jsaddle.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Media</string>
+  </void>
+  <void property="name">
+   <string>PDF Viewer</string>
+  </void>
+ </object>
+</java>

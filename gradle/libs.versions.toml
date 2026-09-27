@@ -39,6 +39,12 @@ mariadb = "3.4.1"         # org.mariadb.jdbc:mariadb-java-client (LGPL-2.1)
 commonsNet = "3.13.0"     # commons-net:commons-net (Apache-2.0)
 jsch = "2.28.7"           # com.github.mwiede:jsch (BSD; SFTP)
 mockFtpServer = "3.2.0"   # org.mockftpserver:MockFtpServer (Apache-2.0, test-only)
+# lg3d-incubator jsaddle PDF viewer. The 2006-era prototype rendered pages with
+# the commercial JPedal library (jpedalSTD/cid/bcprov-jdk14), which is absent
+# from the repo and not on Maven Central. Apache PDFBox is the open-source
+# (Apache-2.0) replacement: Loader.loadPDF + PDFRenderer.renderImageWithDPI give
+# the same page->BufferedImage contract the app's 3D viewer consumes.
+pdfbox = "3.0.5"          # org.apache.pdfbox:pdfbox (Apache-2.0)
 checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine
@@ -100,6 +106,11 @@ mariadb-java-client = { module = "org.mariadb.jdbc:mariadb-java-client", version
 commons-net = { module = "commons-net:commons-net", version.ref = "commonsNet" }
 jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
 mockftpserver = { module = "org.mockftpserver:MockFtpServer", version.ref = "mockFtpServer" }
+
+# Apache PDFBox: the open-source PDF renderer backing the lg3d-incubator jsaddle
+# PDF viewer (replaces the proprietary JPedal library). Pulls in fontbox +
+# pdfbox-io + commons-logging transitively from Maven Central.
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and

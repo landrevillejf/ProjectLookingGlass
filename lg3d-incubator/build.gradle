@@ -101,6 +101,14 @@ dependencies {
     // svgSalamander, nanoxml, jl, jpedal, mail/activation, bouncycastle, ...).
     implementation fileTree(dir: 'ext', include: '**/*.jar')
 
+    // jsaddle PDF viewer: Apache PDFBox (Apache-2.0) replaces the commercial
+    // JPedal library the 2006-era prototype was written against (jpedalSTD/cid/
+    // bcprov-jdk14 are absent from the repo and not on Maven Central). PdfManager
+    // renders each page to a BufferedImage via Loader.loadPDF + PDFRenderer, the
+    // same contract the app's 3D viewer already consumes. Resolved from Maven
+    // Central; fontbox / pdfbox-io / commons-logging come in transitively.
+    implementation libs.pdfbox
+
     // Agenda 3D marks business days / holidays / weekends in its week grid via
     // the bundled jbusinessday library (repo-root libs/, not a module ext jar).
     implementation files("${rootProject.projectDir}/libs/jbusinessday-0.9.1-SNAPSHOT.jar")

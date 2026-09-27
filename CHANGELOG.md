@@ -10,6 +10,30 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.28.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **jsaddle PDF Viewer revived on Apache PDFBox** (`lg3d-incubator`,
+  `org.jdesktop.lg3d.apps.jsaddle`; descriptor + icon in `lg3d-apps` / `lg3d-core`,
+  run classpath in `lg3d-core`) — the 2006-era native-3D PDF viewer, dormant
+  because it rendered pages through the commercial **JPedal** library
+  (`jpedalSTD`/`cid`/`bcprov-jdk14`, absent from the repo and not on Maven
+  Central), is rewritten for JDK 21 on the open-source **Apache PDFBox**
+  (`org.apache.pdfbox:pdfbox`, Apache-2.0). The change is confined to the
+  `PdfManager` adapter, which keeps its exact public contract (1-based page
+  numbers, `getImage`/`getThumbnailImage`/`decodeFile`/`decodeResourceURL`/
+  `setPage`/`getLastPageNumber`) so the 3D viewer (`JSaddleManager`,
+  `ViewerContainer`, `ThumbnailViewerContainer`) and its page-flip animations and
+  thumbnail filmstrip are untouched: pages now come from `Loader.loadPDF` +
+  `PDFRenderer.renderImageWithDPI` (a JPedal-style scale of 1.0 maps to 72 DPI,
+  the PDF user-space resolution). PDFBox is declared in the version catalog and
+  as an `lg3d-incubator` dependency, and — because the desktop run classpath is
+  hand-assembled from packaged jars rather than a module's `runtimeClasspath` —
+  resolved onto `:lg3d-core:run` (and the `releaseBundle`) through a new
+  `pdfboxLibs` detached configuration, otherwise the in-JVM launch would die with
+  `NoClassDefFoundError: org/apache/pdfbox/Loader`. The app is registered in the
+  start menu (**Media** group) via a new `jsaddle.lgcfg` in `lg3d-apps/src/config`
+  (bundled to `config/demo`, the scanned path — the incubator's own `src/config`
+  copy bundles to the unscanned jar-root `config/`), with its icon copied to
+  `lg3d-core/src/resources/images/icon/jsaddle.png` following the Image Studio /
+  nlc precedent.
 - **Power/session actions in the 2D desktop context menu** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — the desktop background
   right-click menu grows a power/session group between the window-arrangement
