@@ -227,6 +227,19 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D"));
     }
 
+    @Test
+    @DisplayName("the PDF Viewer maps to its Swing reader panel")
+    void pdfViewerIsHostedPanel() {
+        // The PDF Viewer is a Swing document reader (Apache PDFBox); the 3D
+        // desktop hosts the panel on a SwingNode via its PdfViewer wrapper while
+        // the 2D/Swing desktop opens the same panel as an MDI internal frame.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.pdfviewer.PdfViewer"));
+        assertEquals("org.jdesktop.lg3d.apps.pdfviewer.PdfViewerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.pdfviewer.PdfViewer"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------
