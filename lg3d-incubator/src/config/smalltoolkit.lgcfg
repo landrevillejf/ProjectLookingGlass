@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-    Document   : jsaddle.lgcfg
+    Document   : smalltoolkit.lgcfg
     Created on : 2006/12/27, 15:58
     Author     : yasuhiro
     Description:
-        Purpose of the document follows.
+        Start-menu descriptor for the SmallToolKit sample.
 -->
 
 <java version="1.5.0" class="java.beans.XMLDecoder">

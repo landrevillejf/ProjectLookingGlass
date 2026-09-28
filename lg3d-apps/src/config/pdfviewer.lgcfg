@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: PDF Viewer (lg3d-apps, org.jdesktop.lg3d.apps.pdfviewer).
+ An idiomatic Swing document reader over Apache PDFBox: a toolbar (open, page
+ navigation, zoom / fit-width), a scrollable page canvas and a status line. The
+ one panel serves both desktops - in 3D the PdfViewer wrapper hosts it on a
+ SwingNode inside a Frame3D via TitledSwingWindow; in the 2D/Swing desktop
+ Desktop2DAppRegistry.PANEL_APPS opens the same panel as an MDI internal frame.
+ Launched in-JVM via the "java <class>" command; the lg3d-apps jar and the
+ PDFBox jars are on the :lg3d-core:run classpath. Discovery only scans
+ config/demo and config/incubator, so this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo). The "Media" menuGroup is
+ declared in lg3d-core/src/etc/lg3d/startmenu.lgcfg. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.pdfviewer.PdfViewer</string>
+  </void>
+  <void property="desc">
+   <string>Read and navigate PDF documents</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/pdf-viewer.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Media</string>
+  </void>
+  <void property="name">
+   <string>PDF Viewer</string>
+  </void>
+ </object>
+</java>

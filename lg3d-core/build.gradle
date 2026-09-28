@@ -372,6 +372,16 @@ tasks.register('run', JavaExec) {
     def javaHelpLibs = configurations.detachedConfiguration(
         dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"))
 
+    // The PDF Viewer (lg3d-apps, org.jdesktop.lg3d.apps.pdfviewer) renders pages
+    // with Apache PDFBox. PDFBox is a Maven dependency of lg3d-apps, but this run
+    // classpath is assembled from packaged jars rather than that module's
+    // runtimeClasspath, so resolve it here directly -- otherwise the in-JVM
+    // start-menu launch dies with NoClassDefFoundError:
+    // org/apache/pdfbox/Loader. fontbox / pdfbox-io / commons-logging come in
+    // transitively.
+    def pdfboxLibs = configurations.detachedConfiguration(
+        dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"))
+
     // The Software Update app's update-manager module parses the release manifest
     // with Jackson (jackson-databind -> jackson-core/-annotations, resolved
     // transitively), signs and verifies releases with Bouncycastle OpenPGP
@@ -428,7 +438,7 @@ tasks.register('run', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, ftpClientJar, runtimeResourcesDir, incubatorExtJars,
-              agendaLibs, javaHelpLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
+              agendaLibs, javaHelpLibs, pdfboxLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
               iconManagerLib)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
@@ -730,6 +740,7 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
         dependencies.create("org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
         dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"),
+        dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"),
         dependencies.create("com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson.get()}"),
         dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
         dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
