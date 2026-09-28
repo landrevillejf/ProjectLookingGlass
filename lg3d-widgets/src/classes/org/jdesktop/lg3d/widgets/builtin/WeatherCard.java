@@ -21,10 +21,14 @@ import java.awt.Graphics2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.io.Reader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -69,6 +73,11 @@ public class WeatherCard extends WidgetCard {
     private static final long REFRESH_MILLIS = REFRESH_MINUTES * 60L * 1000L;
 
     private static final String API = "https://api.open-meteo.com/v1/forecast";
+    private static final String GEOCODING_API = "https://geocoding-api.open-meteo.com/v1/search";
+
+    /** Path to the shared cities file (same as Weather app). */
+    private static final Path CITIES_FILE =
+            Paths.get(System.getProperty("user.home"), ".lg3d-weather-cities.json");
 
     /** Shared client; created lazily-free (no connection at construction). */
     private static final HttpClient HTTP = HttpClient.newBuilder()
@@ -89,6 +98,28 @@ public class WeatherCard extends WidgetCard {
         {"Tokyo", "35.6762", "139.6503"},
         {"Sydney", "-33.8688", "151.2093"},
     };
+
+    /** Custom cities loaded from the persistence file. */
+    private static volatile List<City> customCities = null;
+
+    /** A location: display name, optional country, and coordinates. */
+    private static final class City {
+        final String name;
+        final String country;
+        final double lat;
+        final double lon;
+
+        City(String name, String country, double lat, double lon) {
+            this.name = name;
+            this.country = country;
+            this.lat = lat;
+            this.lon = lon;
+        }
+
+        String getLabel() {
+            return (country == null || country.isEmpty()) ? name : name + ", " + country;
+        }
+    }
 
     // -- persisted / interaction state ---------------------------------
     private volatile int cityIndex = 0;
@@ -125,6 +156,7 @@ public class WeatherCard extends WidgetCard {
 
     @Override
     protected void onAttach() {
+        loadCustomCities();
         fahrenheit = "F".equalsIgnoreCase(getOption("unit", defaultUnit()));
         cityIndex = clampIndex(intOr(getOption("cityIndex", "0"), 0));
 
@@ -140,6 +172,51 @@ public class WeatherCard extends WidgetCard {
             }
         }
         place = currentLabel();
+    }
+
+    /** Loads custom cities from the shared persistence file. */
+    private static void loadCustomCities() {
+        if (customCities != null) {
+            return;
+        }
+        try {
+            if (!Files.exists(CITIES_FILE)) {
+                customCities = new ArrayList<>();
+                return;
+            }
+            try (Reader r = Files.newBufferedReader(CITIES_FILE)) {
+                StringBuilder sb = new StringBuilder();
+                char[] buf = new char[8192];
+                int n;
+                while ((n = r.read(buf)) > 0) {
+                    sb.append(buf, 0, n);
+                }
+                Object root = Json.parse(sb.toString());
+                if (!(root instanceof List)) {
+                    customCities = new ArrayList<>();
+                    return;
+                }
+                List<?> items = (List<?>) root;
+                List<City> cities = new ArrayList<>();
+                for (Object o : items) {
+                    Map<?, ?> m = asMap(o);
+                    if (m == null) {
+                        continue;
+                    }
+                    String name = string(m, "name");
+                    String country = string(m, "country");
+                    double lat = num(m, "lat");
+                    double lon = num(m, "lon");
+                    if (name != null && !Double.isNaN(lat) && !Double.isNaN(lon)) {
+                        cities.add(new City(name, country, lat, lon));
+                    }
+                }
+                customCities = cities;
+            }
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Failed to load custom cities", e);
+            customCities = new ArrayList<>();
+        }
     }
 
     @Override
@@ -191,12 +268,31 @@ public class WeatherCard extends WidgetCard {
         if (customLat != null && customLabel != null) {
             return customLabel;
         }
-        return PRESETS[clampIndex(cityIndex)][0];
+        List<City> cities = getCityList();
+        int idx = clampIndex(cityIndex);
+        if (idx < PRESETS.length) {
+            return PRESETS[idx][0];
+        }
+        City c = cities.get(idx - PRESETS.length);
+        return c.getLabel();
     }
 
     private int clampIndex(int i) {
-        int n = PRESETS.length;
+        int n = getTotalCityCount();
         return ((i % n) + n) % n;
+    }
+
+    private int getTotalCityCount() {
+        List<City> custom = customCities;
+        return PRESETS.length + (custom != null ? custom.size() : 0);
+    }
+
+    private List<City> getCityList() {
+        List<City> custom = customCities;
+        if (custom == null || custom.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return custom;
     }
 
     private void refreshAsync() {
@@ -220,10 +316,19 @@ public class WeatherCard extends WidgetCard {
             lon = customLon;
             label = (customLabel != null) ? customLabel : "Custom";
         } else {
-            String[] p = PRESETS[clampIndex(cityIndex)];
-            label = p[0];
-            lat = dblOr(p[1], 0.0);
-            lon = dblOr(p[2], 0.0);
+            int idx = clampIndex(cityIndex);
+            if (idx < PRESETS.length) {
+                String[] p = PRESETS[idx];
+                label = p[0];
+                lat = dblOr(p[1], 0.0);
+                lon = dblOr(p[2], 0.0);
+            } else {
+                List<City> cities = getCityList();
+                City c = cities.get(idx - PRESETS.length);
+                label = c.getLabel();
+                lat = c.lat;
+                lon = c.lon;
+            }
         }
 
         try {
@@ -320,6 +425,14 @@ public class WeatherCard extends WidgetCard {
 
     private static Map<?, ?> asMap(Object o) {
         return (o instanceof Map) ? (Map<?, ?>) o : null;
+    }
+
+    private static String string(Map<?, ?> m, String key) {
+        if (m == null) {
+            return null;
+        }
+        Object v = m.get(key);
+        return (v instanceof String) ? (String) v : null;
     }
 
     private static double num(Map<?, ?> m, String key) {

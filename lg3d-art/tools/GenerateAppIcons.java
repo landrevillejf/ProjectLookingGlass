@@ -70,8 +70,13 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector transfer (up/down arrow) pair instead of a bundled glyph. */
     private static final String TRANSFER_GLYPH = "TransferArrows";
 
+<<<<<<< HEAD
+    /** Glyph name that draws a built-in vector sun-behind-cloud instead of a bundled glyph. */
+    private static final String WEATHER_GLYPH = "WeatherSunCloud";
+=======
     /** Glyph name that draws a built-in vector document page instead of a bundled glyph. */
     private static final String DOCUMENT_GLYPH = "DocumentPage";
+>>>>>>> origin/main
 
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
@@ -110,6 +115,11 @@ public class GenerateAppIcons {
         // so it is drawn in-tool like the keypad, disc, brush, package box and
         // database cylinder.
         {"ftpclient.png",   IconColor.BLUE,        IconCategory.GENERAL, TRANSFER_GLYPH},
+        // Weather (Swing Open-Meteo reader hosted on a SwingNode / 2D MDI frame);
+        // the bundled glyph set carries nothing sky shaped, so a sun-behind-cloud
+        // mark is drawn in-tool like the keypad, disc, brush, package box,
+        // database cylinder and transfer pair.
+        {"weather.png",     IconColor.CYAN,        IconCategory.GENERAL, WEATHER_GLYPH},
         // PDF Viewer (Swing reader hosted on a SwingNode / 2D MDI frame); the
         // bundled glyph set has no document page, so it is drawn in-tool like
         // the keypad, disc, brush, package box, database cylinder and transfer.
@@ -140,6 +150,8 @@ public class GenerateAppIcons {
                 glyph = drawDatabaseGlyph(GLYPH);
             } else if (TRANSFER_GLYPH.equals(glyphName)) {
                 glyph = drawTransferGlyph(GLYPH);
+            } else if (WEATHER_GLYPH.equals(glyphName)) {
+                glyph = drawWeatherGlyph(GLYPH);
             } else if (DOCUMENT_GLYPH.equals(glyphName)) {
                 glyph = drawDocumentGlyph(GLYPH);
             } else {
@@ -325,6 +337,38 @@ public class GenerateAppIcons {
         down.lineTo(22, 22);
         down.closePath();
         g.fill(down);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the weather glyph: a white sun peeking out from behind a cloud, the
+     * conventional "forecast" mark. The bundled {@code toolbarButtonGraphics}
+     * set carries nothing sky shaped, so it is drawn in-tool like the keypad,
+     * disc, brush, package box, database cylinder and transfer pair. Designed in
+     * a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawWeatherGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Sun: a disc with eight short rays, upper-left, partly behind the cloud.
+        double cx = 11, cy = 11, r = 4.5;
+        g.setColor(new Color(0xFF, 0xE0, 0x66));
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < 8; i++) {
+            double a = Math.toRadians(i * 45);
+            g.drawLine((int) (cx + Math.cos(a) * (r + 1.5)), (int) (cy + Math.sin(a) * (r + 1.5)),
+                    (int) (cx + Math.cos(a) * (r + 4.0)), (int) (cy + Math.sin(a) * (r + 4.0)));
+        }
+        g.fillOval((int) (cx - r), (int) (cy - r), (int) (r * 2), (int) (r * 2));
+        // Cloud: three overlapping lobes over a rounded base, lower-right.
+        g.setColor(Color.WHITE);
+        g.fillOval(11, 17, 9, 9);
+        g.fillOval(16, 14, 11, 11);
+        g.fillOval(22, 18, 8, 8);
+        g.fillRoundRect(11, 22, 19, 7, 6, 6);
         g.dispose();
         return new ImageIcon(image);
     }

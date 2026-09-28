@@ -204,6 +204,16 @@ public final class Desktop2DAppRegistry {
         // panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D",
                 "org.jdesktop.lg3d.apps.periodictable.PeriodicTablePanel");
+        // The Weather app (lg3d-apps, org.jdesktop.lg3d.apps.weather) is an
+        // idiomatic Swing current-conditions + forecast reader fed by the free
+        // Open-Meteo API over the JDK java.net.http client (no third-party
+        // library). In the 3D desktop its Weather wrapper hosts the panel on a
+        // SwingNode inside a Frame3D via TitledSwingWindow; here the very same
+        // panel opens as an MDI internal frame, so the reader is fully usable
+        // without 3D. The lg3d-apps jar is on the desktop run classpath, so the
+        // reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.weather.Weather",
+                "org.jdesktop.lg3d.apps.weather.WeatherPanel");
         // The PDF Viewer (lg3d-apps, org.jdesktop.lg3d.apps.pdfviewer) is an
         // idiomatic Swing document reader over Apache PDFBox. In the 3D desktop
         // its PdfViewer wrapper hosts the panel on a SwingNode inside a Frame3D;
