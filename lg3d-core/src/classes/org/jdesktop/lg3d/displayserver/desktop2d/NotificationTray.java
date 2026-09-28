@@ -14,6 +14,8 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import com.protonmail.landrevillejf.IconManager;
+
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
@@ -61,6 +63,7 @@ final class NotificationTray {
         this.model = model;
         this.dnd = dnd;
         this.button = new JButton();
+        this.button.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",16,16));
         this.button.setToolTipText("Desktop notifications");
         this.button.addActionListener(e -> open());
         this.menu = new JPopupMenu();
