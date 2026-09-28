@@ -17,10 +17,14 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.awt.event.ActionListener;
 import java.net.URL;
 import java.util.List;
+import javax.swing.Icon;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+
+import com.protonmail.landrevillejf.IconManager;
+import com.protonmail.landrevillejf.IconManager.IconCategory;
 
 /**
  * Builds the 2D/Swing desktop's background context menu (a {@link JPopupMenu})
@@ -55,6 +59,9 @@ public final class Desktop2DContextMenu {
 
     /** Placeholder shown when no bundled wallpaper could be resolved. */
     static final String NO_WALLPAPERS = "(no wallpapers)";
+
+    /** Menu icon edge, in pixels. */
+    private static final int ICON_SIZE = 16;
 
     /**
      * What the desktop does with a chosen entry. Implemented by
@@ -130,41 +137,41 @@ public final class Desktop2DContextMenu {
 
         // Launchers.
         if (actions.isTerminalAvailable()) {
-            menu.add(item(TERMINAL, e -> actions.openTerminal()));
+            menu.add(item(TERMINAL, loadIcon(IconCategory.DEVELOPMENT, "Application"), e -> actions.openTerminal()));
         }
-        menu.add(item(FILE_MANAGER, e -> actions.openFileManager()));
+        menu.add(item(FILE_MANAGER, loadIcon(IconCategory.NAVIGATION, "Home"), e -> actions.openFileManager()));
         menu.addSeparator();
 
         // Personalisation.
         menu.add(wallpaperMenu(actions, wallpapers));
-        menu.add(item(DESKTOP_SETTINGS, e -> actions.openDesktopSettings()));
+        menu.add(item(DESKTOP_SETTINGS, loadIcon(IconCategory.GENERAL, "Preferences"), e -> actions.openDesktopSettings()));
         menu.add(dndItem(actions));
         menu.addSeparator();
 
         // Window arrangement (meaningless with no windows open).
         boolean hasWindows = actions.windowCount() > 0;
-        menu.add(gated(CASCADE, hasWindows, e -> actions.cascadeWindows()));
-        menu.add(gated(TILE, hasWindows, e -> actions.tileWindows()));
-        menu.add(gated(MINIMIZE_ALL, hasWindows, e -> actions.minimizeAllWindows()));
-        menu.add(gated(RESTORE_ALL, hasWindows, e -> actions.restoreAllWindows()));
+        menu.add(gated(CASCADE, hasWindows, loadIcon(IconCategory.TEXT, "AlignJustify"), e -> actions.cascadeWindows()));
+        menu.add(gated(TILE, hasWindows, loadIcon(IconCategory.TEXT, "AlignCenter"), e -> actions.tileWindows()));
+        menu.add(gated(MINIMIZE_ALL, hasWindows, loadIcon(IconCategory.GENERAL, "Minimize"), e -> actions.minimizeAllWindows()));
+        menu.add(gated(RESTORE_ALL, hasWindows, loadIcon(IconCategory.GENERAL, "Maximize"), e -> actions.restoreAllWindows()));
         menu.addSeparator();
 
         // Session power / lock (each omitted when the tool is unavailable).
         boolean hasPowerEntries = false;
         if (actions.canLockScreen()) {
-            menu.add(item(LOCK_SCREEN, e -> actions.lockScreen()));
+            menu.add(item(LOCK_SCREEN, loadIcon(IconCategory.GENERAL, "Lock"), e -> actions.lockScreen()));
             hasPowerEntries = true;
         }
         if (actions.canSuspend()) {
-            menu.add(item(SUSPEND, e -> actions.suspend()));
+            menu.add(item(SUSPEND, loadIcon(IconCategory.GENERAL, "Sleep"), e -> actions.suspend()));
             hasPowerEntries = true;
         }
         if (actions.canPowerOff()) {
             if (hasPowerEntries) {
                 menu.addSeparator();
             }
-            menu.add(item(REBOOT, e -> actions.reboot()));
-            menu.add(item(SHUT_DOWN, e -> actions.shutDown()));
+            menu.add(item(REBOOT, loadIcon(IconCategory.GENERAL, "Redo"), e -> actions.reboot()));
+            menu.add(item(SHUT_DOWN, loadIcon(IconCategory.GENERAL, "Stop"), e -> actions.shutDown()));
             hasPowerEntries = true;
         }
         if (hasPowerEntries) {
@@ -172,14 +179,18 @@ public final class Desktop2DContextMenu {
         }
 
         // Session.
-        menu.add(item(REFRESH, e -> actions.refresh()));
-        menu.add(item(EXIT, e -> actions.exit()));
+        menu.add(item(REFRESH, loadIcon(IconCategory.GENERAL, "Refresh"), e -> actions.refresh()));
+        menu.add(item(EXIT, loadIcon(IconCategory.MEDIA, "Stop"), e -> actions.exit()));
 
         return menu;
     }
 
     private static JMenuItem item(String label, ActionListener listener) {
-        JMenuItem entry = new JMenuItem(label);
+        return item(label, null, listener);
+    }
+
+    private static JMenuItem item(String label, Icon icon, ActionListener listener) {
+        JMenuItem entry = new JMenuItem(label, icon);
         entry.addActionListener(listener);
         return entry;
     }
@@ -190,9 +201,16 @@ public final class Desktop2DContextMenu {
         return entry;
     }
 
+    private static JMenuItem gated(String label, boolean enabled, Icon icon, ActionListener listener) {
+        JMenuItem entry = item(label, icon, listener);
+        entry.setEnabled(enabled);
+        return entry;
+    }
+
     private static JMenuItem dndItem(Actions actions) {
         JCheckBoxMenuItem entry =
-                new JCheckBoxMenuItem(DO_NOT_DISTURB, actions.isDoNotDisturbActive());
+                new JCheckBoxMenuItem(DO_NOT_DISTURB, loadIcon(IconCategory.GENERAL, "Bell"),
+                        actions.isDoNotDisturbActive());
         entry.setToolTipText("Suppress notification pop-ups (errors still show)");
         entry.addActionListener(e -> actions.toggleDoNotDisturb());
         return entry;
@@ -200,6 +218,7 @@ public final class Desktop2DContextMenu {
 
     private static JMenu wallpaperMenu(Actions actions, List<Wallpaper> wallpapers) {
         JMenu menu = new JMenu(CHANGE_WALLPAPER);
+        menu.setIcon(loadIcon(IconCategory.GENERAL, "Image"));
         if (wallpapers == null || wallpapers.isEmpty()) {
             JMenuItem none = new JMenuItem(NO_WALLPAPERS);
             none.setEnabled(false);
@@ -210,5 +229,15 @@ public final class Desktop2DContextMenu {
             menu.add(item(wallpaper.name(), e -> actions.changeWallpaper(wallpaper.url())));
         }
         return menu;
+    }
+
+    /** Loads an IconManager icon, returning null on failure. */
+    private static Icon loadIcon(IconCategory category, String name) {
+        try {
+            return IconManager.loadIcon(category, name, ICON_SIZE, ICON_SIZE);
+        } catch (Throwable t) {
+            // IconManager missing or unable to render: degrade gracefully
+            return null;
+        }
     }
 }

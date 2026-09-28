@@ -41,6 +41,8 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+
+import com.protonmail.landrevillejf.IconManager;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
@@ -134,10 +136,10 @@ public class Desktop2DTaskbar extends JPanel {
         JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
         rightRow.setOpaque(false);
         documentsIconBase = Desktop2DStartMenu.icon(DOCUMENTS_ICON);
-        documentsButton = folderButton("Documents", documentsIconBase,
+        documentsButton = folderButton("documents", documentsIconBase,
                 desktop.getDocumentsMenu());
         downloadsIconBase = Desktop2DStartMenu.icon(DOWNLOADS_ICON);
-        downloadsButton = folderButton("Downloads", downloadsIconBase,
+        downloadsButton = folderButton("downloads", downloadsIconBase,
                 desktop.getDownloadsMenu());
         rightRow.add(documentsButton);
         rightRow.add(downloadsButton);
@@ -160,8 +162,9 @@ public class Desktop2DTaskbar extends JPanel {
         calendar = new CalendarPopup(clock, desktop.getNotificationModel());
         // Double-clicking a day in that calendar opens the Agenda at that date.
         calendar.setOnOpenDate(desktop::openAgendaAt);
-        JButton exit = new JButton("Exit");
-        exit.setToolTipText("Leave the 2D desktop");
+        JButton exit = new JButton("");
+        exit.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL,"Stop",24,24));
+        exit.setToolTipText("Leave the desktop");
         exit.addActionListener(e -> desktop.confirmExit());
         rightRow.add(exit);
         JPanel right = new JPanel(new GridBagLayout());
