@@ -227,6 +227,20 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D"));
     }
 
+    @Test
+    @DisplayName("the Weather app maps to its 2D Swing panel")
+    void weatherIsHostedPanel() {
+        // The Weather app (lg3d-apps) is a plain Swing Open-Meteo reader: in the
+        // 3D desktop its wrapper hosts the panel on a SwingNode, and here the
+        // very same panel opens as an MDI internal frame keyed on the 3D main
+        // class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.weather.Weather"));
+        assertEquals("org.jdesktop.lg3d.apps.weather.WeatherPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.weather.Weather"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------
