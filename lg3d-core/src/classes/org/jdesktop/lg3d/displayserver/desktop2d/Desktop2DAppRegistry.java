@@ -214,6 +214,15 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.weather.Weather",
                 "org.jdesktop.lg3d.apps.weather.WeatherPanel");
+        // The PDF Viewer (lg3d-apps, org.jdesktop.lg3d.apps.pdfviewer) is an
+        // idiomatic Swing document reader over Apache PDFBox. In the 3D desktop
+        // its PdfViewer wrapper hosts the panel on a SwingNode inside a Frame3D;
+        // here the very same panel opens as an MDI internal frame, so the reader
+        // is fully usable without 3D. The lg3d-apps jar and the PDFBox jars are
+        // on the desktop run classpath, so the reflective lookup resolves and
+        // the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.pdfviewer.PdfViewer",
+                "org.jdesktop.lg3d.apps.pdfviewer.PdfViewerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

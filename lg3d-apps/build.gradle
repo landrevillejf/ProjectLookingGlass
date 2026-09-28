@@ -99,6 +99,11 @@ tasks.named('test') {
 
 dependencies {
     implementation project(':lg3d-core')
+    // Apache PDFBox (Apache-2.0) powers the PDF Viewer's page rasterisation
+    // (org.jdesktop.lg3d.apps.pdfviewer). It is also resolved onto the lg3d-core
+    // desktop run classpath (see lg3d-core/build.gradle) so the in-JVM
+    // start-menu launch can find org.apache.pdfbox.*.
+    implementation libs.pdfbox
     // JavaHelp (javax.help) powers the Help Center viewer. It is also resolved
     // onto the lg3d-core desktop run classpath (see lg3d-core/build.gradle) so
     // the in-JVM start-menu launch can find javax.help.*.

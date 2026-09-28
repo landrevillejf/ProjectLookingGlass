@@ -70,8 +70,13 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector transfer (up/down arrow) pair instead of a bundled glyph. */
     private static final String TRANSFER_GLYPH = "TransferArrows";
 
+<<<<<<< HEAD
     /** Glyph name that draws a built-in vector sun-behind-cloud instead of a bundled glyph. */
     private static final String WEATHER_GLYPH = "WeatherSunCloud";
+=======
+    /** Glyph name that draws a built-in vector document page instead of a bundled glyph. */
+    private static final String DOCUMENT_GLYPH = "DocumentPage";
+>>>>>>> origin/main
 
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
@@ -115,6 +120,10 @@ public class GenerateAppIcons {
         // mark is drawn in-tool like the keypad, disc, brush, package box,
         // database cylinder and transfer pair.
         {"weather.png",     IconColor.CYAN,        IconCategory.GENERAL, WEATHER_GLYPH},
+        // PDF Viewer (Swing reader hosted on a SwingNode / 2D MDI frame); the
+        // bundled glyph set has no document page, so it is drawn in-tool like
+        // the keypad, disc, brush, package box, database cylinder and transfer.
+        {"pdf-viewer.png",  IconColor.RED,         IconCategory.TEXT,    DOCUMENT_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -143,6 +152,8 @@ public class GenerateAppIcons {
                 glyph = drawTransferGlyph(GLYPH);
             } else if (WEATHER_GLYPH.equals(glyphName)) {
                 glyph = drawWeatherGlyph(GLYPH);
+            } else if (DOCUMENT_GLYPH.equals(glyphName)) {
+                glyph = drawDocumentGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -358,6 +369,46 @@ public class GenerateAppIcons {
         g.fillOval(16, 14, 11, 11);
         g.fillOval(22, 18, 8, 8);
         g.fillRoundRect(11, 22, 19, 7, 6, 6);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the document page glyph: a white sheet with a folded top-right
+     * corner and three faint text lines, the conventional PDF/document mark.
+     * The bundled {@code toolbarButtonGraphics} set carries nothing page shaped,
+     * so it is drawn in-tool like the keypad, disc, brush, package box, database
+     * cylinder and transfer pair. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawDocumentGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Sheet body with the top-right corner cut for the fold.
+        GeneralPath sheet = new GeneralPath();
+        sheet.moveTo(7, 2);
+        sheet.lineTo(20, 2);
+        sheet.lineTo(26, 8);
+        sheet.lineTo(26, 30);
+        sheet.lineTo(7, 30);
+        sheet.closePath();
+        g.setColor(Color.WHITE);
+        g.fill(sheet);
+        // The folded corner flap, slightly darker so it reads as a dog-ear.
+        GeneralPath fold = new GeneralPath();
+        fold.moveTo(20, 2);
+        fold.lineTo(20, 8);
+        fold.lineTo(26, 8);
+        fold.closePath();
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fill(fold);
+        // Three text lines across the sheet.
+        g.setColor(new Color(0xB0, 0xB0, 0xB0));
+        g.fillRect(10, 13, 13, 2);
+        g.fillRect(10, 18, 13, 2);
+        g.fillRect(10, 23, 9, 2);
         g.dispose();
         return new ImageIcon(image);
     }
