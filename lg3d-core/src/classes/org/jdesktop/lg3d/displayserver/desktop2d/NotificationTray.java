@@ -63,7 +63,7 @@ final class NotificationTray {
         this.model = model;
         this.dnd = dnd;
         this.button = new JButton();
-        this.button.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",16,16));
+        this.button.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",24,24));
         this.button.setToolTipText("Desktop notifications");
         this.button.addActionListener(e -> open());
         this.menu = new JPopupMenu();

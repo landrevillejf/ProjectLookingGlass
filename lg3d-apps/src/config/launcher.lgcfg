@@ -1,15 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.5.0" class="java.beans.XMLDecoder"> 
- <object class="org.jdesktop.lg3d.scenemanager.config.ApplicationDescription"> 
-  <void property="exec"> 
-   <string>java org.jdesktop.lg3d.apps.launcher.LauncherFrame</string> 
-  </void> 
-  <void property="iconURL"> 
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.launcher.LauncherFrame</string>
+  </void>
+  <void property="desc">
+   <string>Create custom application launchers</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
    <string>resource:///org/jdesktop/lg3d/apps/launcher/resources/launcher.png</string>
-  </void> 
-  <void property="name"> 
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
    <string>Application Launcher</string>
-  </void> 
+  </void>
  </object>
 </java>
 

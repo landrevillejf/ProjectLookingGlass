@@ -10,6 +10,16 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.28.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **User launcher creator for the 2D/Swing desktop** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.launcher.LauncherFrame`; utilities in `lg3d-core`,
+  `org.jdesktop.lg3d.utils.LauncherSaver`) — enables users to create custom
+  application launchers through a Swing form (name, description, command, icon
+  selection via JFileChooser). Saved launchers are written as `.lgcfg` files to
+  `~/.config/lg3d/launchers/` and are automatically discovered by the desktop's
+  start menu after a restart. The launcher creator is now registered in
+  `Desktop2DAppRegistry.SWING_FRAME_APPS` so it appears in the start menu of both
+  2D and 3D desktops. Previously, the icon picker and save functionality were
+  stubs; they are now fully implemented with validation and user feedback.
 - **Weather app for the 2D/Swing and 3D desktops** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.weather`; registration in `lg3d-core`, icon in
   `lg3d-core` resources) — a production weather reader rewritten for JDK 21 as an

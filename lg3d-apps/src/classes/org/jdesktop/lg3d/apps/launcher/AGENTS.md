@@ -8,37 +8,41 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Sample / demo** (application launcher) — incomplete, not a shipped utility |
+| Status | **Functional tool** (application launcher creator) — now fully functional |
 | Entry point | `LauncherFrame.main` (NetBeans-generated Swing frame) |
 | Surface | **2D Swing** frame; launches apps via `AppLaunchAction` |
-| Start-menu name / group | Application Launcher — an `ApplicationDescription` **taskbar** entry, not a start-menu item |
+| Start-menu name / group | Application Launcher — available in both 2D and 3D desktops |
 | Command | `java org.jdesktop.lg3d.apps.launcher.LauncherFrame` |
 | Descriptor | `src/config/launcher.lgcfg` → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Components:** `LauncherFrame` (NetBeans-generated) + `ApplicationDescription` +
-`AppLaunchAction`. Icon picking and save are **not implemented**.
+`AppLaunchAction` + `LauncherSaver` (saves user launchers to `~/.config/lg3d/launchers/`).
+Icon picking and save are **now implemented**.
 
 ## Roles
 
-- **Architect** — An early launcher prototype built on `ApplicationDescription` +
-  `AppLaunchAction` (the same launch primitives the real start menu uses). It is a
-  reference for wiring a launch action, not the production launcher.
+- **Architect** — A functional launcher creator built on `ApplicationDescription` +
+  `AppLaunchAction` (the same launch primitives the real start menu uses). It
+  saves user-created launchers to `~/.config/lg3d/launchers/` which are
+  automatically discovered by the desktop's start menu.
 - **Engineer / Developer** — The frame is NetBeans-generated Swing (`LauncherFrame` +
   `.form`); regenerate rather than hand-editing generated blocks. Launch through
-  `AppLaunchAction` on the EDT. Icon/save are stubs — do not assume they persist.
-  Jogamp packages only where 3D is used.
-- **QA** — Verify the frame opens and that a configured entry triggers
-  `AppLaunchAction` (in-JVM probe + internal screencapture). Icon/save are known
-  unimplemented gaps, not defects to file.
-- **Business Analyst** — Demonstration/prototype value only; superseded by the
-  desktop's real start menu. No end-user product surface.
-- **Functional Analyst** — Spec as a prototype (list apps, click to launch). Record
-  icon-picking and save as explicit *not implemented* so nobody assumes them.
-- **Project Manager** — Commit scope `lg3d-apps`. Low priority; opportunistic.
+  `AppLaunchAction` on the EDT. Icon selection (JFileChooser) and save
+  (LauncherSaver) are now fully implemented. Jogamp packages only where 3D is used.
+- **QA** — Verify the frame opens, that icon selection works, that save creates a
+  valid .lgcfg file in `~/.config/lg3d/launchers/`, and that the saved launcher
+  appears in the start menu after a desktop restart.
+- **Business Analyst** — Functional tool for users to create custom application
+  launchers. Saved launchers persist across desktop sessions and are discoverable
+  in the start menu.
+- **Functional Analyst** — Spec as a functional tool: users can specify name,
+  description, command, icon, and menu group; the launcher is saved as a .lgcfg
+  file and automatically discovered by the desktop.
+- **Project Manager** — Commit scope `lg3d-apps`. Medium priority; useful utility.
   Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — **2D** Swing launcher frame. Keep it consistent with the
-  platform LAF; it is a prototype, so polish is not expected.
+  platform LAF.
 
 ## Communication & coherence
 
@@ -175,10 +179,7 @@ Launch standalone:
 
 ## Known Limitations
 
-- Icon selection not functional (button present but not implemented)
-- Save button not implemented
-- No launcher persistence
-- Hardcoded icon path
-- No validation of command format
-- No error feedback on launch failure
 - NetBeans-generated form code (do not modify manually)
+- Classpath field is not used by the save function (saved .lgcfg files use the command field only)
+- No load functionality to edit existing launchers
+- No template system for common launcher types
