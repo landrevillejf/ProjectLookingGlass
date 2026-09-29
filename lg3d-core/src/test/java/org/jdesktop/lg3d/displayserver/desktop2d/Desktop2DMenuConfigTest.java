@@ -88,6 +88,7 @@ class Desktop2DMenuConfigTest {
             // a bean kind the reader must ignore
             + " <object class=\"org.jdesktop.lg3d.scenemanager.config.ApplicationDescription\">\n"
             + "  <void property=\"exec\"><string>xterm</string></void>\n"
+            + "  <void property=\"menuGroup\"><string>Nowhere</string></void>\n"
             + " </object>\n"
             + "</java>\n";
 
@@ -170,13 +171,12 @@ class Desktop2DMenuConfigTest {
     void orphanItemsAreCollected() throws Exception {
         MenuModel model = fixtureModel();
         List<ItemSpec> orphans = model.getOrphanItems();
-        assertEquals(2, orphans.size(), "Orphan (Nowhere group) + ApplicationDescription (Utilities group not defined in fixture)");
+        assertEquals(2, orphans.size(), "Orphan (Nowhere group) + ApplicationDescription (Nowhere group)");
         // One is the explicit orphan with "Nowhere" group
         assertTrue(orphans.stream().anyMatch(i -> "Orphan".equals(i.getName())));
-        // The other is the ApplicationDescription, which defaults to "Utilities" group (not defined in fixture)
-        assertTrue(orphans.stream().anyMatch(i -> i.getMenuGroup().equals("Utilities")));
+        // The other is the ApplicationDescription, which also has "Nowhere" group in our fixed fixture
+        assertTrue(orphans.stream().anyMatch(i -> i.getCommand().equals("xterm")));
         assertNull(model.getGroup("Nowhere"));
-        assertNull(model.getGroup("Utilities"));
     }
 
     @Test

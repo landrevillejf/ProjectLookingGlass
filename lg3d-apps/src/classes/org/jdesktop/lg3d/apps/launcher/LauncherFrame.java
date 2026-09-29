@@ -64,7 +64,7 @@ public class LauncherFrame extends javax.swing.JFrame {
 
         getContentPane().setLayout(new java.awt.GridBagLayout());
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Create Launcher");
         jPanel1.setLayout(new java.awt.GridBagLayout());
 

@@ -366,11 +366,15 @@ public final class Desktop2DMenuConfig {
         String command = stringProperty(object, "exec");
         String name = stringProperty(object, "name");
         String iconUrl = stripResourceScheme(stringProperty(object, "iconURL"));
+        String menuGroup = stringProperty(object, "menuGroup");
+        if (menuGroup == null) {
+            menuGroup = "Utilities";
+        }
         return new ItemSpec(
                 desktopDisplayName(name, command),
                 command,
                 stringProperty(object, "desc"),
-                "Utilities",
+                menuGroup,
                 iconUrl);
     }
 

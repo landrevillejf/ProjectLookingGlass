@@ -85,7 +85,7 @@ public class TestFrame extends javax.swing.JFrame {
         jLabel4 = new javax.swing.JLabel();
         messageTF = new javax.swing.JTextField();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("SwingTest");
         setName("SwingTest");
         jPanel3.setLayout(new java.awt.GridBagLayout());
