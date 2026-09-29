@@ -19,9 +19,30 @@ sourceSets {
         resources {
             // Pick up the non-Java files that sit alongside the sources
             // (org/jdesktop/lg3d/apps/*/resources/**, *.frag, *.vert, images).
+            // For CallViewer (SourceViewer), we also include the .java source files
+            // as resources so the app can visualize its own code.
             srcDir 'src/classes'
             include 'org/**'
-            exclude '**/*.java'
+            // Specifically include the .java files for CallViewer
+            include 'org/jdesktop/lg3d/apps/callviewer/*.java'
+            include 'org/jdesktop/lg3d/apps/cdviewer/CDViewer.java'
+            include 'org/jdesktop/lg3d/apps/tapps/WebIcon.java'
+            include 'org/jdesktop/lg3d/apps/tapps/WebIcon2.java'
+            include 'org/jdesktop/lg3d/apps/help/Lg3dHelp.java'
+            include 'org/jdesktop/lg3d/apps/bgmanager/*.java'
+            
+            // We still want to exclude other .java files to keep the jar size reasonable
+            // unless they are specifically included above. Gradle's include/exclude 
+            // logic: if any include matches, it's included, UNLESS an exclude matches.
+            // So we need to be careful with global excludes.
+            exclude { FileTreeElement details ->
+                details.file.name.endsWith('.java') && 
+                !details.path.contains('org/jdesktop/lg3d/apps/callviewer/') &&
+                !details.path.contains('org/jdesktop/lg3d/apps/cdviewer/CDViewer.java') &&
+                !details.path.contains('org/jdesktop/lg3d/apps/tapps/WebIcon') &&
+                !details.path.contains('org/jdesktop/lg3d/apps/help/Lg3dHelp.java') &&
+                !details.path.contains('org/jdesktop/lg3d/apps/bgmanager/')
+            }
             exclude '**/*.form'
         }
     }

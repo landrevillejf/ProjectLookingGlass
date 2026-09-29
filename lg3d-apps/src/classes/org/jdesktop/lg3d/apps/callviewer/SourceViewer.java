@@ -21,6 +21,7 @@
  */
 package org.jdesktop.lg3d.apps.callviewer;
 
+import java.net.URL;
 import org.jdesktop.lg3d.wg.*;
 import org.jogamp.vecmath.*;
 
@@ -34,22 +35,27 @@ public class SourceViewer extends Frame3D {
     public SourceViewer() {
         
         try {
+            System.out.println("[DEBUG_LOG] SourceViewer starting. ClassLoader: " + SourceViewer.class.getClassLoader());
+            URL testUrl = SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/callviewer/SourceViewer.java");
+            System.out.println("[DEBUG_LOG] Test resource lookup (/org/jdesktop/lg3d/apps/callviewer/SourceViewer.java): " + testUrl);
+            
             final SourceWindow[] windows = {
-                new SourceWindow(getClass().getResource("SourceWindow.java"), new Vector3f(0.01f, 0f, 0f)),
-                new SourceWindow(getClass().getResource("SourceViewer.java"), new Vector3f(0f, 0f, -0.01f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/cdviewer/CDViewer.java"), new Vector3f(0.02f, 0f, -0.01f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/tapps/WebIcon.java"), new Vector3f(0.02f, 0f, -0.02f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/help/Lg3dHelp.java"), new Vector3f(0.02f, 0.05f, -0.02f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgFrame.java"), new Vector3f(0.02f, 0f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgFileReader.java"), new Vector3f(0.0f, 0f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgLgComponent.java"), new Vector3f(-0.02f, 0f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgManager.java"), new Vector3f(-0.02f, 0.04f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgConfigFileReader.java"), new Vector3f(0.04f, 0.02f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgConfigFileWriter.java"), new Vector3f(0.04f, -0.02f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/bgmanager/BgManagerIcon.java"), new Vector3f(0.04f, -0.05f, -0.03f)),
-                new SourceWindow(getClass().getResource("/org/jdesktop/lg3d/apps/tapps/WebIcon2.java"), new Vector3f(0.0f, 0f, -0.02f))
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/callviewer/SourceWindow.java"), new Vector3f(0.01f, 0f, 0f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/callviewer/SourceViewer.java"), new Vector3f(0f, 0f, -0.01f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/cdviewer/CDViewer.java"), new Vector3f(0.02f, 0f, -0.01f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/tapps/WebIcon.java"), new Vector3f(0.02f, 0f, -0.02f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/help/Lg3dHelp.java"), new Vector3f(0.02f, 0.05f, -0.02f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgFrame.java"), new Vector3f(0.02f, 0f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgFileReader.java"), new Vector3f(0.0f, 0.05f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgLgComponent.java"), new Vector3f(-0.02f, 0f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgManager.java"), new Vector3f(-0.02f, 0.04f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgConfigFileReader.java"), new Vector3f(0.04f, 0.02f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgConfigFileWriter.java"), new Vector3f(0.04f, -0.02f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/bgmanager/BgManagerIcon.java"), new Vector3f(0.04f, -0.05f, -0.03f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/tapps/WebIcon2.java"), new Vector3f(0.0f, 0f, -0.02f)),
+                new SourceWindow(SourceViewer.class.getResource("/org/jdesktop/lg3d/apps/callviewer/Line3D.java"), new Vector3f(-0.02f, -0.02f, 0f))
             };
-
+            
             for(SourceWindow sc : windows)
                 addChild(sc);
 
