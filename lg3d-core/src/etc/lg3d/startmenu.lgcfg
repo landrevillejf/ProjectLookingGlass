@@ -68,12 +68,9 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Office</string>
   </void>
   <void property="groupLinks">
-   <array class="java.lang.String" length="2">
+   <array class="java.lang.String" length="1">
     <void index="0">
      <string>Main</string>
-    </void>
-    <void index="1">
-     <string>Internet</string>
     </void>
    </array>
   </void>
@@ -86,18 +83,9 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Internet Tools</string>
   </void>
   <void property="groupLinks">
-   <array class="java.lang.String" length="4">
+   <array class="java.lang.String" length="1">
     <void index="0">
-     <string>Utilites</string>
-    </void>
-    <void index="1">
      <string>Main</string>
-    </void>
-    <void index="2">
-     <string>Media</string>
-    </void>
-    <void index="3">
-     <string>Office</string>
     </void>
    </array>
   </void>
@@ -110,11 +98,8 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Multimedia Apps</string>
   </void>
   <void property="groupLinks">
-   <array class="java.lang.String" length="2">
+   <array class="java.lang.String" length="1">
     <void index="0">
-     <string>Internet</string>
-    </void>
-    <void index="1">
      <string>Main</string>
     </void>
    </array>
@@ -125,11 +110,8 @@ startmenu.lgcfg - Basic Start Menu configuration file
  </object>
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuGroupConfig">
   <void property="groupLinks">
-   <array class="java.lang.String" length="2">
+   <array class="java.lang.String" length="1">
     <void index="0">
-     <string>Internet</string>
-    </void>
-    <void index="1">
      <string>Main</string>
     </void>
    </array>
