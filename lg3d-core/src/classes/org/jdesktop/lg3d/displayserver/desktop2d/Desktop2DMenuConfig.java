@@ -67,6 +67,7 @@ public final class Desktop2DMenuConfig {
     /** Bean class name suffixes this reader understands. */
     private static final String GROUP_BEAN = "StartMenuGroupConfig";
     private static final String ITEM_BEAN = "StartMenuItemConfig";
+    private static final String APP_DESC_BEAN = "ApplicationDescription";
 
     /** Classpath directories holding app descriptors, in scan order. */
     private static final String[] CLASSPATH_CONFIG_DIRS = {
@@ -309,6 +310,11 @@ public final class Desktop2DMenuConfig {
                     if (item.getCommand() != null && !item.getCommand().isBlank()) {
                         items.add(item);
                     }
+                } else if (beanClass.endsWith(APP_DESC_BEAN)) {
+                    ItemSpec item = parseApplicationDescription(object);
+                    if (item.getCommand() != null && !item.getCommand().isBlank()) {
+                        items.add(item);
+                    }
                 }
             }
         }
@@ -341,6 +347,31 @@ public final class Desktop2DMenuConfig {
                 stringProperty(object, "desc"),
                 stringProperty(object, "menuGroup"),
                 stripResourceScheme(stringProperty(object, "displayResourceUrlName")));
+    }
+
+    /**
+     * Parses a legacy {@code ApplicationDescription} bean (3D desktop format)
+     * into an {@code ItemSpec} for the 2D menu.
+     *
+     * <p>Mapping:</p>
+     * <ul>
+     *  <li>{@code exec} → {@code command}</li>
+     *  <li>{@code name} → {@code name}</li>
+     *  <li>{@code iconURL} → {@code iconResource}</li>
+     *  <li>{@code desc} (if present) → {@code desc}</li>
+     *  <li>{@code menuGroup} defaults to "Utilities" (legacy format has no group)</li>
+     * </ul>
+     */
+    private static ItemSpec parseApplicationDescription(Element object) {
+        String command = stringProperty(object, "exec");
+        String name = stringProperty(object, "name");
+        String iconUrl = stripResourceScheme(stringProperty(object, "iconURL"));
+        return new ItemSpec(
+                desktopDisplayName(name, command),
+                command,
+                stringProperty(object, "desc"),
+                "Utilities",
+                iconUrl);
     }
 
     /**
