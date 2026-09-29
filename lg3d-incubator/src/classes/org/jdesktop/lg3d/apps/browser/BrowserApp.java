@@ -34,7 +34,7 @@ public class BrowserApp
     try
     {
       JFrame frame1 = new JFrame();
-      frame1.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+      frame1.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
       frame1.setSize( 600, 400 );
       
       final Browser3D browser = Browser3DFactroy.getBrowser3D();

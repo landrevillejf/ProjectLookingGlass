@@ -76,7 +76,7 @@ public class ControlFrame extends javax.swing.JFrame {
         windVectorYTF = new javax.swing.JTextField();
         windVectorZTF = new javax.swing.JTextField();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Controls");
         jPanel2.setLayout(new java.awt.GridBagLayout());
 

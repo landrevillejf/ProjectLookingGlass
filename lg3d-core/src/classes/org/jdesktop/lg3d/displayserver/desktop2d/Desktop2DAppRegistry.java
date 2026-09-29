@@ -239,6 +239,11 @@ public final class Desktop2DAppRegistry {
         // running that main here simply spawns the child, whose own JFrame then
         // appears beside the 2D desktop exactly as it does over the 3D scene.
         frames.add("org.jdesktop.lg3d.apps.swingide.SwingIde");
+        // The Launcher (lg3d-apps, org.jdesktop.lg3d.apps.launcher.LauncherFrame)
+        // is a Swing-based tool for creating custom application launchers. It
+        // shows its own JFrame, so it runs beside the 2D desktop rather than
+        // inside it. The same launcher is available in the 3D desktop.
+        frames.add("org.jdesktop.lg3d.apps.launcher.LauncherFrame");
         SWING_FRAME_APPS = Collections.unmodifiableSet(frames);
     }
 

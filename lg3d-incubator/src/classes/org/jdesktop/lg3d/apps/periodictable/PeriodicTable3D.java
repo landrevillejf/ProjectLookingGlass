@@ -146,7 +146,7 @@ public class PeriodicTable3D {
     JFrame frame = new JFrame("PeriodicTable3D");
     frame.setContentPane(new JOptionPane(s + "\n" + e.toString(),
                                          JOptionPane.ERROR_MESSAGE));
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     frame.pack();
     frame.show();
   }

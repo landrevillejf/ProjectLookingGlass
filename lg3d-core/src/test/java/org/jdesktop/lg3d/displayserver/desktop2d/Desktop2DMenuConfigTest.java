@@ -88,6 +88,7 @@ class Desktop2DMenuConfigTest {
             // a bean kind the reader must ignore
             + " <object class=\"org.jdesktop.lg3d.scenemanager.config.ApplicationDescription\">\n"
             + "  <void property=\"exec\"><string>xterm</string></void>\n"
+            + "  <void property=\"menuGroup\"><string>Nowhere</string></void>\n"
             + " </object>\n"
             + "</java>\n";
 
@@ -110,11 +111,11 @@ class Desktop2DMenuConfigTest {
     }
 
     @Test
-    @DisplayName("groups and items are read, other bean kinds ignored")
+    @DisplayName("groups and items are read, ApplicationDescription is also supported")
     void readsGroupsAndItemsOnly() throws Exception {
         MenuModel model = fixtureModel();
         assertEquals(2, model.getGroups().size());
-        assertEquals(2, model.getItems().size(), "the commandless item is dropped");
+        assertEquals(3, model.getItems().size(), "the commandless item is dropped, ApplicationDescription is read");
         assertFalse(model.isEmpty());
     }
 
@@ -170,10 +171,11 @@ class Desktop2DMenuConfigTest {
     void orphanItemsAreCollected() throws Exception {
         MenuModel model = fixtureModel();
         List<ItemSpec> orphans = model.getOrphanItems();
-        assertEquals(1, orphans.size());
-        assertEquals("Orphan", orphans.get(0).getName());
-        assertNull(orphans.get(0).getIconResource());
-        // The group it names is not defined, which is what makes it an orphan.
+        assertEquals(2, orphans.size(), "Orphan (Nowhere group) + ApplicationDescription (Nowhere group)");
+        // One is the explicit orphan with "Nowhere" group
+        assertTrue(orphans.stream().anyMatch(i -> "Orphan".equals(i.getName())));
+        // The other is the ApplicationDescription, which also has "Nowhere" group in our fixed fixture
+        assertTrue(orphans.stream().anyMatch(i -> i.getCommand().equals("xterm")));
         assertNull(model.getGroup("Nowhere"));
     }
 

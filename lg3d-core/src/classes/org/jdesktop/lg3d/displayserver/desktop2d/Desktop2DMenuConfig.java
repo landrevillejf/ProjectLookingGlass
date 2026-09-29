@@ -67,6 +67,7 @@ public final class Desktop2DMenuConfig {
     /** Bean class name suffixes this reader understands. */
     private static final String GROUP_BEAN = "StartMenuGroupConfig";
     private static final String ITEM_BEAN = "StartMenuItemConfig";
+    private static final String APP_DESC_BEAN = "ApplicationDescription";
 
     /** Classpath directories holding app descriptors, in scan order. */
     private static final String[] CLASSPATH_CONFIG_DIRS = {
@@ -309,6 +310,11 @@ public final class Desktop2DMenuConfig {
                     if (item.getCommand() != null && !item.getCommand().isBlank()) {
                         items.add(item);
                     }
+                } else if (beanClass.endsWith(APP_DESC_BEAN)) {
+                    ItemSpec item = parseApplicationDescription(object);
+                    if (item.getCommand() != null && !item.getCommand().isBlank()) {
+                        items.add(item);
+                    }
                 }
             }
         }
@@ -341,6 +347,35 @@ public final class Desktop2DMenuConfig {
                 stringProperty(object, "desc"),
                 stringProperty(object, "menuGroup"),
                 stripResourceScheme(stringProperty(object, "displayResourceUrlName")));
+    }
+
+    /**
+     * Parses a legacy {@code ApplicationDescription} bean (3D desktop format)
+     * into an {@code ItemSpec} for the 2D menu.
+     *
+     * <p>Mapping:</p>
+     * <ul>
+     *  <li>{@code exec} → {@code command}</li>
+     *  <li>{@code name} → {@code name}</li>
+     *  <li>{@code iconURL} → {@code iconResource}</li>
+     *  <li>{@code desc} (if present) → {@code desc}</li>
+     *  <li>{@code menuGroup} defaults to "Utilities" (legacy format has no group)</li>
+     * </ul>
+     */
+    private static ItemSpec parseApplicationDescription(Element object) {
+        String command = stringProperty(object, "exec");
+        String name = stringProperty(object, "name");
+        String iconUrl = stripResourceScheme(stringProperty(object, "iconURL"));
+        String menuGroup = stringProperty(object, "menuGroup");
+        if (menuGroup == null) {
+            menuGroup = "Utilities";
+        }
+        return new ItemSpec(
+                desktopDisplayName(name, command),
+                command,
+                stringProperty(object, "desc"),
+                menuGroup,
+                iconUrl);
     }
 
     /**
@@ -406,11 +441,14 @@ public final class Desktop2DMenuConfig {
     /**
      * The default descriptor locations: {@code ${lg.etcdir}/lg3d/*.lgcfg} first
      * (the desktop's own start menu and taskbar definitions), then the
-     * classpath-bundled {@code config/demo} and {@code config/incubator} trees.
+     * user's {@code ~/.config/lg3d/launchers/*.lgcfg} directory (for user-created
+     * launchers), then the classpath-bundled {@code config/demo} and
+     * {@code config/incubator} trees.
      */
     static List<URL> defaultConfigUrls() {
         List<URL> urls = new ArrayList<>();
         urls.addAll(etcDirConfigUrls());
+        urls.addAll(userLaunchersConfigUrls());
         for (String dir : CLASSPATH_CONFIG_DIRS) {
             urls.addAll(classpathConfigUrls(dir));
         }
@@ -439,6 +477,39 @@ public final class Desktop2DMenuConfig {
             }
         } catch (IOException | RuntimeException e) {
             logger.log(Level.WARNING, "Could not list " + dir, e);
+            return Collections.emptyList();
+        }
+        files.sort(Comparator.comparing(p -> p.getFileName().toString()));
+        List<URL> urls = new ArrayList<>(files.size());
+        for (Path p : files) {
+            try {
+                urls.add(p.toUri().toURL());
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Bad descriptor URL for " + p, e);
+            }
+        }
+        return urls;
+    }
+
+    /**
+     * Scans the user's launchers directory ({@code ~/.config/lg3d/launchers/})
+     * for user-created .lgcfg files.
+     */
+    private static List<URL> userLaunchersConfigUrls() {
+        Path homeDir = Paths.get(System.getProperty("user.home"));
+        Path launchersDir = homeDir.resolve(".config/lg3d/launchers");
+        if (!Files.isDirectory(launchersDir)) {
+            // Directory may not exist yet; that's fine.
+            return Collections.emptyList();
+        }
+        List<Path> files = new ArrayList<>();
+        try (DirectoryStream<Path> ds =
+                     Files.newDirectoryStream(launchersDir, "*.lgcfg")) {
+            for (Path p : ds) {
+                files.add(p);
+            }
+        } catch (IOException | RuntimeException e) {
+            logger.log(Level.FINE, "Could not list user launchers directory: " + launchersDir, e);
             return Collections.emptyList();
         }
         files.sort(Comparator.comparing(p -> p.getFileName().toString()));

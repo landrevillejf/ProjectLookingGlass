@@ -6,8 +6,13 @@
 
 package org.jdesktop.lg3d.apps.launcher;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
 import org.jdesktop.lg3d.scenemanager.config.ApplicationDescription;
+import org.jdesktop.lg3d.utils.LauncherSaver;
 import org.jdesktop.lg3d.utils.action.AppLaunchAction;
 
 /**
@@ -17,11 +22,18 @@ import org.jdesktop.lg3d.utils.action.AppLaunchAction;
 public class LauncherFrame extends javax.swing.JFrame {
     
     ApplicationDescription appDesc;
+    private String selectedIconPath;
 
     /** Creates new form LauncherFrame */
     public LauncherFrame() {
         initComponents();
 	appDesc = new ApplicationDescription();
+        // Wire the icon button action listener outside the generated code
+        launcherIcon.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                launcherIconActionPerformed(evt);
+            }
+        });
     }
     
     /** This method is called from within the constructor to
@@ -52,7 +64,7 @@ public class LauncherFrame extends javax.swing.JFrame {
 
         getContentPane().setLayout(new java.awt.GridBagLayout());
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Create Launcher");
         jPanel1.setLayout(new java.awt.GridBagLayout());
 
@@ -114,6 +126,11 @@ public class LauncherFrame extends javax.swing.JFrame {
         jPanel3.add(launcherLaunch);
 
         launcherSave.setText("Save");
+        launcherSave.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                launcherSaveActionPerformed(evt);
+            }
+        });
         jPanel3.add(launcherSave);
 
         launcherCancel.setText("Cancel");
@@ -148,7 +165,7 @@ public class LauncherFrame extends javax.swing.JFrame {
 // TODO add your handling code here:
 	appDesc.setName(launcherName.getText());
 	appDesc.setDescription(launcherDescription.getText());
-	
+
 	if (!launcherClasspath.equals("")) {
 	    try {
 		appDesc.setClasspathJars(launcherClasspath.getText());
@@ -160,6 +177,59 @@ public class LauncherFrame extends javax.swing.JFrame {
 	AppLaunchAction appLaunch = new AppLaunchAction(launcherCommand.getText(), appDesc.getClassLoader());
 	appLaunch.performAction(null);
     }//GEN-LAST:event_launcherLaunchActionPerformed
+
+    private void launcherIconActionPerformed(java.awt.event.ActionEvent evt) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "Image files", "png", "jpg", "jpeg", "gif", "svg"));
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            selectedIconPath = selectedFile.getAbsolutePath();
+            launcherIcon.setText(selectedFile.getName());
+            launcherIcon.setToolTipText(selectedIconPath);
+        }
+    }
+
+    private void launcherSaveActionPerformed(java.awt.event.ActionEvent evt) {
+        String name = launcherName.getText().trim();
+        String description = launcherDescription.getText().trim();
+        String command = launcherCommand.getText().trim();
+        String menuGroup = "Applications";
+
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please enter a name for the launcher.",
+                    "Missing Name",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (command.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please enter a command for the launcher.",
+                    "Missing Command",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Path savedFile = LauncherSaver.saveLauncher(name, description, command,
+                selectedIconPath, menuGroup);
+
+        if (savedFile != null) {
+            JOptionPane.showMessageDialog(this,
+                    "Launcher saved successfully!\n\nLocation: " + savedFile +
+                    "\n\nThe launcher will appear in the start menu after restarting the desktop.",
+                    "Launcher Saved",
+                    JOptionPane.INFORMATION_MESSAGE);
+            dispose();
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Failed to save the launcher. Check the logs for details.",
+                    "Save Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
     
     /**
      * @param args the command line arguments
