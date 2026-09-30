@@ -10,6 +10,18 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.28.1 —
 
 ### Added
+- **Firewall GUI for the 2D/Swing and 3D desktops** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.firewall`; registration in `lg3d-apps`) — a production
+  firewall management application providing a Swing panel with status display,
+  active rule table, and enable/disable controls. The panel auto-detects the
+  firewall backend (firewalld via `firewall-cmd` preferred, falling back to
+  iptables), queries status and rules every five seconds via `FirewallService`,
+  and uses `pkexec` for privilege escalation on enable/disable operations. The
+  same panel serves both desktops: in 3D the `Firewall` wrapper hosts it on a
+  `SwingNode` inside a `Frame3D` via `TitledSwingWindow`. The app is registered
+  in the start menu (**System** group) via `firewall.lgcfg` in `lg3d-apps`
+  `src/config`. Known limitations: rule editing not implemented, no add/remove
+  rule UI, fixed 5-second refresh interval.
 ### Changed
 ### Removed
 ### Fixed

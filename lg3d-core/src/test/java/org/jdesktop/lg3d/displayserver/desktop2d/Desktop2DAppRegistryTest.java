@@ -53,6 +53,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.calculator.Calculator"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.mediawriter.MediaWriter"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.firewall.Firewall"));
     }
 
     @Test
@@ -149,6 +151,9 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.mediawriter.MediaWriterPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.mediawriter.MediaWriter"));
+        assertEquals("org.jdesktop.lg3d.apps.firewall.FirewallPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.firewall.Firewall"));
         // A non-panel command has no panel class.
         assertNull(Desktop2DAppRegistry.panelClass(
                 "swingapp org.jdesktop.lg3d.apps.paint.PaintApp"));
