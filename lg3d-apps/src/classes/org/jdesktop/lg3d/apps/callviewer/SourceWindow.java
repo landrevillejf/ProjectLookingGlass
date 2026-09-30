@@ -26,6 +26,7 @@ import org.jogamp.vecmath.*;
 import java.net.URL;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 import java.io.*;
 import java.awt.*;
 import org.jdesktop.lg3d.sg.Appearance;
@@ -56,6 +57,8 @@ import org.jdesktop.lg3d.wg.event.LgEventSource;
  */
 public class SourceWindow extends Frame3D {
     
+    private static final Logger logger = Logger.getLogger(SourceWindow.class.getName());
+    
     // Scale for geometry, screen width/number of characters
     private static final float geometryScale = 0.01f/81f;
     private URL sourceURL;
@@ -74,6 +77,11 @@ public class SourceWindow extends Frame3D {
         this.sourceURL = sourceURL;        
         
         sourceTexture = buildTexture(sourceURL);
+        if (sourceTexture == null) {
+            logger.warning("Failed to build texture for " + sourceURL);
+            // Create a fallback red texture to indicate error
+            sourceTexture = buildErrorTexture("Error loading: " + sourceURL.getFile());
+        }
         windowHeight = sourceTexture.getUsedHeight()*geometryScale;
         windowWidth = sourceTexture.getUsedWidth()*geometryScale;
         
@@ -138,7 +146,13 @@ public class SourceWindow extends Frame3D {
         SourceTexture sourceTexture;
         ArrayList<LineData> lineLengths = new ArrayList();
         try {            
-            BufferedReader reader = new BufferedReader(new InputStreamReader(sourceFile.openStream()));
+            logger.info("Attempting to load source from URL: " + sourceFile);
+            InputStream is = sourceFile.openStream();
+            if (is == null) {
+                logger.severe("InputStream is NULL for URL: " + sourceFile);
+                return null;
+            }
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
             String line;
             do {
                 line = reader.readLine();
@@ -152,6 +166,9 @@ public class SourceWindow extends Frame3D {
         }
         
         lineCount = lineLengths.size();
+        if (lineCount == 0) {
+            return null;
+        }
         
         int width = 81;
         int height = lineLengths.size()*2;
@@ -164,7 +181,7 @@ public class SourceWindow extends Frame3D {
         int yOrigin = im.getHeight()-height;
         g.setColor(Color.WHITE);
         g.fillRect(0,yOrigin, width, height);
-        g.setColor(Color.GRAY);
+        g.setColor(Color.BLACK); // Changed from GRAY to BLACK for better visibility
         for(LineData l : lineLengths) {
             l.drawLine(g, lineNumber++, yOrigin);
         }
@@ -188,6 +205,24 @@ public class SourceWindow extends Frame3D {
             }
         }
     }   
+
+    private SourceTexture buildErrorTexture(String message) {
+        int width = 200;
+        int height = 50;
+        BufferedImage im = new BufferedImage(getPowerOfTwoUpperBound(width),
+                                             getPowerOfTwoUpperBound(height), 
+                                             BufferedImage.TYPE_INT_RGB );
+        Graphics g = im.getGraphics();
+        int yOrigin = im.getHeight() - height;
+        g.setColor(Color.RED);
+        g.fillRect(0, yOrigin, width, height);
+        g.setColor(Color.WHITE);
+        g.drawString(message, 5, yOrigin + 15);
+        if (sourceURL != null) {
+            g.drawString("Path: " + sourceURL.getPath(), 5, yOrigin + 35);
+        }
+        return new SourceTexture(im, width, height);
+    }
     
     class LineData {
         private int length;
