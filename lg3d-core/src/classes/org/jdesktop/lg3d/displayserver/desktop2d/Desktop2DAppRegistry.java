@@ -223,6 +223,16 @@ public final class Desktop2DAppRegistry {
         // the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.pdfviewer.PdfViewer",
                 "org.jdesktop.lg3d.apps.pdfviewer.PdfViewerPanel");
+        // The Firewall app (lg3d-apps, org.jdesktop.lg3d.apps.firewall) is a
+        // production firewall management application with a Swing panel showing
+        // status, active rules, and enable/disable controls. In the 3D desktop
+        // its Firewall wrapper hosts the panel on a SwingNode inside a Frame3D
+        // via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the firewall manager is fully usable without 3D.
+        // The lg3d-apps jar is on the desktop run classpath, so the reflective
+        // lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.firewall.Firewall",
+                "org.jdesktop.lg3d.apps.firewall.FirewallPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
