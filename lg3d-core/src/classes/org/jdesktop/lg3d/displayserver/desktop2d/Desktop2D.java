@@ -211,7 +211,7 @@ public class Desktop2D {
         logger.info("Starting the conventional Swing (2D) desktop");
 
         menuModel = Desktop2DMenuConfig.load();
-        desktop = new WallpaperDesktopPane(wallpaper());
+        desktop = new WallpaperDesktopPane(wallpaper(0));
         desktop.setDragMode(JDesktopPane.OUTLINE_DRAG_MODE);
         // The taskbar button is the single representation of a minimised
         // window; stock MDI would also drop a desktop icon on the pane, which
@@ -385,6 +385,11 @@ public class Desktop2D {
         workspaces.switchTo(index);
         applyWorkspaceVisibility();
         taskbar.refreshWorkspaces();
+        // Apply the wallpaper for the new workspace
+        Image wp = wallpaper(workspaces.current());
+        if (wp != null) {
+            desktop.setImage(wp);
+        }
     }
 
     /**
@@ -1475,6 +1480,10 @@ public class Desktop2D {
         if (d == null || url == null) {
             return;
         }
+        // Persist the wallpaper URL for the current workspace
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setWorkspaceWallpaper(d.workspaces.current(), url.toString());
+        cfg.save();
         Runnable set = new Runnable() {
             @Override
             public void run() {
@@ -1878,8 +1887,26 @@ public class Desktop2D {
     // Backdrop
     // ------------------------------------------------------------------
 
-    /** The first bundled wallpaper found on the classpath, or null. */
-    static Image wallpaper() {
+    /** The wallpaper for a specific workspace, or the first bundled wallpaper as fallback. */
+    static Image wallpaper(int workspaceIndex) {
+        // First try the persisted wallpaper for this workspace
+        String persistedUrl = DesktopConfig.get().getWorkspaceWallpaper(workspaceIndex);
+        if (persistedUrl != null && !persistedUrl.isBlank()) {
+            try {
+                URL url = new URL(persistedUrl);
+                Image image = java.awt.Toolkit.getDefaultToolkit().createImage(url);
+                if (image != null) {
+                    logger.log(Level.INFO, "2D wallpaper (workspace {0}): {1}",
+                            new Object[] { workspaceIndex, persistedUrl });
+                    return image;
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to load persisted wallpaper for workspace "
+                        + workspaceIndex + ": " + persistedUrl, e);
+                // Fall through to default
+            }
+        }
+        // Fallback to the first bundled wallpaper
         ClassLoader cl = Desktop2D.class.getClassLoader();
         for (String resource : WALLPAPERS) {
             URL url = cl.getResource(resource);
@@ -1888,7 +1915,8 @@ public class Desktop2D {
             }
             Image image = java.awt.Toolkit.getDefaultToolkit().createImage(url);
             if (image != null) {
-                logger.log(Level.FINE, "2D wallpaper: {0}", resource);
+                logger.log(Level.FINE, "2D wallpaper (default for workspace {0}): {1}",
+                        new Object[] { workspaceIndex, resource });
                 return image;
             }
         }

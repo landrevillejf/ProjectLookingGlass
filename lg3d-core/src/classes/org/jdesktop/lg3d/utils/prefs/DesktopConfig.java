@@ -57,6 +57,7 @@ public final class DesktopConfig {
     private static final String KEY_SLIDESHOW_ENABLED = "wallpaper.slideshowEnabled";
     private static final String KEY_SLIDESHOW_INTERVAL = "wallpaper.slideshowIntervalSec";
     private static final String KEY_SLIDESHOW_FOLDER = "wallpaper.slideshowFolder";
+    private static final String KEY_WALLPAPER_PREFIX = "wallaper.workspace.";
     private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
@@ -583,6 +584,26 @@ public final class DesktopConfig {
 
     public void setSlideshowFolder(String folder) {
         this.slideshowFolder = normalizeFolder(folder);
+    }
+
+    /**
+     * The wallpaper URL persisted for a specific workspace (0-indexed).
+     * An empty string means the first bundled wallpaper is used as fallback.
+     * Never null.
+     */
+    public String getWorkspaceWallpaper(int workspaceIndex) {
+        String key = KEY_WALLPAPER_PREFIX + workspaceIndex;
+        return prefs.get(key, "");
+    }
+
+    /**
+     * Sets the wallpaper URL for a specific workspace (0-indexed).
+     * Null is treated as empty (use default fallback).
+     */
+    public void setWorkspaceWallpaper(int workspaceIndex, String url) {
+        String key = KEY_WALLPAPER_PREFIX + workspaceIndex;
+        String value = (url == null) ? "" : url;
+        prefs.put(key, value);
     }
 
     /** Whether Do Not Disturb is switched on (ignoring any deadline). */
