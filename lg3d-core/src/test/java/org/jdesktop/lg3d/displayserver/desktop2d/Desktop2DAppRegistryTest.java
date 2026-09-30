@@ -55,6 +55,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.mediawriter.MediaWriter"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.firewall.Firewall"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.ssh.SshSwingClient"));
     }
 
     @Test
