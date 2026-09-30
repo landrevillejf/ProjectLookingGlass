@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.28.0-dev — Gradle / JDK 21 modernization
+## [1.28.0] — 2026-09-30 — Gradle / JDK 21 modernization
 
 ### Added
 - **User launcher creator for the 2D/Swing desktop** (`lg3d-apps`,
