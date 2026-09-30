@@ -57,6 +57,7 @@ public final class DesktopConfig {
     private static final String KEY_SLIDESHOW_ENABLED = "wallpaper.slideshowEnabled";
     private static final String KEY_SLIDESHOW_INTERVAL = "wallpaper.slideshowIntervalSec";
     private static final String KEY_SLIDESHOW_FOLDER = "wallpaper.slideshowFolder";
+    private static final String KEY_WALLPAPER = "wallpaper.url";
     private static final String KEY_DND_ENABLED = "notifications.dndEnabled";
     private static final String KEY_DND_UNTIL = "notifications.dndUntil";
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
@@ -116,6 +117,12 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_SLIDESHOW_FOLDER = "";
     private static final String DEF_SLIDESHOW_FOLDER = DEFAULT_SLIDESHOW_FOLDER;
+    /**
+     * Default wallpaper URL: the empty string means the first bundled wallpaper
+     * is used (the same fallback the 2D desktop uses when no preference is set).
+     */
+    private static final String DEFAULT_WALLPAPER = "";
+    private static final String DEF_WALLPAPER = DEFAULT_WALLPAPER;
     /** Minimum/maximum slideshow interval, in seconds. */
     public static final int MIN_SLIDESHOW_INTERVAL_SEC = 10;
     public static final int MAX_SLIDESHOW_INTERVAL_SEC = 3600;
@@ -217,6 +224,7 @@ public final class DesktopConfig {
     private boolean slideshowEnabled = DEF_SLIDESHOW_ENABLED;
     private int slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
     private String slideshowFolder = DEF_SLIDESHOW_FOLDER;
+    private String wallpaper = DEF_WALLPAPER;
     private boolean dndEnabled = DEF_DND_ENABLED;
     private long dndUntil = DEF_DND_UNTIL;
     private int workspaceCount = DEF_WORKSPACE_COUNT;
@@ -272,6 +280,7 @@ public final class DesktopConfig {
         slideshowIntervalSec = clampSlideshowInterval(
                 prefs.getInt(KEY_SLIDESHOW_INTERVAL, DEF_SLIDESHOW_INTERVAL));
         slideshowFolder = normalizeFolder(prefs.get(KEY_SLIDESHOW_FOLDER, DEF_SLIDESHOW_FOLDER));
+        wallpaper = prefs.get(KEY_WALLPAPER, DEF_WALLPAPER);
         dndEnabled = prefs.getBoolean(KEY_DND_ENABLED, DEF_DND_ENABLED);
         dndUntil = prefs.getLong(KEY_DND_UNTIL, DEF_DND_UNTIL);
         workspaceCount = clampWorkspaceCount(
@@ -364,6 +373,7 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_SLIDESHOW_ENABLED, slideshowEnabled);
         prefs.putInt(KEY_SLIDESHOW_INTERVAL, slideshowIntervalSec);
         prefs.put(KEY_SLIDESHOW_FOLDER, slideshowFolder);
+        prefs.put(KEY_WALLPAPER, wallpaper);
         prefs.putBoolean(KEY_DND_ENABLED, dndEnabled);
         prefs.putLong(KEY_DND_UNTIL, dndUntil);
         prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
@@ -406,6 +416,7 @@ public final class DesktopConfig {
         slideshowEnabled = DEF_SLIDESHOW_ENABLED;
         slideshowIntervalSec = DEF_SLIDESHOW_INTERVAL;
         slideshowFolder = DEF_SLIDESHOW_FOLDER;
+        wallpaper = DEF_WALLPAPER;
         dndEnabled = DEF_DND_ENABLED;
         dndUntil = DEF_DND_UNTIL;
         workspaceCount = DEF_WORKSPACE_COUNT;
@@ -583,6 +594,18 @@ public final class DesktopConfig {
 
     public void setSlideshowFolder(String folder) {
         this.slideshowFolder = normalizeFolder(folder);
+    }
+
+    /**
+     * The wallpaper URL persisted for the 2D desktop. An empty string means
+     * the first bundled wallpaper is used (the default fallback). Never null.
+     */
+    public String getWallpaper() {
+        return wallpaper;
+    }
+
+    public void setWallpaper(String url) {
+        this.wallpaper = (url == null) ? DEF_WALLPAPER : url;
     }
 
     /** Whether Do Not Disturb is switched on (ignoring any deadline). */

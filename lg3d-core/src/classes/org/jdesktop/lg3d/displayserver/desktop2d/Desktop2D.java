@@ -1475,6 +1475,9 @@ public class Desktop2D {
         if (d == null || url == null) {
             return;
         }
+        // Persist the wallpaper URL so it survives a restart
+        DesktopConfig.get().setWallpaper(url.toString());
+        DesktopConfig.get().save();
         Runnable set = new Runnable() {
             @Override
             public void run() {
@@ -1878,8 +1881,24 @@ public class Desktop2D {
     // Backdrop
     // ------------------------------------------------------------------
 
-    /** The first bundled wallpaper found on the classpath, or null. */
+    /** The wallpaper from DesktopConfig, or the first bundled wallpaper as fallback. */
     static Image wallpaper() {
+        // First try the persisted wallpaper from DesktopConfig
+        String persistedUrl = DesktopConfig.get().getWallpaper();
+        if (persistedUrl != null && !persistedUrl.isBlank()) {
+            try {
+                URL url = new URL(persistedUrl);
+                Image image = java.awt.Toolkit.getDefaultToolkit().createImage(url);
+                if (image != null) {
+                    logger.log(Level.INFO, "2D wallpaper (persisted): {0}", persistedUrl);
+                    return image;
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to load persisted wallpaper: " + persistedUrl, e);
+                // Fall through to default
+            }
+        }
+        // Fallback to the first bundled wallpaper
         ClassLoader cl = Desktop2D.class.getClassLoader();
         for (String resource : WALLPAPERS) {
             URL url = cl.getResource(resource);
@@ -1888,7 +1907,7 @@ public class Desktop2D {
             }
             Image image = java.awt.Toolkit.getDefaultToolkit().createImage(url);
             if (image != null) {
-                logger.log(Level.FINE, "2D wallpaper: {0}", resource);
+                logger.log(Level.FINE, "2D wallpaper (default): {0}", resource);
                 return image;
             }
         }
