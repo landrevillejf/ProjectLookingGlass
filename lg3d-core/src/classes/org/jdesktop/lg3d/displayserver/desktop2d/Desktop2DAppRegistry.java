@@ -233,6 +233,10 @@ public final class Desktop2DAppRegistry {
         // lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.firewall.Firewall",
                 "org.jdesktop.lg3d.apps.firewall.FirewallPanel");
+
+
+        panels.put("org.jdesktop.lg3d.apps.ssh.SshSwingClient",
+                "org.jdesktop.lg3d.apps.ssh.SshPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
