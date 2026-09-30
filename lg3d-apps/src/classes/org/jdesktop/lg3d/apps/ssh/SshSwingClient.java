@@ -8,7 +8,7 @@ import java.awt.event.WindowEvent;
 public class SshSwingClient extends JFrame {
 
     public SshSwingClient() {
-        super("Java 21 Swing SSH Client (JSch)");
+        super("SSH Client");
         setupUI();
     }
 
