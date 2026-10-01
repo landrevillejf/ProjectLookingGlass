@@ -330,6 +330,19 @@ public final class Desktop2DAppRegistry {
         // lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.recorder.Recorder",
                 "org.jdesktop.lg3d.apps.recorder.RecorderPanel");
+        // The Security Center (lg3d-apps, org.jdesktop.lg3d.apps.securitycenter)
+        // is an antivirus / host-posture front-end: a Swing tabbed UI over an
+        // AWT-free AntivirusBackend / SecurityProbe seam. The desktop ships no
+        // virus engine, so scanning is delegated honestly to an installed ClamAV
+        // (clamdscan, falling back to clamscan), and the overview aggregates the
+        // SELinux / firewall / antivirus posture. In the 3D desktop its
+        // SecurityCenter wrapper hosts the panel on a SwingNode inside a Frame3D
+        // via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the app is fully usable without 3D. The lg3d-apps
+        // jar (with jackson/slf4j) is on the desktop run classpath, so the
+        // reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.securitycenter.SecurityCenter",
+                "org.jdesktop.lg3d.apps.securitycenter.SecurityCenterPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

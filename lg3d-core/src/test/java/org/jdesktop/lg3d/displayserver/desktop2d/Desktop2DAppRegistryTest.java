@@ -73,6 +73,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.photoviewer.PhotoViewer"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.recorder.Recorder"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
     }
 
     @Test
@@ -399,6 +401,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.recorder.RecorderPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.recorder.Recorder"));
+    }
+
+    @Test
+    @DisplayName("the Security Center maps to its Swing panel")
+    void securityCenterIsHostedPanel() {
+        // The Security Center (lg3d-apps) is an antivirus / host-posture
+        // front-end that delegates scanning to an installed ClamAV over an
+        // AWT-free seam. In the 3D desktop its SecurityCenter wrapper hosts the
+        // panel on a SwingNode, and here the very same panel opens as an MDI
+        // internal frame keyed on the 3D main class so the one shared descriptor
+        // serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
+        assertEquals("org.jdesktop.lg3d.apps.securitycenter.SecurityCenterPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
     }
 
     // ------------------------------------------------------------------
