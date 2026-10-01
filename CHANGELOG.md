@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.28.1 —
+## [Unreleased] — 1.29.0 —
 
 ### Added
 - **Firewall GUI for the 2D/Swing and 3D desktops** (`lg3d-apps`,
