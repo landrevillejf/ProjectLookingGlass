@@ -75,6 +75,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.recorder.Recorder"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
     }
 
     @Test
@@ -417,6 +419,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.securitycenter.SecurityCenterPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
+    }
+
+    @Test
+    @DisplayName("the Password Manager maps to its Swing panel")
+    void passwordManagerIsHostedPanel() {
+        // The Password Manager (lg3d-apps) is an encrypted vault front-end over
+        // an AWT-free PBKDF2 + AES-GCM seam (no key material touches disk). In
+        // the 3D desktop its PasswordManager wrapper hosts the panel on a
+        // SwingNode, and here the very same panel opens as an MDI internal frame
+        // keyed on the 3D main class so the one shared descriptor serves both
+        // desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
+        assertEquals("org.jdesktop.lg3d.apps.passwordmanager.PasswordManagerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
     }
 
     // ------------------------------------------------------------------
