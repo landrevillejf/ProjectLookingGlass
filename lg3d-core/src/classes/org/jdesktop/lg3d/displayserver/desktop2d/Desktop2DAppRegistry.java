@@ -343,6 +343,19 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.securitycenter.SecurityCenter",
                 "org.jdesktop.lg3d.apps.securitycenter.SecurityCenterPanel");
+        // The Password Manager (lg3d-apps, org.jdesktop.lg3d.apps.passwordmanager)
+        // is a credential vault: a Swing lock screen over an AWT-free VaultCrypto
+        // seam (PBKDF2 + AES-GCM). The desktop ships no keyring, so the vault is
+        // sealed with the user's own master password and only the ciphertext is
+        // persisted; the derived key and decrypted entries live in memory only
+        // while unlocked and are cleared on lock / auto-lock. In the 3D desktop
+        // its PasswordManager wrapper hosts the panel on a SwingNode inside a
+        // Frame3D via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the app is fully usable without 3D. The lg3d-apps
+        // jar (with jackson/slf4j) is on the desktop run classpath, so the
+        // reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.passwordmanager.PasswordManager",
+                "org.jdesktop.lg3d.apps.passwordmanager.PasswordManagerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
