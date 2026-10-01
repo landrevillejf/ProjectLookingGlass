@@ -105,6 +105,8 @@ public class GenerateAppIcons {
 
     /** Glyph name that draws a built-in vector globe with a padlock badge instead of a bundled glyph. */
     private static final String GLOBE_LOCK_GLYPH = "GlobeLock";
+    /** Glyph name that draws a built-in vector padlock instead of a bundled glyph. */
+    private static final String PADLOCK_GLYPH = "VaultPadlock";
 
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
@@ -187,6 +189,10 @@ public class GenerateAppIcons {
         // frame); the bundled glyph set has no globe, so a wireframe globe with a
         // padlock badge is drawn in-tool like the shield and padlock above.
         {"vpn.png", IconColor.BLUE,            IconCategory.GENERAL, GLOBE_LOCK_GLYPH},
+        // Password Manager (Swing vault hosted on a SwingNode / 2D MDI frame); the
+        // bundled glyph set has no padlock, so a locked padlock is drawn in-tool
+        // like the shield and the marks above.
+        {"passwordmanager.png", IconColor.INDIGO, IconCategory.GENERAL, PADLOCK_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -237,6 +243,8 @@ public class GenerateAppIcons {
                 glyph = drawShieldGlyph(GLYPH);
             } else if (GLOBE_LOCK_GLYPH.equals(glyphName)) {
                 glyph = drawGlobeLockGlyph(GLYPH);
+            } else if (PADLOCK_GLYPH.equals(glyphName)) {
+                glyph = drawPadlockGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -764,6 +772,32 @@ public class GenerateAppIcons {
         g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g.drawLine(10, 16, 14, 21);
         g.drawLine(14, 21, 23, 11);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the padlock glyph: a ring shackle rising out of a rounded body with a
+     * keyhole punched through it, the conventional "secured / locked vault" mark.
+     * The bundled {@code toolbarButtonGraphics} set carries nothing padlock
+     * shaped, so it is drawn in-tool like the shield and the marks above.
+     * Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawPadlockGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Shackle: the top half of a ring whose legs tuck into the body.
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawArc(9, 3, 14, 22, 0, 180);
+        // Body.
+        g.fillRoundRect(5, 13, 22, 16, 3, 3);
+        // Punch a keyhole (a dot over a short slot) out of the body.
+        g.setComposite(AlphaComposite.Clear);
+        g.fillOval(14, 17, 4, 4);
+        g.fillRect(15, 20, 2, 6);
         g.dispose();
         return new ImageIcon(image);
     }
