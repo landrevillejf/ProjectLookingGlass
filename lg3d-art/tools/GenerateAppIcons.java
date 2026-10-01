@@ -79,6 +79,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector video camera instead of a bundled glyph. */
     private static final String VIDEO_GLYPH = "VideoCamera";
 
+    /** Glyph name that draws a built-in vector chat-bubble pair instead of a bundled glyph. */
+    private static final String CHAT_GLYPH = "ChatBubbles";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -130,6 +133,11 @@ public class GenerateAppIcons {
         // in-tool like the keypad, disc, brush, package box, database cylinder,
         // transfer pair, weather and document marks.
         {"videoconference.png", IconColor.GREEN,   IconCategory.GENERAL, VIDEO_GLYPH},
+        // Instant Messenger (Swing multi-protocol chat client hosted on a
+        // SwingNode / 2D MDI frame); the bundled glyph set has no chat bubble,
+        // so one is drawn in-tool like the keypad, disc, brush, package box,
+        // database cylinder, transfer pair, weather, document and video marks.
+        {"messenger.png", IconColor.INDIGO,        IconCategory.GENERAL, CHAT_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -162,6 +170,8 @@ public class GenerateAppIcons {
                 glyph = drawDocumentGlyph(GLYPH);
             } else if (VIDEO_GLYPH.equals(glyphName)) {
                 glyph = drawVideoGlyph(GLYPH);
+            } else if (CHAT_GLYPH.equals(glyphName)) {
+                glyph = drawChatGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -447,6 +457,47 @@ public class GenerateAppIcons {
         // A record dot on the body, punched out so the tile colour shows through.
         g.setComposite(AlphaComposite.Clear);
         g.fillOval(7, 13, 4, 4);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the chat glyph: two overlapping speech bubbles (a smaller one behind
+     * for depth, a larger one in front) with three typing dots punched out of
+     * the front bubble so the tile colour shows through. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing chat shaped, so it is
+     * drawn in-tool like the keypad, disc, brush, package box, database
+     * cylinder, transfer pair, weather, document and video marks. Designed in a
+     * 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawChatGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Back bubble, slightly darker and offset up-right for depth.
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fillRoundRect(10, 4, 18, 13, 6, 6);
+        GeneralPath backTail = new GeneralPath();
+        backTail.moveTo(23, 16);
+        backTail.lineTo(27, 21);
+        backTail.lineTo(26, 15);
+        backTail.closePath();
+        g.fill(backTail);
+        // Front bubble with a tail pointing down-left.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 10, 18, 13, 6, 6);
+        GeneralPath frontTail = new GeneralPath();
+        frontTail.moveTo(7, 22);
+        frontTail.lineTo(5, 28);
+        frontTail.lineTo(12, 23);
+        frontTail.closePath();
+        g.fill(frontTail);
+        // Three typing dots punched out so the tile colour shows through.
+        g.setComposite(AlphaComposite.Clear);
+        g.fillOval(7, 15, 2, 2);
+        g.fillOval(11, 15, 2, 2);
+        g.fillOval(15, 15, 2, 2);
         g.dispose();
         return new ImageIcon(image);
     }

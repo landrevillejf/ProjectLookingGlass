@@ -41,7 +41,7 @@ class Desktop2DAppRegistryTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the seven panel apps are hosted inside the desktop")
+    @DisplayName("the panel apps are hosted inside the desktop")
     void panelAppsAreClassifiedAsPanel() {
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.filemanager.FileManager"));
@@ -59,6 +59,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.ssh.SshSwingClient"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.messenger.Messenger"));
     }
 
     @Test
@@ -276,6 +278,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.videoconference.VideoConferencePanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
+    }
+
+    @Test
+    @DisplayName("the Instant Messenger app maps to its Swing panel")
+    void messengerIsHostedPanel() {
+        // The Instant Messenger app (lg3d-apps) is a multi-protocol chat client:
+        // a plain Swing accounts/conversations/transcript UI over a pluggable
+        // ProtocolRegistry (native IRC plus deep-link bridges). In the 3D desktop
+        // its Messenger wrapper hosts the panel on a SwingNode, and here the very
+        // same panel opens as an MDI internal frame keyed on the 3D main class so
+        // the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.messenger.Messenger"));
+        assertEquals("org.jdesktop.lg3d.apps.messenger.MessengerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.messenger.Messenger"));
     }
 
     // ------------------------------------------------------------------

@@ -249,6 +249,18 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.videoconference.VideoConference",
                 "org.jdesktop.lg3d.apps.videoconference.VideoConferencePanel");
+        // The Instant Messenger app (lg3d-apps, org.jdesktop.lg3d.apps.messenger)
+        // is a multi-protocol chat client: a Swing accounts/conversations/
+        // transcript UI over a pluggable ProtocolRegistry (a fully native IRC
+        // client plus deep-link bridges for XMPP/Matrix/Telegram/WhatsApp/Signal/
+        // SMS/SIP). In the 3D desktop its Messenger wrapper hosts the panel on a
+        // SwingNode inside a Frame3D via TitledSwingWindow; here the very same
+        // panel opens as an MDI internal frame, so the messenger is fully usable
+        // without 3D. The lg3d-apps jar (with jackson/slf4j) is on the desktop
+        // run classpath, so the reflective lookup resolves and the panel loads no
+        // Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.messenger.Messenger",
+                "org.jdesktop.lg3d.apps.messenger.MessengerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
