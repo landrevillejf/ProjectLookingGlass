@@ -171,15 +171,31 @@ public final class SwingWidgetLayer {
 
     /**
      * Loads the persisted layout, or seeds the defaults (clock + temperature) on
-     * a fresh desktop.
+     * a genuinely fresh desktop.
+     *
+     * <p>The defaults are seeded only the first time the layout is initialized.
+     * Once initialized, an empty instance list means the user removed every
+     * widget, and that choice is honoured across a restart instead of resurrecting
+     * the starter widgets.</p>
      */
     public void loadPersisted() {
         List<String> ids = config.instances();
+        boolean firstRun = !config.isInitialized();
         if (ids.isEmpty()) {
-            for (String[] def : DEFAULTS) {
-                addWidget(def[0], Float.parseFloat(def[1]), Float.parseFloat(def[2]));
+            if (firstRun) {
+                for (String[] def : DEFAULTS) {
+                    addWidget(def[0], Float.parseFloat(def[1]), Float.parseFloat(def[2]));
+                }
+                config.markInitialized();
+                config.save();
             }
             return;
+        }
+        if (firstRun) {
+            // Adopt a layout written before this flag existed (or by the other
+            // desktop) and mark it initialized so it is never reseeded.
+            config.markInitialized();
+            config.save();
         }
         for (String id : ids) {
             String type = config.getType(id);
