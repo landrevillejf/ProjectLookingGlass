@@ -100,6 +100,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector microphone instead of a bundled glyph. */
     private static final String MIC_GLYPH = "Microphone";
 
+    /** Glyph name that draws a built-in vector security shield instead of a bundled glyph. */
+    private static final String SHIELD_GLYPH = "SecurityShield";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -173,6 +176,10 @@ public class GenerateAppIcons {
         {"photoviewer.png", IconColor.CYAN,        IconCategory.GENERAL, PHOTO_GLYPH},
         // Recorder: a microphone, drawn in-tool.
         {"recorder.png", IconColor.RED,            IconCategory.GENERAL, MIC_GLYPH},
+        // Security Center (Swing antivirus / posture panel hosted on a SwingNode /
+        // 2D MDI frame); the bundled glyph set has no shield, so a checked shield
+        // is drawn in-tool like the microphone and the marks above.
+        {"securitycenter.png", IconColor.GREEN,   IconCategory.GENERAL, SHIELD_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -219,6 +226,8 @@ public class GenerateAppIcons {
                 glyph = drawPhotoGlyph(GLYPH);
             } else if (MIC_GLYPH.equals(glyphName)) {
                 glyph = drawMicGlyph(GLYPH);
+            } else if (SHIELD_GLYPH.equals(glyphName)) {
+                glyph = drawShieldGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -714,6 +723,38 @@ public class GenerateAppIcons {
         // Stem and base.
         g.fillRect(15, 24, 2, 4);
         g.fillRoundRect(10, 27, 12, 3, 2, 2);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the security shield glyph: a filled shield with a checkmark punched
+     * out of it, the conventional "protected / verified" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing shield shaped, so it is
+     * drawn in-tool like the marks above. Designed in a 32x32 space and scaled
+     * to {@code size}.
+     */
+    private static Icon drawShieldGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Shield body: flat top corners sweeping down to a point at the base.
+        GeneralPath shield = new GeneralPath();
+        shield.moveTo(16, 2);
+        shield.lineTo(28, 6);
+        shield.lineTo(28, 16);
+        shield.curveTo(28, 24, 22, 28, 16, 30);
+        shield.curveTo(10, 28, 4, 24, 4, 16);
+        shield.lineTo(4, 6);
+        shield.closePath();
+        g.fill(shield);
+        // Punch a checkmark out of the shield so it reads against the tile.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawLine(10, 16, 14, 21);
+        g.drawLine(14, 21, 23, 11);
         g.dispose();
         return new ImageIcon(image);
     }
