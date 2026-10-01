@@ -41,13 +41,16 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.LongConsumer;
+import java.util.function.Function;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -56,6 +59,7 @@ import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
@@ -71,6 +75,7 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
+import org.jdesktop.lg3d.apps.mediawriter.MediaWriterEngine;
 import org.jdesktop.lg3d.utils.system.Opener;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
 import org.jdesktop.lg3d.utils.system.ProcessService;
@@ -120,6 +125,12 @@ public class FileManagerPanel extends JPanel {
     private final JPanel breadcrumbBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
     private final JLabel statusLabel = new JLabel(" ");
     private final JButton viewButton = new JButton("Icon view");
+    private final JButton shareButton = new JButton("Share");
+
+    /** Reused for "Burn to Disc": the guarded engine behind the Media Writer. */
+    private final MediaWriterEngine burnEngine = new MediaWriterEngine();
+    /** The currently running HTTP folder share, or null when not sharing. */
+    private ShareOperations.Share activeShare;
 
     public FileManagerPanel(Path initial) {
         super(new BorderLayout());
@@ -289,8 +300,14 @@ public class FileManagerPanel extends JPanel {
         viewButton.addActionListener(e -> toggleView());
         bar.add(viewButton);
         bar.add(toolButton("New Folder", e -> doNewFolder()));
+        shareButton.setFocusable(false);
+        shareButton.setMargin(new java.awt.Insets(2, 8, 2, 8));
+        shareButton.addActionListener(e -> toggleShare());
+        bar.add(shareButton);
+        bar.add(toolButton("Mounts", e -> showMountsDialog()));
         bar.add(new javax.swing.JToolBar.Separator());
         JButton close = toolButton("Close", e -> {
+            stopShare();
             if (onClose != null) {
                 onClose.run();
             }
@@ -719,6 +736,392 @@ public class FileManagerPanel extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // Compression, extraction, sharing, mounts and burning
+
+    /**
+     * Runs an arbitrary byte-reporting operation on a background thread with a
+     * progress dialog (the archive counterpart of {@link #runFileOperation}).
+     */
+    private void runProgressOperation(String verb, String failMessage, long totalBytes,
+            Function<LongConsumer, Boolean> work) {
+        final long total = Math.max(1L, totalBytes);
+        final JDialog dialog = new JDialog();
+        dialog.setTitle(verb);
+        JPanel content = new JPanel(new BorderLayout(8, 8));
+        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        content.add(new JLabel(verb + "..."), BorderLayout.NORTH);
+        final JProgressBar bar = new JProgressBar(0, 100);
+        bar.setStringPainted(true);
+        content.add(bar, BorderLayout.CENTER);
+        dialog.setContentPane(content);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+
+        SwingWorker<Boolean, Integer> worker = new SwingWorker<Boolean, Integer>() {
+            @Override
+            protected Boolean doInBackground() {
+                LongConsumer cb = bytes -> publish(
+                        Integer.valueOf((int) Math.min(100, bytes * 100 / total)));
+                return Boolean.TRUE.equals(work.apply(cb));
+            }
+            @Override
+            protected void process(List<Integer> chunks) {
+                bar.setValue(chunks.get(chunks.size() - 1).intValue());
+            }
+            @Override
+            protected void done() {
+                bar.setValue(100);
+                dialog.setVisible(false);
+                dialog.dispose();
+                boolean ok;
+                try {
+                    ok = Boolean.TRUE.equals(get());
+                } catch (Exception ex) {
+                    ok = false;
+                }
+                refresh();
+                if (!ok) {
+                    showError(failMessage);
+                }
+            }
+        };
+        worker.execute();
+        dialog.setVisible(true);
+    }
+
+    /** Compresses the selection into a new {@code .zip} in the current folder. */
+    private void doCompress() {
+        final List<Path> sel = selectedPaths();
+        if (sel.isEmpty() || currentDir == null) {
+            return;
+        }
+        String suggested = ArchiveOperations.defaultArchiveName(sel.get(0));
+        String name = (String) JOptionPane.showInputDialog(this,
+                "Archive name:", "Compress", JOptionPane.QUESTION_MESSAGE,
+                null, null, suggested);
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        String trimmed = name.trim();
+        if (!trimmed.toLowerCase().endsWith(".zip")) {
+            trimmed = trimmed + ".zip";
+        }
+        final Path dest = currentDir.resolve(trimmed);
+        final List<Path> sources = new ArrayList<>(sel);
+        long total = FileOperations.totalSize(sources);
+        runProgressOperation("Compress", "Could not create the archive.", total,
+                cb -> ArchiveOperations.createZip(sources, dest, cb));
+    }
+
+    /** Extracts a single selected archive into a folder named after it. */
+    private void doExtract() {
+        final Path p = singleSelection();
+        if (p == null || currentDir == null || !ArchiveOperations.isArchive(p)) {
+            return;
+        }
+        final Path dest = currentDir.resolve(ArchiveOperations.baseName(p));
+        long total = FileOperations.totalSize(List.of(p));
+        runProgressOperation("Extract", "Could not extract the archive.", total,
+                cb -> ArchiveOperations.extract(p, dest, cb));
+    }
+
+    /** Starts (or stops) an HTTP share of the current folder over the LAN. */
+    private void toggleShare() {
+        if (activeShare != null) {
+            stopShare();
+            return;
+        }
+        if (currentDir == null) {
+            showError("There is no folder to share.");
+            return;
+        }
+        try {
+            activeShare = ShareOperations.start(currentDir);
+            shareButton.setText("Stop Share");
+            String url = activeShare.getUrl();
+            statusLabel.setText("Sharing " + fileName(currentDir) + " at " + url);
+            JOptionPane.showMessageDialog(this,
+                    "Folder shared over the network (read-only):\n\n" + url
+                    + "\n\nAnyone on your local network can browse and download it\n"
+                    + "until you press Stop Share.",
+                    "Share Folder", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException | RuntimeException ex) {
+            activeShare = null;
+            showError("Could not share the folder: " + ex.getMessage());
+        }
+    }
+
+    /** Stops any running share and restores the toolbar button. */
+    private void stopShare() {
+        if (activeShare != null) {
+            activeShare.stop();
+            activeShare = null;
+        }
+        shareButton.setText("Share");
+        updateStatus();
+    }
+
+    /** Opens a dialog listing mountable volumes with Mount / Unmount actions. */
+    private void showMountsDialog() {
+        final JDialog dialog = new JDialog();
+        dialog.setTitle("Mounts / Volumes");
+        final DefaultListModel<VolumeOperations.Volume> model = new DefaultListModel<>();
+        final JList<VolumeOperations.Volume> list = new JList<>(model);
+        final JLabel header = new JLabel("Removable and mountable volumes:");
+
+        JPanel content = new JPanel(new BorderLayout(6, 6));
+        content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        content.add(header, BorderLayout.NORTH);
+        content.add(new JScrollPane(list), BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+        JButton mount = new JButton("Mount");
+        JButton unmount = new JButton("Unmount");
+        JButton reload = new JButton("Refresh");
+        JButton close = new JButton("Close");
+        buttons.add(mount);
+        buttons.add(unmount);
+        buttons.add(reload);
+        buttons.add(close);
+        content.add(buttons, BorderLayout.SOUTH);
+        dialog.setContentPane(content);
+
+        final Runnable load = () -> {
+            model.clear();
+            List<VolumeOperations.Volume> vols = VolumeOperations.listVolumes();
+            for (VolumeOperations.Volume v : vols) {
+                model.addElement(v);
+            }
+            header.setText(vols.isEmpty()
+                    ? "No mountable volumes detected (is lsblk installed?)."
+                    : "Removable and mountable volumes:");
+        };
+
+        mount.addActionListener(e -> {
+            VolumeOperations.Volume v = list.getSelectedValue();
+            if (v == null) {
+                return;
+            }
+            if (v.isMounted()) {
+                JOptionPane.showMessageDialog(dialog, v.path + " is already mounted at "
+                        + v.mountPoint + ".", "Mount", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            VolumeOperations.OpResult r = VolumeOperations.mount(v.path, v.label);
+            showMountResult(dialog, "Mount", r);
+            load.run();
+            refresh();
+        });
+        unmount.addActionListener(e -> {
+            VolumeOperations.Volume v = list.getSelectedValue();
+            if (v == null) {
+                return;
+            }
+            if (!v.isMounted()) {
+                JOptionPane.showMessageDialog(dialog, v.path + " is not mounted.",
+                        "Unmount", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            VolumeOperations.OpResult r = VolumeOperations.unmount(v.path, v.mountPoint);
+            showMountResult(dialog, "Unmount", r);
+            load.run();
+            refresh();
+        });
+        reload.addActionListener(e -> load.run());
+        close.addActionListener(e -> dialog.dispose());
+
+        load.run();
+        dialog.setSize(480, 320);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void showMountResult(java.awt.Window owner, String title,
+            VolumeOperations.OpResult r) {
+        JOptionPane.showMessageDialog(owner,
+                r.isSuccess() ? r.getMessage() : (title + " failed: " + r.getMessage()),
+                title, r.isSuccess()
+                        ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+    }
+
+    /**
+     * Burns the selection to an optical drive (or just builds an ISO when no
+     * drive is chosen), reusing the guarded {@link MediaWriterEngine} behind the
+     * Media Writer app so the destructive device-write safety checks are shared.
+     */
+    private void doBurn() {
+        final List<Path> sel = selectedPaths();
+        if (sel.isEmpty()) {
+            showError("Select the files or folder to burn.");
+            return;
+        }
+        final List<MediaWriterEngine.DeviceInfo> optical = new ArrayList<>();
+        try {
+            for (MediaWriterEngine.DeviceInfo d : burnEngine.detectDevices()) {
+                if (d.kind == MediaWriterEngine.DeviceKind.OPTICAL) {
+                    optical.add(d);
+                }
+            }
+        } catch (RuntimeException ex) {
+            // detection is best effort; fall back to ISO-only
+        }
+
+        List<Object> choices = new ArrayList<>();
+        for (MediaWriterEngine.DeviceInfo d : optical) {
+            choices.add(d.describe());
+        }
+        choices.add("Create ISO image only (no burning)");
+        Object pick = JOptionPane.showInputDialog(this,
+                optical.isEmpty()
+                        ? "No optical drive was detected. Create an ISO image instead?"
+                        : "Burn target:",
+                "Burn to Disc", JOptionPane.QUESTION_MESSAGE, null,
+                choices.toArray(), choices.get(choices.size() - 1));
+        if (pick == null) {
+            return;
+        }
+        int idx = choices.indexOf(pick);
+        MediaWriterEngine.DeviceInfo drive =
+                (idx >= 0 && idx < optical.size()) ? optical.get(idx) : null;
+        runBurn(drive, new ArrayList<>(sel));
+    }
+
+    private void runBurn(final MediaWriterEngine.DeviceInfo drive, final List<Path> sources) {
+        final boolean keepIso = (drive == null);
+        final File outIso;
+        try {
+            if (keepIso) {
+                Path base = (currentDir != null) ? currentDir : home;
+                outIso = base.resolve(fileName(sources.get(0)) + ".iso").toFile();
+            } else {
+                outIso = File.createTempFile("lg3d-burn-", ".iso");
+            }
+        } catch (IOException | RuntimeException ex) {
+            showError("Cannot prepare the ISO output: " + ex.getMessage());
+            return;
+        }
+
+        final JDialog dialog = new JDialog();
+        dialog.setTitle("Burn to Disc");
+        JPanel content = new JPanel(new BorderLayout(6, 6));
+        content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        final JProgressBar bar = new JProgressBar(0, 100);
+        bar.setStringPainted(true);
+        final JTextArea log = new JTextArea(10, 46);
+        log.setEditable(false);
+        content.add(bar, BorderLayout.NORTH);
+        content.add(new JScrollPane(log), BorderLayout.CENTER);
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton cancel = new JButton("Cancel");
+        south.add(cancel);
+        content.add(south, BorderLayout.SOUTH);
+        dialog.setContentPane(content);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+
+        final java.util.concurrent.atomic.AtomicBoolean ok =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        burnEngine.resetCancel();
+        cancel.addActionListener(e -> burnEngine.cancel());
+
+        final MediaWriterEngine.ProgressHandler handler =
+                new MediaWriterEngine.ProgressHandler() {
+            @Override
+            public void onLog(String line) {
+                SwingUtilities.invokeLater(() -> {
+                    log.append(line + "\n");
+                    log.setCaretPosition(log.getDocument().getLength());
+                });
+            }
+            @Override
+            public void onProgress(double fraction, String stage) {
+                SwingUtilities.invokeLater(() -> {
+                    if (fraction < 0) {
+                        bar.setIndeterminate(true);
+                    } else {
+                        bar.setIndeterminate(false);
+                        bar.setValue((int) Math.round(fraction * 100));
+                    }
+                    bar.setString(stage);
+                });
+            }
+            @Override
+            public void onFinished(boolean success, String message) {
+                ok.set(success);
+                SwingUtilities.invokeLater(() -> log.append(
+                        (success ? "\u2713 " : "\u2717 ") + message + "\n"));
+            }
+        };
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                Path staged = null;
+                try {
+                    File folder;
+                    if (sources.size() == 1 && Files.isDirectory(sources.get(0))) {
+                        folder = sources.get(0).toFile();
+                    } else {
+                        staged = Files.createTempDirectory("lg3d-burn-");
+                        FileOperations.copy(sources, staged, null);
+                        folder = staged.toFile();
+                    }
+                    burnEngine.createDataDisc(folder, outIso, "LG3D_DATA",
+                            drive, null, false, handler);
+                    return ok.get();
+                } catch (IOException | RuntimeException ex) {
+                    handler.onFinished(false, String.valueOf(ex.getMessage()));
+                    return false;
+                } finally {
+                    if (staged != null) {
+                        deleteRecursively(staged);
+                    }
+                }
+            }
+            @Override
+            protected void done() {
+                bar.setIndeterminate(false);
+                dialog.setVisible(false);
+                dialog.dispose();
+                if (keepIso) {
+                    refresh();
+                    JOptionPane.showMessageDialog(FileManagerPanel.this,
+                            "ISO image created:\n" + outIso.getAbsolutePath(),
+                            "Burn to Disc", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    if (!outIso.delete()) {
+                        outIso.deleteOnExit();
+                    }
+                    if (!ok.get()) {
+                        showError("Burn did not complete. See the log for details.");
+                    }
+                }
+            }
+        };
+        worker.execute();
+        dialog.setVisible(true);
+    }
+
+    private static void deleteRecursively(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try {
+            Files.walk(root)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                            // best effort cleanup of the staging folder
+                        }
+                    });
+        } catch (IOException | RuntimeException ignored) {
+            // best effort
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Context menu + keyboard
 
     private void showContextMenu(Component invoker, int x, int y) {
@@ -768,10 +1171,37 @@ public class FileManagerPanel extends JPanel {
 
         menu.addSeparator();
 
+        JMenuItem compress = new JMenuItem("Compress...");
+        compress.setEnabled(hasSel && currentDir != null);
+        compress.addActionListener(e -> doCompress());
+        menu.add(compress);
+
+        JMenuItem extract = new JMenuItem("Extract");
+        extract.setEnabled(single && ArchiveOperations.isArchive(sel.get(0)));
+        extract.addActionListener(e -> doExtract());
+        menu.add(extract);
+
+        JMenuItem burn = new JMenuItem("Burn to Disc...");
+        burn.setEnabled(hasSel);
+        burn.addActionListener(e -> doBurn());
+        menu.add(burn);
+
+        menu.addSeparator();
+
         JMenuItem nf = new JMenuItem("New Folder...");
         nf.setEnabled(currentDir != null);
         nf.addActionListener(e -> doNewFolder());
         menu.add(nf);
+
+        JMenuItem share = new JMenuItem(
+                (activeShare == null) ? "Share This Folder" : "Stop Sharing");
+        share.setEnabled(currentDir != null || activeShare != null);
+        share.addActionListener(e -> toggleShare());
+        menu.add(share);
+
+        JMenuItem mounts = new JMenuItem("Mounts / Volumes...");
+        mounts.addActionListener(e -> showMountsDialog());
+        menu.add(mounts);
 
         JMenuItem props = new JMenuItem("Properties");
         props.setEnabled(single);

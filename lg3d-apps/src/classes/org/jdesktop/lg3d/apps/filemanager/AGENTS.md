@@ -16,7 +16,9 @@
 | Descriptor | `src/config/filemanager.lgcfg` → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` |
 
-**Components:** `FileManagerPanel` (Swing UI) + `FileTableModel` + `FileOperations`.
+**Components:** `FileManagerPanel` (Swing UI) + `FileTableModel` + `FileOperations`
++ `ArchiveOperations` (zip) + `VolumeOperations` (mount) + `ShareOperations`
+(HTTP folder share); burning reuses `mediawriter.MediaWriterEngine`.
 
 ## Roles
 
@@ -67,6 +69,7 @@ File Manager is a 3D file browser that provides a Swing-based UI for navigating 
 - Provide file system navigation in 3D environment
 - Demonstrate complex Swing UI integration
 - Support file operations (copy, move, delete, rename)
+- Support advanced operations (compress, extract, burn, share, mount/unmount)
 - Integrate with dock stacks (Documents/Downloads)
 
 ## Key Components
@@ -75,6 +78,14 @@ File Manager is a 3D file browser that provides a Swing-based UI for navigating 
 - **FileManagerPanel** - Main Swing JPanel with file browser UI
 - **FileTableModel** - Table model for file listing
 - **FileOperations** - File operation implementations (copy, move, delete)
+- **ArchiveOperations** - Pure-`java.util.zip` compress/extract/list engine
+  (atomic `.part` write, Zip-Slip hardened); headless-testable
+- **VolumeOperations** - `lsblk` volume detection + `udisksctl`/`pkexec`
+  mount/unmount; headless-testable
+- **ShareOperations** - JDK `com.sun.net.httpserver` LAN folder share (browsable
+  listing + download, path-traversal guarded); headless-testable
+- **MediaWriterEngine** - Reused from `org.jdesktop.lg3d.apps.mediawriter` for
+  data-disc burning / ISO creation (destructive device writes are not duplicated)
 - **SwingNode** - Bridge between Swing and 3D scenegraph
 
 ## Architecture
@@ -129,6 +140,22 @@ Use `FileOperations` class for common operations:
 - `delete(Path path)`
 - `rename(Path path, String newName)`
 
+### Advanced Operations
+
+Wired into the toolbar (**Share**, **Mounts**) and the right-click context menu
+(**Compress…**, **Extract**, **Burn to Disc…**, **Share This Folder** / **Stop
+Sharing**, **Mounts / Volumes…**). Each runs off the EDT on a `SwingWorker` with
+a progress dialog:
+- `ArchiveOperations.createZip(sources, destZip, progress)` /
+  `extract(archive, destDir, progress)` / `list(archive)` / `isArchive(path)`
+- `VolumeOperations.listVolumes()` / `mount(devicePath, label)` /
+  `unmount(devicePath, mountPoint)` / `canElevate()`
+- `ShareOperations.start(dir[, port])` → `Share` (`getUrl()`, `stop()`,
+  `close()`); the active share is stopped when the panel closes
+- `MediaWriterEngine.detectDevices()` / `createDataDisc(folder, iso, label,
+  drive, speed, verify, handler)`; multi-item selections are staged into a temp
+  folder first, and it degrades to *Create ISO image only* with no optical drive
+
 ### Directory Parsing
 
 ```java
@@ -176,5 +203,8 @@ Launch default (home directory):
 
 - No file search functionality
 - No bookmark/favorites support
-- Limited to local filesystem (no network mounts)
+- Compression is zip-family only (no tar/gz/7z/rar); burning depends on an
+  external `genisoimage`/`xorriso` + optical drive (else ISO-only); network
+  sharing is a read-only HTTP share (no SMB/NFS write); volume mount/unmount
+  needs `udisksctl` (or `pkexec`) present on the host
 - No thumbnail preview for images
