@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.34.0 —
+## [Unreleased] — 1.35.0 —
 
 ### Added
 - **Antivirus / Security Center for the 2D/Swing and 3D desktops** (`lg3d-apps`,
