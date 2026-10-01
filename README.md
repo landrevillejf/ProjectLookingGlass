@@ -275,6 +275,42 @@ JAI is on the incubator's *compile* classpath but not on the desktop's, so the
 fast path reaches into that JDK-internal package, which JDK 21 otherwise
 encapsulates (without the export every operator fails at runtime).
 
+## Multimedia suite
+
+Five **Media**-menu applications round out the desktop's multimedia story. Each
+is one Swing panel that serves *both* desktops — in 2D it opens as an MDI
+internal frame via `Desktop2DAppRegistry.PANEL_APPS`, in 3D the thin wrapper
+hosts the same panel on a `SwingNode` inside a `Frame3D` via
+`TitledSwingWindow`, and a standalone `*Client` (`DISPOSE_ON_CLOSE`) runs it
+outside the desktop. Each has a programmatic icon from
+`lg3d-art/tools/GenerateAppIcons` and a `.lgcfg` descriptor in
+[`lg3d-apps/src/config`](lg3d-apps/src/config).
+
+- **Audio Player** — playlist + transport + volume; WAV/AU/AIFF play natively
+  through `javax.sound.sampled`, while MP3 / streams / radio / podcasts are
+  handed to an external player via the `AudioBackend` seam (the JDK ships no MP3
+  decoder). Library and settings persist under `~/.lg3d/audioplayer`.
+- **Video Player** — a VLC-style library + launcher; with no in-tree video codec
+  it delegates playback to an external `mpv` / `vlc` / `ffplay` through the
+  `VideoBackend` seam. Library and settings persist under `~/.lg3d/videoplayer`.
+- **Image Editor** — a GIMP-style raster editor that is **fully native Java 2D**:
+  an ordered layer stack (`EditorDocument` / `ImageLayer`), pure `ToolEngine` /
+  `FilterEngine` and a bounded `UndoStack`; load/save is `ImageIO` PNG.
+- **Photo Viewer** — a tagged gallery that decodes **fully natively** via
+  `ImageIO` (lazily, every read guarded), with the AWT-free `PhotoLibrary`
+  answering a declarative tag / keyword / rating filter; the tagged library
+  persists under `~/.lg3d/photoviewer`.
+- **Audio/Video Recorder** — microphone capture recorded **natively** to WAV via
+  `javax.sound.sampled` (`TargetDataLine`), plus screen capture handed to an
+  external `ffmpeg` / `avconv` (`x11grab`, stopped gracefully so the MP4 is
+  finalised) through the `RecorderBackend` seam; settings and history persist
+  under `~/.lg3d/recorder`.
+
+Because no audio/video codec library ships in-tree, the recorder and the two
+players are honest about the native / external split: uncompressed audio and
+still images are handled in-process, while encoded video and compressed audio
+are delegated to an installed system tool that degrades gracefully when absent.
+
 > **Terminal item.** The taskbar / start-menu **Terminal** launcher now falls
 > back through `gnome-terminal`, `konsole`, `xfce4-terminal`, `mate-terminal`,
 > `lxterminal`, `xterm` when `xterm` is absent, so it is no longer dropped from

@@ -273,6 +273,63 @@ public final class Desktop2DAppRegistry {
         // Java 3D.
         panels.put("org.jdesktop.lg3d.apps.backup.Backup",
                 "org.jdesktop.lg3d.apps.backup.BackupPanel");
+        // The Audio Player (lg3d-apps, org.jdesktop.lg3d.apps.audioplayer) plays
+        // music, internet radio and podcasts: a Swing library/transport UI over
+        // an AWT-free seam that plays the JDK-native formats (WAV/AU/AIFF) in
+        // process and hands MP3, other codecs and every network stream to a real
+        // external player (mpv/mpg123/ffplay/vlc). In the 3D desktop its
+        // AudioPlayer wrapper hosts the panel on a SwingNode inside a Frame3D via
+        // TitledSwingWindow; here the very same panel opens as an MDI internal
+        // frame, so the player is fully usable without 3D. The lg3d-apps jar
+        // (with jackson/slf4j) is on the desktop run classpath, so the reflective
+        // lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.audioplayer.AudioPlayer",
+                "org.jdesktop.lg3d.apps.audioplayer.AudioPlayerPanel");
+        // The Video Player (lg3d-apps, org.jdesktop.lg3d.apps.videoplayer) is a
+        // VLC-style front-end: a Swing library/launcher UI over an AWT-free seam
+        // that hands every file, stream or disc to a real external player
+        // (vlc/mpv/mplayer/totem/ffplay), since the JDK has no video decoder. In
+        // the 3D desktop its VideoPlayer wrapper hosts the panel on a SwingNode
+        // inside a Frame3D via TitledSwingWindow; here the very same panel opens
+        // as an MDI internal frame, so the player is fully usable without 3D.
+        // The lg3d-apps jar (with jackson/slf4j) is on the desktop run classpath,
+        // so the reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.videoplayer.VideoPlayer",
+                "org.jdesktop.lg3d.apps.videoplayer.VideoPlayerPanel");
+        // The Image Editor (lg3d-apps, org.jdesktop.lg3d.apps.imageeditor) is a
+        // GIMP-style layer/tool/filter workspace built entirely on plain Java 2D
+        // (no codec, no Java 3D): a Swing canvas + layers panel + filter/undo bar
+        // over an AWT-free EditorDocument / ToolEngine / FilterEngine / UndoStack.
+        // In the 3D desktop its ImageEditor wrapper hosts the panel on a SwingNode
+        // inside a Frame3D via TitledSwingWindow; here the very same panel opens as
+        // an MDI internal frame, so the editor is fully usable without 3D. The
+        // lg3d-apps jar is on the desktop run classpath, so the reflective lookup
+        // resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.imageeditor.ImageEditor",
+                "org.jdesktop.lg3d.apps.imageeditor.ImageEditorPanel");
+        // The Photo Viewer (lg3d-apps, org.jdesktop.lg3d.apps.photoviewer) is a
+        // tagged gallery built entirely on plain Java 2D / ImageIO (no codec, no
+        // Java 3D): a Swing thumbnail grid + preview + tag/rating editor over an
+        // AWT-free PhotoLibrary / PhotoItem model persisted as JSON. In the 3D
+        // desktop its PhotoViewer wrapper hosts the panel on a SwingNode inside a
+        // Frame3D via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the viewer is fully usable without 3D. The lg3d-apps
+        // jar (with jackson/slf4j) is on the desktop run classpath, so the
+        // reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.photoviewer.PhotoViewer",
+                "org.jdesktop.lg3d.apps.photoviewer.PhotoViewerPanel");
+        // The Recorder (lg3d-apps, org.jdesktop.lg3d.apps.recorder) records the
+        // microphone natively to WAV via javax.sound.sampled and hands screen
+        // capture to an external ffmpeg/avconv (the JDK has no screen encoder):
+        // a Swing tabbed UI over an AWT-free RecorderBackend / RecordingSettings /
+        // Recording model persisted as JSON. In the 3D desktop its Recorder
+        // wrapper hosts the panel on a SwingNode inside a Frame3D via
+        // TitledSwingWindow; here the very same panel opens as an MDI internal
+        // frame, so the recorder is fully usable without 3D. The lg3d-apps jar
+        // (with jackson/slf4j) is on the desktop run classpath, so the reflective
+        // lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.recorder.Recorder",
+                "org.jdesktop.lg3d.apps.recorder.RecorderPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

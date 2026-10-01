@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: the audio/video recorder (from lg3d-apps). Launched
+      in-JVM via the "java <class>" command; lives in the Media menu group. The
+      panel records the microphone natively to WAV and hands screen capture to an
+      external ffmpeg. The same RecorderPanel serves the 2D/Swing desktop as an
+      MDI internal frame via Desktop2DAppRegistry.PANEL_APPS. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.recorder.Recorder</string>
+  </void>
+  <void property="desc">
+   <string>Record audio and capture the screen</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/recorder.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Media</string>
+  </void>
+  <void property="name">
+   <string>Recorder</string>
+  </void>
+ </object>
+</java>

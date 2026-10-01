@@ -63,6 +63,16 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.messenger.Messenger"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.backup.Backup"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.audioplayer.AudioPlayer"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.videoplayer.VideoPlayer"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.imageeditor.ImageEditor"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.photoviewer.PhotoViewer"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.recorder.Recorder"));
     }
 
     @Test
@@ -312,6 +322,83 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.backup.BackupPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.backup.Backup"));
+    }
+
+    @Test
+    @DisplayName("the Audio Player maps to its Swing panel")
+    void audioPlayerIsHostedPanel() {
+        // The Audio Player (lg3d-apps) is a plain Swing library/transport UI
+        // over an AWT-free seam that plays the JDK-native formats in process and
+        // hands MP3, other codecs and every stream to a real external player. In
+        // the 3D desktop its AudioPlayer wrapper hosts the panel on a SwingNode,
+        // and here the very same panel opens as an MDI internal frame keyed on
+        // the 3D main class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.audioplayer.AudioPlayer"));
+        assertEquals("org.jdesktop.lg3d.apps.audioplayer.AudioPlayerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.audioplayer.AudioPlayer"));
+    }
+
+    @Test
+    @DisplayName("the Video Player maps to its Swing panel")
+    void videoPlayerIsHostedPanel() {
+        // The Video Player (lg3d-apps) is a plain Swing VLC-style front-end over
+        // an AWT-free seam that hands every file, stream or disc to a real
+        // external player. In the 3D desktop its VideoPlayer wrapper hosts the
+        // panel on a SwingNode, and here the very same panel opens as an MDI
+        // internal frame keyed on the 3D main class so the one shared descriptor
+        // serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.videoplayer.VideoPlayer"));
+        assertEquals("org.jdesktop.lg3d.apps.videoplayer.VideoPlayerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.videoplayer.VideoPlayer"));
+    }
+
+    @Test
+    @DisplayName("the Image Editor maps to its Swing panel")
+    void imageEditorIsHostedPanel() {
+        // The Image Editor (lg3d-apps) is a plain Swing GIMP-style layer/tool/
+        // filter workspace over an AWT-free Java 2D model. In the 3D desktop its
+        // ImageEditor wrapper hosts the panel on a SwingNode, and here the very
+        // same panel opens as an MDI internal frame keyed on the 3D main class so
+        // the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.imageeditor.ImageEditor"));
+        assertEquals("org.jdesktop.lg3d.apps.imageeditor.ImageEditorPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.imageeditor.ImageEditor"));
+    }
+
+    @Test
+    @DisplayName("the Photo Viewer maps to its Swing panel")
+    void photoViewerIsHostedPanel() {
+        // The Photo Viewer (lg3d-apps) is a plain Swing tagged gallery over an
+        // AWT-free PhotoLibrary / PhotoItem model decoded with ImageIO. In the 3D
+        // desktop its PhotoViewer wrapper hosts the panel on a SwingNode, and
+        // here the very same panel opens as an MDI internal frame keyed on the 3D
+        // main class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.photoviewer.PhotoViewer"));
+        assertEquals("org.jdesktop.lg3d.apps.photoviewer.PhotoViewerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.photoviewer.PhotoViewer"));
+    }
+
+    @Test
+    @DisplayName("the Recorder maps to its Swing panel")
+    void recorderIsHostedPanel() {
+        // The Recorder (lg3d-apps) records the microphone natively to WAV and
+        // hands screen capture to an external ffmpeg, over an AWT-free model. In
+        // the 3D desktop its Recorder wrapper hosts the panel on a SwingNode, and
+        // here the very same panel opens as an MDI internal frame keyed on the 3D
+        // main class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.recorder.Recorder"));
+        assertEquals("org.jdesktop.lg3d.apps.recorder.RecorderPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.recorder.Recorder"));
     }
 
     // ------------------------------------------------------------------
