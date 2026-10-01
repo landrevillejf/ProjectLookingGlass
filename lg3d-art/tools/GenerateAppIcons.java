@@ -85,6 +85,21 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector backup mark (down arrow into an archive tray) instead of a bundled glyph. */
     private static final String BACKUP_GLYPH = "BackupArchive";
 
+    /** Glyph name that draws a built-in vector beamed music note instead of a bundled glyph. */
+    private static final String AUDIO_GLYPH = "AudioNote";
+
+    /** Glyph name that draws a built-in vector play button on a screen instead of a bundled glyph. */
+    private static final String PLAY_GLYPH = "PlayScreen";
+
+    /** Glyph name that draws a built-in vector stack of image layers instead of a bundled glyph. */
+    private static final String LAYERS_GLYPH = "ImageLayers";
+
+    /** Glyph name that draws a built-in vector landscape photo (sun over hills) instead of a bundled glyph. */
+    private static final String PHOTO_GLYPH = "PhotoLandscape";
+
+    /** Glyph name that draws a built-in vector microphone instead of a bundled glyph. */
+    private static final String MIC_GLYPH = "Microphone";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -147,6 +162,17 @@ public class GenerateAppIcons {
         // brush, package box, database cylinder, transfer pair, weather,
         // document, video and chat marks.
         {"backup.png", IconColor.BLUE_GRAY,        IconCategory.GENERAL, BACKUP_GLYPH},
+        // Multimedia suite (Swing panels hosted on a SwingNode / 2D MDI frame).
+        // Audio Player: a beamed music note, drawn in-tool like the marks above.
+        {"audioplayer.png", IconColor.PURPLE,      IconCategory.GENERAL, AUDIO_GLYPH},
+        // Video Player: a play button on a screen, drawn in-tool.
+        {"videoplayer.png", IconColor.DEEP_ORANGE, IconCategory.GENERAL, PLAY_GLYPH},
+        // Image Editor: a stack of image layers, drawn in-tool.
+        {"imageeditor.png", IconColor.TEAL,        IconCategory.GENERAL, LAYERS_GLYPH},
+        // Photo Viewer: a landscape photo (sun over hills), drawn in-tool.
+        {"photoviewer.png", IconColor.CYAN,        IconCategory.GENERAL, PHOTO_GLYPH},
+        // Recorder: a microphone, drawn in-tool.
+        {"recorder.png", IconColor.RED,            IconCategory.GENERAL, MIC_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -183,6 +209,16 @@ public class GenerateAppIcons {
                 glyph = drawChatGlyph(GLYPH);
             } else if (BACKUP_GLYPH.equals(glyphName)) {
                 glyph = drawBackupGlyph(GLYPH);
+            } else if (AUDIO_GLYPH.equals(glyphName)) {
+                glyph = drawAudioGlyph(GLYPH);
+            } else if (PLAY_GLYPH.equals(glyphName)) {
+                glyph = drawPlayGlyph(GLYPH);
+            } else if (LAYERS_GLYPH.equals(glyphName)) {
+                glyph = drawLayersGlyph(GLYPH);
+            } else if (PHOTO_GLYPH.equals(glyphName)) {
+                glyph = drawPhotoGlyph(GLYPH);
+            } else if (MIC_GLYPH.equals(glyphName)) {
+                glyph = drawMicGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -540,6 +576,144 @@ public class GenerateAppIcons {
         g.fillRoundRect(3, 22, 26, 8, 3, 3);
         g.setComposite(AlphaComposite.Clear);
         g.fillRect(6, 22, 20, 5);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the audio glyph: a beamed pair of music notes (two stems joined by a
+     * slanted beam over two oval note heads), the conventional "music" mark. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing note shaped, so it
+     * is drawn in-tool like the keypad, disc, brush, package box, database
+     * cylinder, transfer pair, weather, document, video, chat and backup marks.
+     * Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawAudioGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Two stems rising from the note heads.
+        g.fillRect(11, 6, 2, 17);
+        g.fillRect(24, 4, 2, 17);
+        // The slanted beam joining the stem tops.
+        GeneralPath beam = new GeneralPath();
+        beam.moveTo(11, 6);
+        beam.lineTo(26, 4);
+        beam.lineTo(26, 8);
+        beam.lineTo(11, 10);
+        beam.closePath();
+        g.fill(beam);
+        // Two oval note heads.
+        g.fillOval(5, 19, 8, 6);
+        g.fillOval(18, 17, 8, 6);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the video-player glyph: a white screen with a triangular play button
+     * punched out of its centre so the tile colour shows through. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing play shaped, so it is
+     * drawn in-tool like the marks above. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawPlayGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 6, 26, 20, 4, 4);
+        // Punch the play triangle out of the screen.
+        g.setComposite(AlphaComposite.Clear);
+        GeneralPath play = new GeneralPath();
+        play.moveTo(13, 11);
+        play.lineTo(13, 21);
+        play.lineTo(22, 16);
+        play.closePath();
+        g.fill(play);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the image-editor glyph: two overlapping rounded sheets, one behind and
+     * offset for depth, the conventional "layers" mark of a raster editor. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing layer shaped, so
+     * it is drawn in-tool like the marks above. Designed in a 32x32 space and
+     * scaled to {@code size}.
+     */
+    private static Icon drawLayersGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Back sheet, slightly darker and offset up-right for depth.
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fillRoundRect(9, 4, 19, 14, 3, 3);
+        // Front sheet.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(4, 12, 19, 14, 3, 3);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the photo glyph: a white picture frame enclosing a sun over a range of
+     * hills, the conventional "image / photo" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing landscape shaped, so it is
+     * drawn in-tool like the marks above. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawPhotoGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Frame, then punch out the inner window so only the border stays solid.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 6, 26, 20, 3, 3);
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(6, 9, 20, 14);
+        g.setComposite(AlphaComposite.SrcOver);
+        // Sun in the upper left of the window.
+        g.fillOval(9, 11, 5, 5);
+        // Hills across the bottom of the window.
+        GeneralPath hill = new GeneralPath();
+        hill.moveTo(6, 23);
+        hill.lineTo(14, 14);
+        hill.lineTo(20, 20);
+        hill.lineTo(24, 16);
+        hill.lineTo(26, 23);
+        hill.closePath();
+        g.fill(hill);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the recorder glyph: a microphone capsule over a cradle arc, a stem and
+     * a base, the conventional "record audio" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing microphone shaped, so it is
+     * drawn in-tool like the marks above. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawMicGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Capsule.
+        g.fillRoundRect(12, 3, 8, 16, 4, 4);
+        // Cradle arc beneath the capsule.
+        g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawArc(8, 11, 16, 14, 180, 180);
+        // Stem and base.
+        g.fillRect(15, 24, 2, 4);
+        g.fillRoundRect(10, 27, 12, 3, 2, 2);
         g.dispose();
         return new ImageIcon(image);
     }
