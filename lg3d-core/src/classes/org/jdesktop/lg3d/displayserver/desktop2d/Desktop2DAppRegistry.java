@@ -369,6 +369,18 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.passwordmanager.PasswordManager",
                 "org.jdesktop.lg3d.apps.passwordmanager.PasswordManagerPanel");
+        // The Git GUI (lg3d-apps, org.jdesktop.lg3d.apps.gitgui) is a GitKraken /
+        // GitHub Desktop-style client: a Swing changes/staging/commit/branches/
+        // history/diff UI over an AWT-free GitRepository seam that honestly
+        // shells out to the system git (no bundled JGit). In the 3D desktop its
+        // GitGui wrapper hosts the panel on a SwingNode inside a Frame3D via
+        // TitledSwingWindow; here the very same panel opens as an MDI internal
+        // frame, so the client is fully usable without 3D. The lg3d-apps jar is
+        // on the desktop run classpath (git itself is an external executable, so
+        // no extra jar is needed), so the reflective lookup resolves and the
+        // panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.gitgui.GitGui",
+                "org.jdesktop.lg3d.apps.gitgui.GitGuiPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

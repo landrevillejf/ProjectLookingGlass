@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Git GUI (lg3d-apps, org.jdesktop.lg3d.apps.gitgui).
+ A GitKraken / GitHub Desktop style client: a Changes list with Stage and
+ Unstage, a commit message box, a Branches list with Checkout and New Branch, a
+ commit History list and a diff viewer. The one panel serves both desktops: in
+ 3D the GitGui wrapper hosts it on a SwingNode inside a Frame3D via
+ TitledSwingWindow; in the 2D/Swing desktop Desktop2DAppRegistry.PANEL_APPS opens
+ the same panel as an MDI internal frame. It shells out to the system git
+ executable (no bundled JGit), so the lg3d-apps jar alone on the :lg3d-core:run
+ classpath is enough. Launched in-JVM via the "java <class>" command. Discovery
+ only scans config/demo and config/incubator, so this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo). The "Developers" menuGroup is
+ declared in lg3d-core/src/etc/lg3d/startmenu.lgcfg. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.gitgui.GitGui</string>
+  </void>
+  <void property="desc">
+   <string>Graphical Git client: commit, branch, diff and sync</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/gitgui.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>Git GUI</string>
+  </void>
+ </object>
+</java>
