@@ -82,6 +82,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector chat-bubble pair instead of a bundled glyph. */
     private static final String CHAT_GLYPH = "ChatBubbles";
 
+    /** Glyph name that draws a built-in vector backup mark (down arrow into an archive tray) instead of a bundled glyph. */
+    private static final String BACKUP_GLYPH = "BackupArchive";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -138,6 +141,12 @@ public class GenerateAppIcons {
         // so one is drawn in-tool like the keypad, disc, brush, package box,
         // database cylinder, transfer pair, weather, document and video marks.
         {"messenger.png", IconColor.INDIGO,        IconCategory.GENERAL, CHAT_GLYPH},
+        // Backup (Swing backup/restore tool hosted on a SwingNode / 2D MDI
+        // frame); the bundled glyph set has no archive/save mark, so a
+        // down-arrow-into-a-tray glyph is drawn in-tool like the keypad, disc,
+        // brush, package box, database cylinder, transfer pair, weather,
+        // document, video and chat marks.
+        {"backup.png", IconColor.BLUE_GRAY,        IconCategory.GENERAL, BACKUP_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -172,6 +181,8 @@ public class GenerateAppIcons {
                 glyph = drawVideoGlyph(GLYPH);
             } else if (CHAT_GLYPH.equals(glyphName)) {
                 glyph = drawChatGlyph(GLYPH);
+            } else if (BACKUP_GLYPH.equals(glyphName)) {
+                glyph = drawBackupGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -498,6 +509,37 @@ public class GenerateAppIcons {
         g.fillOval(7, 15, 2, 2);
         g.fillOval(11, 15, 2, 2);
         g.fillOval(15, 15, 2, 2);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the backup glyph: a downward arrow descending into an open archive
+     * tray, the conventional "save/back up into an archive" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing archive shaped, so it is
+     * drawn in-tool like the keypad, disc, brush, package box, database
+     * cylinder, transfer pair, weather, document, video and chat marks. Designed
+     * in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawBackupGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Down arrow: a vertical shaft capped by a triangular head.
+        g.fillRect(14, 3, 4, 11);
+        GeneralPath head = new GeneralPath();
+        head.moveTo(9, 13);
+        head.lineTo(23, 13);
+        head.lineTo(16, 20);
+        head.closePath();
+        g.fill(head);
+        // Open archive tray the arrow descends into: a rounded box with the top
+        // punched out so it reads as a container, not a solid block.
+        g.fillRoundRect(3, 22, 26, 8, 3, 3);
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(6, 22, 20, 5);
         g.dispose();
         return new ImageIcon(image);
     }
