@@ -14,21 +14,22 @@
 package org.jdesktop.lg3d.apps.ssh;
 
 import org.jdesktop.lg3d.apps.TitledSwingWindow;
-import org.jdesktop.lg3d.apps.firewall.FirewallPanel;
 import org.jdesktop.lg3d.wg.Frame3D;
 
 /**
- * The firewall application: the {@link FirewallPanel} Swing UI presented
- * as an integrated 3D desktop window (title bar plus minimize / maximize /
- * close) via {@link TitledSwingWindow}.
+ * The SSH client application: the {@link SshPanel} Swing UI presented as an
+ * integrated 3D desktop window (title bar plus minimize / maximize / close)
+ * via {@link TitledSwingWindow}.
  *
- * <p>The panel provides firewall status monitoring and rule management for
- * Linux firewalld/iptables systems.</p>
+ * <p>The panel provides a full-featured SSH terminal client with tabbed
+ * multi-session support, ANSI/VT100 terminal emulation, SSH key authentication,
+ * trust-on-first-use host key verification, connection profiles, keepalive,
+ * port forwarding, and modern cipher negotiation.</p>
  */
 public class Ssh {
 
-    private static final int PANEL_W = 700;
-    private static final int PANEL_H = 500;
+    private static final int PANEL_W = 900;
+    private static final int PANEL_H = 600;
 
     public static void main(String[] args) {
         new Ssh();
@@ -38,7 +39,7 @@ public class Ssh {
         TitledSwingWindow.installHostedLookAndFeel();
         final SshPanel panel = new SshPanel();
         final Frame3D frame =
-                TitledSwingWindow.show("Ssh Client", panel, PANEL_W, PANEL_H);
+                TitledSwingWindow.show("SSH Client", panel, PANEL_W, PANEL_H);
         panel.setOnClose(() -> frame.changeEnabled(false));
     }
 }

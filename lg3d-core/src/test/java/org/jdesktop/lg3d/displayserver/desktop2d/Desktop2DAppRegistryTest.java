@@ -41,7 +41,7 @@ class Desktop2DAppRegistryTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the five panel apps are hosted inside the desktop")
+    @DisplayName("the six panel apps are hosted inside the desktop")
     void panelAppsAreClassifiedAsPanel() {
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.filemanager.FileManager"));

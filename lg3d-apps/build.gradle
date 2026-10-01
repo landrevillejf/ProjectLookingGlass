@@ -150,6 +150,11 @@ dependencies {
     // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
     implementation project(':ftp-client')
     implementation 'com.github.mwiede:jsch:0.2.24'
+    // Jackson + SLF4J for the SSH Client's profile persistence and logging.
+    // These are NOT transitive from :ftp-client (which uses `implementation`),
+    // so they must be declared here for compile-time access.
+    implementation libs.jackson.databind
+    implementation libs.slf4j.api
 
     // Headless JUnit 5 for the HelpSet / content-integrity test.
     testImplementation platform(libs.junit.bom)
