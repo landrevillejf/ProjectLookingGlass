@@ -261,6 +261,18 @@ public final class Desktop2DAppRegistry {
         // Java 3D.
         panels.put("org.jdesktop.lg3d.apps.messenger.Messenger",
                 "org.jdesktop.lg3d.apps.messenger.MessengerPanel");
+        // The Backup tool (lg3d-apps, org.jdesktop.lg3d.apps.backup) archives
+        // selected folders/files to standard ZIP backups and restores them: a
+        // Swing profiles/sources/destination UI over an AWT-free BackupEngine
+        // (Zip-Slip-hardened restore, atomic archive writes, glob excludes). In
+        // the 3D desktop its Backup wrapper hosts the panel on a SwingNode
+        // inside a Frame3D via TitledSwingWindow; here the very same panel opens
+        // as an MDI internal frame, so backup/restore is fully usable without
+        // 3D. The lg3d-apps jar (with jackson/slf4j) is on the desktop run
+        // classpath, so the reflective lookup resolves and the panel loads no
+        // Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.backup.Backup",
+                "org.jdesktop.lg3d.apps.backup.BackupPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

@@ -61,6 +61,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.messenger.Messenger"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.backup.Backup"));
     }
 
     @Test
@@ -294,6 +296,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.messenger.MessengerPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.messenger.Messenger"));
+    }
+
+    @Test
+    @DisplayName("the Backup tool maps to its Swing panel")
+    void backupIsHostedPanel() {
+        // The Backup tool (lg3d-apps) is a plain Swing backup/restore UI over an
+        // AWT-free ZIP engine (profiles, glob excludes, Zip-Slip-hardened
+        // restore). In the 3D desktop its Backup wrapper hosts the panel on a
+        // SwingNode, and here the very same panel opens as an MDI internal
+        // frame keyed on the 3D main class so the one shared descriptor serves
+        // both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.backup.Backup"));
+        assertEquals("org.jdesktop.lg3d.apps.backup.BackupPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.backup.Backup"));
     }
 
     // ------------------------------------------------------------------
