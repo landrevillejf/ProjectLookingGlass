@@ -17,8 +17,11 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.awt.Dimension;
 import javax.swing.Icon;
 import javax.swing.JComponent;
-import javax.swing.JInternalFrame;
 import javax.swing.JDesktopPane;
+import javax.swing.JInternalFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 
 /**
  * One application window of the 2D desktop: an MDI internal frame hosting a
@@ -49,6 +52,12 @@ public class Desktop2DWindow extends JInternalFrame {
     private final String iconResource;
 
     /**
+     * The application description from its start-menu descriptor, shown in the
+     * window's About box; may be null when the descriptor supplies none.
+     */
+    private final String description;
+
+    /**
      * @param title    the window title (the application's name)
      * @param icon     the application icon, or null for none
      * @param content  the application's Swing panel
@@ -56,7 +65,7 @@ public class Desktop2DWindow extends JInternalFrame {
      */
     public Desktop2DWindow(String title, Icon icon, JComponent content,
                            String appName) {
-        this(title, icon, content, appName, null, null);
+        this(title, icon, content, appName, null, null, null);
     }
 
     /**
@@ -70,13 +79,32 @@ public class Desktop2DWindow extends JInternalFrame {
      */
     public Desktop2DWindow(String title, Icon icon, JComponent content,
                            String appName, String command, String iconResource) {
+        this(title, icon, content, appName, command, iconResource, null);
+    }
+
+    /**
+     * @param title        the window title (the application's name)
+     * @param icon         the application icon, or null for none
+     * @param content      the application's Swing panel
+     * @param appName      the application name used by the taskbar button
+     * @param command      the descriptor command to relaunch this app from, or
+     *                     null if it cannot be relaunched (not session-saved)
+     * @param iconResource the classpath icon location, or null for none
+     * @param description  the application description shown in its About box,
+     *                     or null when the descriptor supplies none
+     */
+    public Desktop2DWindow(String title, Icon icon, JComponent content,
+                           String appName, String command, String iconResource,
+                           String description) {
         super(title, true, true, true, true);
         this.appName = appName;
         this.command = command;
         this.iconResource = iconResource;
+        this.description = description;
         setFrameIcon(icon);
         getContentPane().add(content);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setJMenuBar(buildMenuBar(title));
     }
 
     /** The application name (taskbar button label). */
@@ -92,6 +120,30 @@ public class Desktop2DWindow extends JInternalFrame {
     /** The classpath icon location this window was built with, or null. */
     public String getIconResource() {
         return iconResource;
+    }
+
+    /** The application description shown in the About box, or null. */
+    public String getDescription() {
+        return description;
+    }
+
+    /**
+     * Builds the window's menu bar: a single <em>Help</em> menu whose
+     * <em>About&nbsp;&lt;App&gt;</em> item opens the reusable
+     * {@link AboutDialog}. Every 2D panel application gets the same About box
+     * through this one hook, reading the title and description its shared
+     * start-menu descriptor already supplies.
+     */
+    private JMenuBar buildMenuBar(String title) {
+        JMenu help = new JMenu("Help");
+        JMenuItem about =
+                new JMenuItem("About " + AboutDialog.displayTitle(title));
+        about.addActionListener(e ->
+                AboutDialog.show(this, getTitle(), description, getFrameIcon()));
+        help.add(about);
+        JMenuBar bar = new JMenuBar();
+        bar.add(help);
+        return bar;
     }
 
     /**
