@@ -237,6 +237,18 @@ public final class Desktop2DAppRegistry {
 
         panels.put("org.jdesktop.lg3d.apps.ssh.SshSwingClient",
                 "org.jdesktop.lg3d.apps.ssh.SshPanel");
+        // The Video Conference app (lg3d-apps,
+        // org.jdesktop.lg3d.apps.videoconference) is a Jitsi Meet conference
+        // client: a Swing lobby/address-book/launcher that builds the meeting
+        // deep link and hands the real WebRTC audio/video session to the system
+        // browser (or an external meeting command). In the 3D desktop its
+        // VideoConference wrapper hosts the panel on a SwingNode inside a
+        // Frame3D via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the client is fully usable without 3D. The lg3d-apps
+        // jar (with jackson/slf4j) is on the desktop run classpath, so the
+        // reflective lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.videoconference.VideoConference",
+                "org.jdesktop.lg3d.apps.videoconference.VideoConferencePanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
