@@ -77,6 +77,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.vpn.Vpn"));
     }
 
     @Test
@@ -435,6 +437,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.passwordmanager.PasswordManagerPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
+    }
+
+    @Test
+    @DisplayName("the VPN client maps to its Swing panel")
+    void vpnIsHostedPanel() {
+        // The VPN client (lg3d-apps) is a tunnel front-end that delegates the
+        // connection to an installed tool (nmcli / openvpn / wg-quick) over an
+        // AWT-free seam. In the 3D desktop its Vpn wrapper hosts the panel on a
+        // SwingNode, and here the very same panel opens as an MDI internal frame
+        // keyed on the 3D main class so the one shared descriptor serves both
+        // desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.vpn.Vpn"));
+        assertEquals("org.jdesktop.lg3d.apps.vpn.VpnPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.vpn.Vpn"));
     }
 
     // ------------------------------------------------------------------

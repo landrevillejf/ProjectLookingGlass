@@ -343,6 +343,19 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.securitycenter.SecurityCenter",
                 "org.jdesktop.lg3d.apps.securitycenter.SecurityCenterPanel");
+        // The VPN client (lg3d-apps, org.jdesktop.lg3d.apps.vpn) is a tunnel
+        // front-end: a Swing profile dock over an AWT-free VpnBackend seam. The
+        // desktop ships no tunnel stack, so the connection is delegated honestly
+        // to an installed tool (nmcli preferred, else openvpn / wg-quick for an
+        // imported config); a missing tool or a connect needing privilege the
+        // session lacks surfaces as guidance, never a fake "connected". In the 3D
+        // desktop its Vpn wrapper hosts the panel on a SwingNode inside a Frame3D
+        // via TitledSwingWindow; here the very same panel opens as an MDI internal
+        // frame, so the app is fully usable without 3D. The lg3d-apps jar (with
+        // jackson/slf4j) is on the desktop run classpath, so the reflective lookup
+        // resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.vpn.Vpn",
+                "org.jdesktop.lg3d.apps.vpn.VpnPanel");
         // The Password Manager (lg3d-apps, org.jdesktop.lg3d.apps.passwordmanager)
         // is a credential vault: a Swing lock screen over an AWT-free VaultCrypto
         // seam (PBKDF2 + AES-GCM). The desktop ships no keyring, so the vault is
