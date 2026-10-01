@@ -363,6 +363,27 @@ work to make it build and run on a current toolchain.
 ### Changed
 ### Removed
 ### Fixed
+- **Desktop widget layout now survives removal across a restart** (`lg3d-widgets`,
+  `org.jdesktop.lg3d.widgets.api.WidgetConfigStore` plus the 2D
+  `swing.SwingWidgetLayer` and 3D `host.WidgetHost` loaders) — removing every
+  desktop widget (the starter clock and temperature, or any the user added) no
+  longer resurrects them on the next launch. Previously both hosts' `loadPersisted`
+  seeded the default widgets whenever the persisted instance list was empty, with
+  no way to tell a genuinely fresh desktop (never configured, so the starters
+  should appear) from one the user had deliberately emptied — so an emptied layout
+  came back as clock + temperature at their **default** positions on restart,
+  discarding both the removal and any positions the user had dragged them to.
+  `WidgetConfigStore` gains a persisted `initialized` flag (`isInitialized()` /
+  `markInitialized()`, written on the first load and surviving widget removal
+  because it is not namespaced under an instance id); the defaults are now seeded
+  only when that flag is absent, and once the layout is initialized an empty
+  instance list is honoured as "the user removed everything". A layout written
+  before the flag existed — or by the other desktop, since both share
+  `~/.config/lg3d/widgets.properties` — is adopted and marked initialized so it is
+  never reseeded. Drag-to-reposition and single-widget removal already persisted
+  correctly and are unchanged. Covered by headless JUnit 5 regression tests in
+  `SwingWidgetLayerTest` (an emptied layout stays empty, removing every widget
+  survives a restart, and the first load persists the initialized flag).
 
 ## [1.28.0] — 2026-09-30 — Gradle / JDK 21 modernization
 

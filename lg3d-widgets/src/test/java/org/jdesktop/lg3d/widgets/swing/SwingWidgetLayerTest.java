@@ -182,6 +182,73 @@ class SwingWidgetLayerTest {
     }
 
     @Test
+    @DisplayName("loadPersisted leaves an intentionally emptied layout empty")
+    void loadPersistedKeepsAnEmptiedLayoutEmpty() {
+        // A layout that was initialized once and then had every widget removed
+        // must NOT resurrect the starter defaults on the next load. This is the
+        // "I removed them but they came back after a restart" regression.
+        WidgetConfigStore seed = new WidgetConfigStore(tmp.resolve("emptied.properties"));
+        seed.markInitialized();
+        seed.setInstances(List.of());
+        seed.save();
+
+        JDesktopPane d = desktop();
+        SwingWidgetLayer l = newLayer(d, "emptied.properties");
+        l.loadPersisted();
+
+        assertTrue(l.instanceIds().isEmpty(),
+                "an emptied layout stays empty instead of reseeding clock + temperature");
+        assertEquals(0, d.getComponentCount());
+    }
+
+    @Test
+    @DisplayName("removing every widget survives a restart")
+    void removeAllWidgetsSurvivesRestart() {
+        JDesktopPane d = desktop();
+        // First launch: a fresh config seeds the two starter widgets.
+        SwingWidgetLayer first = new SwingWidgetLayer(
+                d, new WidgetConfigStore(tmp.resolve("restart.properties")));
+        first.loadPersisted();
+        assertEquals(2, first.instanceIds().size());
+
+        // The user removes them all.
+        for (String id : first.instanceIds()) {
+            first.removeWidget(id);
+        }
+        assertTrue(first.instanceIds().isEmpty());
+        first.dispose();
+
+        // Restart: a new layer over the same file must stay empty.
+        SwingWidgetLayer second = new SwingWidgetLayer(
+                d, new WidgetConfigStore(tmp.resolve("restart.properties")));
+        second.loadPersisted();
+        assertTrue(second.instanceIds().isEmpty(),
+                "removed widgets must not come back after a restart");
+        second.dispose();
+    }
+
+    @Test
+    @DisplayName("the first load marks the layout initialized and persists the flag")
+    void loadPersistedMarksLayoutInitialized() {
+        JDesktopPane d = desktop();
+        SwingWidgetLayer l = new SwingWidgetLayer(
+                d, new WidgetConfigStore(tmp.resolve("init.properties")));
+        assertFalse(l.config().isInitialized(), "a fresh config starts uninitialized");
+
+        l.loadPersisted();
+
+        assertTrue(l.config().isInitialized(), "loading marks the layout initialized");
+        assertEquals(2, l.instanceIds().size());
+
+        // The flag is on disk, so a reload adopts the saved layout rather than
+        // seeding a second copy of the defaults.
+        WidgetConfigStore reopened = new WidgetConfigStore(tmp.resolve("init.properties"));
+        assertTrue(reopened.isInitialized(), "the initialized flag persists to disk");
+        assertEquals(2, reopened.instances().size());
+        l.dispose();
+    }
+
+    @Test
     @DisplayName("relayout keeps every card inside the pane")
     void relayoutKeepsCardsInsideDesktop() {
         JDesktopPane d = desktop();

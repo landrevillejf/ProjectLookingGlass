@@ -52,6 +52,14 @@ public final class WidgetConfigStore {
     /** The key holding the comma-separated list of instance ids. */
     public static final String KEY_INSTANCES = "instances";
 
+    /**
+     * The key recording that the layout has been initialized at least once.
+     * Distinguishes a brand-new desktop (never configured, so the starter
+     * widgets should be seeded) from one the user has deliberately emptied
+     * (so nothing should come back on the next launch).
+     */
+    public static final String KEY_INITIALIZED = "initialized";
+
     private final Path file;
     private final Properties props = new Properties();
 
@@ -231,6 +239,24 @@ public final class WidgetConfigStore {
         setInstances(list);
         String prefix = instanceId + ".";
         props.keySet().removeIf(k -> ((String) k).startsWith(prefix));
+    }
+
+    /**
+     * True once the layout has been initialized: the starter widgets were seeded
+     * on the very first run, or an existing layout was adopted. An empty
+     * instance list on an initialized store means the user removed every widget,
+     * which must survive a restart rather than reseeding the defaults.
+     */
+    public boolean isInitialized() {
+        return getBoolean(KEY_INITIALIZED, false);
+    }
+
+    /**
+     * Records that the layout has been initialized; persisted on the next
+     * {@link #save()}.
+     */
+    public void markInitialized() {
+        setBoolean(KEY_INITIALIZED, true);
     }
 
     /** The underlying file (for diagnostics). */
