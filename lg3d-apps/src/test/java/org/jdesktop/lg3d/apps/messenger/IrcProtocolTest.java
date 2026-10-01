@@ -124,6 +124,9 @@ class IrcProtocolTest {
         protocol = connectAndAwaitRegistered();
         assertTrue(protocol.isConnected());
 
+        // The mock replies to USER with only the 001 welcome (see handle()), so
+        // the client has no unread inbound data here and disconnect() closes with
+        // a graceful FIN, not a RST that could swallow the QUIT before it is read.
         protocol.disconnect();
 
         assertFalse(protocol.isConnected());
@@ -435,8 +438,13 @@ class IrcProtocolTest {
                 if (nickInUse) {
                     sendRaw(":mock.server 433 * " + lastNick + " :Nickname is already in use.");
                 } else {
+                    // Only the 001 welcome is sent (no trailing 376 end-of-MOTD):
+                    // a test that disconnects right after onConnected would
+                    // otherwise close the socket while the 376 line is still unread
+                    // in the client's receive buffer, and close()-with-unread-data
+                    // emits a TCP RST that can swallow the QUIT the server asserts
+                    // on. With no unread inbound data the close is a graceful FIN.
                     sendRaw(":mock.server 001 " + lastNick + " :Welcome to the Mock IRC network");
-                    sendRaw(":mock.server 376 " + lastNick + " :End of /MOTD command.");
                 }
             }
         }
