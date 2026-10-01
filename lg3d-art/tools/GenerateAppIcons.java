@@ -70,13 +70,14 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector transfer (up/down arrow) pair instead of a bundled glyph. */
     private static final String TRANSFER_GLYPH = "TransferArrows";
 
-<<<<<<< HEAD
     /** Glyph name that draws a built-in vector sun-behind-cloud instead of a bundled glyph. */
     private static final String WEATHER_GLYPH = "WeatherSunCloud";
-=======
+
     /** Glyph name that draws a built-in vector document page instead of a bundled glyph. */
     private static final String DOCUMENT_GLYPH = "DocumentPage";
->>>>>>> origin/main
+
+    /** Glyph name that draws a built-in vector video camera instead of a bundled glyph. */
+    private static final String VIDEO_GLYPH = "VideoCamera";
 
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
@@ -124,6 +125,11 @@ public class GenerateAppIcons {
         // bundled glyph set has no document page, so it is drawn in-tool like
         // the keypad, disc, brush, package box, database cylinder and transfer.
         {"pdf-viewer.png",  IconColor.RED,         IconCategory.TEXT,    DOCUMENT_GLYPH},
+        // Video Conference (Swing Jitsi Meet client hosted on a SwingNode / 2D
+        // MDI frame); the bundled glyph set has no video camera, so one is drawn
+        // in-tool like the keypad, disc, brush, package box, database cylinder,
+        // transfer pair, weather and document marks.
+        {"videoconference.png", IconColor.GREEN,   IconCategory.GENERAL, VIDEO_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -154,6 +160,8 @@ public class GenerateAppIcons {
                 glyph = drawWeatherGlyph(GLYPH);
             } else if (DOCUMENT_GLYPH.equals(glyphName)) {
                 glyph = drawDocumentGlyph(GLYPH);
+            } else if (VIDEO_GLYPH.equals(glyphName)) {
+                glyph = drawVideoGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -409,6 +417,36 @@ public class GenerateAppIcons {
         g.fillRect(10, 13, 13, 2);
         g.fillRect(10, 18, 13, 2);
         g.fillRect(10, 23, 9, 2);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the video camera glyph: a rounded camera body with a lens hood
+     * triangle on the right and a small record dot. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing camera shaped, so it is
+     * drawn in-tool like the keypad, disc, brush, package box, database
+     * cylinder, transfer pair, weather and document marks. Designed in a 32x32
+     * space and scaled to {@code size}.
+     */
+    private static Icon drawVideoGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Camera body.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 9, 18, 14, 4, 4);
+        // Lens hood triangle on the right.
+        GeneralPath lens = new GeneralPath();
+        lens.moveTo(22, 16);
+        lens.lineTo(29, 11);
+        lens.lineTo(29, 21);
+        lens.closePath();
+        g.fill(lens);
+        // A record dot on the body, punched out so the tile colour shows through.
+        g.setComposite(AlphaComposite.Clear);
+        g.fillOval(7, 13, 4, 4);
         g.dispose();
         return new ImageIcon(image);
     }

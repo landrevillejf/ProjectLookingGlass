@@ -41,7 +41,7 @@ class Desktop2DAppRegistryTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the six panel apps are hosted inside the desktop")
+    @DisplayName("the seven panel apps are hosted inside the desktop")
     void panelAppsAreClassifiedAsPanel() {
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.filemanager.FileManager"));
@@ -57,6 +57,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.firewall.Firewall"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.ssh.SshSwingClient"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
     }
 
     @Test
@@ -259,6 +261,21 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.pdfviewer.PdfViewerPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.pdfviewer.PdfViewer"));
+    }
+
+    @Test
+    @DisplayName("the Video Conference app maps to its Swing panel")
+    void videoConferenceIsHostedPanel() {
+        // The Video Conference app (lg3d-apps) is a Jitsi Meet client: a plain
+        // Swing lobby/launcher that hands the WebRTC session to the browser. In
+        // the 3D desktop its VideoConference wrapper hosts the panel on a
+        // SwingNode, and here the very same panel opens as an MDI internal frame
+        // keyed on the 3D main class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
+        assertEquals("org.jdesktop.lg3d.apps.videoconference.VideoConferencePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.videoconference.VideoConference"));
     }
 
     // ------------------------------------------------------------------

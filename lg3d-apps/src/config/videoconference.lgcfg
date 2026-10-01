@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: the video conference client (from lg3d-apps). Launched
+      in-JVM via the "java <class>" command; lives in the Internet menu group. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.videoconference.VideoConference</string>
+  </void>
+  <void property="desc">
+   <string>Video Conference (Jitsi Meet)</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/videoconference.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Internet</string>
+  </void>
+  <void property="name">
+   <string>Video Conference</string>
+  </void>
+ </object>
+</java>
