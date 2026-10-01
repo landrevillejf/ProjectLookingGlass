@@ -108,6 +108,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector padlock instead of a bundled glyph. */
     private static final String PADLOCK_GLYPH = "VaultPadlock";
 
+    /** Glyph name that draws a built-in vector git branch (trunk with a fork) instead of a bundled glyph. */
+    private static final String GIT_BRANCH_GLYPH = "GitBranch";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -193,6 +196,11 @@ public class GenerateAppIcons {
         // bundled glyph set has no padlock, so a locked padlock is drawn in-tool
         // like the shield and the marks above.
         {"passwordmanager.png", IconColor.INDIGO, IconCategory.GENERAL, PADLOCK_GLYPH},
+        // Git GUI (Swing GitKraken / GitHub Desktop-style client hosted on a
+        // SwingNode / 2D MDI frame); the bundled glyph set has nothing branch
+        // shaped, so a git branch (trunk with a fork) is drawn in-tool like the
+        // padlock and the marks above.
+        {"gitgui.png", IconColor.ORANGE, IconCategory.DEVELOPMENT, GIT_BRANCH_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -245,6 +253,8 @@ public class GenerateAppIcons {
                 glyph = drawGlobeLockGlyph(GLYPH);
             } else if (PADLOCK_GLYPH.equals(glyphName)) {
                 glyph = drawPadlockGlyph(GLYPH);
+            } else if (GIT_BRANCH_GLYPH.equals(glyphName)) {
+                glyph = drawGitBranchGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -834,6 +844,36 @@ public class GenerateAppIcons {
         g.fillRoundRect(17, 20, 13, 10, 2, 2);   // body
         g.setComposite(AlphaComposite.Clear);
         g.fillOval(23, 24, 2, 3);                // keyhole
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the git-branch glyph: a vertical trunk with a node at each end and a
+     * third node forking off to the right, joined by a sweeping curve - the
+     * conventional "branch / version control" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing branch shaped, so it is
+     * drawn in-tool like the padlock and globe above. Designed in a 32x32 space
+     * and scaled to {@code size}.
+     */
+    private static Icon drawGitBranchGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        // Trunk between the two mainline nodes.
+        g.drawLine(9, 8, 9, 25);
+        // Fork: a curve sweeping from the trunk up to the branch node.
+        GeneralPath fork = new GeneralPath();
+        fork.moveTo(9, 19);
+        fork.curveTo(16, 19, 15, 12, 22, 12);
+        g.draw(fork);
+        // Nodes: two on the trunk, one at the branch tip.
+        g.fillOval(6, 5, 7, 7);     // top trunk node
+        g.fillOval(6, 22, 7, 7);    // bottom trunk node
+        g.fillOval(19, 8, 7, 7);    // branch node
         g.dispose();
         return new ImageIcon(image);
     }

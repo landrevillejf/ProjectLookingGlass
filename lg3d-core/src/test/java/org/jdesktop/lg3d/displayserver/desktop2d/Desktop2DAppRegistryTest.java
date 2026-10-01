@@ -79,6 +79,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.vpn.Vpn"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
     }
 
     @Test
@@ -453,6 +455,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.vpn.VpnPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.vpn.Vpn"));
+    }
+
+    @Test
+    @DisplayName("the Git GUI maps to its Swing client panel")
+    void gitGuiIsHostedPanel() {
+        // The Git GUI (lg3d-apps) is a GitKraken / GitHub Desktop-style client:
+        // a plain Swing changes/staging/commit/branches/history/diff UI over an
+        // AWT-free GitRepository seam that shells out to the system git. In the
+        // 3D desktop its GitGui wrapper hosts the panel on a SwingNode, and here
+        // the very same panel opens as an MDI internal frame keyed on the 3D main
+        // class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
+        assertEquals("org.jdesktop.lg3d.apps.gitgui.GitGuiPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
     }
 
     // ------------------------------------------------------------------
