@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.36.0 —
+## [Unreleased] — 1.37.0 —
 
 ### Added
 - **Git GUI client for the 2D/Swing and 3D desktops** (`lg3d-apps`,
