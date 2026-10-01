@@ -10,6 +10,32 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.31.0 —
 
 ### Added
+- **Per-application About box for every 2D/Swing desktop window** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — a single reusable
+  `AboutDialog` helper gives every panel application the 2D desktop hosts a
+  consistent About box with no per-application code. Each `Desktop2DWindow` now
+  builds a window menu bar carrying **Help → About&nbsp;&lt;App&gt;**, which opens
+  a modal dialog showing the application icon, title and description read
+  straight from the shared `.lgcfg` start-menu descriptor
+  (`Desktop2DMenuConfig.ItemSpec`) — the same source that already feeds the menu
+  label and window title — followed by a fixed author credit
+  (**Jean-Francois Landreville**), the resolved build version and a
+  *Part of Project Looking Glass* footer. `Desktop2D.openPanelApp` passes the
+  descriptor's description into the window, and session restore resolves it back
+  by command (`descriptionForCommand`) since the persisted `WindowRecord` stores
+  only name/command/icon. The version is never hardcoded: it is resolved from the
+  `lg.version` system property, falling back to the jar manifest and then
+  `unknown`, so a version bump cannot miss it. All content logic lives in pure,
+  headless-testable statics (`displayTitle`/`displayDescription`/
+  `resolveVersion`/`creditLines`/`buildContent`); only `show` builds the modal
+  dialog. Because the hook sits in the shared window, it reaches **all** PANEL
+  (MDI) apps at once; SWING_FRAME apps (own top-level `JFrame`) and EXTERNAL apps
+  are not covered by this central change. This is the per-application About box,
+  distinct from the desktop-wide product About window
+  (`org.jdesktop.lg3d.apps.about`). Covered by 17 headless JUnit 5 tests
+  (`AboutDialogTest` — normalisation, the version fallback chain, credit lines
+  and content assembly — and `Desktop2DWindowTest` — the metadata accessors and
+  the Help → About menu bar on every constructor).
 - **Firewall GUI for the 2D/Swing and 3D desktops** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.firewall`; registration in `lg3d-apps`) — a production
   firewall management application providing a Swing panel with status display,

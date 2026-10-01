@@ -158,7 +158,11 @@ match. Entries are handled by kind:
   (**Chess**, **Solitaire**, **Sudoku**, **Tic-Tac-Toe**) and the **Periodic
   Table** (the same Swing panels the 3D desktop hosts on a `SwingNode`, minus
   the 3D) — open as internal frames inside the desktop window under both `-2`
-  and `-w` / `--swing` (Metal look and feel under `-w`).
+  and `-w` / `--swing` (Metal look and feel under `-w`). Every such window
+  carries a **Help → About <App>** menu item opening a reusable About box
+  (`desktop2d.AboutDialog`) that shows the icon, title and description read from
+  the app's own `.lgcfg` descriptor, plus a fixed author credit and the build
+  version.
 - **Desktop widgets** run natively in 2D: the `lg3d-widgets` cards (clock,
   temperature, CPU, memory, weather) are pure Swing and are drawn as draggable
   components on the desktop pane by a `SwingWidgetLayer`, sharing the 3D host's

@@ -1122,7 +1122,8 @@ public class Desktop2D {
             Icon icon = AppIcons.iconFor(
                     appName, item.getIconResource(), Desktop2DStartMenu.ICON_SIZE);
             Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
-                    appName, item.getCommand(), item.getIconResource());
+                    appName, item.getCommand(), item.getIconResource(),
+                    item.getDesc());
             track(window);
             desktop.add(window);
             // A new window opens on the workspace currently shown.
@@ -1272,7 +1273,8 @@ public class Desktop2D {
             for (int i = records.size() - 1; i >= 0; i--) {
                 WindowRecord record = records.get(i);
                 ItemSpec item = new ItemSpec(record.appName(), record.command(),
-                        null, null, record.iconResource());
+                        descriptionForCommand(record.command()), null,
+                        record.iconResource());
                 Desktop2DWindow window = openPanelApp(item, null, true);
                 if (window != null) {
                     applyRecordedState(window, record);
@@ -1309,6 +1311,24 @@ public class Desktop2D {
             logger.log(Level.FINE,
                     "Could not restore the state of " + record.appName(), pve);
         }
+    }
+
+    /**
+     * Resolves the start-menu description for {@code command} so a window
+     * relaunched from a saved session keeps the About-box text it had when the
+     * user first opened it (the persisted {@link WindowRecord} stores only the
+     * name, command and icon). Returns null when no descriptor matches.
+     */
+    private String descriptionForCommand(String command) {
+        if (command == null) {
+            return null;
+        }
+        for (ItemSpec spec : menuModel.getItems()) {
+            if (command.equals(spec.getCommand())) {
+                return spec.getDesc();
+            }
+        }
+        return null;
     }
 
     /** Opens a file with the user's preferred application (xdg-open). */
