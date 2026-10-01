@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: the VPN client (from lg3d-apps). Launched in-JVM via the
+ "java <class>" command; lives in the Internet menu group beside the SSH and FTP
+ clients. The same VpnPanel serves the 2D/Swing desktop as an MDI internal frame
+ via Desktop2DAppRegistry.PANEL_APPS. The desktop ships no tunnel stack, so the
+ connection is delegated to an installed tool: nmcli, openvpn or wg-quick. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.vpn.Vpn</string>
+  </void>
+  <void property="desc">
+   <string>Connect to a private network through NetworkManager, OpenVPN or WireGuard</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/vpn.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Internet</string>
+  </void>
+  <void property="name">
+   <string>VPN</string>
+  </void>
+ </object>
+</java>

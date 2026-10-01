@@ -103,6 +103,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector security shield instead of a bundled glyph. */
     private static final String SHIELD_GLYPH = "SecurityShield";
 
+    /** Glyph name that draws a built-in vector globe with a padlock badge instead of a bundled glyph. */
+    private static final String GLOBE_LOCK_GLYPH = "GlobeLock";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -180,6 +183,10 @@ public class GenerateAppIcons {
         // 2D MDI frame); the bundled glyph set has no shield, so a checked shield
         // is drawn in-tool like the microphone and the marks above.
         {"securitycenter.png", IconColor.GREEN,   IconCategory.GENERAL, SHIELD_GLYPH},
+        // VPN client (Swing tunnel front-end hosted on a SwingNode / 2D MDI
+        // frame); the bundled glyph set has no globe, so a wireframe globe with a
+        // padlock badge is drawn in-tool like the shield and padlock above.
+        {"vpn.png", IconColor.BLUE,            IconCategory.GENERAL, GLOBE_LOCK_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -228,6 +235,8 @@ public class GenerateAppIcons {
                 glyph = drawMicGlyph(GLYPH);
             } else if (SHIELD_GLYPH.equals(glyphName)) {
                 glyph = drawShieldGlyph(GLYPH);
+            } else if (GLOBE_LOCK_GLYPH.equals(glyphName)) {
+                glyph = drawGlobeLockGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -755,6 +764,42 @@ public class GenerateAppIcons {
         g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g.drawLine(10, 16, 14, 21);
         g.drawLine(14, 21, 23, 11);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the globe-with-lock glyph: a wireframe globe (meridian, equator, an
+     * inner meridian ellipse and two parallels punched out of a disc) with an
+     * opaque padlock badge at its lower right, the conventional "private /
+     * secured network" mark. The bundled {@code toolbarButtonGraphics} set
+     * carries nothing globe shaped, so it is drawn in-tool like the shield and
+     * padlock above. Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawGlobeLockGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Globe disc, up-left, leaving room for the lock badge at the lower right.
+        g.setColor(Color.WHITE);
+        g.fillOval(2, 2, 22, 22);
+        // Punch a wireframe out of the disc so it reads as a sphere, not a dot.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.2f));
+        g.drawLine(13, 2, 13, 24);      // central meridian
+        g.drawLine(2, 13, 24, 13);      // equator
+        g.drawOval(7, 2, 12, 22);       // inner meridian ellipse
+        g.drawLine(3, 8, 23, 8);        // upper parallel
+        g.drawLine(3, 18, 23, 18);      // lower parallel
+        // Padlock badge, lower right, opaque over the tile.
+        g.setComposite(AlphaComposite.SrcOver);
+        g.setColor(Color.WHITE);
+        g.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawArc(20, 15, 8, 10, 0, 180);        // shackle
+        g.fillRoundRect(17, 20, 13, 10, 2, 2);   // body
+        g.setComposite(AlphaComposite.Clear);
+        g.fillOval(23, 24, 2, 3);                // keyhole
         g.dispose();
         return new ImageIcon(image);
     }
