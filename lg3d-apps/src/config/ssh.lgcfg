@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <java version="1.5.0" class="java.beans.XMLDecoder">
- <!-- Start Menu item: the firewall manager (from lg3d-apps). Launched in-JVM
- via the "java <class>" command; lives in the System menu group. -->
+ <!-- Start Menu item: the SSH terminal client (from lg3d-apps). Launched in-JVM
+      via the "java <class>" command; lives in the Internet menu group. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
    <string>java org.jdesktop.lg3d.apps.ssh.SshSwingClient</string>
   </void>
   <void property="desc">
-   <string>SSH Client</string>
+   <string>SSH Terminal Client</string>
   </void>
   <void property="displayResourceType">
    <string>ICON</string>
   </void>
   <void property="displayResourceUrlName">
-   <string>resource:///org/jdesktop/lg3d/apps/firewall/resources/images/icon/firewall.png</string>
+   <string>resource:///resources/images/icon/lpm-console.png</string>
   </void>
   <void property="menuGroup">
    <string>Internet</string>
