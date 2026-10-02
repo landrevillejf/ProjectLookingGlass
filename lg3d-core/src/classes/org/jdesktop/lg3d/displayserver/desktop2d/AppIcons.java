@@ -17,6 +17,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.awt.Color;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
@@ -82,6 +83,19 @@ final class AppIcons {
         {"write", IconCategory.TEXT, "Normal"},
     };
 
+    /**
+     * Descriptor icon resources that are genuine per-application artwork and
+     * must be shown verbatim in the 2D desktop so the entry matches the 3D
+     * desktop exactly, instead of being replaced by a name-derived IconManager
+     * glyph or initials tile. The Application Launcher's rocket is the canonical
+     * case: it is real artwork whose name matches no semantic family, so the
+     * generated "AL" tile would not match the 3D start menu's rocket. Matched
+     * against the classpath icon resource with the {@code resource:///} scheme
+     * already stripped (see {@code Desktop2DMenuConfig.stripResourceScheme}).
+     */
+    private static final Set<String> DESCRIPTOR_ICON_PREFERRED = Set.of(
+            "resources/images/icon/launcher.png");
+
     /** Stable tile palette; the index is a hash of the application name. */
     private static final Color[] PALETTE = {
         new Color(0x2E, 0x86, 0xC1), new Color(0xC0, 0x39, 0x2B),
@@ -119,7 +133,17 @@ final class AppIcons {
                 return cached;
             }
         }
-        Icon icon = build(name, size);
+        Icon icon = null;
+        if (prefersDescriptorIcon(iconResource)) {
+            // Genuine per-app artwork (e.g. the Application Launcher rocket):
+            // load the descriptor PNG first so the 2D icon matches the 3D
+            // desktop. If it cannot be resolved (off the classpath) fall
+            // through to the name-derived icon below.
+            icon = Desktop2DStartMenu.icon(iconResource);
+        }
+        if (icon == null) {
+            icon = build(name, size);
+        }
         if (icon == null) {
             // IconManager missing or unable to render: fall back to the legacy
             // descriptor PNG so the desktop never shows a blank entry.
@@ -131,6 +155,16 @@ final class AppIcons {
             }
         }
         return icon;
+    }
+
+    /**
+     * True when {@code iconResource} is genuine per-app artwork the 2D desktop
+     * must show verbatim (matching the 3D desktop) rather than replace with a
+     * name-derived glyph or initials tile.
+     */
+    static boolean prefersDescriptorIcon(String iconResource) {
+        return iconResource != null
+                && DESCRIPTOR_ICON_PREFERRED.contains(iconResource.trim());
     }
 
     /** Semantic glyph first, then a generated initials tile; null on failure. */

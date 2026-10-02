@@ -15,9 +15,11 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import javax.swing.Icon;
 import org.junit.jupiter.api.DisplayName;
@@ -87,5 +89,36 @@ class AppIconsTest {
     void blankNameStillResolves() {
         assertNotNull(AppIcons.iconFor("   ", null, 16));
         assertNotNull(AppIcons.iconFor(null, null, 16));
+    }
+
+    @Test
+    @DisplayName("the Application Launcher rocket is preferred descriptor artwork")
+    void launcherDescriptorIconIsPreferred() {
+        // The 3D start menu shows the launcher's rocket PNG; the 2D desktop must
+        // show the same artwork rather than a name-derived "AL" initials tile.
+        assertTrue(AppIcons.prefersDescriptorIcon("resources/images/icon/launcher.png"));
+        assertTrue(AppIcons.prefersDescriptorIcon("  resources/images/icon/launcher.png  "),
+                "the resource path is trimmed before matching");
+    }
+
+    @Test
+    @DisplayName("only genuine per-app artwork is preferred; everything else is name-derived")
+    void otherDescriptorIconsAreNotPreferred() {
+        assertFalse(AppIcons.prefersDescriptorIcon("resources/images/icon/gitgui.png"));
+        assertFalse(AppIcons.prefersDescriptorIcon("resources/images/icon/defaultapp.png"));
+        assertFalse(AppIcons.prefersDescriptorIcon(null));
+        assertFalse(AppIcons.prefersDescriptorIcon("   "));
+    }
+
+    @Test
+    @DisplayName("the launcher still resolves to a real icon when its PNG is off the classpath")
+    void preferredIconDegradesToTileWhenPngMissing() {
+        // On the test classpath the runtime-resources "resources/" tree is not
+        // assembled, so the preferred PNG cannot be resolved; iconFor must then
+        // fall through to a name-derived icon rather than return null.
+        Icon icon = AppIcons.iconFor(
+                "Application Launcher", "resources/images/icon/launcher.png", 16);
+        assertNotNull(icon, "a missing preferred PNG degrades, never blanks the entry");
+        assertEquals(16, icon.getIconWidth());
     }
 }

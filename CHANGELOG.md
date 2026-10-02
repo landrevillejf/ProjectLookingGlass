@@ -393,6 +393,24 @@ work to make it build and run on a current toolchain.
 ### Changed
 ### Removed
 ### Fixed
+- **The Application Launcher now shows its rocket icon in the 2D/Swing desktop**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d.AppIcons`) — the 2D
+  start menu, window frame and taskbar button showed a generated "AL" initials
+  tile while the 3D desktop showed the launcher's real rocket artwork
+  (`resources/images/icon/launcher.png` from `launcher.lgcfg`). The 2D desktop
+  resolves every app icon through `AppIcons.iconFor`, which derives an
+  IconManager glyph from the application *name* (or, failing a family match, an
+  initials tile) and only used the descriptor PNG as a fallback when IconManager
+  was absent — so at runtime, with IconManager present, the launcher's genuine
+  artwork was never reached and "Application Launcher" (which matches no semantic
+  family) fell through to the "AL" tile. `AppIcons` gains a small opt-in set of
+  descriptor icon resources that are genuine per-application artwork
+  (`DESCRIPTOR_ICON_PREFERRED`, currently the launcher rocket) and now loads that
+  PNG first — via the same cached `Desktop2DStartMenu.icon` loader the fallback
+  already used — so the 2D icon matches the 3D desktop exactly across the menu,
+  frame and taskbar; if the artwork cannot be resolved it still degrades to the
+  name-derived icon, never a blank entry. Every other app is unchanged (still
+  name-derived). Covered by headless JUnit 5 tests in `AppIconsTest`.
 - **Desktop widget layout now survives removal across a restart** (`lg3d-widgets`,
   `org.jdesktop.lg3d.widgets.api.WidgetConfigStore` plus the 2D
   `swing.SwingWidgetLayer` and 3D `host.WidgetHost` loaders) — removing every
