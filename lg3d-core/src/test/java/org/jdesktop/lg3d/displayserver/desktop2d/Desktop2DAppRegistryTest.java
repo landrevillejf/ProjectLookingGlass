@@ -492,6 +492,21 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
     }
 
+    @Test
+    @DisplayName("the Docker Manager maps to its ported plugin panel")
+    void dockerManagerIsHostedPanel() {
+        // The Docker Manager (lg3d-apps) is a verbatim port of the Swing IDE
+        // docker plugin's DockerManagementPanel (terminal / containers / files /
+        // images over the system docker CLI). The same panel serves both desktops:
+        // here as an MDI internal frame, in 3D on a SwingNode via its DockerManager
+        // wrapper. Only the panel is registered, keyed on the descriptor's class.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.dockermanager.DockerManager"));
+        assertEquals("org.jdesktop.lg3d.apps.dockermanager.DockerManagementPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.dockermanager.DockerManager"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------
