@@ -14,71 +14,73 @@
 package org.jdesktop.lg3d.scenemanager.utils.switcher;
 
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.SwingNode;
+import org.jdesktop.lg3d.wg.Frame3D;
 
 /**
- * The window switcher as a scene-graph node: the pure-Swing
- * {@link WindowSwitcherPanel} hosted on a {@link SwingNode}, so the painted card
- * becomes a texture on a quad that {@link WindowSwitcherPlugin} mounts on the
- * front-most {@code DesktopHudLayer}.
+ * The window switcher as a scene-graph node: the {@code CDViewer}-style
+ * {@link WindowCarousel3D} that {@link WindowSwitcherPlugin} mounts on the
+ * front-most {@code DesktopHudLayer}. This wrapper exists so the plugin keeps a
+ * single node to place, show, hide and dispose, while the carousel itself owns
+ * the per-window cards and the pointer gestures.
  *
- * <p>The switcher is purely informational while it is up (the commit is a
- * keystroke-idle timer, not a click), so it takes no mouse events: propagation
- * is left on and the quad is non-pickable, letting a click fall through to the
- * window behind it exactly like the transient toast cards.</p>
- *
- * <p>The hosted texture is a fixed size for the life of the node (the panel's
- * preferred size never changes), which keeps the {@code SwingNode} capture
- * constant while the session rows come and go.</p>
+ * <p>Unlike the transient toast cards, the carousel <em>is</em> pickable while
+ * shown: the user can spin it with the mouse wheel and click a window's card to
+ * commit it, so it forwards those gestures to the plugin via the listener
+ * setters below.</p>
  */
 public class WindowSwitcher3D extends Component3D {
 
-    private final WindowSwitcherPanel panel;
-    private final SwingNode swingNode;
+    private final WindowCarousel3D carousel;
 
     public WindowSwitcher3D() {
         setName("WindowSwitcher3D");
-        this.panel = new WindowSwitcherPanel();
-        this.swingNode = new SwingNode();
-        swingNode.setJPanel(panel);
-        swingNode.setTransparency(0.05f);
-        addChild(swingNode);
-
-        setPickable(false);
-        setMouseEventPropagatable(true);
+        this.carousel = new WindowCarousel3D();
+        addChild(carousel);
         setVisible(false);
     }
 
-    /** The hosted paint surface, exposed for the plugin's refresh calls. */
-    public WindowSwitcherPanel panel() {
-        return panel;
+    /** The hosted carousel, exposed for the plugin's gesture wiring. */
+    public WindowCarousel3D carousel() {
+        return carousel;
     }
 
-    /** Shows the card over {@code names} with {@code selected} highlighted. */
-    public void show(List<String> names, int selected) {
-        panel.setSession(names, selected);
+    /** Shows the carousel over {@code frames} with {@code selected} at the front. */
+    public void show(List<Frame3D> frames, int selected) {
+        carousel.show(frames, selected);
         setVisible(true);
     }
 
-    /** Hides the card. */
+    /** Hides the carousel. */
     public void hide() {
-        panel.clear();
+        carousel.hide();
         setVisible(false);
     }
 
-    /** The card's width in world units (0 until the SwingNode has captured). */
-    public float switcherWidth() {
-        return swingNode.getLocalWidth();
+    /** Sets the miniature source the carousel cards use. */
+    public void setThumbnailSource(WindowThumbnailSource source) {
+        carousel.setThumbnailSource(source);
     }
 
-    /** The card's height in world units (0 until the SwingNode has captured). */
-    public float switcherHeight() {
-        return swingNode.getLocalHeight();
+    /** Wheel gesture: signed click count to spin the carousel. */
+    public void setRevolveListener(IntConsumer listener) {
+        carousel.setRevolveListener(listener);
     }
 
-    /** Frees the offscreen Swing resources. */
+    /** Click gesture: the window whose card was clicked. */
+    public void setSelectListener(Consumer<Frame3D> listener) {
+        carousel.setSelectListener(listener);
+    }
+
+    /** Pointer enter/exit: whether the carousel is being pointed at. */
+    public void setFocusListener(Consumer<Boolean> listener) {
+        carousel.setFocusListener(listener);
+    }
+
+    /** Frees the carousel's cards and thumbnail listeners. */
     public void dispose() {
-        swingNode.dispose();
+        carousel.dispose();
     }
 }
