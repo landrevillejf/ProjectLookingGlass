@@ -22,13 +22,19 @@
 package org.jdesktop.lg3d.apps.cdviewer;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
+import org.jogamp.vecmath.Color4f;
 import org.jogamp.vecmath.Vector3f;
 import org.jogamp.java3d.utils.shader.StringIO;
 
+import org.jdesktop.lg3d.apps.audioplayer.AlbumIndex;
+import org.jdesktop.lg3d.apps.audioplayer.AudioPlayerStore;
+import org.jdesktop.lg3d.apps.audioplayer.MediaItem;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.GLSLShaderProgram;
 import org.jdesktop.lg3d.sg.Shader;
@@ -45,6 +51,7 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
 import org.jdesktop.lg3d.utils.shape.Disc;
+import org.jdesktop.lg3d.utils.shape.GlassyText2D;
 import org.jdesktop.lg3d.utils.shape.RingShadow;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.SimpleShaderAppearance;
@@ -59,9 +66,12 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 
 /**
- * A CD Viewer 3D application demo code.
- * This simple example 3D application exercises variety of the API
- * features.
+ * A CD Viewer 3D application that doubles as the audio player's album browser.
+ * When the shared music library ({@code ~/.lg3d/audioplayer}) has albums, the
+ * carousel shows one disc per album textured with its cover art (the front disc
+ * drives the thumbnail and carries an album caption); when the library is empty
+ * it falls back to the original bundled CD1-4.png demo strip. This simple
+ * example 3D application exercises variety of the API features.
  * Frame3D is the base class for all the 3D application.  You can
  * instantiate and add children to it, or you can extend it.
  * In this example, we'll extend the class. 
@@ -126,11 +136,15 @@ public class CDViewer extends Frame3D {
         // Sets a layoutmanager for the mainContainer.
         mainContainer.setLayout(new CDLayout());
         
-        // Adds CDs to the mainContainer.
+        // Adds CDs to the mainContainer: one disc per album in the audio
+        // player's music library when it is non-empty (the album cover becomes
+        // the disc texture and the front-disc thumbnail), otherwise the bundled
+        // CD1-4.png demo strip. buildDiscSpecs() decides which set to show.
+        List<DiscSpec> specs = buildDiscSpecs();
         Texture initThumbnailTex = null;
-        for (int i = 0; i < numDiscs; i++) {
-            CD cd;
-            cd = new CD(this.getClass().getClassLoader().getResource(imageDir + "CD" + (i % numImages + 1) + ".png"));
+        for (int i = 0; i < specs.size(); i++) {
+            DiscSpec spec = specs.get(i);
+            CD cd = new CD(spec.url, spec.title);
             if (i == 0) {
                 initThumbnailTex = cd.app.getTexture();
             }
@@ -185,6 +199,79 @@ public class CDViewer extends Frame3D {
     }
     
     /**
+     * Resolves the disc set to show. When the audio player's music library has
+     * albums, one disc per album is built (album cover as the texture, album
+     * label as the front-disc caption); an album with no readable cover falls
+     * back to the bundled demo art. When the library is empty the original
+     * {@code numDiscs} CD1-4.png demo strip is returned, so the viewer always
+     * has something to spin.
+     */
+    private List<DiscSpec> buildDiscSpecs() {
+        List<AlbumIndex.Album> albums = libraryAlbums();
+        List<DiscSpec> specs = new ArrayList<>();
+        if (!albums.isEmpty()) {
+            for (int i = 0; i < albums.size(); i++) {
+                AlbumIndex.Album album = albums.get(i);
+                specs.add(new DiscSpec(coverUrl(album, i), album.label()));
+            }
+            return specs;
+        }
+        for (int i = 0; i < numDiscs; i++) {
+            specs.add(new DiscSpec(bundledImage(i), null));
+        }
+        return specs;
+    }
+    
+    /**
+     * Reads the shared music library and groups it into albums. Any failure
+     * (missing config, unreadable JSON) degrades to an empty list so the demo
+     * strip is shown rather than the viewer failing to open.
+     */
+    private static List<AlbumIndex.Album> libraryAlbums() {
+        try {
+            List<MediaItem> library = new AudioPlayerStore().loadLibrary();
+            return AlbumIndex.albums(library);
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+    
+    /**
+     * The texture URL for an album: its cached cover file when present and
+     * readable, else the bundled demo image for that slot.
+     */
+    private URL coverUrl(AlbumIndex.Album album, int index) {
+        if (album.hasCover()) {
+            File cover = new File(album.coverPath);
+            if (cover.isFile()) {
+                try {
+                    return cover.toURI().toURL();
+                } catch (MalformedURLException | IllegalArgumentException e) {
+                    // fall through to the bundled art
+                }
+            }
+        }
+        return bundledImage(index);
+    }
+    
+    /** One of the bundled CD1-4.png demo textures, cycled by index. */
+    private URL bundledImage(int index) {
+        return this.getClass().getClassLoader()
+            .getResource(imageDir + "CD" + (index % numImages + 1) + ".png");
+    }
+    
+    /** A resolved disc: its texture URL and optional album caption. */
+    private static final class DiscSpec {
+        final URL url;
+        final String title;
+        
+        DiscSpec(URL url, String title) {
+            this.url = url;
+            this.title = title;
+        }
+    }
+    
+    /**
      * Rearrange the order of CD objects in the mainContainer so that
      * the given CD comes to the front.  See the comments in the
      * CDLayout class.
@@ -211,8 +298,9 @@ public class CDViewer extends Frame3D {
     private class CD extends Container3D {
         private Component3D inner;
         private Appearance app;
+        private Component3D label;
         
-        private CD(URL textureFile) {
+        private CD(URL textureFile, String title) {
             NaturalMotionAnimation nma = new NaturalMotionAnimation(500);
             nma.setTranslationSmoother(new XYPolarNaturalVector3fSmoother());
             setAnimation(nma);
@@ -265,6 +353,17 @@ public class CDViewer extends Frame3D {
             
             addChild(inner);
             
+            // When this disc represents a library album, build a caption shown
+            // only while the disc is at the front (raised). A failure to build
+            // the label is non-fatal: the carousel simply shows no caption.
+            if (title != null) {
+                label = buildLabel(title);
+                if (label != null) {
+                    label.setVisible(false);
+                    addChild(label);
+                }
+            }
+            
             // The following lines are to identify a CD the user clicked up,
             // and to bring the CD in front of the user.
             addListener(
@@ -278,6 +377,26 @@ public class CDViewer extends Frame3D {
         }
         
         /**
+         * Builds the album caption that floats just under the disc, or null if
+         * the textured label cannot be created.
+         */
+        private Component3D buildLabel(String text) {
+            try {
+                GlassyText2D text2d = new GlassyText2D(
+                    text, discSize * 4.0f, discSize * 0.4f,
+                    new Color4f(1.0f, 1.0f, 1.0f, 0.9f),
+                    GlassyText2D.LightDirection.TOP_LEFT,
+                    GlassyText2D.Alignment.CENTER);
+                Component3D node = new Component3D();
+                node.addChild(text2d);
+                node.setTranslation(0.0f, -discSize * 0.35f, discSize * 0.6f);
+                return node;
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+        
+        /**
          * Moves this CD to the upright position if the argument is true.
          */
         private void raise(boolean raised) {
@@ -286,10 +405,16 @@ public class CDViewer extends Frame3D {
                 inner.changeTranslation(0.0f, discSize * 0.8f, discSize * 0.4f);
                 inner.changeScale(1.2f);
                 thumbnail.setCurrent(app.getTexture());
+                if (label != null) {
+                    label.changeVisible(true);
+                }
             } else {
                 inner.changeRotationAngle(0.0f);
                 inner.changeTranslation(0.0f, discSize, 0.0f);
                 inner.changeScale(1.0f);
+                if (label != null) {
+                    label.changeVisible(false);
+                }
             }
         }
     }

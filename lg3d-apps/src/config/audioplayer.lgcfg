@@ -9,7 +9,7 @@
    <string>java org.jdesktop.lg3d.apps.audioplayer.AudioPlayer</string>
   </void>
   <void property="desc">
-   <string>Play music, internet radio and podcasts</string>
+   <string>Rip audio CDs, play music, radio and podcasts, browse albums by cover</string>
   </void>
   <void property="displayResourceType">
    <string>ICON</string>

@@ -37,6 +37,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
@@ -60,9 +61,9 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public class AudioPlayerPanel extends JPanel {
 
     /** Preferred width in pixels. */
-    public static final int WIDTH_PX = 780;
+    public static final int WIDTH_PX = 860;
     /** Preferred height in pixels. */
-    public static final int HEIGHT_PX = 480;
+    public static final int HEIGHT_PX = 560;
 
     private final AudioPlayerStore store;
     private final Playlist playlist;
@@ -80,6 +81,11 @@ public class AudioPlayerPanel extends JPanel {
     private final JButton playBtn = new JButton("Play");
     private final JButton stopBtn = new JButton("Stop");
     private final JButton nextBtn = new JButton(">|");
+
+    /** The album-cover carousel (the 2D counterpart of the 3D CDViewer). */
+    private final AlbumCoverFlow coverFlow = new AlbumCoverFlow();
+    /** The Rip CD tab; built in {@link #buildCenterTabs()}. */
+    private CdRipPanel ripPanel;
 
     private Runnable onClose;
     private volatile Process externalProcess;
@@ -106,7 +112,7 @@ public class AudioPlayerPanel extends JPanel {
 
         add(buildToolbar(), BorderLayout.NORTH);
         add(buildLibraryPane(), BorderLayout.WEST);
-        add(buildNowPlayingPane(), BorderLayout.CENTER);
+        add(buildCenterTabs(), BorderLayout.CENTER);
         add(buildBottomPane(), BorderLayout.SOUTH);
 
         volume.setValue(settings.getVolume());
@@ -148,6 +154,38 @@ public class AudioPlayerPanel extends JPanel {
         JLabel hint = new JLabel("<html><i>Double-click to play</i></html>");
         hint.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
         panel.add(hint, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private Component buildCenterTabs() {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Now Playing", buildNowPlayingPane());
+        tabs.addTab("Albums", buildAlbumsTab());
+        ripPanel = new CdRipPanel(store, this::onTracksRipped);
+        tabs.addTab("Rip CD", ripPanel);
+        return tabs;
+    }
+
+    private Component buildAlbumsTab() {
+        JPanel panel = new JPanel(new BorderLayout(4, 4));
+        coverFlow.setOnSelect(a -> setStatus("Selected: " + a.label()));
+        coverFlow.setOnPlay(this::playAlbum);
+        panel.add(coverFlow, BorderLayout.CENTER);
+
+        JPanel nav = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
+        JButton prev = new JButton("<");
+        prev.addActionListener(e -> coverFlow.revolve(-1));
+        JButton next = new JButton(">");
+        next.addActionListener(e -> coverFlow.revolve(1));
+        JButton play = new JButton("Play Album");
+        play.addActionListener(e -> playAlbum(coverFlow.selectedAlbum()));
+        nav.add(prev);
+        nav.add(play);
+        nav.add(next);
+        JLabel hint = new JLabel("<html><i>Wheel or arrows to browse, double-click a sleeve to play</i></html>");
+        hint.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 0));
+        nav.add(hint);
+        panel.add(nav, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -327,6 +365,40 @@ public class AudioPlayerPanel extends JPanel {
         int idx = playlist.currentIndex();
         if (idx >= 0 && idx < listModel.size()) {
             libraryList.setSelectedIndex(idx);
+        }
+        refreshAlbums();
+    }
+
+    /** Rebuilds the album carousel from the current library. */
+    private void refreshAlbums() {
+        coverFlow.setAlbums(AlbumIndex.albums(playlist.items()));
+    }
+
+    /** Adds freshly ripped tracks to the library, persists and refreshes. */
+    private void onTracksRipped(List<MediaItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        for (MediaItem item : items) {
+            playlist.add(item);
+        }
+        refreshList();
+        persist();
+    }
+
+    /** Queues and plays an album from the carousel by locating its first track. */
+    private void playAlbum(AlbumIndex.Album album) {
+        if (album == null || album.tracks.isEmpty()) {
+            return;
+        }
+        List<MediaItem> items = playlist.items();
+        int idx = items.indexOf(album.tracks.get(0));
+        if (idx >= 0) {
+            playlist.selectIndex(idx);
+            if (idx < listModel.size()) {
+                libraryList.setSelectedIndex(idx);
+            }
+            playCurrent();
         }
     }
 
