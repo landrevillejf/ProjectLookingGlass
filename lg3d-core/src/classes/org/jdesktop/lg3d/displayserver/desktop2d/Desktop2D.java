@@ -419,9 +419,18 @@ public class Desktop2D {
         if (quickLaunch.isSeeded()) {
             return;
         }
+        reseedQuickLaunch();
+    }
+
+    /**
+     * Pins the default quick-launch set and marks the model seeded. Runs
+     * regardless of the seeded flag, so the control center's "reset to defaults"
+     * can re-run it after a {@link QuickLaunchModel#clear()}. Native in-desktop
+     * apps first (the most useful permanent shortcuts), then external commands to
+     * fill any remaining slots.
+     */
+    private void reseedQuickLaunch() {
         List<ItemSpec> items = menuModel.getItems();
-        // Native in-desktop apps first (the most useful permanent shortcuts),
-        // then external commands to fill any remaining slots.
         int pinned = seedPass(items, 0, true);
         seedPass(items, pinned, false);
         quickLaunch.markSeeded();
@@ -466,6 +475,23 @@ public class Desktop2D {
             return Desktop2DAppRegistry.isExternalAvailable(command);
         }
         return true;
+    }
+
+    /**
+     * The start-menu item launched by {@code command}, or null when no menu item
+     * matches. Used by the control center's pin hook so the strip is only ever
+     * extended with real, launchable start-menu applications.
+     */
+    private ItemSpec findQuickLaunchCandidate(String command) {
+        if (command == null) {
+            return null;
+        }
+        for (ItemSpec item : menuModel.getItems()) {
+            if (command.equals(item.getCommand())) {
+                return item;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1746,6 +1772,14 @@ public class Desktop2D {
     }
 
     /**
+     * One quick-launch launcher - a pinned strip entry or an available
+     * application - as handed to the control center. {@code iconResource} may be
+     * null; {@code command} is the launch key used to pin/un-pin.
+     */
+    public record QuickLaunchItem(String name, String command, String iconResource) {
+    }
+
+    /**
      * Turns Do Not Disturb on (indefinitely) or off and persists the choice, so
      * the next start honours it. When a 2D shell is running the live state is
      * updated on the EDT (its change listener does the persisting); otherwise the
@@ -1934,6 +1968,106 @@ public class Desktop2D {
             actionToSpec.put(e.getValue(), e.getKey());
         }
         return actionToSpec;
+    }
+
+    /**
+     * The 2D desktop's pinned quick-launch entries, in taskbar order, for the
+     * control center. Empty when no 2D shell is running (3D mode or headless), so
+     * the panel degrades to an empty list rather than throwing. Safe to call from
+     * any thread.
+     */
+    public static List<QuickLaunchItem> quickLaunchPinned() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return List.of();
+        }
+        List<QuickLaunchItem> out = new ArrayList<>();
+        for (QuickLaunchEntry e : d.quickLaunch.entries()) {
+            out.add(new QuickLaunchItem(e.name(), e.command(), e.iconResource()));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /**
+     * The start-menu applications that can still be pinned to the quick-launch
+     * strip - launchable in the 2D desktop and not already pinned - for the
+     * control center's "add" list. Empty when no 2D shell is running. Safe to call
+     * from any thread.
+     */
+    public static List<QuickLaunchItem> quickLaunchCandidates() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return List.of();
+        }
+        List<QuickLaunchItem> out = new ArrayList<>();
+        for (ItemSpec item : d.menuModel.getItems()) {
+            String command = item.getCommand();
+            if (command == null || command.isBlank()
+                    || d.quickLaunch.isPinned(command)) {
+                continue;
+            }
+            if (isLaunchable(Desktop2DAppRegistry.classify(command), command)) {
+                out.add(new QuickLaunchItem(
+                        item.getName(), command, item.getIconResource()));
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /**
+     * Pins the start-menu application launched by {@code command} onto the
+     * running 2D desktop's quick-launch strip. A no-op when no shell is running,
+     * or the command is blank, is not a known start-menu item, or is already
+     * pinned. Safe from any thread; runs on the EDT.
+     */
+    public static void quickLaunchPin(final String command) {
+        final Desktop2D d = instance;
+        if (d == null || command == null || command.isBlank()) {
+            return;
+        }
+        final ItemSpec item = d.findQuickLaunchCandidate(command);
+        if (item != null) {
+            onEdt(() -> d.quickLaunch.pin(item));
+        }
+    }
+
+    /**
+     * Un-pins the quick-launch entry launched by {@code command} from the running
+     * 2D desktop's strip. A no-op when no shell is running or it is not pinned.
+     * Safe from any thread; runs on the EDT.
+     */
+    public static void quickLaunchUnpin(final String command) {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(() -> d.quickLaunch.unpin(command));
+        }
+    }
+
+    /**
+     * Moves the pinned quick-launch entry from index {@code from} to index
+     * {@code to} (each clamped into range) on the running 2D desktop's strip. A
+     * no-op when no shell is running. Safe from any thread; runs on the EDT.
+     */
+    public static void quickLaunchMove(final int from, final int to) {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(() -> d.quickLaunch.move(from, to));
+        }
+    }
+
+    /**
+     * Resets the running 2D desktop's quick-launch strip to the seeded defaults,
+     * clearing any user pins first. A no-op when no shell is running. Safe from
+     * any thread; runs on the EDT.
+     */
+    public static void quickLaunchResetDefaults() {
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(() -> {
+                d.quickLaunch.clear();
+                d.reseedQuickLaunch();
+            });
+        }
     }
 
     /** Runs {@code task} on the EDT, immediately if already there. */

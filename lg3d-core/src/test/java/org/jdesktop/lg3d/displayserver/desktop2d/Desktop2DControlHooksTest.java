@@ -107,6 +107,27 @@ class Desktop2DControlHooksTest {
     }
 
     @Test
+    @DisplayName("the quick-launch hooks report empty and no-op with no shell")
+    void quickLaunchHooks() {
+        assertTrue(Desktop2D.quickLaunchPinned().isEmpty());
+        assertTrue(Desktop2D.quickLaunchCandidates().isEmpty());
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchPin("java a.A"));
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchUnpin("java a.A"));
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchMove(0, 1));
+        assertDoesNotThrow(Desktop2D::quickLaunchResetDefaults);
+    }
+
+    @Test
+    @DisplayName("the quick-launch item record exposes its components")
+    void quickLaunchItemRecord() {
+        Desktop2D.QuickLaunchItem item =
+                new Desktop2D.QuickLaunchItem("Mail", "java mail.Mail", "mail.png");
+        assertEquals("Mail", item.name());
+        assertEquals("java mail.Mail", item.command());
+        assertEquals("mail.png", item.iconResource());
+    }
+
+    @Test
     @DisplayName("the snapshot records expose their components")
     void recordsExposeComponents() {
         Desktop2D.NotificationEntry entry = new Desktop2D.NotificationEntry(
