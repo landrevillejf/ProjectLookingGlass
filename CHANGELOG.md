@@ -579,6 +579,20 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The 2D quick-launch strip no longer shows red-X placeholders for
+  family-matched apps** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d.AppIcons`) — the taskbar's pinned
+  quick-launch strip renders its icons at 22px, but `AppIcons.semanticGlyph`
+  passed that raw edge straight to `IconManager.loadIcon`, whose bundled
+  `toolbarButtonGraphics` glyphs only ship at 16 and 24px (`loadIcon` builds
+  `<name><height>.gif`), so every application whose name matches a semantic
+  family (mail, browser, media, ...) silently resolved to IconManager's red-X
+  `MissingIcon` on the strip while the 16px start menu was unaffected.
+  `semanticGlyph` now loads a bundled edge and resizes it to the requested size
+  with `IconManager.resizeIcon`, and treats a `MissingIcon` (unknown glyph
+  name) as "no family glyph" so the entry falls back to its initials tile
+  instead of a placeholder. Covered by
+  `AppIconsTest#nonBundledSizeResizesGlyph`.
 - **The Application Launcher now shows its rocket icon in the 2D/Swing desktop**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d.AppIcons`) — the 2D
   start menu, window frame and taskbar button showed a generated "AL" initials

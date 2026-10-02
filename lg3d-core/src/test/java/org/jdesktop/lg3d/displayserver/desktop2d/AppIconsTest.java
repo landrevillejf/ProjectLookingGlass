@@ -67,6 +67,20 @@ class AppIconsTest {
     }
 
     @Test
+    @DisplayName("a non-bundled size resizes the bundled glyph, never the MissingIcon")
+    void nonBundledSizeResizesGlyph() {
+        // The quick-launch strip asks for 22px, but the bundled toolbar glyphs
+        // only ship at 16/24; a naive loadIcon(...,22,22) returns the red-X
+        // MissingIcon. iconFor must load a bundled edge and resize instead.
+        Icon icon = AppIcons.iconFor("Mail 3D", null, 22);
+        assertNotNull(icon, "a family app resolves at a non-bundled size");
+        assertEquals(22, icon.getIconWidth());
+        assertEquals(22, icon.getIconHeight());
+        assertFalse(icon instanceof com.protonmail.landrevillejf.MissingIcon,
+                "a family glyph must never degrade to the red-X MissingIcon");
+    }
+
+    @Test
     @DisplayName("an unmatched name still resolves to a generated tile")
     void generatedTileResolves() {
         Icon tile = AppIcons.iconFor("Solitaire 3D", null, 16);
