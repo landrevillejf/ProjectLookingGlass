@@ -31,6 +31,14 @@ if [ -n "${JAVA_HOME:-}" ] && jdk_is_21 "${JAVA_HOME}"; then
     : # honour a caller-provided JDK 21
 elif jdk_is_21 "${DEFAULT_JDK21}"; then
     export JAVA_HOME="${DEFAULT_JDK21}"
+elif [ -x /usr/libexec/java_home ] \
+    && MAC_JDK21="$(/usr/libexec/java_home -v 21 2>/dev/null)" \
+    && jdk_is_21 "${MAC_JDK21}"; then
+    export JAVA_HOME="${MAC_JDK21}"
+elif command -v java >/dev/null 2>&1 \
+    && PATH_JDK21="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^ *java.home = //p')" \
+    && jdk_is_21 "${PATH_JDK21}"; then
+    export JAVA_HOME="${PATH_JDK21}"
 else
     echo "ERROR: no JDK 21 found." >&2
     echo "  Set JAVA_HOME to a JDK 21 install, or install one at:" >&2
