@@ -15,6 +15,7 @@ package org.jdesktop.lg3d.apps.audioplayer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -89,5 +90,57 @@ class AudioPlayerStoreTest {
         store.saveSettings(null);
         assertTrue(store.loadLibrary().isEmpty());
         assertEquals(PlayerSettings.DEFAULT_VOLUME, store.loadSettings().getVolume());
+    }
+
+    @Test
+    @DisplayName("the rip settings round-trip through JSON, defaults when absent")
+    void ripSettingsRoundTrip(@TempDir Path dir) {
+        AudioPlayerStore store = new AudioPlayerStore(dir);
+        assertEquals(CdRipBackend.Format.MP3, store.loadRipSettings().getFormat(),
+                "a missing ripsettings.json yields defaults");
+
+        RipSettings s = new RipSettings();
+        s.setFormat(CdRipBackend.Format.WAV);
+        s.setSampleRate(48000);
+        s.setMp3Bitrate(256);
+        s.setDevice("/dev/sr0");
+        s.setOutputDir(dir.resolve("music").toString());
+        store.saveRipSettings(s);
+
+        RipSettings loaded = store.loadRipSettings();
+        assertEquals(CdRipBackend.Format.WAV, loaded.getFormat());
+        assertEquals(48000, loaded.getSampleRate());
+        assertEquals(256, loaded.getMp3Bitrate());
+        assertEquals("/dev/sr0", loaded.getDevice());
+    }
+
+    @Test
+    @DisplayName("a corrupt rip-settings file is swallowed, yielding defaults")
+    void corruptRipSettingsIsSafe(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("ripsettings.json"), "{not json");
+        AudioPlayerStore store = new AudioPlayerStore(dir);
+        assertEquals(CdRipBackend.DEFAULT_SAMPLE_RATE, store.loadRipSettings().getSampleRate());
+    }
+
+    @Test
+    @DisplayName("coverFile sanitises the MBID under the covers dir")
+    void coverFileSanitises(@TempDir Path dir) {
+        AudioPlayerStore store = new AudioPlayerStore(dir);
+        Path cover = store.coverFile("abc/def ghi");
+        assertEquals(dir.resolve("covers").resolve("abc_def_ghi.jpg"), cover);
+        assertEquals(dir.resolve("covers").resolve("unknown.jpg"), store.coverFile("  "));
+        assertEquals(dir.resolve("covers"), store.getCoversDir());
+        assertEquals(dir.resolve("music"), store.getMusicDir());
+    }
+
+    @Test
+    @DisplayName("ensureDir creates missing parents and reports null dir safely")
+    void ensureDir(@TempDir Path dir) {
+        AudioPlayerStore store = new AudioPlayerStore(dir);
+        Path nested = dir.resolve("a/b/c");
+        assertEquals(nested, store.ensureDir(nested));
+        assertTrue(Files.isDirectory(nested));
+        assertNull(store.ensureDir(null));
     }
 }

@@ -10,6 +10,38 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.43.0 —
 
 ### Added
+- **Audio CD ripping + album-cover music library** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.audioplayer` and `...cdviewer`) — the Audio Player can
+  now **rip an audio CD to MP3 or WAV** with a choice of sampling rate (8000 –
+  48000 Hz) and MP3 bitrate (128/192/256/320 kbps), tag and organise the results
+  into a persistent **music library**, and browse that library **by album cover**
+  as a carousel in *both* desktops. Following the established honest external-tool
+  split (`AudioBackend`, `RecorderBackend`), no codec is bundled: a new
+  **`Rip CD` tab** (`CdRipPanel`) reads the disc TOC via `cdparanoia` (fallback
+  `cd-info`), extracts each selected track and encodes/resamples it with `ffmpeg`
+  (fallback `lame`) over a guarded `ProcessBuilder`, and when a tool is missing
+  the status line says so plainly. All decisions live in pure, headless-tested
+  seams — `CdRipBackend` (command builders + ripper/encoder/device resolution),
+  `Toc`/`TocParser` (cdparanoia + cd-info output), `MusicBrainzDiscId` (the
+  MusicBrainz disc-ID SHA-1 + custom base64, verified against the published
+  vector) and `AudioCdDb` (a `java.net.http` client for the **MusicBrainz**
+  disc-ID lookup and **Cover Art Archive** `front-500` art, with a pure
+  `parseRelease` and never-throw fetch) — so album / artist / track names and the
+  cover are prefilled automatically from the audio CD database. `MediaItem` gains
+  optional `artist`/`album`/`trackNumber`/`mbid`/`coverFile` tags (old
+  `library.json` still loads), `RipSettings` persists the rip preferences, and
+  `AudioPlayerStore` adds the `covers/` + `music/` folders. The library is grouped
+  into albums by `AlbumIndex` and shown two ways: a Swing **`AlbumCoverFlow`**
+  cover carousel on the new **Albums** tab (select queues, double-click plays; the
+  2D desktop's surface, `JList`-based so it is `SwingNode`-safe), and the real 3D
+  **`CDViewer`**, now library-aware — one textured disc per album (the cover is
+  the disc texture and the front-disc `Thumbnail`, with an album caption under the
+  raised disc), keeping its bundled `CD1-4.png` demo strip whenever the library is
+  empty. Covered by headless JUnit 5 tests (`CdRipBackendTest`, `TocParserTest`,
+  `MusicBrainzDiscIdTest`, `AudioCdDbTest`, `AlbumIndexTest`, `RipSettingsTest`,
+  extended `AudioPlayerStoreTest`/`MediaItemTest`, `AlbumCoverFlowTest`); real
+  end-to-end ripping needs a physical drive + `cdparanoia`/`ffmpeg` and the 3D
+  carousel is verified via the in-JVM probe + `lgscreen` capture, not in CI.
 - **3D window carousel switcher** (`lg3d-core`,
   `org.jdesktop.lg3d.scenemanager.utils.switcher`) — the native 3D desktop's
   window switcher now presents open windows as a `CDViewer`-style circular

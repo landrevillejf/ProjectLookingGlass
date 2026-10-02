@@ -8,14 +8,15 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Production** multimedia player (local files, internet radio, streams, podcasts) |
+| Status | **Production** multimedia player (local files, internet radio, streams, podcasts) + **audio-CD ripper** and **album-cover music library** |
 | Entry point | `AudioPlayer.main` → `TitledSwingWindow.show(...)`; `AudioPlayerClient.main` runs the same panel standalone |
 | Surface | **SwingNode-in-Frame3D** (hosts `AudioPlayerPanel` on a `SwingNode` quad); the same panel is reused in the 2D desktop |
 | Start-menu name / group | Audio Player / **Media** |
 | Command | `java org.jdesktop.lg3d.apps.audioplayer.AudioPlayer` |
 | Descriptor | `src/config/audioplayer.lgcfg` → `config/demo` |
 | Format | **Native** `javax.sound.sampled` for WAV / AU / AIFF; MP3 / AAC / Ogg / network streams have no in-JDK decoder, so they are handed to a real external player (mpv, mpg123, ffplay, mplayer, vlc, totem, audacious) |
-| Persistence | Jackson JSON under `~/.lg3d/audioplayer` (library + settings) via `AudioPlayerStore`; override dir with `-Dlg3d.audioplayer.dir` |
+| Persistence | Jackson JSON under `~/.lg3d/audioplayer` (library + settings + rip settings) via `AudioPlayerStore`; ripped tracks go to `music/`, cached covers to `covers/`; override dir with `-Dlg3d.audioplayer.dir` |
+| CD ripping | No bundled codec — an honest external-tool split: `cdparanoia` (fallback `cd-info`) reads the TOC and extracts, `ffmpeg` (fallback `lame`) encodes/resamples to MP3/WAV; album/artist/track names + cover come from **MusicBrainz** + **Cover Art Archive**. A missing tool is reported in the status line, never faked |
 | Security | No secret is stored — a library records only names, file paths and stream URLs. External launches go through a guarded `ProcessBuilder` (DISPLAY propagated) started only on a user action |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -39,7 +40,35 @@
 - **MediaItem / PlayerSettings** — Jackson model beans: a track (name, location,
   kind) and the persisted preferences (volume, preferred player).
 - **AudioPlayerStore** — defensive JSON persistence (a corrupt/missing file yields
-  an empty library / defaults, never throws).
+  an empty library / defaults, never throws); also persists `RipSettings`
+  (`ripsettings.json`) and resolves the `covers/` (`coverFile(mbid)`) and `music/`
+  folders.
+- **CdRipPanel** — the `Rip CD` tab (thin EDT/worker glue): reads the disc, drives
+  the MusicBrainz/Cover Art Archive lookup to prefill tags + cover, then rips the
+  selected tracks and hands the tagged `MediaItem`s back to the host panel via a
+  `Consumer`. Constructs headless; launches a process only on a button press.
+- **CdRipBackend** — the AWT-free ripping seam (mirrors `AudioBackend` /
+  `RecorderBackend`): the sample-rate/bitrate/format tables, the `cdparanoia` /
+  `ffmpeg` / `lame` command builders, device detection and ripper/encoder
+  resolution over a PATH predicate. Pure, so the whole decision table is
+  unit-testable headless.
+- **Toc / TocParser** — the disc table of contents and its tolerant parser for
+  `cdparanoia -Q` and `cd-info` output.
+- **MusicBrainzDiscId** — computes the MusicBrainz disc ID from a `Toc` (SHA-1 over
+  the canonical ID string + the MusicBrainz base64 alphabet); pure and verified
+  against the published vector.
+- **AudioCdDb** — the audio-CD-database seam (mirrors `OpenMeteo`): MusicBrainz
+  disc-ID lookup + Cover Art Archive `front-500` URLs, a never-throw blocking
+  `HttpClient` fetch, and a pure `parseRelease(body)` testable with canned JSON.
+- **RipSettings** — Jackson bean for the rip preferences (format, sample rate,
+  MP3 bitrate, output dir, device, preferred ripper/encoder); setters clamp like
+  `PlayerSettings`.
+- **AlbumIndex** — pure grouping of the flat library into albums (by MBID, else
+  `artist|album`), one sleeve per album, driving both cover carousels.
+- **AlbumCoverFlow** — the Swing cover carousel (no Java 3D) on the `Albums` tab:
+  a painted centre sleeve with sheared neighbours, wheel revolve, click select,
+  double-click play, generated placeholder art when a cover is missing. The 2D
+  desktop's album surface; the 3D counterpart is `CDViewer`.
 
 ## Roles
 
@@ -58,12 +87,18 @@
   the panel. Never call `System.exit`. Jogamp packages only where 3D is touched
   (none here); obey the core UI/UX rulebook.
 - **QA** — `AudioBackendTest`, `MediaItemTest`, `PlaylistTest`,
-  `AudioPlayerStoreTest` and `AudioPlayerPanelTest` run headless (32 tests): the
-  backend suite drives the native-vs-external decision and per-player command
-  lines; the playlist suite asserts cursor invariants across next/previous/remove;
-  the store suite asserts JSON round-trips and corrupt-file resilience; the panel
-  suite asserts construction, library growth and status without opening a device.
-  For the 3D host use the in-JVM probe + internal screencapture
+  `AudioPlayerStoreTest` and `AudioPlayerPanelTest`, plus the ripping/library
+  suites `CdRipBackendTest`, `TocParserTest`, `MusicBrainzDiscIdTest`,
+  `AudioCdDbTest`, `AlbumIndexTest`, `RipSettingsTest` and `AlbumCoverFlowTest`,
+  run headless: the backend suites drive the native-vs-external playback decision
+  and the rip command lines; `MusicBrainzDiscIdTest` asserts the published disc-ID
+  vector; `AudioCdDbTest` parses canned MusicBrainz JSON with no network;
+  `AlbumIndexTest` asserts album grouping; the playlist suite asserts cursor
+  invariants across next/previous/remove; the store suite asserts JSON round-trips
+  and corrupt-file resilience; the panel suite asserts construction, library
+  growth and status without opening a device. Real CD ripping needs a physical
+  drive + `cdparanoia`/`ffmpeg` (not CI-gated). For the 3D host and the
+  library-aware `CDViewer` carousel use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver music/radio player: build a library of
   local tracks and internet streams, play them natively where the JDK can and

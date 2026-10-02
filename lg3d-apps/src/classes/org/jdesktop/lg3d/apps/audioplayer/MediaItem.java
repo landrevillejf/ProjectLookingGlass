@@ -45,6 +45,16 @@ public class MediaItem {
     private Kind kind = Kind.FILE;
     private long addedMillis = System.currentTimeMillis();
 
+    // Optional album metadata, populated when a track is ripped from an audio CD
+    // (or tagged by hand). Blank / zero / null by default so items added by path
+    // or URL - and any library.json written before these fields existed - keep
+    // working unchanged (@JsonIgnoreProperties(ignoreUnknown = true)).
+    private String artist = "";
+    private String album = "";
+    private int trackNumber = 0;
+    private String mbid = "";
+    private String coverFile = "";
+
     /** No-arg constructor for Jackson. */
     public MediaItem() {
     }
@@ -67,6 +77,31 @@ public class MediaItem {
     /** Builds a {@link Kind#FILE} item from a path. */
     public static MediaItem file(String path) {
         return new MediaItem(null, path, Kind.FILE);
+    }
+
+    /**
+     * Builds a tagged {@link Kind#FILE} item, e.g. one just ripped from an audio
+     * CD with its album metadata resolved from the CD database.
+     *
+     * @param path        the absolute file path
+     * @param name        the track title (blank falls back to the file name)
+     * @param artist      the album artist, may be blank
+     * @param album       the album title, may be blank
+     * @param trackNumber the 1-based track number, or 0 when unknown
+     * @param mbid        the MusicBrainz release id, may be blank
+     * @param coverFile   the cached album-cover image path, may be blank
+     * @return the tagged item
+     */
+    public static MediaItem file(String path, String name, String artist,
+                                 String album, int trackNumber, String mbid,
+                                 String coverFile) {
+        MediaItem item = new MediaItem(name, path, Kind.FILE);
+        item.setArtist(artist);
+        item.setAlbum(album);
+        item.setTrackNumber(trackNumber);
+        item.setMbid(mbid);
+        item.setCoverFile(coverFile);
+        return item;
     }
 
     /** Builds a stream / radio / podcast item from a name and URL. */
@@ -121,6 +156,51 @@ public class MediaItem {
 
     public void setAddedMillis(long addedMillis) {
         this.addedMillis = addedMillis;
+    }
+
+    /** @return the album artist, or an empty string when untagged. */
+    public String getArtist() {
+        return artist;
+    }
+
+    public void setArtist(String artist) {
+        this.artist = (artist == null) ? "" : artist.trim();
+    }
+
+    /** @return the album title, or an empty string when untagged. */
+    public String getAlbum() {
+        return album;
+    }
+
+    public void setAlbum(String album) {
+        this.album = (album == null) ? "" : album.trim();
+    }
+
+    /** @return the 1-based track number, or 0 when unknown. */
+    public int getTrackNumber() {
+        return trackNumber;
+    }
+
+    public void setTrackNumber(int trackNumber) {
+        this.trackNumber = Math.max(0, trackNumber);
+    }
+
+    /** @return the MusicBrainz release id, or an empty string when unknown. */
+    public String getMbid() {
+        return mbid;
+    }
+
+    public void setMbid(String mbid) {
+        this.mbid = (mbid == null) ? "" : mbid.trim();
+    }
+
+    /** @return the cached album-cover image path, or an empty string. */
+    public String getCoverFile() {
+        return coverFile;
+    }
+
+    public void setCoverFile(String coverFile) {
+        this.coverFile = (coverFile == null) ? "" : coverFile.trim();
     }
 
     @Override

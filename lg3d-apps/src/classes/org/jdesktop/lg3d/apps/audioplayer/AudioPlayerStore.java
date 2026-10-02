@@ -47,6 +47,9 @@ public final class AudioPlayerStore {
 
     static final String LIBRARY_FILE = "library.json";
     static final String SETTINGS_FILE = "settings.json";
+    static final String RIP_SETTINGS_FILE = "ripsettings.json";
+    static final String COVERS_DIR = "covers";
+    static final String MUSIC_DIR = "music";
 
     private final Path configDir;
     private final ObjectMapper mapper;
@@ -125,6 +128,79 @@ public final class AudioPlayerStore {
     /** Persists the settings. */
     public void saveSettings(PlayerSettings settings) {
         write(SETTINGS_FILE, (settings == null) ? new PlayerSettings() : settings);
+    }
+
+    /** @return the saved CD-ripping settings, or defaults on any error. */
+    public RipSettings loadRipSettings() {
+        Path file = configDir.resolve(RIP_SETTINGS_FILE);
+        if (!Files.isRegularFile(file)) {
+            return new RipSettings();
+        }
+        try {
+            RipSettings settings = mapper.readValue(file.toFile(), RipSettings.class);
+            return (settings == null) ? new RipSettings() : settings;
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("Could not read {}; using defaults", file, e);
+            return new RipSettings();
+        }
+    }
+
+    /** Persists the CD-ripping settings. */
+    public void saveRipSettings(RipSettings settings) {
+        write(RIP_SETTINGS_FILE, (settings == null) ? new RipSettings() : settings);
+    }
+
+    /**
+     * The directory cached album-cover images live in ({@code <config>/covers}),
+     * created on demand by {@link #coverFile}.
+     *
+     * @return the covers directory path
+     */
+    public Path getCoversDir() {
+        return configDir.resolve(COVERS_DIR);
+    }
+
+    /**
+     * The cache file for a release's cover image, {@code <config>/covers/<mbid>.jpg}.
+     * Creates the covers directory as a convenience; a blank MBID yields a path
+     * under {@code covers} named {@code unknown.jpg}.
+     *
+     * @param mbid the MusicBrainz release MBID
+     * @return the cover image path (never null)
+     */
+    public Path coverFile(String mbid) {
+        String name = (mbid == null || mbid.isBlank()) ? "unknown" : mbid.trim();
+        // Sanitise: an MBID is hex+dashes, but never trust it as a path segment.
+        name = name.replaceAll("[^A-Za-z0-9._-]", "_");
+        return getCoversDir().resolve(name + ".jpg");
+    }
+
+    /**
+     * The default destination folder for ripped tracks ({@code <config>/music}).
+     *
+     * @return the music directory path
+     */
+    public Path getMusicDir() {
+        return configDir.resolve(MUSIC_DIR);
+    }
+
+    /**
+     * Creates a directory (and parents) if absent, swallowing any failure.
+     *
+     * @param dir the directory to create
+     * @return {@code dir} when it exists afterwards, else null
+     */
+    public Path ensureDir(Path dir) {
+        if (dir == null) {
+            return null;
+        }
+        try {
+            Files.createDirectories(dir);
+            return dir;
+        } catch (IOException | RuntimeException e) {
+            LOG.error("Could not create directory {}", dir, e);
+            return null;
+        }
     }
 
     private void write(String fileName, Object value) {

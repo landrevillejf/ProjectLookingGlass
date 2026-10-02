@@ -8,7 +8,7 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Sample / demo** (fan-out CD browser) — technique showcase, not a shipped utility |
+| Status | **Sample / demo** (fan-out CD browser) that now **doubles as the Audio Player's 3D album browser** — one textured disc per library album, falling back to the bundled demo when the library is empty |
 | Entry point | `CDViewer.main` |
 | Surface | **pure-3D `Frame3D`** with a custom `LayoutManager3D` (`CDLayout`) |
 | Start-menu name / group | CD Viewer Sample — an `ApplicationDescription` **taskbar** entry, not a start-menu item |
@@ -18,13 +18,20 @@
 
 **Components:** `CDViewer` / `CD` / `CDLayout` (`LayoutManager3D`) / `CDThumbnail` /
 `Disc` / `RingShadow`; `NaturalMotionAnimation`; optional GLSL shader via
-`-Dlg.shaderdemo`.
+`-Dlg.shaderdemo`. When the shared music library (`~/.lg3d/audioplayer`, read via
+`AudioPlayerStore` + `AlbumIndex` from the sibling `audioplayer` package) has
+albums, `buildDiscSpecs()` builds one `CD` per album textured with its cover file
+(the front disc drives the `CDThumbnail` and shows an album `GlassyText2D`
+caption); an album with no readable cover, or an empty library, falls back to the
+cycled `CD1-4.png` demo art.
 
 ## Roles
 
 - **Architect** — The canonical example of a **custom 3D layout** (`CDLayout` extends
   `LayoutManager3D`) plus `NaturalMotionAnimation` for smooth fan-out transitions. It
-  is a reference for layout/animation technique, not a product.
+  is a reference for layout/animation technique, and now also the 3D album-cover
+  browser for the Audio Player's library (the Swing `AlbumCoverFlow` is its 2D
+  counterpart). Library access is read-only and degrades to the demo on any error.
 - **Engineer / Developer** — Obey the core UI/UX rulebook: upload texture pixels
   before attaching (disc/thumbnail art), wrap raw `Node`s in `Component3D`, sort
   translucency (`RingShadow`, disc sheen). The GLSL shader path is opt-in
