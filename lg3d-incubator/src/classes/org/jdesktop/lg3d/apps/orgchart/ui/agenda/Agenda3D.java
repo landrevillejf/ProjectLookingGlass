@@ -25,20 +25,20 @@ import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jogamp.vecmath.Vector3f;
 
 /**
- * A native 3D week-agenda that sits beside {@code Contact3D} in the same JVM
- * and reads the very same shared {@code /contacts} store {@code Contact3D}
- * populates. The interaction is deliberately one-way: {@code Agenda3D} never
- * writes to the contact data, it only invites those contacts to user-created
- * appointments and shows each invitee's live presence (free/busy) beside the
- * block, so you can see at a glance who is available.
+ * A native 3D week-agenda that reads the desktop-wide address book (through
+ * {@link ContactDirectory}, an adapter over
+ * {@code org.jdesktop.lg3d.contacts.ContactStore} in lg3d-core) that the
+ * production Contacts app edits. The interaction is deliberately one-way:
+ * {@code Agenda3D} never writes to the contact data, it only invites those
+ * contacts to user-created appointments and marks each invitee with a chip
+ * beside the block (green = a live contact, grey = an unknown uid).
  *
  * <p>The window is a plain {@link Frame3D} using the standard glassy window
  * decoration (title bar buttons plus the CTRL + right-click flip-to-sticky
  * gesture). Its body is an {@link AgendaGrid} week view over a strip of
  * {@link AgendaButton} controls. Appointments start empty and are persisted to
  * the user {@link java.util.prefs.Preferences} tree under
- * {@link AppointmentStore#ROOT}, mirroring how {@code Contact3D} persists
- * contacts, so the agenda survives across launches.</p>
+ * {@link AppointmentStore#ROOT}, so the agenda survives across launches.</p>
  *
  * <p>Editing model: click a cell to select an existing appointment or to move
  * the creation cursor; {@code New} drops a one-hour block at the cursor; the

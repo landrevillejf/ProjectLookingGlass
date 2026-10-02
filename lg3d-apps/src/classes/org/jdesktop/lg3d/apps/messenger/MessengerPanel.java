@@ -55,6 +55,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import org.jdesktop.lg3d.contacts.Contact;
+import org.jdesktop.lg3d.contacts.ContactStore;
 
 /**
  * The Instant Messenger's Swing face: a multi-protocol chat client.
@@ -66,7 +68,10 @@ import javax.swing.text.StyledDocument;
  * the SOUTH input bar sends plain text or interprets {@code /slash} commands
  * ({@code /join /part /msg /me /nick /topic /quit /raw /connect /disconnect
  * /clear /help}). All protocol events arrive on the backend I/O thread and are
- * marshalled onto the EDT before touching a widget.</p>
+ * marshalled onto the EDT before touching a widget. Private-chat peers can be
+ * saved with one click into the desktop-wide address book (the shared
+ * {@code org.jdesktop.lg3d.contacts.ContactStore} the Contacts app edits), so
+ * the messenger and the rest of the suite work off one contact list.</p>
  *
  * <p>The panel is plain Swing and touches no Java&nbsp;3D, so the one class
  * serves both desktops: in 3D the {@link Messenger} wrapper hosts it on a
@@ -110,6 +115,7 @@ public class MessengerPanel extends JPanel {
 
     private final MessengerStore store;
     private final ProtocolRegistry registry;
+    private final ContactStore addressBook;
     private final PanelListener listener = new PanelListener();
     private MessengerSettings settings;
 
@@ -164,6 +170,19 @@ public class MessengerPanel extends JPanel {
      * @param registry the backend catalogue/factory
      */
     public MessengerPanel(MessengerStore store, ProtocolRegistry registry) {
+        this(store, registry, new ContactStore());
+    }
+
+    /**
+     * Creates the panel with an explicit store, protocol registry and address
+     * book (tests point the stores at temp directories).
+     *
+     * @param store       the persistence backend
+     * @param registry    the backend catalogue/factory
+     * @param addressBook the shared desktop-wide contact store
+     */
+    public MessengerPanel(MessengerStore store, ProtocolRegistry registry,
+            ContactStore addressBook) {
         super(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
         setBackground(BACKDROP);
@@ -171,6 +190,7 @@ public class MessengerPanel extends JPanel {
 
         this.store = store;
         this.registry = (registry == null) ? ProtocolRegistry.standard() : registry;
+        this.addressBook = (addressBook == null) ? new ContactStore() : addressBook;
         this.settings = store.loadSettings();
 
         accounts.addAll(store.loadAccounts());
@@ -284,15 +304,19 @@ public class MessengerPanel extends JPanel {
         convPanel.setOpaque(false);
         convPanel.setBorder(BorderFactory.createTitledBorder("Conversations"));
         convPanel.add(new JScrollPane(conversationList), BorderLayout.CENTER);
-        JPanel convButtons = new JPanel(new GridLayout(1, 2, 4, 0));
+        JPanel convButtons = new JPanel(new GridLayout(1, 3, 4, 0));
         convButtons.setOpaque(false);
         convButtons.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         JButton closeConv = new JButton("Close");
         closeConv.addActionListener(e -> closeSelectedConversation());
         JButton clearConv = new JButton("Clear");
         clearConv.addActionListener(e -> clearTranscript());
+        JButton saveConv = new JButton("Save");
+        saveConv.setToolTipText("Save the private-chat peer to the address book");
+        saveConv.addActionListener(e -> saveSelectedPeerToAddressBook());
         convButtons.add(closeConv);
         convButtons.add(clearConv);
+        convButtons.add(saveConv);
         convPanel.add(convButtons, BorderLayout.SOUTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, accountsPanel, convPanel);
@@ -659,6 +683,44 @@ public class MessengerPanel extends JPanel {
         saveTranscript();
         renderTranscript();
         setStatus("Cleared transcript");
+    }
+
+    /** Saves the selected private-chat peer into the shared address book. */
+    private void saveSelectedPeerToAddressBook() {
+        Conversation c = conversationList.getSelectedValue();
+        if (c == null || c.isConsole() || c.isChannel()) {
+            setStatus("Select a private chat to save its peer");
+            return;
+        }
+        savePeerToAddressBook(c);
+    }
+
+    /**
+     * Saves one peer nick into the desktop-wide address book, skipping peers
+     * already present (matched on nickname or display name, case-insensitive).
+     *
+     * @param c the private-chat conversation whose peer to save
+     * @return true when a new contact was created
+     */
+    boolean savePeerToAddressBook(Conversation c) {
+        if (c == null || c.isConsole() || c.isChannel()) {
+            return false;
+        }
+        String nick = c.target;
+        for (Contact existing : addressBook.all()) {
+            if (nick.equalsIgnoreCase(existing.getNickname())
+                    || nick.equalsIgnoreCase(existing.displayName())) {
+                setStatus(nick + " is already in the address book");
+                return false;
+            }
+        }
+        Contact contact = new Contact();
+        contact.setFirstName(nick);
+        contact.setNickname(nick);
+        contact.getTags().add("messenger");
+        addressBook.add(contact);
+        setStatus("Saved " + nick + " to the address book");
+        return true;
     }
 
     private String accountLabel(AccountConfig account) {
@@ -1348,6 +1410,7 @@ public class MessengerPanel extends JPanel {
     List<StoredMessage> transcript() { return transcript; }
     MessengerSettings settings() { return settings; }
     ProtocolRegistry registry() { return registry; }
+    ContactStore addressBook() { return addressBook; }
     DefaultListModel<AccountConfig> accountModel() { return accountModel; }
     DefaultListModel<Conversation> conversationModel() { return conversationModel; }
 

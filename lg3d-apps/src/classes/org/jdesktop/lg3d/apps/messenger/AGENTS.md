@@ -15,7 +15,7 @@
 | Command | `java org.jdesktop.lg3d.apps.messenger.Messenger` |
 | Descriptor | `src/config/messenger.lgcfg` → `config/demo` |
 | Protocols | **Native IRC** (RFC 2812, plain or TLS, in-process, unit-tested) plus **bridge** backends for XMPP, Matrix, Telegram, WhatsApp, Signal, SMS and SIP that hand off to the network's official client/web app; all behind the `MessengerProtocol` SPI and the `ProtocolRegistry` catalogue |
-| Persistence | Jackson JSON under `~/.lg3d/messenger` (accounts, transcript, settings) via `MessengerStore`; override dir with `-Dlg3d.messenger.dir` |
+| Persistence | Jackson JSON under `~/.lg3d/messenger` (accounts, transcript, settings) via `MessengerStore`; override dir with `-Dlg3d.messenger.dir`. Private-chat peers are saved into the desktop-wide address book (`org.jdesktop.lg3d.contacts.ContactStore`, `~/.lg3d/contacts`) — the same store the Contacts app edits |
 | Security | **No secret is ever written to disk**: `AccountConfig`'s password fields are `@JsonIgnore`; a password lives in memory for the session and is re-entered at connect time. IRC supports TLS (`SSLSocket`) and NickServ `IDENTIFY` |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -31,7 +31,9 @@
   accounts and conversations, a styled CENTER transcript (coloured nicknames,
   timestamps, join/part/system filters), a SOUTH input bar that sends text or
   interprets `/slash` commands (`/join /part /msg /me /nick /topic /quit /raw
-  /connect /disconnect /clear /help`), and a status line. Protocol callbacks are
+  /connect /disconnect /clear /help`), and a status line. The conversation rail's
+  **Save** button writes the selected private-chat peer into the shared address
+  book (deduped on nickname/display name). Protocol callbacks are
   marshalled onto the EDT before touching a widget.
 - **MessengerProtocol / ProtocolListener** — the backend SPI (async connect,
   capability set) and its callback surface; the single seam every protocol

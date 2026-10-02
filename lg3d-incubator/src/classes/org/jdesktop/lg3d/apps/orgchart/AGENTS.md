@@ -14,13 +14,13 @@
 | --- | --- | --- | --- | --- |
 | Agenda 3D | `ui.agenda.Agenda3D.main` | `Frame3D` (native, authored for the port) | Agenda 3D / **Office** | `lg3d-apps/src/config/agenda3d.lgcfg` |
 | Chart 3D | `ui.chart.Chart3D.main` | `AbstractOrgChartApp` → `Frame3D` | Chart 3D / **Office** | `lg3d-apps/src/config/orgchart-chart.lgcfg` |
-| Contact 3D | `ui.contact.Contact3D.main` | `Frame3D` | Contact 3D / **Office** | `lg3d-apps/src/config/orgchart-contact.lgcfg` |
+| Contact 3D | `ui.contact.Contact3D.main` | `Frame3D` | **retired from the start menu** — replaced by the production Contacts app (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`); the legacy card browser stays in-tree, dormant | *descriptor deleted* (was `lg3d-apps/src/config/orgchart-contact.lgcfg`) |
 | Prefuse (Buz3D) | `ui.prefuse.Prefuse3D.main` | `AbstractOrgChartApp` | Buz3D / **Office** | `lg3d-incubator/src/config/prefuse.lgcfg` — **not discovered** (incubator `src/config` bundles to `config/`, which is not scanned) |
 
 | Item | Value |
 | --- | --- |
-| Status | **Production-grade** native-3D apps (Agenda/Chart/Contact are ported & registered; Prefuse is built but its descriptor is not scanned) |
-| Surface | **pure-3D `Frame3D`** (3D desktop) **+ Swing panels `AgendaPanel`/`ContactCardsPanel`/`ChartPanel`** (2D/Swing desktop) — Agenda/Chart/Contact off the same shared stores |
+| Status | **Production-grade** native-3D apps (Agenda/Chart are ported & registered; Contact 3D is dormant — superseded by the Contacts app; Prefuse is built but its descriptor is not scanned) |
+| Surface | **pure-3D `Frame3D`** (3D desktop) **+ Swing panels `AgendaPanel`/`ChartPanel`** (2D/Swing desktop) — Agenda off the shared stores |
 | Shared framework | `framework/` (`ServiceContext`/`Channel`/`Service`, `contact.ContactService` + `PreferenceContactService`/`LDAPContactService`) and `ui/common/` (`AbstractOrgChartApp`, `Button`, `UIUtil`, panels) |
 | Extra deps | Prefuse needs `ext/prefuse.jar`; Agenda 3D needs `libs/jbusinessday` (+ `slf4j` at runtime) |
 | Build | `./gradlew :lg3d-incubator:build` |
@@ -32,9 +32,16 @@
   by `PreferenceContactService`. Cross-app data uses the **shared user `Preferences`
   tree** (`/contacts`), **not** ServiceContext/`Channel` — `ServiceContextFactory`
   makes a fresh context per app, so channels are not shared across separately-launched
-  apps. Contact 3D populates `/contacts`; Agenda 3D reads it and owns
-  `/agenda/appointments`; Mail 3D also reads it. `AbstractOrgChartApp` is the shared
-  `Frame3D` base for Chart/Prefuse.
+  apps. **The address book moved to lg3d-core:** `ui.agenda.ContactDirectory` is now a
+  read-only adapter over `org.jdesktop.lg3d.contacts.ContactStore`
+  (`~/.lg3d/contacts/contacts.json`, edited by the production Contacts app), so
+  Agenda 3D / Mail 3D attendees and recipients come from the real desktop-wide book
+  with **no demo seeding and no free/busy presence flag**. The legacy `/contacts`
+  Preferences tree + bundled demo `contacts.xml` are still read only by the dormant
+  Contact 3D and by Chart 3D/`ChartPanel` (the org chart needs the `manager`
+  hierarchy attribute, which the core `Contact` model does not carry). Agenda 3D owns
+  `/agenda/appointments`. `AbstractOrgChartApp` is the shared `Frame3D` base for
+  Chart/Prefuse.
 - **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
   rule** (single fixed-size `ImageComponent2D` with `ALLOW_IMAGE_WRITE`, repaint +
   `.set()` in place, never re-attach; POT textures; pixels uploaded before attach).
@@ -48,19 +55,20 @@
   with the in-JVM probe + internal screencapture; a black host capture under Wayland is
   not a defect. Note Prefuse will not appear in the start menu (descriptor not scanned)
   — that is a packaging fact, not a runtime failure.
-- **Business Analyst** — A supported Office suite (contacts, org chart, week agenda,
-  prefuse graph) demonstrating cross-app data sharing via `Preferences`. Agenda/Chart/
-  Contact are the shipped showcase; Prefuse is experimental/niche.
+- **Business Analyst** — A supported Office suite (org chart, week agenda,
+  prefuse graph) demonstrating cross-app data sharing; the address book itself is
+  the production Contacts app in `lg3d-apps`. Agenda/Chart
+  are the shipped showcase; Prefuse is experimental/niche.
 - **Functional Analyst** — Spec each app as user-visible function + core contract
   (Frame3D host, live-texture view, `/contacts` + `/agenda/appointments` nodes,
   descriptor location). Record the Prefuse descriptor-not-scanned issue explicitly so
   it is not mistaken for a broken app.
-- **Project Manager** — Commit scope `lg3d-incubator`; Agenda/Chart/Contact descriptors
+- **Project Manager** — Commit scope `lg3d-incubator`; Agenda/Chart descriptors
   live in `lg3d-apps`, so PRs often span two modules — say so. Track `ext/` and
   run-classpath changes (prefuse, jbusinessday, slf4j) as integration risk. Done =
   build + `:lg3d-core:runtimeResources` + `./run-lg3d.sh` + capture/log evidence.
-- **UI/UX (3D & 2D)** — **Agenda/Chart/Contact run in both desktops.** In the 3D
-  desktop the week grid, org-chart nodes, contact cards and buttons are runtime-drawn
+- **UI/UX (3D & 2D)** — **Agenda/Chart run in both desktops.** In the 3D
+  desktop the week grid, org-chart nodes and buttons are runtime-drawn
   scene-graph widgets (Agenda 3D marks weekends/holidays and navigates
   weeks/months/years): follow the glassy vocabulary, depth ordering and
   click-driven-input rules; frame-level gestures use the CTRL+right-click convention
@@ -69,10 +77,11 @@
   launch idiomatic Swing panels registered in `Desktop2DAppRegistry.PANEL_APPS` on the
   3D main classes: `AgendaPanel` (custom-painted week grid + real keyboard editing of
   title/day/hour/duration/attendees, duplicating the 8..18 / 7-day constants rather
-  than referencing the `Component3D` `AgendaGrid`), `ContactCardsPanel` (contact list +
-  read-only detail card off `ContactDirectory`) and `ChartPanel` (`JTree` org hierarchy
-  + query, built straight from the `/contacts` `manager` attribute). Each reuses the
-  AWT-free model and the `/contacts` + `/agenda/appointments` nodes, so state written
+  than referencing the `Component3D` `AgendaGrid`) and `ChartPanel` (`JTree` org hierarchy
+  + query, built straight from the `/contacts` `manager` attribute). The 2D contact
+  surface is the production **Contacts** app (`ContactsPanel` in `lg3d-apps`, replacing
+  the deleted read-only `ContactCardsPanel`). Each reuses the
+  AWT-free model and the shared stores, so state written
   by one desktop is visible in the other, and none may ever load a Java 3D class (a
   3D-less JVM runs them).
 

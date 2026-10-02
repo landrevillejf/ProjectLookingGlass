@@ -15,7 +15,7 @@
 | Command | `java org.jdesktop.lg3d.apps.videoconference.VideoConference` |
 | Descriptor | `src/config/videoconference.lgcfg` → `config/demo` |
 | Conferencing backend | **Jitsi Meet** deep links built by `JitsiUrlBuilder`; the real WebRTC audio/video runs in the system browser (`java.awt.Desktop.browse`) or an external meeting command |
-| Persistence | Jackson JSON under `~/.lg3d/videoconference` (rooms, contacts, history, settings) via `VideoConferenceStore`; override dir with `-Dlg3d.videoconference.dir` |
+| Persistence | Jackson JSON under `~/.lg3d/videoconference` (rooms, history, settings) via `VideoConferenceStore`; override dir with `-Dlg3d.videoconference.dir`. The invitee **address book is shared** — `org.jdesktop.lg3d.contacts.ContactStore` (lg3d-core) under `~/.lg3d/contacts`, edited by the Contacts app |
 | Camera preview | `CameraCapture` seam + `CameraPreview`; **no native capture library ships**, so it degrades to an honest animated placeholder (backend pluggable via `-Dlg3d.videoconference.camera.backend`) |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -28,15 +28,19 @@
   the panel outside the desktop; never calls `System.exit`.
 - **VideoConferencePanel** — the one Swing UI (no-arg constructor, no Java 3D):
   toolbar (New Room / Random name / Add Contact / Settings), a Rooms/Contacts/
-  History sidebar, a lobby with the camera preview, room + server fields,
-  mic/camera mute toggles, Join and Copy-invite-link, and a status line.
+  History sidebar — the Contacts tab is a **live view of the shared address
+  book** (add/edit/delete go straight to `ContactStore`), a lobby with the camera
+  preview, room + server fields, mic/camera mute toggles, Join and
+  Copy-invite-link, and a status line.
 - **JitsiUrlBuilder** — the pure, AWT-free protocol logic: room-name
   sanitisation, domain normalisation/resolution, friendly room-name generation,
   share vs join URL construction (`#config.*` / `#userInfo.*` fragment, RFC 3986
   percent-encoding), effective mute resolution and external-command templating.
   The headless unit-test seam.
-- **ConferenceRoom / Contact / CallHistoryEntry / VideoConferenceSettings** —
-  Jackson-serializable model beans.
+- **ConferenceRoom / CallHistoryEntry / VideoConferenceSettings** —
+  Jackson-serializable model beans. Invitees are core
+  `org.jdesktop.lg3d.contacts.Contact` beans (the app-private `Contact` model
+  was deleted when the address book moved to lg3d-core).
 - **VideoConferenceStore** — defensive JSON persistence (corrupt/missing files
   yield empty/defaults, never throw).
 - **CameraCapture / CameraPreview** — the capture seam and its rendering surface.
@@ -46,7 +50,10 @@
 - **Architect** — Everything lives in this package: model beans, `JitsiUrlBuilder`
   (pure logic), `VideoConferenceStore` (Jackson I/O), `CameraCapture`/`CameraPreview`
   (media seam), `VideoConferencePanel` (the one Swing UI) and the two thin entry
-  points. The same panel drives both desktops: 3D via `TitledSwingWindow`, 2D via
+  points. The invitee list is **not** app-private state: it reads/writes the
+  desktop-wide `org.jdesktop.lg3d.contacts.ContactStore`, the same book the
+  Contacts app edits and the Messenger saves peers into (one address book, many
+  readers). The same panel drives both desktops: 3D via `TitledSwingWindow`, 2D via
   `Desktop2DAppRegistry.PANEL_APPS` keyed on `VideoConference`. Jackson + SLF4J are
   already `lg3d-apps` compile deps (added for the SSH client) and are on the
   hand-assembled `:lg3d-core:run` / `releaseBundle` classpath, so the in-JVM launch
@@ -70,12 +77,13 @@
 - **Business Analyst** — A daily-driver communication utility: create/join/invite
   to video meetings from the desktop without a separate app, against the public
   Jitsi Meet service or a self-hosted Jitsi. Value = one-click meetings with saved
-  rooms, an address book and a recent-calls log, in both desktops.
+  rooms, the desktop-wide address book and a recent-calls log, in both desktops.
 - **Functional Analyst** — Spec this app as the *conference-client contract*:
   resolve a room on a domain, build the correct join and share deep links with the
-  user's identity and mute state, launch the meeting, and persist rooms/contacts/
-  history/settings. The transport (Jitsi/WebRTC in the browser) is an
-  implementation detail behind `JitsiUrlBuilder` + the launcher.
+  user's identity and mute state, launch the meeting, persist rooms/history/
+  settings, and read/write invitees through the shared address book. The
+  transport (Jitsi/WebRTC in the browser) is an implementation detail behind
+  `JitsiUrlBuilder` + the launcher.
 - **Project Manager** — Commit scope `lg3d-apps`; the registration also touches
   `lg3d-core` (`Desktop2DAppRegistry` panel mapping + test) and the icon in
   `lg3d-core` resources — call that out. Done = build + headless tests +

@@ -17,12 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.jdesktop.lg3d.contacts.Contact;
+import org.jdesktop.lg3d.contacts.ContactStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -236,5 +239,44 @@ class MessengerPanelTest {
         panel.setOnClose(() -> closed.set(true));
         panel.shutdown();
         assertTrue(closed.get());
+    }
+
+    @Test
+    @DisplayName("a private-chat peer is saved into the shared address book")
+    void savePeerToSharedAddressBook(@TempDir Path dir, @TempDir Path contactsDir) {
+        ContactStore addressBook = new ContactStore(contactsDir);
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir),
+                ProtocolRegistry.standard(), addressBook);
+        try {
+            assertSame(addressBook, panel.addressBook());
+            MessengerPanel.Conversation peer =
+                    new MessengerPanel.Conversation("acct", "alice", "Alice");
+            MessengerPanel.Conversation channel =
+                    new MessengerPanel.Conversation("acct", "#lg3d", "LG3D");
+            MessengerPanel.Conversation console =
+                    new MessengerPanel.Conversation("acct", "", "console");
+
+            // Only private chats are saved; channels and the console are refused.
+            assertFalse(panel.savePeerToAddressBook(channel));
+            assertFalse(panel.savePeerToAddressBook(console));
+            assertFalse(panel.savePeerToAddressBook(null));
+            assertEquals(0, addressBook.size());
+
+            assertTrue(panel.savePeerToAddressBook(peer));
+            assertEquals(1, addressBook.size());
+            Contact saved = addressBook.all().get(0);
+            assertEquals("alice", saved.displayName());
+            assertEquals("alice", saved.getNickname());
+            assertTrue(saved.getTags().contains("messenger"));
+
+            // Saving the same peer again (any case) is a dedup no-op, and the
+            // contact persists for the Contacts app to see.
+            assertFalse(panel.savePeerToAddressBook(
+                    new MessengerPanel.Conversation("acct", "ALICE", "Alice")));
+            assertEquals(1, addressBook.size());
+            assertEquals(1, new ContactStore(contactsDir).size());
+        } finally {
+            panel.shutdown();
+        }
     }
 }

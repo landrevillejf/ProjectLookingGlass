@@ -27,8 +27,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * JSON persistence for the video-conference client: saved {@link ConferenceRoom
- * rooms}, {@link Contact contacts}, the recent-call {@link CallHistoryEntry
- * history} and the {@link VideoConferenceSettings}.
+ * rooms}, the recent-call {@link CallHistoryEntry history} and the
+ * {@link VideoConferenceSettings}. The invitee address book is NOT stored here:
+ * the panel reads and writes the desktop-wide
+ * {@code org.jdesktop.lg3d.contacts.ContactStore} so every app shares one book.
  *
  * <p>Configuration lives under {@code ~/.lg3d/videoconference/} by default.
  * Override with the system property {@link #DIR_PROPERTY} (used by tests to
@@ -48,7 +50,6 @@ public final class VideoConferenceStore {
     public static final String DIR_PROPERTY = "lg3d.videoconference.dir";
 
     static final String ROOMS_FILE = "rooms.json";
-    static final String CONTACTS_FILE = "contacts.json";
     static final String HISTORY_FILE = "history.json";
     static final String SETTINGS_FILE = "settings.json";
 
@@ -101,20 +102,6 @@ public final class VideoConferenceStore {
     /** Persists the saved rooms. */
     public void saveRooms(List<ConferenceRoom> rooms) {
         write(ROOMS_FILE, nonNull(rooms));
-    }
-
-    // ------------------------------------------------------------------
-    // Contacts
-    // ------------------------------------------------------------------
-
-    /** @return the saved contacts, or an empty list on any error. */
-    public List<Contact> loadContacts() {
-        return readList(CONTACTS_FILE, new TypeReference<List<Contact>>() { });
-    }
-
-    /** Persists the contacts. */
-    public void saveContacts(List<Contact> contacts) {
-        write(CONTACTS_FILE, nonNull(contacts));
     }
 
     // ------------------------------------------------------------------

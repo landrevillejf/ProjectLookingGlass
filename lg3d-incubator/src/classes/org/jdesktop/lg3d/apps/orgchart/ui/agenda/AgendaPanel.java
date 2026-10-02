@@ -50,10 +50,11 @@ import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
  * The 2D/Swing counterpart of the native-3D {@link Agenda3D} week agenda. It
  * reuses the very same AWT-free model and stores as the 3D app: appointments
  * persisted by {@link AppointmentStore} under {@code /agenda/appointments}, and
- * the shared {@code /contacts} directory (through {@link ContactDirectory}) that
- * supplies meeting attendees and their live free/busy presence. Because both
- * desktops read and write the same Preferences nodes, an appointment created in
- * one shows up in the other.
+ * the desktop-wide address book (through {@link ContactDirectory}, an adapter
+ * over {@code org.jdesktop.lg3d.contacts.ContactStore} in lg3d-core) that
+ * supplies meeting attendees. Because both desktops read and write the same
+ * stores, an appointment created in one shows up in the other, and a contact
+ * created in the Contacts app is immediately inviteable here.
  *
  * <p>Registered in {@code Desktop2DAppRegistry.PANEL_APPS} against the
  * {@code Agenda3D} main class, so the one shared start-menu descriptor launches
@@ -236,7 +237,7 @@ public class AgendaPanel extends JPanel {
         attendeeUids.clear();
         for (ContactDirectory.ContactInfo c : directory.getContacts()) {
             attendeeUids.add(c.uid);
-            model.addElement(c.displayName + (c.busy ? " (busy)" : " (free)"));
+            model.addElement(c.displayName);
         }
         attendeeBox.setModel(model);
     }
@@ -688,12 +689,12 @@ public class AgendaPanel extends JPanel {
             g.drawRoundRect(x, y, COL_W - 6, h, 8, 8);
             g.setColor(Color.WHITE);
             g.drawString(a.getTitle(), x + 5, y + 14);
-            // Attendee free/busy dots.
+            // Attendee dots (green = in the address book, grey = unknown uid).
             int dotX = x + 6;
             for (String uid : a.getAttendees()) {
                 ContactDirectory.ContactInfo c = directory.get(uid);
-                boolean busy = c != null && c.busy;
-                g.setColor(busy ? new Color(0xE0, 0x5A, 0x5A) : new Color(0x6B, 0xE0, 0x7A));
+                g.setColor(c != null ? new Color(0x6B, 0xE0, 0x7A)
+                        : new Color(0x96, 0x9E, 0xAA));
                 g.fillOval(dotX, y + h - 10, 6, 6);
                 dotX += 9;
             }

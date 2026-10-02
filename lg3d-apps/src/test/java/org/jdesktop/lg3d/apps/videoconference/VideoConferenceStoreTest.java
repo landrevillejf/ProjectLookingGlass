@@ -59,12 +59,9 @@ class VideoConferenceStoreTest {
     }
 
     @Test
-    @DisplayName("contacts and settings round-trip through JSON")
-    void contactsAndSettingsRoundTrip(@TempDir Path dir) {
+    @DisplayName("settings round-trip through JSON")
+    void settingsRoundTrip(@TempDir Path dir) {
         VideoConferenceStore store = new VideoConferenceStore(dir);
-        Contact c = new Contact("Ada", "ada@example.com");
-        c.setFavorite(true);
-        store.saveContacts(List.of(c));
 
         VideoConferenceSettings s = new VideoConferenceSettings();
         s.setDefaultDomain("jitsi.example.com");
@@ -76,11 +73,6 @@ class VideoConferenceStoreTest {
         store.saveSettings(s);
 
         VideoConferenceStore reload = new VideoConferenceStore(dir);
-        List<Contact> contacts = reload.loadContacts();
-        assertEquals(1, contacts.size());
-        assertEquals("Ada", contacts.get(0).getName());
-        assertTrue(contacts.get(0).isFavorite());
-
         VideoConferenceSettings got = reload.loadSettings();
         assertEquals("jitsi.example.com", got.getDefaultDomain());
         assertEquals("Grace", got.getDisplayName());
@@ -119,7 +111,6 @@ class VideoConferenceStoreTest {
     void missingFilesAreSafe(@TempDir Path dir) {
         VideoConferenceStore store = new VideoConferenceStore(dir.resolve("nope"));
         assertTrue(store.loadRooms().isEmpty());
-        assertTrue(store.loadContacts().isEmpty());
         assertTrue(store.loadHistory().isEmpty());
         VideoConferenceSettings s = store.loadSettings();
         assertEquals(VideoConferenceSettings.DEFAULT_DOMAIN, s.getDefaultDomain());
