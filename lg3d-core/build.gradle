@@ -382,6 +382,27 @@ tasks.register('run', JavaExec) {
     def pdfboxLibs = configurations.detachedConfiguration(
         dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"))
 
+    // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) renders
+    // pages with JavaFX (OpenJFX) javafx.scene.web.WebView, bridged into the
+    // Swing desktop with javafx.embed.swing.JFXPanel. JavaFX is a Maven
+    // dependency of lg3d-apps, but this run classpath is assembled from
+    // packaged jars rather than that module's runtimeClasspath, so resolve it
+    // here directly -- otherwise the in-JVM 2D-desktop launch dies with
+    // NoClassDefFoundError: javafx/scene/web/WebView. OpenJFX ships its classes
+    // + platform natives in a per-OS classifier jar; the `linux` classifier is
+    // pinned (the desktop is a Linux X11 target, mirroring the Jogamp natives
+    // above). The 3D desktop never initialises JavaFX in its own JVM: its start
+    // menu opens a pure-Swing preview that spawns WebBrowserApp as a separate
+    // child process, which inherits these jars from java.class.path.
+    def openjfxVersion = libs.versions.openjfx.get()
+    def javafxLibs = configurations.detachedConfiguration(
+        dependencies.create("org.openjfx:javafx-base:${openjfxVersion}:linux"),
+        dependencies.create("org.openjfx:javafx-graphics:${openjfxVersion}:linux"),
+        dependencies.create("org.openjfx:javafx-controls:${openjfxVersion}:linux"),
+        dependencies.create("org.openjfx:javafx-media:${openjfxVersion}:linux"),
+        dependencies.create("org.openjfx:javafx-web:${openjfxVersion}:linux"),
+        dependencies.create("org.openjfx:javafx-swing:${openjfxVersion}:linux"))
+
     // The Software Update app's update-manager module parses the release manifest
     // with Jackson (jackson-databind -> jackson-core/-annotations, resolved
     // transitively), signs and verifies releases with Bouncycastle OpenPGP
@@ -439,7 +460,7 @@ tasks.register('run', JavaExec) {
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, ftpClientJar, runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
-              iconManagerLib)
+              javafxLibs, iconManagerLib)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -751,7 +772,16 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.xerial:sqlite-jdbc:${libs.versions.sqliteJdbc.get()}"),
         dependencies.create("com.h2database:h2:${libs.versions.h2.get()}"),
         dependencies.create("org.postgresql:postgresql:${libs.versions.postgresql.get()}"),
-        dependencies.create("org.mariadb.jdbc:mariadb-java-client:${libs.versions.mariadb.get()}"))
+        dependencies.create("org.mariadb.jdbc:mariadb-java-client:${libs.versions.mariadb.get()}"),
+        // JavaFX (OpenJFX) for the Web Browser's WebView (WebKit) engine, pinned
+        // to the `linux` classifier like the run classpath above; the release
+        // bundle is a Linux X11 desktop, so this is the only platform shipped.
+        dependencies.create("org.openjfx:javafx-base:${libs.versions.openjfx.get()}:linux"),
+        dependencies.create("org.openjfx:javafx-graphics:${libs.versions.openjfx.get()}:linux"),
+        dependencies.create("org.openjfx:javafx-controls:${libs.versions.openjfx.get()}:linux"),
+        dependencies.create("org.openjfx:javafx-media:${libs.versions.openjfx.get()}:linux"),
+        dependencies.create("org.openjfx:javafx-web:${libs.versions.openjfx.get()}:linux"),
+        dependencies.create("org.openjfx:javafx-swing:${libs.versions.openjfx.get()}:linux"))
 
     // The specific incubator ext jars the desktop apps touch at runtime (same
     // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl

@@ -46,6 +46,14 @@ mockFtpServer = "3.2.0"   # org.mockftpserver:MockFtpServer (Apache-2.0, test-on
 # (Apache-2.0) replacement: Loader.loadPDF + PDFRenderer.renderImageWithDPI give
 # the page->BufferedImage contract the reader consumes.
 pdfbox = "3.0.5"          # org.apache.pdfbox:pdfbox (Apache-2.0)
+# OpenJFX (JavaFX) powers the Web Browser (lg3d-apps,
+# org.jdesktop.lg3d.apps.webbrowser): a real WebKit engine via javafx.web.WebView.
+# It is the project's only JavaFX dependency. Licensed GPLv2 + Classpath
+# Exception (same as OpenJDK). Like the Jogamp natives, the platform-specific
+# native classifier jar is NOT declared here: the `linux` classifier is applied
+# in the consuming build files (lg3d-apps compile deps, lg3d-core run classpath
+# and releaseBundle), so the version stays in one place.
+openjfx = "21.0.12"       # org.openjfx:javafx-* (GPLv2+CE); matches the JDK 21 toolchain
 checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine

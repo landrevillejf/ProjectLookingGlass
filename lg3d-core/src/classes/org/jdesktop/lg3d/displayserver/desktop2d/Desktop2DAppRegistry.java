@@ -381,6 +381,22 @@ public final class Desktop2DAppRegistry {
         // panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.gitgui.GitGui",
                 "org.jdesktop.lg3d.apps.gitgui.GitGuiPanel");
+        // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) is the
+        // desktop's full-featured browser over the JavaFX WebView (WebKit)
+        // engine. Its two faces deliberately differ: here in the 2D/Swing
+        // desktop the very same start-menu command opens the real interactive
+        // BrowserPanel - a JFXPanel-hosted WebView in an MDI internal frame -
+        // because a heavyweight JavaFX peer composites correctly against an
+        // on-screen window. The 3D desktop instead shows a pure-Swing static
+        // preview (BrowserPreviewPanel) whose "Open Full Browser" button spawns
+        // WebBrowserApp into a separate child-process JVM, since a WebView
+        // paints blank when SwingNode captures it offscreen and JavaFX must not
+        // share the Java 3D OpenGL context. JavaFX (and its Linux natives) is
+        // therefore initialised only in the 2D desktop JVM and in the spawned
+        // browser child process; the OpenJFX jars are on the desktop run
+        // classpath, so the reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.webbrowser.WebBrowser",
+                "org.jdesktop.lg3d.apps.webbrowser.BrowserPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

@@ -81,6 +81,8 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.vpn.Vpn"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
     }
 
     @Test
@@ -471,6 +473,23 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.gitgui.GitGuiPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
+    }
+
+    @Test
+    @DisplayName("the Web Browser maps to its interactive JavaFX panel")
+    void webBrowserIsHostedPanel() {
+        // The Web Browser (lg3d-apps) is a JavaFX WebView (WebKit) browser. The
+        // two desktops deliberately differ: in the 2D/Swing desktop this command
+        // opens the real interactive BrowserPanel (a JFXPanel-hosted WebView) as
+        // an MDI internal frame, where the heavyweight JavaFX peer composites
+        // correctly; the 3D desktop instead shows a pure-Swing static preview
+        // whose button spawns the browser into a child-process JVM. Only the 2D
+        // panel is registered here, keyed on the shared descriptor's main class.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
+        assertEquals("org.jdesktop.lg3d.apps.webbrowser.BrowserPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
     }
 
     // ------------------------------------------------------------------

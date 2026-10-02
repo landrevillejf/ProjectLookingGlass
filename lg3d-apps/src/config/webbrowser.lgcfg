@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser).
+ A full featured browser over the JavaFX WebView (WebKit) engine: tabbed
+ browsing, a smart address bar with search fallback, bookmarks, history, find in
+ page, zoom, view source, JavaScript, persistent cookies, private browsing and
+ best effort downloads. Its two faces deliberately differ. In the 3D desktop the
+ WebBrowser wrapper hosts a pure Swing static preview (BrowserPreviewPanel) on a
+ SwingNode inside a Frame3D via TitledSwingWindow, and its "Open Full Browser"
+ button spawns the interactive browser (WebBrowserApp) into a separate child
+ process JVM, because a WebView is a heavyweight peer that paints blank when
+ SwingNode captures it offscreen and JavaFX must not share the Java 3D OpenGL
+ context. In the 2D/Swing desktop Desktop2DAppRegistry.PANEL_APPS opens the very
+ same command as the real interactive BrowserPanel (a JFXPanel hosted WebView) in
+ an MDI internal frame, where JavaFX composites correctly against an on screen
+ window. Launched in JVM via the "java class" command; lives in the Internet
+ menu group. The lg3d apps jar and the OpenJFX jars (with their Linux natives)
+ are on the :lg3d core:run classpath, so the reflective lookup resolves.
+ Discovery only scans config/demo and config/incubator, so this descriptor lives
+ in lg3d apps/src/config (bundled to config/demo). The "Internet" menuGroup is
+ declared in lg3d core/src/etc/lg3d/startmenu.lgcfg. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.webbrowser.WebBrowser</string>
+  </void>
+  <void property="desc">
+   <string>Full-featured web browser (JavaFX WebKit)</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/webbrowser.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Internet</string>
+  </void>
+  <void property="name">
+   <string>Web Browser</string>
+  </void>
+ </object>
+</java>
