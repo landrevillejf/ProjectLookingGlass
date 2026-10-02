@@ -192,15 +192,13 @@ class Desktop2DAppRegistryTest {
     @Test
     @DisplayName("the Office-group 3D apps map to their 2D Swing panels")
     void officeAppsAreHostedPanels() {
-        // The four Office start-menu apps are pure-3D in the 3D desktop but ship
+        // The three Office start-menu apps are pure-3D in the 3D desktop but ship
         // an AWT/Swing panel (in lg3d-incubator) for the 2D/Swing desktop, keyed
         // on the 3D main class so the one shared descriptor serves both.
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.mail.Mail3D"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D"));
-        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
-                "java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D"));
 
@@ -210,12 +208,26 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.agenda.AgendaPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D"));
-        assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.contact.ContactCardsPanel",
-                Desktop2DAppRegistry.panelClass(
-                        "java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D"));
         assertEquals("org.jdesktop.lg3d.apps.orgchart.ui.chart.ChartPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D"));
+        // The legacy read-only Contact 3D card browser was replaced by the
+        // production Contacts app and is no longer hosted.
+        assertNull(Desktop2DAppRegistry.panelClass(
+                "java org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D"));
+    }
+
+    @Test
+    @DisplayName("the Contacts address book maps to its 2D Swing panel")
+    void contactsIsHostedPanel() {
+        // The Contacts app (lg3d-apps) is the production address book over the
+        // shared ~/.lg3d/contacts JSON store; the same ContactsPanel serves both
+        // desktops, keyed on the Contacts main class the descriptor launches.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.contacts.Contacts"));
+        assertEquals("org.jdesktop.lg3d.apps.contacts.ContactsPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.contacts.Contacts"));
     }
 
     @Test

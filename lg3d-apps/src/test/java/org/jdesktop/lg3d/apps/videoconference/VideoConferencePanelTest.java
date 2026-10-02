@@ -16,10 +16,13 @@ package org.jdesktop.lg3d.apps.videoconference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.List;
+import org.jdesktop.lg3d.contacts.Contact;
+import org.jdesktop.lg3d.contacts.ContactStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,6 +37,31 @@ import org.junit.jupiter.api.io.TempDir;
  * helpers. No X display, browser or clipboard is touched.
  */
 class VideoConferencePanelTest {
+
+    @Test
+    @DisplayName("the contacts tab is a live view of the shared address book")
+    void contactsComeFromSharedAddressBook(@TempDir Path dir, @TempDir Path contactsDir) {
+        ContactStore addressBook = new ContactStore(contactsDir);
+        Contact ada = addressBook.add(new Contact("Ada", "Lovelace", "ada@example.org"));
+        VideoConferencePanel panel =
+                new VideoConferencePanel(new VideoConferenceStore(dir), addressBook);
+        try {
+            assertEquals(1, panel.contacts().size());
+            assertEquals("Ada Lovelace", panel.contacts().get(0).displayName());
+            assertEquals("ada@example.org", panel.contacts().get(0).primaryEmail());
+            assertSame(addressBook, panel.addressBook());
+
+            // A contact created in the Contacts app shows up without any
+            // vc-local persistence, and a delete propagates the same way.
+            addressBook.add(new Contact("Grace", "Hopper", "grace@example.org"));
+            assertEquals(2, panel.contacts().size());
+            addressBook.delete(ada.getId());
+            assertEquals(1, panel.contacts().size());
+            assertEquals("Grace Hopper", panel.contacts().get(0).displayName());
+        } finally {
+            panel.shutdown();
+        }
+    }
 
     @Test
     @DisplayName("the panel sizes itself to the desktop window and starts empty")

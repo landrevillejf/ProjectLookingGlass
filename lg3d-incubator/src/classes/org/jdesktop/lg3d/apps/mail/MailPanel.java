@@ -45,8 +45,9 @@ import org.jdesktop.lg3d.apps.orgchart.ui.agenda.ContactDirectory;
 /**
  * The 2D/Swing counterpart of the native-3D {@link Mail3D} e-mail client: the
  * same local, {@link java.util.prefs.Preferences}-backed mailbox
- * ({@link MailStore} under {@code /mail/messages}) and the same shared
- * {@code /contacts} recipient directory ({@link ContactDirectory}), rendered as
+ * ({@link MailStore} under {@code /mail/messages}) and the same desktop-wide
+ * recipient address book ({@link ContactDirectory} over the shared
+ * {@code org.jdesktop.lg3d.contacts.ContactStore}), rendered as
  * an idiomatic Swing panel instead of a live-texture {@code Component3D}.
  *
  * <p>It is registered in {@code Desktop2DAppRegistry.PANEL_APPS} against the

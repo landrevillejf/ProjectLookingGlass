@@ -18,29 +18,38 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.util.prefs.Preferences;
+import org.jdesktop.lg3d.contacts.ContactStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless tests for {@link MailPanel}, the 2D/Swing counterpart of Mail3D. They
  * drive the panel's actions and assert on the underlying {@link MailStore} /
  * {@link MailMessage} model. The mailbox lives in the user Preferences tree, so
  * each test clears {@code /mail} first (giving a deterministic four-message seed)
- * and again afterwards.
+ * and again afterwards. The recipient address book is the shared
+ * {@code org.jdesktop.lg3d.contacts.ContactStore}; the tests point its
+ * directory property at a temp dir so it stays empty and deterministic.
  */
 class MailPanelTest {
+
+    @TempDir
+    Path contactsDir;
 
     @BeforeEach
     void clearMailbox() {
         remove("/mail");
-        remove("/contacts");
+        System.setProperty(ContactStore.DIR_PROPERTY, contactsDir.toString());
     }
 
     @AfterEach
     void cleanup() {
         remove("/mail");
+        System.clearProperty(ContactStore.DIR_PROPERTY);
     }
 
     private static void remove(String path) {

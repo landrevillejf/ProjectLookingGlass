@@ -18,32 +18,45 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.prefs.Preferences;
+import org.jdesktop.lg3d.contacts.Contact;
+import org.jdesktop.lg3d.contacts.ContactStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless tests for {@link AgendaPanel}, the 2D/Swing counterpart of Agenda3D.
  * They drive the panel's editing actions and assert on the shared
  * {@link AppointmentStore} / {@link Appointment} model, including the same
  * day/hour/duration clamping the 3D app applies. The agenda lives in the user
- * Preferences tree, so each test clears {@code /agenda} first and afterwards.
+ * Preferences tree, so each test clears {@code /agenda} first and afterwards;
+ * the attendee address book (the shared
+ * {@code org.jdesktop.lg3d.contacts.ContactStore}) is pointed at a temp dir
+ * seeded with exactly one contact so the invite flow is deterministic and the
+ * developer's real address book is never touched.
  */
 class AgendaPanelTest {
+
+    @TempDir
+    Path contactsDir;
 
     @BeforeEach
     void clear() {
         remove("/agenda");
-        remove("/contacts");
+        System.setProperty(ContactStore.DIR_PROPERTY, contactsDir.toString());
+        new ContactStore().add(new Contact("Test", "Person", "test@example.org"));
     }
 
     @AfterEach
     void cleanup() {
         remove("/agenda");
+        System.clearProperty(ContactStore.DIR_PROPERTY);
     }
 
     private static void remove(String path) {

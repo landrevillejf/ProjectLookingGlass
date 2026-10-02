@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Contacts (from lg3d-apps, org.jdesktop.lg3d.apps.contacts).
+ The production address book of the desktop: full CRUD, incremental search,
+ favourites, multi-valued e-mails/phones/tags, notes and vCard 3.0 import/export
+ over the shared JSON store in ~/.lg3d/contacts (org.jdesktop.lg3d.contacts.
+ ContactStore in lg3d-core). It starts empty - no demo data - and is the one
+ address book the Agenda attendee picker, the Messenger and the Video Conference
+ read. In the 3D desktop the Contacts wrapper hosts the panel on a SwingNode
+ inside a Frame3D via TitledSwingWindow (the "java <class>" command); in the
+ 2D/Swing desktop the same panel is hosted as an MDI internal frame via
+ Desktop2DAppRegistry. The lg3d-apps jar is on the desktop run classpath.
+ Discovery only scans config/demo and config/incubator, so this descriptor lives
+ in lg3d-apps/src/config (bundled to config/demo). It replaces the legacy
+ read-only Contact 3D card browser and its bundled demo contacts.xml. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.contacts.Contacts</string>
+  </void>
+  <void property="desc">
+   <string>Address book shared with the agenda, messenger and video conference</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/contacts.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Office</string>
+  </void>
+  <void property="name">
+   <string>Contacts</string>
+  </void>
+ </object>
+</java>

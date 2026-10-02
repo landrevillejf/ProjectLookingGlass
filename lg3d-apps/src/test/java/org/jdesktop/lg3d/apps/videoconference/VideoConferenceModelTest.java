@@ -68,21 +68,6 @@ class VideoConferenceModelTest {
     }
 
     @Test
-    @DisplayName("Contact renders name, e-mail or both")
-    void contact() {
-        assertEquals("Ada", new Contact("Ada", "").toString());
-        assertEquals("ada@x.com", new Contact("", "ada@x.com").toString());
-        assertEquals("Ada <ada@x.com>", new Contact("Ada", "ada@x.com").toString());
-        assertEquals("(unnamed)", new Contact(null, null).toString());
-        Contact c = new Contact("Ada", "ada@x.com");
-        c.setFavorite(true);
-        Contact copy = c.copy();
-        assertNotEquals(c, copy);
-        assertEquals("Ada", copy.getName());
-        assertTrue(copy.isFavorite());
-    }
-
-    @Test
     @DisplayName("CallHistoryEntry defaults and null outcome are safe")
     void callHistoryEntry() {
         CallHistoryEntry e = new CallHistoryEntry();

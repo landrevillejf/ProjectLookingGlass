@@ -39,10 +39,10 @@ import org.jogamp.vecmath.Vector3f;
  * {@link java.util.prefs.Preferences} tree under {@link MailStore#ROOT}, so it
  * survives across launches; "sending" a message files it in the Sent folder
  * rather than talking SMTP, which keeps the compose / reply / send loop fully
- * exercisable offline. Recipients are drawn from the same shared
- * {@code /contacts} directory {@code Contact3D} populates, read through
- * {@link ContactDirectory}, so the mail client shares one address book with the
- * rest of the suite.</p>
+ * exercisable offline. Recipients are drawn from the desktop-wide address book
+ * (the shared {@code org.jdesktop.lg3d.contacts.ContactStore} the production
+ * Contacts app edits), read through {@link ContactDirectory}, so the mail
+ * client shares one address book with the rest of the suite.</p>
  *
  * <p>Interaction is button-driven (dev mode has no keyboard focus routing):
  * click a message in the list to open and mark it read; {@code Inbox}/{@code

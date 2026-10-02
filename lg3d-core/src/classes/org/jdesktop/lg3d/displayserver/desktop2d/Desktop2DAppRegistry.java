@@ -175,10 +175,20 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.mail.MailPanel");
         panels.put("org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D",
                 "org.jdesktop.lg3d.apps.orgchart.ui.agenda.AgendaPanel");
-        panels.put("org.jdesktop.lg3d.apps.orgchart.ui.contact.Contact3D",
-                "org.jdesktop.lg3d.apps.orgchart.ui.contact.ContactCardsPanel");
         panels.put("org.jdesktop.lg3d.apps.orgchart.ui.chart.Chart3D",
                 "org.jdesktop.lg3d.apps.orgchart.ui.chart.ChartPanel");
+        // The Contacts address book (lg3d-apps, org.jdesktop.lg3d.apps.contacts)
+        // is the production replacement for the legacy read-only Contact 3D
+        // card browser (orgchart.ui.contact, demo contacts.xml): a full CRUD
+        // manager over the shared JSON store in ~/.lg3d/contacts
+        // (org.jdesktop.lg3d.contacts.ContactStore in lg3d-core) that the
+        // Agenda, Messenger and Video Conference also read. In the 3D desktop
+        // its Contacts wrapper hosts the panel on a SwingNode inside a Frame3D;
+        // here the very same panel opens as an MDI internal frame. The lg3d-apps
+        // jar is on the desktop run classpath, so the reflective lookup resolves
+        // and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.contacts.Contacts",
+                "org.jdesktop.lg3d.apps.contacts.ContactsPanel");
         // The Games-group native-3D apps (lg3d-incubator) each ship a plain
         // Swing panel that reuses the same AWT-free game engine (minimax /
         // generator-solver / negamax / Klondike) as the 3D app, so the one

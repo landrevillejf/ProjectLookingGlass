@@ -57,10 +57,10 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D;
  * A week-view agenda grid rendered entirely at runtime into a single texture:
  * seven day columns (Mon..Sun) by {@value #ROWS} one-hour rows starting at
  * {@link #START_HOUR}. User-created {@link Appointment}s are drawn as coloured
- * blocks; each block shows its title plus a presence chip per attendee,
- * resolved against the shared {@code /contacts} directory that {@code Contact3D}
- * populates (green = free, red = busy). This is the visible half of the one-way
- * Agenda3D &rarr; Contact3D interaction.
+ * blocks; each block shows its title plus one chip per attendee, resolved
+ * against the desktop-wide address book (green = a live contact, grey = an
+ * unknown uid). This is the visible half of the one-way
+ * Agenda3D &rarr; Contacts interaction.
  *
  * <p>The grid follows the live-texture recipe used by {@code Histogram3D}: one
  * fixed-size {@link ImageComponent2D} with {@code ALLOW_IMAGE_WRITE} is attached
@@ -115,7 +115,6 @@ public class AgendaGrid extends Component3D {
     private static final Color CURSOR_FILL = new Color(120, 180, 255, 46);
     private static final Color SELECT_BORDER = new Color(255, 226, 120, 255);
     private static final Color FREE_CHIP = new Color(90, 214, 120, 255);
-    private static final Color BUSY_CHIP = new Color(232, 92, 92, 255);
     private static final Color UNKNOWN_CHIP = new Color(150, 158, 170, 255);
     private static final Color WEEKEND_BG = new Color(0x20, 0x26, 0x34, 0xF8);
     private static final Color HOLIDAY_BG = new Color(0x4A, 0x24, 0x30, 0xF8);
@@ -632,7 +631,7 @@ public class AgendaGrid extends Component3D {
             if (info == null) {
                 g.setColor(UNKNOWN_CHIP);
             } else {
-                g.setColor(info.busy ? BUSY_CHIP : FREE_CHIP);
+                g.setColor(FREE_CHIP);
             }
             int cx = x + 6 + i * step;
             g.fillOval(cx, cy, dia, dia);

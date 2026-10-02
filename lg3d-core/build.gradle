@@ -175,6 +175,15 @@ dependencies {
     // text glyphs) if the library is ever absent at runtime.
     compileOnly files(rootProject.file('libs/IconManager-1.6.0.jar'))
 
+    // The desktop-wide address book (org.jdesktop.lg3d.contacts: Contact +
+    // ContactStore) persists as JSON under ~/.lg3d/contacts and is public API
+    // consumed by lg3d-apps (Contacts / Messenger / Video Conference) and
+    // lg3d-incubator (agenda / mail ContactDirectory adapter), so Jackson is an
+    // `api` dependency: consumer compile classpaths must see the annotations on
+    // Contact. It is already on the desktop run classpath via the detached
+    // configurations below.
+    api libs.jackson.databind
+
     // Unit tests for the Java 3D-free parts of the SDK (the 2D desktop's mode
     // resolver, its .lgcfg reader and its application registry). The legacy
     // tests/junit tree is left where it is; it predates this source set.

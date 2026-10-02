@@ -48,6 +48,8 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import org.jdesktop.lg3d.contacts.Contact;
+import org.jdesktop.lg3d.contacts.ContactStore;
 
 /**
  * The Video Conference application's Swing face: a Jitsi Meet conference client.
@@ -57,9 +59,12 @@ import javax.swing.SwingConstants;
  * mute-on-join preferences, and presses <b>Join</b>. The client builds the
  * correct Jitsi Meet deep link via {@link JitsiUrlBuilder} and hands it to the
  * system browser ({@link java.awt.Desktop#browse}) or an external meeting
- * command, where the real WebRTC audio/video session runs. Saved rooms,
- * contacts, recent calls and settings persist as JSON under
- * {@code ~/.lg3d/videoconference} via {@link VideoConferenceStore}.</p>
+ * command, where the real WebRTC audio/video session runs. Saved rooms, recent
+ * calls and settings persist as JSON under {@code ~/.lg3d/videoconference} via
+ * {@link VideoConferenceStore}; the Contacts tab is a live view of the
+ * desktop-wide address book ({@code ~/.lg3d/contacts} via
+ * {@code org.jdesktop.lg3d.contacts.ContactStore}) that the Contacts app edits,
+ * so one address book is shared across the whole desktop.</p>
  *
  * <p>The panel is plain Swing and touches no Java&nbsp;3D, so the one class
  * serves both desktops: in 3D the {@link VideoConference} wrapper hosts it on a
@@ -87,10 +92,10 @@ public class VideoConferencePanel extends JPanel {
             new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     private final VideoConferenceStore store;
+    private final ContactStore addressBook;
     private VideoConferenceSettings settings;
 
     private final List<ConferenceRoom> rooms = new ArrayList<>();
-    private final List<Contact> contacts = new ArrayList<>();
     private final List<CallHistoryEntry> history = new ArrayList<>();
 
     private final DefaultListModel<ConferenceRoom> roomModel = new DefaultListModel<>();
@@ -129,17 +134,28 @@ public class VideoConferencePanel extends JPanel {
      * @param store the persistence backend
      */
     public VideoConferencePanel(VideoConferenceStore store) {
+        this(store, new ContactStore());
+    }
+
+    /**
+     * Creates the panel with an explicit store and address book (tests point
+     * both at temp directories).
+     *
+     * @param store       the persistence backend
+     * @param addressBook the shared desktop-wide contact store
+     */
+    public VideoConferencePanel(VideoConferenceStore store, ContactStore addressBook) {
         super(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
         setBackground(BACKDROP);
         setOpaque(true);
 
         this.store = store;
+        this.addressBook = addressBook;
         this.settings = store.loadSettings();
         this.capture = CameraCapture.detect();
 
         rooms.addAll(store.loadRooms());
-        contacts.addAll(store.loadContacts());
         history.addAll(store.loadHistory());
 
         add(buildToolbar(), BorderLayout.NORTH);
@@ -359,7 +375,7 @@ public class VideoConferencePanel extends JPanel {
             roomModel.addElement(r);
         }
         contactModel.clear();
-        for (Contact ct : contacts) {
+        for (Contact ct : addressBook.all()) {
             contactModel.addElement(ct);
         }
         historyModel.clear();
@@ -596,10 +612,9 @@ public class VideoConferencePanel extends JPanel {
 
     private void showContactDialog(Contact existing) {
         boolean isNew = (existing == null);
-        Contact c = isNew ? new Contact() : existing;
-        JTextField name = new JTextField(c.getName());
-        JTextField email = new JTextField(c.getEmail());
-        JCheckBox fav = new JCheckBox("Favorite", c.isFavorite());
+        JTextField name = new JTextField(isNew ? "" : editableName(existing));
+        JTextField email = new JTextField(isNew ? "" : existing.primaryEmail());
+        JCheckBox fav = new JCheckBox("Favorite", !isNew && existing.isFavorite());
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints g = new GridBagConstraints();
         g.insets = new Insets(3, 4, 3, 4);
@@ -615,15 +630,36 @@ public class VideoConferencePanel extends JPanel {
         if (opt != JOptionPane.OK_OPTION) {
             return;
         }
-        c.setName(name.getText().trim());
-        c.setEmail(email.getText().trim());
+        Contact c = isNew ? new Contact() : existing;
+        applyName(c, name.getText().trim());
+        String emailText = email.getText().trim();
+        c.setEmails(emailText.isEmpty() ? new ArrayList<>() : List.of(emailText));
         c.setFavorite(fav.isSelected());
         if (isNew) {
-            contacts.add(c);
+            addressBook.add(c);
+        } else {
+            addressBook.update(c);
         }
-        saveContacts();
         refreshLists();
-        setStatus((isNew ? "Added " : "Updated ") + c.getName());
+        setStatus((isNew ? "Added " : "Updated ") + c.displayName());
+    }
+
+    /** The contact's name as one editable string (nickname/e-mail fallback). */
+    private static String editableName(Contact c) {
+        String full = (c.getFirstName() + " " + c.getLastName()).trim();
+        return full.isEmpty() ? c.displayName() : full;
+    }
+
+    /** Splits one name field into the store's first/last name pair. */
+    private static void applyName(Contact c, String full) {
+        int sp = full.indexOf(' ');
+        if (sp < 0) {
+            c.setFirstName(full);
+            c.setLastName("");
+        } else {
+            c.setFirstName(full.substring(0, sp));
+            c.setLastName(full.substring(sp + 1).trim());
+        }
     }
 
     private void removeSelectedContact() {
@@ -631,10 +667,9 @@ public class VideoConferencePanel extends JPanel {
         if (c == null) {
             return;
         }
-        contacts.remove(c);
-        saveContacts();
+        addressBook.delete(c.getId());
         refreshLists();
-        setStatus("Removed " + c.getName());
+        setStatus("Removed " + c.displayName());
     }
 
     private void clearHistory() {
@@ -736,7 +771,6 @@ public class VideoConferencePanel extends JPanel {
     // ------------------------------------------------------------------
 
     private void saveRooms() { store.saveRooms(rooms); }
-    private void saveContacts() { store.saveContacts(contacts); }
     private void saveHistory() { store.saveHistory(history, settings.getHistoryLimit()); }
     private void saveSettings() { store.saveSettings(settings); }
 
@@ -804,7 +838,8 @@ public class VideoConferencePanel extends JPanel {
     JTextField domainField() { return domainField; }
     CameraPreview preview() { return preview; }
     List<ConferenceRoom> rooms() { return rooms; }
-    List<Contact> contacts() { return contacts; }
+    List<Contact> contacts() { return addressBook.all(); }
+    ContactStore addressBook() { return addressBook; }
     List<CallHistoryEntry> history() { return history; }
     VideoConferenceSettings settings() { return settings; }
     DefaultListModel<ConferenceRoom> roomModel() { return roomModel; }
