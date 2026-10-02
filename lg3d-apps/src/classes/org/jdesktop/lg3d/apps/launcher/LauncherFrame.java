@@ -34,6 +34,14 @@ public class LauncherFrame extends javax.swing.JFrame {
                 launcherIconActionPerformed(evt);
             }
         });
+        // Let the launcher be dragged onto the 2D desktop's taskbar quick-launch
+        // strip: dragging the icon exports the current name/command/icon. A blank
+        // command exports nothing, so the button stays a plain click target.
+        QuickLaunchDrag.install(launcherIcon,
+                () -> QuickLaunchDrag.item(launcherName.getText(),
+                        launcherCommand.getText(), selectedIconPath));
+        launcherIcon.setToolTipText("Click to choose an icon, or drag onto the "
+                + "taskbar's Quick Launch bar to pin this launcher");
     }
     
     /** This method is called from within the constructor to

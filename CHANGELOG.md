@@ -44,6 +44,20 @@ work to make it build and run on a current toolchain.
   to an empty strip when no 2D shell is running. Covered by headless tests
   (`QuickLaunchPanelTest`, plus the no-shell hook path in
   `Desktop2DControlHooksTest`).
+- **Drag an Application Launcher onto the 2D quick-launch bar** (`lg3d-apps`
+  `org.jdesktop.lg3d.apps.launcher` + `lg3d-core` taskbar) — the Application
+  Launcher frame (`LauncherFrame`) now lets a launcher be dragged straight onto
+  the taskbar's pinned quick-launch strip: dragging its icon exports the current
+  name / command / icon, and the strip (a `DropTarget`) pins the dropped launcher
+  through the same `QuickLaunchModel.pin` path the window right-click popup uses —
+  so a freshly created launcher can be pinned without first appearing in the start
+  menu. Both ends share one same-JVM `DataFlavor` (`Desktop2D.QUICK_LAUNCH_FLAVOR`,
+  carrying the public `Desktop2D.QuickLaunchItem` by reference); the strip
+  highlights while an acceptable drag hovers and keeps a drop zone even when it is
+  empty. The drag glue lives in a testable helper (`QuickLaunchDrag`) outside the
+  NetBeans-generated form. Covered by headless tests (`QuickLaunchDragTest`, plus
+  the flavour assertion in `Desktop2DControlHooksTest`); the live drag gesture
+  itself needs an X display.
 - **Contacts — a production address book for the 2D/Swing and 3D desktops**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`; shared store in `lg3d-core`,
   `org.jdesktop.lg3d.contacts`; registration in `lg3d-core`, icon in `lg3d-core`
