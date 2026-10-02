@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.40.0 —
 
 ### Added
+- **Quick launchers on the 2D desktop taskbar** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the Swing 2D desktop now mirrors
+  the 3D `GlassyTaskbar` shortcut shelf with a pinned, reorderable quick-launch
+  strip beside the Start button. A new observable `QuickLaunchModel` holds an
+  ordered list of pinned apps, de-duplicated by launch command and capped at 24
+  entries, that writes straight through a `QuickLaunchStore` seam —
+  `PrefsQuickLaunchStore` persists it under the user preferences, following the
+  existing Run-history / Session pattern. Left-clicking a strip icon launches the
+  app through the normal `Desktop2D.openApp` path; right-clicking offers Move
+  Left / Move Right / Unpin, and every running window's taskbar button gains a
+  Pin/Unpin toggle so an open app can be kept on the bar. On first run the
+  desktop seeds up to six launchable defaults, preferring the native in-desktop
+  apps and then filling any remaining slots with available external commands,
+  guarded by a persisted seeded flag so a user who un-pins everything is not
+  re-seeded on the next start. Covered by headless JUnit 5 tests
+  (`QuickLaunchEntryTest` — encode/decode round trip, delimiter/blank/corrupt
+  tolerance and the `ItemSpec` bridge; `QuickLaunchModelTest` — pin/un-pin,
+  reorder, de-dup, cap, write-through persistence and change notifications)
+  exercised against an in-memory store so nothing touches real preferences.
 - **Contacts — a production address book for the 2D/Swing and 3D desktops**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`; shared store in `lg3d-core`,
   `org.jdesktop.lg3d.contacts`; registration in `lg3d-core`, icon in `lg3d-core`

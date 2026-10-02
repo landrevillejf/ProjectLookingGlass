@@ -134,6 +134,13 @@ public class Desktop2D {
             "java org.jdesktop.lg3d.apps.orgchart.ui.agenda.Agenda3D";
 
     /**
+     * How many applications are pinned to the taskbar quick-launch strip on
+     * first run, before the user curates it. A handful keeps the bar usable;
+     * the 3D taskbar shows every available app, but the 2D bar has less room.
+     */
+    private static final int DEFAULT_QUICK_LAUNCHERS = 6;
+
+    /**
      * UIManager font-default keys overridden by the desktop configuration. The
      * same list {@code TitledSwingWindow} uses on the 3D desktop, duplicated
      * here so the 2D shell stays free of any demo-apps / Java 3D dependency.
@@ -159,6 +166,14 @@ public class Desktop2D {
     private final WallpaperDesktopPane desktop;
     private final Desktop2DTaskbar taskbar;
     private final Desktop2DMenuConfig.MenuModel menuModel;
+
+    /**
+     * The pinned taskbar quick-launch shortcuts (the 2D counterpart of the 3D
+     * taskbar's {@code shortcuts} strip). Built before the taskbar, which renders
+     * the strip and listens for changes; seeded once with a default set on first
+     * run so the bar is not empty out of the box.
+     */
+    private final QuickLaunchModel quickLaunch;
     private final WindowCyclerOverlay windowSwitcher;
     private final NotificationModel notifications;
     private final DoNotDisturb dnd;
@@ -249,6 +264,10 @@ public class Desktop2D {
         frame = new JFrame(FRAME_TITLE);
         JPanel content = new JPanel(new BorderLayout());
         content.add(desktop, BorderLayout.CENTER);
+        // The pinned quick-launch shortcuts must exist (and be seeded) before the
+        // taskbar is built, since the taskbar renders the strip in its ctor.
+        quickLaunch = new QuickLaunchModel();
+        seedQuickLaunchDefaults();
         taskbar = new Desktop2DTaskbar(this);
         content.add(taskbar, BorderLayout.SOUTH);
         frame.setContentPane(content);
@@ -374,6 +393,79 @@ public class Desktop2D {
      */
     WorkspaceModel getWorkspaces() {
         return workspaces;
+    }
+
+    /**
+     * The pinned quick-launch model (package-visible for the taskbar, which
+     * renders the strip and offers the pin/un-pin/reorder affordances).
+     */
+    QuickLaunchModel getQuickLaunchModel() {
+        return quickLaunch;
+    }
+
+    /**
+     * Pins a small default set of applications to the quick-launch strip the
+     * first time the desktop runs, so - like the 3D taskbar, which shows a
+     * shortcut for every available application - the bar is populated out of the
+     * box. Up to {@value #DEFAULT_QUICK_LAUNCHERS} launchable applications are
+     * taken, preferring the native in-desktop apps (Swing panels and frames) and
+     * only then filling any remaining slots with available external commands
+     * (browser, terminal); a pure Java 3D app or an external command whose
+     * executable is missing is skipped, exactly as the start menu does. Guarded
+     * by a persisted flag, so a user who un-pins everything is not greeted by the
+     * defaults again on the next start.
+     */
+    private void seedQuickLaunchDefaults() {
+        if (quickLaunch.isSeeded()) {
+            return;
+        }
+        List<ItemSpec> items = menuModel.getItems();
+        // Native in-desktop apps first (the most useful permanent shortcuts),
+        // then external commands to fill any remaining slots.
+        int pinned = seedPass(items, 0, true);
+        seedPass(items, pinned, false);
+        quickLaunch.markSeeded();
+    }
+
+    /**
+     * One seeding pass: pins launchable items up to {@link #DEFAULT_QUICK_LAUNCHERS},
+     * taking the native in-desktop kinds when {@code nativeFirst} is true and the
+     * external commands when it is false. Returns the running pinned count.
+     */
+    private int seedPass(List<ItemSpec> items, int alreadyPinned,
+                         boolean nativeFirst) {
+        int pinned = alreadyPinned;
+        for (ItemSpec item : items) {
+            if (pinned >= DEFAULT_QUICK_LAUNCHERS) {
+                break;
+            }
+            Desktop2DAppRegistry.Kind kind =
+                    Desktop2DAppRegistry.classify(item.getCommand());
+            boolean external = kind == Desktop2DAppRegistry.Kind.EXTERNAL;
+            if (nativeFirst == external || !isLaunchable(kind, item.getCommand())) {
+                continue;   // wrong pass for this kind, or not runnable here
+            }
+            if (quickLaunch.pin(item)) {
+                pinned++;
+            }
+        }
+        return pinned;
+    }
+
+    /**
+     * True when an item of this kind can actually be launched by the 2D desktop:
+     * not a pure-3D app, and - for an external command - one whose executable is
+     * installed.
+     */
+    private static boolean isLaunchable(Desktop2DAppRegistry.Kind kind,
+                                        String command) {
+        if (kind == Desktop2DAppRegistry.Kind.UNAVAILABLE) {
+            return false;
+        }
+        if (kind == Desktop2DAppRegistry.Kind.EXTERNAL) {
+            return Desktop2DAppRegistry.isExternalAvailable(command);
+        }
+        return true;
     }
 
     /**

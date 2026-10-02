@@ -28,31 +28,38 @@ import java.awt.Point;
 import java.awt.PointerInfo;
 import java.awt.Rectangle;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JSeparator;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import com.protonmail.landrevillejf.IconManager;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
  * The 2D desktop's taskbar: a conventional Swing bar along the bottom of the
  * desktop window, standing in for the glassy 3D taskbar.
  *
- * <p>Left to right: the start-menu button, one button per open application
- * window, then on the right the Documents and Downloads folder menus, the clock
- * and Exit - the same pieces the 3D taskbar carries, minus the 3D-only
- * background switcher.</p>
+ * <p>Left to right: the start-menu button, the pinned quick-launch shortcuts
+ * (the 2D counterpart of the 3D taskbar's left-aligned {@code shortcuts} strip),
+ * one button per open application window, then on the right the Documents and
+ * Downloads folder menus, the clock and Exit - the same pieces the 3D taskbar
+ * carries, minus the 3D-only background switcher.</p>
  */
 public class Desktop2DTaskbar extends JPanel {
 
@@ -64,6 +71,9 @@ public class Desktop2DTaskbar extends JPanel {
 
     /** Taskbar chrome icon resources (rescaled by the configured icon scale). */
     private static final String STAR_ICON = "resources/images/icon/star.png";
+
+    /** Natural edge of a quick-launch shortcut icon, before the config scale. */
+    private static final int QUICKLAUNCH_ICON_BASE_PX = 22;
     private static final String DOCUMENTS_ICON =
             "resources/images/icon/folder-documents.png";
     private static final String DOWNLOADS_ICON =
@@ -83,6 +93,17 @@ public class Desktop2DTaskbar extends JPanel {
     private final Desktop2D desktop;
     private final JPanel windowButtons;
     private final Map<Desktop2DWindow, JButton> buttons = new LinkedHashMap<>();
+
+    /**
+     * The pinned quick-launch strip and the model behind it. The strip sits
+     * between the start button and the running-window buttons, mirroring the 3D
+     * taskbar's left-aligned {@code shortcuts} container; it is rebuilt whenever
+     * the model fires a change (a pin, un-pin or reorder) or the icon scale
+     * changes, and the current scale is kept so a rebuild draws the right size.
+     */
+    private final JPanel quickLaunchBar;
+    private final QuickLaunchModel quickLaunch;
+    private float quickLaunchIconScale = 1.0f;
     private final JLabel clock = new JLabel();
     private final Timer clockTimer;
     private final CalendarPopup calendar;
@@ -127,11 +148,24 @@ public class Desktop2DTaskbar extends JPanel {
         startButton.setToolTipText("Applications");
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
         leftRow.add(startButton);
+        // The pinned quick-launch strip sits between Start and the running-window
+        // buttons, exactly where the 3D taskbar keeps its shortcut icons.
+        quickLaunch = desktop.getQuickLaunchModel();
+        quickLaunchBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        quickLaunchBar.setOpaque(false);
+        leftRow.add(quickLaunchBar);
+        JSeparator divider = new JSeparator(JSeparator.VERTICAL);
+        divider.setPreferredSize(new Dimension(3, QUICKLAUNCH_ICON_BASE_PX));
+        leftRow.add(divider);
         leftRow.add(windowButtons);
         JPanel left = new JPanel(new GridBagLayout());
         left.setOpaque(false);
         left.add(leftRow);
         add(left, BorderLayout.WEST);
+
+        // Rebuild the strip on every pin/un-pin/reorder, and draw it once now.
+        quickLaunch.addListener(this::rebuildQuickLaunch);
+        rebuildQuickLaunch();
 
         JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
         rightRow.setOpaque(false);
@@ -216,6 +250,7 @@ public class Desktop2DTaskbar extends JPanel {
             button.setFont(activeFont);
         }
         button.addActionListener(e -> desktop.activateWindow(window));
+        button.addMouseListener(new WindowPinPopup(button, window));
         buttons.put(window, button);
         // A window's button shows only while its workspace is the current one.
         button.setVisible(desktop.isOnCurrentWorkspace(window));
@@ -258,6 +293,141 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons.repaint();
     }
 
+    // ------------------------------------------------------------------
+    // Pinned quick-launch shortcuts (2D counterpart of the 3D taskbar strip)
+    // ------------------------------------------------------------------
+
+    /**
+     * Rebuilds the quick-launch strip from the model: one icon button per pinned
+     * application, a left-click launching it through the same
+     * {@link Desktop2D#openApp} path the start menu uses and a right-click
+     * offering the reorder / un-pin affordances the 3D taskbar's shortcut icons
+     * give. Invoked on every model change and whenever the icon scale changes.
+     */
+    private void rebuildQuickLaunch() {
+        quickLaunchBar.removeAll();
+        List<QuickLaunchEntry> entries = quickLaunch.entries();
+        int px = scaledSize(QUICKLAUNCH_ICON_BASE_PX, quickLaunchIconScale);
+        for (int i = 0; i < entries.size(); i++) {
+            QuickLaunchEntry entry = entries.get(i);
+            JButton button = new JButton(
+                    AppIcons.iconFor(entry.name(), entry.iconResource(), px));
+            button.setToolTipText(entry.name());
+            button.setFocusable(false);
+            if (activeFont != null) {
+                button.setFont(activeFont);
+            }
+            button.addActionListener(e -> desktop.openApp(entry.toItemSpec()));
+            button.addMouseListener(new QuickLaunchPopup(button, entry, i));
+            quickLaunchBar.add(button);
+        }
+        quickLaunchBar.revalidate();
+        quickLaunchBar.repaint();
+    }
+
+    /**
+     * The right-click popup on a quick-launch button. The index is captured when
+     * the strip is built; because every mutation rebuilds the strip, the captured
+     * index always matches the entry's current position while the popup is live.
+     */
+    private final class QuickLaunchPopup extends MouseAdapter {
+        private final JButton anchor;
+        private final QuickLaunchEntry entry;
+        private final int index;
+
+        QuickLaunchPopup(JButton anchor, QuickLaunchEntry entry, int index) {
+            this.anchor = anchor;
+            this.entry = entry;
+            this.index = index;
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            maybeShow(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            maybeShow(e);
+        }
+
+        private void maybeShow(MouseEvent e) {
+            if (!e.isPopupTrigger()) {
+                return;
+            }
+            JPopupMenu menu = new JPopupMenu();
+            JMenuItem open = new JMenuItem("Launch");
+            open.addActionListener(a -> desktop.openApp(entry.toItemSpec()));
+            menu.add(open);
+            menu.addSeparator();
+            JMenuItem moveLeft = new JMenuItem("Move Left");
+            moveLeft.setEnabled(index > 0);
+            moveLeft.addActionListener(a -> quickLaunch.move(index, index - 1));
+            menu.add(moveLeft);
+            JMenuItem moveRight = new JMenuItem("Move Right");
+            moveRight.setEnabled(index < quickLaunch.size() - 1);
+            moveRight.addActionListener(a -> quickLaunch.move(index, index + 1));
+            menu.add(moveRight);
+            menu.addSeparator();
+            JMenuItem unpin = new JMenuItem("Unpin from Taskbar");
+            unpin.addActionListener(a -> quickLaunch.unpin(entry.command()));
+            menu.add(unpin);
+            menu.show(anchor, e.getX(), e.getY());
+        }
+    }
+
+    /**
+     * The right-click popup on a running window's taskbar button: a single entry
+     * that pins the application to the quick-launch strip, or un-pins it when it
+     * is already there. This is how a user curates the strip beyond the seeded
+     * defaults, mirroring pinning a running app to a conventional taskbar.
+     */
+    private final class WindowPinPopup extends MouseAdapter {
+        private final JButton anchor;
+        private final Desktop2DWindow window;
+
+        WindowPinPopup(JButton anchor, Desktop2DWindow window) {
+            this.anchor = anchor;
+            this.window = window;
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            maybeShow(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            maybeShow(e);
+        }
+
+        private void maybeShow(MouseEvent e) {
+            if (!e.isPopupTrigger()) {
+                return;
+            }
+            String command = window.getCommand();
+            if (command == null || command.isBlank()) {
+                // A window with no launch identity (an ad hoc folder) cannot be
+                // pinned, so there is nothing to offer.
+                return;
+            }
+            boolean pinned = quickLaunch.isPinned(command);
+            JPopupMenu menu = new JPopupMenu();
+            JMenuItem toggle = new JMenuItem(
+                    pinned ? "Unpin from Taskbar" : "Pin to Taskbar");
+            toggle.addActionListener(a -> {
+                if (pinned) {
+                    quickLaunch.unpin(command);
+                } else {
+                    quickLaunch.pin(new ItemSpec(window.getAppName(), command,
+                            null, null, window.getIconResource()));
+                }
+            });
+            menu.add(toggle);
+            menu.show(anchor, e.getX(), e.getY());
+        }
+    }
+
     /** The system-indicator cluster (volume, brightness, network, battery). */
     TaskbarIndicators indicators() {
         return indicators;
@@ -297,6 +467,9 @@ public class Desktop2DTaskbar extends JPanel {
         startButton.setIcon(scaledIcon(startIconBase, iconScale));
         documentsButton.setIcon(scaledIcon(documentsIconBase, iconScale));
         downloadsButton.setIcon(scaledIcon(downloadsIconBase, iconScale));
+        // The quick-launch shortcut icons follow the same configured scale.
+        quickLaunchIconScale = iconScale;
+        rebuildQuickLaunch();
 
         // The bar hugs its controls: it carries no thickness of its own, so it
         // is always roughly as tall as the buttons it holds. Only auto-hide
