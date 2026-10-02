@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Docker Manager (from lg3d-apps,
+ org.jdesktop.lg3d.apps.dockermanager). A port of the Swing IDE docker plugin:
+ an integrated terminal, container list, image list and Docker file browser that
+ shells out to the system docker CLI (no bundled docker-java). Its
+ DockerManagementPanel draws every glyph through the bundled IconManager library
+ so the appearance is identical to the original plugin. In the 3D desktop the
+ DockerManager wrapper hosts the panel on a SwingNode inside a Frame3D via
+ TitledSwingWindow (the "java <class>" command); in the 2D/Swing desktop the same
+ panel is hosted as an MDI internal frame via Desktop2DAppRegistry. The lg3d-apps
+ jar (with slf4j and IconManager) is on the desktop run classpath. Discovery only
+ scans config/demo and config/incubator, so this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo). -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.dockermanager.DockerManager</string>
+  </void>
+  <void property="desc">
+   <string>Manage Docker containers, images and compose files</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/docker.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>Docker Manager</string>
+  </void>
+ </object>
+</java>

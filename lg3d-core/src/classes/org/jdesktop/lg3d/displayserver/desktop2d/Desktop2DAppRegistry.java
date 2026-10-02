@@ -397,6 +397,18 @@ public final class Desktop2DAppRegistry {
         // classpath, so the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.webbrowser.WebBrowser",
                 "org.jdesktop.lg3d.apps.webbrowser.BrowserPanel");
+        // The Docker Manager (lg3d-apps, org.jdesktop.lg3d.apps.dockermanager) is
+        // a port of the Swing IDE docker plugin: a Swing terminal / containers /
+        // files / images workspace that shells out to the system docker CLI (no
+        // bundled docker-java, no Java 3D). Its DockerManagementPanel draws every
+        // glyph through the bundled IconManager library, which is on the desktop
+        // run classpath. In the 3D desktop its DockerManager wrapper hosts the
+        // very same panel on a SwingNode inside a Frame3D via TitledSwingWindow;
+        // here it opens as an MDI internal frame, so the manager is fully usable
+        // without 3D. The lg3d-apps jar (with slf4j and IconManager) is on the
+        // desktop run classpath, so the reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.dockermanager.DockerManager",
+                "org.jdesktop.lg3d.apps.dockermanager.DockerManagementPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();
