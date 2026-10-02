@@ -29,6 +29,21 @@ work to make it build and run on a current toolchain.
   tolerance and the `ItemSpec` bridge; `QuickLaunchModelTest` — pin/un-pin,
   reorder, de-dup, cap, write-through persistence and change notifications)
   exercised against an in-memory store so nothing touches real preferences.
+- **Control Center → Quick Launch panel** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter.QuickLaunchPanel`; hooks in `lg3d-core`) —
+  the 2D taskbar's pinned quick-launch strip is now configurable from the Control
+  Center: a `JList` of the pinned launchers in taskbar order with Move Up / Move
+  Down / Remove, a second `JList` of the available start-menu applications with
+  Add, and a Reset to Defaults button. It drives the strip through new EDT-safe
+  `Desktop2D` control-center hooks (`quickLaunchPinned`, `quickLaunchCandidates`,
+  `quickLaunchPin`, `quickLaunchUnpin`, `quickLaunchMove`,
+  `quickLaunchResetDefaults` and the public `Desktop2D.QuickLaunchItem` record),
+  so a change persists and the live taskbar updates immediately. Like the
+  Workspaces / Notifications panels it uses only `JList` / `JButton` (never a
+  combo box, which an offscreen `SwingNode` cannot reliably deliver) and degrades
+  to an empty strip when no 2D shell is running. Covered by headless tests
+  (`QuickLaunchPanelTest`, plus the no-shell hook path in
+  `Desktop2DControlHooksTest`).
 - **Contacts — a production address book for the 2D/Swing and 3D desktops**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`; shared store in `lg3d-core`,
   `org.jdesktop.lg3d.contacts`; registration in `lg3d-core`, icon in `lg3d-core`
