@@ -26,6 +26,7 @@ import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -1778,6 +1779,19 @@ public class Desktop2D {
      */
     public record QuickLaunchItem(String name, String command, String iconResource) {
     }
+
+    /**
+     * The drag-and-drop flavour that carries a {@link QuickLaunchItem} from a
+     * drag source (the Application Launcher frame) to the 2D taskbar's
+     * quick-launch strip (the drop target). It is a same-JVM local-object
+     * flavour: the 2D desktop hosts both ends in one JVM (frame apps run via a
+     * reflective {@code main} on a daemon thread), so the item is passed by
+     * reference and never serialised.
+     */
+    public static final DataFlavor QUICK_LAUNCH_FLAVOR = new DataFlavor(
+            DataFlavor.javaJVMLocalObjectMimeType + ";class="
+                    + QuickLaunchItem.class.getName(),
+            "LG3D Quick Launch Item");
 
     /**
      * Turns Do Not Disturb on (indefinitely) or off and persists the choice, so

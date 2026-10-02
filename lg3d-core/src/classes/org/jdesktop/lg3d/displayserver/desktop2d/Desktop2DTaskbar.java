@@ -15,6 +15,7 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -27,9 +28,17 @@ import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.PointerInfo;
 import java.awt.Rectangle;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.IdentityHashMap;
@@ -44,6 +53,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JSeparator;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
@@ -74,6 +84,9 @@ public class Desktop2DTaskbar extends JPanel {
 
     /** Natural edge of a quick-launch shortcut icon, before the config scale. */
     private static final int QUICKLAUNCH_ICON_BASE_PX = 22;
+
+    /** Highlight painted on the quick-launch strip while a launcher hovers. */
+    private static final Color QUICKLAUNCH_DROP_HIGHLIGHT = new Color(0x3d6da8);
     private static final String DOCUMENTS_ICON =
             "resources/images/icon/folder-documents.png";
     private static final String DOWNLOADS_ICON =
@@ -166,6 +179,8 @@ public class Desktop2DTaskbar extends JPanel {
         // Rebuild the strip on every pin/un-pin/reorder, and draw it once now.
         quickLaunch.addListener(this::rebuildQuickLaunch);
         rebuildQuickLaunch();
+        // Accept launchers dragged out of the Application Launcher frame.
+        installQuickLaunchDrop();
 
         JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
         rightRow.setOpaque(false);
@@ -321,8 +336,117 @@ public class Desktop2DTaskbar extends JPanel {
             button.addMouseListener(new QuickLaunchPopup(button, entry, i));
             quickLaunchBar.add(button);
         }
+        // Keep a drop zone even when nothing is pinned, so a launcher dragged
+        // from the Application Launcher always has somewhere to land.
+        quickLaunchBar.setPreferredSize(entries.isEmpty()
+                ? new Dimension(px + 6, px) : null);
         quickLaunchBar.revalidate();
         quickLaunchBar.repaint();
+    }
+
+    /**
+     * Makes the quick-launch strip a drop target for launchers dragged out of
+     * the Application Launcher frame ({@code org.jdesktop.lg3d.apps.launcher}).
+     * A drop pins the dragged launcher through the same
+     * {@link QuickLaunchModel#pin} path the window right-click popup uses, so a
+     * freshly created launcher can be pinned without first appearing in the
+     * start menu. The strip highlights while an acceptable drag hovers over it.
+     */
+    private void installQuickLaunchDrop() {
+        new DropTarget(quickLaunchBar, DnDConstants.ACTION_COPY_OR_MOVE,
+                new QuickLaunchDrop(), true);
+    }
+
+    /** Highlights (or clears) the strip to signal it will accept a drop. */
+    private void highlightQuickLaunch(final boolean on) {
+        SwingUtilities.invokeLater(() -> {
+            quickLaunchBar.setOpaque(on);
+            quickLaunchBar.setBackground(on ? QUICKLAUNCH_DROP_HIGHLIGHT : null);
+            quickLaunchBar.repaint();
+        });
+    }
+
+    /**
+     * Pins a launcher dragged from the Application Launcher onto the strip, on
+     * the EDT. A blank command (nothing to launch) is ignored.
+     */
+    private void pinDroppedLauncher(final Desktop2D.QuickLaunchItem item) {
+        if (item == null) {
+            return;
+        }
+        final String command = item.command();
+        if (command == null || command.isBlank()) {
+            return;
+        }
+        final String name = (item.name() == null || item.name().isBlank())
+                ? command : item.name();
+        final String iconResource = item.iconResource();
+        SwingUtilities.invokeLater(() -> quickLaunch.pin(
+                new ItemSpec(name, command, null, null, iconResource)));
+    }
+
+    /**
+     * Accepts {@link Desktop2D#QUICK_LAUNCH_FLAVOR} drops onto the strip. The
+     * drag data is a same-JVM {@link Desktop2D.QuickLaunchItem} reference, so
+     * the drop reads it directly and defers the model mutation to the EDT.
+     */
+    private final class QuickLaunchDrop extends DropTargetAdapter {
+
+        @Override
+        public void dragEnter(final DropTargetDragEvent dtde) {
+            if (supported(dtde)) {
+                dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
+                highlightQuickLaunch(true);
+            } else {
+                dtde.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dragOver(final DropTargetDragEvent dtde) {
+            if (supported(dtde)) {
+                dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
+            } else {
+                dtde.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dropActionChanged(final DropTargetDragEvent dtde) {
+            dragOver(dtde);
+        }
+
+        @Override
+        public void dragExit(final DropTargetEvent dte) {
+            highlightQuickLaunch(false);
+        }
+
+        @Override
+        public void drop(final DropTargetDropEvent dtde) {
+            Desktop2D.QuickLaunchItem item = null;
+            try {
+                if (!dtde.isDataFlavorSupported(Desktop2D.QUICK_LAUNCH_FLAVOR)) {
+                    dtde.rejectDrop();
+                    return;
+                }
+                dtde.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
+                Object data = dtde.getTransferable()
+                        .getTransferData(Desktop2D.QUICK_LAUNCH_FLAVOR);
+                if (data instanceof Desktop2D.QuickLaunchItem) {
+                    item = (Desktop2D.QuickLaunchItem) data;
+                }
+                dtde.dropComplete(true);
+            } catch (UnsupportedFlavorException | IOException e) {
+                dtde.rejectDrop();
+            } finally {
+                highlightQuickLaunch(false);
+            }
+            pinDroppedLauncher(item);
+        }
+
+        private boolean supported(final DropTargetDragEvent dtde) {
+            return dtde.isDataFlavorSupported(Desktop2D.QUICK_LAUNCH_FLAVOR);
+        }
     }
 
     /**

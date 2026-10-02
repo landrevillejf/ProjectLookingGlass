@@ -128,6 +128,18 @@ class Desktop2DControlHooksTest {
     }
 
     @Test
+    @DisplayName("the quick-launch drag flavour carries a QuickLaunchItem by reference")
+    void quickLaunchFlavor() {
+        java.awt.datatransfer.DataFlavor flavor = Desktop2D.QUICK_LAUNCH_FLAVOR;
+        assertNotNull(flavor);
+        assertEquals(Desktop2D.QuickLaunchItem.class, flavor.getRepresentationClass());
+        assertTrue(flavor.getMimeType().startsWith(
+                        java.awt.datatransfer.DataFlavor.javaJVMLocalObjectMimeType),
+                "a same-JVM local-object reference, not a serialised/remote flavour");
+        assertEquals("LG3D Quick Launch Item", flavor.getHumanPresentableName());
+    }
+
+    @Test
     @DisplayName("the snapshot records expose their components")
     void recordsExposeComponents() {
         Desktop2D.NotificationEntry entry = new Desktop2D.NotificationEntry(
