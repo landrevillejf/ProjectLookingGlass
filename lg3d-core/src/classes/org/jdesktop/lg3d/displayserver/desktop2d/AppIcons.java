@@ -23,6 +23,7 @@ import java.util.logging.Logger;
 import javax.swing.Icon;
 import com.protonmail.landrevillejf.IconManager;
 import com.protonmail.landrevillejf.IconManager.IconCategory;
+import com.protonmail.landrevillejf.MissingIcon;
 
 /**
  * Resolves the 2D desktop's application icons through the bundled IconManager
@@ -82,6 +83,13 @@ final class AppIcons {
         {"text", IconCategory.TEXT, "Normal"},
         {"write", IconCategory.TEXT, "Normal"},
     };
+
+    /**
+     * The only square edges the bundled toolbarButtonGraphics glyphs ship at;
+     * any other requested edge must be resized from one of these.
+     */
+    private static final int GLYPH_SMALL_EDGE = 16;
+    private static final int GLYPH_LARGE_EDGE = 24;
 
     /**
      * Descriptor icon resources that are genuine per-application artwork and
@@ -185,11 +193,21 @@ final class AppIcons {
         String lower = name.toLowerCase();
         for (Object[] family : FAMILIES) {
             if (lower.contains((String) family[0])) {
-                Icon icon = IconManager.loadIcon(
-                        (IconCategory) family[1], (String) family[2], size, size);
-                if (icon != null) {
-                    return icon;
+                IconCategory category = (IconCategory) family[1];
+                String glyph = (String) family[2];
+                // The bundled glyphs only ship at 16 and 24 px and loadIcon
+                // builds "<name><height>.gif", so asking for any other edge
+                // (the quick-launch strip's 22, say) silently returns the red-X
+                // MissingIcon. Load a bundled edge and resize to the request,
+                // and treat a MissingIcon (unknown glyph name) as "no family
+                // glyph" so the caller falls back to an initials tile.
+                int edge = (size == GLYPH_SMALL_EDGE)
+                        ? GLYPH_SMALL_EDGE : GLYPH_LARGE_EDGE;
+                Icon icon = IconManager.loadIcon(category, glyph, edge, edge);
+                if (icon == null || icon instanceof MissingIcon) {
+                    continue;
                 }
+                return (size == edge) ? icon : IconManager.resizeIcon(icon, size, size);
             }
         }
         return null;
