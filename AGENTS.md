@@ -194,6 +194,7 @@ JUnit 5 test infrastructure exists and runs headless:
 ### External Dependencies
 - Java 3D (Jogamp): `org.jogamp.java3d:{java3d-core,java3d-utils,vecmath}:1.7.2`
 - Jogamp natives (platform-specific): `gluegen-rt:2.6.0`, `jogl-all:2.6.0`, `joal:2.6.0` with classifier (e.g., `natives-linux-amd64`)
+- OpenJFX (GPLv2 + Classpath Exception): `org.openjfx:javafx-{base,graphics,controls,media,web,swing}:21.0.12` with the `linux` classifier — powers the Web Browser (`lg3d-apps`, `org.jdesktop.lg3d.apps.webbrowser`) via JavaFX `WebView` (WebKit), bridged into Swing with `javafx.embed.swing.JFXPanel`. Like the Jogamp natives, the classifier is applied in the consuming build files and wired onto the hand-assembled `:lg3d-core:run` / `releaseBundle` classpath; JavaFX is initialised only in the 2D desktop JVM and in the browser's own child-process JVM, never inside the Java 3D process.
 
 ### Internal Dependencies
 - `lg3d-core` depends on `lg3d-escher`

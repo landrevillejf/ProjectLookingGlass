@@ -111,6 +111,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector git branch (trunk with a fork) instead of a bundled glyph. */
     private static final String GIT_BRANCH_GLYPH = "GitBranch";
 
+    /** Glyph name that draws a built-in vector browser window (chrome strip over a globe) instead of a bundled glyph. */
+    private static final String BROWSER_GLYPH = "BrowserWindow";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -201,6 +204,12 @@ public class GenerateAppIcons {
         // shaped, so a git branch (trunk with a fork) is drawn in-tool like the
         // padlock and the marks above.
         {"gitgui.png", IconColor.ORANGE, IconCategory.DEVELOPMENT, GIT_BRANCH_GLYPH},
+        // Web Browser (JavaFX WebView / WebKit; a JFXPanel-hosted MDI frame in
+        // the 2D desktop and a pure-Swing preview in 3D that spawns the real
+        // browser child process); the bundled glyph set has nothing browser
+        // shaped, so a browser window with a globe is drawn in-tool like the
+        // git branch and the marks above.
+        {"webbrowser.png", IconColor.BLUE, IconCategory.GENERAL, BROWSER_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -255,6 +264,8 @@ public class GenerateAppIcons {
                 glyph = drawPadlockGlyph(GLYPH);
             } else if (GIT_BRANCH_GLYPH.equals(glyphName)) {
                 glyph = drawGitBranchGlyph(GLYPH);
+            } else if (BROWSER_GLYPH.equals(glyphName)) {
+                glyph = drawBrowserGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -874,6 +885,39 @@ public class GenerateAppIcons {
         g.fillOval(6, 5, 7, 7);     // top trunk node
         g.fillOval(6, 22, 7, 7);    // bottom trunk node
         g.fillOval(19, 8, 7, 7);    // branch node
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the browser glyph: a window with a chrome strip (a punched close dot
+     * and an address-bar slot) over a content area holding a wireframe globe, the
+     * conventional "web browser" mark. The bundled {@code toolbarButtonGraphics}
+     * set carries nothing browser shaped, so it is drawn in-tool like the git
+     * branch and the marks above. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawBrowserGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        // Window body.
+        g.fillRoundRect(2, 4, 28, 24, 4, 4);
+        // Punch out the content area, leaving the top chrome strip solid.
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(5, 12, 22, 13);
+        // Punch a close dot and an address-bar slot out of the chrome strip.
+        g.fillOval(6, 7, 3, 3);
+        g.fillRoundRect(12, 7, 15, 4, 3, 3);
+        // Wireframe globe centred in the content area.
+        g.setComposite(AlphaComposite.SrcOver);
+        g.setStroke(new BasicStroke(1.5f));
+        g.drawOval(11, 13, 11, 11);
+        g.drawLine(16, 13, 16, 24);        // central meridian
+        g.drawOval(13, 13, 7, 11);         // inner meridian ellipse
+        g.drawLine(11, 18, 22, 18);        // equator
         g.dispose();
         return new ImageIcon(image);
     }
