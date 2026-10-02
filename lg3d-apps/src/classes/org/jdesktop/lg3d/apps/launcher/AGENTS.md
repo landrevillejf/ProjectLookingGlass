@@ -10,15 +10,16 @@
 | --- | --- |
 | Status | **Functional tool** (application launcher creator) — now fully functional |
 | Entry point | `LauncherFrame.main` (NetBeans-generated Swing frame) |
-| Surface | **2D Swing** frame; launches apps via `AppLaunchAction` |
+| Surface | **2D Swing** frame; launches apps via `AppLaunchAction`; drag the icon onto the 2D taskbar's quick-launch strip to pin it |
 | Start-menu name / group | Application Launcher — available in both 2D and 3D desktops |
 | Command | `java org.jdesktop.lg3d.apps.launcher.LauncherFrame` |
 | Descriptor | `src/config/launcher.lgcfg` → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Components:** `LauncherFrame` (NetBeans-generated) + `ApplicationDescription` +
-`AppLaunchAction` + `LauncherSaver` (saves user launchers to `~/.config/lg3d/launchers/`).
-Icon picking and save are **now implemented**.
+`AppLaunchAction` + `LauncherSaver` (saves user launchers to `~/.config/lg3d/launchers/`)
++ `QuickLaunchDrag` (drag the built launcher onto the 2D taskbar's quick-launch
+strip). Icon picking, save and drag-to-quick-launch are **now implemented**.
 
 ## Roles
 
@@ -32,17 +33,26 @@ Icon picking and save are **now implemented**.
   (LauncherSaver) are now fully implemented. Jogamp packages only where 3D is used.
 - **QA** — Verify the frame opens, that icon selection works, that save creates a
   valid .lgcfg file in `~/.config/lg3d/launchers/`, and that the saved launcher
-  appears in the start menu after a desktop restart.
+  appears in the start menu after a desktop restart. On a live X display, verify
+  dragging the icon onto the 2D taskbar's quick-launch strip pins it (the strip
+  highlights while an acceptable drag hovers); headless, `QuickLaunchDragTest`
+  covers the payload builder and the transferable.
 - **Business Analyst** — Functional tool for users to create custom application
   launchers. Saved launchers persist across desktop sessions and are discoverable
   in the start menu.
 - **Functional Analyst** — Spec as a functional tool: users can specify name,
   description, command, icon, and menu group; the launcher is saved as a .lgcfg
-  file and automatically discovered by the desktop.
+  file and automatically discovered by the desktop. A launcher can also be dragged
+  from the frame's icon onto the 2D taskbar's quick-launch strip to pin it right
+  away — no restart, no start-menu round-trip — through the shared same-JVM
+  `Desktop2D.QUICK_LAUNCH_FLAVOR` (the strip is the drop target).
 - **Project Manager** — Commit scope `lg3d-apps`. Medium priority; useful utility.
   Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — **2D** Swing launcher frame. Keep it consistent with the
-  platform LAF.
+  platform LAF. The icon button doubles as a drag handle onto the taskbar's
+  quick-launch strip (its tooltip advertises this); a drag with a blank command
+  starts nothing, so the button stays a plain click target until there is
+  something to pin.
 
 ## Communication & coherence
 
@@ -183,3 +193,6 @@ Launch standalone:
 - Classpath field is not used by the save function (saved .lgcfg files use the command field only)
 - No load functionality to edit existing launchers
 - No template system for common launcher types
+- Drag-to-pin targets the **2D** taskbar's quick-launch strip only; the 3D
+  taskbar's shortcut shelf is not a drop target. A custom picked icon file is not
+  shown on the strip (the 2D desktop resolves app icons by name via `AppIcons`).

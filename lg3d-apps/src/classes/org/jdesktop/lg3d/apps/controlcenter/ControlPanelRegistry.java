@@ -22,8 +22,8 @@ import java.util.logging.Logger;
 /**
  * Discovers the control center's category panels. The built-in panels
  * (Appearance, Desktop, Display, Sound, Power, Mouse & Keyboard, Shortcuts,
- * Notifications, Workspaces, Network, Bluetooth, Printing, Date & Time,
- * Language & Region, Users, System, Schedule) are registered on
+ * Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing,
+ * Date & Time, Language & Region, Users, System, Schedule) are registered on
  * first access; extra panels can be contributed with
  * {@link #register(ControlPanel)} before the control center window is built.
  *
@@ -76,6 +76,7 @@ public final class ControlPanelRegistry {
             addDefault(ShortcutsPanel::new, "Shortcuts");
             addDefault(NotificationsPanel::new, "Notifications");
             addDefault(WorkspacesPanel::new, "Workspaces");
+            addDefault(QuickLaunchPanel::new, "Quick Launch");
             addDefault(NetworkPanel::new, "Network");
             addDefault(BluetoothPanel::new, "Bluetooth");
             addDefault(PrintingPanel::new, "Printing");

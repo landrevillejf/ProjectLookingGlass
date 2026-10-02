@@ -10,6 +10,54 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.40.0 —
 
 ### Added
+- **Quick launchers on the 2D desktop taskbar** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — the Swing 2D desktop now mirrors
+  the 3D `GlassyTaskbar` shortcut shelf with a pinned, reorderable quick-launch
+  strip beside the Start button. A new observable `QuickLaunchModel` holds an
+  ordered list of pinned apps, de-duplicated by launch command and capped at 24
+  entries, that writes straight through a `QuickLaunchStore` seam —
+  `PrefsQuickLaunchStore` persists it under the user preferences, following the
+  existing Run-history / Session pattern. Left-clicking a strip icon launches the
+  app through the normal `Desktop2D.openApp` path; right-clicking offers Move
+  Left / Move Right / Unpin, and every running window's taskbar button gains a
+  Pin/Unpin toggle so an open app can be kept on the bar. On first run the
+  desktop seeds up to six launchable defaults, preferring the native in-desktop
+  apps and then filling any remaining slots with available external commands,
+  guarded by a persisted seeded flag so a user who un-pins everything is not
+  re-seeded on the next start. Covered by headless JUnit 5 tests
+  (`QuickLaunchEntryTest` — encode/decode round trip, delimiter/blank/corrupt
+  tolerance and the `ItemSpec` bridge; `QuickLaunchModelTest` — pin/un-pin,
+  reorder, de-dup, cap, write-through persistence and change notifications)
+  exercised against an in-memory store so nothing touches real preferences.
+- **Control Center → Quick Launch panel** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter.QuickLaunchPanel`; hooks in `lg3d-core`) —
+  the 2D taskbar's pinned quick-launch strip is now configurable from the Control
+  Center: a `JList` of the pinned launchers in taskbar order with Move Up / Move
+  Down / Remove, a second `JList` of the available start-menu applications with
+  Add, and a Reset to Defaults button. It drives the strip through new EDT-safe
+  `Desktop2D` control-center hooks (`quickLaunchPinned`, `quickLaunchCandidates`,
+  `quickLaunchPin`, `quickLaunchUnpin`, `quickLaunchMove`,
+  `quickLaunchResetDefaults` and the public `Desktop2D.QuickLaunchItem` record),
+  so a change persists and the live taskbar updates immediately. Like the
+  Workspaces / Notifications panels it uses only `JList` / `JButton` (never a
+  combo box, which an offscreen `SwingNode` cannot reliably deliver) and degrades
+  to an empty strip when no 2D shell is running. Covered by headless tests
+  (`QuickLaunchPanelTest`, plus the no-shell hook path in
+  `Desktop2DControlHooksTest`).
+- **Drag an Application Launcher onto the 2D quick-launch bar** (`lg3d-apps`
+  `org.jdesktop.lg3d.apps.launcher` + `lg3d-core` taskbar) — the Application
+  Launcher frame (`LauncherFrame`) now lets a launcher be dragged straight onto
+  the taskbar's pinned quick-launch strip: dragging its icon exports the current
+  name / command / icon, and the strip (a `DropTarget`) pins the dropped launcher
+  through the same `QuickLaunchModel.pin` path the window right-click popup uses —
+  so a freshly created launcher can be pinned without first appearing in the start
+  menu. Both ends share one same-JVM `DataFlavor` (`Desktop2D.QUICK_LAUNCH_FLAVOR`,
+  carrying the public `Desktop2D.QuickLaunchItem` by reference); the strip
+  highlights while an acceptable drag hovers and keeps a drop zone even when it is
+  empty. The drag glue lives in a testable helper (`QuickLaunchDrag`) outside the
+  NetBeans-generated form. Covered by headless tests (`QuickLaunchDragTest`, plus
+  the flavour assertion in `Desktop2DControlHooksTest`); the live drag gesture
+  itself needs an X display.
 - **Contacts — a production address book for the 2D/Swing and 3D desktops**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`; shared store in `lg3d-core`,
   `org.jdesktop.lg3d.contacts`; registration in `lg3d-core`, icon in `lg3d-core`

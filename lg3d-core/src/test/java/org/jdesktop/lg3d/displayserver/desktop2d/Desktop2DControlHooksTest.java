@@ -107,6 +107,39 @@ class Desktop2DControlHooksTest {
     }
 
     @Test
+    @DisplayName("the quick-launch hooks report empty and no-op with no shell")
+    void quickLaunchHooks() {
+        assertTrue(Desktop2D.quickLaunchPinned().isEmpty());
+        assertTrue(Desktop2D.quickLaunchCandidates().isEmpty());
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchPin("java a.A"));
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchUnpin("java a.A"));
+        assertDoesNotThrow(() -> Desktop2D.quickLaunchMove(0, 1));
+        assertDoesNotThrow(Desktop2D::quickLaunchResetDefaults);
+    }
+
+    @Test
+    @DisplayName("the quick-launch item record exposes its components")
+    void quickLaunchItemRecord() {
+        Desktop2D.QuickLaunchItem item =
+                new Desktop2D.QuickLaunchItem("Mail", "java mail.Mail", "mail.png");
+        assertEquals("Mail", item.name());
+        assertEquals("java mail.Mail", item.command());
+        assertEquals("mail.png", item.iconResource());
+    }
+
+    @Test
+    @DisplayName("the quick-launch drag flavour carries a QuickLaunchItem by reference")
+    void quickLaunchFlavor() {
+        java.awt.datatransfer.DataFlavor flavor = Desktop2D.QUICK_LAUNCH_FLAVOR;
+        assertNotNull(flavor);
+        assertEquals(Desktop2D.QuickLaunchItem.class, flavor.getRepresentationClass());
+        assertTrue(flavor.getMimeType().startsWith(
+                        java.awt.datatransfer.DataFlavor.javaJVMLocalObjectMimeType),
+                "a same-JVM local-object reference, not a serialised/remote flavour");
+        assertEquals("LG3D Quick Launch Item", flavor.getHumanPresentableName());
+    }
+
+    @Test
     @DisplayName("the snapshot records expose their components")
     void recordsExposeComponents() {
         Desktop2D.NotificationEntry entry = new Desktop2D.NotificationEntry(
