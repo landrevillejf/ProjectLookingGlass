@@ -179,6 +179,9 @@ public final class CapturedFrameHost {
         frame.setThumbnail(buildThumbnail(node, contentW, contentH));
         frame.setPreferredSize(
                 new Vector3f(contentW, contentH + TITLE_BAR_HEIGHT, 0.01f));
+        // Captured Swing apps are rectangular windows: opt in to the standard
+        // Frame3D decoration so the desktop window keeps its chrome.
+        frame.setProperty(Frame3DWindowDecoration.OPT_IN_PROPERTY, Boolean.TRUE);
         frame.changeEnabled(true);
         frame.changeVisible(true);
 

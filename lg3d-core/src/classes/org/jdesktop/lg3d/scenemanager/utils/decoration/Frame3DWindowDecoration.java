@@ -99,6 +99,16 @@ public class Frame3DWindowDecoration extends Component3D {
     public static final String OPT_OUT_PROPERTY = "lg3d.frame3d.decoration.optOut";
 
     /**
+     * Frames that present a rectangular "window" - hosted Swing panels
+     * ({@code TitledSwingWindow}) and captured Swing apps
+     * ({@code CapturedFrameHost}) - set this property to {@link Boolean#TRUE}
+     * to receive the automatic decoration. Content-in-space 3D applications
+     * leave it unset and render chrome-less, as they did before the decoration
+     * layer existed.
+     */
+    public static final String OPT_IN_PROPERTY = "lg3d.frame3d.decoration.optIn";
+
+    /**
      * Frames that reserve a dedicated title strip (e.g. hosted Swing windows)
      * set this property to the strip's height (a {@link Number}, in world
      * units) so the minimize/maximize/close buttons are centred on the strip -

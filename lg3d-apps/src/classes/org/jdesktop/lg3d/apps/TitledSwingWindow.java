@@ -262,6 +262,9 @@ public final class TitledSwingWindow {
         frame.setProperty(
                 Frame3DWindowDecoration.TITLE_BAR_HEIGHT_PROPERTY,
                 TITLE_BAR_HEIGHT);
+        // Hosted Swing panels are rectangular windows: opt in to the standard
+        // Frame3D decoration (title-strip buttons, flip, free-spin).
+        frame.setProperty(Frame3DWindowDecoration.OPT_IN_PROPERTY, Boolean.TRUE);
         frame.changeEnabled(true);
         frame.changeVisible(true);
         return frame;
