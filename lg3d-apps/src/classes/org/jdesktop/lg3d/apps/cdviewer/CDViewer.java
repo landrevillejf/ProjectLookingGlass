@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import org.jogamp.vecmath.Vector3f;
 import org.jogamp.java3d.utils.shader.StringIO;
 
-import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.GLSLShaderProgram;
 import org.jdesktop.lg3d.sg.Shader;
@@ -109,11 +108,6 @@ public class CDViewer extends Frame3D {
      */
     public CDViewer() {
         setName("CDViewer");
-
-        // The viewer is chrome-less 3D content (a floating stack of discs):
-        // suppress the automatic Frame3D window decoration (glass body box +
-        // minimize/maximize/close) so only the discs are visible in the scene.
-        setProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY, Boolean.TRUE);
         
         // This application has the following branch graph:
         //

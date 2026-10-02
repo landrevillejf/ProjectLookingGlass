@@ -25,7 +25,6 @@ import java.awt.Font;
 import java.net.URL;
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
@@ -56,11 +55,6 @@ public class TerminatorDialog extends Frame3D {
 
     public TerminatorDialog() {
 	terminatorFrame = this;
-
-	// This confirmation dialog is chrome-less 3D content: suppress the
-	// automatic Frame3D window decoration (glass body box +
-	// minimize/maximize/close) so only the prompt and buttons show.
-	setProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY, Boolean.TRUE);
 
 	addChild(createText("Are you sure you want to exit Looking Glass ?"));
 	addChild(createButton(ButtonType.YES));

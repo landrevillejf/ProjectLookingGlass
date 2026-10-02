@@ -330,11 +330,20 @@ public class StandardAppContainer extends AppContainer {
             frame3d.setAnimation(f3da);
             
             // Attach the standard 3D window decoration (minimize/maximize/close
-            // buttons plus right-click flip and middle-drag free-spin) unless the
-            // frame supplies its own chrome (e.g. Lg3dHelp). Done before addChild
-            // so the decoration is parented while the frame is not yet live.
-            if (!Boolean.TRUE.equals(
-                    frame3d.getProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY))) {
+            // buttons plus right-click flip and middle-drag free-spin) only for
+            // frames that present a rectangular window: hosted Swing panels
+            // (TitledSwingWindow) and captured Swing apps (CapturedFrameHost)
+            // opt in via OPT_IN_PROPERTY. Content-in-space 3D applications
+            // (CD Viewer, the Terminator prompt, the wallpaper carousel, ...)
+            // leave it unset and render chrome-less, as they did before the
+            // decoration layer existed. OPT_OUT_PROPERTY still vetoes for
+            // frames that build their own chrome (e.g. Lg3dHelp). Done before
+            // addChild so the decoration is parented while the frame is not
+            // yet live.
+            if (Boolean.TRUE.equals(
+                    frame3d.getProperty(Frame3DWindowDecoration.OPT_IN_PROPERTY))
+                    && !Boolean.TRUE.equals(
+                            frame3d.getProperty(Frame3DWindowDecoration.OPT_OUT_PROPERTY))) {
                 Frame3DWindowDecoration decoration
                     = new Frame3DWindowDecoration(frame3d);
                 frame3d.setProperty(Frame3DWindowDecoration.PROPERTY_KEY, decoration);
