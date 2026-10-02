@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.40.0 —
+## [Unreleased] — 1.41.0 —
 
 ### Added
 - **Quick launchers on the 2D desktop taskbar** (`lg3d-core`,
