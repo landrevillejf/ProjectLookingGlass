@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.42.0 —
 
 ### Added
+- **3D window carousel switcher** (`lg3d-core`,
+  `org.jdesktop.lg3d.scenemanager.utils.switcher`) — the native 3D desktop's
+  window switcher now presents open windows as a `CDViewer`-style circular
+  carousel instead of a list of titles: one card per window seated on a circle
+  with the selected window at the front, enlarged and centred, and each card
+  textured with that window's own live miniature so it is recognisable by its
+  content. Because a `Frame3D`'s `Thumbnail` is a single-parented node already
+  owned by the taskbar (it cannot be reparented onto the HUD), a new
+  `WindowThumbnailSource` seam shares the window `SwingNode`'s live `Texture2D`
+  (`SwingNodeThumbnailSource` walks the frame subtree and observes it via
+  `SwingNode.addTextureListener`), with a titled glass card as the honest
+  fallback for pure-3D apps that expose no such texture. The carousel keeps the
+  existing Ctrl+Alt+Tab MRU cycle and idle-commit behaviour and adds pointer
+  navigation on top: the mouse wheel spins the ring, clicking a card commits that
+  window straight to front, and pointing at the carousel pauses the idle-commit
+  timer so the user can aim. The circular positioning arithmetic is lifted into a
+  pure, Java 3D-free `CarouselLayout` so it is headless-testable
+  (`CarouselLayoutTest` — front seat, tangential rotation spacing, receding depth
+  stack, focus emphasis, revolve wrap and the empty/single-card cases); the
+  scene-graph node (`WindowCarousel3D`) is verified at runtime via the in-JVM
+  probe + `lgscreen` capture, and supersedes the removed `WindowSwitcherPanel`.
 - **Quick launchers on the 2D desktop taskbar** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — the Swing 2D desktop now mirrors
   the 3D `GlassyTaskbar` shortcut shelf with a pinned, reorderable quick-launch

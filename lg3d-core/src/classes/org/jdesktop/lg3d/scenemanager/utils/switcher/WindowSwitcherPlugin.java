@@ -16,7 +16,6 @@ package org.jdesktop.lg3d.scenemanager.utils.switcher;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Timer;
@@ -62,12 +61,17 @@ import org.jdesktop.lg3d.wg.event.LgEventSource;
  * overlay) the selection commits on a 600&nbsp;ms idle timer once the user stops
  * pressing the trigger. See {@link WindowSwitcherKeys} for the full rationale.</p>
  *
- * <h2>Rows, not live thumbnails</h2>
- * <p>The overlay lists window titles (highlighted selected row), matching the 2D
- * overlay's icon+name rows. It does not reuse {@code Frame3D.getThumbnail()}:
- * that {@code Thumbnail} is a single-parented {@code Component3D} already owned by
- * the taskbar, so reparenting it onto the HUD would steal it from the bar. See
- * {@link WindowSwitcherPanel}.</p>
+ * <h2>A carousel of live window miniatures</h2>
+ * <p>The overlay is a {@code CDViewer}-style circular carousel
+ * ({@link WindowCarousel3D}): one card per open window, the selected window seated
+ * at the front and enlarged, each card textured with that window's own live
+ * content. It cannot reuse {@code Frame3D.getThumbnail()} &mdash; that
+ * {@code Thumbnail} is a single-parented {@code Component3D} already owned by the
+ * taskbar, so reparenting it onto the HUD would steal it from the bar &mdash; so a
+ * {@link WindowThumbnailSource} shares the window {@code SwingNode}'s live texture
+ * instead, with a titled glass card as the fallback for pure-3D apps. Besides the
+ * Ctrl+Alt+Tab cycle, the user can spin the carousel with the mouse wheel and click
+ * a card to commit that window straight away.</p>
  *
  * <p>{@link #getPluginRoot()} returns null: the switcher is parented to the HUD
  * layer rather than the scene root, so it inherits the layer's
@@ -127,6 +131,7 @@ public class WindowSwitcherPlugin implements SceneManagerPlugin {
             switcher = new WindowSwitcher3D();
             layer.addChild(switcher);
             layer.placeAt(switcher, CARD_FX, CARD_FY);
+            wireCarouselGestures();
         } catch (Throwable t) {
             logger.log(Level.WARNING, "could not mount the window switcher", t);
         }
@@ -300,6 +305,41 @@ public class WindowSwitcherPlugin implements SceneManagerPlugin {
         refresh();
     }
 
+    /**
+     * Wires the carousel's pointer gestures to the cycle session. The wheel spins
+     * the highlight (and restarts the idle-commit timer, exactly like a trigger
+     * press); clicking a card commits that window immediately; and pointing at the
+     * carousel pauses the idle-commit timer so the user has time to aim, resuming
+     * it when the pointer leaves.
+     */
+    private void wireCarouselGestures() {
+        switcher.setRevolveListener(clicks -> {
+            if (!cycler.isActive()) {
+                return;
+            }
+            if (clicks > 0) {
+                cycler.advance();
+            } else if (clicks < 0) {
+                cycler.advanceBack();
+            }
+            if (commitTimer != null) {
+                commitTimer.restart();
+            }
+            refresh();
+        });
+        switcher.setSelectListener(this::commitFrame);
+        switcher.setFocusListener(focused -> {
+            if (commitTimer == null) {
+                return;
+            }
+            if (focused) {
+                commitTimer.stop();
+            } else if (cycler.isActive()) {
+                commitTimer.restart();
+            }
+        });
+    }
+
     /** Commits the highlighted frame (if any) to front and hides the card. */
     void commitSelection() {
         if (commitTimer != null) {
@@ -307,13 +347,32 @@ public class WindowSwitcherPlugin implements SceneManagerPlugin {
         }
         Frame3D frame = cycler.commit();
         if (frame != null) {
-            try {
-                frame.postEvent(new Component3DToFrontEvent());
-            } catch (Throwable t) {
-                logger.log(Level.WARNING, "could not bring the selected frame to front", t);
-            }
+            bringToFront(frame);
         }
         refresh();
+    }
+
+    /**
+     * Commits a specific frame (a clicked carousel card) to front, abandoning the
+     * cycle session. Package-private for tests.
+     */
+    void commitFrame(Frame3D frame) {
+        if (commitTimer != null) {
+            commitTimer.stop();
+        }
+        cycler.cancel();
+        if (frame != null) {
+            bringToFront(frame);
+        }
+        refresh();
+    }
+
+    private void bringToFront(Frame3D frame) {
+        try {
+            frame.postEvent(new Component3DToFrontEvent());
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "could not bring the selected frame to front", t);
+        }
     }
 
     /** Abandons the current selection and hides the card. Package-private for tests. */
@@ -325,24 +384,16 @@ public class WindowSwitcherPlugin implements SceneManagerPlugin {
         refresh();
     }
 
-    /** Syncs the overlay's visibility and rows to the cycle session. */
+    /** Syncs the carousel's visibility and cards to the cycle session. */
     private void refresh() {
         if (switcher == null) {
             return;
         }
         if (cycler.isActive()) {
-            switcher.show(namesOf(cycler.items()), cycler.selectedIndex());
+            switcher.show(cycler.items(), cycler.selectedIndex());
         } else {
             switcher.hide();
         }
-    }
-
-    private static List<String> namesOf(List<Frame3D> items) {
-        List<String> names = new ArrayList<>(items.size());
-        for (Frame3D frame : items) {
-            names.add(frame.getName());
-        }
-        return names;
     }
 
     private static void removeQuietly(LgEventConnector connector, Class sourceClass,
