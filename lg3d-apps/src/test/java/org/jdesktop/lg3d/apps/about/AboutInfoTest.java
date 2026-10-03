@@ -122,4 +122,57 @@ class AboutInfoTest {
                 "the original 2004-2006 work is credited too");
         assertEquals("lg.version", AboutInfo.VERSION_PROPERTY);
     }
+
+    @Test
+    @DisplayName("is2DMode recognises only the conventional 2D/Swing modes")
+    void is2DModeDetection() {
+        assertTrue(AboutInfo.is2DMode("2d"));
+        assertTrue(AboutInfo.is2DMode("swing"));
+        assertTrue(AboutInfo.is2DMode("  2D  "), "case-insensitive and trimmed");
+        assertTrue(AboutInfo.is2DMode("Swing"));
+        assertFalse(AboutInfo.is2DMode("3d"), "the 3D desktop is not 2D");
+        assertFalse(AboutInfo.is2DMode("dev"), "dev mode runs the 3D desktop");
+        assertFalse(AboutInfo.is2DMode(null));
+        assertFalse(AboutInfo.is2DMode("   "));
+    }
+
+    @Test
+    @DisplayName("the 2D variants drop every 3D claim and the Sun credit")
+    void twoDVariantText() {
+        assertFalse(AboutInfo.TAGLINE_2D.contains("3D"),
+                "the 2D tagline must not mention 3D");
+        assertFalse(AboutInfo.DESCRIPTION_2D.contains("3D"),
+                "the 2D description must not mention 3D");
+        assertFalse(AboutInfo.CREDITS_2D.contains("Sun"),
+                "the 2D credits must not mention Sun Microsystems");
+        assertFalse(AboutInfo.CREDITS_2D.contains("3D"));
+        assertTrue(AboutInfo.CREDITS_2D.contains("Jean-Francois Landreville"),
+                "the 2D desktop is credited to its author");
+    }
+
+    @Test
+    @DisplayName("the mode selectors pick the 2D or 3D text")
+    void modeSelectors() {
+        assertEquals(AboutInfo.TAGLINE_2D, AboutInfo.tagline(true));
+        assertEquals(AboutInfo.TAGLINE, AboutInfo.tagline(false));
+        assertEquals(AboutInfo.DESCRIPTION_2D, AboutInfo.description(true));
+        assertEquals(AboutInfo.DESCRIPTION, AboutInfo.description(false));
+        assertEquals(AboutInfo.CREDITS_2D, AboutInfo.credits(true));
+        assertEquals(AboutInfo.CREDITS, AboutInfo.credits(false));
+    }
+
+    @Test
+    @DisplayName("getFields omits the Java 3D row on the 2D desktop")
+    void fieldsOmitJava3DIn2D() {
+        List<AboutInfo.Field> fields = AboutInfo.getFields(true);
+        assertEquals(4, fields.size());
+        assertEquals("Version", fields.get(0).getLabel());
+        assertEquals("Edition", fields.get(1).getLabel());
+        assertEquals("Java", fields.get(2).getLabel());
+        assertEquals("Platform", fields.get(3).getLabel());
+        for (AboutInfo.Field field : fields) {
+            assertFalse("Java 3D".equals(field.getLabel()),
+                    "the 2D desktop must not advertise Java 3D");
+        }
+    }
 }

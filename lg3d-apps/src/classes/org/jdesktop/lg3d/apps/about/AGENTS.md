@@ -34,6 +34,20 @@ task), falls back to the lg3d-apps jar manifest `Implementation-Version`
 `unknown`. Both live paths read the single canonical `project.version`, so a
 version bump needs no change here.
 
+## Desktop-mode-aware content
+
+One `AboutPanel` serves both desktops, so its text is mode-aware. `AboutInfo.is2D()`
+reads the canonical `lg.fws.mode` property (reusing `DesktopMode.MODE_2D` /
+`MODE_SWING`; no 3D probe, headless-safe) and the pure selectors
+`tagline(boolean)` / `description(boolean)` / `credits(boolean)` /
+`getFields(boolean)` pick the variant. On the conventional **2D/Swing desktop**
+the About box must **not** advertise 3D or credit the ported-base lineage: it
+shows a "desktop environment for the Java platform" tagline/description, omits
+the **Java 3D** runtime row, and attributes the work solely to Jean-Francois
+Landreville. The **3D desktop** keeps the full immersive-3D description, the
+Java 3D row and the Sun Microsystems port lineage. Keep the two variants in
+step with these rules; add both to `AboutInfoTest` when the text changes.
+
 ## Roles
 
 - **Architect** — Consume `TitledSwingWindow`/`SwingNode` from `lg3d-core`;
@@ -51,8 +65,9 @@ version bump needs no change here.
   in-JVM probe + internal screencapture (`lg3d-core/lgscreen-*.png`); external
   capture tools return black under GNOME/Wayland.
 - **Business Analyst** — Gives users and bug reports a single place to read the
-  product version, the host runtime (Java, Java 3D, platform) and the
-  attribution. Value = correct, honest credit plus fast diagnostics.
+  product version, the host runtime (Java, and Java 3D on the 3D desktop only,
+  platform) and the attribution. Value = correct, honest, mode-appropriate credit
+  plus fast diagnostics.
 - **Functional Analyst** — Spec the panel as user-visible function (identity,
   version, runtime facts, credits, licence) plus the contract with core
   (SwingNode surface, descriptor fields, the `Desktop2DAppRegistry` PANEL entry).

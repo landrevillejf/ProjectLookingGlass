@@ -79,17 +79,21 @@ public class AboutPanel extends JPanel {
         body.setBackground(Color.WHITE);
         body.setBorder(BorderFactory.createEmptyBorder(24, 28, 24, 28));
 
-        body.add(buildHeader());
+        // The conventional 2D/Swing desktop gets the mode-appropriate text: no
+        // "3D" claims, no Java 3D runtime row and no ported-base lineage line.
+        final boolean twoD = AboutInfo.is2D();
+
+        body.add(buildHeader(twoD));
         body.add(Box.createVerticalStrut(12));
-        body.add(descriptionBlock());
+        body.add(descriptionBlock(twoD));
         body.add(Box.createVerticalStrut(16));
         body.add(new JSeparator(SwingConstants.HORIZONTAL));
         body.add(Box.createVerticalStrut(16));
-        body.add(buildFields());
+        body.add(buildFields(twoD));
         body.add(Box.createVerticalStrut(16));
         body.add(new JSeparator(SwingConstants.HORIZONTAL));
         body.add(Box.createVerticalStrut(12));
-        body.add(creditsBlock());
+        body.add(creditsBlock(twoD));
         body.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(body,
@@ -104,7 +108,7 @@ public class AboutPanel extends JPanel {
      * Builds the centred header: the product logo (when present), the product
      * name, the resolved version and the tagline.
      */
-    private Component buildHeader() {
+    private Component buildHeader(boolean twoD) {
         JPanel header = new JPanel();
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setOpaque(false);
@@ -132,7 +136,7 @@ public class AboutPanel extends JPanel {
         header.add(Box.createVerticalStrut(4));
         header.add(version);
 
-        JLabel tagline = new JLabel(AboutInfo.TAGLINE, SwingConstants.CENTER);
+        JLabel tagline = new JLabel(AboutInfo.tagline(twoD), SwingConstants.CENTER);
         tagline.setForeground(new Color(0x55, 0x55, 0x55));
         tagline.setAlignmentX(Component.LEFT_ALIGNMENT);
         header.add(Box.createVerticalStrut(2));
@@ -173,12 +177,12 @@ public class AboutPanel extends JPanel {
     }
 
     /** The multi-line product description. */
-    private static Component descriptionBlock() {
-        return htmlLabel(AboutInfo.DESCRIPTION, null, Component.LEFT_ALIGNMENT);
+    private static Component descriptionBlock(boolean twoD) {
+        return htmlLabel(AboutInfo.description(twoD), null, Component.LEFT_ALIGNMENT);
     }
 
-    /** The system-information grid built from {@link AboutInfo#getFields()}. */
-    private Component buildFields() {
+    /** The system-information grid built from {@link AboutInfo#getFields(boolean)}. */
+    private Component buildFields(boolean twoD) {
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
         grid.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -187,7 +191,7 @@ public class AboutPanel extends JPanel {
         c.anchor = GridBagConstraints.NORTHWEST;
 
         int row = 0;
-        for (AboutInfo.Field field : AboutInfo.getFields()) {
+        for (AboutInfo.Field field : AboutInfo.getFields(twoD)) {
             c.gridx = 0;
             c.gridy = row;
             c.weightx = 0.0;
@@ -207,13 +211,13 @@ public class AboutPanel extends JPanel {
     }
 
     /** The attribution and licence footer. */
-    private static Component creditsBlock() {
+    private static Component creditsBlock(boolean twoD) {
         JPanel box = new JPanel();
         box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
         box.setOpaque(false);
         box.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel credits = htmlLabel(AboutInfo.CREDITS, null, Component.LEFT_ALIGNMENT);
+        JLabel credits = htmlLabel(AboutInfo.credits(twoD), null, Component.LEFT_ALIGNMENT);
         JLabel license = htmlLabel(AboutInfo.LICENSE,
                 new Color(0x55, 0x55, 0x55), Component.LEFT_ALIGNMENT);
         box.add(credits);

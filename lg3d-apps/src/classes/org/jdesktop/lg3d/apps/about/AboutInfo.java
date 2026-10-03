@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.about;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.jdesktop.lg3d.displayserver.DesktopMode;
 
 /**
  * The headless model behind {@link AboutPanel}: the product identity, the
@@ -74,8 +75,83 @@ public final class AboutInfo {
     public static final String LICENSE =
             "Distributed under the GNU General Public License, Version 2.";
 
+    // ------------------------------------------------------------------
+    // Conventional 2D/Swing desktop variants.
+    //
+    // The 2D desktop is not the immersive 3D environment, so its About box
+    // must not describe it as one: these variants drop every "3D" claim and
+    // the Java 3D runtime row, and credit the author without the ported-base
+    // lineage line. They are selected when the desktop is started in the
+    // conventional 2D/Swing mode (lg.fws.mode=2d or swing).
+    // ------------------------------------------------------------------
+
+    /** One-line tagline for the conventional 2D/Swing desktop. */
+    public static final String TAGLINE_2D =
+            "A desktop environment for the Java platform";
+
+    /** Short blurb describing the conventional 2D/Swing desktop. */
+    public static final String DESCRIPTION_2D =
+            "Project Looking Glass is a desktop environment for the Java "
+            + "platform. Applications open as windows on a conventional Swing "
+            + "desktop, with a taskbar, a start menu, workspaces and a system "
+            + "tray.";
+
+    /** Attribution for the conventional 2D/Swing desktop. */
+    public static final String CREDITS_2D =
+            "Created by Jean-Francois Landreville.";
+
     private AboutInfo() {
         // no instances
+    }
+
+    /**
+     * True when the desktop is running as the conventional 2D/Swing desktop,
+     * i.e. when {@code lg.fws.mode} selects the MDI 2D shell. Reads the mode
+     * property only (no 3D probe), so it is cheap and headless-safe.
+     */
+    public static boolean is2D() {
+        return is2DMode(System.getProperty(DesktopMode.MODE_PROPERTY));
+    }
+
+    /**
+     * Pure helper: true when {@code modeProperty} selects the conventional
+     * 2D/Swing desktop ({@code 2d} or {@code swing}, case-insensitive). Split
+     * out so both branches are unit-testable without mutating global state.
+     */
+    static boolean is2DMode(String modeProperty) {
+        String mode = (modeProperty == null) ? null : modeProperty.trim();
+        return DesktopMode.MODE_2D.equalsIgnoreCase(mode)
+                || DesktopMode.MODE_SWING.equalsIgnoreCase(mode);
+    }
+
+    /** The tagline for the current desktop mode. */
+    public static String tagline() {
+        return tagline(is2D());
+    }
+
+    /** Pure selector: the 2D tagline when {@code twoD}, else the 3D one. */
+    static String tagline(boolean twoD) {
+        return twoD ? TAGLINE_2D : TAGLINE;
+    }
+
+    /** The description for the current desktop mode. */
+    public static String description() {
+        return description(is2D());
+    }
+
+    /** Pure selector: the 2D description when {@code twoD}, else the 3D one. */
+    static String description(boolean twoD) {
+        return twoD ? DESCRIPTION_2D : DESCRIPTION;
+    }
+
+    /** The attribution text for the current desktop mode. */
+    public static String credits() {
+        return credits(is2D());
+    }
+
+    /** Pure selector: the 2D credits when {@code twoD}, else the full ones. */
+    static String credits(boolean twoD) {
+        return twoD ? CREDITS_2D : CREDITS;
     }
 
     /** An immutable label/value row shown in the system-information grid. */
@@ -168,10 +244,21 @@ public final class AboutInfo {
 
     /** The ordered system-information rows shown in the About window. */
     public static List<Field> getFields() {
+        return getFields(is2D());
+    }
+
+    /**
+     * The ordered system-information rows for a given desktop mode. The
+     * conventional 2D/Swing desktop omits the Java 3D row, since it never
+     * loads the scene graph and its About box must not advertise 3D.
+     */
+    public static List<Field> getFields(boolean twoD) {
         List<Field> fields = new ArrayList<>();
         fields.add(new Field("Version", getVersion()));
         fields.add(new Field("Edition", EDITION));
-        fields.add(new Field("Java 3D", getJava3D()));
+        if (!twoD) {
+            fields.add(new Field("Java 3D", getJava3D()));
+        }
         fields.add(new Field("Java",
                 System.getProperty("java.version", UNKNOWN) + " ("
                 + System.getProperty("java.vendor", UNKNOWN) + ")"));
