@@ -13,6 +13,7 @@
  */
 package org.jdesktop.lg3d.apps.tuner;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -141,5 +142,54 @@ class TuningTest {
         assertEquals(5, t.getStringCount());
         assertEquals("B0", t.getStringNote(0).getLabel());
         assertEquals(30.87f, t.getStringFrequency(0), EPS);
+    }
+
+    @Test
+    @DisplayName("a custom Drop C tuning can be built and resolves its strings")
+    void customDropC() {
+        // Drop C: C2 G2 C3 F3 A3 D4 - a set no built-in covers, proving the
+        // model is flexible enough for any user tuning.
+        Tuning dropC = Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62);
+        assertEquals("Guitar (Drop C)", dropC.getName());
+        assertEquals(6, dropC.getStringCount());
+        assertEquals("C2", dropC.getStringNote(0).getLabel());
+        assertEquals("G2", dropC.getStringNote(1).getLabel());
+        assertEquals("D4", dropC.getStringNote(5).getLabel());
+        assertEquals(65.41f, dropC.getStringFrequency(0), EPS);   // low C2
+        // Each string frequency maps back to its own index, 0 cents off.
+        for (int i = 0; i < dropC.getStringCount(); i++) {
+            float f = dropC.getStringFrequency(i);
+            assertEquals(i, dropC.closestString(f));
+            assertEquals(0f, dropC.centsOff(f), 1f);
+        }
+    }
+
+    @Test
+    @DisplayName("of() and the constructor agree, and getStrings copies")
+    void factoryAndAccessor() {
+        int[] strings = {36, 43, 48};
+        Tuning viaFactory = Tuning.of("X", strings);
+        Tuning viaCtor = new Tuning("X", strings);
+        assertEquals(viaCtor, viaFactory);
+        assertArrayEquals(strings, viaFactory.getStrings());
+        // The accessor returns a copy, so mutating it cannot corrupt the tuning.
+        viaFactory.getStrings()[0] = 99;
+        assertEquals(36, viaFactory.getStringMidi(0));
+    }
+
+    @Test
+    @DisplayName("equality is by name and strings, so duplicates collapse")
+    void valueEquality() {
+        Tuning a = Tuning.of("Drop C", 36, 43, 48, 53, 57, 62);
+        Tuning b = Tuning.of("Drop C", 36, 43, 48, 53, 57, 62);
+        Tuning differentName = Tuning.of("Other", 36, 43, 48, 53, 57, 62);
+        Tuning differentStrings = Tuning.of("Drop C", 36, 43, 48);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertTrue(!a.equals(differentName));
+        assertTrue(!a.equals(differentStrings));
+        assertTrue(!a.equals(null));
+        assertTrue(!a.equals("not a tuning"));
+        assertEquals(a, a);
     }
 }

@@ -14,7 +14,6 @@
 package org.jdesktop.lg3d.apps.tuner;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -28,6 +27,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.TargetDataLine;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -72,25 +72,26 @@ public class TunerPanel extends JPanel {
     /** Capture sample rates tried in order until one opens. */
     private static final int[] CANDIDATE_RATES = {44100, 48000, 22050, 16000};
 
-    private static final Color BACKDROP = new Color(0x2B, 0x33, 0x3D);
-    private static final Color CARD = new Color(0x36, 0x40, 0x4C);
-    private static final Color TEXT = new Color(0xEC, 0xF1, 0xF7);
-    private static final Color TEXT_DIM = new Color(0xA8, 0xB4, 0xC2);
-    private static final Color ACCENT = new Color(0x6F, 0xB5, 0xE8);
-    private static final Color GREEN = new Color(0x4C, 0xAF, 0x50);
-    private static final Color STRING_IDLE_BG = new Color(0x2C, 0x35, 0x40);
-    private static final Color STRING_ACTIVE_BG = new Color(0x6F, 0xB5, 0xE8);
+    // The panel carries no hardcoded palette: every colour is resolved live from
+    // the active look-and-feel through TunerTheme, so it re-themes itself to the
+    // host (system L&F in 2D, hosted Metal L&F in the 3D SwingNode).
 
-    private final JComboBox<Tuning> tuningBox =
-            new JComboBox<>(Tuning.ALL.toArray(new Tuning[0]));
+    private final DefaultComboBoxModel<Tuning> tuningModel = new DefaultComboBoxModel<>();
+    private final JComboBox<Tuning> tuningBox = new JComboBox<>(tuningModel);
+    private final JButton addTuningButton = new JButton("+");
+    private final JButton removeTuningButton = new JButton("\u2212");
     private final JButton startStopButton = new JButton("Start");
     private final JButton closeButton = new JButton("Close");
     private final JLabel noteLabel = new JLabel("--", SwingConstants.CENTER);
     private final JLabel detailLabel = new JLabel(" ", SwingConstants.CENTER);
     private final JLabel statusLabel = new JLabel("Press Start and play a string.");
     private final TuningMeter meter = new TuningMeter();
+    private final JPanel noteCard = new JPanel(new BorderLayout());
     private final JPanel stringStrip = new JPanel(new GridLayout(1, 0, 8, 0));
     private final List<JLabel> stringLabels = new ArrayList<>();
+    private final List<Tuning> customTunings = new ArrayList<>();
+
+    private TuningStore store = new TuningStore();
 
     private volatile boolean listening;
     private volatile TargetDataLine audioLine;
@@ -101,14 +102,19 @@ public class TunerPanel extends JPanel {
     public TunerPanel() {
         super(new BorderLayout(0, 8));
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
-        setBackground(BACKDROP);
         setOpaque(true);
         setBorder(BorderFactory.createEmptyBorder(10, 12, 8, 12));
 
-        tuningBox.setSelectedItem(Tuning.GUITAR_STANDARD);
+        addTuningButton.setToolTipText("Add a custom tuning");
+        removeTuningButton.setToolTipText("Remove the selected custom tuning");
+        addTuningButton.addActionListener(e -> onAddTuning());
+        removeTuningButton.addActionListener(e -> onRemoveTuning());
         tuningBox.addActionListener(e -> onTuningChanged());
         startStopButton.addActionListener(e -> toggleListening());
         closeButton.addActionListener(e -> close());
+
+        reloadTunings();
+        tuningBox.setSelectedItem(Tuning.GUITAR_STANDARD);
 
         add(buildToolbar(), BorderLayout.NORTH);
         add(buildCenter(), BorderLayout.CENTER);
@@ -116,11 +122,19 @@ public class TunerPanel extends JPanel {
 
         meter.setToleranceCents(TOLERANCE_CENTS);
         noteLabel.setFont(noteLabel.getFont().deriveFont(Font.BOLD, 76f));
-        noteLabel.setForeground(TEXT);
-        detailLabel.setForeground(TEXT_DIM);
 
+        applyThemeColors();
         rebuildStringStrip();
         updateButtons();
+    }
+
+    /** (Re)applies the look-and-feel-derived colours to the fixed chrome. */
+    private void applyThemeColors() {
+        setBackground(TunerTheme.background());
+        noteCard.setBackground(TunerTheme.cardBackground());
+        noteLabel.setForeground(TunerTheme.foreground());
+        detailLabel.setForeground(TunerTheme.dimForeground());
+        statusLabel.setForeground(TunerTheme.dimForeground());
     }
 
     // ------------------------------------------------------------------
@@ -134,9 +148,11 @@ public class TunerPanel extends JPanel {
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
         left.setOpaque(false);
         JLabel tuningLabel = new JLabel("Tuning:");
-        tuningLabel.setForeground(TEXT_DIM);
+        tuningLabel.setForeground(TunerTheme.dimForeground());
         left.add(tuningLabel);
         left.add(tuningBox);
+        left.add(addTuningButton);
+        left.add(removeTuningButton);
         left.add(startStopButton);
         bar.add(left, BorderLayout.CENTER);
 
@@ -152,8 +168,6 @@ public class TunerPanel extends JPanel {
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
         center.setOpaque(false);
 
-        JPanel noteCard = new JPanel(new BorderLayout());
-        noteCard.setBackground(CARD);
         noteCard.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         noteCard.add(noteLabel, BorderLayout.CENTER);
         noteCard.add(detailLabel, BorderLayout.SOUTH);
@@ -176,7 +190,6 @@ public class TunerPanel extends JPanel {
     }
 
     private Component buildStatus() {
-        statusLabel.setForeground(TEXT_DIM);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 2, 0, 2));
         return statusLabel;
     }
@@ -188,17 +201,17 @@ public class TunerPanel extends JPanel {
         Tuning tuning = selectedTuning();
         if (tuning.getStringCount() == 0) {
             JLabel chromatic = new JLabel("Chromatic - nearest note", SwingConstants.CENTER);
-            chromatic.setForeground(TEXT_DIM);
+            chromatic.setForeground(TunerTheme.dimForeground());
             stringStrip.add(chromatic);
         } else {
             for (int i = 0; i < tuning.getStringCount(); i++) {
                 JLabel label = new JLabel(tuning.getStringNote(i).getLabel(),
                         SwingConstants.CENTER);
                 label.setOpaque(true);
-                label.setBackground(STRING_IDLE_BG);
-                label.setForeground(TEXT_DIM);
+                label.setBackground(TunerTheme.cardBackground());
+                label.setForeground(TunerTheme.dimForeground());
                 label.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(BACKDROP, 2),
+                        BorderFactory.createLineBorder(TunerTheme.background(), 2),
                         BorderFactory.createEmptyBorder(8, 0, 8, 0)));
                 stringStrip.add(label);
                 stringLabels.add(label);
@@ -212,8 +225,9 @@ public class TunerPanel extends JPanel {
         for (int i = 0; i < stringLabels.size(); i++) {
             JLabel label = stringLabels.get(i);
             boolean active = (i == index);
-            label.setBackground(active ? STRING_ACTIVE_BG : STRING_IDLE_BG);
-            label.setForeground(active ? BACKDROP : TEXT_DIM);
+            label.setBackground(active ? TunerTheme.accent() : TunerTheme.cardBackground());
+            label.setForeground(active ? TunerTheme.accentForeground()
+                    : TunerTheme.dimForeground());
         }
     }
 
@@ -300,7 +314,7 @@ public class TunerPanel extends JPanel {
         startStopButton.setText("Start");
         meter.reset();
         noteLabel.setText("--");
-        noteLabel.setForeground(TEXT);
+        noteLabel.setForeground(TunerTheme.foreground());
         detailLabel.setText(" ");
         highlightString(-1);
         setStatus("Stopped.");
@@ -368,7 +382,7 @@ public class TunerPanel extends JPanel {
         if (pitch == null || !pitch.isVoiced()) {
             meter.setReading(0f, false);
             noteLabel.setText("--");
-            noteLabel.setForeground(TEXT);
+            noteLabel.setForeground(TunerTheme.foreground());
             detailLabel.setText(" ");
             highlightString(-1);
             if (listening) {
@@ -400,7 +414,7 @@ public class TunerPanel extends JPanel {
 
         meter.setReading(cents, true);
         noteLabel.setText(detected != null ? detected.getLabel() : "--");
-        noteLabel.setForeground(inTune ? GREEN : TEXT);
+        noteLabel.setForeground(inTune ? TunerTheme.inTune() : TunerTheme.foreground());
         detailLabel.setText(detail);
         highlightString(stringIndex);
         setStatus(String.format("%.1f Hz  \u00b7  %+.0f cents  \u00b7  clarity %.0f%%",
@@ -415,15 +429,19 @@ public class TunerPanel extends JPanel {
         rebuildStringStrip();
         meter.reset();
         noteLabel.setText("--");
-        noteLabel.setForeground(TEXT);
+        noteLabel.setForeground(TunerTheme.foreground());
         detailLabel.setText(" ");
         setStatus(listening ? "Listening... play a string."
                 : "Press Start and play a string.");
+        updateButtons();
     }
 
     private void updateButtons() {
         startStopButton.setEnabled(true);
         tuningBox.setEnabled(!listening);
+        addTuningButton.setEnabled(!listening);
+        removeTuningButton.setEnabled(!listening
+                && isCustom((Tuning) tuningBox.getSelectedItem()));
     }
 
     private void setStatus(String text) {
@@ -468,6 +486,110 @@ public class TunerPanel extends JPanel {
     /** The tuning selector (test hook). */
     JComboBox<Tuning> tuningBox() {
         return tuningBox;
+    }
+
+    // ------------------------------------------------------------------
+    // Custom tunings (persisted); the +/- toolbar buttons drive these
+    // ------------------------------------------------------------------
+
+    /** Whether a tuning is one of the user-defined (removable) ones. */
+    private boolean isCustom(Tuning tuning) {
+        return tuning != null && customTunings.contains(tuning);
+    }
+
+    /** Loads the persisted custom tunings and rebuilds the selector. */
+    private void reloadTunings() {
+        if (store == null) {
+            store = new TuningStore();
+        }
+        customTunings.clear();
+        customTunings.addAll(store.loadCustomTunings());
+        Tuning selected = (Tuning) tuningBox.getSelectedItem();
+        tuningModel.removeAllElements();
+        for (Tuning t : Tuning.ALL) {
+            tuningModel.addElement(t);
+        }
+        for (Tuning t : customTunings) {
+            tuningModel.addElement(t);
+        }
+        if (selected != null && tuningModel.getIndexOf(selected) >= 0) {
+            tuningBox.setSelectedItem(selected);
+        }
+    }
+
+    private void persistCustomTunings() {
+        if (store != null) {
+            store.saveCustomTunings(new ArrayList<>(customTunings));
+        }
+    }
+
+    /** Opens the add-tuning editor; a defined tuning is added and selected. */
+    private void onAddTuning() {
+        Tuning tuning = new AddTuningDialog().show(this);
+        if (tuning != null) {
+            addCustomTuning(tuning);
+        }
+    }
+
+    private void onRemoveTuning() {
+        removeSelectedCustomTuning();
+    }
+
+    /**
+     * Adds a user-defined tuning, persists it and selects it. Package-private so
+     * the headless tests (and the add-tuning editor) drive it without showing a
+     * window. Re-adding an equal tuning replaces the old copy.
+     *
+     * @param tuning the custom tuning to add (ignored when null)
+     */
+    void addCustomTuning(Tuning tuning) {
+        if (tuning == null) {
+            return;
+        }
+        customTunings.remove(tuning);
+        customTunings.add(tuning);
+        persistCustomTunings();
+        reloadTunings();
+        tuningBox.setSelectedItem(tuning);
+        onTuningChanged();
+        setStatus("Added tuning \u201c" + tuning.getName() + "\u201d.");
+    }
+
+    /**
+     * Removes the selected tuning when it is user-defined, persists the change
+     * and reselects a built-in. Built-in tunings cannot be removed.
+     *
+     * @return true when a custom tuning was removed
+     */
+    boolean removeSelectedCustomTuning() {
+        Tuning selected = (Tuning) tuningBox.getSelectedItem();
+        if (!isCustom(selected)) {
+            return false;
+        }
+        customTunings.remove(selected);
+        persistCustomTunings();
+        reloadTunings();
+        tuningBox.setSelectedItem(Tuning.GUITAR_STANDARD);
+        onTuningChanged();
+        setStatus("Removed tuning \u201c" + selected.getName() + "\u201d.");
+        return true;
+    }
+
+    /** The persisted user-defined tunings, in menu order (test hook). */
+    List<Tuning> customTunings() {
+        return new ArrayList<>(customTunings);
+    }
+
+    /**
+     * Points the panel at a specific store and reloads its custom tunings.
+     * Package-private so tests can inject a temp-directory store.
+     *
+     * @param store the tuning store to use
+     */
+    void setTuningStore(TuningStore store) {
+        this.store = store;
+        reloadTunings();
+        updateButtons();
     }
 
     /** Registers the callback invoked when the hosting window closes. */

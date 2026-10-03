@@ -46,14 +46,9 @@ public class TuningMeter extends JComponent {
     /** Default in-tune half-window in cents (green zone is -TOL..+TOL). */
     public static final float DEFAULT_TOLERANCE_CENTS = 5f;
 
-    private static final Color BACKDROP = new Color(0x1E, 0x24, 0x2B);
-    private static final Color SCALE = new Color(0x59, 0x66, 0x73);
-    private static final Color TICK = new Color(0x7C, 0x8B, 0x99);
-    private static final Color TEXT_DIM = new Color(0xA8, 0xB4, 0xC2);
-    private static final Color GREEN = new Color(0x4C, 0xAF, 0x50);
-    private static final Color AMBER = new Color(0xFF, 0xC1, 0x07);
-    private static final Color RED = new Color(0xF4, 0x43, 0x36);
-    private static final Color IDLE = new Color(0x40, 0x4A, 0x55);
+    // No hardcoded palette: every colour is resolved live from the active
+    // look-and-feel through TunerTheme, so the meter matches its host (system
+    // L&F in 2D, hosted Metal L&F in the 3D SwingNode).
 
     /** How fast the displayed needle chases the target each reading (0..1). */
     private static final float EASE = 0.45f;
@@ -69,7 +64,7 @@ public class TuningMeter extends JComponent {
     /** Builds an idle meter at the default range and tolerance. */
     public TuningMeter() {
         setOpaque(true);
-        setBackground(BACKDROP);
+        setBackground(TunerTheme.background());
         setPreferredSize(new Dimension(420, 120));
         // A plain JComponent has no UI delegate to install a font, and getFont()
         // returns null when it has no peer (headless, or painted offscreen into
@@ -188,7 +183,7 @@ public class TuningMeter extends JComponent {
 
             int w = getWidth();
             int h = getHeight();
-            g.setColor(BACKDROP);
+            g.setColor(TunerTheme.background());
             g.fillRect(0, 0, w, h);
 
             int pad = Math.max(18, w / 24);
@@ -201,17 +196,17 @@ public class TuningMeter extends JComponent {
             float tolFraction = Math.min(0.5f, toleranceCents / (2f * rangeCents));
             int centreX = barLeft + barWidth / 2;
             int greenHalf = (int) (barWidth * tolFraction);
-            g.setColor(new Color(GREEN.getRed(), GREEN.getGreen(), GREEN.getBlue(), 60));
+            g.setColor(TunerTheme.inTuneWindow());
             g.fill(new RoundRectangle2D.Float(centreX - greenHalf, barY - 16,
                     greenHalf * 2, 32, 8, 8));
 
             // Scale line.
-            g.setColor(SCALE);
+            g.setColor(TunerTheme.border());
             g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.drawLine(barLeft, barY, barRight, barY);
 
             // Ticks every 10 cents, taller at the centre and the extremes.
-            g.setColor(TICK);
+            g.setColor(TunerTheme.dimForeground());
             for (int cents = -(int) rangeCents; cents <= (int) rangeCents; cents += 10) {
                 int x = barLeft + (int) (needleFraction(cents, rangeCents) * barWidth);
                 int half = (cents == 0) ? 12 : (cents % 50 == 0 ? 9 : 5);
@@ -221,7 +216,7 @@ public class TuningMeter extends JComponent {
 
             // Flat / sharp captions.
             g.setFont(getFont().deriveFont(Font.PLAIN, 11f));
-            g.setColor(TEXT_DIM);
+            g.setColor(TunerTheme.dimForeground());
             FontMetrics fm = g.getFontMetrics();
             g.drawString("flat", barLeft, barY + 26);
             String sharp = "sharp";
@@ -231,9 +226,10 @@ public class TuningMeter extends JComponent {
                     barY - 22);
 
             // Needle.
-            Color needleColor = !voiced ? IDLE
-                    : inTune ? GREEN
-                    : Math.abs(displayCents) <= 2f * toleranceCents ? AMBER : RED;
+            Color needleColor = !voiced ? TunerTheme.idle()
+                    : inTune ? TunerTheme.inTune()
+                    : Math.abs(displayCents) <= 2f * toleranceCents
+                            ? TunerTheme.nearTune() : TunerTheme.outTune();
             int needleX = barLeft + (int) (needleFraction(displayCents, rangeCents) * barWidth);
             g.setColor(needleColor);
             g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));

@@ -20,9 +20,14 @@ import java.util.List;
  * with the equal-tempered reference frequency of each, plus the search that maps
  * a detected pitch to the nearest string and its deviation in cents.
  *
- * <p>The built-in tunings cover the common guitar and bass sets. A
- * {@link #CHROMATIC} tuning has no target strings and simply reports the nearest
- * note, which is the right mode for tuning by ear or for other instruments.</p>
+ * <p>The built-in tunings cover the common guitar and bass sets, but a tuning is
+ * just a name and an ordered list of string MIDI numbers, so any custom set can
+ * be built with {@link #of(String, int...)} (e.g. Drop C = C2 G2 C3 F3 A3 D4 =
+ * {@code Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62)}). User-defined
+ * tunings are persisted by {@code TuningStore} and offered alongside the
+ * built-ins. A {@link #CHROMATIC} tuning has no target strings and simply reports
+ * the nearest note, which is the right mode for tuning by ear or for other
+ * instruments.</p>
  *
  * <p>Like {@link Note}, everything here is pure {@code java.lang.Math} - no AWT,
  * no audio device - so the whole tuning table and its nearest-string search are
@@ -77,14 +82,40 @@ public final class Tuning {
      * @param name the human-readable tuning name
      * @param midi the string MIDI numbers (empty for a chromatic tuning)
      */
-    Tuning(String name, int... midi) {
-        this.name = name;
-        this.midi = midi.clone();
+    public Tuning(String name, int... midi) {
+        this.name = (name == null) ? "" : name;
+        this.midi = (midi == null) ? new int[0] : midi.clone();
+    }
+
+    /**
+     * Builds a custom tuning from the MIDI numbers of its strings, low to high.
+     * This is the public factory the tuner's "add tuning" UI and the persisted
+     * store use; it is exactly equivalent to the constructor and exists so a
+     * caller can name the intent (e.g.
+     * {@code Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62)}).
+     *
+     * @param name the human-readable tuning name
+     * @param midi the string MIDI numbers, low to high (empty for chromatic)
+     * @return the new tuning
+     */
+    public static Tuning of(String name, int... midi) {
+        return new Tuning(name, midi);
     }
 
     /** The human-readable tuning name. */
     public String getName() {
         return name;
+    }
+
+    /**
+     * A copy of the string MIDI numbers, low to high (empty for a chromatic
+     * tuning). This is what the store persists and the "add tuning" UI reads
+     * back; mutating the returned array never affects this tuning.
+     *
+     * @return the string MIDI numbers
+     */
+    public int[] getStrings() {
+        return midi.clone();
     }
 
     /** The number of target strings (0 for {@link #CHROMATIC}). */
@@ -158,6 +189,23 @@ public final class Tuning {
             return 0f;
         }
         return (Note.midiOf(frequency) - midi[index]) * 100.0f;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof Tuning)) {
+            return false;
+        }
+        Tuning that = (Tuning) other;
+        return name.equals(that.name) && java.util.Arrays.equals(midi, that.midi);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * name.hashCode() + java.util.Arrays.hashCode(midi);
     }
 
     @Override

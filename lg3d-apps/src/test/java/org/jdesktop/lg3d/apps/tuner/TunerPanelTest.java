@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
+import java.util.List;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
@@ -27,6 +29,7 @@ import javax.sound.sampled.TargetDataLine;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Covers {@link TunerPanel}'s construction and its detection-to-UI seam without
@@ -207,5 +210,82 @@ class TunerPanelTest {
         AudioFormat f = TunerPanel.micFormat(48000);
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, f);
         assertDoesNotThrow(() -> AudioSystem.isLineSupported(info));
+    }
+
+    @Test
+    @DisplayName("adding a custom Drop C tuning selects and persists it")
+    void addCustomTuningSelectsAndPersists(@TempDir Path dir) {
+        TunerPanel panel = new TunerPanel();
+        panel.setTuningStore(new TuningStore(dir));
+        Tuning dropC = Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62);
+        onEdt(() -> panel.addCustomTuning(dropC));
+
+        assertEquals(dropC, panel.selectedTuning());
+        assertTrue(panel.customTunings().contains(dropC));
+        assertTrue(panel.statusText().contains("Added tuning"),
+                "status should confirm the addition: " + panel.statusText());
+        // Persisted: a fresh store on the same directory loads it back.
+        List<Tuning> reloaded = new TuningStore(dir).loadCustomTunings();
+        assertEquals(1, reloaded.size());
+        assertEquals(dropC, reloaded.get(0));
+    }
+
+    @Test
+    @DisplayName("removing the selected custom tuning falls back to a built-in")
+    void removeCustomTuningFallsBack(@TempDir Path dir) {
+        TunerPanel panel = new TunerPanel();
+        panel.setTuningStore(new TuningStore(dir));
+        Tuning dropC = Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62);
+        onEdt(() -> panel.addCustomTuning(dropC));
+
+        boolean[] removed = new boolean[1];
+        onEdt(() -> removed[0] = panel.removeSelectedCustomTuning());
+        assertTrue(removed[0], "a custom tuning is removable");
+        assertFalse(panel.customTunings().contains(dropC));
+        assertSame(Tuning.GUITAR_STANDARD, panel.selectedTuning());
+        assertTrue(new TuningStore(dir).loadCustomTunings().isEmpty(),
+                "the removal is persisted");
+    }
+
+    @Test
+    @DisplayName("a built-in tuning cannot be removed")
+    void builtInCannotBeRemoved(@TempDir Path dir) {
+        TunerPanel panel = new TunerPanel();
+        panel.setTuningStore(new TuningStore(dir));
+        onEdt(() -> panel.tuningBox().setSelectedItem(Tuning.GUITAR_DROP_D));
+
+        boolean[] removed = new boolean[1];
+        onEdt(() -> removed[0] = panel.removeSelectedCustomTuning());
+        assertFalse(removed[0], "built-in tunings are not removable");
+        assertSame(Tuning.GUITAR_DROP_D, panel.selectedTuning());
+    }
+
+    @Test
+    @DisplayName("persisted custom tunings populate the selector on load")
+    void persistedTuningsLoadIntoSelector(@TempDir Path dir) {
+        Tuning dropC = Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62);
+        new TuningStore(dir).saveCustomTunings(List.of(dropC));
+
+        TunerPanel panel = new TunerPanel();
+        onEdt(() -> panel.setTuningStore(new TuningStore(dir)));
+        assertTrue(panel.customTunings().contains(dropC));
+        // The selector holds every built-in plus the one persisted custom tuning.
+        assertEquals(Tuning.ALL.size() + 1, panel.tuningBox().getItemCount());
+    }
+
+    @Test
+    @DisplayName("a reading resolves against a custom tuning's strings")
+    void readingUsesCustomTuning(@TempDir Path dir) {
+        TunerPanel panel = new TunerPanel();
+        panel.setTuningStore(new TuningStore(dir));
+        Tuning dropC = Tuning.of("Guitar (Drop C)", 36, 43, 48, 53, 57, 62);
+        onEdt(() -> panel.addCustomTuning(dropC));
+        // The low C2 string of Drop C (~65.41 Hz).
+        onEdt(() -> panel.applyReading(
+                new PitchDetector.Pitch(dropC.getStringFrequency(0), 0.95f)));
+        assertEquals("C2", panel.noteText());
+        assertTrue(panel.meter().isInTune());
+        assertTrue(panel.detailText().contains("String 1"),
+                "detail should name the lowest Drop C string: " + panel.detailText());
     }
 }

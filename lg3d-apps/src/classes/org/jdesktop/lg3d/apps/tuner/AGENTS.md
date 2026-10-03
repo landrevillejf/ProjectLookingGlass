@@ -15,7 +15,7 @@
 | Command | `java org.jdesktop.lg3d.apps.tuner.Tuner` |
 | Descriptor | `src/config/tuner.lgcfg` → `config/demo` |
 | Format | Pitch is detected **natively and in-process**: `javax.sound.sampled` opens the default capture line (`TargetDataLine`, 16-bit mono little-endian PCM) and a daemon thread streams frames into the AWT-free `PitchDetector` (the **YIN** algorithm). No external tool, no codec, no recording — analysis only |
-| Persistence | None — a tuner has no state worth saving; every reading is live |
+| Persistence | User-defined tunings are saved as JSON under `~/.lg3d/tuner/tunings.json` (`TuningStore`, override with `lg3d.tuner.dir`); live readings are never stored |
 | Security | The microphone is opened **only** on a Start press and released on Stop / Close / window-close; nothing is written to disk and no audio is retained |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -43,7 +43,22 @@
 - **Note / Tuning** — the AWT-free equal-temperament model: nearest-note / cents
   resolution (`Note`) and the named string tables with nearest-string search
   (`Tuning`: chromatic, guitar standard / drop-D / open-G, bass 4- and 5-string,
-  ukulele).
+  ukulele). A `Tuning` is just a name and an ordered `int[]` of string MIDI
+  numbers, so **any custom tuning** (e.g. Drop C) is built with the public
+  `Tuning.of(name, midi...)` factory; value equality lets duplicates collapse.
+- **TuningStore** — Jackson JSON persistence of the user-defined tunings under
+  `~/.lg3d/tuner` (override with `lg3d.tuner.dir`), mirroring the sibling
+  `RecorderStore`: defensive reads (missing/corrupt → empty), serialised through a
+  small `StoredTuning` DTO so the pure model keeps no Jackson annotations.
+- **AddTuningDialog** — the "add a custom tuning" editor (name, string-count
+  spinner, one note picker per string) shown via `JOptionPane` rooted at the panel
+  (the SwingNode-safe pattern `AppearancePanel` uses). All its logic is in pure
+  statics (`noteLabels` / `labelOf` / `midiOf` / `build`); only `show` needs a
+  window.
+- **TunerTheme** — the single colour resolver: every UI hue is read live from the
+  active L&F via `UIManager` (with `SystemColor` / blend fallbacks), so the panel
+  and meter re-theme to the host and carry **no hardcoded palette**. The meter's
+  green/amber/red status hues are the only semantic constants, defined once here.
 
 ## Roles
 
@@ -62,8 +77,9 @@
   hot. Guard every device path so it is only reached from a user action, never the
   constructor, so headless tests can build the panel. Never call `System.exit`.
   Obey the core UI/UX rulebook.
-- **QA** — `PitchDetectorTest`, `NoteTest`, `TuningTest`, `TuningMeterTest` and
-  `TunerPanelTest` run headless (57 tests): the DSP suite feeds synthetic sine
+- **QA** — `PitchDetectorTest`, `NoteTest`, `TuningTest`, `TuningStoreTest`,
+  `TunerThemeTest`, `AddTuningDialogTest`, `TuningMeterTest` and `TunerPanelTest`
+  run headless (84 tests): the DSP suite feeds synthetic sine
   waves and asserts every guitar/bass open string is recovered within a couple of
   percent and that silence / noise / short buffers read unvoiced; the model suites
   assert the equal-temperament and tuning-table maths; the meter suite asserts the
@@ -88,7 +104,10 @@
 - **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame; the panel is the
   SwingNode content. 2D: the identical `TunerPanel` in an MDI internal frame.
   Conventional tuner chrome (big note, cent meter, string strip), never a
-  click-cycling 3D idiom; keep both surfaces pixel-identical. An unavailable
+  click-cycling 3D idiom; keep both surfaces pixel-identical. **No colour is
+  hardcoded** — resolve every hue through `TunerTheme` so both surfaces follow
+  their host L&F (system in 2D, hosted Metal in 3D). Custom tunings are a
+  first-class toolbar action (`+` / `−`), never a code change. An unavailable
   microphone must surface in the status line as guidance, not a silent failure.
 
 ## Communication & coherence
