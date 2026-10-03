@@ -1,4 +1,4 @@
-# Mail 3D Application
+# Mail Application (real IMAP/SMTP client)
 
 > Role-aware per-app guide. Module: [`lg3d-incubator`](../../../../../../../AGENTS.md)
 > · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
@@ -9,62 +9,115 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Production-grade** native-3D app (supported showcase) |
-| Entry point | `Mail3D.main` → `Frame3D` host |
-| Surface | **pure-3D `Frame3D`** (3D desktop) **+ `MailPanel` Swing panel** (2D/Swing desktop) — both off the same `/mail/messages` store |
-| Start-menu name / group | Mail 3D / **Office** |
+| Status | **Production-grade** mail client (supported showcase), 2D + native-3D |
+| Backend | Real **IMAP/SMTP** on **Jakarta Mail 2.x** via Eclipse Angus (`org.eclipse.angus:angus-mail`) |
+| 2D entry point | `MailPanel` (`JPanel`, no Java 3D) — hosted by the Swing/2D desktop |
+| 3D entry point | `Mail3D.main` → `Frame3D` host (browse/triage surface) |
+| Start-menu name / group | Mail 3D / **Office** (one descriptor; 2D strips the `3D` marker to "Mail") |
 | Command | `java org.jdesktop.lg3d.apps.mail.Mail3D` |
 | Descriptor | **`lg3d-apps/src/config/mail3d.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
-| Persistence | Shared user `Preferences` node `/mail/messages`; reads `/contacts` (populated by Contact 3D) |
+| Persistence | Shared user `Preferences`: `/mail/accounts`, `/mail/settings`, `/mail/rules`, `/mail/.secret`; reads `/contacts` (populated by Contact 3D) |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 ## Key components
 
-- **Mail3D** — `Frame3D` entry point + control layout.
-- **MailStore** — loads/saves messages under the `/mail/messages` `Preferences` node.
-- **MailMessage** — the message model.
-- **MailView** — the live-texture `Component3D` that renders the mailbox/reading pane.
-- **MailPanel** — the 2D/Swing counterpart (`JPanel`, no Java 3D) hosted by the Swing
-  desktop; reuses `MailStore`/`MailMessage`/`ContactDirectory` and the same nodes.
+**Model (AWT-free, shared by both desktops)**
+
+- **MailMessage / MailAddress / MailAttachment / MailFolder** — the message,
+  address, attachment-metadata and folder models. No Java 3D or Swing types.
+- **MailAccount** — per-account config (IMAP + SMTP host/port/security, username,
+  `credentialMode` ASK|SAVED, signature, default flag); Preferences (de)serialisation.
+
+**Config / persistence**
+
+- **MailAccountStore** — CRUD over `/mail/accounts`, single-default invariant.
+- **MailSettings** — appearance/behaviour prefs under `/mail/settings` (fonts, theme,
+  density, reading-pane position, sort, auto-check interval, confirm-on-delete,
+  HTML-render toggle). Secure defaults: HTML rendering **off**.
+- **MailRule / MailRuleStore** — filter rules under `/mail/rules`
+  (from/subject/to · contains/equals/regex → move/mark-read/flag/delete), applied on fetch.
+- **CredentialVault** — AES-GCM obfuscation of SAVED passwords under a per-install
+  random secret at `/mail/.secret`. ASK-mode passwords are **never persisted**; secrets
+  are never logged.
+
+**Service layer (real backend)**
+
+- **MailService** — the backend interface (connect, listFolders, list, open, send,
+  move/delete/setFlags, search, disconnect).
+- **ImapSmtpMailService** — Jakarta Mail implementation. IMAP `Store` for
+  folders/envelopes/flags/search (`FetchProfile` headers-only listing, lazy body fetch);
+  SMTP `Transport` for send with `MimeMultipart` attachments. **Secure by default**:
+  SSL/STARTTLS, certificate validation on the JDK truststore, explicit connect/read/write
+  timeouts, plaintext only when an account explicitly selects `Security.NONE`.
+- **MailSessionManager** — per-account live sessions off the EDT, envelope caching,
+  reconnect-on-drop, credential resolution (ASK → UI prompt callback; SAVED →
+  `CredentialVault`), rule application on fetch, scheduled auto-check, status callbacks.
+- **MailBackendException** — wraps `MessagingException` for the UI to surface.
+
+**2D Swing UI**
+
+- **MailPanel** — three-pane client (account/folder `JTree` · sortable `JTable` ·
+  reading pane), toolbar, status bar, empty state. **No-arg constructor** for reflective
+  registry instantiation; a `(manager, settings)` test-seam constructor + `setSynchronous(true)`
+  make it headless-testable. Never loads a Java 3D class.
+- **MailTableModel / MessageReader / ComposePanel** — list model, reading pane
+  (plain-text preferred; HTML only if enabled, remote content blocked), and the
+  To/Cc/Bcc/Subject/body + signature + attachments editor.
+- **MailSettingsDialog / MailAccountDialog / PasswordPromptDialog** — tabbed settings
+  (Accounts / Appearance / Rules / Behaviour), the account editor with "Test connection",
+  and the ASK-mode credential modal. Choice options use **JList / JRadioButton**, never
+  combo boxes (SwingNode offscreen rendering on the 3D desktop).
+
+**Native-3D**
+
+- **Mail3D** — `Frame3D` entry point driving the same `MailSessionManager`/`MailService`;
+  browse/triage (read/flag/delete/move) plus preset quick-reply (3D has no keyboard).
+  Full compose/attachments stays a 2D capability.
+- **MailView** — the live-texture `Component3D` rendering the list + reading pane.
 
 ## Roles
 
-- **Architect** — A native-3D showcase app. Cross-app data uses the **shared user
-  `Preferences` tree**, not ServiceContext/Channel (a fresh context is created per
-  app, so channels are not shared across separately-launched apps). Mail 3D reads the
-  `/contacts` node Contact 3D populates and owns `/mail/messages`. Keep the model
-  (`MailStore`/`MailMessage`) AWT-free so it unit-tests headless.
-- **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
-  rule** (one fixed-size `ImageComponent2D` with `ALLOW_IMAGE_WRITE`, repaint + `.set()`
-  in place, never re-attach; power-of-two textures; pixels uploaded before attach).
-  Board/list quads set `Geometry.ALLOW_INTERSECT` so `PICK_GEOMETRY` maps a click to a
-  row. **Dev mode routes no keyboard focus to a `Frame3D`** — everything is
-  click/button driven; reuse the runtime-drawn `AgendaButton` idiom rather than
-  expecting typing. Never write another app's `Preferences` node. Jogamp only.
-- **QA** — Unit-test `MailStore`/`MailMessage` headless (persistence round-trip,
-  contact lookup). Verify the 3D view with the in-JVM probe + internal screencapture;
-  a black host capture under Wayland is not a defect. Watch for swallowed
-  `EventProcessor` exceptions and the texture-NPE "invisible panel" class.
-- **Business Analyst** — A supported showcase (3D mail client) demonstrating native-3D
-  productivity UI and cross-app data sharing. Production expectations apply; it is a
-  local/Preferences-backed client, not a live IMAP/SMTP product.
-- **Functional Analyst** — Spec user-visible function (browse/read/compose messages,
-  pick contacts as recipients) plus the core contract (Frame3D host, live-texture
-  view, `/mail/messages` + `/contacts` Preferences nodes, descriptor location).
-- **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
-  `lg3d-apps`, so a PR may span two modules — say so. Done = build +
-  `:lg3d-core:runtimeResources` (icon) + `./run-lg3d.sh` + capture/log evidence.
-- **UI/UX (3D & 2D)** — **Runs in both desktops.** In the 3D desktop the mailbox,
-  reading pane and controls are runtime-drawn scene-graph widgets: follow the glassy
-  vocabulary, depth ordering and click-driven-input rules from core; verify occlusion
-  with a capture, not numeric Z. In the 2D/Swing desktop the **same start-menu
-  descriptor** launches `MailPanel` (a plain `JPanel` registered in
-  `Desktop2DAppRegistry.PANEL_APPS` on the `Mail3D` main class), an idiomatic Swing
-  mailbox — folder combo + `JList`, reading pane, toolbar (New/Reply/Delete/Mark
-  read) and a real keyboard-editable compose card — reusing the AWT-free
-  `MailStore`/`MailMessage`/`ContactDirectory` model and the `/mail/messages` +
-  `/contacts` nodes, so state written by one desktop is visible in the other.
-  `MailPanel` must never load a Java 3D class (a 3D-less JVM runs it).
+- **Architect** — Both desktops share ONE model + service layer; the only split is the
+  presentation (`MailPanel` vs `Mail3D`/`MailView`). Cross-app data uses the **shared user
+  `Preferences` tree**, not ServiceContext/Channel (a fresh context per app is not shared
+  across separately-launched apps). Mail reads `/contacts` and owns `/mail/*`. Keep the
+  model + service AWT-free so they unit-test headless; keep all Java 3D out of `MailPanel`
+  and all Swing-blocking I/O off the EDT (worker/virtual threads via `MailSessionManager`).
+- **Engineer / Developer** — Obey the core UI/UX rulebook. In 3D follow the **live-texture
+  rule** (one fixed power-of-two `ImageComponent2D` with `ALLOW_IMAGE_WRITE`, built once off-live,
+  repaint + `.set()` in place, never re-attach); list quads set `Geometry.ALLOW_INTERSECT`
+  for `PICK_GEOMETRY` row mapping. **Dev mode routes no keyboard focus to a `Frame3D`** —
+  everything is click/button driven; reuse the runtime-drawn `AgendaButton` idiom. Security
+  invariants: TLS by default, no wildcard `ssl.trust`, no plaintext fallback unless the
+  account opts in, secrets never logged, HTML mail opt-in with remote content blocked.
+  Never write another app's `Preferences` node. Jogamp only.
+- **QA** — Protocol correctness is proven headlessly against **GreenMail**
+  (`ImapSmtpMailServiceTest`: connect/list/open/search/setFlags/move/delete + send-with-attachment
+  round trip). Stores/rules/settings/vault and `MailSessionManager` are unit-tested against
+  `Preferences` and a `FakeMailService`; `MailPanelTest` drives the panel in synchronous mode.
+  Tests run `java.awt.headless=true` and clear `/mail` before/after. The legacy
+  `ext/mail.jar` (javax.mail, kept only for `blackgoat`) is filtered off the **test** classpath:
+  its `com.sun.mail.handlers.text_plain` clashes with angus's jakarta handler of the same name.
+  Verify the 3D view with the in-JVM probe + internal screencapture; a black host capture under
+  Wayland is not a defect.
+- **Business Analyst** — A supported showcase demonstrating a real, configurable, secure
+  IMAP/SMTP client with native-3D browse/triage and cross-app data sharing. Production
+  expectations apply. No live external mail server exists in CI, so protocol correctness is
+  proven against GreenMail; real-provider smoke testing is a manual step reported in the PR.
+- **Functional Analyst** — Spec user-visible function (accounts + credential modes, folder
+  tree, list/read/compose/reply/forward, attachments, search, rules, appearance/behaviour
+  settings, 3D triage) plus the core contract (shared model/service, `/mail/*` + `/contacts`
+  nodes, descriptor location, TLS-by-default security).
+- **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in `lg3d-apps`
+  and the run/releaseBundle classpath wiring in `lg3d-core`, so a PR may span modules — say so.
+  Done = build + `:lg3d-core:runtimeResources` (icon) + tests + `./run-lg3d.sh` + capture/log evidence.
+- **UI/UX (3D & 2D)** — **Runs in both desktops off one descriptor.** In the 3D desktop the
+  list, reading pane and controls are runtime-drawn scene-graph widgets: follow the glassy
+  vocabulary, depth ordering and click-driven-input rules from core; verify occlusion with a
+  capture, not numeric Z. In the 2D/Swing desktop the same descriptor launches `MailPanel`
+  (registered in `Desktop2DAppRegistry` on the `Mail3D` main class), an idiomatic three-pane
+  Swing client. Settings/rules/accounts configured in one desktop are visible in the other
+  (shared `/mail/*`). `MailPanel` must never load a Java 3D class (a 3D-less JVM runs it).
 
 ## Communication & coherence
 

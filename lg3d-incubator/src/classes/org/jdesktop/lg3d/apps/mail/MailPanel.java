@@ -16,484 +16,852 @@
 package org.jdesktop.lg3d.apps.mail;
 
 import java.awt.BorderLayout;
-import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.text.SimpleDateFormat;
+import java.awt.GraphicsEnvironment;
+import java.awt.event.ActionEvent;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultComboBoxModel;
-import javax.swing.DefaultListModel;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
-import javax.swing.JTextArea;
+import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
-import org.jdesktop.lg3d.apps.orgchart.ui.agenda.ContactDirectory;
+import javax.swing.RowSorter;
+import javax.swing.SortOrder;
+import javax.swing.SwingWorker;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableRowSorter;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
 
 /**
- * The 2D/Swing counterpart of the native-3D {@link Mail3D} e-mail client: the
- * same local, {@link java.util.prefs.Preferences}-backed mailbox
- * ({@link MailStore} under {@code /mail/messages}) and the same desktop-wide
- * recipient address book ({@link ContactDirectory} over the shared
- * {@code org.jdesktop.lg3d.contacts.ContactStore}), rendered as
- * an idiomatic Swing panel instead of a live-texture {@code Component3D}.
+ * The 2D/Swing mail client: a real, configurable IMAP/SMTP front end built on the
+ * shared {@link MailSessionManager} / {@link MailService} model it also shares with
+ * the native-3D {@link Mail3D}. It is registered in
+ * {@code Desktop2DAppRegistry.PANEL_APPS} against the {@code Mail3D} main class, so
+ * the one start-menu descriptor launches this panel as an MDI internal frame on the
+ * Swing desktop while the 3D desktop keeps building {@code Mail3D}.
  *
- * <p>It is registered in {@code Desktop2DAppRegistry.PANEL_APPS} against the
- * {@code Mail3D} main class, so the one shared start-menu descriptor launches
- * this panel as an MDI internal frame in the 2D/Swing desktop while the 3D
- * desktop keeps building {@code Mail3D}. Because both read and write the same
- * Preferences nodes, a message filed in one desktop is visible in the other.</p>
+ * <p>Layout is the classic three-pane mailbox: an account/folder {@link JTree} on
+ * the left, a sortable message {@link JTable} in the middle, and the
+ * {@link MessageReader} reading pane to the right / below / hidden per
+ * {@link MailSettings}. A toolbar carries New / Reply / Reply All / Forward /
+ * Delete / Mark unread / Flag / Refresh / Search / Settings, and a status bar shows
+ * the connection state and unread count.</p>
  *
- * <p>Unlike the click/button-driven 3D view (dev mode routes no keyboard focus
- * into a {@code Frame3D}), the Swing panel uses real widgets: a message list, a
- * reading pane, and an editable compose form with a recipient combo box seeded
- * from the shared contacts. The panel is deliberately free of any Java 3D class
- * so it also runs on a machine without the 3D desktop.</p>
+ * <p>All backend I/O runs off the EDT through {@link #load}; the headless tests
+ * flip {@link #setSynchronous(boolean)} so the same code path executes inline and
+ * deterministically. With no account configured the panel shows an empty state
+ * rather than failing, so it never crashes offline.</p>
  */
 public class MailPanel extends JPanel {
 
     /** Panel size in native pixels; the desktop window sizes itself to this. */
-    public static final int WIDTH_PX = 720;
-    public static final int HEIGHT_PX = 480;
+    public static final int WIDTH_PX = 900;
+    public static final int HEIGHT_PX = 600;
 
-    private static final String CARD_READ = "read";
-    private static final String CARD_COMPOSE = "compose";
+    /** How a compose window is prefilled. */
+    enum ComposeMode { NEW, REPLY, REPLY_ALL, FORWARD }
 
-    /** Local identity outgoing messages are sent from (mirrors Mail3D). */
-    private static final String ME = "You";
-    private static final String ME_EMAIL = "you@example.com";
+    private final MailSessionManager manager;
+    private MailSettings settings;
 
-    /** Recipient fallback when the shared contact directory is empty. */
-    private static final String FALLBACK_TO = "Friend";
-    private static final String FALLBACK_EMAIL = "friend@example.com";
+    /** Runs backend calls inline instead of on a worker (headless tests). */
+    private boolean synchronous;
 
-    private static final SimpleDateFormat DATE_FORMAT =
-            new SimpleDateFormat("yyyy-MM-dd HH:mm");
-
-    private final MailStore store = new MailStore();
-    private final ContactDirectory directory = new ContactDirectory();
-    private final List<MailMessage> all = new ArrayList<MailMessage>();
-
-    private final DefaultListModel<MailMessage> listModel =
-            new DefaultListModel<MailMessage>();
-    private final JList<MailMessage> messageList = new JList<MailMessage>(listModel);
-    private final JComboBox<String> folderBox = new JComboBox<String>(
-            new String[] { MailMessage.FOLDER_INBOX, MailMessage.FOLDER_SENT });
-
-    // Reading pane.
-    private final JLabel readFrom = new JLabel(" ");
-    private final JLabel readTo = new JLabel(" ");
-    private final JLabel readSubject = new JLabel(" ");
-    private final JLabel readDate = new JLabel(" ");
-    private final JTextArea readBody = new JTextArea();
-
-    // Compose pane.
-    private final JComboBox<String> toBox = new JComboBox<String>();
-    private final JTextField subjectField = new JTextField();
-    private final JTextArea composeBody = new JTextArea();
-    private final JButton sendButton = new JButton("Send");
-    private final JButton discardButton = new JButton("Discard");
-
-    private final CardLayout cards = new CardLayout();
-    private final JPanel cardPanel = new JPanel(cards);
-
-    private final JButton replyButton = new JButton("Reply");
-    private final JButton deleteButton = new JButton("Delete");
-    private final JButton readButton = new JButton("Mark unread");
-
-    private String folder = MailMessage.FOLDER_INBOX;
+    // Model / state.
+    private final List<MailAccount> accounts = new ArrayList<MailAccount>();
+    private final List<MailFolder> folders = new ArrayList<MailFolder>();
+    private MailAccount currentAccount;
+    private String currentFolder = MailMessage.FOLDER_INBOX;
+    private final List<MailMessage> messages = new ArrayList<MailMessage>();
     private MailMessage selected;
-    private MailMessage draft;          // non-null while composing
 
-    public MailPanel() {
-        super(new BorderLayout());
-        setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
+    // Widgets.
+    private final DefaultMutableTreeNode treeRoot =
+            new DefaultMutableTreeNode("Mail");
+    private final DefaultTreeModel treeModel = new DefaultTreeModel(treeRoot);
+    private final JTree tree = new JTree(treeModel);
 
-        store.seedIfEmpty();
-        all.addAll(store.load());
+    private final MailTableModel tableModel = new MailTableModel();
+    private final JTable table = new JTable(tableModel);
+    private final TableRowSorter<MailTableModel> sorter =
+            new TableRowSorter<MailTableModel>(tableModel);
 
-        add(buildToolbar(), BorderLayout.NORTH);
-        add(buildBody(), BorderLayout.CENTER);
+    private final MessageReader reader = new MessageReader();
+    private final JLabel statusLabel = new JLabel(" ");
+    private final JTextField searchField = new JTextField(18);
+    private final JLabel emptyLabel = new JLabel(
+            "Add an account to get started (Settings \u2192 Accounts).",
+            JLabel.CENTER);
 
-        toBox.setEditable(true);
-        reloadContacts();
-        showFolder(folder);
-    }
+    private JSplitPane listReaderSplit;
+    private final JPanel centerHolder = new JPanel(new BorderLayout());
+    private Runnable onClose;
 
     // ------------------------------------------------------------------
     // Construction
     // ------------------------------------------------------------------
 
-    private JToolBar buildToolbar() {
-        JToolBar bar = new JToolBar();
-        bar.setFloatable(false);
-        folderBox.addActionListener(e ->
-                showFolder((String) folderBox.getSelectedItem()));
-        bar.add(folderBox);
-        bar.addSeparator();
-        JButton newButton = new JButton("New");
-        newButton.addActionListener(e -> newMessage());
-        bar.add(newButton);
-        replyButton.addActionListener(e -> reply());
-        bar.add(replyButton);
-        deleteButton.addActionListener(e -> deleteSelected());
-        bar.add(deleteButton);
-        readButton.addActionListener(e -> toggleRead());
-        bar.add(readButton);
-        return bar;
-    }
-
-    private JSplitPane buildBody() {
-        messageList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        messageList.setCellRenderer(new MessageRenderer());
-        messageList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && draft == null) {
-                openMessage(messageList.getSelectedValue());
-            }
-        });
-        JScrollPane listScroll = new JScrollPane(messageList);
-        listScroll.setPreferredSize(new Dimension(240, HEIGHT_PX));
-
-        cardPanel.add(buildReadCard(), CARD_READ);
-        cardPanel.add(buildComposeCard(), CARD_COMPOSE);
-
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                listScroll, cardPanel);
-        split.setDividerLocation(240);
-        split.setResizeWeight(0.35);
-        return split;
-    }
-
-    private JPanel buildReadCard() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JPanel header = new JPanel(new java.awt.GridLayout(4, 1));
-        header.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
-        readSubject.setFont(readSubject.getFont().deriveFont(Font.BOLD, 15f));
-        header.add(readSubject);
-        header.add(readFrom);
-        header.add(readTo);
-        header.add(readDate);
-        panel.add(header, BorderLayout.NORTH);
-
-        readBody.setEditable(false);
-        readBody.setLineWrap(true);
-        readBody.setWrapStyleWord(true);
-        readBody.setBorder(BorderFactory.createEmptyBorder(4, 8, 8, 8));
-        panel.add(new JScrollPane(readBody), BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel buildComposeCard() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JPanel top = new JPanel(new java.awt.GridLayout(2, 1));
-        top.setBorder(BorderFactory.createEmptyBorder(6, 8, 2, 8));
-        top.add(labeled("To:", toBox));
-        top.add(labeled("Subject:", subjectField));
-        panel.add(top, BorderLayout.NORTH);
-
-        composeBody.setLineWrap(true);
-        composeBody.setWrapStyleWord(true);
-        panel.add(new JScrollPane(composeBody), BorderLayout.CENTER);
-
-        JPanel south = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT));
-        sendButton.addActionListener(e -> send());
-        discardButton.addActionListener(e -> discard());
-        south.add(discardButton);
-        south.add(sendButton);
-        panel.add(south, BorderLayout.SOUTH);
-        return panel;
-    }
-
-    private static JPanel labeled(String text, java.awt.Component field) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.add(new JLabel(text), BorderLayout.WEST);
-        row.add(field, BorderLayout.CENTER);
-        return row;
-    }
-
-    // ------------------------------------------------------------------
-    // State
-    // ------------------------------------------------------------------
-
-    /** Fills the recipient combo box from the shared contact directory. */
-    private void reloadContacts() {
-        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<String>();
-        for (ContactDirectory.ContactInfo c : directory.getContacts()) {
-            String entry = (c.email != null && !c.email.isEmpty())
-                    ? c.displayName + " <" + c.email + ">"
-                    : c.displayName;
-            model.addElement(entry);
-        }
-        toBox.setModel(model);
+    /** Production constructor used by the reflective desktop registry. */
+    public MailPanel() {
+        this(new MailSessionManager(), MailSettings.load());
+        refresh();
     }
 
     /**
-     * Switches to {@code target} folder and refreshes the list. Ignored while
-     * composing or when already on that folder (mirrors {@code Mail3D.openFolder}).
+     * Test seam: inject the session manager and settings. Unlike the no-arg
+     * constructor this does <em>not</em> kick off a fetch, so a headless test can
+     * {@link #setSynchronous(boolean)} first and then {@link #refresh()} inline.
      */
-    void showFolder(String target) {
-        if (target == null || draft != null || folder.equals(target)) {
-            return;
-        }
-        folder = target;
-        selected = null;
-        refreshList();
-        clearReading();
-        updateActionButtons();
+    public MailPanel(MailSessionManager manager, MailSettings settings) {
+        super(new BorderLayout());
+        this.manager = manager;
+        this.settings = settings;
+        setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
+
+        // Credentials: ASK-mode accounts prompt through a modal dialog. Tests
+        // override this with an inline prompt before the first fetch.
+        manager.setPasswordPrompt(account ->
+                PasswordPromptDialog.prompt(this, account, manager.accounts()));
+
+        add(buildToolbar(), BorderLayout.NORTH);
+        add(buildCenter(), BorderLayout.CENTER);
+        add(buildStatusBar(), BorderLayout.SOUTH);
+
+        applySettings();
     }
 
-    /** The current folder's messages, newest first (mirrors Mail3D). */
-    List<MailMessage> currentFolderMessages() {
-        List<MailMessage> out = new ArrayList<MailMessage>();
-        for (MailMessage m : all) {
-            if (folder.equals(m.getFolder())) {
-                out.add(m);
-            }
-        }
-        Collections.sort(out, new Comparator<MailMessage>() {
-            public int compare(MailMessage a, MailMessage b) {
-                return Long.compare(b.getWhen(), a.getWhen());
+    /** Optional registry hook; invoked by {@link #close()} to close the host frame. */
+    public void setOnClose(Runnable onClose) {
+        this.onClose = onClose;
+    }
+
+    private JToolBar buildToolbar() {
+        JToolBar bar = new JToolBar();
+        bar.setFloatable(false);
+        bar.add(button("New", e -> newMessage()));
+        bar.add(button("Reply", e -> reply()));
+        bar.add(button("Reply All", e -> replyAll()));
+        bar.add(button("Forward", e -> forward()));
+        bar.addSeparator();
+        bar.add(button("Delete", e -> deleteSelected()));
+        bar.add(button("Mark unread", e -> toggleRead()));
+        bar.add(button("Flag", e -> toggleFlag()));
+        bar.addSeparator();
+        bar.add(button("Refresh", e -> refresh()));
+        bar.addSeparator();
+        bar.add(new JLabel(" Search: "));
+        bar.add(searchField);
+        bar.add(button("Go", e -> doSearch()));
+        bar.addSeparator();
+        bar.add(button("Settings", e -> openSettings()));
+
+        searchField.addActionListener(e -> doSearch());
+        bindShortcuts();
+        return bar;
+    }
+
+    private static JButton button(String label,
+            java.awt.event.ActionListener a) {
+        JButton b = new JButton(label);
+        b.setFocusable(false);
+        b.addActionListener(a);
+        return b;
+    }
+
+    private void bindShortcuts() {
+        bind(KeyStroke.getKeyStroke("control N"), new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { newMessage(); } });
+        bind(KeyStroke.getKeyStroke("control R"), new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { reply(); } });
+        bind(KeyStroke.getKeyStroke("control F5"), new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { refresh(); } });
+        bind(KeyStroke.getKeyStroke("DELETE"), new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { deleteSelected(); } });
+    }
+
+    private void bind(KeyStroke ks, javax.swing.Action a) {
+        getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(ks, ks);
+        getActionMap().put(ks, a);
+    }
+
+    private Component buildCenter() {
+        tree.setRootVisible(false);
+        tree.setShowsRootHandles(true);
+        tree.addTreeSelectionListener(e -> onTreeSelection());
+        JScrollPane treeScroll = new JScrollPane(tree);
+        treeScroll.setPreferredSize(new Dimension(200, HEIGHT_PX));
+
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setRowSorter(sorter);
+        table.setFillsViewportHeight(true);
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                onTableSelection();
             }
         });
-        return out;
+        table.getColumnModel().getColumn(MailTableModel.COL_DATE)
+                .setCellRenderer(new DateRenderer());
+        JScrollPane tableScroll = new JScrollPane(table);
+
+        listReaderSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                tableScroll, reader);
+        listReaderSplit.setResizeWeight(0.5);
+
+        centerHolder.add(listReaderSplit, BorderLayout.CENTER);
+
+        JSplitPane outer = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                treeScroll, centerHolder);
+        outer.setDividerLocation(200);
+        outer.setResizeWeight(0.0);
+        return outer;
     }
 
-    private void refreshList() {
-        listModel.clear();
-        for (MailMessage m : currentFolderMessages()) {
-            listModel.addElement(m);
+    private JPanel buildStatusBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(2, 6, 2, 6)));
+        bar.add(statusLabel, BorderLayout.CENTER);
+        return bar;
+    }
+
+    // ------------------------------------------------------------------
+    // Settings
+    // ------------------------------------------------------------------
+
+    /** Runs on a worker unless {@link #setSynchronous(boolean)} is set. */
+    void setSynchronous(boolean synchronous) {
+        this.synchronous = synchronous;
+    }
+
+    void applySettings() {
+        Font listFont = new Font(settings.getListFontFamily(), Font.PLAIN,
+                settings.getListFontSize());
+        table.setFont(listFont);
+        table.setRowHeight(settings.rowHeight());
+        reader.applySettings(settings);
+        reader.setAttachmentHandler(this::saveAttachment);
+
+        boolean dark = settings.getTheme() == MailSettings.Theme.DARK;
+        Color bg = dark ? new Color(0x1E, 0x1E, 0x24) : Color.WHITE;
+        Color fg = dark ? new Color(0xDD, 0xDD, 0xDD) : Color.BLACK;
+        table.setBackground(bg);
+        table.setForeground(fg);
+        emptyLabel.setForeground(fg);
+
+        int pos = settings.getReadingPanePosition().ordinal();
+        if (settings.getReadingPanePosition() == MailSettings.ReadingPanePosition.HIDDEN) {
+            listReaderSplit.setRightComponent(null);
+        } else {
+            listReaderSplit.setOrientation(
+                    settings.getReadingPanePosition()
+                            == MailSettings.ReadingPanePosition.BOTTOM
+                            ? JSplitPane.VERTICAL_SPLIT
+                            : JSplitPane.HORIZONTAL_SPLIT);
+            if (listReaderSplit.getRightComponent() == null) {
+                listReaderSplit.setRightComponent(reader);
+            }
         }
+        applySortKeys();
+        listReaderSplit.revalidate();
+        listReaderSplit.repaint();
     }
 
-    private void clearReading() {
-        readSubject.setText(" ");
-        readFrom.setText(" ");
-        readTo.setText(" ");
-        readDate.setText(" ");
-        readBody.setText("");
+    private void applySortKeys() {
+        int col;
+        switch (settings.getSortColumn()) {
+            case FROM: col = MailTableModel.COL_FROM; break;
+            case SUBJECT: col = MailTableModel.COL_SUBJECT; break;
+            default: col = MailTableModel.COL_DATE; break;
+        }
+        SortOrder order = settings.isSortDescending()
+                ? SortOrder.DESCENDING : SortOrder.ASCENDING;
+        List<RowSorter.SortKey> keys = new ArrayList<RowSorter.SortKey>();
+        keys.add(new RowSorter.SortKey(col, order));
+        sorter.setSortKeys(keys);
     }
 
-    /** Opens a message into the reading pane, marking it read. */
-    void openMessage(MailMessage m) {
-        if (draft != null || m == null) {
+    // ------------------------------------------------------------------
+    // Refresh / folder loading
+    // ------------------------------------------------------------------
+
+    /** Reloads accounts, the folder tree, and the current folder. */
+    void refresh() {
+        accounts.clear();
+        accounts.addAll(manager.accounts().load());
+        if (accounts.isEmpty()) {
+            currentAccount = null;
+            folders.clear();
+            messages.clear();
+            tableModel.setMessages(messages);
+            treeRoot.removeAllChildren();
+            treeModel.reload();
+            reader.clear();
+            showEmpty(true);
+            setStatus("No account configured.");
             return;
         }
-        selected = m;
-        if (!m.isRead()) {
-            m.setRead(true);
-            store.save(m);
+        showEmpty(false);
+        if (currentAccount == null || manager.accounts().findById(
+                currentAccount.getId()) == null) {
+            MailAccount def = manager.accounts().defaultAccount();
+            currentAccount = (def != null) ? def : accounts.get(0);
         }
-        readSubject.setText(m.getSubject());
-        readFrom.setText("From: " + m.getFrom()
-                + (m.getFromEmail().isEmpty() ? "" : " <" + m.getFromEmail() + ">"));
-        readTo.setText("To: " + m.getTo()
-                + (m.getToEmail().isEmpty() ? "" : " <" + m.getToEmail() + ">"));
-        readDate.setText(DATE_FORMAT.format(new Date(m.getWhen())));
-        readBody.setText(m.getBody());
-        readBody.setCaretPosition(0);
-        cards.show(cardPanel, CARD_READ);
-        updateActionButtons();
-        refreshList();
+        loadFolders();
     }
 
-    private void updateActionButtons() {
-        boolean reading = draft == null && selected != null;
-        replyButton.setEnabled(reading);
-        deleteButton.setEnabled(reading);
-        readButton.setEnabled(reading);
-        readButton.setText(selected != null && selected.isRead()
-                ? "Mark unread" : "Mark read");
+    private void loadFolders() {
+        final String accountId = currentAccount.getId();
+        setStatus("Connecting to " + currentAccount.getDisplayLabel() + "...");
+        load(() -> manager.session(accountId).listFolders(), result -> {
+            folders.clear();
+            folders.addAll(result);
+            buildTree();
+            if (folderIndex(currentFolder) < 0) {
+                currentFolder = pickInitialFolder();
+            }
+            loadFolder();
+        });
+    }
+
+    private String pickInitialFolder() {
+        for (MailFolder f : folders) {
+            if (f.getType() == MailFolder.Type.INBOX) {
+                return f.getName();
+            }
+        }
+        return folders.isEmpty() ? MailMessage.FOLDER_INBOX
+                : folders.get(0).getName();
+    }
+
+    private int folderIndex(String name) {
+        for (int i = 0; i < folders.size(); i++) {
+            if (folders.get(i).getName().equals(name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void buildTree() {
+        treeRoot.removeAllChildren();
+        for (MailAccount a : accounts) {
+            DefaultMutableTreeNode an = new DefaultMutableTreeNode(
+                    new AccountNode(a));
+            if (a.getId().equals(currentAccount.getId())) {
+                for (MailFolder f : folders) {
+                    an.add(new DefaultMutableTreeNode(new FolderNode(a.getId(), f)));
+                }
+            }
+            treeRoot.add(an);
+        }
+        treeModel.reload();
+        for (int i = 0; i < tree.getRowCount(); i++) {
+            tree.expandRow(i);
+        }
+    }
+
+    private void onTreeSelection() {
+        TreePath path = tree.getSelectionPath();
+        if (path == null) {
+            return;
+        }
+        Object user = ((DefaultMutableTreeNode) path.getLastPathComponent())
+                .getUserObject();
+        if (user instanceof AccountNode) {
+            currentAccount = ((AccountNode) user).account;
+            currentFolder = null;
+            loadFolders();
+        } else if (user instanceof FolderNode) {
+            FolderNode fn = (FolderNode) user;
+            currentAccount = manager.accounts().findById(fn.accountId);
+            selectFolder(fn.accountId, fn.folder.getName());
+        }
+    }
+
+    /** Selects a folder and loads its messages (test-friendly entry point). */
+    void selectFolder(String accountId, String folderName) {
+        MailAccount a = manager.accounts().findById(accountId);
+        if (a != null) {
+            currentAccount = a;
+        }
+        currentFolder = folderName;
+        loadFolder();
+    }
+
+    private void loadFolder() {
+        final String accountId = currentAccount.getId();
+        final String folder = currentFolder;
+        setStatus("Loading " + folder + "...");
+        load(() -> manager.fetch(accountId, folder), result -> {
+            messages.clear();
+            messages.addAll(result);
+            selected = null;
+            tableModel.setMessages(messages);
+            reader.clear();
+            applySortKeys();
+            int unread = 0;
+            for (MailMessage m : messages) {
+                if (!m.isRead()) {
+                    unread++;
+                }
+            }
+            setStatus(connectedText() + "  \u2014  " + folder + ": "
+                    + messages.size() + " message(s), " + unread + " unread");
+        });
+    }
+
+    private String connectedText() {
+        return currentAccount == null ? "" : currentAccount.getDisplayLabel();
+    }
+
+    // ------------------------------------------------------------------
+    // Selection / reading
+    // ------------------------------------------------------------------
+
+    private void onTableSelection() {
+        int view = table.getSelectedRow();
+        if (view < 0) {
+            return;
+        }
+        openMessage(tableModel.getMessageAt(table.convertRowIndexToModel(view)));
+    }
+
+    /** Opens a message: fetches its body lazily and marks it read. */
+    void openMessage(MailMessage envelope) {
+        if (envelope == null) {
+            return;
+        }
+        final String accountId = envelope.getAccountId();
+        load(() -> {
+            MailService s = manager.session(accountId);
+            MailMessage full = s.open(envelope);
+            if (!full.isRead()) {
+                s.setRead(full, true);
+                full.setRead(true);
+            }
+            return full;
+        }, full -> {
+            selected = full;
+            int idx = tableModel.indexOf(envelope);
+            if (idx >= 0) {
+                messages.set(idx, full);
+                tableModel.setMessages(messages);
+            }
+            reader.setMessage(full);
+        });
     }
 
     // ------------------------------------------------------------------
     // Actions
     // ------------------------------------------------------------------
 
-    /** Starts a blank draft addressed to the first shared contact. */
     void newMessage() {
-        if (draft != null) {
+        if (currentAccount == null) {
+            setStatus("Configure an account first.");
             return;
         }
-        String toName = FALLBACK_TO;
-        String toEmail = FALLBACK_EMAIL;
-        ContactDirectory.ContactInfo c = firstContact();
-        if (c != null) {
-            toName = c.displayName;
-            toEmail = (c.email != null) ? c.email : "";
-        }
-        draft = new MailMessage(store.newId(), ME, ME_EMAIL, toName, toEmail,
-                "", "", MailMessage.FOLDER_SENT);
-        enterCompose(toEntry(toName, toEmail), "", "");
+        openCompose(composeFor(currentAccount, null, ComposeMode.NEW));
     }
 
-    /** Starts a draft replying to the selected message. */
     void reply() {
-        if (draft != null || selected == null) {
+        composeSelected(ComposeMode.REPLY);
+    }
+
+    void replyAll() {
+        composeSelected(ComposeMode.REPLY_ALL);
+    }
+
+    void forward() {
+        composeSelected(ComposeMode.FORWARD);
+    }
+
+    private void composeSelected(ComposeMode mode) {
+        if (selected == null) {
+            setStatus("Select a message first.");
             return;
         }
-        MailMessage src = selected;
-        String subject = src.getSubject();
-        if (!subject.startsWith("Re: ")) {
-            subject = "Re: " + subject;
+        MailAccount a = currentAccount != null ? currentAccount
+                : manager.accounts().findById(selected.getAccountId());
+        openCompose(composeFor(a, selected, mode));
+    }
+
+    /**
+     * Builds and prefills a {@link ComposePanel} without showing it, so the tests
+     * can drive compose/send headlessly. Production callers wrap it in
+     * {@link #openCompose}.
+     */
+    ComposePanel composeFor(MailAccount account, MailMessage src,
+            ComposeMode mode) {
+        ComposePanel panel = new ComposePanel(accounts, account);
+        switch (mode) {
+            case REPLY: panel.prefillReply(src, false); break;
+            case REPLY_ALL: panel.prefillReply(src, true); break;
+            case FORWARD: panel.prefillForward(src); break;
+            default: panel.initNew(); break;
         }
-        String quoted = src.getBody().replace("\n", "\n> ");
-        String body = "Hi " + src.getFrom() + ",\n\nThanks for the note.\n\n> "
-                + quoted;
-        draft = new MailMessage(store.newId(), ME, ME_EMAIL,
-                src.getFrom(), src.getFromEmail(), subject, body,
-                MailMessage.FOLDER_SENT);
-        enterCompose(toEntry(src.getFrom(), src.getFromEmail()), subject, body);
+        return panel;
     }
 
-    private void enterCompose(String to, String subject, String body) {
-        reloadContacts();
-        toBox.setSelectedItem(to);
-        subjectField.setText(subject);
-        composeBody.setText(body);
-        composeBody.setCaretPosition(0);
-        folderBox.setEnabled(false);
-        cards.show(cardPanel, CARD_COMPOSE);
-        updateActionButtons();
-    }
-
-    /** Files the draft into the Sent folder and jumps the view there. */
-    void send() {
-        if (draft == null) {
+    private void openCompose(ComposePanel panel) {
+        if (GraphicsEnvironment.isHeadless()) {
+            pendingCompose = panel;      // tests drive sendDraft() directly
             return;
         }
-        applyComposeFields();
-        store.save(draft);
-        all.add(draft);
-        selected = draft;
-        draft = null;
-        folder = MailMessage.FOLDER_SENT;
-        folderBox.setEnabled(true);
-        folderBox.setSelectedItem(folder);
-        refreshList();
-        messageList.setSelectedValue(selected, true);
-        openMessage(selected);
+        ComposeDialog d = new ComposeDialog(panel);
+        d.setVisible(true);
     }
 
-    /** Discards the draft without saving and returns to the reading pane. */
-    void discard() {
-        cancelCompose();
-        folderBox.setEnabled(true);
-        refreshList();
-        cards.show(cardPanel, CARD_READ);
-        updateActionButtons();
+    private ComposePanel pendingCompose;
+
+    ComposePanel getPendingCompose() {
+        return pendingCompose;
     }
 
-    private void cancelCompose() {
-        draft = null;
-    }
-
-    /** Copies the compose widgets back into the draft model. */
-    private void applyComposeFields() {
-        if (draft == null) {
-            return;
-        }
-        String to = (String) toBox.getEditor().getItem();
-        String name = to;
-        String email = "";
-        if (to != null) {
-            int lt = to.indexOf('<');
-            int gt = to.indexOf('>');
-            if (lt >= 0 && gt > lt) {
-                name = to.substring(0, lt).trim();
-                email = to.substring(lt + 1, gt).trim();
-            }
-        }
-        draft.setTo(name == null || name.isEmpty() ? FALLBACK_TO : name, email);
-        draft.setSubject(subjectField.getText());
-        draft.setBody(composeBody.getText());
-    }
-
-    void toggleRead() {
-        if (draft != null || selected == null) {
-            return;
-        }
-        selected.setRead(!selected.isRead());
-        store.save(selected);
-        refreshList();
-        updateActionButtons();
+    /** Sends a draft on a worker thread and refreshes the Sent folder on success. */
+    void sendDraft(MailMessage draft, List<MailAttachment> attachments) {
+        final String accountId = draft.getAccountId();
+        setStatus("Sending...");
+        load(() -> {
+            manager.session(accountId).send(draft, attachments);
+            return null;
+        }, v -> {
+            setStatus("Message sent.");
+            draft.setFolder(MailMessage.FOLDER_SENT);
+            selectFolder(accountId, MailMessage.FOLDER_SENT);
+        });
     }
 
     void deleteSelected() {
-        if (draft != null || selected == null) {
+        if (selected == null) {
             return;
         }
-        all.remove(selected);
-        store.delete(selected.getId());
-        selected = null;
-        refreshList();
-        clearReading();
-        updateActionButtons();
+        if (settings.isConfirmOnDelete() && !GraphicsEnvironment.isHeadless()) {
+            int c = JOptionPane.showConfirmDialog(this,
+                    "Delete this message?", "Delete",
+                    JOptionPane.OK_CANCEL_OPTION);
+            if (c != JOptionPane.OK_OPTION) {
+                return;
+            }
+        }
+        final MailMessage m = selected;
+        load(() -> {
+            manager.session(m.getAccountId()).delete(m);
+            return null;
+        }, v -> {
+            messages.remove(m);
+            selected = null;
+            tableModel.setMessages(messages);
+            reader.clear();
+            setStatus("Message deleted.");
+        });
     }
 
-    private ContactDirectory.ContactInfo firstContact() {
-        List<ContactDirectory.ContactInfo> contacts = directory.getContacts();
-        return contacts.isEmpty() ? null : contacts.get(0);
+    void toggleRead() {
+        if (selected == null) {
+            return;
+        }
+        final MailMessage m = selected;
+        final boolean to = !m.isRead();
+        load(() -> {
+            manager.session(m.getAccountId()).setRead(m, to);
+            return null;
+        }, v -> {
+            m.setRead(to);
+            tableModel.setMessages(messages);
+        });
     }
 
-    private static String toEntry(String name, String email) {
-        return (email == null || email.isEmpty()) ? name : name + " <" + email + ">";
+    void toggleFlag() {
+        if (selected == null) {
+            return;
+        }
+        final MailMessage m = selected;
+        final boolean to = !m.isFlagged();
+        load(() -> {
+            manager.session(m.getAccountId()).setFlagged(m, to);
+            return null;
+        }, v -> {
+            m.setFlagged(to);
+            tableModel.setMessages(messages);
+        });
     }
 
-    // Test/inspection accessors (package-private; the desktop does not use them).
+    void doSearch() {
+        final String terms = searchField.getText();
+        final String accountId = currentAccount == null ? null
+                : currentAccount.getId();
+        final String folder = currentFolder;
+        if (accountId == null) {
+            return;
+        }
+        setStatus("Searching...");
+        load(() -> manager.session(accountId).search(folder, terms), result -> {
+            messages.clear();
+            messages.addAll(result);
+            selected = null;
+            tableModel.setMessages(messages);
+            reader.clear();
+            setStatus(result.size() + " result(s).");
+        });
+    }
+
+    private void openSettings() {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        JFrame frame = (JFrame) javax.swing.SwingUtilities.getWindowAncestor(this);
+        boolean applied = MailSettingsDialog.show(frame, manager,
+                manager.accounts(), manager.rules(), settings);
+        if (applied) {
+            settings = MailSettings.load();
+            applySettings();
+            manager.startAutoCheck(settings.getCheckIntervalMinutes(),
+                    () -> autoCheck());
+            refresh();
+        }
+    }
+
+    private void autoCheck() {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (currentAccount != null) {
+                loadFolder();
+            }
+        });
+    }
+
+    private void saveAttachment(MailAttachment att) {
+        if (selected == null || GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setSelectedFile(new java.io.File(att.getFileName()));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        final MailMessage m = selected;
+        final java.io.File dest = chooser.getSelectedFile();
+        load(() -> manager.session(m.getAccountId()).openAttachment(m, att),
+                bytes -> {
+                    try {
+                        java.nio.file.Files.write(dest.toPath(), bytes);
+                        setStatus("Saved " + dest.getName());
+                    } catch (java.io.IOException ex) {
+                        setStatus("Could not save attachment: " + ex.getMessage());
+                    }
+                });
+    }
+
+    // ------------------------------------------------------------------
+    // Plumbing
+    // ------------------------------------------------------------------
+
+    private void showEmpty(boolean empty) {
+        centerHolder.removeAll();
+        if (empty) {
+            centerHolder.add(emptyLabel, BorderLayout.CENTER);
+        } else {
+            centerHolder.add(listReaderSplit, BorderLayout.CENTER);
+        }
+        centerHolder.revalidate();
+        centerHolder.repaint();
+    }
+
+    private void setStatus(String text) {
+        statusLabel.setText(text == null ? " " : text);
+    }
+
+    /**
+     * Runs {@code network} off the EDT and hands the result to {@code ui} on the
+     * EDT - or, in {@link #setSynchronous(boolean) synchronous} mode, runs both
+     * inline on the caller's thread. Backend failures are reported in the status
+     * bar rather than thrown, so the panel degrades gracefully offline.
+     */
+    private <T> void load(Callable<T> network, Consumer<T> ui) {
+        if (synchronous) {
+            try {
+                T r = network.call();
+                if (ui != null) {
+                    ui.accept(r);
+                }
+            } catch (Exception e) {
+                reportError(e);
+            }
+            return;
+        }
+        new SwingWorker<T, Void>() {
+            @Override
+            protected T doInBackground() throws Exception {
+                return network.call();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    T r = get();
+                    if (ui != null) {
+                        ui.accept(r);
+                    }
+                } catch (Exception e) {
+                    reportError(e.getCause() == null ? e : e.getCause());
+                }
+            }
+        }.execute();
+    }
+
+    private void reportError(Throwable t) {
+        String msg = (t instanceof MailBackendException) ? t.getMessage()
+                : "Mail error: " + t.getMessage();
+        setStatus(msg == null ? "Mail error." : msg);
+    }
+
+    /** Disconnects every session and invokes the host close callback, if any. */
+    public void close() {
+        manager.close();
+        if (onClose != null) {
+            onClose.run();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Test / inspection accessors (package-private)
+    // ------------------------------------------------------------------
+
+    List<MailAccount> getAccounts() {
+        return accounts;
+    }
+
+    List<MailFolder> getFolders() {
+        return folders;
+    }
+
+    List<MailMessage> getMessages() {
+        return messages;
+    }
+
     MailMessage getSelected() {
         return selected;
     }
 
-    MailMessage getDraft() {
-        return draft;
+    /** Selects a message in the model and opens it (bypasses the table view). */
+    void selectMessage(MailMessage m) {
+        int idx = tableModel.indexOf(m);
+        if (idx >= 0) {
+            table.setRowSelectionInterval(0, 0);
+            int view = table.convertRowIndexToView(idx);
+            if (view >= 0) {
+                table.setRowSelectionInterval(view, view);
+            }
+        }
+        openMessage(m);
     }
 
     String getFolder() {
-        return folder;
+        return currentFolder;
     }
 
-    int getMessageCount() {
-        return all.size();
+    String getStatusText() {
+        return statusLabel.getText();
     }
 
-    /** Renders a message row: an unread dot, the subject and the sender. */
-    private static final class MessageRenderer extends JLabel
-            implements javax.swing.ListCellRenderer<MailMessage> {
-        MessageRenderer() {
-            setOpaque(true);
-            setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
+    /** Sets the search box and runs the search (test-friendly entry point). */
+    void performSearch(String terms) {
+        searchField.setText(terms);
+        doSearch();
+    }
+
+    /** The message-list row height currently implied by the density setting. */
+    int getTableRowHeight() {
+        return table.getRowHeight();
+    }
+
+    MailSettings getSettings() {
+        return settings;
+    }
+
+    // ------------------------------------------------------------------
+    // Tree node payloads
+    // ------------------------------------------------------------------
+
+    private static final class AccountNode {
+        final MailAccount account;
+        AccountNode(MailAccount account) {
+            this.account = account;
         }
+        public String toString() {
+            return account.getDisplayLabel();
+        }
+    }
 
-        public java.awt.Component getListCellRendererComponent(
-                JList<? extends MailMessage> list, MailMessage m, int index,
-                boolean isSelected, boolean cellHasFocus) {
-            if (m == null) {
-                setText(" ");
-                return this;
-            }
-            String dot = m.isRead() ? "   " : "\u25cf ";
-            setText(dot + m.getSubject() + "  \u2014  " + m.getFrom());
-            setFont(getFont().deriveFont(m.isRead() ? Font.PLAIN : Font.BOLD));
-            if (isSelected) {
-                setBackground(list.getSelectionBackground());
-                setForeground(list.getSelectionForeground());
-            } else {
-                setBackground(list.getBackground());
-                setForeground(m.isRead() ? list.getForeground() : new Color(0x1A, 0x3D, 0x7C));
+    private static final class FolderNode {
+        final String accountId;
+        final MailFolder folder;
+        FolderNode(String accountId, MailFolder folder) {
+            this.accountId = accountId;
+            this.folder = folder;
+        }
+        public String toString() {
+            int n = folder.getUnreadCount();
+            return n > 0 ? folder.getDisplayLabel() + " (" + n + ")"
+                    : folder.getDisplayLabel();
+        }
+    }
+
+    /** Renders the Date column as a formatted timestamp from its epoch value. */
+    private final class DateRenderer extends DefaultTableCellRenderer {
+        public Component getTableCellRendererComponent(JTable t, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(t, value, isSelected, hasFocus,
+                    row, column);
+            if (value instanceof Long) {
+                setText(tableModel.formatDate((Long) value));
             }
             return this;
+        }
+    }
+
+    /** A modal compose window wrapping a {@link ComposePanel} with Send/Cancel. */
+    private final class ComposeDialog extends javax.swing.JDialog {
+        ComposeDialog(ComposePanel panel) {
+            super((JFrame) javax.swing.SwingUtilities.getWindowAncestor(MailPanel.this),
+                    "New message", true);
+            JPanel south = new JPanel(new java.awt.FlowLayout(
+                    java.awt.FlowLayout.RIGHT));
+            JButton cancel = new JButton("Cancel");
+            cancel.addActionListener(e -> dispose());
+            JButton send = new JButton("Send");
+            send.addActionListener(e -> {
+                MailMessage draft = panel.buildDraft();
+                List<MailAttachment> atts = panel.attachments();
+                dispose();
+                sendDraft(draft, atts);
+            });
+            south.add(cancel);
+            south.add(send);
+            getContentPane().add(panel, BorderLayout.CENTER);
+            getContentPane().add(south, BorderLayout.SOUTH);
+            setSize(720, 520);
+            setLocationRelativeTo(MailPanel.this);
         }
     }
 }

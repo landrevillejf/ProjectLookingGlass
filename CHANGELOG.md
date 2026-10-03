@@ -10,6 +10,33 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.45.0 —
 
 ### Added
+- **Real IMAP/SMTP Mail client** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.mail`)
+  — the former local-only demo mailbox is replaced by a **real, configurable,
+  secure IMAP/SMTP client** on **Jakarta Mail 2.x** via the Eclipse Angus provider
+  (`org.eclipse.angus:angus-mail`). One shared AWT-free model + service layer
+  (`MailMessage`/`MailAddress`/`MailAttachment`/`MailFolder`/`MailAccount`,
+  `MailService`/`ImapSmtpMailService`, `MailSessionManager`) backs **both**
+  desktops: the 2D/Swing `MailPanel` (three-pane account/folder tree · sortable
+  message table · reading pane, toolbar, status bar, compose with attachments,
+  server-side IMAP search, tabbed `MailSettingsDialog` + `MailAccountDialog` with
+  "Test connection") and the native-3D `Mail3D`/`MailView` browse-and-triage
+  surface. Fully customisable and configurable: multiple accounts, appearance
+  (fonts, light/dark theme + accent, list density, reading-pane position), sorting,
+  auto-check interval, and filter rules (`MailRule`/`MailRuleStore`: from/subject/to
+  · contains/equals/regex → move/mark-read/flag/delete) applied on fetch. **Secure
+  by default** — SSL/STARTTLS with certificate validation on the JDK truststore,
+  explicit connect/read/write timeouts, plaintext only on explicit `Security.NONE`,
+  HTML mail opt-in with remote content blocked. Per-account credentials are either
+  **in-memory only (ASK — prompt each connect)** or **obfuscated at rest (SAVED)**
+  via AES-GCM (`CredentialVault`) under a per-install random secret; ASK passwords
+  are never persisted and secrets are never logged. Config persists to the shared
+  `/mail/accounts`, `/mail/settings`, `/mail/rules` and `/mail/.secret`
+  `Preferences` nodes. angus-mail is wired through the version catalog and onto the
+  hand-assembled `:lg3d-core:run` classpath and `releaseBundle`; the legacy
+  `javax.mail` `ext/mail.jar` stays only so `blackgoat` compiles. Protocol
+  correctness is proven headlessly against **GreenMail** (in-JVM IMAP/SMTP) in
+  `ImapSmtpMailServiceTest` (connect/list/open/search/flag/move/delete + send with
+  an attachment), alongside store/rule/settings/vault/session-manager/panel tests.
 - **Audio CD ripping + album-cover music library** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.audioplayer` and `...cdviewer`) — the Audio Player can
   now **rip an audio CD to MP3 or WAV** with a choice of sampling rate (8000 –

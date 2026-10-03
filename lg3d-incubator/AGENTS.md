@@ -83,9 +83,9 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
 - Keep the game/app **model** plain-Java (no AWT) so it unit-tests headless; the
   `Component3D` view and `Frame3D` host are verified with the in-JVM probe.
 - **Cross-app data sharing uses the shared user `Preferences` tree**, not
-  ServiceContext/Channel. Agenda 3D / Mail 3D read the `/contacts` node Contact
-  3D populates; Mail 3D persists under `/mail/messages`. Never write another
-  app's node.
+  ServiceContext/Channel. Agenda 3D / Mail read the `/contacts` node Contact
+  3D populates; Mail owns the `/mail/*` nodes (`accounts`, `settings`, `rules`,
+  `.secret`). Never write another app's node.
 - JAI image I/O: use `javax.imageio.ImageIO` for PNG/JPEG; reserve the JAI codec
   for TIFF/BMP (JAI's JPEG encoder references the JDK-removed
   `com.sun.image.codec.jpeg`).

@@ -105,6 +105,16 @@ dependencies {
     // the bundled jbusinessday library (repo-root libs/, not a module ext jar).
     implementation files("${rootProject.projectDir}/libs/jbusinessday-0.9.1-SNAPSHOT.jar")
 
+    // The Mail app (org.jdesktop.lg3d.apps.mail) is a real IMAP/SMTP client on
+    // Jakarta Mail 2.x via the Eclipse Angus provider; angus-mail pulls the
+    // jakarta.mail-api in transitively. It uses the jakarta.mail namespace, so it
+    // coexists with the legacy javax.mail ext/mail.jar the blackgoat app still
+    // imports (different packages, no split-package clash). This must ALSO be
+    // resolved onto the hand-assembled :lg3d-core desktop run classpath (see
+    // lg3d-core/build.gradle mailLibs) or the in-JVM launch dies with
+    // NoClassDefFoundError: jakarta/mail/Session.
+    implementation libs.angus.mail
+
     // jbusinessday logs through slf4j and its holiday utilities touch
     // org.slf4j.LoggerFactory in a static initializer, so slf4j-api MUST be on
     // the runtime classpath or the library dies with NoClassDefFoundError the
@@ -123,6 +133,12 @@ dependencies {
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher
+
+    // The Mail client's protocol round-trip tests spin up GreenMail, an in-JVM
+    // IMAP/SMTP server, so real fetch/send/flag/move/search behaviour is
+    // exercised headlessly with no external mail server in CI (the same pattern
+    // the ftp-client tests follow with MockFtpServer).
+    testImplementation libs.greenmail
 }
 
 tasks.named('test') {
@@ -140,7 +156,24 @@ tasks.named('test') {
     // :lg3d-core run classpath already omits this jar for the same reason; the
     // `implementation fileTree(ext)` above pulls it back onto the *test*
     // runtime classpath, so drop it here to keep the platform XML parser intact.
-    classpath = classpath.filter { !it.name.equals('xercesImpl.jar') }
+    //
+    // The legacy ext/mail.jar (javax.mail, kept only for the blackgoat app)
+    // ships com/sun/mail/handlers/text_plain implementing the OLD
+    // javax.activation.DataContentHandler. Angus-mail registers a class of the
+    // exact same name implementing jakarta.activation.DataContentHandler, and
+    // the mailcap lookup casts the loaded class to the jakarta interface. With
+    // both jars present the legacy one can win on the classpath, so sending any
+    // text/plain body dies with
+    //   ClassCastException: com.sun.mail.handlers.text_plain cannot be cast to
+    //   jakarta.activation.DataContentHandler
+    // The Mail round-trip tests (GreenMail) never touch blackgoat, so drop the
+    // legacy mail/activation jars from the test runtime classpath and let the
+    // jakarta handlers resolve unambiguously.
+    classpath = classpath.filter {
+        !it.name.equals('xercesImpl.jar') \
+            && !it.name.equals('mail.jar') \
+            && !it.name.equals('activation.jar')
+    }
 }
 
 // ---------------------------------------------------------------------------

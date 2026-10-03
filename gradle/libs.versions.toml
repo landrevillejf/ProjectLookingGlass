@@ -39,6 +39,15 @@ mariadb = "3.4.1"         # org.mariadb.jdbc:mariadb-java-client (LGPL-2.1)
 commonsNet = "3.13.0"     # commons-net:commons-net (Apache-2.0)
 jsch = "2.28.7"           # com.github.mwiede:jsch (BSD; SFTP)
 mockFtpServer = "3.2.0"   # org.mockftpserver:MockFtpServer (Apache-2.0, test-only)
+# Mail client libraries. The Mail app (lg3d-incubator,
+# org.jdesktop.lg3d.apps.mail) is a real IMAP/SMTP client built on Jakarta Mail
+# 2.x via the Eclipse Angus provider (angus-mail pulls jakarta.mail-api in
+# transitively). It uses the jakarta.mail namespace, so it coexists with the
+# legacy javax.mail ext/mail.jar the blackgoat app still imports -- different
+# packages, no split-package clash. GreenMail is an in-JVM IMAP/SMTP server used
+# only by the module's headless round-trip tests (no external server in CI).
+angusMail = "2.0.3"       # org.eclipse.angus:angus-mail (EDL/EPL; Jakarta Mail 2.1 impl)
+greenmail = "2.1.3"       # com.icegreen:greenmail (Apache-2.0, test-only)
 # The PDF Viewer (lg3d-apps, org.jdesktop.lg3d.apps.pdfviewer) rasterises pages
 # with Apache PDFBox. The 2006-era prototype it replaces rendered pages with the
 # commercial JPedal library (jpedalSTD/cid/bcprov-jdk14), which is absent from
@@ -115,6 +124,12 @@ mariadb-java-client = { module = "org.mariadb.jdbc:mariadb-java-client", version
 commons-net = { module = "commons-net:commons-net", version.ref = "commonsNet" }
 jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
 mockftpserver = { module = "org.mockftpserver:MockFtpServer", version.ref = "mockFtpServer" }
+
+# Mail client libraries (see the [versions] notes). Angus Mail is the Jakarta
+# Mail 2.x provider backing the real IMAP/SMTP client; GreenMail is test-only:
+# an embedded IMAP/SMTP server the round-trip tests connect to.
+angus-mail = { module = "org.eclipse.angus:angus-mail", version.ref = "angusMail" }
+greenmail = { module = "com.icegreen:greenmail", version.ref = "greenmail" }
 
 # Apache PDFBox: the open-source PDF renderer backing the lg3d-apps PDF Viewer
 # (replaces the proprietary JPedal library). Pulls in fontbox +
