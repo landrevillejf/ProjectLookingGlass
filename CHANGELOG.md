@@ -10,6 +10,47 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.46.0 —
 
 ### Added
+- **Cron Task Scheduler for the 2D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.utils.taskscheduler`; Control Center panel in `lg3d-apps`,
+  `org.jdesktop.lg3d.apps.controlcenter.TaskSchedulerPanel`) — a complete,
+  `crontab`-style scheduler that runs user programs and start-menu apps on a
+  schedule, entirely separate from (and leaving untouched) the existing
+  wallpaper/lighting `ScheduleService`/`SchedulePanel` day-night feature. A
+  from-scratch `CronExpression` parses the classic five-field `min hour dom month
+  dow` form plus a six-field seconds form, ranges/steps/lists, month and day
+  names, `7`=Sunday, the Vixie-cron "either day field" OR rule and the
+  `@yearly`/`@monthly`/`@weekly`/`@daily`/`@midnight`/`@hourly`/`@minutely`/`@reboot`
+  macros, and computes the next fire time (impossible dates such as 30 February
+  return none). `ScheduledTask`/`Trigger` model a job as **CRON**, a fixed
+  **INTERVAL** or a one-shot **ONCE** instant, running either an external
+  **COMMAND** or a start-menu **APP**, each with its own timeout, misfire policy,
+  concurrency guard, retries, working directory and environment overlay.
+  **Secure by construction** — `ProcessTaskRunner` executes the argv vector
+  verbatim through `ProcessBuilder` with **no shell**, so an argument can never be
+  re-interpreted as a shell metacharacter; `TaskValidator` gates every save on
+  required fields and resource limits (argv/env/name/timeout/retry bounds, NUL
+  rejection) and `DISPLAY` is pointed at the lg3d server so GUI jobs open on the
+  right screen. **Reliable** — `TaskSchedulerEngine` runs a single daemon tick
+  (1 s, giving cron sub-minute resolution) whose body is fully guarded so no
+  exception can cancel the loop, fires tasks on a worker pool (a slow job never
+  delays the others), recomputes the next fire at dispatch so a long run cannot
+  re-fire-storm, skips overlaps when `skipIfRunning` is set, retries failures, and
+  on start-up runs `@reboot` jobs and reconciles anything that came due while the
+  desktop was down per each task's `MisfirePolicy` (FIRE_ONCE_NOW / IGNORE /
+  FIRE_ON_NEXT_TICK). Tasks and a capped, secret-scrubbed run history persist to
+  the user `Preferences` tree via `PrefsTaskStore` (structured argv/env stored as
+  indexed keys so any character round-trips exactly; every backing-store failure
+  is logged and swallowed so the desktop always starts). The `TaskScheduler`
+  singleton facade is started from `Desktop2D` and drives the Control Center's
+  **Task Scheduler** panel — a `JList`-based (SwingNode-safe, no combo boxes)
+  editor with cron presets and a live next-run preview, New/Save/Delete/Run
+  now/Refresh, an environment editor and the recent-runs history. Covered by
+  headless JUnit 5 tests (`CronExpressionTest`, `TriggerTest`,
+  `ScheduledTaskTest`, `TaskExecutionRecordTest`, `TaskValidatorTest`,
+  `PrefsTaskStoreTest` against a throwaway preferences node, `ProcessTaskRunnerTest`
+  including an argv-injection-is-inert proof, `TaskSchedulerEngineTest` over an
+  in-memory store/runner, and `TaskSchedulerPanelTest`) — no real process or
+  preference is touched in CI beyond the Unix-guarded runner tests.
 - **Real IMAP/SMTP Mail client** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.mail`)
   — the former local-only demo mailbox is replaced by a **real, configurable,
   secure IMAP/SMTP client** on **Jakarta Mail 2.x** via the Eclipse Angus provider

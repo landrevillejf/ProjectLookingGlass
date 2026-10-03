@@ -23,8 +23,8 @@ import java.util.logging.Logger;
  * Discovers the control center's category panels. The built-in panels
  * (Appearance, Desktop, Display, Sound, Power, Mouse & Keyboard, Shortcuts,
  * Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing,
- * Date & Time, Language & Region, Users, System, Schedule) are registered on
- * first access; extra panels can be contributed with
+ * Date & Time, Language & Region, Users, System, Schedule, Task Scheduler) are
+ * registered on first access; extra panels can be contributed with
  * {@link #register(ControlPanel)} before the control center window is built.
  *
  * <p>Every panel registers in each desktop mode, so the control center shows the
@@ -85,6 +85,7 @@ public final class ControlPanelRegistry {
             addDefault(UsersPanel::new, "Users");
             addDefault(SystemInfoPanel::new, "System");
             addDefault(SchedulePanel::new, "Schedule");
+            addDefault(TaskSchedulerPanel::new, "Task Scheduler");
         }
         return new ArrayList<>(PANELS);
     }
