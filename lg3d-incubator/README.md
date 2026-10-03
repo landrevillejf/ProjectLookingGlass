@@ -95,9 +95,20 @@ for the same discovery reason Image Studio follows.
 | `Appointment` | A user-created entry (title, day, start hour, duration, attendees) with `Preferences` serialisation. |
 | `AppointmentStore` | Loads / saves / deletes appointments under `/agenda/appointments`. |
 | `ContactDirectory` | Read-only view of the shared `/contacts` store Contact 3D populates. |
+| `InvitationBuilder` | Pure RFC 5545 composer: the `METHOD:REQUEST` iCalendar payload, the invitation draft and the `invite.ics` attachment (TEXT escaping, octet-safe 75-column folding, UTC times). |
+| `InvitationSender` | UI-agnostic send seam over the Mail app's `MailSessionManager`: resolves the default mail account, skips address-less invitees, sends the draft + attachment over Jakarta Mail/SMTP and reports user-safe errors. |
 
 Appointments are **user-created only** (the agenda starts empty) and persist
-across launches. The grid obeys the live-texture rule: one fixed-size
+across launches. **Send Invites** (the full-width bottom-row button in `Agenda3D`,
+a control-row button in the 2D `AgendaPanel`) goes beyond the local attendee
+list: it e-mails the invitees a real RFC 5545 `METHOD:REQUEST` invitation — an
+`invite.ics` (`text/calendar; method=REQUEST`) their mail client can accept,
+tentatively accept or decline — through the Mail app's Jakarta Mail/SMTP
+backend, dated for the selected appointment's occurrence in the displayed week
+(`AgendaGrid.dateFor`, now public). The blocking send runs on a daemon thread;
+SAVED-mode accounts send silently, ASK-mode accounts prompt in the 2D panel and
+surface the manager's user-safe error in the 3D app (which, like `Mail3D`,
+installs no prompt). The grid obeys the live-texture rule: one fixed-size
 `ImageComponent2D` with `ALLOW_IMAGE_WRITE` is attached to a `Texture2D` once,
 off-live, and every edit only repaints the `BufferedImage` and calls
 `ImageComponent2D.set` in place — no texture is ever re-attached to the live

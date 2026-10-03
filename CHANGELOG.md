@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.48.0 —
 
 ### Added
+- **Agenda now sends real meeting invitations** (`lg3d-incubator`,
+  `org.jdesktop.lg3d.apps.orgchart.ui.agenda`) — inviting attendees no longer
+  stops at the local attendee list: both agenda surfaces (native-3D `Agenda3D`
+  and 2D/Swing `AgendaPanel`) gained a **Send Invites** control that composes a
+  real **RFC 5545 iCalendar `METHOD:REQUEST`** for the selected appointment's
+  occurrence in the displayed week and e-mails it through the Mail app's
+  existing Jakarta Mail/SMTP backend — so recipients get an `invite.ics`
+  (`text/calendar; method=REQUEST`) their mail client can accept, tentatively
+  accept or decline. `InvitationBuilder` is a pure, AWT-free composer (UTC
+  `DTSTART`/`DTEND`, RFC 5545 TEXT escaping, octet-safe 75-column folding,
+  `ORGANIZER`/`RSVP=TRUE` `ATTENDEE` lines) and `InvitationSender` is a
+  UI-agnostic send seam over `MailSessionManager`: it resolves the desktop's
+  **default mail account**, skips invitees without an address, and turns every
+  failure (no/incomplete account, no mailable invitee, SMTP error) into a
+  user-safe dialog — never a stack trace, never a logged password. Credentials
+  follow the Mail app's rules: SAVED-mode accounts send silently, ASK-mode
+  accounts prompt in the 2D panel (Swing dialog) and report the manager's
+  user-safe error in the 3D app (which, like `Mail3D`, installs no prompt).
+  The blocking SMTP round trip runs on a daemon thread off the EDT/scene
+  thread. `AgendaGrid.dateFor` became public so `Agenda3D` can date an invite
+  for the displayed week. Covered by new headless JUnit 5 suites
+  (`InvitationBuilderTest` 13 tests pinning the wire format, folding and
+  escaping; `InvitationSenderTest` 7 tests over a recording fake
+  `MailService`) plus 2 new `AgendaPanelTest` cases driving the panel's send
+  seam.
 - **OpenAPI Contract Editor** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.openapieditor`) — the external
   **OpenAPI-Contract-Editor** project (a full-featured YAML/OpenAPI specification

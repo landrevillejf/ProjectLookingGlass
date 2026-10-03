@@ -40,7 +40,11 @@
   Preferences tree + bundled demo `contacts.xml` are still read only by the dormant
   Contact 3D and by Chart 3D/`ChartPanel` (the org chart needs the `manager`
   hierarchy attribute, which the core `Contact` model does not carry). Agenda 3D owns
-  `/agenda/appointments`. `AbstractOrgChartApp` is the shared `Frame3D` base for
+  `/agenda/appointments`. **Real invitations reuse the Mail app's stack:**
+  `ui.agenda.InvitationBuilder` (pure RFC 5545 `METHOD:REQUEST` composer) and
+  `InvitationSender` (UI-agnostic send seam over `mail.MailSessionManager`, resolving
+  the default mail account) never touch Jakarta Mail directly and never write a mail
+  `Preferences` node. `AbstractOrgChartApp` is the shared `Frame3D` base for
   Chart/Prefuse.
 - **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
   rule** (single fixed-size `ImageComponent2D` with `ALLOW_IMAGE_WRITE`, repaint +
@@ -51,7 +55,11 @@
   texture and is only safe off-live. Note Agenda 3D needs `slf4j` on the run classpath
   (jbusinessday static-init) or the desktop dies with `NoClassDefFoundError`. Jogamp only.
 - **QA** — Unit-test the plain-Java pieces headless (`Appointment`/`AppointmentStore`,
-  `ContactDirectory`, business-day/holiday marking, contact model). Verify each 3D view
+  `ContactDirectory`, business-day/holiday marking, contact model, and the invitation
+  path: `InvitationBuilderTest` pins the ICS wire format/folding/escaping,
+  `InvitationSenderTest` drives `MailSessionManager` against a recording fake
+  `MailService`, `AgendaPanelTest` covers the panel's `sendInvitesSync` seam — no test
+  ever touches SMTP). Verify each 3D view
   with the in-JVM probe + internal screencapture; a black host capture under Wayland is
   not a defect. Note Prefuse will not appear in the start menu (descriptor not scanned)
   — that is a packaging fact, not a runtime failure.
@@ -78,7 +86,12 @@
   3D main classes: `AgendaPanel` (custom-painted week grid + real keyboard editing of
   title/day/hour/duration/attendees, duplicating the 8..18 / 7-day constants rather
   than referencing the `Component3D` `AgendaGrid`) and `ChartPanel` (`JTree` org hierarchy
-  + query, built straight from the `/contacts` `manager` attribute). The 2D contact
+  + query, built straight from the `/contacts` `manager` attribute). **Send Invites**
+  lives on both agenda surfaces (full-width bottom-row `AgendaButton` in 3D, control-row
+  `JButton` in 2D): the blocking SMTP send runs on a daemon thread, results are
+  headless-guarded dialogs, and only the 2D panel installs an ASK-mode password prompt
+  (`PasswordPromptDialog` is package-private in `mail`, so the panel uses its own
+  `JOptionPane`/`JPasswordField` dialog). The 2D contact
   surface is the production **Contacts** app (`ContactsPanel` in `lg3d-apps`, replacing
   the deleted read-only `ContactCardsPanel`). Each reuses the
   AWT-free model and the shared stores, so state written

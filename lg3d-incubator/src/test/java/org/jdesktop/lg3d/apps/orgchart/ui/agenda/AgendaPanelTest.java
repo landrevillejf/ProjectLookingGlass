@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -261,5 +262,83 @@ class AgendaPanelTest {
         assertEquals(LocalDate.now(), panel.dateFor(today));
         panel.shiftWeeks(4);
         assertEquals(-1, panel.todayColumnInWeek());
+    }
+
+    // ------------------------------------------------------------------
+    // Real invitations
+    // ------------------------------------------------------------------
+
+    /** Records what the panel hands to the sender instead of touching SMTP. */
+    private static final class RecordingSender extends InvitationSender {
+        volatile Appointment appointment;
+        volatile LocalDate date;
+        volatile List<ContactDirectory.ContactInfo> invitees;
+        volatile int count = 1;
+
+        RecordingSender() {
+            super(null); // the override below never touches the manager
+        }
+
+        @Override
+        public int send(Appointment a, LocalDate date,
+                List<ContactDirectory.ContactInfo> invitees) {
+            this.appointment = a;
+            this.date = date;
+            this.invitees = invitees;
+            return count;
+        }
+    }
+
+    @Test
+    void sendInvitesSyncResolvesAttendeesAndReportsTheCount() throws Exception {
+        AgendaPanel panel = new AgendaPanel();
+        panel.setCursor(2, 10);
+        panel.newAppointment();
+        panel.addAttendee(); // the single seeded contact
+        RecordingSender recorder = new RecordingSender();
+        panel.invitationSender = recorder;
+
+        Appointment a = panel.getSelected();
+        String msg = panel.sendInvitesSync(a, panel.dateFor(a.getDay()));
+
+        assertEquals("Invitation sent to 1 attendee.", msg);
+        assertSame(a, recorder.appointment);
+        assertEquals(panel.dateFor(2), recorder.date,
+                "the invite is dated for the displayed week's occurrence");
+        assertEquals(1, recorder.invitees.size());
+        assertEquals(a.getAttendees().get(0), recorder.invitees.get(0).uid);
+        assertEquals("test@example.org", recorder.invitees.get(0).email);
+
+        recorder.count = 3;
+        assertEquals("Invitations sent to 3 attendees.",
+                panel.sendInvitesSync(a, recorder.date));
+    }
+
+    @Test
+    void sendInvitesValidatesAndThenSendsOffTheEdt() throws Exception {
+        AgendaPanel panel = new AgendaPanel();
+        RecordingSender recorder = new RecordingSender();
+        panel.invitationSender = recorder;
+
+        // Nothing selected: a headless no-op, nothing reaches the sender.
+        panel.sendInvites();
+        assertNull(recorder.appointment);
+
+        // Selected but without attendees: still refused.
+        panel.setCursor(2, 10);
+        panel.newAppointment();
+        panel.sendInvites();
+        assertNull(recorder.appointment);
+
+        // With an attendee the daemon worker performs the send.
+        panel.addAttendee();
+        panel.sendInvites();
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (recorder.appointment == null && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
+        assertNotNull(recorder.appointment);
+        assertEquals(panel.dateFor(2), recorder.date);
+        assertEquals(1, recorder.invitees.size());
     }
 }
