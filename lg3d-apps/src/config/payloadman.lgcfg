@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: PayloadMan (from lg3d-apps). The external tests-suite
+ project: a production grade desktop API testing tool (HTTP request builder,
+ nested collections with JSON import/export, environments with {{variable}}
+ resolution, bearer/basic/api key auth, raw and form and multipart bodies,
+ persistent history, cookie jar, collection runner, cURL export, proxy and TLS
+ options) that ships as a self contained fat jar (libs/payloadman.jar). It is
+ NOT loaded into the desktop JVM: the PayloadMan launcher forks it as a separate
+ child process (java -jar) on the lg3d display, so the tool's own JFrame appears
+ as an ordinary top level window and its bundled third party libraries (Jackson,
+ SnakeYAML, slf4j, logback and the swing-ide plugin API jars) stay isolated from
+ the desktop. Registered with the "java <class>" verb, so AppLaunchAction (3D)
+ and Desktop2DAppRegistry.launchSwingFrame (2D, via SWING_FRAME_APPS) both run
+ the launcher's main, which only forks the child. The jar path is resolved from
+ the payloadman.jar system property (set by :lg3d-core:run and the release
+ lg3d.sh), else <lg.appcodebase>/libs, else the working dir. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.payloadman.PayloadMan</string>
+  </void>
+  <void property="desc">
+   <string>PayloadMan API testing tool: HTTP requests, collections, environments, auth, history</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/payloadman.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>PayloadMan</string>
+  </void>
+ </object>
+</java>

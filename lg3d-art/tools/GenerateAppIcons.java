@@ -117,6 +117,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector contract page with curly braces instead of a bundled glyph. */
     private static final String API_DOC_GLYPH = "ApiContractBraces";
 
+    /** Glyph name that draws a built-in vector paper plane (send / dispatch a request) instead of a bundled glyph. */
+    private static final String SEND_PLANE_GLYPH = "SendRequestPlane";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -218,6 +221,12 @@ public class GenerateAppIcons {
         // contract shaped, so a document page carrying a pair of curly braces is
         // drawn in-tool like the browser window and the marks above.
         {"openapi-editor.png", IconColor.PURPLE, IconCategory.TEXT, API_DOC_GLYPH},
+        // PayloadMan (external tests-suite fat jar forked as a child process by
+        // the PayloadMan launcher): a production-grade desktop API testing tool.
+        // The bundled glyph set has nothing request shaped, so a paper plane (the
+        // universal "send a request" mark) is drawn in-tool like the contract
+        // page, browser window and the marks above.
+        {"payloadman.png", IconColor.DEEP_ORANGE, IconCategory.GENERAL, SEND_PLANE_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -276,6 +285,8 @@ public class GenerateAppIcons {
                 glyph = drawBrowserGlyph(GLYPH);
             } else if (API_DOC_GLYPH.equals(glyphName)) {
                 glyph = drawApiDocGlyph(GLYPH);
+            } else if (SEND_PLANE_GLYPH.equals(glyphName)) {
+                glyph = drawSendPlaneGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -982,6 +993,32 @@ public class GenerateAppIcons {
         close.curveTo(22, 21, 21.3, 21.5, 21, 22.5);
         close.curveTo(20.5, 24, 21.5, 27, 19, 27);
         g.draw(close);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the paper-plane "send" glyph: the classic request-dispatch mark (a
+     * plane with an inner notch cut into its trailing edge), pointing right. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing request shaped,
+     * so it is drawn in-tool like the contract page and the marks above. Designed
+     * in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawSendPlaneGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        GeneralPath plane = new GeneralPath();
+        plane.moveTo(3, 27);
+        plane.lineTo(30, 16);
+        plane.lineTo(3, 5);
+        plane.lineTo(3, 13);
+        plane.lineTo(22, 16);
+        plane.lineTo(3, 19);
+        plane.closePath();
+        g.setColor(Color.WHITE);
+        g.fill(plane);
         g.dispose();
         return new ImageIcon(image);
     }

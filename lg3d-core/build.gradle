@@ -561,6 +561,14 @@ tasks.register('run', JavaExec) {
     // from this absolute path. It is fetched into libs/ (see
     // :fetchOpenApiEditorJar) rather than committed.
     systemProperty 'openapieditor.jar', rootProject.file('libs/openapi-editor.jar').absolutePath
+    // The PayloadMan start-menu app (lg3d-apps,
+    // org.jdesktop.lg3d.apps.payloadman) forks the external tests-suite API
+    // testing tool's fat jar as a SEPARATE child process; the jar is never on the
+    // desktop classpath (it runs in its own JVM), so its bundled Jackson /
+    // SnakeYAML / slf4j / logback and swing-ide plugin jars cannot clash with the
+    // desktop. The launcher resolves the jar from this absolute path. It is
+    // fetched into libs/ (see :fetchPayloadManJar) rather than committed.
+    systemProperty 'payloadman.jar', rootProject.file('libs/payloadman.jar').absolutePath
     systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
     systemProperty 'lg.version', project.version.toString()
     systemProperty 'j3d.sortShape3DBounds', 'true'
@@ -737,7 +745,7 @@ tasks.register('releaseLauncher') {
             '# Heap ceilings: override with LG3D_MIN_HEAP / LG3D_MAX_HEAP (e.g. LG3D_MAX_HEAP=3g).',
             'LG_MIN_HEAP="${LG3D_MIN_HEAP:-256m}"',
             'LG_MAX_HEAP="${LG3D_MAX_HEAP:-1536m}"',
-            'exec "${JAVA_BIN}" -Xms"${LG_MIN_HEAP}" -Xmx"${LG_MAX_HEAP}" -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:MetaspaceSize=128m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Dopenapieditor.jar="${HERE}/lib/openapi-editor.jar" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
+            'exec "${JAVA_BIN}" -Xms"${LG_MIN_HEAP}" -Xmx"${LG_MAX_HEAP}" -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:MetaspaceSize=128m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Dopenapieditor.jar="${HERE}/lib/openapi-editor.jar" -Dpayloadman.jar="${HERE}/lib/payloadman.jar" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
         ]) + '\n'
         new File(dir, 'README.txt').text = String.join('\n', [
             "Project Looking Glass ${version} - release bundle".toString(),
@@ -865,6 +873,12 @@ tasks.register('releaseBundle', Zip) {
         // been fetched this is a no-op and the desktop reports the editor as
         // unavailable.
         from(rootProject.file('libs/openapi-editor.jar'))
+        // The external PayloadMan (tests-suite) fat jar (fetched into libs/, not
+        // committed; see :fetchPayloadManJar). Ships at lib/payloadman.jar, which
+        // the release lg3d.sh points -Dpayloadman.jar at. When it has not been
+        // fetched this is a no-op and the desktop reports PayloadMan as
+        // unavailable.
+        from(rootProject.file('libs/payloadman.jar'))
     }
 
     // resources/ : the assembled classpath tree. runtimeResourcesDir holds a

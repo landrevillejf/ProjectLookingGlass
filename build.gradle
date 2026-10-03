@@ -241,3 +241,41 @@ tasks.register('fetchOpenApiEditorJar') {
         logger.lifecycle("Fetched openapi-editor jar -> ${dest}")
     }
 }
+
+// -----------------------------------------------------------------------------
+// fetchPayloadManJar: fetch the vendored PayloadMan (tests-suite) fat jar on demand
+// -----------------------------------------------------------------------------
+// The PayloadMan start-menu app (lg3d-apps, org.jdesktop.lg3d.apps.payloadman)
+// forks the external tests-suite project's self-contained fat jar as a separate
+// child process: a production-grade desktop API testing tool. That jar is ~17 MB,
+// so it is NOT committed: it is built by the tests-suite project (./gradlew
+// fatJar) and fetched into libs/payloadman.jar here (libs/payloadman.jar is
+// gitignored). Everything degrades gracefully when it is absent -- the run task /
+// release launcher simply point -Dpayloadman.jar at a path that may not exist
+// yet, and the desktop reports PayloadMan as unavailable.
+//
+// Two ways to obtain it:
+//   * build tests-suite locally and copy
+//     build/libs/tests-suite-plugin-*-all.jar to libs/payloadman.jar, or
+//   * ./gradlew fetchPayloadManJar -PpayloadManJarUrl=<url> to download it.
+// On-demand only (never wired into build); a present jar is left untouched.
+tasks.register('fetchPayloadManJar') {
+    group = 'application'
+    description = 'Download the PayloadMan (tests-suite) fat jar into libs/payloadman.jar (pass -PpayloadManJarUrl=<url>); a present jar is left as-is.'
+    def dest = rootProject.file('libs/payloadman.jar')
+    def url = project.findProperty('payloadManJarUrl')?.toString()?.trim()
+    doLast {
+        if (dest.isFile()) {
+            logger.lifecycle("payloadman jar already present: ${dest}")
+            return
+        }
+        if (!url) {
+            throw new GradleException("No payloadman jar at ${dest} and no -PpayloadManJarUrl given. "
+                + 'Build tests-suite (./gradlew fatJar) and copy '
+                + "build/libs/tests-suite-plugin-*-all.jar to ${dest}, or re-run with -PpayloadManJarUrl=<url>.")
+        }
+        dest.parentFile.mkdirs()
+        ant.get(src: url, dest: dest, verbose: false)
+        logger.lifecycle("Fetched payloadman jar -> ${dest}")
+    }
+}

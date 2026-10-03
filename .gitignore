@@ -19,9 +19,12 @@ build-gradle/
 # is built by the swing-ide project and fetched into libs/ on demand (see the
 # :fetchSwingIdeJar task) rather than committed. The openapi-editor fat jar
 # (~25 MB) is likewise built externally and fetched on demand (see
-# :fetchOpenApiEditorJar). The other libs/*.jar files are small and stay tracked.
+# :fetchOpenApiEditorJar), as is the payloadman fat jar (~17 MB, built by the
+# tests-suite project; see :fetchPayloadManJar). The other libs/*.jar files are
+# small and stay tracked.
 libs/swing-ide.jar
 libs/openapi-editor.jar
+libs/payloadman.jar
 
 # ---- IDE: IntelliJ IDEA ----
 .idea/
