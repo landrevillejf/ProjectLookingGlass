@@ -15,9 +15,14 @@
  */
 package org.jdesktop.lg3d.apps.orgchart.ui.agenda;
 
+import java.awt.GraphicsEnvironment;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.apps.mail.MailBackendException;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -47,6 +52,14 @@ import org.jogamp.vecmath.Vector3f;
  * remove/invite contacts from the shared directory. Every change is saved
  * immediately.</p>
  *
+ * <p>A full-width {@code Send Invites} button on the bottom row goes beyond the
+ * local attendee list: it composes a real RFC 5545 {@code METHOD:REQUEST}
+ * invitation ({@link InvitationBuilder}) for the displayed week's occurrence of
+ * the selection and sends it through the mail app's Jakarta Mail backend
+ * ({@link InvitationSender}). Like {@code Mail3D}, the 3D app installs no
+ * password prompt: SAVED-mode accounts send silently, ASK-mode accounts surface
+ * the manager's user-safe "no password" error.</p>
+ *
  * <p>A top navigation row ({@code Yr-}/{@code Mo-}/{@code Wk-} and their
  * {@code +} counterparts) cycles the displayed week back and forth through the
  * calendar, and {@code Today} snaps back to the current week. The grid's title
@@ -61,11 +74,15 @@ import org.jogamp.vecmath.Vector3f;
 public class Agenda3D extends Frame3D {
 
     private static final float DEPTH = 0.01f;
+    private static final Logger logger = Logger.getLogger(Agenda3D.class.getName());
 
     private ContactDirectory directory;
     private AppointmentStore store;
     private final List<Appointment> appointments = new ArrayList<Appointment>();
     private AgendaGrid grid;
+
+    /** Real-invitation seam; package-private and non-final so tests replace it. */
+    InvitationSender invitationSender = new InvitationSender();
 
     // Computed layout (physical world units).
     private float width;
@@ -79,7 +96,7 @@ public class Agenda3D extends Frame3D {
     private float bottomY;
     private float colGap;
     private float rowGap;
-    private int controlRows = 3;
+    private int controlRows = 4;
 
     public static void main(String[] args) {
         Agenda3D agenda = new Agenda3D();
@@ -151,7 +168,7 @@ public class Agenda3D extends Frame3D {
 
         float topMargin = height * 0.10f;    // clears the corner window buttons
         float bottomMargin = height * 0.03f;
-        float controlH = height * 0.21f;     // three rows: nav / edit / move
+        float controlH = height * 0.26f;     // four rows: nav / edit / move / send
         float gap = height * 0.025f;
 
         gridH = height - topMargin - bottomMargin - controlH - gap;
@@ -227,6 +244,17 @@ public class Agenda3D extends Frame3D {
             public void run() { adjustDuration(-1); } });
         addButton("Dur+", 5, 2, new Runnable() {
             public void run() { adjustDuration(1); } });
+
+        // Full-width bottom row: send real iCalendar invitations to the
+        // selection's attendees over the mail app's SMTP backend.
+        AgendaButton sendButton = new AgendaButton("Send Invites", gridW, btnH,
+                new ActionNoArg() {
+                    public void performAction(LgEventSource source) {
+                        sendInvites();
+                    }
+                });
+        sendButton.setTranslation(0.0f, rowY(3), 0.002f);
+        addChild(sendButton);
     }
 
     private void addButton(String label, int col, int row, Runnable action) {
@@ -343,5 +371,81 @@ public class Agenda3D extends Frame3D {
     private void commit(Appointment a) {
         store.save(a);
         grid.setSelected(a);
+    }
+
+    // ------------------------------------------------------------------
+    // Real invitations (iCalendar METHOD:REQUEST over the mail app's SMTP)
+    // ------------------------------------------------------------------
+
+    /**
+     * Sends real e-mail invitations for the selected appointment's occurrence
+     * in the displayed week. The blocking SMTP round trip runs on a daemon
+     * thread; the outcome is logged and shown in a Swing dialog (the 3D scene
+     * has no in-scene text band for transient messages).
+     */
+    private void sendInvites() {
+        final Appointment a = grid.getSelected();
+        if (a == null) {
+            notifyUser("Select an appointment first.", true);
+            return;
+        }
+        if (a.getAttendees().isEmpty()) {
+            notifyUser("Add at least one attendee (Att+) before sending.", true);
+            return;
+        }
+        final LocalDate date = grid.dateFor(a.getDay());
+        Thread worker = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    int sent = invitationSender.send(a, date, resolveInvitees(a));
+                    notifyUser(sent == 1
+                            ? "Invitation sent to 1 attendee."
+                            : "Invitations sent to " + sent + " attendees.", false);
+                } catch (MailBackendException e) {
+                    // User-safe message by contract; never contains a password.
+                    notifyUser(e.getMessage(), true);
+                }
+            }
+        }, "Agenda3D-Invites");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /** Maps the appointment's attendee uids to live directory contacts. */
+    private List<ContactDirectory.ContactInfo> resolveInvitees(Appointment a) {
+        directory.reload();
+        List<ContactDirectory.ContactInfo> out =
+                new ArrayList<ContactDirectory.ContactInfo>();
+        for (String uid : a.getAttendees()) {
+            ContactDirectory.ContactInfo c = directory.get(uid);
+            if (c != null) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** Logs the outcome and shows an EDT-marshalled, headless-guarded dialog. */
+    private void notifyUser(final String message, final boolean error) {
+        if (error) {
+            logger.warning("Send Invites: " + message);
+        } else {
+            logger.info("Send Invites: " + message);
+        }
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        Runnable show = new Runnable() {
+            public void run() {
+                JOptionPane.showMessageDialog(null, message, "Send Invites",
+                        error ? JOptionPane.WARNING_MESSAGE
+                                : JOptionPane.INFORMATION_MESSAGE);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            show.run();
+        } else {
+            SwingUtilities.invokeLater(show);
+        }
     }
 }

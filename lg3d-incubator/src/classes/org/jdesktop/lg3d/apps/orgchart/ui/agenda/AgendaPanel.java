@@ -22,6 +22,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -39,11 +40,16 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.apps.mail.MailAccount;
+import org.jdesktop.lg3d.apps.mail.MailBackendException;
 import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
 
 /**
@@ -69,6 +75,12 @@ import org.jdesktop.lg3d.utils.prefs.HolidayRegions;
  * the displayed week's dates. Editing uses real Swing widgets (an editable title
  * field, day/hour/duration spinners, an attendee picker) instead of the 3D app's
  * preset-cycling buttons, and every accepted change is saved immediately.</p>
+ *
+ * <p>{@code Send Invites} goes beyond the local attendee list: it composes a
+ * real RFC 5545 {@code METHOD:REQUEST} invitation ({@link InvitationBuilder})
+ * for the displayed week's occurrence of the selected appointment and sends it
+ * through the mail app's Jakarta Mail backend ({@link InvitationSender}), with
+ * a Swing password dialog for ASK-mode accounts.</p>
  *
  * <p>The grid marks weekends and statutory holidays exactly like the 3D
  * {@code AgendaGrid}: each column is anchored to a real date, weekend columns get
@@ -111,6 +123,9 @@ public class AgendaPanel extends JPanel {
     private final ContactDirectory directory = new ContactDirectory();
     private final List<Appointment> appointments = new ArrayList<Appointment>();
 
+    /** Real-invitation seam; package-private and non-final so tests replace it. */
+    InvitationSender invitationSender = new InvitationSender();
+
     private final WeekGrid grid = new WeekGrid();
     private final JLabel weekLabel = new JLabel(" ", JLabel.CENTER);
     private final JTextField titleField = new JTextField(12);
@@ -150,6 +165,7 @@ public class AgendaPanel extends JPanel {
         daySpinner.addChangeListener(e -> onSpinner());
         hourSpinner.addChangeListener(e -> onSpinner());
         durationSpinner.addChangeListener(e -> onSpinner());
+        invitationSender.setPasswordPrompt(this::promptPassword);
 
         refreshWeekLabel();
         syncEditors();
@@ -223,8 +239,11 @@ public class AgendaPanel extends JPanel {
         addBtn.addActionListener(e -> addAttendee());
         JButton remBtn = new JButton("Remove");
         remBtn.addActionListener(e -> removeAttendee());
+        JButton sendBtn = new JButton("Send Invites");
+        sendBtn.addActionListener(e -> sendInvites());
         row2.add(addBtn);
         row2.add(remBtn);
+        row2.add(sendBtn);
 
         JPanel controls = new JPanel(new GridLayout(2, 1));
         controls.add(row1);
@@ -383,6 +402,115 @@ public class AgendaPanel extends JPanel {
         if (!attendees.isEmpty()) {
             attendees.remove(attendees.size() - 1);
             commit(selected);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Real invitations (iCalendar METHOD:REQUEST over the mail app's SMTP)
+    // ------------------------------------------------------------------
+
+    /**
+     * Sends real e-mail invitations for the selected appointment's occurrence
+     * in the displayed week. The blocking SMTP round trip runs on a daemon
+     * thread; the outcome is reported in a dialog.
+     */
+    void sendInvites() {
+        final Appointment a = selected;
+        if (a == null) {
+            notifyUser("Select an appointment first.", true);
+            return;
+        }
+        if (a.getAttendees().isEmpty()) {
+            notifyUser("Add at least one attendee (Invite) before sending.", true);
+            return;
+        }
+        final LocalDate date = dateFor(a.getDay());
+        Thread worker = new Thread(() -> {
+            try {
+                notifyUser(sendInvitesSync(a, date), false);
+            } catch (MailBackendException e) {
+                notifyUser(e.getMessage(), true);
+            }
+        }, "AgendaPanel-Invites");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * Synchronous send used by {@link #sendInvites} and called directly by
+     * tests: resolves the attendee uids to directory contacts and hands the
+     * whole job to {@link #invitationSender}.
+     *
+     * @return the user-visible success message
+     */
+    String sendInvitesSync(final Appointment a, final LocalDate date)
+            throws MailBackendException {
+        int sent = invitationSender.send(a, date, resolveInvitees(a));
+        return sent == 1
+                ? "Invitation sent to 1 attendee."
+                : "Invitations sent to " + sent + " attendees.";
+    }
+
+    /** Maps the appointment's attendee uids to live directory contacts. */
+    private List<ContactDirectory.ContactInfo> resolveInvitees(final Appointment a) {
+        directory.reload();
+        List<ContactDirectory.ContactInfo> out =
+                new ArrayList<ContactDirectory.ContactInfo>();
+        for (String uid : a.getAttendees()) {
+            ContactDirectory.ContactInfo c = directory.get(uid);
+            if (c != null) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Swing password dialog for ASK-mode mail accounts (the mail package's own
+     * {@code PasswordPromptDialog} is package-private). Marshalled onto the EDT
+     * because {@code MailSessionManager} calls the prompt from the sender's
+     * worker thread; headless returns null, which the manager reports as a
+     * user-safe "no password available" error.
+     */
+    String promptPassword(final MailAccount account) {
+        if (GraphicsEnvironment.isHeadless()) {
+            return null;
+        }
+        final String[] result = new String[1];
+        Runnable ask = () -> {
+            JPasswordField field = new JPasswordField();
+            Object[] body = {"Password for " + account.getDisplayLabel() + ":", field};
+            int choice = JOptionPane.showConfirmDialog(this, body,
+                    "Mail Account Password", JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+            if (choice == JOptionPane.OK_OPTION) {
+                result[0] = new String(field.getPassword());
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            ask.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(ask);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return result[0];
+    }
+
+    /** Shows an outcome dialog, EDT-marshalled and headless-guarded. */
+    private void notifyUser(final String message, final boolean error) {
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        Runnable show = () -> JOptionPane.showMessageDialog(this, message,
+                "Send Invites",
+                error ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+        if (SwingUtilities.isEventDispatchThread()) {
+            show.run();
+        } else {
+            SwingUtilities.invokeLater(show);
         }
     }
 

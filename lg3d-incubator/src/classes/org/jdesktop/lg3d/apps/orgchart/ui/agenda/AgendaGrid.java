@@ -379,8 +379,9 @@ public class AgendaGrid extends Component3D {
         return (diff >= 0 && diff < DAYS) ? (int) diff : -1;
     }
 
-    /** The real calendar date shown in day column {@code d}. */
-    private LocalDate dateFor(int d) {
+    /** The real calendar date shown in day column {@code d}. Public so
+     *  {@link Agenda3D} can date a real invitation for the displayed week. */
+    public LocalDate dateFor(int d) {
         return weekStart.plusDays(d);
     }
 
