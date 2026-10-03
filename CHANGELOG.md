@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.50.1 —
+## [Unreleased] — 1.51.0 —
 
 ### Added
 - **2D desktop now shows a start-up splash** (`lg3d-core`,
