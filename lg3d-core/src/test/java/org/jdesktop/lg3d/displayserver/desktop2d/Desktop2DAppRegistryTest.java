@@ -74,6 +74,8 @@ class Desktop2DAppRegistryTest {
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.recorder.Recorder"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.tuner.Tuner"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.passwordmanager.PasswordManager"));
@@ -430,6 +432,22 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.recorder.RecorderPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.recorder.Recorder"));
+    }
+
+    @Test
+    @DisplayName("the Tuner maps to its Swing panel")
+    void tunerIsHostedPanel() {
+        // The Tuner (lg3d-apps) analyses the microphone natively with an
+        // in-process YIN pitch detector over an AWT-free PitchDetector / Note /
+        // Tuning model - no external tool, no recording. In the 3D desktop its
+        // Tuner wrapper hosts the panel on a SwingNode, and here the very same
+        // panel opens as an MDI internal frame keyed on the 3D main class so the
+        // one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.tuner.Tuner"));
+        assertEquals("org.jdesktop.lg3d.apps.tuner.TunerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.tuner.Tuner"));
     }
 
     @Test

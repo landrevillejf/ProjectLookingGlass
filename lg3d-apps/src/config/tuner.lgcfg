@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: the guitar / bass tuner (from lg3d-apps). Launched in-JVM
+      via the "java <class>" command; lives in the Media menu group. The panel
+      analyses the microphone natively with an in-process YIN pitch detector - no
+      external tool, no recording. The same TunerPanel serves the 2D/Swing
+      desktop as an MDI internal frame via Desktop2DAppRegistry.PANEL_APPS. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.tuner.Tuner</string>
+  </void>
+  <void property="desc">
+   <string>Tune a guitar or bass from the microphone</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/tuner.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Media</string>
+  </void>
+  <void property="name">
+   <string>Tuner</string>
+  </void>
+ </object>
+</java>
