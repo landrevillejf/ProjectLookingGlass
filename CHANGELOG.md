@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.45.0 —
+## [Unreleased] — 1.46.0 —
 
 ### Added
 - **Real IMAP/SMTP Mail client** (`lg3d-incubator`, `org.jdesktop.lg3d.apps.mail`)
