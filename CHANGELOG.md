@@ -111,6 +111,22 @@ work to make it build and run on a current toolchain.
   NetBeans-generated form. Covered by headless tests (`QuickLaunchDragTest`, plus
   the flavour assertion in `Desktop2DControlHooksTest`); the live drag gesture
   itself needs an X display.
+- **Application Launcher can pick a built-in icon from the icon library**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.launcher`) — beside the existing
+  **Choose Icon** file browser, the launcher frame now has an **Icon Library**
+  button that opens a picker over the desktop's own bundled `IconManager` glyphs
+  (`libs/IconManager-1.6.0.jar`): a category list (General, Development, Text,
+  Media, Navigation, Tables) driving a live-preview list of every glyph in that
+  category. The chosen glyph is exported to a PNG under
+  `~/.config/lg3d/launchers/icons/` and stored as the launcher's icon path, so it
+  flows through `LauncherSaver` and the drag-to-quick-launch payload exactly like
+  a custom image file does; the icon button now also shows a preview of either
+  pick. The IconManager bridge (`IconLibrary`) is a pure, never-throw seam — it
+  reduces the bundled `"<Name><edge>.gif"` file names to distinct base glyph
+  names, treats an unknown name's `MissingIcon` as "no glyph" and degrades to an
+  empty catalogue when the jar is absent — covered by headless JUnit 5 tests
+  (`IconLibraryTest`); the picker dialog (`IconLibraryDialog`) needs a display and
+  is verified at runtime.
 - **Contacts — a production address book for the 2D/Swing and 3D desktops**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.contacts`; shared store in `lg3d-core`,
   `org.jdesktop.lg3d.contacts`; registration in `lg3d-core`, icon in `lg3d-core`

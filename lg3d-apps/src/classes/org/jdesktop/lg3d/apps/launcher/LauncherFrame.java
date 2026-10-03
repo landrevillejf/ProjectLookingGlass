@@ -23,6 +23,8 @@ public class LauncherFrame extends javax.swing.JFrame {
     
     ApplicationDescription appDesc;
     private String selectedIconPath;
+    /** Second icon button (added outside the generated form): pick a library glyph. */
+    private javax.swing.JButton launcherLibraryIcon;
 
     /** Creates new form LauncherFrame */
     public LauncherFrame() {
@@ -34,6 +36,18 @@ public class LauncherFrame extends javax.swing.JFrame {
                 launcherIconActionPerformed(evt);
             }
         });
+        // A second icon source beside "Choose Icon": pick one of the desktop's
+        // own glyphs from the bundled IconManager library. Added here (not in the
+        // generated form) so the NetBeans-generated block stays regenerable.
+        launcherLibraryIcon = new javax.swing.JButton("Icon Library");
+        launcherLibraryIcon.setToolTipText("Choose one of the desktop's built-in "
+                + "icons from the icon library");
+        launcherLibraryIcon.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                launcherLibraryActionPerformed(evt);
+            }
+        });
+        jPanel4.add(launcherLibraryIcon);
         // Let the launcher be dragged onto the 2D desktop's taskbar quick-launch
         // strip: dragging the icon exports the current name/command/icon. A blank
         // command exports nothing, so the button stays a plain click target.
@@ -193,9 +207,43 @@ public class LauncherFrame extends javax.swing.JFrame {
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
-            selectedIconPath = selectedFile.getAbsolutePath();
-            launcherIcon.setText(selectedFile.getName());
-            launcherIcon.setToolTipText(selectedIconPath);
+            applyIconSelection(selectedFile.getAbsolutePath(), selectedFile.getName());
+        }
+    }
+
+    /**
+     * Picks one of the desktop's own glyphs from the bundled IconManager library.
+     * The chosen glyph is exported to a PNG under {@code ~/.config/lg3d/launchers/icons/}
+     * and stored as the launcher's icon path, so it flows through save and
+     * drag-to-quick-launch exactly like a custom image file does.
+     */
+    private void launcherLibraryActionPerformed(java.awt.event.ActionEvent evt) {
+        IconLibraryDialog.Selection selection = IconLibraryDialog.show(this);
+        if (selection == null) {
+            return;
+        }
+        Path exported = IconLibrary.export(selection.category(), selection.glyph());
+        if (exported == null) {
+            JOptionPane.showMessageDialog(this,
+                    "The selected icon could not be saved.",
+                    "Icon Export Failed",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        applyIconSelection(exported.toString(), selection.glyph());
+    }
+
+    /**
+     * Records a chosen icon (custom file or exported library glyph) as the
+     * launcher's icon and reflects it on the icon button as a preview + label.
+     */
+    private void applyIconSelection(String path, String label) {
+        selectedIconPath = path;
+        launcherIcon.setText(label);
+        launcherIcon.setToolTipText(path);
+        javax.swing.Icon preview = new javax.swing.ImageIcon(path);
+        if (preview.getIconWidth() > 0) {
+            launcherIcon.setIcon(preview);
         }
     }
 
