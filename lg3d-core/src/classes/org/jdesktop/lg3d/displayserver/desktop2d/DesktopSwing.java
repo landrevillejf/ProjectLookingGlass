@@ -20,6 +20,7 @@ import javax.swing.JDesktopPane;
 import javax.swing.JInternalFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 
 /**
  * The conventional Swing desktop: the same MDI shell as {@link Desktop2D} - one
@@ -69,10 +70,17 @@ public class DesktopSwing extends Desktop2D {
      */
     public static void start() {
         installMetalLookAndFeel();
+        // The same plain name-and-version splash the 2D desktop shows, covering
+        // the EDT-blocking shell build; disposed once the desktop is on screen.
+        Desktop2DSplash.show();
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                new DesktopSwing().show();
+                try {
+                    new DesktopSwing().show();
+                } finally {
+                    Desktop2DSplash.dispose();
+                }
             }
         });
     }

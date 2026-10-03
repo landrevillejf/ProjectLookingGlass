@@ -63,6 +63,7 @@ import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.basic.BasicDesktopPaneUI;
+import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
@@ -345,10 +346,18 @@ public class Desktop2D {
      */
     public static void start() {
         installLookAndFeel();
+        // A plain name-and-version splash covers the (EDT-blocking) shell build,
+        // so a cold 2D start does not look like a hang. Shown before the build is
+        // queued and disposed once the desktop is on screen; a no-op headless.
+        Desktop2DSplash.show();
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                new Desktop2D().show();
+                try {
+                    new Desktop2D().show();
+                } finally {
+                    Desktop2DSplash.dispose();
+                }
             }
         });
     }
