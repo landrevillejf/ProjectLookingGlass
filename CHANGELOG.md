@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.46.0 —
+## [Unreleased] — 1.47.0 —
 
 ### Added
 - **Cron Task Scheduler for the 2D desktop** (`lg3d-core`,
