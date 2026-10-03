@@ -10,6 +10,30 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.51.1 —
 
 ### Added
+- **Guitar / bass tuner that listens to the microphone** (`lg3d-apps`,
+  `org.jdesktop.lg3d.apps.tuner`) — a production-grade chromatic and
+  per-instrument tuner that analyses the microphone **natively and in-process**:
+  `javax.sound.sampled` opens the default capture line (16-bit mono little-endian
+  PCM) and a daemon thread streams frames into an AWT-free **`PitchDetector`**
+  implementing the **YIN** algorithm (difference function → cumulative-mean
+  normalised difference → absolute threshold → parabolic interpolation), so the
+  fundamental is resolved with no external tool, no codec and nothing to install.
+  An equal-temperament **`Note`** model turns the frequency into a note and a
+  cents deviation, and a **`Tuning`** table (chromatic, guitar standard / drop-D /
+  open-G, bass 4- and 5-string, ukulele) names the nearest string. The one
+  **`TunerPanel`** (big detected-note card, a painted cent-deviation
+  **`TuningMeter`** whose needle turns green inside a ±5-cent window, and a string
+  strip that highlights the nearest string) serves both desktops — a SwingNode-in-
+  `Frame3D` host in 3D via `TitledSwingWindow` and an MDI internal frame in 2D via
+  `Desktop2DAppRegistry.PANEL_APPS` — plus a standalone `TunerClient`. The
+  microphone is opened **only** on a Start press and released on Stop / Close /
+  window-close, so nothing is recorded and the panel constructs headless.
+  Registered as the *Media* start-menu app `tuner.lgcfg` with a purpose-drawn
+  tuning-fork `tuner.png` icon. Covered by headless JUnit 5 suites
+  (`PitchDetectorTest` feeding synthetic sine waves and recovering every
+  guitar/bass open string, `NoteTest`, `TuningTest`, `TuningMeterTest` painting
+  into a `BufferedImage`, `TunerPanelTest` driving the `applyReading` seam) plus a
+  `Desktop2DAppRegistryTest` classification case — no device is ever opened in CI.
 - **2D desktop now shows a start-up splash** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the conventional 2D/Swing
   desktop (`lg.fws.mode=2d` and `swing`) previously showed nothing while its

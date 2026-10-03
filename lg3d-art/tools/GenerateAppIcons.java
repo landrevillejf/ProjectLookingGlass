@@ -100,6 +100,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector microphone instead of a bundled glyph. */
     private static final String MIC_GLYPH = "Microphone";
 
+    /** Glyph name that draws a built-in vector tuning fork instead of a bundled glyph. */
+    private static final String TUNER_GLYPH = "TuningFork";
+
     /** Glyph name that draws a built-in vector security shield instead of a bundled glyph. */
     private static final String SHIELD_GLYPH = "SecurityShield";
 
@@ -193,6 +196,8 @@ public class GenerateAppIcons {
         {"photoviewer.png", IconColor.CYAN,        IconCategory.GENERAL, PHOTO_GLYPH},
         // Recorder: a microphone, drawn in-tool.
         {"recorder.png", IconColor.RED,            IconCategory.GENERAL, MIC_GLYPH},
+        // Tuner: a tuning fork (the conventional pitch reference), drawn in-tool.
+        {"tuner.png", IconColor.GOLD,              IconCategory.GENERAL, TUNER_GLYPH},
         // Security Center (Swing antivirus / posture panel hosted on a SwingNode /
         // 2D MDI frame); the bundled glyph set has no shield, so a checked shield
         // is drawn in-tool like the microphone and the marks above.
@@ -273,6 +278,8 @@ public class GenerateAppIcons {
                 glyph = drawPhotoGlyph(GLYPH);
             } else if (MIC_GLYPH.equals(glyphName)) {
                 glyph = drawMicGlyph(GLYPH);
+            } else if (TUNER_GLYPH.equals(glyphName)) {
+                glyph = drawTunerGlyph(GLYPH);
             } else if (SHIELD_GLYPH.equals(glyphName)) {
                 glyph = drawShieldGlyph(GLYPH);
             } else if (GLOBE_LOCK_GLYPH.equals(glyphName)) {
@@ -782,6 +789,32 @@ public class GenerateAppIcons {
         // Stem and base.
         g.fillRect(15, 24, 2, 4);
         g.fillRoundRect(10, 27, 12, 3, 2, 2);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the tuner glyph: a tuning fork - two prongs joined by a U bend over a
+     * stem and base ball, the conventional "pitch / in-tune reference" mark. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing fork shaped, so it
+     * is drawn in-tool like the microphone and the marks above. Designed in a
+     * 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawTunerGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        // Two prongs.
+        g.drawLine(10, 3, 10, 15);
+        g.drawLine(22, 3, 22, 15);
+        // U bend joining the prongs, bulging down to the stem.
+        g.drawArc(10, 8, 12, 14, 180, 180);
+        // Stem and base ball.
+        g.drawLine(16, 22, 16, 26);
+        g.fillOval(13, 25, 6, 6);
         g.dispose();
         return new ImageIcon(image);
     }
