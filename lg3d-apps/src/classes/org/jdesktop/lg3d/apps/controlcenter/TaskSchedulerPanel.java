@@ -17,7 +17,6 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.GridLayout;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -187,24 +188,41 @@ public class TaskSchedulerPanel implements ControlPanel {
     }
 
     private JComponent buildEditor() {
-        JPanel ed = new JPanel(new GridLayout(0, 1, 4, 4));
+        // A vertical BoxLayout (not GridLayout) so every row keeps its own
+        // preferred height and packs from the top; GridLayout would stretch all
+        // rows to equal tall bands and clip the trigger card at the bottom.
+        JPanel ed = new JPanel();
+        ed.setLayout(new BoxLayout(ed, BoxLayout.Y_AXIS));
         ed.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-
-        ed.add(row("Name:", nameField));
-        ed.add(row("Enabled:", scroll(enabledList, 72, 58), "Action:", scroll(actionList, 200, 58)));
-        ed.add(row("Schedule:", scroll(kindList, 200, 74)));
 
         triggerCards.add(buildCronCard(), "CRON");
         triggerCards.add(buildIntervalCard(), "INTERVAL");
         triggerCards.add(buildOnceCard(), "ONCE");
-        ed.add(triggerCards);
 
-        ed.add(row("Command:", commandField));
-        ed.add(row("Working dir:", workdirField));
-        ed.add(row("Timeout (s):", timeoutSpinner, "Skip if running:", scroll(skipList, 72, 58)));
-        ed.add(row("If missed:", scroll(misfireList, 260, 74)));
-        ed.add(row("Retries:", retrySpinner, "Retry delay (s):", retryDelaySpinner));
-        ed.add(buildEnvPanel());
+        List<JComponent> rows = new ArrayList<>();
+        rows.add(row("Name:", nameField));
+        rows.add(row("Enabled:", scroll(enabledList, 72, 58), "Action:", scroll(actionList, 200, 58)));
+        rows.add(row("Schedule:", scroll(kindList, 200, 74)));
+        rows.add(triggerCards);
+        rows.add(row("Command:", commandField));
+        rows.add(row("Working dir:", workdirField));
+        rows.add(row("Timeout (s):", timeoutSpinner, "Skip if running:", scroll(skipList, 72, 58)));
+        rows.add(row("If missed:", scroll(misfireList, 220, 74)));
+        rows.add(row("Retries:", retrySpinner, "Retry delay (s):", retryDelaySpinner));
+        rows.add(buildEnvPanel());
+
+        for (int i = 0; i < rows.size(); i++) {
+            if (i > 0) {
+                ed.add(Box.createVerticalStrut(6));
+            }
+            JComponent r = rows.get(i);
+            ed.add(r);
+            // Cap the height at the row's preferred size (so BoxLayout never
+            // stretches it) but let the width grow to fill the editor column.
+            Dimension pref = r.getPreferredSize();
+            r.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+            r.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+        }
         return ed;
     }
 
@@ -216,13 +234,13 @@ public class TaskSchedulerPanel implements ControlPanel {
         JButton check = new JButton("Check");
         check.addActionListener(e -> previewCron());
         fieldRow.add(check);
-        JScrollPane presetScroll = scroll(presetList, 180, 92);
+        JScrollPane presetScroll = scroll(presetList, 180, 76);
         presetScroll.setBorder(BorderFactory.createTitledBorder("Presets"));
         p.add(fieldRow, BorderLayout.NORTH);
         p.add(presetScroll, BorderLayout.CENTER);
         p.add(cronPreview, BorderLayout.SOUTH);
         p.setBorder(BorderFactory.createTitledBorder(
-                "Cron: min hour day-of-month month day-of-week (or @daily, @reboot...)"));
+                "Cron: min hour dom month dow  (or @daily, @reboot)"));
         return p;
     }
 
@@ -253,7 +271,7 @@ public class TaskSchedulerPanel implements ControlPanel {
 
     private JComponent buildEnvPanel() {
         envList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane envScroll = scroll(envList, 240, 90);
+        JScrollPane envScroll = scroll(envList, 240, 76);
         envScroll.setBorder(BorderFactory.createTitledBorder("Environment overlay (optional)"));
         JButton addEnv = new JButton("Add");
         addEnv.addActionListener(e -> addEnv());

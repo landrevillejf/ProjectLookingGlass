@@ -716,6 +716,17 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The Task Scheduler editor now lays out as a compact form in the Control
+  Center** (`lg3d-apps`, `org.jdesktop.lg3d.apps.controlcenter.TaskSchedulerPanel`)
+  — the editor column was a `GridLayout(0,1)`, which forces every row to an equal
+  tall band and vertically centres each `FlowLayout` row inside it, so the form
+  showed large empty gaps between Name / Enabled / Schedule and pushed the cron
+  trigger card off the bottom edge (clipped mid-row). The editor is now a
+  top-packed vertical `BoxLayout` in which each row keeps its own preferred
+  height (capped via `setMaximumSize`) and stretches to the column width, so the
+  fields read top-to-bottom and the whole card scrolls cleanly; the cron card's
+  over-wide titled border was shortened and the preset / environment lists
+  trimmed so the column fits without a spurious horizontal scrollbar.
 - **The 2D quick-launch strip no longer shows red-X placeholders for
   family-matched apps** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d.AppIcons`) — the taskbar's pinned
