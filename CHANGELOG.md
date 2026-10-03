@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.48.0 —
+## [Unreleased] — 1.49.0 —
 
 ### Added
 - **Agenda now sends real meeting invitations** (`lg3d-incubator`,
