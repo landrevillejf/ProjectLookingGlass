@@ -67,6 +67,7 @@ import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 import org.jdesktop.lg3d.utils.system.Opener;
+import org.jdesktop.lg3d.utils.taskscheduler.TaskScheduler;
 
 /**
  * The conventional-Swing desktop used when Java 3D is unavailable: one
@@ -371,6 +372,12 @@ public class Desktop2D {
         // re-checking every minute. It self-gates on the schedule-enabled
         // preference, so this is a no-op when the feature is off.
         ScheduleService.get();
+        // Start the user's cron-style task scheduler (a separate feature from
+        // the wallpaper/lighting schedule above): it loads the persisted tasks,
+        // runs any @reboot jobs, applies each task's misfire policy for anything
+        // that came due while the desktop was down, and then keeps firing tasks
+        // on their crontab/interval/one-shot schedules from a daemon thread.
+        TaskScheduler.get().start();
     }
 
     /** The desktop window (package-visible for diagnostics). */
