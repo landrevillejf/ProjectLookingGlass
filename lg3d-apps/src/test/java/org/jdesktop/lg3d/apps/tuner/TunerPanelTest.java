@@ -191,13 +191,18 @@ class TunerPanelTest {
         TunerPanel panel = new TunerPanel();
         onEdt(panel::startListening);
         boolean wasListening = panel.isListening();
+        // Capture the start outcome *before* stopListening overwrites the status
+        // line with "Stopped." - on a mic-less CI host this is the message that
+        // explains why no capture began ("No microphone available" / "Could not
+        // start the microphone"), and it is lost once stop() runs.
+        String startStatus = panel.statusText();
         onEdt(panel::stopListening);
         assertFalse(panel.isListening(), "stop must always return the panel to idle");
         assertFalse(panel.statusText().isBlank(),
                 "the status line always explains the outcome: " + panel.statusText());
         if (!wasListening) {
-            assertTrue(panel.statusText().toLowerCase().contains("microphone"),
-                    "a mic-less host reports no microphone: " + panel.statusText());
+            assertTrue(startStatus.toLowerCase().contains("microphone"),
+                    "a mic-less host reports no microphone: " + startStatus);
         }
     }
 
