@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: OpenAPI Contract Editor (from lg3d-apps). The external
+ OpenAPI-Contract-Editor project: a full-featured YAML/OpenAPI specification
+ editor (RSyntaxTextArea syntax highlighting, swagger-parser validation, OpenAPI
+ Generator code generation, endpoint tree with Swagger-UI-style colouring, YAML
+ structure navigator, find/replace, undo/redo, drag-and-drop) that ships as a
+ self-contained fat jar (libs/openapi-editor.jar). It is NOT loaded into the
+ desktop JVM: the OpenApiEditor launcher forks it as a separate child process
+ (java -jar) on the lg3d display, so the editor's own JFrame appears as an
+ ordinary top-level window and its EXIT_ON_CLOSE plus its bundled third-party
+ libraries (snakeyaml, swagger-parser, openapi-generator, RSyntaxTextArea,
+ Jackson) stay isolated from the desktop. Registered with the "java <class>"
+ verb, so AppLaunchAction (3D) and Desktop2DAppRegistry.launchSwingFrame (2D, via
+ SWING_FRAME_APPS) both run the launcher's main, which only forks the child. The
+ jar path is resolved from the openapieditor.jar system property (set by
+ :lg3d-core:run and the release lg3d.sh), else <lg.appcodebase>/libs, else the
+ working dir. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.openapieditor.OpenApiEditor</string>
+  </void>
+  <void property="desc">
+   <string>OpenAPI/Swagger contract editor: YAML editing, validation, code generation</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/openapi-editor.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>OpenAPI Contract Editor</string>
+  </void>
+ </object>
+</java>

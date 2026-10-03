@@ -1,0 +1,103 @@
+# OpenAPI Contract Editor Application
+
+> Role-aware per-app guide. Module: [`lg3d-apps`](../../../../../../../AGENTS.md)
+> · canonical UI/UX rulebook: [`lg3d-core`](../../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../../AGENTS.md).
+
+## App at a glance
+
+| Item | Value |
+| --- | --- |
+| Status | **Production** launcher for an external developer tool |
+| 2D entry point | `Desktop2DAppRegistry.SWING_FRAME_APPS` → `OpenApiEditor.main` (forks the child process; runs beside the desktop) |
+| 3D entry point | `OpenApiEditor.main` via `AppLaunchAction` (same child-forking main) |
+| Standalone | `java -jar libs/openapi-editor.jar` (the external fat jar itself) |
+| Surface | **External child process (Topology C)** — the editor's own `JFrame` appears as an ordinary top-level window: composited over the 3D scene, beside the 2D/Swing desktop |
+| Start-menu name / group | OpenAPI Contract Editor / **Developers** |
+| Command | `java org.jdesktop.lg3d.apps.openapieditor.OpenApiEditor` |
+| Descriptor | `src/config/openapieditor.lgcfg` → `config/demo` |
+| Payload | External **OpenAPI-Contract-Editor** project fat jar (`libs/openapi-editor.jar`, ~25 MB, git-ignored; built by its own Gradle/shadow build and fetched on demand via `:fetchOpenApiEditorJar`) |
+| Build | `./gradlew :lg3d-apps:build` |
+
+## Key components
+
+- **OpenApiEditor** — the whole in-repo footprint: a `final` launcher class whose
+  `main` resolves the fat jar, forks `"<java.home>/bin/java" -jar <jar>` with
+  `DISPLAY` pointed at the lg3d display, drains the child's merged output on a
+  daemon thread so its pipe never fills, and returns. Nothing of the editor is
+  ever loaded into the desktop JVM.
+- **Jar resolution** (no shell expansion — lg3d splits the command on whitespace
+  and execs it directly): `openapieditor.jar` system property (absolute, set by
+  `:lg3d-core:run` and the release `lg3d.sh`) → `<lg.appcodebase>/libs/` →
+  working-directory `libs/` → `../libs/`. When absent: log + (headed only)
+  readable "unavailable" dialog, never a throw.
+
+## Why an external child process
+
+The editor calls `System.exit` when its main window closes (`EXIT_ON_CLOSE`),
+which would otherwise tear down the whole desktop, and its fat jar bundles
+unrelocated third-party libraries (snakeyaml, swagger-parser,
+openapi-generator, RSyntaxTextArea, Jackson) that could clash with the desktop
+classpath. Running it as a separate JVM makes both unreachable from the
+desktop — the same isolation the IDE launcher (`apps.swingide`) relies on.
+
+## Roles
+
+- **Architect** — Keep the launcher dependency-free (JDK + `JOptionPane` only)
+  and the fat jar **off** every desktop classpath; the only wiring is the
+  `openapieditor.jar` system property in `lg3d-core/build.gradle` (run task,
+  release `lg3d.sh`) and the jar's inclusion in `releaseBundle`. The external
+  project owns its own build; in-repo we only vendor the jar path contract.
+- **Engineer / Developer** — Never add editor classes to `lg3d-apps` source
+  sets; changes to the editor itself happen in the external
+  OpenAPI-Contract-Editor project, then a rebuilt fat jar is copied/fetched into
+  `libs/`. Keep `resolveJar`/`buildCommand`/`resolveDisplay` pure and package-
+  private so the headless test suite can pin them.
+- **QA** — `OpenApiEditorTest` (headless JUnit 5) pins the jar-path precedence,
+  child-command shape and display selection without ever spawning a process;
+  `Desktop2DAppRegistryTest` asserts the command classifies as `SWING_FRAME`.
+  Manual evidence: launch from the start menu on both desktops and confirm the
+  editor window appears on the lg3d display (`lgscreen-*.png` capture).
+- **Business Analyst** — Brings a full API-contract workbench (YAML editing with
+  syntax highlighting, swagger-parser validation, OpenAPI Generator code
+  generation, endpoint/structure navigators) into the desktop's *Developers*
+  menu with zero classpath risk; the "customer" is the developer persona that
+  already gets the IDE, Git GUI and Database Manager entries.
+- **Functional Analyst** — The launcher contract: resolve the jar from the
+  documented precedence chain, fork it on the lg3d display, keep the child's
+  output flowing, and degrade to a readable message when the jar is missing.
+  Editor behaviour itself is the external project's contract, not ours.
+- **Project Manager** — Commit scope `lg3d-apps`; the registration also touches
+  `lg3d-core` (`Desktop2DAppRegistry` + run/releaseBundle wiring), the root
+  `build.gradle` (`:fetchOpenApiEditorJar`), `.gitignore`,
+  `lg3d-art/tools/GenerateAppIcons` and the icon resource — call those out.
+  Done = build + headless tests + start-menu launch evidence. Branch → PR
+  against `main`; never commit to `main`.
+- **UI/UX (3D & 2D)** — The desktop-side surface is just the start-menu tile
+  (`openapi-editor.png`: purple glass tile with a contract-page-and-braces
+  glyph, generated by `GenerateAppIcons`). The editor window itself is a
+  conventional Swing `JFrame` owned by the child process — do not attempt to
+  capture or re-parent it into a `SwingNode`/`Frame3D`.
+
+## Known caveats
+
+- `libs/openapi-editor.jar` is **not committed** (~25 MB); without it the
+  launcher shows the "unavailable" dialog. Build the external project's
+  `shadowJar` and copy it in, or run `:fetchOpenApiEditorJar
+  -PopenApiEditorJarUrl=<url>`.
+- The child JVM is separate, so editor windows do not participate in lg3d
+  window management effects (transparency ordering, 3D window animations) —
+  they are ordinary native windows, exactly like the IDE's.
+
+## Communication & coherence
+
+Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
+root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR.
+Every PR states the Topology C isolation (child process, jar off the desktop
+classpath) and the evidence.
+
+## Commit / PR
+
+Conventional Commit scope `lg3d-apps` (or `agents` for this file); imperative
+subject ≤ 50 chars; add a `CHANGELOG.md` bullet under `[Unreleased]`; no version
+bump. Stage only intended paths (never `git add -A`).
