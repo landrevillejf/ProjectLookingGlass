@@ -45,19 +45,22 @@ import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 
 /**
- * The native 3D mail client's main surface, rasterised entirely at runtime into
- * a single live texture (the {@code Histogram3D} / {@code AgendaGrid} recipe):
- * a message list on the left and a reading / compose pane on the right, under a
- * slim folder header.
+ * The native 3D mail client's main surface, rasterised entirely at runtime into a
+ * single live texture (the {@code Histogram3D} / {@code AgendaGrid} recipe): a
+ * message list on the left and a reading / quick-reply pane on the right, under a
+ * slim account / folder header.
  *
  * <p>One fixed-size {@link ImageComponent2D} with {@code ALLOW_IMAGE_WRITE} is
- * attached to a {@link Texture2D} once, off-live; every later change only
- * repaints the {@code BufferedImage} and calls {@link ImageComponent2D#set} in
- * place, so no texture is ever re-attached to the live scene graph.</p>
+ * attached to a {@link Texture2D} once, off-live; every later change only repaints
+ * the {@link BufferedImage} and calls {@link ImageComponent2D#set} in place, so no
+ * texture is ever re-attached to the live scene graph.</p>
  *
- * <p>A left click in the list column maps the pick's local intersection to a
- * row and reports the clicked {@link MailMessage} through {@link MailListener}
- * so the host can open it (and mark it read).</p>
+ * <p>It renders the same shared {@link MailMessage} model the 2D {@link MailPanel}
+ * uses - now carrying real IMAP envelopes - with richer rows (an unread dot, a
+ * flag, an attachment glyph, sender, subject and date) and a header showing the
+ * account, folder and unread count. A left click in the list column maps the pick's
+ * local intersection to a row and reports the clicked message through
+ * {@link MailListener} so the host can open it.</p>
  */
 public class MailView extends Component3D {
 
@@ -70,9 +73,9 @@ public class MailView extends Component3D {
     private static final int TW = 1024;
     private static final int TH = 512;
 
-    // Image-space layout: folder header on top, list column on the left.
+    // Image-space layout: header on top, list column on the left.
     private static final int TOP_PX = 40;
-    private static final int LIST_W = 400;
+    private static final int LIST_W = 420;
     private static final int MAX_ROWS = 8;
     private static final int ROW_H = (TH - TOP_PX) / MAX_ROWS;
     private static final int READER_X = LIST_W + 2;
@@ -83,12 +86,12 @@ public class MailView extends Component3D {
     private static final Color ROW_SEL = new Color(0x2A, 0x4A, 0x74, 0xF0);
     private static final Color ROW_ALT = new Color(255, 255, 255, 8);
     private static final Color READER_BG = new Color(0x10, 0x18, 0x26, 0xF6);
-    private static final Color AXIS_LINE = new Color(255, 255, 255, 80);
     private static final Color DIVIDER = new Color(255, 255, 255, 40);
     private static final Color TEXT = new Color(226, 236, 248, 255);
     private static final Color TEXT_DIM = new Color(168, 184, 204, 235);
     private static final Color TEXT_FAINT = new Color(140, 154, 172, 210);
     private static final Color UNREAD_DOT = new Color(120, 180, 255, 255);
+    private static final Color FLAG = new Color(255, 200, 90, 255);
     private static final Color ACCENT = new Color(120, 180, 255, 255);
 
     private static final Font TITLE_FONT = new Font("SansSerif", Font.BOLD, 18);
@@ -109,9 +112,11 @@ public class MailView extends Component3D {
 
     private List<MailMessage> list = new ArrayList<MailMessage>();
     private MailMessage selected;
-    private MailMessage draft;      // non-null while composing
+    private MailMessage draft;      // non-null while composing a quick reply
+    private String accountLabel = "";
     private String folder = MailMessage.FOLDER_INBOX;
     private int unreadCount;
+    private String statusLine = "";
     private MailListener listener;
 
     public MailView(float width, float height) {
@@ -179,7 +184,7 @@ public class MailView extends Component3D {
 
     /** Sets the messages shown in the list column (already folder-filtered). */
     public void setList(List<MailMessage> messages, int unreadCount) {
-        this.list = messages;
+        this.list = (messages == null) ? new ArrayList<MailMessage>() : messages;
         this.unreadCount = unreadCount;
         refresh();
     }
@@ -194,7 +199,19 @@ public class MailView extends Component3D {
         refresh();
     }
 
-    /** Enters (draft != null) or leaves (draft == null) compose mode. */
+    /** Sets the account name shown in the header. */
+    public void setAccount(String accountLabel) {
+        this.accountLabel = (accountLabel == null) ? "" : accountLabel;
+        refresh();
+    }
+
+    /** A one-line status / error message drawn under the header. */
+    public void setStatus(String statusLine) {
+        this.statusLine = (statusLine == null) ? "" : statusLine;
+        refresh();
+    }
+
+    /** Enters (draft != null) or leaves (draft == null) quick-reply mode. */
     public void setDraft(MailMessage draft) {
         this.draft = draft;
         refresh();
@@ -269,12 +286,11 @@ public class MailView extends Component3D {
         g.setFont(TITLE_FONT);
         FontMetrics fm = g.getFontMetrics();
         g.setColor(TEXT);
-        g.drawString("Mail 3D", 12, (TOP_PX - fm.getHeight()) / 2 + fm.getAscent());
+        String title = accountLabel.isEmpty() ? "Mail 3D" : "Mail 3D \u2014 " + accountLabel;
+        g.drawString(clip(g, title, TITLE_FONT, TW - 260), 12,
+                (TOP_PX - fm.getHeight()) / 2 + fm.getAscent());
 
-        String folderLabel = (MailMessage.FOLDER_SENT.equals(folder)
-                ? "Sent" : "Inbox")
-                + (MailMessage.FOLDER_INBOX.equals(folder)
-                        ? "  (" + unreadCount + " unread)" : "");
+        String folderLabel = folder + "  (" + unreadCount + " unread)";
         g.setFont(HDR_FONT);
         FontMetrics hm = g.getFontMetrics();
         g.setColor(TEXT_DIM);
@@ -306,10 +322,27 @@ public class MailView extends Component3D {
             int tx = 26;
             int avail = LIST_W - tx - 8;
 
-            g.setFont(m.isRead() ? FROM_READ_FONT : FROM_FONT);
+            // Flag + attachment glyphs sit just right of the sender.
+            g.setFont(FROM_FONT);
             FontMetrics fm = g.getFontMetrics();
             g.setColor(sel ? Color.WHITE : TEXT);
-            g.drawString(clip(g, m.getFrom(), avail - 70), tx, y + 22);
+            String from = clip(g, m.getFrom().display(),
+                    m.isRead() ? FROM_READ_FONT : FROM_FONT, avail - 90);
+            g.setFont(m.isRead() ? FROM_READ_FONT : FROM_FONT);
+            g.drawString(from, tx, y + 22);
+
+            int gx = LIST_W - 60;
+            if (m.isFlagged()) {
+                g.setColor(FLAG);
+                g.setFont(HDR_FONT);
+                g.drawString("\u2691", gx, y + 22);
+                gx -= 20;
+            }
+            if (m.hasAttachments()) {
+                g.setColor(TEXT_DIM);
+                g.setFont(HDR_FONT);
+                g.drawString("\uD83D\uDCCE", gx, y + 22);
+            }
 
             g.setFont(DATE_FONT);
             FontMetrics dm = g.getFontMetrics();
@@ -318,9 +351,9 @@ public class MailView extends Component3D {
             g.drawString(when, LIST_W - 8 - dm.stringWidth(when), y + 20);
 
             g.setFont(SUBJ_FONT);
-            FontMetrics sm = g.getFontMetrics();
             g.setColor(sel ? TEXT : TEXT_DIM);
-            g.drawString(clip(g, m.getSubject(), avail), tx, y + 42);
+            g.drawString(clip(g, m.getSubject().isEmpty() ? "(no subject)"
+                    : m.getSubject(), SUBJ_FONT, avail), tx, y + 42);
 
             g.setColor(new Color(255, 255, 255, 18));
             g.fillRect(0, y + ROW_H - 1, LIST_W, 1);
@@ -329,7 +362,9 @@ public class MailView extends Component3D {
         if (list.isEmpty()) {
             g.setFont(SUBJ_FONT);
             g.setColor(TEXT_FAINT);
-            g.drawString("No messages in this folder.", 26, TOP_PX + 30);
+            String msg = statusLine.isEmpty()
+                    ? "No messages in this folder." : statusLine;
+            g.drawString(clip(g, msg, SUBJ_FONT, LIST_W - 32), 26, TOP_PX + 30);
         }
     }
 
@@ -345,54 +380,45 @@ public class MailView extends Component3D {
         if (m == null) {
             g.setFont(SUBJ_FONT);
             g.setColor(TEXT_FAINT);
-            g.drawString("Select a message on the left to read it.", x, y);
+            String hint = statusLine.isEmpty()
+                    ? "Select a message on the left to read it." : statusLine;
+            g.drawString(clip(g, hint, SUBJ_FONT, w), x, y);
             return;
         }
 
         if (draft != null) {
             g.setFont(TITLE_FONT);
             g.setColor(ACCENT);
-            g.drawString("New message", x, y);
+            g.drawString("Quick reply", x, y);
             y += 26;
         }
 
         g.setFont(HDR_FONT);
         FontMetrics hm = g.getFontMetrics();
-        g.setColor(TEXT_DIM);
-        g.drawString("From: ", x, y);
-        g.setColor(TEXT);
-        g.drawString(m.getFrom() + "  <" + m.getFromEmail() + ">",
-                x + hm.stringWidth("From: "), y);
-        y += hm.getHeight() + 2;
-        g.setColor(TEXT_DIM);
-        g.drawString("To: ", x, y);
-        g.setColor(TEXT);
-        g.drawString(m.getTo() + "  <" + m.getToEmail() + ">",
-                x + hm.stringWidth("To: "), y);
-        y += hm.getHeight() + 2;
-        g.setColor(TEXT_DIM);
-        g.drawString("Subject: ", x, y);
-        g.setColor(TEXT);
-        g.drawString(m.getSubject(), x + hm.stringWidth("Subject: "), y);
-        y += hm.getHeight() + 2;
-        g.setColor(TEXT_DIM);
-        g.drawString("Date: ", x, y);
-        g.setColor(TEXT);
-        g.drawString(DATE_FMT.format(new Date(m.getWhen())),
-                x + hm.stringWidth("Date: "), y);
-        y += hm.getHeight() + 6;
+        y = drawHeaderLine(g, "From: ", m.getFrom().format(), x, y, w);
+        y = drawHeaderLine(g, "To: ", m.toLine(), x, y, w);
+        if (!m.ccLine().isEmpty()) {
+            y = drawHeaderLine(g, "Cc: ", m.ccLine(), x, y, w);
+        }
+        y = drawHeaderLine(g, "Subject: ", m.getSubject(), x, y, w);
+        y = drawHeaderLine(g, "Date: ",
+                DATE_FMT.format(new Date(m.getWhen())), x, y, w);
+        y += 6;
 
         g.setColor(DIVIDER);
         g.fillRect(x, y, w, 1);
         y += 12;
 
-        // Body, word-wrapped and clipped to the reader pane.
+        // Body, word-wrapped and clipped to the reader pane. Plain text only; an
+        // HTML-only message falls back to its stripped text (no remote content).
         Shape oldClip = g.getClip();
         g.clipRect(x, y - 4, w, TH - y - 8);
         g.setFont(BODY_FONT);
         FontMetrics bm = g.getFontMetrics();
         g.setColor(TEXT);
-        for (String line : wrap(g, m.getBody(), w)) {
+        String body = m.getTextBody().isEmpty() && m.hasHtmlBody()
+                ? MessageReader.stripTags(m.getHtmlBody()) : m.getTextBody();
+        for (String line : wrap(g, body, w)) {
             g.drawString(line, x, y + bm.getAscent());
             y += bm.getHeight();
             if (y > TH - 10) {
@@ -402,22 +428,43 @@ public class MailView extends Component3D {
         g.setClip(oldClip);
     }
 
+    private int drawHeaderLine(Graphics2D g, String label, String value,
+            int x, int y, int w) {
+        g.setFont(HDR_FONT);
+        FontMetrics hm = g.getFontMetrics();
+        g.setColor(TEXT_DIM);
+        g.drawString(label, x, y);
+        g.setColor(TEXT);
+        int lw = hm.stringWidth(label);
+        g.drawString(clip(g, value, HDR_FONT, w - lw), x + lw, y);
+        return y + hm.getHeight() + 2;
+    }
+
     /** Truncates {@code s} with an ellipsis so it fits {@code maxWidth}. */
-    private static String clip(Graphics2D g, String s, int maxWidth) {
+    private static String clip(Graphics2D g, String s, Font font, int maxWidth) {
+        if (s == null) {
+            return "";
+        }
+        Font old = g.getFont();
+        g.setFont(font);
         FontMetrics fm = g.getFontMetrics();
-        if (fm.stringWidth(s) <= maxWidth) {
-            return s;
+        String out = s;
+        if (fm.stringWidth(out) > maxWidth) {
+            while (out.length() > 1 && fm.stringWidth(out + "\u2026") > maxWidth) {
+                out = out.substring(0, out.length() - 1);
+            }
+            out = out + "\u2026";
         }
-        String ell = s;
-        while (ell.length() > 1 && fm.stringWidth(ell + "\u2026") > maxWidth) {
-            ell = ell.substring(0, ell.length() - 1);
-        }
-        return ell + "\u2026";
+        g.setFont(old);
+        return out;
     }
 
     /** Word-wraps {@code text} (honouring explicit newlines) to {@code maxWidth}. */
     private static List<String> wrap(Graphics2D g, String text, int maxWidth) {
         List<String> out = new ArrayList<String>();
+        if (text == null || text.isEmpty()) {
+            return out;
+        }
         FontMetrics fm = g.getFontMetrics();
         String[] paras = text.split("\n", -1);
         for (int p = 0; p < paras.length; p++) {

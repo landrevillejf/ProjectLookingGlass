@@ -1,21 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <java version="1.5.0" class="java.beans.XMLDecoder">
- <!-- Start Menu item: Mail 3D (from lg3d-incubator). A native 3D e-mail client:
- a live-texture message list over a reading / compose pane, driven by a button
- strip (Inbox / Sent / New / Reply / To / Subj / Body / Send / Back). The mailbox
- is local-only, persisted to the shared user Preferences tree, and recipients are
- drawn from the same /contacts directory Contact 3D populates. Launched in-JVM
- via the "java <class>" command; the incubator jar is on the :lg3d-core:run
- classpath. Discovery only scans config/demo and config/incubator, so, following
- the Agenda 3D / Contact 3D precedent, this descriptor lives in
- lg3d-apps/src/config (bundled to config/demo) rather than the incubator's
- own src/config. -->
+ <!-- Start Menu item: Mail 3D (from lg3d-incubator). A real, configurable
+ IMAP/SMTP e-mail client (Jakarta Mail 2.x via Eclipse Angus). The native-3D
+ surface is a live-texture message list over a reading pane, driven by a button
+ strip (Inbox / Sent / Read / Flag / Del / Next / Reply / Body / Send / Back /
+ Move / Get) for browse-and-triage; full compose with attachments lives in the
+ 2D MailPanel. Both desktops share one model / service layer: accounts, mail
+ behaviour, appearance and filter rules are configured through the 2D settings
+ dialog and persisted to the shared user Preferences tree (/mail/*). Recipients
+ are drawn from the same /contacts directory Contact 3D populates. Launched
+ in-JVM via the "java <class>" command; the incubator jar and angus-mail are on
+ the :lg3d-core:run classpath. Discovery only scans config/demo and
+ config/incubator, so, following the Agenda 3D / Contact 3D precedent, this
+ descriptor lives in lg3d-apps/src/config (bundled to config/demo) rather than
+ the incubator's own src/config. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
    <string>java org.jdesktop.lg3d.apps.mail.Mail3D</string>
   </void>
   <void property="desc">
-   <string>3D mail client</string>
+   <string>Real IMAP/SMTP mail client</string>
   </void>
   <void property="displayResourceType">
    <string>ICON</string>

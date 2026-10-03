@@ -391,6 +391,16 @@ tasks.register('run', JavaExec) {
     def pdfboxLibs = configurations.detachedConfiguration(
         dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"))
 
+    // The Mail app (lg3d-incubator, org.jdesktop.lg3d.apps.mail) is a real
+    // IMAP/SMTP client on Jakarta Mail 2.x via the Eclipse Angus provider.
+    // angus-mail is a Maven dependency of lg3d-incubator, but this run classpath
+    // is assembled from packaged jars rather than that module's runtimeClasspath,
+    // so resolve it here directly -- otherwise the in-JVM start-menu launch dies
+    // with NoClassDefFoundError: jakarta/mail/Session. jakarta.mail-api comes in
+    // transitively.
+    def mailLibs = configurations.detachedConfiguration(
+        dependencies.create("org.eclipse.angus:angus-mail:${libs.versions.angusMail.get()}"))
+
     // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) renders
     // pages with JavaFX (OpenJFX) javafx.scene.web.WebView, bridged into the
     // Swing desktop with javafx.embed.swing.JFXPanel. JavaFX is a Maven
@@ -469,7 +479,7 @@ tasks.register('run', JavaExec) {
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, ftpClientJar, runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
-              javafxLibs, iconManagerLib)
+              javafxLibs, iconManagerLib, mailLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -771,6 +781,9 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
         dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"),
         dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"),
+        // Jakarta Mail 2.x (Eclipse Angus) for the Mail client's real IMAP/SMTP
+        // backend; jakarta.mail-api comes in transitively.
+        dependencies.create("org.eclipse.angus:angus-mail:${libs.versions.angusMail.get()}"),
         dependencies.create("com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson.get()}"),
         dependencies.create("org.slf4j:slf4j-api:${libs.versions.slf4j.get()}"),
         dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
