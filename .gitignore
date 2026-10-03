@@ -17,9 +17,11 @@ build-gradle/
 # ---- Large vendored artifacts (fetched, not committed) ----
 # The swing-ide fat jar (~138 MB) exceeds GitHub's 100 MB per-file limit, so it
 # is built by the swing-ide project and fetched into libs/ on demand (see the
-# :fetchSwingIdeJar task) rather than committed. The other libs/*.jar files are
-# small and stay tracked.
+# :fetchSwingIdeJar task) rather than committed. The openapi-editor fat jar
+# (~25 MB) is likewise built externally and fetched on demand (see
+# :fetchOpenApiEditorJar). The other libs/*.jar files are small and stay tracked.
 libs/swing-ide.jar
+libs/openapi-editor.jar
 
 # ---- IDE: IntelliJ IDEA ----
 .idea/

@@ -435,6 +435,13 @@ public final class Desktop2DAppRegistry {
         // running that main here simply spawns the child, whose own JFrame then
         // appears beside the 2D desktop exactly as it does over the 3D scene.
         frames.add("org.jdesktop.lg3d.apps.swingide.SwingIde");
+        // The OpenAPI Contract Editor (lg3d-apps,
+        // org.jdesktop.lg3d.apps.openapieditor) forks the external
+        // openapi-editor fat jar as a separate child process. Its launcher main
+        // shows no window inside the desktop JVM (so it is not a PANEL app);
+        // running that main here simply spawns the child, whose own JFrame then
+        // appears beside the 2D desktop exactly as it does over the 3D scene.
+        frames.add("org.jdesktop.lg3d.apps.openapieditor.OpenApiEditor");
         // The Launcher (lg3d-apps, org.jdesktop.lg3d.apps.launcher.LauncherFrame)
         // is a Swing-based tool for creating custom application launchers. It
         // shows its own JFrame, so it runs beside the 2D desktop rather than

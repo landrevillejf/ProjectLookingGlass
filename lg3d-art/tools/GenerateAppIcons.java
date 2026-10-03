@@ -114,6 +114,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector browser window (chrome strip over a globe) instead of a bundled glyph. */
     private static final String BROWSER_GLYPH = "BrowserWindow";
 
+    /** Glyph name that draws a built-in vector contract page with curly braces instead of a bundled glyph. */
+    private static final String API_DOC_GLYPH = "ApiContractBraces";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -210,6 +213,11 @@ public class GenerateAppIcons {
         // shaped, so a browser window with a globe is drawn in-tool like the
         // git branch and the marks above.
         {"webbrowser.png", IconColor.BLUE, IconCategory.GENERAL, BROWSER_GLYPH},
+        // OpenAPI Contract Editor (external fat jar forked as a child process by
+        // the OpenApiEditor launcher); the bundled glyph set has nothing API /
+        // contract shaped, so a document page carrying a pair of curly braces is
+        // drawn in-tool like the browser window and the marks above.
+        {"openapi-editor.png", IconColor.PURPLE, IconCategory.TEXT, API_DOC_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -266,6 +274,8 @@ public class GenerateAppIcons {
                 glyph = drawGitBranchGlyph(GLYPH);
             } else if (BROWSER_GLYPH.equals(glyphName)) {
                 glyph = drawBrowserGlyph(GLYPH);
+            } else if (API_DOC_GLYPH.equals(glyphName)) {
+                glyph = drawApiDocGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -918,6 +928,60 @@ public class GenerateAppIcons {
         g.drawLine(16, 13, 16, 24);        // central meridian
         g.drawOval(13, 13, 7, 11);         // inner meridian ellipse
         g.drawLine(11, 18, 22, 18);        // equator
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the API contract glyph: a white sheet with a folded top-right corner
+     * carrying a pair of curly braces, the conventional "specification / contract
+     * source document" mark. The bundled {@code toolbarButtonGraphics} set carries
+     * nothing brace shaped, so it is drawn in-tool like the browser window and the
+     * marks above. Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawApiDocGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Sheet body with the top-right corner cut for the fold.
+        GeneralPath sheet = new GeneralPath();
+        sheet.moveTo(7, 2);
+        sheet.lineTo(20, 2);
+        sheet.lineTo(26, 8);
+        sheet.lineTo(26, 30);
+        sheet.lineTo(7, 30);
+        sheet.closePath();
+        g.setColor(Color.WHITE);
+        g.fill(sheet);
+        // The folded corner flap, slightly darker so it reads as a dog-ear.
+        GeneralPath fold = new GeneralPath();
+        fold.moveTo(20, 2);
+        fold.lineTo(20, 8);
+        fold.lineTo(26, 8);
+        fold.closePath();
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fill(fold);
+        // A short heading line under the fold.
+        g.setColor(new Color(0xB0, 0xB0, 0xB0));
+        g.fillRect(10, 10, 8, 2);
+        // Curly braces: { on the left, } mirrored on the right, drawn as stroked
+        // curves in the same faint grey as the heading line.
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        GeneralPath open = new GeneralPath();
+        open.moveTo(14, 15);
+        open.curveTo(11.5, 15, 12.5, 18, 12, 19.5);
+        open.curveTo(11.7, 20.5, 11, 21, 10, 21);
+        open.curveTo(11, 21, 11.7, 21.5, 12, 22.5);
+        open.curveTo(12.5, 24, 11.5, 27, 14, 27);
+        g.draw(open);
+        GeneralPath close = new GeneralPath();
+        close.moveTo(19, 15);
+        close.curveTo(21.5, 15, 20.5, 18, 21, 19.5);
+        close.curveTo(21.3, 20.5, 22, 21, 23, 21);
+        close.curveTo(22, 21, 21.3, 21.5, 21, 22.5);
+        close.curveTo(20.5, 24, 21.5, 27, 19, 27);
+        g.draw(close);
         g.dispose();
         return new ImageIcon(image);
     }

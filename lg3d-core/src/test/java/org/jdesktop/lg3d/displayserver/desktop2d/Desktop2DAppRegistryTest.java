@@ -98,6 +98,10 @@ class Desktop2DAppRegistryTest {
         // it owns no panel, so the 2D desktop runs its main beside the desktop.
         assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.swingide.SwingIde"));
+        // The OpenAPI Contract Editor launcher likewise forks an external fat jar
+        // as a child process and owns no panel, so it is classified the same way.
+        assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.openapieditor.OpenApiEditor"));
     }
 
     @Test
