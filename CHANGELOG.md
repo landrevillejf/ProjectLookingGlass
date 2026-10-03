@@ -10,6 +10,18 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.50.1 —
 
 ### Added
+- **2D desktop now shows a start-up splash** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the conventional 2D/Swing
+  desktop (`lg.fws.mode=2d` and `swing`) previously showed nothing while its
+  shell, start menu and restored session were assembled on the EDT, so a cold
+  start looked like a hang. It now raises a plain, undecorated, always-on-top
+  window carrying **only** the product name ("Project Looking Glass") and the
+  resolved build version, shown before the shell build is queued and disposed the
+  moment the desktop is on screen. The version is resolved exactly as the About
+  box does it — the `lg.version` system property first, then the generated
+  `LgBuildInfo` version, then `unknown` — so no version literal is hardcoded and a
+  bump cannot miss it. Deliberately minimal and 2D-only: it never loads the 3D
+  artwork splash and leaves the 3D `SplashStarter`/`SplashWindow` path untouched.
 - **PayloadMan API testing tool joins the Developers menu** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.payloadman`) — the external `tests-suite` project
   (PayloadMan), a production-grade desktop HTTP/API testing workbench (request
