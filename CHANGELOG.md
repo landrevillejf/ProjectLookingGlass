@@ -792,6 +792,23 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The About box no longer advertises 3D or Sun Microsystems on the 2D/Swing
+  desktop** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — the product About
+  window (`AboutPanel`/`AboutInfo`) is shared by both desktops, so on the
+  conventional 2D/Swing desktop it described an "immersive 3D desktop built on
+  Java 3D", listed a **Java 3D** runtime row the 2D shell never loads, and
+  credited the ported-base lineage to Sun Microsystems — none of which is true
+  of the 2D desktop the user is actually running. `AboutInfo` now derives the
+  desktop mode from the canonical `lg.fws.mode` property (reusing
+  `DesktopMode.MODE_2D`/`MODE_SWING`, no 3D probe) and, when it resolves to the
+  conventional 2D/Swing shell, serves 2D-specific variants: a "desktop
+  environment for the Java platform" tagline and description with no "3D"
+  claim, an omitted Java 3D runtime row, and attribution solely to
+  **Jean-Francois Landreville** (no Sun Microsystems line). The mode selectors
+  are pure, headless-testable helpers (`is2DMode`, `tagline`/`description`/
+  `credits(boolean)`, `getFields(boolean)`); the 3D desktop's About window is
+  unchanged and still carries the full description, Java 3D row and port
+  lineage. Covered by new headless JUnit 5 cases in `AboutInfoTest`.
 - **The Task Scheduler editor now lays out as a compact form in the Control
   Center** (`lg3d-apps`, `org.jdesktop.lg3d.apps.controlcenter.TaskSchedulerPanel`)
   — the editor column was a `GridLayout(0,1)`, which forces every row to an equal
