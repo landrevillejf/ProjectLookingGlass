@@ -804,6 +804,19 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The 2D start-up splash now paints instead of showing a grey rectangle**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
+  added for the 2D/Swing desktop mapped its window and then immediately handed
+  the event dispatch thread to the (EDT-blocking) desktop build, so the freshly
+  mapped window's expose/paint was not dispatched until the build finished and
+  the user saw only the window's bare grey peer background for the whole
+  start-up. `show()` now sets an opaque white window background and forces one
+  synchronous `paintImmediately` of the content before returning, so the product
+  name and version are drawn into the peer before the build occupies the EDT;
+  the window is tracked before the paint so a paint failure can never orphan a
+  visible splash. The 3D splash path is untouched. Covered by a headless
+  off-screen paint assertion in `Desktop2DSplashTest` (the card renders
+  predominantly white with dark text, never a grey block).
 - **The About box no longer advertises 3D or Sun Microsystems on the 2D/Swing
   desktop** (`lg3d-apps`, `org.jdesktop.lg3d.apps.about`) — the product About
   window (`AboutPanel`/`AboutInfo`) is shared by both desktops, so on the

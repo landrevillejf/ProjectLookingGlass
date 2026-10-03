@@ -21,6 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JLabel;
@@ -114,6 +117,51 @@ class Desktop2DSplashTest {
         // create a JWindow or throw; they simply do nothing.
         assertDoesNotThrow(Desktop2DSplash::show);
         assertDoesNotThrow(Desktop2DSplash::dispose);
+    }
+
+    @Test
+    @DisplayName("the content paints a white card with dark text, never a grey block")
+    void contentPaintsWhiteNotGrey() {
+        // Regression guard for the "grey rectangle" start-up bug: the splash is
+        // a white card, so once it is actually painted (show() now forces one
+        // synchronous paint before the EDT-blocking desktop build) the user sees
+        // white with the name and version, not the window's grey peer
+        // background. Painting to an off-screen image works headless, so the
+        // rendered pixels can be asserted directly.
+        JPanel content = Desktop2DSplash.buildContent();
+        Dimension pref = content.getPreferredSize();
+        content.setSize(pref);
+        content.doLayout();
+        BufferedImage img = new BufferedImage(Math.max(1, pref.width),
+                Math.max(1, pref.height), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            content.paint(g);
+        } finally {
+            g.dispose();
+        }
+        int white = 0;
+        int dark = 0;
+        int total = 0;
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                int p = img.getRGB(x, y);
+                int r = (p >> 16) & 0xff;
+                int gr = (p >> 8) & 0xff;
+                int b = p & 0xff;
+                total++;
+                if (r > 240 && gr > 240 && b > 240) {
+                    white++;
+                }
+                if (r < 110 && gr < 110 && b < 110) {
+                    dark++;
+                }
+            }
+        }
+        assertTrue(white > total / 2,
+                "the splash paints a predominantly white card, not a grey block");
+        assertTrue(dark > 0,
+                "the product name and version are drawn as dark text on the card");
     }
 
     /** The text of every {@link JLabel} directly held by {@code panel}. */
