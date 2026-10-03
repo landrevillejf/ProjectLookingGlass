@@ -166,11 +166,33 @@ public final class Desktop2DSplash {
                 }
                 JWindow splash = new JWindow();
                 splash.setAlwaysOnTop(true);
-                splash.getContentPane().add(buildContent(), BorderLayout.CENTER);
+                // Opaque white behind the content, so the window is never seen
+                // as a bare grey peer rectangle, not even for a single frame.
+                splash.setBackground(Color.WHITE);
+                JPanel content = buildContent();
+                splash.getContentPane().add(content, BorderLayout.CENTER);
                 splash.pack();
                 splash.setLocationRelativeTo(null);
                 splash.setVisible(true);
+                // Track the window before anything that could throw, so a later
+                // dispose() always clears it and a visible splash can never be
+                // orphaned on screen.
                 window = splash;
+                // The desktop build queued straight after this runs on the SAME
+                // event dispatch thread and monopolises it for seconds, so a
+                // freshly mapped window's normal expose/paint is often not
+                // dispatched until the build has finished - leaving only the
+                // grey peer background on screen (the reported "grey
+                // rectangle"). Force one synchronous paint now, so the product
+                // name and version are actually drawn into the peer before the
+                // EDT is handed over to the build.
+                try {
+                    content.paintImmediately(0, 0, content.getWidth(),
+                            content.getHeight());
+                } catch (Exception e) {
+                    logger.log(Level.FINE,
+                            "Splash pre-paint failed; the expose pass will draw it", e);
+                }
             }
         });
     }
