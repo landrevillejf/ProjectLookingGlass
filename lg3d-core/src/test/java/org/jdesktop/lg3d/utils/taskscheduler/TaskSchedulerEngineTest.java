@@ -188,6 +188,12 @@ class TaskSchedulerEngineTest {
         try {
             e.runNow("c");
             awaitTrue(() -> e.isRunning("c"), 3000);
+            // Wait for the dispatched run to actually enter the gated runner
+            // before overlapping a second one: isRunning() flips when the engine
+            // reserves the concurrency slot on the calling thread, which can be a
+            // hair before the worker thread reaches run() and bumps the count.
+            // Without this the final assertion races the worker on a loaded box.
+            awaitTrue(() -> runner.count.get() == 1, 3000);
             e.runNow("c");                                   // overlaps -> skipped
             awaitTrue(() -> store.history("c").stream()
                     .anyMatch(r -> r.getStatus() == TaskExecutionRecord.Status.SKIPPED), 3000);
