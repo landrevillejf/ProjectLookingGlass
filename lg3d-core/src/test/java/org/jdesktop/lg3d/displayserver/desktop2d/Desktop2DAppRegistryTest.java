@@ -102,6 +102,11 @@ class Desktop2DAppRegistryTest {
         // as a child process and owns no panel, so it is classified the same way.
         assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.openapieditor.OpenApiEditor"));
+        // The PayloadMan launcher likewise forks the external tests-suite API
+        // testing tool's fat jar as a child process and owns no panel, so it is
+        // classified the same way.
+        assertEquals(Kind.SWING_FRAME, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.payloadman.PayloadMan"));
     }
 
     @Test
