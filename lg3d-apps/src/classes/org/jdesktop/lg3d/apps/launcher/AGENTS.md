@@ -19,7 +19,9 @@
 **Components:** `LauncherFrame` (NetBeans-generated) + `ApplicationDescription` +
 `AppLaunchAction` + `LauncherSaver` (saves user launchers to `~/.config/lg3d/launchers/`)
 + `QuickLaunchDrag` (drag the built launcher onto the 2D taskbar's quick-launch
-strip). Icon picking, save and drag-to-quick-launch are **now implemented**.
+strip) + `IconLibrary` / `IconLibraryDialog` (pick a built-in `IconManager` glyph).
+Icon picking (custom file **or** icon-library glyph), save and drag-to-quick-launch
+are **now implemented**.
 
 ## Roles
 
@@ -28,9 +30,13 @@ strip). Icon picking, save and drag-to-quick-launch are **now implemented**.
   saves user-created launchers to `~/.config/lg3d/launchers/` which are
   automatically discovered by the desktop's start menu.
 - **Engineer / Developer** — The frame is NetBeans-generated Swing (`LauncherFrame` +
-  `.form`); regenerate rather than hand-editing generated blocks. Launch through
-  `AppLaunchAction` on the EDT. Icon selection (JFileChooser) and save
-  (LauncherSaver) are now fully implemented. Jogamp packages only where 3D is used.
+  `.form`); regenerate rather than hand-editing generated blocks — the extra **Icon
+  Library** button is added in the constructor, not in `initComponents`. Launch
+  through `AppLaunchAction` on the EDT. Icon selection (a `JFileChooser` for a
+  custom file, or `IconLibraryDialog` over the bundled `IconManager` glyphs) and
+  save (`LauncherSaver`) are now fully implemented; keep all `IconManager` access
+  inside the never-throw `IconLibrary` seam so the frame still opens if the jar is
+  off the run classpath. Jogamp packages only where 3D is used.
 - **QA** — Verify the frame opens, that icon selection works, that save creates a
   valid .lgcfg file in `~/.config/lg3d/launchers/`, and that the saved launcher
   appears in the start menu after a desktop restart. On a live X display, verify
@@ -42,16 +48,23 @@ strip). Icon picking, save and drag-to-quick-launch are **now implemented**.
   in the start menu.
 - **Functional Analyst** — Spec as a functional tool: users can specify name,
   description, command, icon, and menu group; the launcher is saved as a .lgcfg
-  file and automatically discovered by the desktop. A launcher can also be dragged
-  from the frame's icon onto the 2D taskbar's quick-launch strip to pin it right
-  away — no restart, no start-menu round-trip — through the shared same-JVM
-  `Desktop2D.QUICK_LAUNCH_FLAVOR` (the strip is the drop target).
+  file and automatically discovered by the desktop. The icon can be a custom image
+  file **or** one of the desktop's built-in `IconManager` glyphs (chosen from a
+  category + live-preview picker and exported to a PNG under
+  `~/.config/lg3d/launchers/icons/`, so it persists like any custom icon). A
+  launcher can also be dragged from the frame's icon onto the 2D taskbar's
+  quick-launch strip to pin it right away — no restart, no start-menu round-trip —
+  through the shared same-JVM `Desktop2D.QUICK_LAUNCH_FLAVOR` (the strip is the
+  drop target).
 - **Project Manager** — Commit scope `lg3d-apps`. Medium priority; useful utility.
   Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — **2D** Swing launcher frame. Keep it consistent with the
-  platform LAF. The icon button doubles as a drag handle onto the taskbar's
-  quick-launch strip (its tooltip advertises this); a drag with a blank command
-  starts nothing, so the button stays a plain click target until there is
+  platform LAF. Two icon sources sit side by side: **Choose Icon** (a file browser)
+  and **Icon Library** (the bundled `IconManager` glyphs, a category list driving a
+  live-preview list — `JList`-based, never a combo box). The chosen icon is
+  previewed on the icon button, which also doubles as a drag handle onto the
+  taskbar's quick-launch strip (its tooltip advertises this); a drag with a blank
+  command starts nothing, so the button stays a plain click target until there is
   something to pin.
 
 ## Communication & coherence
@@ -194,5 +207,6 @@ Launch standalone:
 - No load functionality to edit existing launchers
 - No template system for common launcher types
 - Drag-to-pin targets the **2D** taskbar's quick-launch strip only; the 3D
-  taskbar's shortcut shelf is not a drop target. A custom picked icon file is not
-  shown on the strip (the 2D desktop resolves app icons by name via `AppIcons`).
+  taskbar's shortcut shelf is not a drop target. A custom picked icon file (or an
+  exported icon-library glyph) is not shown on the strip (the 2D desktop resolves
+  app icons by name via `AppIcons`).
