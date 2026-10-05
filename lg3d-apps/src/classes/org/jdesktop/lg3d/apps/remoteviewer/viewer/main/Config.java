@@ -53,7 +53,7 @@ public class Config {
             properties.put("ssl-enabled", String.valueOf(ssl_enabled));
         
             properties.store(new FileOutputStream(Main.VIEWER_CONFIG_FILE),
-                "jrdesktop viewer configuration file"); 
+                "Remote viewer viewer configuration file");
         } catch (Exception e) {
             e.getStackTrace();
         }            

@@ -61,13 +61,13 @@ public class SysTray {
                     else
                         trayIcon.setImage(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.MEDIA,"Pause",16,16)));
                 }
-                trayIcon.setToolTip("jrdesktop [Server running]\n" + 
+                trayIcon.setToolTip("Remote viewer [Server running]\n" +
                         server_address);
                 break;
             case SERVER_NOT_RUNNING:
                 serverItem.setLabel("Start");
                 trayIcon.setImage(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.MEDIA,"Start",16,16)));
-                trayIcon.setToolTip("jrdesktop [Server stopped]\n" + 
+                trayIcon.setToolTip("Remote viewer [Server stopped]\n" +
                         server_address);
                 break;                
             case SERVER_STARTED:
@@ -75,7 +75,7 @@ public class SysTray {
                 trayIcon.displayMessage("Connection status", "Server Started !!",
                         TrayIcon.MessageType.INFO);
                 trayIcon.setImage(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.MEDIA,"Pause",16,16)));
-                trayIcon.setToolTip("jrdesktop [Server running]\n" + 
+                trayIcon.setToolTip("Remote viewer [Server running]\n" +
                         server_address);
                 break;
             case CONNECTION_FAILED:
@@ -87,7 +87,7 @@ public class SysTray {
                 trayIcon.displayMessage("Connection status", "Server Stopped !!",
                         TrayIcon.MessageType.INFO);
                 trayIcon.setImage(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.MEDIA,"Pause",16,16)));
-                trayIcon.setToolTip("jrdesktop [Server stopped]\n" + 
+                trayIcon.setToolTip("Remote viewer [Server stopped]\n" +
                         server_address);
                 break;
         }
@@ -153,7 +153,7 @@ public class SysTray {
                     }
                 });
 
-                MenuItem item = new MenuItem("Open jrdesktop");
+                MenuItem item = new MenuItem("Open Remote viewer");
                 item.setFont(new Font(null, Font.BOLD, 12));
                 item.addActionListener(new ActionListener() {
                     public void actionPerformed(ActionEvent e) {

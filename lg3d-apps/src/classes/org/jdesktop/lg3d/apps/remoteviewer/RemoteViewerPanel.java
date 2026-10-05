@@ -26,6 +26,16 @@ public class RemoteViewerPanel extends JPanel {
     /** Preferred height of the hosted panel, in pixels (the original's packed size). */
     public static final int HEIGHT_PX = 380;
 
+    /**
+     * Host-supplied callback that closes the window this panel is shown in - a
+     * 3D {@code Frame3D} (see {@link RemoteViewer}) or a 2D MDI internal frame
+     * (wired reflectively by {@code Desktop2DAppRegistry.setCloseCallback}).
+     * The Exit button runs this instead of {@link Main#exit()}: the panel lives
+     * inside the desktop JVM, so {@code System.exit(0)} would tear down the
+     * whole desktop rather than just this window.
+     */
+    private Runnable onClose;
+
     /** Creates new form ServerGUI */
     public RemoteViewerPanel() {
         initComponents();
@@ -225,7 +235,31 @@ public class RemoteViewerPanel extends JPanel {
     private void jButtonExitActionPerformed(java.awt.event.ActionEvent evt) {
         if (JOptionPane.showConfirmDialog(this, "Exit application ?", "Confirm Dialog",
                 JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION)
-            Main.exit();
+            exitApplication();
+    }
+
+    /**
+     * Runs the confirmed-exit action: stops the RMI server so closing the window
+     * does not leave it bound to its port, then delegates the actual window
+     * close to the host callback. Never calls {@code Main.exit()} /
+     * {@code System.exit(0)} - the panel is hosted inside the desktop JVM, so
+     * exiting would tear down the whole desktop rather than just this window.
+     * Package-visible for tests.
+     */
+    void exitApplication() {
+        if (Server.isRunning())
+            Server.Stop();
+        if (onClose != null)
+            onClose.run();
+    }
+
+    /**
+     * Wires the Exit button to the host window's close action. Both desktop
+     * hosts call this: the 3D wrapper ({@link RemoteViewer}) directly, and the
+     * 2D {@code Desktop2DAppRegistry} reflectively by name.
+     */
+    public void setOnClose(Runnable onClose) {
+        this.onClose = onClose;
     }
 
     private void jMenuItemSendFilesActionPerformed(java.awt.event.ActionEvent evt) {
