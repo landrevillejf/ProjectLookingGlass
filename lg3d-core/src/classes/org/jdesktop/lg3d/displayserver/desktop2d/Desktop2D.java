@@ -1256,19 +1256,8 @@ public class Desktop2D {
                     Desktop2DAppRegistry.createPanel(item.getCommand(), initialDir);
             Icon icon = AppIcons.iconFor(
                     appName, item.getIconResource(), Desktop2DStartMenu.ICON_SIZE);
-            Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
-                    appName, item.getCommand(), item.getIconResource(),
-                    item.getDesc());
-            track(window);
-            desktop.add(window);
-            // A new window opens on the workspace currently shown.
-            workspaces.assign(window.getAppName(), workspaces.current());
-            taskbar.windowOpened(window);
-            window.showIn(desktop);
-            desktop.revalidate();
-            desktop.repaint();
-            saveSession();
-            return window;
+            return hostPanel(appName, icon, panel, item.getCommand(),
+                    item.getIconResource(), item.getDesc());
         } catch (Throwable t) {
             // NoClassDefFoundError included: on a 3D-less JVM an app may still
             // drag in a Java 3D class through a shared helper.
@@ -1280,6 +1269,60 @@ public class Desktop2D {
             }
             return null;
         }
+    }
+
+    /**
+     * Hosts an already-built Swing panel in a 2D desktop internal frame and
+     * returns its window (or the already-open one brought forward). This is the
+     * shared window-creation / taskbar / workspace / session block every panel
+     * launch goes through, factored out of {@link #openPanelApp} so it can also
+     * serve {@link #openHostedPanel}.
+     */
+    private Desktop2DWindow hostPanel(String appName, Icon icon,
+                                      JComponent panel, String command,
+                                      String iconResource, String desc) {
+        Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
+                appName, command, iconResource, desc);
+        track(window);
+        desktop.add(window);
+        // A new window opens on the workspace currently shown.
+        workspaces.assign(window.getAppName(), workspaces.current());
+        taskbar.windowOpened(window);
+        window.showIn(desktop);
+        desktop.revalidate();
+        desktop.repaint();
+        saveSession();
+        return window;
+    }
+
+    /**
+     * Hosts an already-built Swing panel in a new (or existing, brought
+     * forward) 2D desktop internal frame at runtime. This is the reusable entry
+     * point any application uses to open a secondary window <em>inside</em> the
+     * 2D desktop - as an MDI {@link Desktop2DWindow}, so it belongs to the
+     * desktop (and is captured by the desktop screenshot) instead of becoming a
+     * stray top-level OS window beside it.
+     *
+     * <p>Returns null when no 2D desktop is running, so a caller can fall back
+     * to another host (the 3D {@code Frame3D} or a standalone {@code JFrame});
+     * this also keeps it headless- and unit-test-safe.
+     *
+     * @param title   the window title (also the taskbar / application name)
+     * @param icon    the frame icon, or null for none
+     * @param content the Swing content to host
+     */
+    public static Desktop2DWindow openHostedPanel(String title, Icon icon,
+                                                  JComponent content) {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return null;
+        }
+        Desktop2DWindow existing = d.findWindow(title);
+        if (existing != null) {
+            d.activateWindow(existing);
+            return existing;
+        }
+        return d.hostPanel(title, icon, content, null, null, null);
     }
 
     /** Registers the taskbar bookkeeping for {@code window}. */
