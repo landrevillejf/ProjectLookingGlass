@@ -13,6 +13,7 @@ import java.util.Hashtable;
 public class HostProperties {
 
     public static Hashtable getLocalProperties() {
+        Toolkit tk = Toolkit.getDefaultToolkit();        
         Hashtable<String, Object> localProperties = new Hashtable<String, Object>();        
         localProperties.put("host-address", InetAdrUtility.getLocalAdr().toString());
         localProperties.put("java.version", System.getProperty("java.version"));
@@ -21,17 +22,8 @@ public class HostProperties {
         localProperties.put("os.version", System.getProperty("os.version"));
         localProperties.put("user.name", System.getProperty("user.name"));
         localProperties.put("user.dir", System.getProperty("user.dir"));
-        // The screen metrics need a display: querying them headless (e.g. when
-        // the viewer panel is merely constructed in a unit test) would throw
-        // HeadlessException, so fall back to neutral placeholders.
-        if (GraphicsEnvironment.isHeadless()) {
-            localProperties.put("screen.size", new Dimension(0, 0));
-            localProperties.put("screen.resolution", 0);
-        } else {
-            Toolkit tk = Toolkit.getDefaultToolkit();
-            localProperties.put("screen.size", tk.getScreenSize());
-            localProperties.put("screen.resolution", tk.getScreenResolution());
-        }
+        localProperties.put("screen.size", tk.getScreenSize());
+        localProperties.put("screen.resolution", tk.getScreenResolution());
 
         return localProperties;
     }  

@@ -67,7 +67,7 @@ public class ScreenPlayer extends JLabel {
             public void keyPressed(KeyEvent e)
             {
                 if (e.getKeyCode() == KeyEvent.VK_F11)
-                    ScreenPlayer.this.recorder.viewerPanel.toggleMaximize();   
+                    ScreenPlayer.this.recorder.viewerGUI.changeFullScreenMode();   
                 
                 ScreenPlayer.this.recorder.viewer.AddObject(e);
             }
@@ -124,10 +124,7 @@ public class ScreenPlayer extends JLabel {
         
         setFocusable(true);
         InitialSelectionRect();
-        // Drag-and-drop file transfer needs a display peer; skip it headless so
-        // the panel can be constructed in a unit test.
-        if (!GraphicsEnvironment.isHeadless())
-            new DropTarget(this, new FilesDropTargetListener(this, recorder));
+        new DropTarget(this, new FilesDropTargetListener(this, recorder));
     };
 
     public void addAdapters() {
@@ -274,7 +271,7 @@ public class ScreenPlayer extends JLabel {
                 rect.width = (int) (rect.width * screenScale);
                 recorder.viewerData.setScreenRect(rect);
                 recorder.viewer.updateOptions();
-                recorder.viewerPanel.jBtnPartialComplete.setIcon(
+                recorder.viewerGUI.jBtnPartialComplete.setIcon(
                         new ImageIcon(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.DEVELOPMENT,"Host",16,16))));
             }
             

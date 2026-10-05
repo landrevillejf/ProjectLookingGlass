@@ -873,38 +873,6 @@ work to make it build and run on a current toolchain.
   pins construction, the host size, the `setOnClose` contract and that Exit runs
   the host callback rather than the JVM; a
   `Desktop2DAppRegistryTest#remoteViewerIsHostedPanel` classification case).
-- **The Remote Viewer's live-viewing window is now hosted inside the desktop**
-  (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`; new core API in
-  `lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D`) — the main
-  panel was already integrated, but on Connect the viewer opened its
-  live-viewing UI as a `ViewerGUI extends JFrame` created eagerly by `Recorder`.
-  A top-level `JFrame` is an OS window owned by the host window manager: it is
-  neither a child of the 2D desktop's `JDesktopPane` nor part of the 3D scene, so
-  the internal screen capture (which paints each top-level `Frame` into its own
-  `lgscreen-<i>-*.png`) never showed the viewer in the desktop's
-  `lgscreen-0-0.png`. The viewer content is extracted into a plain
-  `ViewerPanel extends JPanel` (toolbar + `ScreenPlayer`, no window chrome) that
-  a new `ViewerHost` embeds in whichever desktop is running: a 2D MDI internal
-  frame via the new reusable `Desktop2D.openHostedPanel(title, icon, content)`
-  (which returns null when no 2D desktop is live, so it is headless- and
-  unit-test-safe), else a 3D `Frame3D` via `TitledSwingWindow`, else — standalone
-  CLI `viewer` mode only — the thin `ViewerGUI` `JFrame` wrapper. `Recorder` no
-  longer opens a window at construction (it just builds `viewerPanel`), and
-  `Viewer.Start()` calls `ViewerHost.show(recorder)` then
-  `recorder.viewerPanel.startRecording()`. The panel reports state upward through
-  three host hooks (`setOnClose`, `setOnTitleChange`, `setOnMaximizeToggle`) that
-  each host maps onto its own window idiom, so Close never disposes a stray frame
-  or kills the JVM; **full-screen becomes maximize-within-desktop when hosted**
-  (2D `JInternalFrame.setMaximum`, 3D `HostedWindowResizer.resize`), keeping
-  exclusive OS full-screen for the standalone `JFrame` only. Supporting
-  headless-safety: `ClipbrdUtility` initialises the system clipboard lazily,
-  `HostProperties.getLocalProperties()` skips `Toolkit` screen metrics headless,
-  and `ScreenPlayer` skips its `DropTarget` headless. Covered by headless JUnit 5
-  tests (`ViewerPanelTest` pins that constructing the panel creates **no
-  top-level `Window`** — the regression that caused this bug — plus the host-hook
-  contract and that Close/maximize delegate to the host callback;
-  `Desktop2DHostedPanelTest` asserts `openHostedPanel` returns null with no 2D
-  instance).
 - **The 2D start-up splash now paints instead of showing a grey rectangle**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
   added for the 2D/Swing desktop mapped its window and then immediately handed

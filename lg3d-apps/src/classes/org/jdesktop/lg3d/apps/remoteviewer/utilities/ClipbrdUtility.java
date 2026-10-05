@@ -41,16 +41,8 @@ public class ClipbrdUtility {
     private ImageIcon img = new ImageIcon(getImageFromIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL,"About",16,16)));
 
     public ClipbrdUtility() {
-        // The system clipboard is initialised lazily by clip(): touching it here
-        // would require a display and throw HeadlessException when the viewer
-        // panel is merely constructed in a headless test.
-    }
-
-    /** The system clipboard, initialised on first use (needs a display). */
-    private synchronized Clipboard clip() {
-        if (clipboard == null)
-            initClipboard();
-        return clipboard;
+        initClipboard();
+        clipboard.addFlavorListener(flavorlistener);        
     }
     
     public void initClipboard() {
@@ -91,10 +83,9 @@ public class ClipbrdUtility {
     public File[] getFilesFromClipboard() {
         File[] files = new File[]{};
         try {
-            Clipboard cb = clip();
-            Transferable transferable = cb.getContents(this);
+            Transferable transferable = clipboard.getContents(this);
             if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                List list = (List) cb.getData(DataFlavor.javaFileListFlavor);  
+                List list = (List) clipboard.getData(DataFlavor.javaFileListFlavor);  
                 files = (File[]) list.toArray().clone();
             }
         } catch (Exception e) {
@@ -104,24 +95,23 @@ public class ClipbrdUtility {
     }
     
    public void addFlavorListener() {
-        clip().addFlavorListener(flavorlistener);
+        clipboard.addFlavorListener(flavorlistener);
    }
    
    public void removeFlavorListener() {
-       if (clipboard != null)
-           clipboard.removeFlavorListener(flavorlistener);
+       clipboard.removeFlavorListener(flavorlistener);
    }
    
    public void setTextToClipboard(String string) { 
        if (txt.equals(string)) return;
        txt = string;
-       clip().setContents(new StringSelection(txt), null);     
+       clipboard.setContents(new StringSelection(txt), null);     
     }
     
     public void setImageToClipboard(ImageIcon image) {
         if (img.getImage().equals(image.getImage())) return;
         img = image;
-        clip().setContents(new ImageSelection(img.getImage()), null);             
+        clipboard.setContents(new ImageSelection(img.getImage()), null);             
     }   
     
     /*

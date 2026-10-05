@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.jdesktop.lg3d.apps.remoteviewer.HostProperties;
 import org.jdesktop.lg3d.apps.remoteviewer.Main;
-import org.jdesktop.lg3d.apps.remoteviewer.ViewerHost;
 import org.jdesktop.lg3d.apps.remoteviewer.server.main.Config;
 import org.jdesktop.lg3d.apps.remoteviewer.server.rmi.ServerInterface;
 import org.jdesktop.lg3d.apps.remoteviewer.utilities.FileUtility;
@@ -72,11 +71,7 @@ public class Viewer extends Thread {
         connect();
         if (connected) {
             recorder = new Recorder(this);        
-            // Host the viewer panel inside the running desktop (2D MDI frame or
-            // 3D Frame3D), falling back to a standalone JFrame only outside a
-            // desktop, then start the session.
-            ViewerHost.show(recorder);
-            recorder.viewerPanel.startRecording();
+            recorder.viewerGUI.Start();
         }        
         else Stop();
     }
