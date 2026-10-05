@@ -26,20 +26,25 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Covers the pure Metal-theme seam: {@link MetalThemeSpec}'s encode/decode
- * round-trip (including malformed input), the built-in Steel/Ocean palettes,
- * the accent-colour derivation behind "New theme", the list serialisation used
- * to persist custom themes, and the {@link CustomMetalTheme} bridge that maps a
- * spec onto the live {@code Metal} palette. All headless: no look-and-feel is
- * installed and no window is realised.
+ * round-trip (including malformed input), the built-in palettes (Steel, Ocean,
+ * Graphite, Emerald, Sunset, Glassy), the accent-colour derivation behind "New
+ * theme", the list serialisation used to persist custom themes, and the
+ * {@link CustomMetalTheme} bridge that maps a spec onto the live {@code Metal}
+ * palette. All headless: no look-and-feel is installed and no window is
+ * realised.
  */
 class MetalThemeSpecTest {
 
     @Test
-    @DisplayName("the built-in Steel and Ocean themes are named and fully coloured")
+    @DisplayName("the built-in themes are named and fully coloured")
     void builtInsArePopulated() {
         assertEquals("Steel", MetalThemeSpec.STEEL.name());
         assertEquals("Ocean", MetalThemeSpec.OCEAN.name());
-        for (MetalThemeSpec spec : List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN)) {
+        assertEquals("Graphite", MetalThemeSpec.GRAPHITE.name());
+        assertEquals("Emerald", MetalThemeSpec.EMERALD.name());
+        assertEquals("Sunset", MetalThemeSpec.SUNSET.name());
+        assertEquals("Glassy", MetalThemeSpec.GLASSY.name());
+        for (MetalThemeSpec spec : MetalThemeManager.builtIns()) {
             assertNotNull(spec.primary1());
             assertNotNull(spec.primary2());
             assertNotNull(spec.primary3());
@@ -47,6 +52,20 @@ class MetalThemeSpecTest {
             assertNotNull(spec.secondary2());
             assertNotNull(spec.secondary3());
         }
+    }
+
+    @Test
+    @DisplayName("Glassy reproduces the 3D desktop's glass colours exactly")
+    void glassyMatchesThe3DGlassPalette() {
+        // org.jdesktop.lg3d.widgets.builtin.WidgetPanel.BORDER / TITLE_COLOR,
+        // the edge and title-accent blues painted on every glassy HUD card and
+        // Frame3D window decoration.
+        assertEquals(0x6094D6, MetalThemeSpec.GLASSY.primary1().getRGB() & 0xFFFFFF);
+        assertEquals(0x8CB9F5, MetalThemeSpec.GLASSY.primary2().getRGB() & 0xFFFFFF);
+        // org.jdesktop.lg3d.utils.shape.FrostedGlassPanel.DEFAULT_TINT
+        // (0.85, 0.90, 1.00) - the frosted-white tint every Frame3D glass
+        // panel is washed with, rounded to the nearest byte per channel.
+        assertEquals(0xD9E6FF, MetalThemeSpec.GLASSY.primary3().getRGB() & 0xFFFFFF);
     }
 
     @Test
@@ -136,11 +155,15 @@ class MetalThemeSpecTest {
     @Test
     @DisplayName("the manager exposes the built-ins and resolves them by name")
     void managerResolve() {
-        assertEquals(List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN),
+        assertEquals(List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN,
+                        MetalThemeSpec.GRAPHITE, MetalThemeSpec.EMERALD,
+                        MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY),
                 MetalThemeManager.builtIns());
         assertEquals("Ocean", MetalThemeManager.resolve("Ocean").name());
+        assertEquals("Glassy", MetalThemeManager.resolve("Glassy").name());
         assertNull(MetalThemeManager.resolve(null));
         assertNull(MetalThemeManager.resolve("No Such Theme"));
         assertNotNull(MetalThemeManager.toTheme(MetalThemeSpec.STEEL));
+        assertNotNull(MetalThemeManager.toTheme(MetalThemeSpec.GLASSY));
     }
 }

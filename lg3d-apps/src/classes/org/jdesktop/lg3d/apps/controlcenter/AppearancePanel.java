@@ -270,19 +270,20 @@ public class AppearancePanel implements ControlPanel {
 
     /**
      * Builds the Metal theme manager: a {@link JList} of the built-in themes
-     * (Steel, Ocean) plus any user-created themes, and Apply / New / Delete
-     * buttons. Shown on the conventional 2D desktop in place of the 3D-only
-     * window-glass selector. A list (never a combo box or radio buttons) keeps
-     * the panel working when it is hosted offscreen in a {@code SwingNode}.
-     * Applying a theme switches the 2D shell onto the Metal look-and-feel with
-     * the chosen palette and persists the selection, so it is restored at the
-     * next start-up.
+     * (Steel, Ocean, Graphite, Emerald, Sunset, Glassy - see
+     * {@link MetalThemeManager#builtIns()}) plus any user-created themes, and
+     * Apply / New / Delete buttons. Shown on the conventional 2D desktop in
+     * place of the 3D-only window-glass selector. A list (never a combo box or
+     * radio buttons) keeps the panel working when it is hosted offscreen in a
+     * {@code SwingNode}. Applying a theme switches the 2D shell onto the Metal
+     * look-and-feel with the chosen palette and persists the selection, so it
+     * is restored at the next start-up.
      */
     private JComponent buildThemePanel() {
         themeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        themeList.setVisibleRowCount(3);
+        themeList.setVisibleRowCount(4);
         JScrollPane themeScroll = new JScrollPane(themeList);
-        themeScroll.setPreferredSize(new Dimension(170, 74));
+        themeScroll.setPreferredSize(new Dimension(170, 90));
 
         JButton applyTheme = new JButton("Apply");
         applyTheme.addActionListener(e -> applyTheme());

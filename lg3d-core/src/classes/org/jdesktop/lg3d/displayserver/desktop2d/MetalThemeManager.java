@@ -51,9 +51,18 @@ public final class MetalThemeManager {
         // no instances
     }
 
-    /** The built-in themes (Steel, Ocean), in display order. */
+    /**
+     * The built-in themes, in display order: {@code Steel} and {@code Ocean}
+     * (the stock JDK Metal palettes), {@code Graphite} (neutral slate-grey),
+     * {@code Emerald} (forest-green accent), {@code Sunset} (warm amber/coral
+     * accent) and {@code Glassy} (an ice-blue palette that reproduces the
+     * native 3D desktop's translucent window-glass look - see
+     * {@link MetalThemeSpec#GLASSY} for the colour provenance).
+     */
     public static List<MetalThemeSpec> builtIns() {
-        return List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN);
+        return List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN,
+                MetalThemeSpec.GRAPHITE, MetalThemeSpec.EMERALD,
+                MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY);
     }
 
     /**
