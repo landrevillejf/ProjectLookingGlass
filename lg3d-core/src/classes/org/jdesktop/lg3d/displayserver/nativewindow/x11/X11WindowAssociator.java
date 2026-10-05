@@ -144,10 +144,9 @@ final class X11WindowAssociator {
     void removeAllRules(X11Client x11Client) {
         if (x11Client==null)
             return;
-        for(WindowAssociationRuleEntry rule : windowAssociationRule) {
-            if (rule.getTargetWindow()==x11Client)
-                windowAssociationRule.remove(rule);
-        }
+        // removeIf iterates safely; removing from the list directly inside a
+        // for-each loop would throw ConcurrentModificationException.
+        windowAssociationRule.removeIf(rule -> rule.getTargetWindow()==x11Client);
         
         if (focusedWindow==x11Client)
             focusedWindow = null;

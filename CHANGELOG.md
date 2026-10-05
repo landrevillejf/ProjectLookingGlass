@@ -10,6 +10,24 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.51.1 —
 
 ### Added
+- **X11 compositor end-to-end spike on stock JDK 21** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — validated and hardened
+  the pure-Java Escher/`gnu.x11` native-X11 compositor path that lets lg3d act
+  as the window manager + compositor on a **bare Xorg** (the LFS production
+  target), with no forked JDK, agent or `sun.awt.*` peer. Added **31 headless
+  JUnit 5 tests** for the previously untested pure seams (virtual-key→keysym and
+  button mapping, the 3D-pick→client-pixel coordinate mapping, and `XGetImage`
+  pixel / TrueColor-channel decoding), instrumented `X11InputForwarder` with
+  `java.util.logging` so a live run is diagnosable, and fixed a
+  `ConcurrentModificationException` in `X11WindowAssociator.removeAllRules`.
+  Re-established the launch wiring — `run-lg3d.sh --nested [<display>]` and
+  `-Plgserverdisplay=<display>` target an **already-running** X display (the
+  script never starts one), closing the drift where the LFS X11 contract already
+  referenced `--nested`. Added `scripts/x11/live-proof.sh`, a Stage-4 harness
+  mapped to the contract's §5 acceptance criteria that **never** spawns a nested
+  X server, injects synthetic input or takes screenshots, plus
+  `docs/x11-compositor-spike-roadmap.md` (Stage-0–3 evidence, deferred work with
+  rationale, and the spike→production roadmap).
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer

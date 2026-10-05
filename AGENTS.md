@@ -49,7 +49,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 - `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
 
 ### Excluded from Build
-- `lg3d-awt` - Custom AWT Toolkit/peer implementation (depends on JDK-internal `sun.awt.*` APIs removed after JDK 6)
+- `lg3d-awt` - **RETIRED** (not merely excluded): the custom AWT Toolkit/peer implementation. JDK 9+ removed the `awt.toolkit` install hook, 46 of its 79 classes implement the `java.awt.peer.*` SPI and 9 use `sun.awt.*` internals unexported in JDK 21, so it cannot be installed on stock JDK 21 and will not be resurrected. Replacement mapping: 2D-in-3D widgets -> `org.jdesktop.lg3d.wg.SwingNode` (lg3d's pure-Java Swing→offscreen-`BufferedImage`→texture bridge, no JavaFX/AWT peer; see `TitledSwingWindow` in `lg3d-apps`); foreign X11 app compositing -> `org.jdesktop.lg3d.displayserver.nativewindow.x11` (pure-Java Escher compositor). Sources remain in-tree for reference only.
 - `lg3d-x11` - Native X11 foundation window system (not a Java module)
 - [lg3d-docs](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-docs:0:0-0:0) - Historical documentation (HTML/PDF)
 - `lg3d-art` - Assets (wallpapers, splash art, models, GDM theme) - consumed at runtime
@@ -110,7 +110,7 @@ The following bundled jars were dropped (binary-incompatible with Jogamp) and re
 
 The following code paths are intentionally excluded from the build (see [lg3d-core/build.gradle](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build.gradle:0:0-0:0)):
 
-- `org.jdesktop.lg3d.awt.*` / `awtpeer.*` - Custom AWT peer toolkit
+- `org.jdesktop.lg3d.awt.*` / `awtpeer.*` - Custom AWT peer toolkit (retired; replaced by `SwingNode` + `nativewindow/x11` — see *Module Structure*)
 - `sun.awt.*` - JDK-internal X11 shims
 - `org.jdesktop.lg3d.displayserver.fws.x11.*` - Native X11 integration
 - `org.jdesktop.lg3d.apps.x11integration.*` - X11 integration apps

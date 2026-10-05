@@ -356,6 +356,14 @@ desktop (`lgconfig_1p_nox.xml`) is unchanged.
 > an existing session (GNOME/mutter, KDE, or Xwayland) — the WM claim fails with
 > `BadAccess`. It is meant for a dedicated Xorg session, as below.
 
+> **Targeting a non-`:0` display.** `./run-lg3d.sh --nested [<display>]`
+> (default `:1`) points lg3d at an *already-running* X display — it exports
+> `DISPLAY`, implies `-x`, and passes `-Plgserverdisplay=<display>`. This is how
+> you exercise the compositor against a **bare Xorg on a spare VT** (e.g.
+> `Xorg :1 vt2 -nolisten tcp`) without logging out of your Wayland session. The
+> script never starts an X server itself; see
+> [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md) §6.
+
 ### Deployment target (Linux From Scratch)
 
 The intended runtime is a minimal, purpose-built system: **Xorg on `:0` with no
@@ -439,12 +447,20 @@ default theme wallpapers) and the **incubator background manager**
 it on the `run` classpath. This is additive — no module jar is restructured.
 
 ### What is intentionally excluded
-- **`lg3d-awt`** — an optional custom AWT Toolkit/peer implementation
-  (`lg.use3dtoolkit=true`, default false). 46 of its 79 classes implement the
-  `java.awt.peer.*` SPI and 9 use JDK-internal `sun.awt.*` types that are
-  unexported in the JDK 21 `java.desktop` module; the peer SPI itself changed
-  substantially after JDK 5. lg3d-core has no compile-time dependency on it, so
-  it is left out of the build (sources remain in-tree for reference).
+- **`lg3d-awt`** — **retired**, not merely excluded. It was an optional custom
+  AWT Toolkit/peer implementation (`lg.use3dtoolkit=true`, default false).
+  JDK 9+ removed the `awt.toolkit` hook that installed it, 46 of its 79 classes
+  implement the `java.awt.peer.*` SPI and 9 use JDK-internal `sun.awt.*` types
+  unexported in the JDK 21 `java.desktop` module, and the peer SPI itself changed
+  substantially after JDK 5 — so it cannot be installed on stock JDK 21 and will
+  not be resurrected. Its two former roles are covered by in-tree replacements:
+  2D-in-3D widgets now go through lg3d's own pure-Java
+  `org.jdesktop.lg3d.wg.SwingNode` (Swing painted into an offscreen
+  `BufferedImage` and textured onto a quad — see `TitledSwingWindow` in
+  `lg3d-apps`; no JavaFX, no AWT peer), and foreign X11 application compositing
+  through the pure-Java Escher compositor in
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`. lg3d-core has no
+  compile-time dependency on it; its sources remain in-tree for reference only.
 - **Native X11 integration** (`displayserver/fws/x11`, `apps/x11integration`,
   `sun.awt.X11.*` shims) — bound to removed JDK internals; dev mode uses the AWT
   foundation window system instead.
