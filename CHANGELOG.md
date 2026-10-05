@@ -10,6 +10,14 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.51.1 —
 
 ### Added
+- **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
+  port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
+  hosting its original `MainFrame` GUI (server start/stop, status, viewer
+  connect, file transfer, about, exit) unchanged as `RemoteViewerPanel`: a
+  SwingNode-in-`Frame3D` host in 3D via `TitledSwingWindow` and an MDI internal
+  frame in 2D via `Desktop2DAppRegistry.PANEL_APPS`. Registered as the
+  *Developers* start-menu app `remoteviewer.lgcfg` with a purpose-drawn
+  `remoteviewer.png` icon.
 - **Guitar / bass tuner that listens to the microphone** (`lg3d-apps`,
   `org.jdesktop.lg3d.apps.tuner`) — a production-grade chromatic and
   per-instrument tuner that analyses the microphone **natively and in-process**:
