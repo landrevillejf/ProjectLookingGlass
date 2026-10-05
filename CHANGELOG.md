@@ -864,6 +864,22 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The Firewall start-menu entry no longer fails to load its icon**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.firewall`; icon in `lg3d-core`
+  resources) — the Firewall manager was added to the desktop without its icon:
+  `firewall.lgcfg` pointed `displayResourceUrlName` at a package-relative
+  `resource:///org/jdesktop/lg3d/apps/firewall/resources/images/icon/firewall.png`
+  that is not part of the assembled `resources/` runtime tree (and no such PNG
+  was ever committed), so opening the start menu logged `Failed getInputStream`,
+  a `NullPointerException` in `ResourceURLConnection.connect` and a
+  JAI / `TextureLoader` cascade, and the menu item rendered with no icon. The
+  descriptor now points at the shared
+  `resource:///resources/images/icon/firewall.png` — the same convention every
+  other start-menu app uses (e.g. `securitycenter.lgcfg`) — and a purpose-drawn
+  running-bond brick-wall `firewall.png` (48×48 RGBA on a red tile) is generated
+  into `lg3d-core/src/resources/images/icon` by
+  `lg3d-art/tools/GenerateAppIcons` and assembled by
+  `:lg3d-core:runtimeResources`.
 - **The Remote Viewer's Exit button no longer tears down the whole desktop**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — the ported jrdesktop GUI
   is hosted inside the lg3d desktop JVM (a 3D `Frame3D` via `TitledSwingWindow`

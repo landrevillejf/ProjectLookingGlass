@@ -123,6 +123,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector paper plane (send / dispatch a request) instead of a bundled glyph. */
     private static final String SEND_PLANE_GLYPH = "SendRequestPlane";
 
+    /** Glyph name that draws a built-in vector brick wall (firewall) instead of a bundled glyph. */
+    private static final String WALL_GLYPH = "FirewallBricks";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -237,6 +240,11 @@ public class GenerateAppIcons {
         // reuses the bundled "Host" glyph (the same one the original
         // MainFrame used for its own window icon) rather than a new in-tool mark.
         {"remoteviewer.png", IconColor.BLUE_GRAY, IconCategory.DEVELOPMENT, "Host"},
+        // Firewall manager (Swing firewall-rule / network-security panel hosted on
+        // a SwingNode / 2D MDI frame; System menu group alongside Security Center).
+        // The bundled glyph set has nothing wall shaped, so a running-bond brick
+        // wall is drawn in-tool like the shield and padlock above.
+        {"firewall.png", IconColor.RED, IconCategory.GENERAL, WALL_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -299,6 +307,8 @@ public class GenerateAppIcons {
                 glyph = drawApiDocGlyph(GLYPH);
             } else if (SEND_PLANE_GLYPH.equals(glyphName)) {
                 glyph = drawSendPlaneGlyph(GLYPH);
+            } else if (WALL_GLYPH.equals(glyphName)) {
+                glyph = drawWallGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -1057,6 +1067,43 @@ public class GenerateAppIcons {
         plane.closePath();
         g.setColor(Color.WHITE);
         g.fill(plane);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the firewall glyph: a running-bond brick wall (four courses with
+     * staggered mortar joints punched out so the tile gradient shows through),
+     * the conventional "firewall" mark. The bundled {@code toolbarButtonGraphics}
+     * set carries nothing wall shaped, so it is drawn in-tool like the shield,
+     * padlock and globe above. Designed in a 32x32 space and scaled to
+     * {@code size}.
+     */
+    private static Icon drawWallGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Solid wall slab.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 6, 26, 20, 3, 3);
+        // Punch the mortar joints out so the tile gradient reads as mortar between
+        // the bricks: three horizontal course lines plus staggered vertical seams.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.3f));
+        g.drawLine(3, 11, 29, 11);
+        g.drawLine(3, 16, 29, 16);
+        g.drawLine(3, 21, 29, 21);
+        g.drawLine(12, 6, 12, 11);
+        g.drawLine(21, 6, 21, 11);
+        g.drawLine(7, 11, 7, 16);
+        g.drawLine(16, 11, 16, 16);
+        g.drawLine(25, 11, 25, 16);
+        g.drawLine(12, 16, 12, 21);
+        g.drawLine(21, 16, 21, 21);
+        g.drawLine(7, 21, 7, 26);
+        g.drawLine(16, 21, 16, 26);
+        g.drawLine(25, 21, 25, 26);
         g.dispose();
         return new ImageIcon(image);
     }

@@ -13,7 +13,7 @@
    <string>ICON</string>
   </void>
   <void property="displayResourceUrlName">
-   <string>resource:///org/jdesktop/lg3d/apps/firewall/resources/images/icon/firewall.png</string>
+   <string>resource:///resources/images/icon/firewall.png</string>
   </void>
   <void property="menuGroup">
    <string>System</string>
