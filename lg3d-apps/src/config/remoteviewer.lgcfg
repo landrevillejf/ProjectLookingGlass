@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Remote Viewer (from lg3d-apps,
+ org.jdesktop.lg3d.apps.remoteviewer). A port of the standalone jrdesktop /
+ Remote Viewer RMI remote-desktop tool: its original MainFrame GUI (server
+ start/stop, status, viewer connect, file transfer, about, exit) hosted
+ unchanged as RemoteViewerPanel. In the 3D desktop the RemoteViewer wrapper
+ hosts the panel on a SwingNode inside a Frame3D via TitledSwingWindow (the
+ "java <class>" command); in the 2D/Swing desktop the same panel is hosted as
+ an MDI internal frame via Desktop2DAppRegistry. The lg3d-apps jar (with
+ slf4j and IconManager) is on the desktop run classpath. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer</string>
+  </void>
+  <void property="desc">
+   <string>Share and view remote desktops over RMI, with clipboard sync and file transfer</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/remoteviewer.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>Remote Viewer</string>
+  </void>
+ </object>
+</java>
