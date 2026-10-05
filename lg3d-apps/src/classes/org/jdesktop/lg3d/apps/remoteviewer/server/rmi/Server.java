@@ -40,7 +40,11 @@ public class Server extends Thread {
     private static Registry registry;
     private static ServerImpl serverImpl;
     
-    private static robot rt = new robot();
+    // Built lazily by robot(): its constructor queries the screen size through
+    // the AWT toolkit, so creating it here in a static initializer would make
+    // merely loading Server (e.g. the hosted panel's status refresh calling
+    // isRunning()) require a display and throw HeadlessException without one.
+    private static robot rt;
     public static ClipbrdUtility clipbrdUtility;
     
     private static ArrayList<Object> Objects = new ArrayList<Object>();            
@@ -138,13 +142,25 @@ public class Server extends Thread {
     public static boolean isIdle() {
         return idle;
     }
+
+    /**
+     * The screen-capture / input-injection robot, built on first use. Only the
+     * active-serving paths (capture, remote input) need it, and each re-reads the
+     * live screen size, so deferring construction from class-load to first use is
+     * both safe and what lets {@link #isRunning()} be answered with no display.
+     */
+    private static synchronized robot robot() {
+        if (rt == null)
+            rt = new robot();
+        return rt;
+    }
     
     public static void updateOptions(Object data, int index) {
         ArrayList Options = (ArrayList) data;         
         
         viewers.get(index).setScreenScale((Float) Options.get(0));  
         viewers.get(index).setScreenRect(
-                rt.getCustomScreenRect((Rectangle) Options.get(1)));  
+                robot().getCustomScreenRect((Rectangle) Options.get(1)));  
         viewers.get(index).setCompressionLevel((Integer) Options.get(2)); 
         viewers.get(index).setDataCompression((Boolean) Options.get(3));            
         viewers.get(index).setCompressionQuality((Float) Options.get(4));
@@ -162,7 +178,7 @@ public class Server extends Thread {
                 object = ZipUtility.byteArraytoObject(data);
             
             connectionsInfos.get(index).incReceivedData(data.length);
-            rt.updateData(object, viewers.get(index));               
+            robot().updateData(object, viewers.get(index));               
         }
         catch (Exception e) {
             e.getStackTrace();
@@ -173,7 +189,7 @@ public class Server extends Thread {
         byte[] data = null;            
                 
         Objects.add(viewers.get(index).getScreenRect());
-        Objects.add(rt.CaptureScreenByteArray(viewers.get(index)));             
+        Objects.add(robot().CaptureScreenByteArray(viewers.get(index)));             
         if (viewers.get(index).isClipboardTransferEnabled())
             Objects.add(clipbrdUtility.getClipboardContent());
 

@@ -846,6 +846,33 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The Remote Viewer's Exit button no longer tears down the whole desktop**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — the ported jrdesktop GUI
+  is hosted inside the lg3d desktop JVM (a 3D `Frame3D` via `TitledSwingWindow`
+  and a 2D MDI internal frame via `Desktop2DAppRegistry.PANEL_APPS`), but its
+  Exit button — together with the system-tray "Exit" (`Main.exit`) and the
+  standalone `ViewerGUI` window-close — still ended in `System.exit(0)`, so
+  quitting the Remote Viewer killed the entire desktop session instead of just
+  its window. `RemoteViewerPanel` now exposes the canonical
+  `setOnClose(Runnable)` host hook (wired directly by the 3D `RemoteViewer`
+  wrapper and reflectively by the 2D `Desktop2DAppRegistry.setCloseCallback`);
+  its confirmed-Exit action runs `exitApplication()`, which stops the RMI server
+  if it is bound and then delegates the close to the host callback
+  (`RemoteViewer.close()` → `frame.changeEnabled(false)` plus a singleton reset
+  so a later launch reopens), never `System.exit`. `Main.exit()` (the tray path)
+  now closes the hosted window and `ViewerGUI`'s close always `dispose()`s.
+  The same fix relocates the app's persistent config / keystore (`config`,
+  `server.config`, `viewer.config`, `keystore`, `truststore`) off the process
+  working directory — which inside the desktop is the `lg3d-core` source tree,
+  where `viewer.config` / `server.config` were landing a **plaintext password**
+  in the checkout — to per-user `~/.lg3d/remoteviewer/`
+  (`FileUtility.getConfigDirectory()`), and makes `Server`'s screen-capture
+  `robot` lazy so merely loading `Server` (e.g. the panel's status refresh
+  calling `isRunning()`) no longer requires a display / throws
+  `HeadlessException`. Covered by headless JUnit 5 tests (`RemoteViewerPanelTest`
+  pins construction, the host size, the `setOnClose` contract and that Exit runs
+  the host callback rather than the JVM; a
+  `Desktop2DAppRegistryTest#remoteViewerIsHostedPanel` classification case).
 - **The 2D start-up splash now paints instead of showing a grey rectangle**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
   added for the 2D/Swing desktop mapped its window and then immediately handed

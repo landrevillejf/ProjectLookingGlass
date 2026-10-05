@@ -113,7 +113,7 @@ public class ViewerGUI extends JFrame {
         jPopupMenuFileTranfer.add(jMenuItemReceiveFiles);
 
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        setTitle(" jrdesktop Viewer");
+        setTitle(" Remote Viewer");
 
         // Set icon using IconManager
         Icon pauseIcon = IconManager.loadIcon(IconManager.IconCategory.MEDIA, "Pause", 16, 16);
@@ -291,7 +291,7 @@ public class ViewerGUI extends JFrame {
         jToolBar1.add(jSeparator12);
 
         jBtnAbout.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About", 16, 16));
-        jBtnAbout.setToolTipText("About jrdesktop");
+        jBtnAbout.setToolTipText("About Remote Viewer");
         jBtnAbout.setFocusable(false);
         jBtnAbout.setHorizontalTextPosition(SwingConstants.CENTER);
         jBtnAbout.setVerticalTextPosition(SwingConstants.BOTTOM);
@@ -338,9 +338,9 @@ public class ViewerGUI extends JFrame {
             Icon stopIcon = IconManager.loadIcon(IconManager.IconCategory.MEDIA, "Stop", 16, 16);
             jBtnStartStop.setIcon(stopIcon);
 
-            setTitle("jrdesktop Viewer [" + Config.server_address + "]");
+            setTitle("Remote Viewer [" + Config.server_address + "]");
         } else {
-            setTitle("jrdesktop Viewer");
+            setTitle("Remote Viewer");
 
             Icon resumeIcon = IconManager.loadIcon(IconManager.IconCategory.MEDIA, "Resume", 16, 16);
             setIconImage(getImageFromIcon(resumeIcon));
@@ -478,10 +478,7 @@ public class ViewerGUI extends JFrame {
                 JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
             if (recorder.isRecording())
                 recorder.viewer.Stop();
-            if (SysTray.isSupported())
-                dispose();
-            else
-                Main.exit();
+            dispose();
         }
     }
 

@@ -62,7 +62,7 @@ public class Config {
             properties.put("default-address", String.valueOf(default_address));
         
             properties.store(new FileOutputStream(Main.SERVER_CONFIG_FILE),
-                "jrdesktop server configuration file"); 
+                "Remote viewer server configuration file");
         } catch (Exception e) {
             e.getStackTrace();
         }            

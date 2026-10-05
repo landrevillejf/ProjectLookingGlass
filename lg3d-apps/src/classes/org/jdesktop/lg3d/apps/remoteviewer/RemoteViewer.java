@@ -45,9 +45,30 @@ public class RemoteViewer {
             return;
         }
         TitledSwingWindow.installHostedLookAndFeel();
-        panel = new RemoteViewerPanel();
-        frame = TitledSwingWindow.show("Remote Viewer", panel,
+        final RemoteViewerPanel p = new RemoteViewerPanel();
+        final Frame3D f = TitledSwingWindow.show("Remote Viewer", p,
                 RemoteViewerPanel.WIDTH_PX, RemoteViewerPanel.HEIGHT_PX);
+        // The Exit button must close only this window, never the desktop JVM it
+        // runs inside (the old Main.exit() path called System.exit(0)).
+        p.setOnClose(RemoteViewer::close);
+        panel = p;
+        frame = f;
+    }
+
+    /**
+     * Closes the Remote Viewer window if it is open and clears the singletons so
+     * a later launch reopens a fresh window instead of being swallowed by the
+     * "already open" guard in {@link #show()}. Disabling the {@link Frame3D} is
+     * the desktop's normal window-close idiom (as in Password Manager /
+     * Security Center); it never terminates the JVM, which would tear down the
+     * whole desktop this app is hosted inside.
+     */
+    public static synchronized void close() {
+        if (frame != null) {
+            frame.changeEnabled(false);
+        }
+        panel = null;
+        frame = null;
     }
 
     private RemoteViewer() {

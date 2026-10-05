@@ -59,4 +59,29 @@ public class FileUtility {
         }
         return currentDirectory;
     }     
+
+    /**
+     * Directory for the app's persistent configuration and keystore files
+     * ({@code config}, {@code server.config}, {@code viewer.config},
+     * {@code keystore}, {@code truststore}).
+     *
+     * <p>Deliberately <em>not</em> {@link #getCurrentDirectory()}: inside the
+     * lg3d desktop the process working directory is the {@code lg3d-core}
+     * source tree, so writing config there litters the repository with runtime
+     * artifacts - and {@code viewer.config} / {@code server.config} hold a
+     * plaintext password, which would then sit in the checkout (and risk being
+     * committed). Store them per-user under {@code ~/.lg3d/remoteviewer/}
+     * instead, creating the directory on demand.
+     */
+    public static String getConfigDirectory () {
+        File dir = new File(System.getProperty("user.home"),
+                ".lg3d" + File.separator + "remoteviewer");
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            // Fall back to the working directory only if the home dir is
+            // unusable, so the app still persists something rather than
+            // throwing on every store/load.
+            return getCurrentDirectory();
+        }
+        return dir.getAbsolutePath() + File.separatorChar;
+    }
 }

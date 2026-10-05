@@ -546,6 +546,23 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.dockermanager.DockerManager"));
     }
 
+    @Test
+    @DisplayName("the Remote Viewer maps to its Swing panel")
+    void remoteViewerIsHostedPanel() {
+        // The Remote Viewer (lg3d-apps) is the ported jrdesktop RMI remote-desktop
+        // tool: its RemoteViewerPanel main GUI is hosted on a SwingNode by the
+        // RemoteViewer wrapper in the 3D desktop, and here the very same panel
+        // opens as an MDI internal frame keyed on the 3D main class so the one
+        // shared descriptor serves both desktops. Because it runs inside the
+        // desktop JVM, its Exit button must close the window (setOnClose), never
+        // System.exit(0).
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer"));
+        assertEquals("org.jdesktop.lg3d.apps.remoteviewer.RemoteViewerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------

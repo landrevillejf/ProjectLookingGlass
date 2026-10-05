@@ -34,12 +34,12 @@ public class Main {
         
     public static void main (String args[]) {
 
-        CONFIG_FILE = FileUtility.getCurrentDirectory() + "config";
-        SERVER_CONFIG_FILE = FileUtility.getCurrentDirectory() + "server.config";
-        VIEWER_CONFIG_FILE = FileUtility.getCurrentDirectory() + "viewer.config";    
+        CONFIG_FILE = FileUtility.getConfigDirectory() + "config";
+        SERVER_CONFIG_FILE = FileUtility.getConfigDirectory() + "server.config";
+        VIEWER_CONFIG_FILE = FileUtility.getConfigDirectory() + "viewer.config";    
     
-        KEY_STORE = FileUtility.getCurrentDirectory() + "keystore";   
-        TRUST_STORE = FileUtility.getCurrentDirectory() + "truststore";
+        KEY_STORE = FileUtility.getConfigDirectory() + "keystore";   
+        TRUST_STORE = FileUtility.getConfigDirectory() + "truststore";
     
         System.getProperties().remove("java.rmi.server.hostname");        
                           
@@ -62,7 +62,7 @@ public class Main {
                 startServer(6666, "", "", false, false);
             else if (arg.equals("viewer")) // start viewer with default paramaters
                 startViewer("127.0.0.1", 6666, "", "", false);            
-            else if (arg.equals("display")) // display jrdesktop's main window
+            else if (arg.equals("display")) // display Remote viewer's main window
                 RemoteViewer.show();
             else {
                 for (int i=0; i<args.length; i++) {
@@ -111,11 +111,11 @@ public class Main {
 
     public static void initConfigPaths() {
         if (CONFIG_FILE == null) {
-            CONFIG_FILE = FileUtility.getCurrentDirectory() + "config";
-            SERVER_CONFIG_FILE = FileUtility.getCurrentDirectory() + "server.config";
-            VIEWER_CONFIG_FILE = FileUtility.getCurrentDirectory() + "viewer.config";
-            KEY_STORE = FileUtility.getCurrentDirectory() + "keystore";
-            TRUST_STORE = FileUtility.getCurrentDirectory() + "truststore";
+            CONFIG_FILE = FileUtility.getConfigDirectory() + "config";
+            SERVER_CONFIG_FILE = FileUtility.getConfigDirectory() + "server.config";
+            VIEWER_CONFIG_FILE = FileUtility.getConfigDirectory() + "viewer.config";
+            KEY_STORE = FileUtility.getConfigDirectory() + "keystore";
+            TRUST_STORE = FileUtility.getConfigDirectory() + "truststore";
         }
     }
        
@@ -177,7 +177,7 @@ public class Main {
             properties.put("ssl-enabled", String.valueOf(ssl_enabled));
 
             properties.store(new FileOutputStream(VIEWER_CONFIG_FILE),
-                    "jrdesktop viewer configuration file");
+                    "remote viewer configuration file");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -218,6 +218,10 @@ public class Main {
         if (Server.isRunning())       
             Server.Stop();
         clearStoreProperties();
-        System.exit(0);
+        // Never System.exit(0): the Remote Viewer is hosted inside the lg3d
+        // desktop JVM (a 3D Frame3D or a 2D MDI internal frame), so exiting here
+        // would tear down the whole desktop. This is the system-tray "Exit"
+        // path; close the application window instead.
+        RemoteViewer.close();
     }
 }
