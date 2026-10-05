@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.51.1 —
 
 ### Added
+- **Metal theme collection for the conventional 2D desktop, incl. a Glassy
+  theme that reproduces the 3D desktop's window-glass look** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — `MetalThemeManager.builtIns()`
+  now offers six palettes instead of two: *Steel* and *Ocean* (the stock JDK
+  Metal themes) plus four new ones — *Graphite* (neutral slate-grey), *Emerald*
+  (forest-green accent), *Sunset* (warm amber/coral accent) and **Glassy**, an
+  ice-blue palette built from colours lifted directly out of the native 3D
+  desktop's rendering code rather than picked freehand: its primary accent
+  shades are the exact edge/title blues `WidgetPanel.BORDER` (`#6094D6`) and
+  `TITLE_COLOR` (`#8CB9F5`) paint on every glassy HUD card and `Frame3D` window
+  decoration, and its highlight shade is `FrostedGlassPanel.DEFAULT_TINT`
+  (`#D9E6FF`) — the cool, lightly-blue frosted-white tint every `Frame3D` glass
+  panel is washed with — so the 2D Control Center's "Metal Theme" manager can
+  now dress the Swing desktop in the same translucent-glass material as the 3D
+  one (as faithfully as an opaque, six-colour Metal palette allows). No new UI
+  wiring was needed: the Control Center's theme list already iterates
+  `MetalThemeManager.available()`. Covered by two new headless JUnit 5 tests
+  in `MetalThemeSpecTest` (built-ins enumeration, exact Glassy colour
+  provenance).
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer

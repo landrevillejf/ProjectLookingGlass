@@ -82,6 +82,57 @@ public record MetalThemeSpec(
             new ColorUIResource(0xB8, 0xCF, 0xE5), new ColorUIResource(0xEE, 0xEE, 0xEE));
 
     /**
+     * "Graphite" - a cool, understated slate-grey palette for a neutral,
+     * professional desktop with no colour accent.
+     */
+    public static final MetalThemeSpec GRAPHITE = new MetalThemeSpec("Graphite",
+            new ColorUIResource(0x4A, 0x54, 0x5E), new ColorUIResource(0x70, 0x7C, 0x88),
+            new ColorUIResource(0xB0, 0xBA, 0xC4), new ColorUIResource(0x66, 0x66, 0x66),
+            new ColorUIResource(0x99, 0x99, 0x99), new ColorUIResource(0xE0, 0xE2, 0xE5));
+
+    /**
+     * "Emerald" - a forest-green accent palette with a pale minty background.
+     */
+    public static final MetalThemeSpec EMERALD = new MetalThemeSpec("Emerald",
+            new ColorUIResource(0x1B, 0x5E, 0x42), new ColorUIResource(0x3D, 0x91, 0x6B),
+            new ColorUIResource(0xB2, 0xE0, 0xC7), new ColorUIResource(0x5A, 0x66, 0x60),
+            new ColorUIResource(0x96, 0xA3, 0x9C), new ColorUIResource(0xE3, 0xEC, 0xE6));
+
+    /**
+     * "Sunset" - a warm amber/coral accent palette with a pale cream background.
+     */
+    public static final MetalThemeSpec SUNSET = new MetalThemeSpec("Sunset",
+            new ColorUIResource(0x8C, 0x43, 0x1F), new ColorUIResource(0xD6, 0x76, 0x3F),
+            new ColorUIResource(0xFA, 0xCD, 0xA0), new ColorUIResource(0x78, 0x67, 0x5C),
+            new ColorUIResource(0xB0, 0xA0, 0x94), new ColorUIResource(0xF5, 0xE8, 0xDC));
+
+    /**
+     * "Glassy" - reproduces, as faithfully as a six-colour Metal palette
+     * allows, the translucent ice-blue "glass" look of the native 3D desktop's
+     * {@code Frame3D} window chrome. Every shade below is lifted directly from
+     * the 3D rendering code rather than picked freehand, so the 2D desktop
+     * reads as the same material:
+     * <ul>
+     *   <li>{@code primary1}/{@code primary2} are the exact edge/title accent
+     *       blues {@code org.jdesktop.lg3d.widgets.builtin.WidgetPanel}'s
+     *       {@code BORDER} (0x6094D6) and {@code TITLE_COLOR} (0x8CB9F5) paint
+     *       on every glassy HUD card and window decoration;</li>
+     *   <li>{@code primary3} is {@code org.jdesktop.lg3d.utils.shape.
+     *       FrostedGlassPanel}'s {@code DEFAULT_TINT} - the cool, lightly-blue
+     *       frosted-white tint (RGB 0.85, 0.90, 1.00) every {@code Frame3D}
+     *       glass panel is washed with - rounded to 0xD9E6FF;</li>
+     *   <li>the {@code secondary} ramp is a neutral extension of that same
+     *       tint (a muted slate-blue shadow down to a near-white glass
+     *       background) so controls and panels stay legible while keeping the
+     *       icy, translucent character.</li>
+     * </ul>
+     */
+    public static final MetalThemeSpec GLASSY = new MetalThemeSpec("Glassy",
+            new ColorUIResource(0x60, 0x94, 0xD6), new ColorUIResource(0x8C, 0xB9, 0xF5),
+            new ColorUIResource(0xD9, 0xE6, 0xFF), new ColorUIResource(0x3A, 0x48, 0x5E),
+            new ColorUIResource(0xBE, 0xCD, 0xE4), new ColorUIResource(0xE8, 0xF0, 0xFC));
+
+    /**
      * Canonicalises the record: a blank name falls back to {@code "Custom"} and
      * any null colour falls back to the matching Steel shade, so a partially
      * specified theme still renders rather than NPE-ing inside the Metal UI.
