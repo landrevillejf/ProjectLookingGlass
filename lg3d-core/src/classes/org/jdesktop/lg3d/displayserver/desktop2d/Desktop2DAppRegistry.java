@@ -433,6 +433,15 @@ public final class Desktop2DAppRegistry {
         // desktop run classpath, so the reflective lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.dockermanager.DockerManager",
                 "org.jdesktop.lg3d.apps.dockermanager.DockerManagementPanel");
+        // Remote Viewer (lg3d-apps, org.jdesktop.lg3d.apps.remoteviewer) is a
+        // port of the standalone jrdesktop/Remote Viewer RMI remote-desktop
+        // tool: its original MainFrame GUI (server start/stop, status, viewer
+        // connect, file transfer, about, exit) hosted unchanged as
+        // RemoteViewerPanel. Its runtime deps (IconManager, slf4j) are on the
+        // lg3d-core desktop run classpath too, so the in-JVM start-menu launch
+        // works and the 2D desktop can host the same panel as an MDI frame.
+        panels.put("org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer",
+                "org.jdesktop.lg3d.apps.remoteviewer.RemoteViewerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

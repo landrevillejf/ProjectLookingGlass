@@ -184,6 +184,15 @@ dependencies {
     compileOnly files(rootProject.file('libs/IconManager-1.6.0.jar'))
     testImplementation files(rootProject.file('libs/IconManager-1.6.0.jar'))
 
+    // The Remote Viewer app (org.jdesktop.lg3d.apps.remoteviewer) is a port of
+    // the standalone jrdesktop/Remote Viewer RMI remote-desktop tool, which
+    // uses Lombok's @Slf4j on its Server/Viewer/Main/SysTray classes for SLF4J
+    // loggers (slf4j-api above already provides the facade). Lombok is
+    // compile-time only, centrally versioned (see gradle/libs.versions.toml),
+    // same as update-manager's usage.
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
     // Headless JUnit 5 for the HelpSet / content-integrity test.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter

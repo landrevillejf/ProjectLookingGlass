@@ -232,6 +232,11 @@ public class GenerateAppIcons {
         // universal "send a request" mark) is drawn in-tool like the contract
         // page, browser window and the marks above.
         {"payloadman.png", IconColor.DEEP_ORANGE, IconCategory.GENERAL, SEND_PLANE_GLYPH},
+        // Remote Viewer (port of the standalone jrdesktop/Remote Viewer RMI
+        // remote-desktop tool, hosted unchanged on a SwingNode / 2D MDI frame);
+        // reuses the bundled "Host" glyph (the same one the original
+        // MainFrame used for its own window icon) rather than a new in-tool mark.
+        {"remoteviewer.png", IconColor.BLUE_GRAY, IconCategory.DEVELOPMENT, "Host"},
     };
 
     public static void main(String[] args) throws Exception {
