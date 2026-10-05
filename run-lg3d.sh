@@ -80,6 +80,15 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          (Composite/Damage/XTest). Claims SubstructureRedirect
                          on DISPLAY; start it with no other window manager
                          running on that display. Passes -Pcompositor to Gradle.
+    -n, --nested [<display>]
+                         Target an already-running X display (default :1) as
+                         lg3d's own X server: exports DISPLAY=<display>, implies
+                         --compositor, and passes -Plgserverdisplay=<display> so
+                         lg3d claims SubstructureRedirect there and external X
+                         clients launch against it. This does NOT start any X
+                         server - the caller must already have one running there
+                         (a bare Xorg per docs/lfs-x11-contract.md; per project
+                         policy this script never spawns a nested Xephyr/Xvfb).
     -s, --swing-app <fqcn> [args...]
                          Run a conventional Swing application's main() inside
                          the desktop JVM so its windows are captured into the
@@ -111,6 +120,7 @@ DESKTOP2D=false
 DESKTOP_SWING=false
 DO_CLEAN=false
 DO_REBUILD=false
+LGSERVERDISPLAY=""
 SWING_APP=""
 SWING_APP_ARGS=""
 SWING_APP_CP=""
@@ -122,6 +132,16 @@ while [ $# -gt 0 ]; do
         -2|--2d)           DESKTOP2D=true ;;
         -w|--swing)        DESKTOP_SWING=true ;;
         -x|--compositor)   COMPOSITOR=true ;;
+        -n|--nested)
+                           # Optional display arg (default :1); consume the next
+                           # token only if it is a value, not another flag.
+                           if [ $# -ge 2 ] && [ -n "${2:-}" ] && [ "${2#-}" = "$2" ]; then
+                               LGSERVERDISPLAY="$2"; shift
+                           else
+                               LGSERVERDISPLAY=":1"
+                           fi
+                           COMPOSITOR=true
+                           ;;
         -c|--clean)        DO_CLEAN=true ;;
         -r|--rebuild)      DO_REBUILD=true ;;
         --swing-app-cp)    SWING_APP_CP="${2:-}"; shift ;;
@@ -140,12 +160,22 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# A targeted lg3d X server display (--nested) overrides DISPLAY for the whole
+# launch, so the AWT Canvas3D and any child X clients use the same display lg3d
+# claims as WM/compositor.
+if [ -n "${LGSERVERDISPLAY}" ]; then
+    export DISPLAY="${LGSERVERDISPLAY}"
+fi
+
 GRADLE_ARGS=(":lg3d-core:run" "--console=plain")
 if [ "${BACKGROUND3D}" = true ]; then
     GRADLE_ARGS+=("-Pbackground3d")
 fi
 if [ "${COMPOSITOR}" = true ]; then
     GRADLE_ARGS+=("-Pcompositor")
+fi
+if [ -n "${LGSERVERDISPLAY}" ]; then
+    GRADLE_ARGS+=("-Plgserverdisplay=${LGSERVERDISPLAY}")
 fi
 if [ "${DESKTOP2D}" = true ]; then
     GRADLE_ARGS+=("-Pdesktop2d")
@@ -179,6 +209,12 @@ if [ "${COMPOSITOR}" = true ]; then
     echo "MODE      : X11 compositor / window manager (-Pcompositor)"
     echo "WARNING   : lg3d will claim SubstructureRedirect on ${DISPLAY} and act"
     echo "            as the window manager. No other WM may already hold it."
+fi
+if [ -n "${LGSERVERDISPLAY}" ]; then
+    echo "X SERVER  : targeting existing display ${LGSERVERDISPLAY} (--nested;"
+    echo "            sets lg.lgserverdisplay + DISPLAY). This script does not start"
+    echo "            it - a bare Xorg must already be running there (see"
+    echo "            docs/lfs-x11-contract.md)."
 fi
 
 if [ "${DO_CLEAN}" = true ]; then
