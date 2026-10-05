@@ -179,20 +179,33 @@ compliant:
 
 Record the output of (1)–(5) as the compliance evidence.
 
-## 6. Development exception (nested Xephyr) — **not** the target
+## 6. Development convenience (`--nested <display>`) — **not** the target
 
-For development on an existing Wayland desktop, lg3d can run inside a **nested
-Xephyr** X server (`./run-lg3d.sh --nested [<display>]`), where lg3d is the
-WM/compositor of *that* nested server. This is a convenience for exercising the
-compositor without logging out of Wayland; it is **not** the production LFS
-target, and Xephyr has **no direct GL by default** (Java 3D may fail to obtain a
-hardware context). The provisioned LFS host MUST satisfy §3–§5 with a **bare
-Xorg** session, not Xephyr.
+`./run-lg3d.sh --nested [<display>]` (default `:1`) targets an **already-running**
+X display as lg3d's own X server: it exports `DISPLAY=<display>`, implies
+`--compositor`, and passes `-Plgserverdisplay=<display>` so lg3d claims
+`SubstructureRedirect` there and external X clients launch against it. **The
+script never starts an X server** — the caller must already have one running on
+that display. On a Wayland dev host the recommended way to obtain one is a **bare
+Xorg on a spare VT** (e.g. `Xorg :1 vt2 -nolisten tcp`), which matches the
+production stack and provides direct GL.
+
+A developer *may* instead point `--nested` at a nested **Xephyr** they started
+themselves, but this is discouraged: Xephyr has **no direct GL by default**
+(Java 3D may fail to obtain a hardware context) and is **not** the production LFS
+target. The provisioned LFS host MUST satisfy §3–§5 with a **bare Xorg** session.
 
 ## 7. References
 
-- README → **X11 compositor mode**, **Deployment target (Linux From Scratch)**,
-  **Try it on a Wayland host (nested Xephyr)**.
+- [`x11-compositor-spike-roadmap.md`](x11-compositor-spike-roadmap.md) — spike
+  report (Stages 0–3 evidence), the §5 acceptance checklist mapped to
+  `scripts/x11/live-proof.sh`, deferred work with rationale, and the
+  spike→production roadmap.
+- `scripts/x11/live-proof.sh` — the Stage-4 live-proof harness (never starts an
+  X server, never injects synthetic input, never screenshots).
+
+- README → **X11 compositor mode** (including the `--nested <display>` dev flag)
+  and **Deployment target (Linux From Scratch)**.
 - `lg3d-core/src/classes/org/jdesktop/lg3d/displayserver/nativewindow/x11/`
   — `X11Compositor`, `X11WindowManager`, `CompositeWindowImageLoader`,
   `X11InputForwarder`, `X11CompositeExt` / `X11DamageExt` / `X11ShmExt` /

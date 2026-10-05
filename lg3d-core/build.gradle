@@ -640,6 +640,20 @@ tasks.register('run', JavaExec) {
             logger.lifecycle('')
         }
     }
+
+    // Opt-in: target a specific X display for the lg3d X server / compositor
+    // (-Plgserverdisplay=:1, equivalently run-lg3d.sh --nested :1). Sets both the
+    // lg.lgserverdisplay property X11IntegrationModule reads and the DISPLAY
+    // environment the AWT Canvas3D and child X clients inherit, so lg3d claims
+    // SubstructureRedirect on that display. Defaults to :0 when unset. The caller
+    // must already have an X server running there (a bare Xorg per
+    // docs/lfs-x11-contract.md); this never spawns one.
+    if (project.hasProperty('lgserverdisplay')) {
+        def lgServerDisplay = project.property('lgserverdisplay').toString()
+        systemProperty 'lg.lgserverdisplay', lgServerDisplay
+        environment 'DISPLAY', lgServerDisplay
+        logger.lifecycle("lg3d X server display: ${lgServerDisplay} (lg.lgserverdisplay + DISPLAY)")
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -38,7 +38,7 @@ public class Config {
             properties.put("GUI-disabled", String.valueOf(GUI_disabled));
             properties.put("Systray-disabled", String.valueOf(Systray_disabled));        
             properties.store(new FileOutputStream(Main.CONFIG_FILE),
-                "jrdesktop configuration file"); 
+                "Remote Viewer configuration file");
         } catch (Exception e) {
             e.getStackTrace();
         }            

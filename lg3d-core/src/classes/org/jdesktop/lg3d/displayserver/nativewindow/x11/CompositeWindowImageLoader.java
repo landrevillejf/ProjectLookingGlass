@@ -267,7 +267,7 @@ public class CompositeWindowImageLoader implements TiledNativeWindowImageLoader 
     }
 
     /** Assembles one pixel from {@code bytesPerPixel} bytes at {@code off}. */
-    private static int readPixel(byte[] d, int off, int bytesPerPixel, boolean lsb) {
+    static int readPixel(byte[] d, int off, int bytesPerPixel, boolean lsb) {
         int pv = 0;
         if (lsb) {
             for (int i = bytesPerPixel - 1; i >= 0; i--) {
@@ -285,7 +285,7 @@ public class CompositeWindowImageLoader implements TiledNativeWindowImageLoader 
      * Extracts one colour channel from a pixel value using its mask and
      * scales it up to 8 bits.
      */
-    private static int channel(int pixel, int mask) {
+    static int channel(int pixel, int mask) {
         if (mask == 0) {
             return 0;
         }

@@ -124,6 +124,9 @@ final class X11InputForwarder implements LgEventListener {
         this.nw3d = nw3d;
         this.display = compositor.getDisplay();
         this.root = compositor.getRoot();
+        logger.info("X11 input forwarder attached to window 0x"
+            + Integer.toHexString(client.id) + " (XTest "
+            + (compositor.getXTest() != null ? "available" : "UNAVAILABLE") + ")");
     }
 
     // ------------------------------------------------------------------
@@ -180,6 +183,10 @@ final class X11InputForwarder implements LgEventListener {
             return;
         }
         client.set_input_focus();
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("X input focus -> window 0x"
+                + Integer.toHexString(client.id));
+        }
         // The pointer is now logically over this window; reset the warp dedup
         // so the next motion is always injected.
         lastAbsX = Integer.MIN_VALUE;
@@ -207,6 +214,10 @@ final class X11InputForwarder implements LgEventListener {
         if (computeAbsCoords(e, absCoords)) {
             warpPointer(xtest, absCoords[0], absCoords[1]);
         }
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("XTest button " + button + (press ? " press" : " release")
+                + " -> window 0x" + Integer.toHexString(client.id));
+        }
         xtest.fake_button_event(button, press, 0);
     }
 
@@ -220,6 +231,10 @@ final class X11InputForwarder implements LgEventListener {
         }
         int button = (rotation < 0) ? WHEEL_UP_BUTTON : WHEEL_DOWN_BUTTON;
         int clicks = Math.abs(rotation);
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("XTest wheel button " + button + " x" + clicks
+                + " -> window 0x" + Integer.toHexString(client.id));
+        }
         for (int i = 0; i < clicks; i++) {
             xtest.fake_button_event(button, true, 0);
             xtest.fake_button_event(button, false, 0);
@@ -233,10 +248,13 @@ final class X11InputForwarder implements LgEventListener {
         }
         lastAbsX = absX;
         lastAbsY = absY;
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("XTest motion -> root (" + absX + "," + absY + ")");
+        }
         xtest.fake_motion_event(root, absX, absY, false, 0);
     }
 
-    private static int mapButton(MouseEvent3D.ButtonId id) {
+    static int mapButton(MouseEvent3D.ButtonId id) {
         if (id == null) {
             return -1;
         }
@@ -272,7 +290,16 @@ final class X11InputForwarder implements LgEventListener {
         }
         int keycode = keysymToKeycode(keysym);
         if (keycode < 0) {
+            if (logger.isLoggable(Level.FINE)) {
+                logger.fine("keysym 0x" + Integer.toHexString(keysym)
+                    + " absent from server keymap; key not forwarded");
+            }
             return; // keysym absent from this server's keymap
+        }
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("XTest key " + (press ? "press" : "release")
+                + " keysym 0x" + Integer.toHexString(keysym)
+                + " keycode " + keycode);
         }
         xtest.fake_key_event(keycode, press, 0);
     }
@@ -309,7 +336,7 @@ final class X11InputForwarder implements LgEventListener {
      *
      * @return the keysym, or 0 if the key is not mapped
      */
-    private static int vkToKeysym(int vk) {
+    static int vkToKeysym(int vk) {
         // Letters: VK_A..VK_Z are 0x41..0x5A; base keysym is 0x61..0x7A.
         if (vk >= KeyEvent.VK_A && vk <= KeyEvent.VK_Z) {
             return vk - KeyEvent.VK_A + 0x61;
@@ -329,7 +356,7 @@ final class X11InputForwarder implements LgEventListener {
         return 0; // unmapped
     }
 
-    private static int specialVkToKeysym(int vk) {
+    static int specialVkToKeysym(int vk) {
         switch (vk) {
             // Whitespace / editing
             case KeyEvent.VK_SPACE:       return 0x0020; // XK_space
@@ -396,15 +423,30 @@ final class X11InputForwarder implements LgEventListener {
      */
     private boolean computeAbsCoords(MouseEvent3D e3d, int[] out) {
         e3d.getLocalIntersection(tmpP3f);
-        float lx = tmpP3f.x;
-        float ly = tmpP3f.y;
+        return mapLocalToPixel(tmpP3f.x, tmpP3f.y,
+            nw3d.getBodyWidth(), nw3d.getBodyHeight(),
+            client.getWidth(), client.getHeight(),
+            client.getX(), client.getY(), out);
+    }
+
+    /**
+     * Pure coordinate mapping extracted from {@link #computeAbsCoords} so the
+     * maths is unit-testable without a live {@link Display}. Converts a local 3D
+     * intersection {@code (lx, ly)} within a window body of {@code bodyW x bodyH}
+     * physical units (local origin at the body centre, +X right, +Y up) into an
+     * absolute root-relative pixel position, given the window's pixel size
+     * ({@code pixelW x pixelH}) and root-relative origin ({@code winX, winY}).
+     *
+     * @param out receives {@code [absX, absY]}
+     * @return false if the intersection is NaN or any geometry is non-positive
+     */
+    static boolean mapLocalToPixel(float lx, float ly,
+                                   float bodyW, float bodyH,
+                                   int pixelW, int pixelH,
+                                   int winX, int winY, int[] out) {
         if (Float.isNaN(lx) || Float.isNaN(ly)) {
             return false; // event did not occur over the window body
         }
-        float bodyW = nw3d.getBodyWidth();
-        float bodyH = nw3d.getBodyHeight();
-        int pixelW = client.getWidth();
-        int pixelH = client.getHeight();
         if (bodyW <= 0f || bodyH <= 0f || pixelW <= 0 || pixelH <= 0) {
             return false;
         }
@@ -418,8 +460,8 @@ final class X11InputForwarder implements LgEventListener {
         int py = Math.round(v * (pixelH - 1));
         // Client geometry is root-relative (no reparenting), so the absolute
         // injection point is the window origin plus the pixel offset.
-        out[0] = client.getX() + px;
-        out[1] = client.getY() + py;
+        out[0] = winX + px;
+        out[1] = winY + py;
         return true;
     }
 }

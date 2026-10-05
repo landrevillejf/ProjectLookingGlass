@@ -29,6 +29,24 @@ work to make it build and run on a current toolchain.
   `MetalThemeManager.available()`. Covered by two new headless JUnit 5 tests
   in `MetalThemeSpecTest` (built-ins enumeration, exact Glassy colour
   provenance).
+- **X11 compositor end-to-end spike on stock JDK 21** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — validated and hardened
+  the pure-Java Escher/`gnu.x11` native-X11 compositor path that lets lg3d act
+  as the window manager + compositor on a **bare Xorg** (the LFS production
+  target), with no forked JDK, agent or `sun.awt.*` peer. Added **31 headless
+  JUnit 5 tests** for the previously untested pure seams (virtual-key→keysym and
+  button mapping, the 3D-pick→client-pixel coordinate mapping, and `XGetImage`
+  pixel / TrueColor-channel decoding), instrumented `X11InputForwarder` with
+  `java.util.logging` so a live run is diagnosable, and fixed a
+  `ConcurrentModificationException` in `X11WindowAssociator.removeAllRules`.
+  Re-established the launch wiring — `run-lg3d.sh --nested [<display>]` and
+  `-Plgserverdisplay=<display>` target an **already-running** X display (the
+  script never starts one), closing the drift where the LFS X11 contract already
+  referenced `--nested`. Added `scripts/x11/live-proof.sh`, a Stage-4 harness
+  mapped to the contract's §5 acceptance criteria that **never** spawns a nested
+  X server, injects synthetic input or takes screenshots, plus
+  `docs/x11-compositor-spike-roadmap.md` (Stage-0–3 evidence, deferred work with
+  rationale, and the spike→production roadmap).
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer
@@ -865,6 +883,81 @@ work to make it build and run on a current toolchain.
   the legacy `/contacts` Preferences tree, which the org chart still needs for
   its `manager` hierarchy attribute.
 ### Fixed
+- **The Firewall start-menu entry no longer fails to load its icon**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.firewall`; icon in `lg3d-core`
+  resources) — the Firewall manager was added to the desktop without its icon:
+  `firewall.lgcfg` pointed `displayResourceUrlName` at a package-relative
+  `resource:///org/jdesktop/lg3d/apps/firewall/resources/images/icon/firewall.png`
+  that is not part of the assembled `resources/` runtime tree (and no such PNG
+  was ever committed), so opening the start menu logged `Failed getInputStream`,
+  a `NullPointerException` in `ResourceURLConnection.connect` and a
+  JAI / `TextureLoader` cascade, and the menu item rendered with no icon. The
+  descriptor now points at the shared
+  `resource:///resources/images/icon/firewall.png` — the same convention every
+  other start-menu app uses (e.g. `securitycenter.lgcfg`) — and a purpose-drawn
+  running-bond brick-wall `firewall.png` (48×48 RGBA on a red tile) is generated
+  into `lg3d-core/src/resources/images/icon` by
+  `lg3d-art/tools/GenerateAppIcons` and assembled by
+  `:lg3d-core:runtimeResources`.
+- **The Remote Viewer's Exit button no longer tears down the whole desktop**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — the ported jrdesktop GUI
+  is hosted inside the lg3d desktop JVM (a 3D `Frame3D` via `TitledSwingWindow`
+  and a 2D MDI internal frame via `Desktop2DAppRegistry.PANEL_APPS`), but its
+  Exit button — together with the system-tray "Exit" (`Main.exit`) and the
+  standalone `ViewerGUI` window-close — still ended in `System.exit(0)`, so
+  quitting the Remote Viewer killed the entire desktop session instead of just
+  its window. `RemoteViewerPanel` now exposes the canonical
+  `setOnClose(Runnable)` host hook (wired directly by the 3D `RemoteViewer`
+  wrapper and reflectively by the 2D `Desktop2DAppRegistry.setCloseCallback`);
+  its confirmed-Exit action runs `exitApplication()`, which stops the RMI server
+  if it is bound and then delegates the close to the host callback
+  (`RemoteViewer.close()` → `frame.changeEnabled(false)` plus a singleton reset
+  so a later launch reopens), never `System.exit`. `Main.exit()` (the tray path)
+  now closes the hosted window and `ViewerGUI`'s close always `dispose()`s.
+  The same fix relocates the app's persistent config / keystore (`config`,
+  `server.config`, `viewer.config`, `keystore`, `truststore`) off the process
+  working directory — which inside the desktop is the `lg3d-core` source tree,
+  where `viewer.config` / `server.config` were landing a **plaintext password**
+  in the checkout — to per-user `~/.lg3d/remoteviewer/`
+  (`FileUtility.getConfigDirectory()`), and makes `Server`'s screen-capture
+  `robot` lazy so merely loading `Server` (e.g. the panel's status refresh
+  calling `isRunning()`) no longer requires a display / throws
+  `HeadlessException`. Covered by headless JUnit 5 tests (`RemoteViewerPanelTest`
+  pins construction, the host size, the `setOnClose` contract and that Exit runs
+  the host callback rather than the JVM; a
+  `Desktop2DAppRegistryTest#remoteViewerIsHostedPanel` classification case).
+- **The Remote Viewer's live-viewing window is now hosted inside the desktop**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`; new core API in
+  `lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D`) — the main
+  panel was already integrated, but on Connect the viewer opened its
+  live-viewing UI as a `ViewerGUI extends JFrame` created eagerly by `Recorder`.
+  A top-level `JFrame` is an OS window owned by the host window manager: it is
+  neither a child of the 2D desktop's `JDesktopPane` nor part of the 3D scene, so
+  the internal screen capture (which paints each top-level `Frame` into its own
+  `lgscreen-<i>-*.png`) never showed the viewer in the desktop's
+  `lgscreen-0-0.png`. The viewer content is extracted into a plain
+  `ViewerPanel extends JPanel` (toolbar + `ScreenPlayer`, no window chrome) that
+  a new `ViewerHost` embeds in whichever desktop is running: a 2D MDI internal
+  frame via the new reusable `Desktop2D.openHostedPanel(title, icon, content)`
+  (which returns null when no 2D desktop is live, so it is headless- and
+  unit-test-safe), else a 3D `Frame3D` via `TitledSwingWindow`, else — standalone
+  CLI `viewer` mode only — the thin `ViewerGUI` `JFrame` wrapper. `Recorder` no
+  longer opens a window at construction (it just builds `viewerPanel`), and
+  `Viewer.Start()` calls `ViewerHost.show(recorder)` then
+  `recorder.viewerPanel.startRecording()`. The panel reports state upward through
+  three host hooks (`setOnClose`, `setOnTitleChange`, `setOnMaximizeToggle`) that
+  each host maps onto its own window idiom, so Close never disposes a stray frame
+  or kills the JVM; **full-screen becomes maximize-within-desktop when hosted**
+  (2D `JInternalFrame.setMaximum`, 3D `HostedWindowResizer.resize`), keeping
+  exclusive OS full-screen for the standalone `JFrame` only. Supporting
+  headless-safety: `ClipbrdUtility` initialises the system clipboard lazily,
+  `HostProperties.getLocalProperties()` skips `Toolkit` screen metrics headless,
+  and `ScreenPlayer` skips its `DropTarget` headless. Covered by headless JUnit 5
+  tests (`ViewerPanelTest` pins that constructing the panel creates **no
+  top-level `Window`** — the regression that caused this bug — plus the host-hook
+  contract and that Close/maximize delegate to the host callback;
+  `Desktop2DHostedPanelTest` asserts `openHostedPanel` returns null with no 2D
+  instance).
 - **The 2D start-up splash now paints instead of showing a grey rectangle**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
   added for the 2D/Swing desktop mapped its window and then immediately handed

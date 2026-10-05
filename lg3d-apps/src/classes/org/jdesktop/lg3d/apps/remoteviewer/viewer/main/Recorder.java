@@ -28,7 +28,7 @@ public class Recorder extends Thread {
     private boolean pause = false;
     
     public Viewer viewer;
-    public ViewerGUI viewerGUI;
+    public ViewerPanel viewerPanel;
     public ScreenPlayer screenPlayer;
     public ClipbrdUtility clipbrdUtility;
     public ViewerData viewerData; 
@@ -37,6 +37,11 @@ public class Recorder extends Thread {
     
     public Recorder(Viewer viewer) {
         this.viewer = viewer;      
+        // Daemon: the send/receive loop parks in wait() between sessions, so it
+        // must never hold the JVM open on its own (the desktop or CLI owns the
+        // lifecycle). This also keeps a headless unit test that builds a
+        // Recorder from hanging the test JVM.
+        setDaemon(true);
         start(); 
         
         clipbrdUtility = new ClipbrdUtility();      
@@ -44,7 +49,10 @@ public class Recorder extends Thread {
         connectionInfos = new ConnectionInfos(false);
         viewerData = new ViewerData(InetAdrUtility.getLocalAdr());
         screenPlayer = new ScreenPlayer(this);
-        viewerGUI = new ViewerGUI(this);
+        // Swing-only and headless-safe: the panel is the viewer's content, hosted
+        // by whichever desktop is running (see ViewerHost) - no window is opened
+        // here, so constructing a Recorder never creates a top-level frame.
+        viewerPanel = new ViewerPanel(this);
     }
     
     @Override
@@ -89,8 +97,6 @@ public class Recorder extends Thread {
         clipbrdUtility.removeFlavorListener();
         screenPlayer.removeAdapters();
         screenPlayer.clearScreen();         
-        if (viewerGUI.isFullScreenMode())
-            viewerGUI.changeFullScreenMode();     
         viewerData.setScreenRect(new Rectangle(0, 0, 0, 0));          
         viewer.disconnect();
     }
