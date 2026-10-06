@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Advanced Search (from lg3d-apps). A production, streaming
+ file and content finder for the desktop and the minimal LFS system: name match
+ (contains / glob / regex), content grep with snippets, and type / size / recency
+ filters over one or more scopes, ranked by relevance. Bound to the desktop wide
+ Ctrl+Shift+F accelerator. In the 3D desktop the panel is put on a SwingNode inside
+ a Frame3D via TitledSwingWindow (the "java <class>" command); in the 2D/Swing
+ desktop the same SearchPanel is hosted as an MDI internal frame via
+ Desktop2DAppRegistry. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.search.Search</string>
+  </void>
+  <void property="desc">
+   <string>Find files and text across the system (Ctrl+Shift+F)</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/search.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>Search</string>
+  </void>
+ </object>
+</java>

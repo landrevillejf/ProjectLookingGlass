@@ -153,7 +153,7 @@ match. Entries are handled by kind:
 
 - **Panel apps** — **File Manager**, **Task Manager**, **Control Center**,
   **Calculator**, **Media Writer**, **Widget Gallery**, **Help Center**,
-  **About**, **LPM Console**, **Software Update**, **Database Manager**,
+  **Search**, **About**, **LPM Console**, **Software Update**, **Database Manager**,
   **FTP Client**, **Mail**, **Agenda**, **Contact**, **Chart**, the four games
   (**Chess**, **Solitaire**, **Sudoku**, **Tic-Tac-Toe**) and the **Periodic
   Table** (the same Swing panels the 3D desktop hosts on a `SwingNode`, minus
@@ -251,6 +251,15 @@ JNA.
   real system tools (`growisofs`/`wodim`/`xorriso`/`dd`/`mkfs.*`) with device
   detection via `lsblk`, `pkexec` elevation, inline confirmation before every
   destructive write, progress, cancellation and optional SHA-256 verify.
+- **Advanced Search** (Utilities menu, and the desktop-wide **Ctrl+Shift+F**
+  accelerator) — a streaming file &amp; content finder over the whole desktop/LFS
+  system with no background indexer. A headless parallel engine
+  (`org.jdesktop.lg3d.utils.search`) walks one or more scopes and *streams* ranked
+  hits live: name match (contains / glob / regex, case toggle), an optional content
+  grep with line-numbered snippets (binaries auto-skipped), and type / min-max size
+  / modified-within-days filters, with a result cap and Stop. Unreadable dirs,
+  permission errors and symlink loops are handled gracefully; double-click opens a
+  hit, *Open Folder* reveals it.
 
 System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
 (`xdg-open`), polkit / `pkexec` (privileged operations), and optionally
