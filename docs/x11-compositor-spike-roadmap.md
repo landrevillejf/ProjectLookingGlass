@@ -369,6 +369,30 @@ no live Xorg to test against, remains the reckless scope creep §4 warns about.
 toolkits behave (minimize/maximize/above/below, taskbar/pager hints), and so the
 application switcher can enumerate and activate external apps.
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure,
+spec-correct decision brain now exists as **`NetWmState`** — a static function
+over enums and `EnumSet`s with **no `gnu.x11.Display` and no atom ids**. It
+implements `applyChange` (REMOVE/ADD/TOGGLE, §5.9, null-safe, never mutates the
+input), `defaultStateFor` (per-window-type initial state), `allowedActions`
+(state + capabilities → the action set, incl. the maximized/fullscreen/skip-taskbar
+/above-below rules), and `decideActive` (focus-stealing prevention: an
+application-initiated activation → `DEMANDS_ATTENTION`, a pager/unspecified one →
+`ACTIVATE`). `X11WindowManagerHints` keeps the Display-bound half: its
+previously-stubbed `setNetWmState` / `setNetAllowedActions` (which hard-coded
+only the DIALOG case) now delegate to `NetWmState`, mapping each enum to its atom
+name via the 1:1 `stateAtomName`/`actionAtomName` convention and **filtering to
+the atoms already advertised in `_NET_SUPPORTED`**; a new `windowTypeFor(atomId)`
+maps the client's `_NET_WM_WINDOW_TYPE_*` id back to the enum. The client-list /
+stacking half is served by `CompositedWindowSet` (Phase C). **18 headless tests**
+(`NetWmStateTest`, X11 package now 140) pin the wire codes, atom-name mapping,
+all three state-change actions, every window type's default state, each
+allowed-action branch, both focus decisions and the unmodifiable view.
+**Still deferred (needs a bare Xorg):** round-tripping a live `_NET_WM_STATE`
+client message through `applyChange` and re-emitting the property, honouring
+`_NET_ACTIVE_WINDOW`/`_NET_CLIENT_LIST(_STACKING)` requests from real pagers, and
+verifying external toolkits react to the advertised actions — all require a live
+WM session on bare Xorg.
+
 **Phase E — performance: MIT-SHM fast path.** Today readback prefers MIT-SHM and
 falls back to `XGetImage`. Production needs: SHM pixmap attach/detach lifecycle
 hardening, damage-region (not full-window) readback, texture-upload batching /

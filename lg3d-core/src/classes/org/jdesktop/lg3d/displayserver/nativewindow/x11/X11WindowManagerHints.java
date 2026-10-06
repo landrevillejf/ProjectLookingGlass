@@ -42,6 +42,7 @@
 package org.jdesktop.lg3d.displayserver.nativewindow.x11;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.logging.Logger;
 import gnu.x11.Atom;
 import gnu.x11.Display;
@@ -155,69 +156,112 @@ class X11WindowManagerHints {
     }
 
     //////////////////////////////////////////////////////////////
-    // TODO THE FELLOWING FUNCTIONS ARE NOT COMPLETLY IMPLEMENTED.
-    // NEED TO BE EXTENDED. FEATURES WILL BE ADDED FROM RELEASE
-    // TO RELEASE.
-    /////////////////////////////////////////////////////////////
+    // EWMH subset (Phase D). The pure decision logic lives in
+    // NetWmState; the methods below only translate its enums to
+    // atom ids and filter to the atoms advertised in _NET_SUPPORTED.
+    //////////////////////////////////////////////////////////////
     /**
-     * set the default NET_WM_STATE acording to window type. 
-     * @param client
+     * Sets the default {@code _NET_WM_STATE} for a client according to its
+     * window type, using the pure {@link NetWmState} decision layer. Only the
+     * states this WM advertises in {@code _NET_SUPPORTED} (see {@link #wmStates})
+     * are emitted, so the property stays consistent with the capability list.
+     * @param display the X display
+     * @param client the client window
      */
     static void setNetWmState(Display display, X11Client client) {
-	int temp[] = new int[5];
-	int i = 0;
+	NetWmState.WindowType type = windowTypeFor(client.getNetWindowType());
+	EnumSet<NetWmState.State> state = NetWmState.defaultStateFor(type);
 
-	for (int j = 0; j < windowTypes.length; j++) {
-	    if (client.getNetWindowType() == ((Atom) Atom.intern(display,
-		    "_NET_WM_WINDOW_TYPE_DIALOG")).id) {
-		temp[i++] = ((Atom) Atom.intern(display,
-			"_NET_WM_STATE_SKIP_TASKBAR")).id;
-		break;
-	    }
-	    if (client.getNetWindowType() == ((Atom) Atom.intern(display,
-		    "_NET_WM_WINDOW_TYPE_SPLASH")).id) {
-		temp[i++] = ((Atom) Atom.intern(display,
-			"_NET_WM_STATE_SKIP_TASKBAR")).id;
-		break;
-	    }
-	    if (client.getNetWindowType() == ((Atom) Atom.intern(display,
-		    "_NET_WM_WINDOW_TYPE_UTILITY")).id) {
-		temp[i++] = ((Atom) Atom.intern(display,
-			"_NET_WM_STATE_SKIP_TASKBAR")).id;
-		break;
+	int temp[] = new int[state.size()];
+	int i = 0;
+	for (NetWmState.State s : state) {
+	    int atomId = ((Atom) Atom.intern(display,
+		    NetWmState.stateAtomName(s))).id;
+	    if (isAdvertised(wmStates, atomId)) {
+		temp[i++] = atomId;
 	    }
 	}
 	int data[] = new int[i];
-	for (int j = 0; j < i; j++) {
-	    data[j] = temp[j];
-	}
+	System.arraycopy(temp, 0, data, 0, i);
 	client.change_property(Window.REPLACE, i, netWmState, Atom.ATOM, 32,
 		data, 0, 32);
     }
 
     /**
-     * set _NET_WM_ALLOWED_ACTIONS properity according to window type.
-     * @param client
+     * Sets the {@code _NET_WM_ALLOWED_ACTIONS} property from the client's window
+     * type and capabilities, using the pure {@link NetWmState} decision layer.
+     * Only the actions this WM advertises in {@code _NET_SUPPORTED} (see
+     * {@link #allowedActions}) are emitted.
+     * @param display the X display
+     * @param client the client window
      */
     static void setNetAllowedActions(Display display, X11Client client) {
-	int temp[] = new int[10];
-	int i = 0;
+	NetWmState.WindowType type = windowTypeFor(client.getNetWindowType());
+	EnumSet<NetWmState.State> state = NetWmState.defaultStateFor(type);
+	EnumSet<NetWmState.Action> actions = NetWmState.allowedActions(state,
+		client.isResizable(), client.isMaximizable(),
+		client.isCloseable(), false);
 
-	for (int j = 0; j < windowTypes.length; j++) {
-	    if (client.getNetWindowType() == ((Atom) Atom.intern(display,
-		    "_NET_WM_WINDOW_TYPE_DIALOG")).id) {
-		temp[i++] = ((Atom) Atom
-			.intern(display, "_NET_WM_ACTION_CLOSE")).id;
-		temp[i++] = ((Atom) Atom.intern(display, "_NET_WM_ACTION_MOVE")).id;
-		break;
+	int temp[] = new int[actions.size()];
+	int i = 0;
+	for (NetWmState.Action a : actions) {
+	    int atomId = ((Atom) Atom.intern(display,
+		    NetWmState.actionAtomName(a))).id;
+	    if (isAdvertised(allowedActions, atomId)) {
+		temp[i++] = atomId;
 	    }
 	}
 	int data[] = new int[i];
-	for (int j = 0; j < i; j++) {
-	    data[j] = temp[j];
-	}
+	System.arraycopy(temp, 0, data, 0, i);
 	client.change_property(Window.REPLACE, i, netallowedAction, Atom.ATOM,
 		32, data, 0, 32);
+    }
+
+    /**
+     * Maps a {@code _NET_WM_WINDOW_TYPE_*} atom id back to the pure
+     * {@link NetWmState.WindowType} enum used by the EWMH decision layer.
+     * @param typeAtomId the client's window-type atom id
+     * @return the matching type, or {@link NetWmState.WindowType#NORMAL} if unknown
+     */
+    static NetWmState.WindowType windowTypeFor(int typeAtomId) {
+	if (windowTypes[2].id == typeAtomId) {
+	    return NetWmState.WindowType.DIALOG;
+	}
+	if (windowTypes[3].id == typeAtomId) {
+	    return NetWmState.WindowType.SPLASH;
+	}
+	if (windowTypes[4].id == typeAtomId) {
+	    return NetWmState.WindowType.DESKTOP;
+	}
+	if (windowTypes[5].id == typeAtomId) {
+	    return NetWmState.WindowType.DOCK;
+	}
+	if (windowTypes[6].id == typeAtomId) {
+	    return NetWmState.WindowType.TOOLBAR;
+	}
+	if (windowTypes[7].id == typeAtomId) {
+	    return NetWmState.WindowType.MENU;
+	}
+	if (windowTypes[8].id == typeAtomId) {
+	    return NetWmState.WindowType.UTILITY;
+	}
+	return NetWmState.WindowType.NORMAL;
+    }
+
+    /**
+     * True if {@code atomId} is one of the atoms this WM advertised in
+     * {@code _NET_SUPPORTED} (the given static table).
+     * @param table the advertised atom table
+     * @param atomId the atom id to look for
+     * @return whether the atom is advertised
+     */
+    private static boolean isAdvertised(Atom table[], int atomId) {
+	for (int j = 0; j < table.length; j++) {
+	    if (table[j] != null && table[j].id == atomId) {
+		return true;
+	    }
+	}
+	return false;
     }
 
     /**

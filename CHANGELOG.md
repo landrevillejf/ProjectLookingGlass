@@ -105,6 +105,39 @@ work to make it build and run on a current toolchain.
   and the controller's model sync. The live `X11WindowManager` InputOnly branch
   and X z-order still require a bare-Xorg session to validate (roadmap §5 Phase
   C).
+- **X11 compositor Phase D: EWMH subset decision layer** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the pure, spec-correct
+  brain behind the `_NET_WM_STATE` / `_NET_WM_ALLOWED_ACTIONS` /
+  `_NET_ACTIVE_WINDOW` hints the compositor sets on every managed native window.
+  **`NetWmState`** is a static function over enums and `EnumSet`s with **no
+  `gnu.x11.Display` and no atom ids**, so the EWMH semantics are unit-testable
+  headlessly: `applyChange` implements the REMOVE/ADD/TOGGLE client-message
+  semantics (§5.9, null-safe, never mutates the input set), `defaultStateFor`
+  derives a window type's initial state (dialog → `SKIP_TASKBAR`+`MODAL`;
+  splash/utility/toolbar/menu → `SKIP_TASKBAR`; normal/desktop/dock → empty),
+  `allowedActions` derives the action set from state + capabilities (CLOSE iff
+  closable; MOVE always; RESIZE only when resizable and neither maximized nor
+  fullscreen; MAXIMIZE_* only when maximizable and not fullscreen; MINIMIZE
+  unless `SKIP_TASKBAR`; FULLSCREEN iff capable; ABOVE/BELOW mutually exclusive
+  with the current state), and `decideActive` implements focus-stealing
+  prevention (an application-initiated activation is refused → `DEMANDS_ATTENTION`;
+  a pager/unspecified one is honoured → `ACTIVATE`). `X11WindowManagerHints`
+  keeps the Display-bound half: its previously-stubbed `setNetWmState` /
+  `setNetAllowedActions` (which hard-coded only the DIALOG case) now delegate to
+  `NetWmState`, translating each enum to its atom name via the 1:1
+  `stateAtomName`/`actionAtomName` convention and **filtering to the atoms the WM
+  already advertises in `_NET_SUPPORTED`** so the property never claims an
+  unsupported capability; a new `windowTypeFor(atomId)` maps the client's
+  `_NET_WM_WINDOW_TYPE_*` id back to the enum, and the client-list / stacking
+  half of EWMH is served by `CompositedWindowSet` (Phase C).
+  **18 new headless JUnit 5 tests** (`NetWmStateTest`, taking the X11 package to
+  140) pin the wire codes (`ChangeAction.fromCode`, `ActiveSource.fromCode`), the
+  atom-name mapping, all three state-change actions plus null-safety, every
+  window type's default state, each allowed-action rule branch (maximized /
+  fullscreen / skip-taskbar / above-below), both focus decisions and the
+  unmodifiable `readOnly` view — all with no live Display. Applying the hints to
+  a real window still requires a bare-Xorg session to validate (roadmap §5 Phase
+  D).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy
