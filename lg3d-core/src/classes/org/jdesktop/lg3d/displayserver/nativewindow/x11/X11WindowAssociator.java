@@ -45,24 +45,68 @@ final class X11WindowAssociator {
     private ArrayList<WindowAssociationRuleEntry> 
         windowAssociationRule = new ArrayList<WindowAssociationRuleEntry>();
     
-    private X11Client focusedWindow = null;
+    private WindowAssociationTarget focusedWindow = null;
     
+    /**
+     * Production constructor: installs the focus-tracking listener and loads the
+     * preference-configured association rules.
+     */
     X11WindowAssociator() {
-        // keep track of the X window touched last
+        this(true);
+    }
+
+    /**
+     * Test seam. {@code new X11WindowAssociator(false)} builds an associator with
+     * an empty rule list and no {@link LgEventConnector} listener / preference
+     * load, so the orchestration ({@link #getAssociatedWindow},
+     * {@link #removeAllRules} and rule matching) can be exercised headless against
+     * {@link WindowAssociationTarget} fakes: a real {@link X11Client} extends
+     * {@code gnu.x11.Window}, needs a live {@code Display}, and cannot even be
+     * class-loaded in a test JVM without running its own static
+     * {@code new X11WindowAssociator()}. Production always uses the no-arg
+     * constructor, so runtime behaviour is unchanged.
+     *
+     * @param installWiring when {@code true}, register focus tracking and load the
+     *                      default rules (production); when {@code false}, skip
+     *                      both (headless tests).
+     */
+    X11WindowAssociator(boolean installWiring) {
+        if (installWiring) {
+            installFocusTracking();
+            loadDefaultRules();
+        }
+    }
+
+    /**
+     * Keeps track of the X window touched last via the lg3d mouse-entered event
+     * stream. Extracted verbatim from the constructor so the wiring can be
+     * skipped in headless tests; behaviour is unchanged.
+     */
+    private void installFocusTracking() {
         LgEventConnector.getLgEventConnector().addListener(NativeWindow3D.class,
             new MouseEnteredEventAdapter(
                 new ActionBoolean() {
                     public void performAction(LgEventSource source, boolean enter) {
                         if (enter) {
                             NativeWindow3D nw = (NativeWindow3D)source;
-                            X11Client xc = (X11Client)nw.getNativeWindowControl();
-                            focusedWindow = xc;
+                            setFocusedWindow(
+                                (WindowAssociationTarget)nw.getNativeWindowControl());
                         } else
-                            focusedWindow = null;
+                            setFocusedWindow(null);
                     }
                 }
             ));
-        loadDefaultRules();
+    }
+
+    /**
+     * Sets the currently focused window. Package-private so headless tests can
+     * drive focus directly; production sets it from the mouse-entered listener in
+     * {@link #installFocusTracking()}.
+     *
+     * @param focusedWindow the newly focused window, or {@code null} on exit
+     */
+    void setFocusedWindow(WindowAssociationTarget focusedWindow) {
+        this.focusedWindow = focusedWindow;
     }
     
     private void loadDefaultRules() {
@@ -104,7 +148,7 @@ final class X11WindowAssociator {
         }
     }
     
-    void addRule(X11Client targetWindow, 
+    void addRule(WindowAssociationTarget targetWindow,
             String subWinResCls, String subWinResName, String subWinTitlePattern) 
     {
         windowAssociationRule.add(
@@ -121,13 +165,16 @@ final class X11WindowAssociator {
                 subWinResCls, subWinResName, subWinTitlePattern));
     }
     
-    X11Client getAssociatedWindow(X11Client x11Client) {
+    WindowAssociationTarget getAssociatedWindow(WindowAssociationTarget x11Client) {
         if (focusedWindow == null) {
             return null;
         }
         for (WindowAssociationRuleEntry entry : windowAssociationRule) {
-            X11Client ret = entry.getTargetWindow(x11Client, focusedWindow);
+            WindowAssociationTarget ret = entry.getTargetWindow(x11Client, focusedWindow);
             if (ret != null) {
+                // A one-time rule is retired as soon as it fires. Removing here
+                // is safe despite the for-each: the method returns immediately,
+                // so the fail-fast iterator is never advanced again.
                 if (entry.isOneTime()) {
                     windowAssociationRule.remove(entry);
                 }
@@ -140,7 +187,7 @@ final class X11WindowAssociator {
     /**
      * Remove all the rules associated with this x11Client
      */
-    void removeAllRules(X11Client x11Client) {
+    void removeAllRules(WindowAssociationTarget x11Client) {
         if (x11Client==null)
             return;
         // removeIf iterates safely; removing from the list directly inside a
@@ -183,7 +230,7 @@ final class X11WindowAssociator {
     }
 
     private static class WindowAssociationRuleEntry {
-        private X11Client targetWindow;
+        private WindowAssociationTarget targetWindow;
         private String subWinResCls;
         private String subWinResName;
         private Pattern targetWinTitlePattern;
@@ -191,7 +238,7 @@ final class X11WindowAssociator {
         private String targetWinResName;
         private Pattern subWinTitlePattern;
         
-        WindowAssociationRuleEntry(X11Client targetWindow, 
+        WindowAssociationRuleEntry(WindowAssociationTarget targetWindow,
                 String subWinResCls, String subWinResName, String subWinTitlePattern) 
         {
             this.targetWindow = targetWindow;
@@ -232,14 +279,11 @@ final class X11WindowAssociator {
             }
         }
         
-        X11Client getTargetWindow(X11Client subWinCandidate, X11Client focusedWindow) {
-            String cls = null, name = null;
+        WindowAssociationTarget getTargetWindow(WindowAssociationTarget subWinCandidate,
+                WindowAssociationTarget focusedWindow) {
+            String cls = subWinCandidate.getResClass();
+            String name = subWinCandidate.getResName();
             String title = subWinCandidate.getName();
-            
-	    if (subWinCandidate.classHint != null) {
-		cls = subWinCandidate.classHint.res_class();
-		name = subWinCandidate.classHint.res_name();
-	    }
 
             if (!matches(subWinResCls, subWinResName, subWinTitlePattern, cls, name, title)) {
                 return null;
@@ -249,8 +293,8 @@ final class X11WindowAssociator {
                 return targetWindow;
             }
             
-            String fCls = focusedWindow.classHint.res_class();
-            String fName = focusedWindow.classHint.res_name();
+            String fCls = focusedWindow.getResClass();
+            String fName = focusedWindow.getResName();
             String fTitle = focusedWindow.getName();
             
             if (!matches(targetWinResCls, targetWinResName, targetWinTitlePattern, fCls, fName, fTitle)) {
@@ -263,7 +307,7 @@ final class X11WindowAssociator {
             return (targetWindow != null);
         }
         
-        X11Client getTargetWindow() {
+        WindowAssociationTarget getTargetWindow() {
             return targetWindow;
         }
     }

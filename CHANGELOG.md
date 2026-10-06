@@ -84,6 +84,29 @@ work to make it build and run on a current toolchain.
   (`getAssociatedWindow` over live clients + the constructor's
   listener/prefs wiring) stays deferred pending an injectable
   `X11Client`/`LgEventConnector` fake. Roadmap §4.3/§5 updated.
+- **X11 compositor Phase B: window-association orchestration covered**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the
+  associator's *orchestration*, deferred by the two entries above, is now
+  headless-tested. A package-private `WindowAssociationTarget` interface (the
+  three reads the rules need — `getName`/`getResClass`/`getResName`) was
+  extracted and implemented by `X11Client`; `X11WindowAssociator` was retyped
+  onto it and gained a no-wiring `X11WindowAssociator(boolean)` test constructor
+  (the no-arg one delegates with `true`, so production is unchanged) plus a
+  package-private `setFocusedWindow` hook, so the rule engine can be driven with
+  lightweight fakes and **no `X11Client`** — which cannot even be class-loaded in
+  a test JVM without running its own static `new X11WindowAssociator()`
+  (`LgEventConnector` + prefs). **14 new headless JUnit 5 tests**
+  (`X11WindowAssociatorOrchestrationTest`, taking the X11 package to 78) pin
+  `getAssociatedWindow` (the null-focus guard, sub-window/target-clause gating,
+  first-match-wins ordering, and one-time-rule retirement) and `removeAllRules`
+  (drops a window's one-time rules, clears focus when that window was focused,
+  leaves other windows' rules intact, and no-ops on `null`). The refactor is
+  behaviour-preserving for every input that did not previously throw; the one
+  intentional change hardens the focused-window rule path against a missing
+  WM_CLASS (it dereferenced `classHint` unconditionally — an NPE — and now reads
+  it null-safely), which a dedicated test pins. Only the constructor's *live*
+  listener/prefs wiring (needs a running desktop) and X11-scoped PIT remain
+  deferred. Roadmap §4.3/§5 updated.
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer

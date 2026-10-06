@@ -73,7 +73,7 @@ import org.jdesktop.lg3d.displayserver.nativewindow.NativeBacksideWindow3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.TiledNativeWindowImage;
 
 
-final class X11Client extends Window implements NativeWindowControl {
+final class X11Client extends Window implements NativeWindowControl, WindowAssociationTarget {
     private static final Logger logger = Logger.getLogger("lg.x11");
     static final int UNMANAGED = 0;
     static final int NORMAL    = 1;
@@ -221,8 +221,11 @@ final class X11Client extends Window implements NativeWindowControl {
         if (!inputOnly) {
             if (decorated) {
                 // check if this window is configured to be associated with
-                // another window (i.e. a backside window of another window)
-                associatedPrimaryWindow = windowAssociator.getAssociatedWindow(this);
+                // another window (i.e. a backside window of another window).
+                // getAssociatedWindow is typed on WindowAssociationTarget so the
+                // orchestration is headless-testable; in production the
+                // associator only ever holds X11Clients, so this downcast is safe.
+                associatedPrimaryWindow = (X11Client) windowAssociator.getAssociatedWindow(this);
                 
                 if (associatedPrimaryWindow != null) {
                     NativeWindow3D nwm = (NativeWindow3D)(associatedPrimaryWindow.nativeWinMonitor);
@@ -509,6 +512,26 @@ final class X11Client extends Window implements NativeWindowControl {
     
     public String getName() {
         return name;
+    }
+
+    // ---- WindowAssociationTarget (see X11WindowAssociator) ----
+
+    /**
+     * The WM_CLASS res_class, or {@code null} if this window has no class hint
+     * yet. Part of {@link WindowAssociationTarget}: lets the window associator
+     * evaluate its rules without reaching into the {@code classHint} field, and
+     * keeps the focused-window rule path null-safe.
+     */
+    public String getResClass() {
+        return (classHint != null) ? classHint.res_class() : null;
+    }
+
+    /**
+     * The WM_CLASS res_name, or {@code null} if this window has no class hint
+     * yet. Part of {@link WindowAssociationTarget}.
+     */
+    public String getResName() {
+        return (classHint != null) ? classHint.res_name() : null;
     }
     
     public void setName(String name) {
