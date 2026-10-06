@@ -186,6 +186,32 @@ work to make it build and run on a current toolchain.
   (icon-only default hides the text and badges the glyph, the tooltip wording,
   and `badgedIcon` returning the base glyph when there is nothing unread), none
   of which write real user prefs.
+- **Sound: master volume slider + output-device management (2D desktop)**
+  (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`
+  `...controlcenter`) — the Control Center **Sound** panel is now a complete
+  mixer instead of a decile preset list: the master volume is a **drag
+  `JSlider`** (0-100, live percentage read-out, applied on release so dragging
+  does not fire a CLI call per pixel) beside the mute toggle, and below it an
+  **Output devices** `JList` *shows and manages the audio interfaces* — every
+  sink/card with its description, volume, `[muted]` and `[default]` markers, with
+  **Set as Default** to switch the active output and **Refresh** to re-enumerate.
+  The slider (not a combo box, whose heavyweight popup cannot be hosted
+  offscreen) works on both desktops because `SwingNode`'s renderer forwards drag
+  events to the hidden frame. `VolumeStatus` gains the device seam behind it:
+  a `Device(id,description,isDefault,percent,muted)` record, `devices()`
+  enumerating most-authoritative-first (**PipeWire** `wpctl status` →
+  **PulseAudio** `pactl list sinks` → **plain ALSA** `aplay -l`, the Linux From
+  Scratch / minimal case), `setDefault(id)` and per-device `setVolume(id,pct)` /
+  `setMuted(id,bool)`, plus a `deviceLabel(Device)` formatter. The parsers
+  (`parseWpctlSinks`/`parsePactlSinks`/`parseAlsaCards`), the label and the
+  per-backend device command arrays are pure, and every probe degrades to an
+  empty list / no-op when no tool exists (headless CI, no sound card), so the
+  panel simply disables the switch button. **New/extended headless JUnit 5
+  tests**: seven more `VolumeStatusTest` cases (the three device parsers,
+  `deviceLabel`, the exact device command arrays and a devices()/per-device
+  mutator no-throw guard) and a rewritten `SoundPanelTest` asserting the panel
+  hosts a 0-100 `JSlider` and an output-device `JList` — none of which invoke a
+  real audio tool or touch a sound card.
 
 ### Fixed
 - **Sound: master volume now works on PipeWire, PulseAudio and plain-ALSA hosts
