@@ -17,10 +17,11 @@
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Panels:** `ControlCenterPanel` is a `JList` navigation list + `CardLayout` (not a
-`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty panels
+`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-one panels
 implement the `ControlPanel` interface and are registered by `ControlPanelRegistry`,
 in order: Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
-Shortcuts, Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing,
+Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications, Network,
+Bluetooth, Printing,
 Date & Time, Language & Region, Users, System, Schedule, Task Scheduler.
 
 ## Roles
@@ -89,7 +90,8 @@ Control Center is a system settings application that provides a Swing-based UI f
 - **Panels** - `AppearancePanel`, `CustomizationPanel`, `DesktopPanel`,
   `DisplayPanel`, `SoundPanel`,
   `PowerPanel`, `InputPanel`, `ShortcutsPanel`, `NotificationsPanel`,
-  `WorkspacesPanel`, `QuickLaunchPanel`, `NetworkPanel`, `BluetoothPanel`,
+  `WorkspacesPanel`, `QuickLaunchPanel`, `FileAssociationsPanel`, `NetworkPanel`,
+  `BluetoothPanel`,
   `PrintingPanel`, `DateTimePanel`, `LocalePanel`, `UsersPanel`, `SystemInfoPanel`,
   `SchedulePanel`, `TaskSchedulerPanel`
 - **Seams** - the `lg3d-core` `displayserver.desktop2d` helpers the panels drive
@@ -107,7 +109,7 @@ Frame3D (Control Center)
     └── ControlCenterPanel (JPanel)
         ├── JList (navigation)
         └── CardLayout (selected ControlPanel)
-            └── the 20 panels registered by ControlPanelRegistry
+            └── the 21 panels registered by ControlPanelRegistry
 ```
 
 ### Swing Integration Pattern

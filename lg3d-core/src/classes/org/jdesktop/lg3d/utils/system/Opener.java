@@ -28,21 +28,31 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jdesktop.lg3d.utils.prefs.FileAssociations;
 
 /**
  * Opens files, folders and URIs with the user's preferred applications and
  * moves files to the trash, using the freedesktop.org conventions.
  *
- * <p>Opening delegates to {@code xdg-open}; trashing prefers {@code gio trash}
- * and falls back to a manual move into {@code $XDG_DATA_HOME/Trash} (writing a
- * compliant {@code .trashinfo} sidecar) when gio is absent. Both are optional:
- * if the tools are missing the operations report failure instead of throwing,
- * so the file manager and the dock stacks can show a message.</p>
+ * <p>Opening first consults the user's {@link FileAssociations}: when a
+ * file-type association is configured (say, the desktop's PDF Viewer for
+ * {@code .pdf}) that handler wins, whether it names one of the desktop's own
+ * applications (delegated to the registered {@link FileAssociationLauncher}) or
+ * an external executable (run as a child process with {@code %f} expanded). With
+ * no association, opening delegates to {@code xdg-open}. Trashing prefers
+ * {@code gio trash} and falls back to a manual move into
+ * {@code $XDG_DATA_HOME/Trash} (writing a compliant {@code .trashinfo} sidecar)
+ * when gio is absent. All of it is optional: if the tools are missing the
+ * operations report failure instead of throwing, so the file manager and the
+ * dock stacks can show a message.</p>
  *
  * <p>No JNI/JNA; pure JDK plus the standard desktop CLI tools.</p>
  */
 public final class Opener {
     private static final Logger logger = Logger.getLogger("lg.system");
+
+    /** The desktop's internal-application launcher, when one is running. */
+    private static volatile FileAssociationLauncher associationLauncher;
 
     private static final DateTimeFormatter TRASH_DATE =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -57,15 +67,72 @@ public final class Opener {
     }
 
     /**
-     * Opens a local file or directory with the default application
-     * ({@code xdg-open <path>}).
+     * Registers the desktop's internal-application launcher, or null to clear
+     * it. The 2D desktop sets this at start-up so a file-type association naming
+     * one of the desktop's own applications opens inside the desktop; without it
+     * such a handler falls through to an external launch. See
+     * {@link FileAssociationLauncher}.
+     */
+    public static void setFileAssociationLauncher(FileAssociationLauncher launcher) {
+        associationLauncher = launcher;
+    }
+
+    /**
+     * Opens a local file or directory with the user's preferred application: the
+     * configured {@link FileAssociations} handler when there is one, else the
+     * system default ({@code xdg-open <path>}).
      *
-     * @return true if xdg-open was launched successfully (exit 0)
+     * @return true if the handler (or xdg-open) was launched successfully
      */
     public static boolean open(Path path) {
         if (path == null) {
             return false;
         }
+        String handler = FileAssociations.get().handlerFor(path);
+        if (handler != null && !handler.isBlank()) {
+            return openWith(handler, path);
+        }
+        return openWithSystemDefault(path);
+    }
+
+    /**
+     * Opens {@code path} with an explicit handler command - the shared path for
+     * a configured association and for an ad-hoc "Open With". An internal
+     * application is offered to the registered {@link FileAssociationLauncher};
+     * anything else (or a declined internal launch) is run as an external child
+     * process with {@code %f} expanded to the file path.
+     *
+     * @return true if the handler was launched successfully
+     */
+    public static boolean openWith(String command, Path path) {
+        if (command == null || command.isBlank() || path == null) {
+            return false;
+        }
+        FileAssociationLauncher launcher = associationLauncher;
+        if (launcher != null) {
+            try {
+                if (launcher.launch(command, path)) {
+                    return true;
+                }
+            } catch (RuntimeException e) {
+                logger.log(Level.INFO,
+                        "Internal file-association launcher failed for " + command, e);
+            }
+        }
+        List<String> argv = FileAssociations.expand(command, path);
+        if (argv.isEmpty()) {
+            return false;
+        }
+        ProcessRunner.Result r = ProcessRunner.run(argv);
+        if (!r.isSuccess()) {
+            logger.log(Level.INFO, "Handler {0} failed for {1}: {2}",
+                    new Object[] { command, path, r.getMessage() });
+        }
+        return r.isSuccess();
+    }
+
+    /** Opens {@code path} with the freedesktop system default ({@code xdg-open}). */
+    private static boolean openWithSystemDefault(Path path) {
         if (!canOpen()) {
             logger.warning("xdg-open not available; cannot open " + path);
             return false;

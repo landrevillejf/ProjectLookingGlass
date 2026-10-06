@@ -123,6 +123,43 @@ work to make it build and run on a current toolchain.
   `forApp`/`toBuilder` immutability, preset templates, every generative source,
   plain/tinted/gradient glyph, the full appearance chain, enum vocabularies and
   search) — none of which write real user prefs.
+- **Default Applications: per-file-type application associations (2D desktop)**
+  (`lg3d-core` `org.jdesktop.lg3d.utils.prefs` + `...utils.system` +
+  `...displayserver.desktop2d`; `lg3d-apps` `...controlcenter`) — the user can now
+  configure **which application opens which kind of file** (for example the
+  desktop's own PDF Viewer opens `.pdf`), and the choice is honoured everywhere a
+  file is opened. A new `Preferences`-backed `FileAssociations` model maps a
+  canonical type key (`ext:<ext>` or `mime:<type>`) to a handler command written
+  in the start-menu vocabulary (`java <class>` / `swingapp <class>` / an external
+  executable) with a `%f` file-path token, one pref key per association (prefix
+  `assoc.`) so a command containing `;`/`=` cannot corrupt the store; it ships
+  ~38 curated common types plus an extension→MIME fallback, resolves a path's
+  handler by extension first then MIME, and exposes pure helpers
+  (`normalizeTypeKey`/`extensionKey`/`mimeKey`/`expand`/`mimeTypeOf`/`labelFor`).
+  `Opener.open(Path)` — the single seam every caller already routes through (file
+  manager, desktop Documents/Downloads folder menus, dock stacks) — now consults
+  the association before falling back to `xdg-open`, and a new
+  `Opener.openWith(command,path)` runs an explicit handler: an *internal*
+  application is offered to a new `FileAssociationLauncher` callback (registered
+  by `Desktop2D` at start-up, cleared on exit, so `utils.system` keeps no
+  compile-time dependency on the Swing desktop) that hosts the app's panel and
+  hands it the document via a new reflective `Desktop2DAppRegistry.openFile`
+  (`openFile(File)`/`openFile(Path)`), while anything else runs as an external
+  child process through `ProcessRunner` with `%f` expanded into an argv vector
+  (no shell, so spaces are safe). A new **Default Applications** control-center
+  panel (`FileAssociationsPanel`, registered right after Quick Launch) lists the
+  file types on the left and the desktop's installed applications on the right,
+  with **Open with this** / **Custom command…** / **Use system default** and an
+  **Add type…** affordance for a custom extension, using `JList` selectors
+  throughout per the offscreen `SwingNode` rule. Defaults are unchanged, so a
+  file type keeps its `xdg-open` behaviour until the user opts in. **New/extended
+  headless JUnit 5 tests**: a new `FileAssociationsTest` (14 cases — the pure key
+  vocabulary, `%f` expansion shapes, common-type well-formedness, MIME fallback,
+  the persisted round-trip, extension-beats-MIME precedence and null/blank
+  safety, snapshotting and restoring every key it touches so a developer's real
+  `.pdf` handler is never clobbered) plus four more `Desktop2DAppRegistryTest`
+  cases pinning the reflective `openFile` (File hook, Path fallback, a declined
+  result, null/no-hook safety).
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 
