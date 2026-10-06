@@ -1160,6 +1160,19 @@ work to make it build and run on a current toolchain.
   `BackupPanelTest`) plus a `Desktop2DAppRegistryTest` mapping assertion.
 
 ### Changed
+- **Screen Snapshot now saves to `~/Documents/Screenshots` by default**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.screencapture`) — the screen-capture
+  config frame seeded its save location with `System.getProperty("user.dir")`,
+  the process working directory, which inside the desktop is the `lg3d-core`
+  source tree — so snapshots landed as stray `lgscreen-*.png` files in the
+  checkout instead of somewhere the user would look for them. The default is now
+  `Screenshots` inside the user's `Documents` folder (`~/Documents/Screenshots`),
+  resolved by the pure, headless-testable `defaultScreenshotDirectory()` helper
+  and shown (still fully overridable) in the frame's location field. Both capture
+  paths — the 2D/Swing `captureDesktopToPng` PNG writer and the 3D
+  `ScreenCaptureEvent` handled by `ScreenCaptureBehavior` — now get a destination
+  that is created on demand (`mkdirs`) before the first write, so a fresh profile
+  with no `Screenshots` folder still captures instead of silently failing.
 - **Agenda, Mail, Messenger and Video Conference now share one address book**
   (`lg3d-incubator` `org.jdesktop.lg3d.apps.orgchart.ui.agenda` +
   `org.jdesktop.lg3d.apps.mail`; `lg3d-apps`
