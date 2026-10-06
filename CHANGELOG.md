@@ -10,6 +10,42 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.57.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **System-tray indicators: volume + network mirrored into the host tray (2D
+  desktop)** (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d` +
+  `...utils.prefs`; `lg3d-apps` `...controlcenter`) — the master-volume and
+  network-link indicators can now be mirrored into the host
+  `java.awt.SystemTray` as real tray icons, opt-in from the control center, so
+  the 2D desktop can surface live volume/link glyphs in the desktop environment's
+  own tray rather than only in the lg3d taskbar. A new `IndicatorIcons` factory
+  draws the glyphs procedurally with `Graphics2D` into a transparent
+  `BufferedImage` (the same offscreen technique `NotificationTray.badgedIcon`
+  uses) because `IconManager` ships a static `Volume` GIF but no network / wi-fi
+  / mute artwork and a tray icon has to reflect live *state*: a speaker cone with
+  zero-to-three sound waves scaled to the level (or a red mute cross), and a
+  wi-fi fan / RJ45 ethernet plug drawn grey with a red slash when offline. A new
+  `SystemTrayBridge` polls the existing `VolumeStatus`/`NetworkStatus` platform
+  seams (1 s volume, 5 s network) and pushes each reading into a `TrayIcon`'s
+  image and tooltip; it degrades gracefully — when the host has no system tray
+  (`SystemTray.isSupported()` false, the common case on GNOME/Wayland, which
+  dropped the XEmbed tray protocol) or the JVM is headless, every operation is a
+  no-op. `Desktop2D` owns the bridge lifecycle, building/tearing it down from
+  `reapplyConfig()` so a control-center toggle takes effect live, and stopping it
+  in `exit()`. Two new `DesktopConfig` prefs persist the choice — an
+  `indicators.systemTray` master enable (`isIndicatorsSystemTray()`/
+  `setIndicatorsSystemTray()`, off by default) and a per-indicator
+  `indicator.show.<NAME>` visibility over a new `Indicator` `{VOLUME, NETWORK}`
+  enum (`isIndicatorShown()`/`setIndicatorShown()`, all shown by default), both
+  wired through load/save/reset. The Desktop control-center panel gains a **System
+  tray indicators** block (a mirror Off/On list plus a Volume/Network shown/hidden
+  toggle) using JList selectors throughout, per the offscreen `SwingNode` rule.
+  The lg3d **taskbar is unchanged** — this is an additional host-tray mirror, not
+  a rework of the in-bar indicator cluster. **New headless JUnit 5 tests**:
+  `IndicatorIconsTest` (ARGB size/type, painted-pixel presence per state, size
+  clamping, null level/kind safety, Icon wrappers), `DesktopConfigIndicatorsTest`
+  (defaults, round-trips, independence, null-safety, reset, save/load persistence)
+  and `SystemTrayBridgeTest` (null-tray no-op lifecycle, support parity, and the
+  pure image/tooltip helpers), none of which write real user prefs or need a
+  display.
 - **Desktop Customization: colour themes + accent (2D desktop)** (`lg3d-core`
   `org.jdesktop.lg3d.displayserver.desktop2d` + `...utils.prefs`; `lg3d-apps`
   `...controlcenter`) — a new **Customization** control-center category (registered
