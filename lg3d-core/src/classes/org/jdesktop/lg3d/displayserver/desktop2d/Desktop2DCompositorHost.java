@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 import javax.swing.JComponent;
 
 import org.jdesktop.lg3d.displayserver.nativewindow.x11.CompositedWindowHost;
+import org.jdesktop.lg3d.displayserver.nativewindow.x11.CompositedWindowSet;
 
 /**
  * Hosts composited native X11 windows <em>inside</em> the conventional 2D
@@ -81,17 +82,35 @@ public final class Desktop2DCompositorHost {
     /** Insertion-ordered so {@link #disposeAll} tears down in map order. */
     private final Map<Integer, Entry> windows = new LinkedHashMap<>();
 
+    /** The multi-window focus/stacking model (Phase C) for the hosted windows. */
+    private final CompositedWindowSet windowSet;
+
     /**
+     * Creates a controller with the default {@link CompositedWindowSet.FocusPolicy#POINTER}
+     * focus policy.
+     *
      * @param host   produces the composited Swing surface for a window
      * @param opener creates the {@link Desktop2DWindow} that embeds it
      * @throws IllegalArgumentException if either argument is null
      */
     public Desktop2DCompositorHost(CompositedWindowHost host, WindowOpener opener) {
+        this(host, opener, CompositedWindowSet.FocusPolicy.POINTER);
+    }
+
+    /**
+     * @param host   produces the composited Swing surface for a window
+     * @param opener creates the {@link Desktop2DWindow} that embeds it
+     * @param policy the focus/stacking policy for the hosted windows
+     * @throws IllegalArgumentException if {@code host} or {@code opener} is null
+     */
+    public Desktop2DCompositorHost(CompositedWindowHost host, WindowOpener opener,
+            CompositedWindowSet.FocusPolicy policy) {
         if (host == null || opener == null) {
             throw new IllegalArgumentException("host and opener must both be non-null");
         }
         this.host = host;
         this.opener = opener;
+        this.windowSet = new CompositedWindowSet(policy);
     }
 
     /** True if {@code windowId} is currently hosted in a desktop window. */
@@ -120,6 +139,7 @@ public final class Desktop2DCompositorHost {
             existing.hosted.resized(width, height);
             if (title != null) {
                 existing.window.setTitle(title);
+                windowSet.retitle(windowId, title);
             }
             return;
         }
@@ -127,6 +147,7 @@ public final class Desktop2DCompositorHost {
             host.open(windowId, title, width, height);
         Desktop2DWindow window = opener.open(title, hosted.getComponent());
         windows.put(windowId, new Entry(hosted, window));
+        windowSet.add(windowId, title);
         logger.log(Level.FINE, "Hosted composited window 0x{0} (''{1}'')",
             new Object[] { Integer.toHexString(windowId), title });
     }
@@ -156,6 +177,7 @@ public final class Desktop2DCompositorHost {
         Entry e = windows.get(windowId);
         if (e != null && title != null) {
             e.window.setTitle(title);
+            windowSet.retitle(windowId, title);
         }
     }
 
@@ -171,6 +193,7 @@ public final class Desktop2DCompositorHost {
         if (e == null) {
             return;
         }
+        windowSet.remove(windowId);
         e.hosted.dispose();
         e.window.dispose();
         logger.log(Level.FINE, "Released composited window 0x{0}",
@@ -184,5 +207,55 @@ public final class Desktop2DCompositorHost {
             e.window.dispose();
         }
         windows.clear();
+        windowSet.clear();
+    }
+
+    /**
+     * Explicitly activates a hosted window: raises it to the top of the stacking
+     * model, marks it focused, and brings its {@link Desktop2DWindow} to the
+     * front. No-op for a window that is not hosted.
+     *
+     * @param windowId the X window id
+     */
+    public void focusWindow(int windowId) {
+        Entry e = windows.get(windowId);
+        if (e == null) {
+            return;
+        }
+        windowSet.activate(windowId);
+        e.window.toFront();
+        try {
+            e.window.setSelected(true);
+        } catch (java.beans.PropertyVetoException pve) {
+            // Another window refused to yield the selection; not fatal.
+        }
+    }
+
+    /**
+     * Records the pointer entering a hosted window; under the
+     * {@link CompositedWindowSet.FocusPolicy#POINTER} policy this moves focus
+     * without restacking. No-op for a window that is not hosted.
+     *
+     * @param windowId the X window id
+     */
+    public void pointerEnter(int windowId) {
+        if (windows.containsKey(windowId)) {
+            windowSet.pointerEnter(windowId);
+        }
+    }
+
+    /** The currently focused window id, or null if none. */
+    public Integer focusedWindowId() {
+        return windowSet.focused();
+    }
+
+    /** The hosted window ids from top to bottom of the stacking order. */
+    public java.util.List<Integer> stackTopDown() {
+        return windowSet.stackTopDown();
+    }
+
+    /** The focus/stacking policy this controller was built with. */
+    public CompositedWindowSet.FocusPolicy getFocusPolicy() {
+        return windowSet.getFocusPolicy();
     }
 }

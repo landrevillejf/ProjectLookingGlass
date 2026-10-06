@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,7 @@ import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
 
 import org.jdesktop.lg3d.displayserver.nativewindow.x11.CompositedWindowHost;
+import org.jdesktop.lg3d.displayserver.nativewindow.x11.CompositedWindowSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +90,7 @@ class Desktop2DCompositorHostTest {
     private static final class FakeOpener implements Desktop2DCompositorHost.WindowOpener {
         final List<Desktop2DWindow> created = new ArrayList<>();
         final List<Integer> closedCounts = new ArrayList<>();
+        final javax.swing.JDesktopPane desktop = new javax.swing.JDesktopPane();
 
         @Override
         public Desktop2DWindow open(String title, JComponent content) {
@@ -100,6 +103,7 @@ class Desktop2DCompositorHostTest {
                     closedCounts.set(idx, closedCounts.get(idx) + 1);
                 }
             });
+            desktop.add(win);
             created.add(win);
             return win;
         }
@@ -245,5 +249,83 @@ class Desktop2DCompositorHostTest {
             () -> new Desktop2DCompositorHost(null, opener));
         assertThrows(IllegalArgumentException.class,
             () -> new Desktop2DCompositorHost(host, null));
+    }
+
+    @Test
+    @DisplayName("mapped windows are tracked in the focus/stacking model")
+    void focusModelTracksWindows() {
+        FakeHost host = new FakeHost();
+        FakeOpener opener = new FakeOpener();
+        Desktop2DCompositorHost controller = newController(host, opener);
+        assertEquals(CompositedWindowSet.FocusPolicy.POINTER,
+            controller.getFocusPolicy());
+
+        controller.windowMapped(1, "A", 10, 10);
+        controller.windowMapped(2, "B", 10, 10);
+        controller.windowMapped(3, "C", 10, 10);
+
+        assertEquals(Integer.valueOf(3), controller.focusedWindowId());
+        assertEquals(java.util.Arrays.asList(3, 2, 1), controller.stackTopDown());
+    }
+
+    @Test
+    @DisplayName("focusWindow activates and raises the window in the model")
+    void focusWindowRaises() {
+        FakeHost host = new FakeHost();
+        FakeOpener opener = new FakeOpener();
+        Desktop2DCompositorHost controller = newController(host, opener);
+        controller.windowMapped(1, "A", 10, 10);
+        controller.windowMapped(2, "B", 10, 10);
+        controller.windowMapped(3, "C", 10, 10);
+
+        controller.focusWindow(1);
+
+        assertEquals(Integer.valueOf(1), controller.focusedWindowId());
+        assertEquals(java.util.Arrays.asList(1, 3, 2), controller.stackTopDown());
+        // Unknown window: no-op.
+        controller.focusWindow(999);
+        assertEquals(Integer.valueOf(1), controller.focusedWindowId());
+    }
+
+    @Test
+    @DisplayName("pointerEnter moves focus under POINTER but not under CLICK")
+    void pointerEnterRespectsPolicy() {
+        FakeHost host = new FakeHost();
+        FakeOpener opener = new FakeOpener();
+        Desktop2DCompositorHost pointerCtl = newController(host, opener);
+        pointerCtl.windowMapped(1, "A", 10, 10);
+        pointerCtl.windowMapped(2, "B", 10, 10);
+        pointerCtl.pointerEnter(1);
+        assertEquals(Integer.valueOf(1), pointerCtl.focusedWindowId());
+
+        FakeHost host2 = new FakeHost();
+        FakeOpener opener2 = new FakeOpener();
+        Desktop2DCompositorHost clickCtl = new Desktop2DCompositorHost(
+            host2, opener2, CompositedWindowSet.FocusPolicy.CLICK);
+        assertEquals(CompositedWindowSet.FocusPolicy.CLICK, clickCtl.getFocusPolicy());
+        clickCtl.windowMapped(1, "A", 10, 10);
+        clickCtl.windowMapped(2, "B", 10, 10);
+        clickCtl.pointerEnter(1);
+        assertEquals(Integer.valueOf(2), clickCtl.focusedWindowId()); // unchanged
+    }
+
+    @Test
+    @DisplayName("unmap and retitle keep the focus model in sync")
+    void unmapAndRetitleSyncModel() {
+        FakeHost host = new FakeHost();
+        FakeOpener opener = new FakeOpener();
+        Desktop2DCompositorHost controller = newController(host, opener);
+        controller.windowMapped(1, "A", 10, 10);
+        controller.windowMapped(2, "B", 10, 10);
+
+        controller.windowRetitled(2, "B2");
+        controller.windowUnmapped(2);
+
+        assertEquals(Integer.valueOf(1), controller.focusedWindowId());
+        assertEquals(java.util.Arrays.asList(1), controller.stackTopDown());
+
+        controller.disposeAll();
+        assertTrue(controller.stackTopDown().isEmpty());
+        assertNull(controller.focusedWindowId());
     }
 }

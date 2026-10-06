@@ -86,6 +86,25 @@ work to make it build and run on a current toolchain.
   headless `Desktop2DWindow`) pin map/resize/retitle/remap-fold/unmap/disposeAll
   and the constructor null-checks. Roadmap §5 gains a **Phase B.7 — 2D desktop
   host** entry.
+- **X11 compositor Phase C: multi-window focus & stacking model** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the pure brain for
+  managing N simultaneous composited windows. **`CompositedWindowSet`** tracks the
+  live window set, its sibling z-order (bottom→top) and the input focus under one
+  of two policies — `POINTER` (focus-follows-pointer: `pointerEnter` moves focus
+  without restacking) and `CLICK` (click-to-focus: focus moves only on an explicit
+  `activate`, which also raises) — with `add`/`remove`/`raise`/`lower`/`retitle`/
+  `activate`/`clear` and unmodifiable `stackTopDown()`/`windowsBottomUp()` views.
+  It holds **no X and no Java 3D state**, so both the 3D desktop (ordering
+  `NativeWindow3D` quads) and the 2D desktop can consult the same model.
+  `Desktop2DCompositorHost` now maintains a `CompositedWindowSet` alongside its
+  window map (a new 3-arg constructor takes the `FocusPolicy`; the 2-arg one
+  defaults to `POINTER`) and exposes `focusWindow`, `pointerEnter`,
+  `focusedWindowId`, `stackTopDown` and `getFocusPolicy`. **21 new headless JUnit
+  5 tests** (`CompositedWindowSetTest` 13 + 4 more on `Desktop2DCompositorHostTest`)
+  pin stacking order, focus-transfer-on-remove, raise/lower, both focus policies,
+  and the controller's model sync. The live `X11WindowManager` InputOnly branch
+  and X z-order still require a bare-Xorg session to validate (roadmap §5 Phase
+  C).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

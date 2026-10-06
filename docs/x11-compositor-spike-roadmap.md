@@ -347,6 +347,23 @@ map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the
 `NativeWindow3D` quads. Implement the InputOnly branch (§4.1).
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure
+focus/stacking brain now exists as **`CompositedWindowSet`** — it tracks the live
+window set, its sibling z-order (bottom→top) and the input focus under a
+`POINTER` (focus-follows-pointer) or `CLICK` (click-to-focus) policy, with
+`add`/`remove`/`raise`/`lower`/`retitle`/`activate`/`clear` and unmodifiable
+`stackTopDown()`/`windowsBottomUp()` views. It holds no X and no Java 3D state, so
+both desktops share it. `Desktop2DCompositorHost` maintains one (3-arg
+constructor selects the policy; 2-arg defaults to `POINTER`) and exposes
+`focusWindow`/`pointerEnter`/`focusedWindowId`/`stackTopDown`/`getFocusPolicy`.
+**21 headless tests** (`CompositedWindowSetTest` 13, +4 controller) pin stacking,
+focus-transfer-on-remove, raise/lower, both policies and the controller sync.
+**Still deferred (needs a bare Xorg):** driving the live `X11WindowManager`
+map/unmap/ConfigureNotify into this model, the X sibling z-order of the
+`NativeWindow3D` quads, and the non-override-redirect **InputOnly** branch
+(`X11WindowManager.java:710`) — implementing WM/InputOnly semantics blind, with
+no live Xorg to test against, remains the reckless scope creep §4 warns about.
+
 **Phase D — full EWMH.** Complete the `_NET_WM_STATE` / `_NET_WM_ALLOWED_ACTIONS`
 / `_NET_ACTIVE_WINDOW` / client-list and stacking hints (§4.2) so external
 toolkits behave (minimize/maximize/above/below, taskbar/pager hints), and so the
