@@ -65,6 +65,25 @@ work to make it build and run on a current toolchain.
   sign-extension that repairs the stock Escher unsigned read). The
   `X11WindowAssociator` rule matcher stays deferred — it genuinely needs an
   injectable `X11Client`/`LgEventConnector` fake. Roadmap §4.3/§5 updated.
+- **X11 compositor Phase B: window-association rule matcher covered**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the last
+  pure seam the previous entry left deferred is now tested. The cls/name/title
+  decision inside `WindowAssociationRuleEntry.getTargetWindow` was extracted
+  **verbatim** into a package-private static
+  `X11WindowAssociator.matches(ruleCls, ruleName, ruleTitle, cls, name, title)`
+  — a behaviour-preserving extract-method (both the sub-window and
+  focused-window halves now delegate to it, and the unused `Matcher` import was
+  dropped), so the associator's real decision logic is exercised with plain
+  Strings and **no `X11Client`** (which extends `gnu.x11.Window` and needs a live
+  `Display`). **8 new headless JUnit 5 tests** (`X11WindowAssociatorMatcherTest`,
+  taking the X11 package to 64) pin the semantics: null criteria are wildcards,
+  non-null cls/name match exactly (case-sensitive) and veto a null candidate
+  value, the title pattern must `matches()` the whole title (not merely be found
+  in it) with regex alternation/anchors, all criteria must match together, and
+  empty strings are literal criteria. The associator's *orchestration*
+  (`getAssociatedWindow` over live clients + the constructor's
+  listener/prefs wiring) stays deferred pending an injectable
+  `X11Client`/`LgEventConnector` fake. Roadmap §4.3/§5 updated.
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer
