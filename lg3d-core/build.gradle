@@ -547,11 +547,6 @@ tasks.register('run', JavaExec) {
     // to fall back to the 800x600 windowed config (j3d1x1) for debugging.
     def displayConfig = project.hasProperty('windowed') ? 'j3d1x1' : 'j3d1x1-nbfs'
     systemProperty 'lg.displayconfigurl', "file://${etcDir}/lg3d/displayconfig/${displayConfig}"
-    // Tells DisplayServerControl whether the NoBorderFullScreen config above was
-    // actually selected (true) or -Pwindowed's small debug window was (false),
-    // so it only forces real macOS exclusive full screen (see
-    // applyMacOSExclusiveFullScreen) when full screen was actually requested.
-    systemProperty 'lg.fullscreen', (!project.hasProperty('windowed')).toString()
     // Opt-in GPU shader effects (SoftShadow + the FrostedGlassPanel window
     // body). Off by default so the desktop renders pixel-identically through
     // the fixed-function path; pass -Pshaders (e.g. ./run-lg3d.sh -- -Pshaders)
