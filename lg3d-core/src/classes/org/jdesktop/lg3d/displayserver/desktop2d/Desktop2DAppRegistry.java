@@ -442,6 +442,14 @@ public final class Desktop2DAppRegistry {
         // works and the 2D desktop can host the same panel as an MDI frame.
         panels.put("org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer",
                 "org.jdesktop.lg3d.apps.remoteviewer.RemoteViewerPanel");
+        // Advanced Search (lg3d-apps, org.jdesktop.lg3d.apps.search) is a pure
+        // Swing file-and-content finder driven by the headless lg3d-core
+        // org.jdesktop.lg3d.utils.search engine. It is the target of the
+        // desktop-wide Ctrl+Shift+F accelerator; the 3D desktop builds the same
+        // SearchPanel on a SwingNode via its Search wrapper, so the 2D desktop
+        // hosts it here as an MDI frame with no duplicated logic.
+        panels.put("org.jdesktop.lg3d.apps.search.Search",
+                "org.jdesktop.lg3d.apps.search.SearchPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

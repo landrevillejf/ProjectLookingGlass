@@ -47,6 +47,9 @@ final class Shortcuts {
 
         void openTerminal();
 
+        /** Opens (or focuses) the Advanced Search app. */
+        void search();
+
         void closeWindow();
 
         /** Steps to the next workspace (wrapping). */
@@ -90,6 +93,7 @@ final class Shortcuts {
             case ShortcutMap.SNAP_MAXIMIZE -> target.snapMaximize();
             case ShortcutMap.RUN_DIALOG -> target.runDialog();
             case ShortcutMap.OPEN_TERMINAL -> target.openTerminal();
+            case ShortcutMap.SEARCH -> target.search();
             case ShortcutMap.WINDOW_CLOSE -> target.closeWindow();
             case ShortcutMap.WORKSPACE_NEXT -> target.workspaceNext();
             case ShortcutMap.WORKSPACE_PREVIOUS -> target.workspacePrevious();

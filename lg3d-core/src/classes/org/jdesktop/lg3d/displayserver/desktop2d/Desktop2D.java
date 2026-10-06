@@ -1050,6 +1050,13 @@ public class Desktop2D {
         }
 
         @Override
+        public void search() {
+            openApp(new ItemSpec("Search",
+                    "java org.jdesktop.lg3d.apps.search.Search",
+                    "Find files and text across the system", null, null));
+        }
+
+        @Override
         public void closeWindow() {
             closeSelected();
         }

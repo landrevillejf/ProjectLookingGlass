@@ -245,6 +245,11 @@ public class GenerateAppIcons {
         // The bundled glyph set has nothing wall shaped, so a running-bond brick
         // wall is drawn in-tool like the shield and padlock above.
         {"firewall.png", IconColor.RED, IconCategory.GENERAL, WALL_GLYPH},
+        // Advanced Search (Swing file-and-content finder hosted on a SwingNode /
+        // 2D MDI frame; the desktop-wide Ctrl+Shift+F accelerator). The bundled
+        // glyph set already carries the universal magnifier ("Find"), so it is
+        // reused here on a vivid tile rather than drawn in-tool.
+        {"search.png", IconColor.CYAN, IconCategory.GENERAL, "Find"},
     };
 
     public static void main(String[] args) throws Exception {
