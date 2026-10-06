@@ -165,6 +165,33 @@ work to make it build and run on a current toolchain.
   branch and the sizing math, and the pipeline's coalesce-until-flush behaviour.
   The live SHM segment attach/detach and measuring against a video-playing client
   still require a bare-Xorg session (roadmap §5 Phase E).
+- **X11 compositor Phases F & G: GL/DRI3 bring-up planner + session lifecycle**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the pure
+  decision brains for the two host bring-up phases, code-complete and headless-
+  tested with the live proof (a real GPU GLX context; the `xinit`/systemd
+  hand-off) deferred to the bare-Xorg/LFS target. **`GlBringUpPlanner`** (Phase F)
+  turns a live GL probe (`glxPresent` / `directRendering` / `dri3Present` /
+  resolved own-window id) into one `Verdict` — `READY`, `PIN_OWN_WINDOW_ID`
+  (GL fine but lg3d's `Canvas3D` window unresolved → the operator must set
+  `-Dlg3d.x11.ownwindowid` or the screen is black), `SOFTWARE_ONLY` (no DRI3/
+  direct rendering) or `ABORT` (no GLX) — with the operator-facing `remediation`
+  text and a `resolveOwnWindowId(override, discovered)` helper that codifies the
+  override-then-discovery fallback `X11Compositor.exemptOwnWindow()` already
+  implements; it encodes the `docs/lfs-x11-contract.md` §5 acceptance checks.
+  **`SessionLifecycle`** (Phase G) is the session state machine for lg3d as the
+  sole X session client — `INIT → STARTING → RUNNING → SHUTTING_DOWN → STOPPED`
+  with `CRASHED`/`RECOVERING` branches, a bounded crash-recovery budget
+  (`canRecover`), refused (not thrown) illegal transitions, and the ordered
+  `shutdownSteps()` teardown list — and is **wired into `X11Compositor`**: the
+  constructor advances it `START → READY` (or `FAILURE` if a required extension
+  is missing) and `shutdown()` drives `SHUTTING_DOWN → STOPPED`, exposed via a
+  new `getSessionState()` for a live session supervisor. **21 new headless JUnit
+  5 tests** (`GlBringUpPlannerTest` 9, `SessionLifecycleTest` 12; X11 package now
+  190) pin every verdict branch, the remediation/own-window resolution, and the
+  full transition table incl. the recovery budget and refused transitions.
+  Obtaining a hardware GLX/DRI3 context and exercising the systemd/`xinit`
+  hand-off, clean shutdown and crash recovery still require a bare-Xorg session
+  (roadmap §5 Phases F/G).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

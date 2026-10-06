@@ -425,9 +425,36 @@ measuring the upload savings against a video-playing client.
 (contract §3.3); pin `lg3d.x11.ownwindowid` if auto-discovery of lg3d's own
 `Canvas3D` window id fails on the target driver.
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the bring-up
+decision is codified as **`GlBringUpPlanner`** — a pure function over a live
+`Probe` (`glxPresent`/`directRendering`/`dri3Present`/resolved own-window id)
+returning one `Verdict` (`READY`, `PIN_OWN_WINDOW_ID`, `SOFTWARE_ONLY`, `ABORT`)
+with the operator-facing `remediation` text, plus `resolveOwnWindowId(override,
+discovered)` capturing the override-then-discovery fallback that
+`X11Compositor.exemptOwnWindow()` already runs. It encodes the contract §5
+acceptance checks. **9 headless tests** (`GlBringUpPlannerTest`) pin every
+verdict branch and the own-window resolution. **Still deferred (needs the LFS
+host):** running the real GLX/DRI3 probe (`glxinfo`, the GLX extension query)
+on the target GPU DDX and feeding it to the planner — a hardware context cannot
+be obtained or measured headlessly.
+
 **Phase G — session integration.** The systemd/`xinit` hand-off (contract §3.6):
 lg3d as the sole session client on `:0`, clean shutdown (`Shutting down X11
 compositor`), crash recovery, and login/`xdm`-style autostart.
+
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the session state
+machine now exists as **`SessionLifecycle`** — `INIT → STARTING → RUNNING →
+SHUTTING_DOWN → STOPPED` with `CRASHED`/`RECOVERING` branches, a bounded
+crash-recovery budget (`canRecover`), refused (not thrown) illegal transitions,
+and the ordered `shutdownSteps()` teardown list. It is **wired into
+`X11Compositor`**: the constructor advances `START → READY` (or `FAILURE` when a
+required extension is missing) and `shutdown()` drives `SHUTTING_DOWN →
+STOPPED`, exposed via `getSessionState()`. **12 headless tests**
+(`SessionLifecycleTest`) pin the full transition table, the recovery budget and
+the teardown order. **Still deferred (needs the LFS host):** the actual
+systemd/`xinit` unit hand-off, process supervision and login/`xdm` autostart
+that drive this machine, and observing clean shutdown / crash recovery in a live
+session.
 
 ---
 
