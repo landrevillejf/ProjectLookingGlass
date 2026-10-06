@@ -38,6 +38,31 @@ work to make it build and run on a current toolchain.
   (read-then-present, origin clamping, empty/null short-circuits, resize/dispose
   forwarding, constructor null-checks, sink default no-ops). Roadmap §5 gains a
   **Phase B.5 — shared pixel pipeline** entry.
+- **X11 compositor: 2D Swing sink + input forwarder (native apps shown inside
+  the 2D desktop)** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — the two ends the shared
+  pixel pipeline needs to render a composited native window *inside* the
+  conventional 2D desktop. **`SwingCompositedWindowSink`** is the 2D
+  `CompositedWindowSink`: it keeps a full-window `BufferedImage` canvas, blits
+  each damage region into it at its window offset (under a lock shared with the
+  painting surface so a blit never tears), repaints only the damaged rectangle,
+  reallocates-and-preserves on `resized`, and drops the canvas on `dispose`; its
+  `getComponent()` `JPanel` is what a `Desktop2DWindow` embeds, so a foreign X11
+  window's pixels appear within the desktop instead of escaping as a separate
+  top-level window. **`SwingX11InputForwarder`** is the 2D sibling of
+  `X11InputForwarder`: it attaches AWT mouse/motion/wheel/key listeners to that
+  component and re-injects the input into the real client window via XTest —
+  because the Swing canvas is a 1:1 pixel copy, a component-local point maps
+  straight to `(winX+px, winY+py)` with no scene-graph pick to invert, key
+  mapping reuses the already-tested `X11InputForwarder.vkToKeysym`, and focus
+  follows pointer-enter/press. **16 new headless JUnit 5 tests**
+  (`SwingCompositedWindowSinkTest`, `SwingX11InputForwarderMappingTest`; X11
+  package now 110) pin canvas accumulation/offset placement, resize-preserve,
+  dispose, degenerate-size clamping, the headless paint path, and the forwarder's
+  pure seams (`mapPanelToRoot` clamping, `mapAwtButton`, and the
+  `keysyms_per_keycode`-aware `keysymToKeycode`) — all with no live
+  `gnu.x11.Display`, XTest or Java 3D. Roadmap §5 gains a **Phase B.6 — 2D Swing
+  sink** entry.
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

@@ -302,6 +302,27 @@ short-circuits, resize/dispose forwarding, constructor null-checks and the sink
 default no-ops). *Exit:* `:lg3d-core:test`/`build` green (X11 package now 94
 tests). This is the seam Phase C and the 2D-desktop host build on.
 
+**Phase B.6 — 2D Swing sink + input forwarder.** The two ends that let a
+composited native window render *inside* the conventional 2D desktop
+(`feat/x11-composite-shared-pipeline`). `SwingCompositedWindowSink` is the 2D
+`CompositedWindowSink`: a full-window `BufferedImage` canvas that blits each
+damage region at its window offset (locked against the painting surface),
+repaints only the dirty rectangle, reallocates-and-preserves on `resized`, drops
+the canvas on `dispose`, and exposes a `getComponent()` `JPanel` for a
+`Desktop2DWindow` to embed. `SwingX11InputForwarder` is the 2D sibling of
+`X11InputForwarder`: AWT mouse/motion/wheel/key listeners on that component are
+re-injected into the real client window via XTest — the canvas is a 1:1 pixel
+copy, so a component-local point maps straight to `(winX+px, winY+py)` with no
+scene-graph pick to invert, key mapping reuses `X11InputForwarder.vkToKeysym`,
+and focus follows pointer-enter/press. Headless-tested:
+`SwingCompositedWindowSinkTest` (8) pins canvas accumulation/offset, resize
+preserve, dispose, degenerate clamping and the headless paint path;
+`SwingX11InputForwarderMappingTest` (8) pins the pure `mapPanelToRoot`,
+`mapAwtButton` and `keysyms_per_keycode`-aware `keysymToKeycode` seams.
+*Exit:* `:lg3d-core:test`/`build` green (X11 package now 110 tests). Increment 3
+wires these into `Desktop2DAppRegistry`/`Desktop2DWindow` so an `EXTERNAL` app is
+hosted rather than forked to the host WM.
+
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the
