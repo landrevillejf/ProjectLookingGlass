@@ -142,7 +142,7 @@ AppConnectorPrivate.getAppConnector().postEvent(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Save Directory | `user.dir` | Directory where snapshots are saved |
+| Save Directory | `~/Documents/Screenshots` | Directory where snapshots are saved (created on demand; was `user.dir`) |
 | Snapshot Delay | 2 seconds | Delay before capture trigger |
 
 ## Best Practices

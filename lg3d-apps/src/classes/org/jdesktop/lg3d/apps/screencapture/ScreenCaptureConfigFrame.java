@@ -27,7 +27,7 @@ import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
  */
 public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     
-    private File saveDirectory = new File(System.getProperty("user.dir"));
+    private File saveDirectory = defaultScreenshotDirectory();
     private int snapshotDelay = 2;
     
     private static WeakReference<ScreenCaptureConfigFrame> captureFrame = null;
@@ -163,7 +163,7 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         setVisible(false);
         dispose();
         
-        final String dir = saveDirectory.getAbsolutePath();
+        final String dir = ensureDirectory(saveDirectory).getAbsolutePath();
         final boolean desktop2d = Boolean.getBoolean(Desktop2D.MODE_PROPERTY);
         TimerTask taskPerformer = new TimerTask() {
           public void run() {
@@ -209,6 +209,36 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_browseButtonActionPerformed
     
     /**
+     * The default directory screenshots are saved to: {@code Screenshots} inside
+     * the user's {@code Documents} folder ({@code ~/Documents/Screenshots}),
+     * rather than the process working directory. The location field in the
+     * config frame is seeded with this and the user may override it.
+     *
+     * @return the {@code ~/Documents/Screenshots} directory (not yet created)
+     */
+    static File defaultScreenshotDirectory() {
+        File home = new File(System.getProperty("user.home"));
+        return new File(new File(home, "Documents"), "Screenshots");
+    }
+
+    /**
+     * Creates {@code dir} (and any missing parents) if it does not already
+     * exist, so both capture paths — the 2D PNG writer and the 3D
+     * {@code ScreenCaptureEvent} handler — always have a writable destination.
+     * A directory that cannot be created is returned as-is; the per-image
+     * writers report the failure.
+     *
+     * @param dir the directory to ensure
+     * @return {@code dir}, for chaining
+     */
+    private static File ensureDirectory(File dir) {
+        if (dir != null && !dir.exists()) {
+            dir.mkdirs();
+        }
+        return dir;
+    }
+
+    /**
      * Paints every visible top-level window to a PNG in {@code dir}, named like
      * the 3D capture ({@code lgscreen-<i>-<n>.png}). This is the 2D/Swing
      * desktop's capture path: there is no scene graph to read a raster from and
@@ -216,6 +246,7 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
      * desktop is rendered straight into an image. Runs on the EDT.
      */
     private static void captureDesktopToPng(String dir) {
+        ensureDirectory(new File(dir));
         int index = 0;
         for (Frame window : Frame.getFrames()) {
             if (!window.isShowing() || window.getWidth() <= 0
