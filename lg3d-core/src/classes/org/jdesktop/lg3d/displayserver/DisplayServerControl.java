@@ -26,6 +26,8 @@ import java.awt.Toolkit;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Color;
+import java.awt.Frame;
+import java.awt.GraphicsDevice;
 import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.awt.event.ComponentEvent;
@@ -201,6 +203,7 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
             UniverseFactory ufi = PlatformConfig.getConfig().getUniverseFactory();
             logger.config("Using UniverseFactory "+ufi);
             wrapped = ufi.createUniverse(configURL);
+            applyMacOSExclusiveFullScreen(wrapped);
             
             wrapped.addShaderErrorListener(
                     new ShaderErrorListener() {
@@ -333,6 +336,69 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
             });
     }
     
+    /**
+     * Forces true, native exclusive full-screen on macOS for the
+     * {@code NoBorderFullScreen} dev-mode configuration ({@code j3d1x1-nbfs},
+     * selected whenever {@code -Pwindowed} is not passed - see
+     * {@code lg3d-core/build.gradle}'s {@code run} task, which also sets the
+     * {@code lg.fullscreen} system property this method reads).
+     *
+     * <p>{@code ConfiguredUniverse}'s {@code NoBorderFullScreen} handling (in
+     * the bundled {@code java3d-utils} jar) only creates an <em>undecorated</em>
+     * {@code Frame} sized to {@link GraphicsDevice#getDefaultConfiguration()}'s
+     * bounds - it never calls {@link GraphicsDevice#setFullScreenWindow}. On
+     * macOS the system menu bar (and, unless auto-hidden, the Dock) are drawn
+     * in a window layer above ordinary windows regardless of their bounds, so
+     * that undecorated frame renders <em>behind</em> them instead of covering
+     * the whole physical display: the desktop looks "not full screen" even
+     * though its bounds are correct. {@link GraphicsDevice#setFullScreenWindow}
+     * is the standard cross-platform AWT API for true exclusive full-screen -
+     * on macOS the OS hides the menu bar and Dock for the duration, exactly
+     * like a native full-screen app. It is a no-op anywhere this frame/device
+     * combination does not support it (falls back to maximizing the frame), so
+     * calling it unconditionally on Linux/X11 dev builds is harmless - X11's
+     * own window manager already gives {@code NoBorderFullScreen} true screen
+     * coverage there, this method only changes behavior on macOS.
+     *
+     * <p>Deliberately defensive: this is cosmetic, best-effort behavior layered
+     * on top of third-party ({@code java3d-utils}) internals, so any failure
+     * here (e.g. {@link Viewer#getFrame()} unconditionally throwing
+     * {@link UnsupportedOperationException} in this Viewer version, since it
+     * only ever builds {@code JFrame}s, never plain {@code Frame}s) must never
+     * propagate - the caller's try/catch around the whole display
+     * configuration load would otherwise discard the real, configured
+     * {@code ConfiguredUniverse} and silently fall back to an empty default
+     * one.
+     */
+    private void applyMacOSExclusiveFullScreen(ConfiguredUniverse universe) {
+        if (!"true".equals(System.getProperty("lg.fullscreen"))) {
+            return;
+        }
+        String osName = System.getProperty("os.name", "");
+        if (!osName.toLowerCase(java.util.Locale.ROOT).contains("mac")) {
+            return;
+        }
+        try {
+            Viewer v = universe.getViewer();
+            Frame frame = (v != null) ? v.getJFrame(0) : null;
+            if (frame == null) {
+                return;
+            }
+            GraphicsDevice device = frame.getGraphicsConfiguration().getDevice();
+            if (device.isFullScreenSupported()) {
+                device.setFullScreenWindow(frame);
+                logger.config("macOS: entered native exclusive full screen on " + device.getIDstring());
+            } else {
+                frame.setExtendedState(Frame.MAXIMIZED_BOTH);
+                logger.warning("macOS: exclusive full screen unsupported on "
+                        + device.getIDstring() + ", falling back to maximized window");
+            }
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "macOS: could not force exclusive full screen, "
+                    + "desktop will use the NoBorderFullScreen window as-is", e);
+        }
+    }
+
     /**
      * Return true if we are running in Wonderland, ie the lg.wonderland property is set
      */

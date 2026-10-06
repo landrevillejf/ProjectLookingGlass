@@ -516,6 +516,16 @@ tasks.register('run', JavaExec) {
     // with IllegalAccessError: sun.awt.image is not exported. Verified required.
     jvmArgs '--add-exports', 'java.desktop/sun.awt.image=ALL-UNNAMED'
 
+    // JOGL's AWT bridge (AppContextInfo, used by the GL-layer attachment path
+    // on macOS) reflectively calls sun.awt.AppContext.getAppContext() and then
+    // Method.setAccessible(true) on it. --add-exports only lets code access an
+    // already-public member directly; reflective setAccessible additionally
+    // needs the package *opened*, or every launch logs a (harmless but noisy)
+    // InaccessibleObjectException/IllegalAccessException stack trace from the
+    // J3D-Renderer and AppKit threads. --add-opens is a superset of
+    // --add-exports, so this is safe on every platform, not just macOS.
+    jvmArgs '--add-opens', 'java.desktop/sun.awt=ALL-UNNAMED'
+
     // The X11 compositing path runs lg3d as its own window manager + compositor
     // on :0, redirecting real X11 client windows into offscreen pixmaps that are
     // read back as textures on 3D quads (see the X11Compositor /
@@ -537,6 +547,11 @@ tasks.register('run', JavaExec) {
     // to fall back to the 800x600 windowed config (j3d1x1) for debugging.
     def displayConfig = project.hasProperty('windowed') ? 'j3d1x1' : 'j3d1x1-nbfs'
     systemProperty 'lg.displayconfigurl', "file://${etcDir}/lg3d/displayconfig/${displayConfig}"
+    // Tells DisplayServerControl whether the NoBorderFullScreen config above was
+    // actually selected (true) or -Pwindowed's small debug window was (false),
+    // so it only forces real macOS exclusive full screen (see
+    // applyMacOSExclusiveFullScreen) when full screen was actually requested.
+    systemProperty 'lg.fullscreen', (!project.hasProperty('windowed')).toString()
     // Opt-in GPU shader effects (SoftShadow + the FrostedGlassPanel window
     // body). Off by default so the desktop renders pixel-identically through
     // the fixed-function path; pass -Pshaders (e.g. ./run-lg3d.sh -- -Pshaders)

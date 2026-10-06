@@ -995,6 +995,43 @@ work to make it build and run on a current toolchain.
   contract and that Close/maximize delegate to the host callback;
   `Desktop2DHostedPanelTest` asserts `openHostedPanel` returns null with no 2D
   instance).
+- **The 3D dev-mode desktop now actually fills a macOS screen, and the noisy
+  `AppContextInfo(Bug 1004)` stack traces are gone** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.DisplayServerControl` + the `:lg3d-core:run`
+  task) — `j3d1x1-nbfs` (the default dev-mode display config, selected whenever
+  `-Pwindowed` is not passed) asks `java3d-utils`' `ConfiguredUniverse` for a
+  `NoBorderFullScreen` window, which only creates an *undecorated* `JFrame`
+  sized to the screen's bounds; it never calls
+  `GraphicsDevice.setFullScreenWindow`. On macOS the system menu bar (and,
+  unless auto-hidden, the Dock) are drawn in a layer above ordinary windows
+  regardless of their bounds, so that undecorated frame rendered *behind* them
+  instead of covering the whole display — the desktop looked "not full
+  screen" even though its bounds were correct. `DisplayServerControl` now
+  calls the new private `applyMacOSExclusiveFullScreen`, which — only on
+  macOS, and only when the new `lg.fullscreen` system property (set by the
+  `run` task from the same `-Pwindowed` check that already selects
+  `j3d1x1`/`j3d1x1-nbfs`) is `true` — pulls the `JFrame` out via
+  `Viewer#getJFrame(0)` (**not** `Viewer#getFrame()`, which unconditionally
+  throws `UnsupportedOperationException` in this `java3d-utils` version since
+  it only ever builds `JFrame`s) and hands it to
+  `GraphicsDevice#setFullScreenWindow`, the standard cross-platform AWT API for
+  true exclusive full screen; macOS hides the menu bar and Dock for the
+  duration, exactly like a native full-screen app. It is entirely wrapped in a
+  `try/catch` so any future `java3d-utils` incompatibility degrades to a log
+  warning instead of ever discarding the real, configured
+  `ConfiguredUniverse` (which the caller's existing try/catch around display
+  configuration loading would otherwise silently replace with an empty
+  fallback universe). Separately, JOGL's AWT/JAWT bridge
+  (`com.jogamp.nativewindow.awt.AppContextInfo`, exercised when attaching the
+  GL layer on macOS) reflectively calls
+  `sun.awt.AppContext.getAppContext()` via `setAccessible(true)`; JDK 21's
+  strong `java.desktop` encapsulation let `--add-exports
+  java.desktop/sun.awt.image=ALL-UNNAMED` through for direct access but not for
+  that *reflective* `setAccessible`, which needs the package *opened*, so every
+  launch logged an `InaccessibleObjectException`/`IllegalAccessException`
+  stack trace from the `J3D-Renderer` and `AppKit` threads. The `run` task now
+  also passes `--add-opens java.desktop/sun.awt=ALL-UNNAMED` (a superset of
+  the existing export, harmless on every platform) alongside it.
 - **The 2D start-up splash now paints instead of showing a grey rectangle**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
   added for the 2D/Swing desktop mapped its window and then immediately handed
