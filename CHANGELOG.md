@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.53.1 —
+## [Unreleased] — 1.53.1-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **X11 compositor: shared pixel pipeline (foundation for native apps inside the
