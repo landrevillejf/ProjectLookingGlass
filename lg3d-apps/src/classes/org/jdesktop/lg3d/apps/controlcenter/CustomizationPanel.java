@@ -37,6 +37,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
+import org.jdesktop.lg3d.displayserver.desktop2d.IconGlyphLibrary;
 import org.jdesktop.lg3d.displayserver.desktop2d.IconPack;
 import org.jdesktop.lg3d.displayserver.desktop2d.IconPackManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
@@ -305,9 +306,15 @@ public class CustomizationPanel implements ControlPanel {
 
         JButton applyPack = new JButton("Apply");
         applyPack.addActionListener(e -> applyIconPack());
+        JButton createPack = new JButton("Create Pack...");
+        createPack.setToolTipText("Open the icon studio: compose a styled pack from the desktop's IconManager glyphs");
+        createPack.addActionListener(e -> createIconPack());
         JButton importPack = new JButton("Import Pack...");
         importPack.setToolTipText("Import a folder of PNGs or a .zip as an icon pack");
         importPack.addActionListener(e -> importIconPack());
+        JButton deletePack = new JButton("Delete Pack");
+        deletePack.setToolTipText("Delete the selected user-created pack");
+        deletePack.addActionListener(e -> deleteIconPack());
         JButton useDefault = new JButton("Use Default");
         useDefault.setToolTipText("Restore the generated icons (no pack)");
         useDefault.addActionListener(e -> useDefaultIconPack());
@@ -317,7 +324,9 @@ public class CustomizationPanel implements ControlPanel {
         row.add(packScroll);
         JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 4));
         buttons.add(applyPack);
+        buttons.add(createPack);
         buttons.add(importPack);
+        buttons.add(deletePack);
         buttons.add(useDefault);
         row.add(buttons);
 
@@ -386,6 +395,59 @@ public class CustomizationPanel implements ControlPanel {
             }
         }
         statusLabel.setText("Imported icon pack: " + file.getName());
+    }
+
+    /**
+     * Opens the icon-pack builder, which lets the user compose a new pack from
+     * the desktop's own IconManager glyphs, then activates the created pack. The
+     * builder is native Swing and is only reachable on the 2D desktop, where the
+     * control center is a real window rather than an offscreen {@code SwingNode}
+     * texture.
+     */
+    private void createIconPack() {
+        if (!IconGlyphLibrary.isAvailable()) {
+            warn("The IconManager glyph library is not available.");
+            return;
+        }
+        if (IconPackManager.appIconTargets().isEmpty()) {
+            warn("No applications were found to theme.");
+            return;
+        }
+        IconPack pack = IconPackBuilderDialog.show(root);
+        if (pack == null) {
+            return;
+        }
+        // Activate the freshly created pack; any imported pack stays on record.
+        Desktop2D.applyIconPack(pack.id(), DesktopConfig.get().getIconPackDir());
+        loadIconPackState();
+        statusLabel.setText("Created icon pack: " + pack.displayName());
+    }
+
+    /**
+     * Deletes the selected user-created pack. Only {@link IconPack.Source#USER}
+     * packs (folders under {@code ~/.config/lg3d/icon-packs}) can be deleted;
+     * bundled and imported packs are left alone. When the deleted pack was the
+     * active one, the desktop falls back to the generated icons.
+     */
+    private void deleteIconPack() {
+        IconPack pack = packList.getSelectedValue();
+        if (pack == null || pack.source() != IconPack.Source.USER) {
+            warn("Select a user-created pack to delete.");
+            return;
+        }
+        int choice = JOptionPane.showConfirmDialog(root,
+                "Delete the icon pack \"" + pack.displayName() + "\"?", "Customization",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.OK_OPTION) {
+            return;
+        }
+        boolean deleted = IconPackManager.deleteUserPack(pack.id());
+        if (deleted && pack.id().equals(DesktopConfig.get().getIconPack())) {
+            Desktop2D.applyIconPack("", DesktopConfig.get().getIconPackDir());
+        }
+        loadIconPackState();
+        statusLabel.setText(deleted ? "Deleted icon pack: " + pack.displayName()
+                : "Could not delete the icon pack.");
     }
 
     /** Restores the generated icons (no pack), keeping any import on record. */

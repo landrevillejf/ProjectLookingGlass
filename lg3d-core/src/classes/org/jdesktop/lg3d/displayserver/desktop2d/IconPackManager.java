@@ -14,13 +14,24 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 import javax.swing.Icon;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
@@ -50,6 +61,19 @@ public final class IconPackManager {
     /** The runtime classpath root the bundled packs live under. */
     static final String BUNDLED_ROOT = "resources/images/icon-packs";
 
+    /**
+     * System property that overrides where user-composed packs are stored, so
+     * tests can point discovery and {@link #saveUserPack} at a temp directory
+     * instead of the real {@code ~/.config}.
+     */
+    static final String USER_ROOT_PROPERTY = "lg.iconpack.userroot";
+
+    /** The default user-pack root, relative to the user's home directory. */
+    private static final String DEFAULT_USER_ROOT = ".config/lg3d/icon-packs";
+
+    /** The square edge a composed glyph is rendered at before it is written. */
+    public static final int PACK_ICON_EDGE = 48;
+
     private IconPackManager() {
         // no instances
     }
@@ -63,6 +87,7 @@ public final class IconPackManager {
         List<IconPack> packs = new ArrayList<>();
         packs.add(IconPack.defaultPack());
         packs.addAll(bundled());
+        packs.addAll(userPacks());
         IconPack imported = imported();
         if (imported != null) {
             packs.add(imported);
@@ -106,6 +131,165 @@ public final class IconPackManager {
         }
         File file = new File(path);
         return file.exists() ? IconPack.imported(path) : null;
+    }
+
+    /**
+     * The directory user-composed packs are stored in and discovered from: the
+     * {@value #USER_ROOT_PROPERTY} override when set, else
+     * {@code ~/.config/lg3d/icon-packs}. Each immediate sub-directory is one
+     * pack whose id is its folder name.
+     */
+    public static Path userRoot() {
+        String override = System.getProperty(USER_ROOT_PROPERTY);
+        if (override != null && !override.isBlank()) {
+            return Paths.get(override.trim());
+        }
+        return Paths.get(System.getProperty("user.home"), DEFAULT_USER_ROOT);
+    }
+
+    /**
+     * The user-composed packs discovered under {@link #userRoot()}, alphabetical
+     * by id. Empty when the root does not exist or cannot be listed.
+     */
+    public static List<IconPack> userPacks() {
+        List<IconPack> packs = new ArrayList<>();
+        Path root = userRoot();
+        if (!Files.isDirectory(root)) {
+            return packs;
+        }
+        try (Stream<Path> kids = Files.list(root)) {
+            List<Path> dirs = kids.filter(Files::isDirectory)
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString(),
+                            String.CASE_INSENSITIVE_ORDER))
+                    .toList();
+            for (Path dir : dirs) {
+                packs.add(IconPack.user(dir.getFileName().toString(), dir.toString()));
+            }
+        } catch (IOException e) {
+            // Discovery is best-effort; fall back to no user packs.
+        }
+        return packs;
+    }
+
+    /**
+     * Persists a new user pack: writes each {@code baseName -> image} entry as a
+     * PNG into {@code userRoot()/<id>} (the id is {@linkplain #sanitizePackId
+     * sanitised} from {@code name}) and returns the created pack, or {@code null}
+     * when the name is blank, no icons are given, or writing fails. An existing
+     * pack of the same id is overwritten icon-by-icon.
+     *
+     * @param name  the human-readable pack name (also the folder id, sanitised)
+     * @param icons the pack's PNGs, keyed by icon base name (e.g. {@code mail3d.png})
+     */
+    public static IconPack saveUserPack(String name, Map<String, BufferedImage> icons) {
+        String id = sanitizePackId(name);
+        if (id.isEmpty() || icons == null || icons.isEmpty()) {
+            return null;
+        }
+        Path dir = userRoot().resolve(id);
+        try {
+            Files.createDirectories(dir);
+            int written = 0;
+            for (Map.Entry<String, BufferedImage> entry : icons.entrySet()) {
+                String base = basename(entry.getKey());
+                BufferedImage image = entry.getValue();
+                if (base == null || image == null) {
+                    continue;
+                }
+                if (ImageIO.write(image, "png", dir.resolve(base).toFile())) {
+                    written++;
+                }
+            }
+            if (written == 0) {
+                return null;
+            }
+            return IconPack.user(id, dir.toString());
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Deletes a user pack's folder under {@link #userRoot()}. Returns true when
+     * the folder was removed. Only a directory that lives directly under the
+     * user root is touched, so an arbitrary id cannot escape it.
+     */
+    public static boolean deleteUserPack(String id) {
+        String safe = sanitizePackId(id);
+        if (safe.isEmpty()) {
+            return false;
+        }
+        Path dir = userRoot().resolve(safe);
+        if (!Files.isDirectory(dir)) {
+            return false;
+        }
+        try (Stream<Path> walk = Files.walk(dir)) {
+            List<Path> paths = walk.sorted(Comparator.reverseOrder()).toList();
+            for (Path p : paths) {
+                Files.deleteIfExists(p);
+            }
+            return !Files.exists(dir);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * A lower-cased, dash-separated, filesystem-safe pack id from a display
+     * name (e.g. {@code "My Cool Pack"} to {@code "my-cool-pack"}), or the empty
+     * string when nothing usable remains.
+     */
+    public static String sanitizePackId(String name) {
+        if (name == null) {
+            return "";
+        }
+        String s = name.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
+        while (s.startsWith("-")) {
+            s = s.substring(1);
+        }
+        while (s.endsWith("-")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
+    }
+
+    /**
+     * The applications a user pack can override, in display order (by name),
+     * deduplicated by icon base name. Read from the same start-menu descriptors
+     * the 2D menu is built from, so the builder offers exactly the entries the
+     * user sees. Empty when no descriptors are on the classpath (as under test).
+     */
+    public static List<AppIconTarget> appIconTargets() {
+        Map<String, AppIconTarget> byBase = new LinkedHashMap<>();
+        for (ItemSpec item : Desktop2DMenuConfig.load().getItems()) {
+            AppIconTarget target = targetFor(item.getName(), item.getIconResource());
+            if (target != null) {
+                byBase.putIfAbsent(target.baseName(), target);
+            }
+        }
+        List<AppIconTarget> targets = new ArrayList<>(byBase.values());
+        targets.sort(Comparator.comparing(AppIconTarget::appName,
+                String.CASE_INSENSITIVE_ORDER));
+        return targets;
+    }
+
+    /**
+     * The override target for one application: its icon base name is the
+     * descriptor icon's base name when it has one (e.g. {@code mail3d.png}),
+     * else the app-name slug plus {@code .png} (e.g. {@code "Mail 3D"} to
+     * {@code mail-3d.png}). Returns {@code null} when neither key is usable.
+     */
+    static AppIconTarget targetFor(String appName, String iconResource) {
+        String base = basename(iconResource);
+        if (base == null) {
+            String slug = slug(appName);
+            base = (slug == null) ? null : slug + ".png";
+        }
+        if (base == null) {
+            return null;
+        }
+        String name = (appName == null || appName.isBlank()) ? base : appName.trim();
+        return new AppIconTarget(name, base, iconResource);
     }
 
     /**
@@ -194,5 +378,18 @@ public final class IconPackManager {
             s = s.substring(0, s.length() - 1);
         }
         return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * One application the icon-pack builder can assign a glyph to: its display
+     * {@link #appName()}, the icon {@link #baseName()} a pack keys the override
+     * by (e.g. {@code mail3d.png}), and the descriptor {@link #iconResource()}
+     * it was derived from (possibly null).
+     */
+    public record AppIconTarget(String appName, String baseName, String iconResource) {
+        @Override
+        public String toString() {
+            return appName;
+        }
     }
 }
