@@ -124,17 +124,23 @@ public class DesktopPanel implements ControlPanel {
 
         JPanel left = new JPanel();
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
-        left.add(listBlock("Taskbar thickness", barList, 4));
-        left.add(listBlock("Icon size", iconList, 4));
+        // The taskbar-contents editor goes first, top-left, so "which buttons
+        // show and icon-only vs icon+text" is the first thing in the panel
+        // instead of a second row that fell under the fold of the 720x500
+        // window (the reason the taskbar settings looked absent).
+        left.add(taskbarContentsBlock());
+        left.add(listBlock("Taskbar thickness", barList, 3));
+        left.add(listBlock("Icon size", iconList, 3));
         left.add(listBlock("Taskbar auto-hide", autoHideList, 2));
-        left.add(listBlock("Calendar holiday region", holidayRegionList, 4));
         left.add(Box.createVerticalGlue());
 
         JPanel right = new JPanel();
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
         right.add(listBlock("Taskbar position", positionList, 2));
         right.add(hint("Left / right docking is planned for a future release."));
-        right.add(listBlock("Application font size", fontSizeList, 6));
+        right.add(listBlock("Application font family", fontList, 5));
+        right.add(listBlock("Application font size", fontSizeList, 4));
+        right.add(listBlock("Calendar holiday region", holidayRegionList, 4));
         right.add(Box.createVerticalGlue());
 
         JPanel columns = new JPanel(new GridLayout(1, 2, 10, 0));
@@ -142,11 +148,7 @@ public class DesktopPanel implements ControlPanel {
         columns.add(right);
 
         JPanel outer = new JPanel(new BorderLayout(10, 10));
-        outer.add(columns, BorderLayout.NORTH);
-        JPanel centerGrid = new JPanel(new GridLayout(1, 2, 10, 0));
-        centerGrid.add(listBlock("Application font family", fontList, 6));
-        centerGrid.add(taskbarContentsBlock());
-        outer.add(centerGrid, BorderLayout.CENTER);
+        outer.add(columns, BorderLayout.CENTER);
 
         JButton apply = new JButton("Apply");
         apply.addActionListener(e -> apply());
@@ -300,8 +302,11 @@ public class DesktopPanel implements ControlPanel {
         south.add(toggle, BorderLayout.SOUTH);
 
         JPanel p = new JPanel(new BorderLayout(4, 4));
-        p.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-        p.add(new JLabel("Taskbar buttons (select, then toggle)"), BorderLayout.NORTH);
+        p.setBorder(BorderFactory.createTitledBorder("Taskbar buttons"));
+        JLabel title = new JLabel("Select a button, then toggle it shown / hidden.");
+        title.setFont(title.getFont().deriveFont(
+                java.awt.Font.ITALIC, title.getFont().getSize2D() - 1f));
+        p.add(title, BorderLayout.NORTH);
         p.add(sp, BorderLayout.CENTER);
         p.add(south, BorderLayout.SOUTH);
         return p;

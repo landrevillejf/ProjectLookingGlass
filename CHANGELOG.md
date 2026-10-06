@@ -187,6 +187,30 @@ work to make it build and run on a current toolchain.
   and `badgedIcon` returning the base glyph when there is nothing unread), none
   of which write real user prefs.
 
+### Fixed
+- **Control Center opens instantly, and the taskbar settings are discoverable (2D
+  desktop)** (`lg3d-apps` `...controlcenter`) — the control center used to build
+  *all* 21 category panels inside its constructor before the window was shown, and
+  19 of them block on platform I/O while they build (Network / Bluetooth /
+  Printing / Date & Time / Language & Region / Mouse & Keyboard shell out to
+  `nmcli` / `bluetoothctl` / `rfkill` / `lpstat` / `timedatectl` / `localectl` /
+  `xset`, Appearance scans the wallpaper folder and decodes thumbnails, System
+  reads `/proc`, Desktop enumerates every font), so the window stayed blank and
+  apparently frozen for seconds. `ControlPanelRegistry` now registers each category
+  as a lazy `PanelDescriptor` (name + memoised factory) and `ControlCenterPanel`
+  populates its navigation from those names immediately, constructing a panel **on
+  demand** the first time its category is selected — behind a progress overlay (an
+  indeterminate bar plus a "Loading <category>" status line) that is painted
+  *before* the blocking build (deferred one EDT tick via a one-shot `Timer`), so the
+  user always sees which category is loading instead of a frozen window; a category
+  that cannot be built in this JVM degrades to a graceful "unavailable" card rather
+  than taking the whole control center down. The Desktop panel's *Taskbar buttons*
+  editor also moves to the **top-left** of the panel (it was a second row that fell
+  below the fold of the 720x500 window, which is why the taskbar settings looked
+  absent). **New headless JUnit 5 test**: `ControlPanelRegistryTest` (descriptors
+  list every category without building it, construction is lazy and memoised, and a
+  build failure degrades to `null`), which writes no real user prefs.
+
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 
 ### Added
