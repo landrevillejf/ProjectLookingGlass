@@ -690,6 +690,10 @@ public class X11Compositor {
 
         logger.info("Shutting down X11 compositor");
 
+        // Stop advertising the session so a 2D desktop will no longer discover
+        // (or keep routing native windows through) a tearing-down compositor.
+        X11CompositorSession.clear();
+
         // Destroy all Damage objects.
         for (Map.Entry<Integer, Integer> entry : damageMap.entrySet()) {
             try {

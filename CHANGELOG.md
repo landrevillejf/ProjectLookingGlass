@@ -227,6 +227,38 @@ work to make it build and run on a current toolchain.
   `X11CompositedWindowHost` + `Desktop2DCompositorHost` + `CompositedWindowBridge`
   and registers it once the WM has claimed the display — is the Phase G
   session-integration step and needs a bare-Xorg host (roadmap §5 Phase B.8).
+- **X11 compositor Phase G: the 2D desktop now discovers a live compositor and
+  hosts native X11 apps as MDI windows** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11` +
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — delivers the `Desktop2D` startup
+  hook the WM→desktop bridge left open, so a conventional 2D desktop running in
+  the *same JVM* as a live X11 compositor can host redirected native clients as
+  ordinary MDI windows. **`X11CompositorSession`** (x11) is a discovery holder
+  that `X11IntegrationModule` publishes once Composite redirection succeeds and
+  `X11Compositor.shutdown()` clears; its `Session` exposes only the Java-3D-free
+  interface types — a `CompositedWindowHost` and the new **`WindowLifecycleRegistrar`**
+  public seam that the package-private `X11WindowManager` now implements — so the
+  `desktop2d` package never drags in the scene graph or `gnu.x11`.
+  **`CompositedDesktopWiring`** (desktop2d) is the turnkey assembly: a pure
+  `shouldInstall(optIn, sessionLive, headless)` decision, a
+  `desktopOpener(JDesktopPane)`, and `install(host, opener, registrar)` returning
+  a `Handle` torn down via `dispose(unregister)`. `Desktop2D.show()` calls the
+  guarded `installCompositedWindows()`, which reads
+  `X11CompositorSession.current()` and installs only when the operator opted in
+  via **`lg3d.x11.composite2d`**, a session is live and the JVM is not headless;
+  composited windows open through a rich opener (taskbar button + workspace
+  assignment + cascading placement, but *not* session-persisted, since a native
+  client is transient) and `exit()` disposes the wiring. In every topology
+  without a live compositor session (dev mode, the `*_nox` configs, compositing
+  disabled) nothing is published and the 2D shell is unchanged. **16 new headless
+  JUnit 5 tests** (`X11CompositorSessionTest` 7, `CompositedDesktopWiringTest` 9)
+  pin the holder's publish/null-clear/replace lifecycle, the install truth table
+  and null guards, the default opener, and the full map→window→dispose path over
+  a real headless `JDesktopPane` (EDT-flushed). The one remaining live step needs
+  a *combined* bare-Xorg launch that runs the 2D Swing desktop and the X11
+  WM/compositor in one JVM — no production topology does yet (`Main` treats 3D
+  and 2D as mutually exclusive), so the registration path is exercised headlessly
+  only (roadmap §5 Phase G).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

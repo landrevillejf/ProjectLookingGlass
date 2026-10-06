@@ -84,7 +84,8 @@ import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 
 
-final class X11WindowManager extends Application implements Runnable {
+final class X11WindowManager extends Application
+    implements Runnable, WindowLifecycleRegistrar {
     private static final Logger logger = Logger.getLogger("lg.x11");
     
     // useful atoms
@@ -963,6 +964,7 @@ final class X11WindowManager extends Application implements Runnable {
      * initializing thread; the X event thread then forwards map/resize/retitle/
      * activate/unmap notifications to it. See {@link WindowLifecycleListener}.
      */
+    @Override
     public void setWindowLifecycleListener(WindowLifecycleListener listener) {
         this.lifecycleListener = listener;
     }
