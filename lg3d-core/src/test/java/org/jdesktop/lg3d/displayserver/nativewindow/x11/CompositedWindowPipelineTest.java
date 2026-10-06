@@ -11,9 +11,11 @@
 package org.jdesktop.lg3d.displayserver.nativewindow.x11;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
 import org.junit.jupiter.api.DisplayName;
@@ -214,5 +216,81 @@ class CompositedWindowPipelineTest {
         sink.dispose();
 
         assertSame(region, presented[0]);
+    }
+
+    // ---- Phase E: damage coalescing + frame pacing --------------------
+
+    /** A pacer interval so large only the always-due first present passes. */
+    private static FramePacer throttle() {
+        return new FramePacer(Long.MAX_VALUE / 2);
+    }
+
+    @Test
+    @DisplayName("a throttling pacer coalesces damage until flush presents the union")
+    void pacerCoalescesUntilFlush() {
+        FakeSource source = new FakeSource();
+        FakeSink sink = new FakeSink();
+        CompositedWindowPipeline pipeline =
+            new CompositedWindowPipeline(source, sink, throttle());
+
+        pipeline.damageReported(0x1, 0, 0, 10, 10); // first present is always due
+        assertEquals(1, sink.presents);
+        assertEquals(10, sink.w);
+        assertFalse(pipeline.hasPendingDamage());
+
+        pipeline.damageReported(0x1, 50, 50, 10, 10); // paced out, accumulates
+        pipeline.damageReported(0x1, 20, 20, 5, 5);   // paced out, accumulates
+        assertEquals(1, sink.presents);               // nothing presented yet
+        assertEquals(1, source.reads);
+        assertTrue(pipeline.hasPendingDamage());
+
+        pipeline.flush(0x1);                          // presents the union
+        assertEquals(2, sink.presents);
+        assertEquals(20, sink.x);                     // min(50,20)
+        assertEquals(20, sink.y);
+        assertEquals(40, sink.w);                     // 20..59
+        assertEquals(40, sink.h);
+        assertEquals(2, source.reads);                // one coalesced read
+        assertFalse(pipeline.hasPendingDamage());
+    }
+
+    @Test
+    @DisplayName("a null pacer defaults to always-due (synchronous presents)")
+    void nullPacerAlwaysDue() {
+        FakeSource source = new FakeSource();
+        FakeSink sink = new FakeSink();
+        CompositedWindowPipeline pipeline =
+            new CompositedWindowPipeline(source, sink, null);
+
+        pipeline.damageReported(0x1, 0, 0, 4, 4);
+        pipeline.damageReported(0x1, 8, 8, 4, 4);
+
+        assertEquals(2, sink.presents); // each presented synchronously
+        assertFalse(pipeline.hasPendingDamage());
+    }
+
+    @Test
+    @DisplayName("flush is a no-op when no damage is pending")
+    void flushNoOpWhenEmpty() {
+        FakeSource source = new FakeSource();
+        FakeSink sink = new FakeSink();
+        CompositedWindowPipeline pipeline =
+            new CompositedWindowPipeline(source, sink, throttle());
+
+        pipeline.flush(0x1);
+
+        assertEquals(0, source.reads);
+        assertEquals(0, sink.presents);
+    }
+
+    @Test
+    @DisplayName("the 3-arg constructor still rejects a null source or sink")
+    void threeArgRejectsNulls() {
+        FakeSource source = new FakeSource();
+        FakeSink sink = new FakeSink();
+        assertThrows(IllegalArgumentException.class,
+            () -> new CompositedWindowPipeline(null, sink, throttle()));
+        assertThrows(IllegalArgumentException.class,
+            () -> new CompositedWindowPipeline(source, null, throttle()));
     }
 }

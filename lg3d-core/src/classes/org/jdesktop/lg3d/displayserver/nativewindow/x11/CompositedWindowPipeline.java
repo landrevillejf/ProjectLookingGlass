@@ -43,9 +43,12 @@ public final class CompositedWindowPipeline implements X11Compositor.DamageListe
 
     private final WindowPixelSource source;
     private final CompositedWindowSink sink;
+    private final FramePacer pacer;
+    private final DamageAccumulator damage = new DamageAccumulator();
 
     /**
-     * Creates a pipeline bound to one window's source and sink. The
+     * Creates a pipeline bound to one window's source and sink, presenting each
+     * damage report synchronously (an always-due {@link FramePacer}). The
      * {@code windowId} carried by each damage event is not re-checked here: a
      * pipeline is registered per window, and its source is already bound to that
      * window.
@@ -56,35 +59,83 @@ public final class CompositedWindowPipeline implements X11Compositor.DamageListe
      */
     public CompositedWindowPipeline(WindowPixelSource source,
             CompositedWindowSink sink) {
+        this(source, sink, new FramePacer(0L));
+    }
+
+    /**
+     * Creates a pipeline that coalesces damage and paces presents. Damage
+     * reports accumulate into a single bounding region
+     * ({@link DamageAccumulator}); a present happens only when {@code pacer}
+     * says one is due, otherwise the damage waits for the next due report or an
+     * explicit {@link #flush(int)}. An always-due pacer (interval 0) makes this
+     * behave exactly like the two-argument constructor.
+     *
+     * @param source reads the window's redirected pixels; never null
+     * @param sink   presents them; never null
+     * @param pacer  throttles presents; null defaults to always-due
+     * @throws IllegalArgumentException if source or sink is null
+     */
+    public CompositedWindowPipeline(WindowPixelSource source,
+            CompositedWindowSink sink, FramePacer pacer) {
         if (source == null || sink == null) {
             throw new IllegalArgumentException(
                 "source and sink must both be non-null");
         }
         this.source = source;
         this.sink = sink;
+        this.pacer = (pacer != null) ? pacer : new FramePacer(0L);
     }
 
     /**
-     * Reads the damaged region and presents it. Negative origins are clamped to
-     * zero (matching the tile loader's behaviour); an empty region or a failed
-     * read is a silent no-op, since the next damage event retries.
+     * Accumulates the damaged region and, when a present is due, reads the
+     * coalesced bounding region once and presents it. Negative origins are
+     * clamped to zero and empty regions ignored (matching the tile loader's
+     * behaviour); a failed read is a silent no-op, since the next damage event
+     * retries. With the default always-due pacer this presents each damage
+     * report immediately, exactly as before coalescing was added.
      */
     @Override
     public void damageReported(int windowId, int x, int y, int width, int height) {
-        if (width <= 0 || height <= 0) {
+        damage.add(x, y, width, height);
+        if (pacer.tryAcquire(System.currentTimeMillis())) {
+            presentAccumulated(windowId);
+        }
+    }
+
+    /**
+     * Presents any damage accumulated since the last present, ignoring pacing.
+     * A live frame loop calls this once per rendered frame so paced-out damage is
+     * not dropped; it is a no-op when nothing is pending.
+     *
+     * @param windowId the X window id (for diagnostics only)
+     */
+    public void flush(int windowId) {
+        if (!damage.isEmpty()) {
+            pacer.markPresented(System.currentTimeMillis());
+            presentAccumulated(windowId);
+        }
+    }
+
+    /** True if damage has been accumulated but not yet presented (paced out). */
+    public boolean hasPendingDamage() {
+        return !damage.isEmpty();
+    }
+
+    /** Drains the accumulated region, reads it once and presents it. */
+    private void presentAccumulated(int windowId) {
+        DamageAccumulator.Region r = damage.drain();
+        if (r == null) {
             return;
         }
-        int srcX = Math.max(0, x);
-        int srcY = Math.max(0, y);
-        BufferedImage region = source.readRegion(srcX, srcY, width, height);
+        BufferedImage region = source.readRegion(r.x(), r.y(), r.width(), r.height());
         if (region == null) {
             logger.log(Level.FINE,
                 "No pixels for window 0x{0} region [{1},{2},{3},{4}]",
-                new Object[] { Integer.toHexString(windowId), srcX, srcY,
-                    width, height });
+                new Object[] { Integer.toHexString(windowId), r.x(), r.y(),
+                    r.width(), r.height() });
             return;
         }
-        sink.present(region, srcX, srcY, width, height);
+        sink.present(region, r.x(), r.y(), r.width(), r.height());
     }
 
     /** Forwards a window resize to the sink so it can reallocate its surface. */

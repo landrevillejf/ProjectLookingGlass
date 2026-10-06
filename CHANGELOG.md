@@ -138,6 +138,33 @@ work to make it build and run on a current toolchain.
   unmodifiable `readOnly` view — all with no live Display. Applying the hints to
   a real window still requires a bare-Xorg session to validate (roadmap §5 Phase
   D).
+- **X11 compositor Phase E: damage coalescing, frame pacing & readback-path
+  planner** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.nativewindow.x11`) —
+  the performance brain that stops the compositor re-reading and re-uploading
+  unchanged pixels. Three pure, X-free/clock-free classes make the perf path
+  unit-testable headlessly: **`DamageAccumulator`** coalesces the damage
+  rectangles reported between frames into one bounding region (clamping negative
+  origins, ignoring empty rects, counting merged rects, `drain()`ing to an
+  immutable `Region`) so a frame does one readback + one texture upload instead
+  of one per damage event; **`FramePacer`** throttles presents to a minimum
+  interval (clock-injected via an explicit `nowMillis`, first present always due,
+  interval 0 = always due, `tryAcquire` is side-effect-free on refusal); and
+  **`ReadbackPlanner`** chooses the MIT-SHM fast path over a core `XGetImage`
+  round-trip (SHM only when the extension is attached, shared pixmaps are
+  supported and the region fits the segment) plus the ZPixmap `regionBytes` /
+  `bytesPerPixel` sizing. **`CompositedWindowPipeline`** is wired to all three
+  behaviour-preservingly: it now accumulates each `damageReported` and presents
+  the coalesced region only when its pacer says one is due, with a new
+  `flush(windowId)` (present any paced-out damage, e.g. once per rendered frame)
+  and `hasPendingDamage()`; the existing 2-arg constructor delegates with an
+  always-due pacer, so the live 3D tile path and all prior pipeline tests are
+  unchanged. **29 new headless JUnit 5 tests** (`DamageAccumulatorTest` 9,
+  `FramePacerTest` 8, `ReadbackPlannerTest` 8, +4 coalescing/pacing cases on
+  `CompositedWindowPipelineTest`; X11 package now 169) pin the union/clamp/drain
+  geometry, the throttle window and refusal semantics, every SHM-vs-XGetImage
+  branch and the sizing math, and the pipeline's coalesce-until-flush behaviour.
+  The live SHM segment attach/detach and measuring against a video-playing client
+  still require a bare-Xorg session (roadmap §5 Phase E).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

@@ -399,6 +399,27 @@ hardening, damage-region (not full-window) readback, texture-upload batching /
 PBO or `ImageComponent2D` reuse, and frame pacing to avoid uploading unchanged
 regions. Measure against a video-playing client.
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure perf brain
+now exists as three X-free, clock-free classes. **`DamageAccumulator`** coalesces
+the damage rects reported between frames into one bounding region (clamping
+negative origins, ignoring empty rects, `drain()`ing to an immutable `Region`),
+so a frame does one readback + one upload instead of one per damage event.
+**`FramePacer`** throttles presents to a minimum interval (clock-injected via an
+explicit `nowMillis`; first present always due; interval 0 = always due;
+`tryAcquire` is side-effect-free on refusal). **`ReadbackPlanner`** picks the
+MIT-SHM fast path over a core `XGetImage` round-trip (SHM only when attached,
+shared pixmaps supported and the region fits the segment) plus the ZPixmap
+`regionBytes`/`bytesPerPixel` sizing. **`CompositedWindowPipeline`** is wired to
+all three behaviour-preservingly: it accumulates each `damageReported`, presents
+the coalesced region only when its pacer says one is due, and gained
+`flush(windowId)` + `hasPendingDamage()`; the 2-arg constructor delegates with an
+always-due pacer so the live 3D tile path is unchanged. **29 headless tests**
+(`DamageAccumulatorTest` 9, `FramePacerTest` 8, `ReadbackPlannerTest` 8, +4
+pipeline coalescing/pacing; X11 package now 169) pin the geometry, throttle and
+path-selection branches. **Still deferred (needs a bare Xorg):** the live SHM
+segment attach/detach lifecycle, driving `flush` from the real render loop, and
+measuring the upload savings against a video-playing client.
+
 **Phase F — target GL/DRI3 bring-up.** On the LFS host, validate Java 3D
 (Jogamp) obtains a **hardware** GLX context with DRI3 on the real GPU DDX
 (contract §3.3); pin `lg3d.x11.ownwindowid` if auto-discovery of lg3d's own
