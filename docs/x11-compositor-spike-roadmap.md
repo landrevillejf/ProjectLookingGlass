@@ -323,6 +323,25 @@ preserve, dispose, degenerate clamping and the headless paint path;
 wires these into `Desktop2DAppRegistry`/`Desktop2DWindow` so an `EXTERNAL` app is
 hosted rather than forked to the host WM.
 
+**Phase B.7 — 2D desktop host wiring.** The desktop-side plumbing that turns a
+composited native window into an ordinary MDI window *inside* the 2D desktop
+(`feat/x11-composite-shared-pipeline`). A Java-3D-free `CompositedWindowHost`
+seam (x11) speaks only in terms of a `JComponent` + lifecycle, so the
+`desktop2d` package consumes it without dragging in the scene graph; its
+production impl `X11CompositedWindowHost` wires a `CompositeWindowImageLoader`
+source → `SwingCompositedWindowSink` through a `CompositedWindowPipeline`,
+registers it as the window's `DamageListener`, primes a full-window read, and
+re-issues `NameWindowPixmap` on resize — the *display* half only (input stays the
+WM's glue via `SwingX11InputForwarder`). `Desktop2DCompositorHost` (desktop2d) is
+the controller: it owns the `windowId → Desktop2DWindow` map and folds
+map/resize/retitle/unmap/shutdown into it (a re-map folds into resize+retitle,
+unmap disposes the surface and closes the MDI window). Headless-tested:
+`Desktop2DCompositorHostTest` (8) drives the controller with a fake host and a
+fake opener building a real headless `Desktop2DWindow`. *Exit:*
+`:lg3d-core:test`/`build` green. The live WM claim + `Desktop2D` startup hook
+that instantiates `X11CompositedWindowHost` on a bare Xorg is the
+session-integration step (Phase G).
+
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the

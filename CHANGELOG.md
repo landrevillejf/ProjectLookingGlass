@@ -63,6 +63,29 @@ work to make it build and run on a current toolchain.
   `keysyms_per_keycode`-aware `keysymToKeycode`) — all with no live
   `gnu.x11.Display`, XTest or Java 3D. Roadmap §5 gains a **Phase B.6 — 2D Swing
   sink** entry.
+- **X11 compositor: 2D desktop host wiring (native windows as MDI windows)**
+  (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d` +
+  `...nativewindow.x11`) — the desktop-side plumbing that turns a composited
+  native X11 window into an ordinary MDI window **inside** the conventional 2D
+  desktop. A Java-3D-free **`CompositedWindowHost`** seam (x11) speaks only in
+  terms of a `JComponent` + lifecycle so the 2D shell package can consume it
+  without dragging in the scene graph; its production impl
+  **`X11CompositedWindowHost`** wires a `CompositeWindowImageLoader` source to a
+  `SwingCompositedWindowSink` through a `CompositedWindowPipeline`, registers the
+  pipeline as the window's `DamageListener`, primes it with a full-window read,
+  and on `resized` re-issues `NameWindowPixmap` before re-reading — handling the
+  *display* half only (input stays the window manager's glue via
+  `SwingX11InputForwarder`, keeping the host free of `X11Client`).
+  **`Desktop2DCompositorHost`** is the desktop-side controller: it owns the
+  `windowId -> Desktop2DWindow` map and folds the compositor's map/resize/retitle/
+  unmap/shutdown notifications into it (a re-map of a live window folds into a
+  resize+retitle rather than a duplicate; unmap disposes the surface and closes
+  the MDI window). It reaches X exclusively through the seam, so the whole
+  lifecycle is unit-testable headlessly: **8 new JUnit 5 tests**
+  (`Desktop2DCompositorHostTest`, over a fake host + a fake opener building a real
+  headless `Desktop2DWindow`) pin map/resize/retitle/remap-fold/unmap/disposeAll
+  and the constructor null-checks. Roadmap §5 gains a **Phase B.7 — 2D desktop
+  host** entry.
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy
