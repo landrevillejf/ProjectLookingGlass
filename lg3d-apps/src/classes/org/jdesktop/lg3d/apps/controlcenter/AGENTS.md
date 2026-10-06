@@ -17,11 +17,11 @@
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Panels:** `ControlCenterPanel` is a `JList` navigation list + `CardLayout` (not a
-`JTabbedPane`) that shows whichever `ControlPanel` is selected. Nineteen panels
+`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty panels
 implement the `ControlPanel` interface and are registered by `ControlPanelRegistry`,
-in order: Appearance, Desktop, Display, Sound, Power, Mouse & Keyboard, Shortcuts,
-Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing, Date & Time,
-Language & Region, Users, System, Schedule, Task Scheduler.
+in order: Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
+Shortcuts, Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing,
+Date & Time, Language & Region, Users, System, Schedule, Task Scheduler.
 
 ## Roles
 
@@ -47,7 +47,9 @@ Language & Region, Users, System, Schedule, Task Scheduler.
   compatibility — not "it's just a demo".
 - **Functional Analyst** — Spec each panel as user-visible function plus the
   contract with core (SwingNode surface, descriptor fields, PANEL_APPS reuse).
-  Note the Appearance/Desktop panels are omitted under `lg.desktop2d`.
+  Note the Appearance/Desktop panels are omitted under `lg.desktop2d`; the
+  Customization panel registers in every mode but its 2D-only sections degrade to a
+  "2D desktop only" note on the 3D shell.
 - **Project Manager** — Commit scope `lg3d-apps`. Done = build +
   `./run-lg3d.sh` + capture/log evidence in the PR. Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame (title strip,
@@ -84,7 +86,8 @@ Control Center is a system settings application that provides a Swing-based UI f
 - **ControlPanel** - Interface every setting panel implements (`displayName`,
   `icon`, `component`, `onShow`, `onHide`)
 - **ControlPanelRegistry** - Registry that discovers the built-in panels
-- **Panels** - `AppearancePanel`, `DesktopPanel`, `DisplayPanel`, `SoundPanel`,
+- **Panels** - `AppearancePanel`, `CustomizationPanel`, `DesktopPanel`,
+  `DisplayPanel`, `SoundPanel`,
   `PowerPanel`, `InputPanel`, `ShortcutsPanel`, `NotificationsPanel`,
   `WorkspacesPanel`, `QuickLaunchPanel`, `NetworkPanel`, `BluetoothPanel`,
   `PrintingPanel`, `DateTimePanel`, `LocalePanel`, `UsersPanel`, `SystemInfoPanel`,
@@ -104,7 +107,7 @@ Frame3D (Control Center)
     └── ControlCenterPanel (JPanel)
         ├── JList (navigation)
         └── CardLayout (selected ControlPanel)
-            └── the 19 panels registered by ControlPanelRegistry
+            └── the 20 panels registered by ControlPanelRegistry
 ```
 
 ### Swing Integration Pattern

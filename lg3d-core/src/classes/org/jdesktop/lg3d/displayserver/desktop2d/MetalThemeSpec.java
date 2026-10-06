@@ -133,6 +133,31 @@ public record MetalThemeSpec(
             new ColorUIResource(0xBE, 0xCD, 0xE4), new ColorUIResource(0xE8, 0xF0, 0xFC));
 
     /**
+     * "Midnight" - a deep navy accent over a cool, near-white control ramp, for
+     * a dark, low-glare desktop that still keeps black title text legible.
+     */
+    public static final MetalThemeSpec MIDNIGHT = new MetalThemeSpec("Midnight",
+            new ColorUIResource(0x20, 0x2A, 0x44), new ColorUIResource(0x3B, 0x4E, 0x7E),
+            new ColorUIResource(0x8F, 0xA6, 0xD8), new ColorUIResource(0x4A, 0x4A, 0x5A),
+            new ColorUIResource(0x8A, 0x8A, 0x9A), new ColorUIResource(0xDD, 0xE1, 0xEC));
+
+    /**
+     * "Rosewood" - a deep reddish-brown accent over a warm, pale control ramp.
+     */
+    public static final MetalThemeSpec ROSEWOOD = new MetalThemeSpec("Rosewood",
+            new ColorUIResource(0x5A, 0x1A, 0x24), new ColorUIResource(0x8E, 0x2B, 0x3A),
+            new ColorUIResource(0xD8, 0x9A, 0xA4), new ColorUIResource(0x5A, 0x4A, 0x4A),
+            new ColorUIResource(0x9A, 0x8A, 0x8A), new ColorUIResource(0xED, 0xE2, 0xE4));
+
+    /**
+     * "Sand" - a warm beige/tan accent over a soft, creamy control ramp.
+     */
+    public static final MetalThemeSpec SAND = new MetalThemeSpec("Sand",
+            new ColorUIResource(0x8A, 0x6A, 0x3A), new ColorUIResource(0xC2, 0xA0, 0x5A),
+            new ColorUIResource(0xEB, 0xD9, 0xB0), new ColorUIResource(0x6A, 0x60, 0x55),
+            new ColorUIResource(0xA8, 0x9C, 0x8C), new ColorUIResource(0xF0, 0xEA, 0xDF));
+
+    /**
      * Canonicalises the record: a blank name falls back to {@code "Custom"} and
      * any null colour falls back to the matching Steel shade, so a partially
      * specified theme still renders rather than NPE-ing inside the Metal UI.
