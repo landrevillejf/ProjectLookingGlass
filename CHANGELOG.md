@@ -278,6 +278,28 @@ work to make it build and run on a current toolchain.
   real audio tool or touch a sound card.
 
 ### Fixed
+- **Web Browser: WebSocket pages no longer spam `UnsatisfiedLinkError` stack
+  traces (2D desktop + standalone)** (`lg3d-apps`
+  `org.jdesktop.lg3d.apps.webbrowser`) — the Linux WebKit native library shipped
+  with JavaFX 21 (`libjfxwebkit.so`) omits the JNI implementations of
+  `com.sun.webkit.network.SocketStreamHandle.twkDidOpen`/`twkDidClose`, so any
+  page that opens a **WebSocket** threw `UnsatisfiedLinkError` on the JavaFX
+  Application Thread from inside JavaFX's own networking callback — far from any
+  `try/catch` the app controls — printing a full stack trace on every socket event
+  that read like a crash (upstream **JDK-8346250**; verified the loaded `.so`
+  exports neither the symbols nor their strings). The error is benign (the socket
+  never opens; the page still renders and stays interactive), and a real fix needs
+  JavaFX 24+, which requires JDK 22+ and is out of reach on this JDK-21-pinned
+  desktop. A new scoped `WebKitThreadGuard`, installed on the FX Application
+  Thread at the top of `BrowserPanel.bootJavaFx` (so it covers both the in-process
+  2D host and the spawned standalone child process), recognises exactly that one
+  error — an `UnsatisfiedLinkError` whose trace passes through `com.sun.webkit` —
+  logs a single concise warning the first time and swallows it, while **every
+  other throwable is re-dispatched untouched** so a genuine defect is never
+  masked. **New headless JUnit 5 test** `WebKitThreadGuardTest` pins the
+  classification (known vs unrelated link errors, other `LinkageError`s, null) and
+  the swallow-vs-delegate behaviour without a display, toolkit or network.
+
 - **Sound: master volume now works on PipeWire, PulseAudio and plain-ALSA hosts
   (2D desktop)** (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d`) — the
   Control Center **Sound** panel, the taskbar volume indicator and the

@@ -253,6 +253,10 @@ public class BrowserPanel extends JPanel {
     private void bootJavaFx() {
         List<String> session = settings.isRestoreSession() ? store.loadSession() : new ArrayList<>();
         Platform.runLater(() -> {
+            // Tame the JDK-8346250 Linux WebKit WebSocket UnsatisfiedLinkError
+            // before any page can trigger it (see WebKitThreadGuard). Installed
+            // here, on the JavaFX Application Thread, where the error surfaces.
+            WebKitThreadGuard.installOnCurrentThread();
             try {
                 FxBrowser browser = new FxBrowser(new PanelListener(), settings);
                 Scene scene = new Scene(browser.createRoot(), javafx.scene.paint.Color.WHITE);

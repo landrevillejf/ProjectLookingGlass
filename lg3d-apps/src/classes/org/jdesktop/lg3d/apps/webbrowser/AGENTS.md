@@ -86,8 +86,9 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   packages only in any 3D code; obey the core UI/UX rulebook.
 - **QA** — The model tests (`UrlNormalizerTest`, `SearchEngineTest`,
   `BookmarkStoreTest`, `HistoryStoreTest`, `TabModelTest`, `BrowserSettingsTest`,
-  `DownloadRecordTest`, `BrowserStoreTest`) run headless (`java.awt.headless=true`)
-  and never build a `WebView`/`JFXPanel`. `Desktop2DAppRegistryTest` asserts the
+  `DownloadRecordTest`, `BrowserStoreTest`) and `WebKitThreadGuardTest` (the
+  JDK-8346250 WebSocket swallow-vs-delegate guard) run headless
+  (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`. `Desktop2DAppRegistryTest` asserts the
   command classifies as `PANEL` and maps to `BrowserPanel`. The GUI itself has no
   coverage/mutation gate; verify it with the in-JVM probe + `lgscreen-*.png`
   capture on the host X display (2D MDI browser navigates; 3D preview + child
@@ -123,6 +124,16 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   real WebKit engine). The browser degrades gracefully (the preview shows
   guidance) if JavaFX is absent at runtime.
 - Linux only: just the `linux` classifier is wired, mirroring the Jogamp natives.
+- **WebSockets are unavailable on Linux (upstream JDK-8346250).** JavaFX 21's
+  `libjfxwebkit.so` omits the `com.sun.webkit.network.SocketStreamHandle`
+  `twkDidOpen`/`twkDidClose` natives, so a page that opens a WebSocket throws
+  `UnsatisfiedLinkError` on the FX Application Thread. `WebKitThreadGuard`
+  (installed on that thread at the top of `BrowserPanel.bootJavaFx`, covering both
+  the in-process 2D host and the spawned standalone child) recognises that one
+  error, logs it once and swallows it so the page keeps rendering instead of
+  spamming stack traces; every other throwable is re-dispatched untouched. A real
+  fix needs JavaFX 24+, which requires JDK 22+ — out of reach on this
+  JDK-21-pinned desktop.
 
 ## Communication & coherence
 
