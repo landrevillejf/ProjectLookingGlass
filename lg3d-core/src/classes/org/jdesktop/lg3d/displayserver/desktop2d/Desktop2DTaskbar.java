@@ -308,6 +308,24 @@ public class Desktop2DTaskbar extends JPanel {
         windowButtons.repaint();
     }
 
+    /**
+     * Re-resolves every taskbar icon against the currently active icon pack:
+     * the pinned quick-launch strip and each open window's button (whose icon
+     * follows the window's freshly refreshed frame icon). Called by
+     * {@link Desktop2D} after the icon cache is cleared when the user switches
+     * packs, so the bar updates live rather than on the next restart.
+     */
+    public void refreshIcons() {
+        rebuildQuickLaunch();
+        for (Map.Entry<Desktop2DWindow, JButton> entry : buttons.entrySet()) {
+            Desktop2DWindow window = entry.getKey();
+            window.refreshFrameIcon();
+            entry.getValue().setIcon(window.getFrameIcon());
+        }
+        windowButtons.revalidate();
+        windowButtons.repaint();
+    }
+
     // ------------------------------------------------------------------
     // Pinned quick-launch shortcuts (2D counterpart of the 3D taskbar strip)
     // ------------------------------------------------------------------

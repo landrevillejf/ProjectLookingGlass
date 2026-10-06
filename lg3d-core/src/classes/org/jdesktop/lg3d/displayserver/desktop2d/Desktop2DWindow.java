@@ -128,6 +128,23 @@ public class Desktop2DWindow extends JInternalFrame {
     }
 
     /**
+     * Re-resolves this window's frame icon against the currently active icon
+     * pack and repaints, so switching packs updates open windows live. A window
+     * that never carried a frame icon keeps none. Called by {@link Desktop2D}
+     * when the icon pack changes.
+     */
+    public void refreshFrameIcon() {
+        if (getFrameIcon() == null) {
+            return;
+        }
+        Icon icon = AppIcons.iconFor(
+                appName, iconResource, Desktop2DStartMenu.ICON_SIZE);
+        if (icon != null) {
+            setFrameIcon(icon);
+        }
+    }
+
+    /**
      * Builds the window's menu bar: a single <em>Help</em> menu whose
      * <em>About&nbsp;&lt;App&gt;</em> item opens the reusable
      * {@link AboutDialog}. Every 2D panel application gets the same About box

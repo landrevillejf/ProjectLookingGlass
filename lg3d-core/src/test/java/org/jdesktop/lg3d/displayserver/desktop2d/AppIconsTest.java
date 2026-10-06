@@ -21,7 +21,12 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import javax.swing.Icon;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +38,14 @@ import org.junit.jupiter.api.Test;
  * built headless (no window is ever shown).
  */
 class AppIconsTest {
+
+    @AfterEach
+    void restore() {
+        // Never leave an icon pack selected or a cached icon behind for the next
+        // test: both are process-wide statics shared across the whole suite.
+        DesktopConfig.get().resetToDefaults();
+        AppIcons.clearCache();
+    }
 
     @Test
     @DisplayName("initials take the first letter of the first two words")
@@ -134,5 +147,55 @@ class AppIconsTest {
                 "Application Launcher", "resources/images/icon/launcher.png", 16);
         assertNotNull(icon, "a missing preferred PNG degrades, never blanks the entry");
         assertEquals(16, icon.getIconWidth());
+    }
+
+    @Test
+    @DisplayName("clearCache invalidates the cache so the next call rebuilds")
+    void clearCacheInvalidatesCache() {
+        // Drive this through an active pack: the override path builds a brand-new
+        // ImageIcon on every resolve, whereas the generated-art path can hand back
+        // an IconManager-shared instance that would make identity assertions moot.
+        DesktopConfig.get().setIconPack("testpack");
+        AppIcons.clearCache();
+        String res = "resources/images/icon/chess.png";
+
+        Icon first = AppIcons.iconFor("Chess", res, 16);
+        assertSame(first, AppIcons.iconFor("Chess", res, 16), "a cache hit shares one instance");
+        AppIcons.clearCache();
+        Icon rebuilt = AppIcons.iconFor("Chess", res, 16);
+        assertNotSame(first, rebuilt, "after clearCache the icon is rebuilt");
+        assertEquals(Color.RED, centerColor(rebuilt), "and still resolves the packed PNG");
+    }
+
+    @Test
+    @DisplayName("an active icon pack overrides the generated art")
+    void iconPackOverridesGeneratedArt() {
+        // With no pack selected, Chess resolves to its generated art (a semantic
+        // glyph or an initials tile) - never the solid-red fixture PNG.
+        DesktopConfig.get().resetToDefaults();
+        AppIcons.clearCache();
+        assertNotNull(AppIcons.iconFor("Chess", "resources/images/icon/chess.png", 16));
+
+        // Activate the bundled "testpack" fixture, whose chess.png is solid red,
+        // and clear the cache the way Desktop2D.applyIconPack does. The pack
+        // override is consulted first, so the packed PNG must now win.
+        DesktopConfig.get().setIconPack("testpack");
+        AppIcons.clearCache();
+        Icon overridden = AppIcons.iconFor("Chess", "resources/images/icon/chess.png", 16);
+        assertNotNull(overridden);
+        assertEquals(16, overridden.getIconWidth());
+        assertEquals(Color.RED, centerColor(overridden),
+                "the packed PNG replaced the generated art");
+    }
+
+    /** Renders an icon headless and returns the colour at its centre pixel. */
+    private static Color centerColor(Icon icon) {
+        int w = Math.max(1, icon.getIconWidth());
+        int h = Math.max(1, icon.getIconHeight());
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        icon.paintIcon(null, g, 0, 0);
+        g.dispose();
+        return new Color(img.getRGB(w / 2, h / 2) & 0xFFFFFF);
     }
 }

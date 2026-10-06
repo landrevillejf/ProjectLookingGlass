@@ -66,6 +66,8 @@ public final class DesktopConfig {
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
     private static final String KEY_THEME_ACCENT = "theme.accent";
+    private static final String KEY_ICON_PACK = "icon.pack";
+    private static final String KEY_ICON_PACK_DIR = "icon.packDir";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
     private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
     /** Wallpaper-schedule entries: a count plus per-index hour/minute/file. */
@@ -157,6 +159,18 @@ public final class DesktopConfig {
     public static final String DEFAULT_THEME_ACCENT = "";
     private static final String DEF_THEME_ACCENT = DEFAULT_THEME_ACCENT;
     /**
+     * Default icon pack id: the empty string means "no pack", so application
+     * icons keep their procedurally generated IconManager art.
+     */
+    public static final String DEFAULT_ICON_PACK = "";
+    private static final String DEF_ICON_PACK = DEFAULT_ICON_PACK;
+    /**
+     * Default imported icon-pack location: empty means no folder/zip has been
+     * imported (only the bundled packs and the default are selectable).
+     */
+    public static final String DEFAULT_ICON_PACK_DIR = "";
+    private static final String DEF_ICON_PACK_DIR = DEFAULT_ICON_PACK_DIR;
+    /**
      * Whether the schedule swaps the wallpaper / re-lights the scene by default.
      * The two are independent opt-ins: either, both or neither can be enabled.
      */
@@ -233,6 +247,8 @@ public final class DesktopConfig {
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     private String accentColor = DEF_THEME_ACCENT;
+    private String iconPack = DEF_ICON_PACK;
+    private String iconPackDir = DEF_ICON_PACK_DIR;
     private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
     private boolean scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
     private List<ScheduleEntry> wallpaperSchedule =
@@ -297,6 +313,8 @@ public final class DesktopConfig {
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
         accentColor = normalizeAccentColor(prefs.get(KEY_THEME_ACCENT, DEF_THEME_ACCENT));
+        iconPack = normalizeIconPack(prefs.get(KEY_ICON_PACK, DEF_ICON_PACK));
+        iconPackDir = normalizeIconPackDir(prefs.get(KEY_ICON_PACK_DIR, DEF_ICON_PACK_DIR));
         scheduleWallpaperEnabled = prefs.getBoolean(
                 KEY_SCHEDULE_WALLPAPER_ENABLED, DEF_SCHEDULE_WALLPAPER_ENABLED);
         scheduleLightingEnabled = prefs.getBoolean(
@@ -382,6 +400,8 @@ public final class DesktopConfig {
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         prefs.put(KEY_THEME_ACCENT, accentColor);
+        prefs.put(KEY_ICON_PACK, iconPack);
+        prefs.put(KEY_ICON_PACK_DIR, iconPackDir);
         prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
         prefs.putBoolean(KEY_SCHEDULE_LIGHTING_ENABLED, scheduleLightingEnabled);
         prefs.putInt(KEY_WP_COUNT, wallpaperSchedule.size());
@@ -425,6 +445,8 @@ public final class DesktopConfig {
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
         accentColor = DEF_THEME_ACCENT;
+        iconPack = DEF_ICON_PACK;
+        iconPackDir = DEF_ICON_PACK_DIR;
         scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
         scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
         wallpaperSchedule = new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
@@ -516,6 +538,31 @@ public final class DesktopConfig {
 
     public void setAccentColor(String hex) {
         this.accentColor = normalizeAccentColor(hex);
+    }
+
+    /**
+     * The selected icon-pack id, or the empty string for the default (no pack:
+     * the generated IconManager icons are kept). Read by
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.IconPackManager#active()}.
+     */
+    public String getIconPack() {
+        return iconPack;
+    }
+
+    public void setIconPack(String id) {
+        this.iconPack = normalizeIconPack(id);
+    }
+
+    /**
+     * The imported icon-pack location: a folder of PNGs or a {@code .zip}, or
+     * the empty string when nothing has been imported. Never null.
+     */
+    public String getIconPackDir() {
+        return iconPackDir;
+    }
+
+    public void setIconPackDir(String path) {
+        this.iconPackDir = normalizeIconPackDir(path);
     }
 
     public void setBarScale(float barScale) {
@@ -876,6 +923,16 @@ public final class DesktopConfig {
         }
         String t = s.trim().toLowerCase(java.util.Locale.ROOT);
         return t.matches("#[0-9a-f]{6}") ? t : DEF_THEME_ACCENT;
+    }
+
+    /** Trims the icon-pack id; null falls back to empty (the default pack). */
+    private static String normalizeIconPack(String s) {
+        return (s == null) ? DEF_ICON_PACK : s.trim();
+    }
+
+    /** Trims the imported icon-pack path; null falls back to empty (none). */
+    private static String normalizeIconPackDir(String s) {
+        return (s == null) ? DEF_ICON_PACK_DIR : s.trim();
     }
 
     private static Position parsePosition(String s) {

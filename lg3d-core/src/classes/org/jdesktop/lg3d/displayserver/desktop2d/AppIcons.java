@@ -142,7 +142,12 @@ final class AppIcons {
             }
         }
         Icon icon = null;
-        if (prefersDescriptorIcon(iconResource)) {
+        // A user-selected icon pack wins over everything: if the active pack
+        // carries an icon for this app (matched by the descriptor icon's base
+        // name, else an app-name slug) use it, so the pack overrides only the
+        // icons it ships and everything else keeps its generated art below.
+        icon = IconPackManager.overrideFor(iconResource, name, size);
+        if (icon == null && prefersDescriptorIcon(iconResource)) {
             // Genuine per-app artwork (e.g. the Application Launcher rocket):
             // load the descriptor PNG first so the 2D icon matches the 3D
             // desktop. If it cannot be resolved (off the classpath) fall
@@ -163,6 +168,18 @@ final class AppIcons {
             }
         }
         return icon;
+    }
+
+    /**
+     * Drops every cached icon, so the next {@link #iconFor} re-resolves against
+     * the currently active icon pack. Called when the user switches packs (see
+     * {@code Desktop2D.applyIconPack}) so the start menu, taskbar and window
+     * frames all pick up the new art instead of serving stale cached icons.
+     */
+    static void clearCache() {
+        synchronized (CACHE) {
+            CACHE.clear();
+        }
     }
 
     /**

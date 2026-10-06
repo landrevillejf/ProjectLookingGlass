@@ -1890,6 +1890,49 @@ public class Desktop2D {
         }
     }
 
+    /**
+     * Selects and persists an icon pack, then re-resolves every live icon
+     * surface on the running 2D desktop so the switch is immediate: the start
+     * menu, the taskbar quick-launch strip, the open-window buttons and the
+     * window frame icons. Safe from any thread; when no shell is running the
+     * choice is still written to {@link DesktopConfig} so the next start honours
+     * it. Called by the control center's Customization panel.
+     *
+     * @param packId  the pack id to activate (empty for the default/generated icons)
+     * @param packDir the imported pack's folder/zip path, or empty when using a
+     *                bundled pack or the default
+     */
+    public static void applyIconPack(final String packId, final String packDir) {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setIconPackDir(packDir);
+        cfg.setIconPack(packId);
+        cfg.save();
+        final Desktop2D d = instance;
+        if (d != null) {
+            onEdt(d::refreshIconPack);
+        }
+    }
+
+    /**
+     * Re-resolves every icon surface against the now-active icon pack: clears
+     * the icon cache, drops the cached start menu so it rebuilds on next open,
+     * refreshes the taskbar and re-sets the frame icon of each open window.
+     * Must run on the EDT.
+     */
+    private void refreshIconPack() {
+        AppIcons.clearCache();
+        synchronized (this) {
+            startMenu = null;
+        }
+        taskbar.refreshIcons();
+        for (JInternalFrame frame : desktop.getAllFrames()) {
+            if (frame instanceof Desktop2DWindow) {
+                ((Desktop2DWindow) frame).refreshFrameIcon();
+            }
+        }
+        desktop.repaint();
+    }
+
     // ------------------------------------------------------------------
     // Control-center hooks: notifications, Do Not Disturb, workspaces and
     // shortcuts. Each is a no-op (or returns an empty/default snapshot) when no
