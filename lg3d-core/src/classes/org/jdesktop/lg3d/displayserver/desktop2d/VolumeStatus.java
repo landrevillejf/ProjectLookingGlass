@@ -17,8 +17,12 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.BooleanControl;
 import javax.sound.sampled.Control;
@@ -69,12 +73,34 @@ public final class VolumeStatus {
      */
     private static final String[] ALSA_CONTROLS = {"Master", "PCM"};
 
+    /** A {@code wpctl status} sink line: {@code 48. Description [vol: 0.50]}. */
+    private static final Pattern WPCTL_SINK_VOL =
+            Pattern.compile("(\\d+)\\.\\s+(.*?)\\s*\\[vol:\\s*([0-9.]+)\\]");
+
+    /** A {@code wpctl status} sink line with no volume reported. */
+    private static final Pattern WPCTL_SINK_PLAIN =
+            Pattern.compile("(\\d+)\\.\\s+([^\\[]+)");
+
+    /** An {@code aplay -l} playback line: {@code card 0: ID [Name], device 3: ID [Name]}. */
+    private static final Pattern ALSA_CARD =
+            Pattern.compile("card (\\d+): \\S+ \\[(.*?)\\], device (\\d+): .*? \\[(.*?)\\]");
+
     private VolumeStatus() {
         // no instances
     }
 
     /** A volume reading: master percentage (0-100) and mute state. */
     public record Level(int percent, boolean muted) {
+    }
+
+    /**
+     * An audio output device (sink or card): its backend id (a {@code wpctl}
+     * numeric id, a {@code pactl} sink name, or an ALSA card number), a human
+     * description, whether it is the current default, its volume percentage
+     * (0-100, or -1 when the backend does not report one) and its mute state.
+     */
+    public record Device(String id, String description, boolean isDefault, int percent,
+            boolean muted) {
     }
 
     /** Clamps a percentage into 0-100. */
@@ -208,6 +234,134 @@ public final class VolumeStatus {
         return null;
     }
 
+    /**
+     * Parses the {@code Sinks:} section of {@code wpctl status} into devices,
+     * e.g. {@code "│  *   48. Ryzen HD Audio ... [vol: 0.50]"} where {@code *}
+     * marks the default sink. Only lines between {@code Sinks:} and the next
+     * section header are considered; {@code wpctl status} reports no per-sink
+     * mute, so {@code muted} is left false (the master mute still reads via
+     * {@link #read()}).
+     */
+    static List<Device> parseWpctlSinks(String status) {
+        List<Device> out = new ArrayList<>();
+        if (status == null) {
+            return out;
+        }
+        boolean inSinks = false;
+        for (String raw : status.split("\n")) {
+            String t = raw.trim();
+            if (t.endsWith("Sinks:")) {
+                inSinks = true;
+                continue;
+            }
+            if (t.endsWith("Sources:") || t.endsWith("Filters:") || t.endsWith("Streams:")
+                    || t.endsWith("Devices:") || t.endsWith("Endpoints:")) {
+                inSinks = false;
+                continue;
+            }
+            if (!inSinks) {
+                continue;
+            }
+            boolean isDefault = raw.indexOf('*') >= 0;
+            Matcher vol = WPCTL_SINK_VOL.matcher(raw);
+            if (vol.find()) {
+                int percent = clamp(Math.round(parseFloat(vol.group(3), 0f) * 100f));
+                out.add(new Device(vol.group(1), vol.group(2).trim(), isDefault, percent, false));
+                continue;
+            }
+            Matcher plain = WPCTL_SINK_PLAIN.matcher(raw);
+            if (plain.find()) {
+                out.add(new Device(plain.group(1), plain.group(2).trim(), isDefault, -1, false));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Parses {@code pactl list sinks} blocks into devices, marking the sink
+     * whose {@code Name:} equals {@code defaultName} (from
+     * {@code pactl get-default-sink}) as the default.
+     */
+    static List<Device> parsePactlSinks(String listSinks, String defaultName) {
+        List<Device> out = new ArrayList<>();
+        if (listSinks == null) {
+            return out;
+        }
+        String def = (defaultName == null) ? "" : defaultName.trim();
+        for (String block : listSinks.split("(?m)^Sink #")) {
+            String name = pactlField(block, "Name:");
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+            String desc = pactlField(block, "Description:");
+            String mute = pactlField(block, "Mute:");
+            Integer vol = parsePactlVolume(pactlField(block, "Volume:"));
+            int percent = (vol == null) ? -1 : clamp(vol);
+            boolean muted = mute != null && mute.equalsIgnoreCase("yes");
+            boolean isDefault = !def.isEmpty() && def.equals(name);
+            out.add(new Device(name, (desc == null || desc.isEmpty()) ? name : desc,
+                    isDefault, percent, muted));
+        }
+        return out;
+    }
+
+    /**
+     * Parses {@code aplay -l} playback hardware lines into devices. Plain ALSA
+     * has no runtime default-sink switch, so no device is marked default and the
+     * id is the card number (used for {@code amixer -c <card>}).
+     */
+    static List<Device> parseAlsaCards(String aplayL) {
+        List<Device> out = new ArrayList<>();
+        if (aplayL == null) {
+            return out;
+        }
+        Matcher m = ALSA_CARD.matcher(aplayL);
+        while (m.find()) {
+            String card = m.group(1);
+            String desc = "card " + card + ": " + m.group(2) + " - " + m.group(4);
+            out.add(new Device(card, desc, false, -1, false));
+        }
+        return out;
+    }
+
+    /** The value of a {@code Key:} line inside a {@code pactl} block, or null. */
+    private static String pactlField(String block, String key) {
+        for (String line : block.split("\n")) {
+            String t = line.trim();
+            if (t.startsWith(key)) {
+                return t.substring(key.length()).trim();
+            }
+        }
+        return null;
+    }
+
+    /** Parses a float, returning {@code fallback} on any failure. */
+    private static float parseFloat(String value, float fallback) {
+        try {
+            return Float.parseFloat(value.trim());
+        } catch (RuntimeException e) {
+            return fallback;
+        }
+    }
+
+    /** One-line list text for a device: description, volume and state markers. */
+    public static String deviceLabel(Device device) {
+        if (device == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(device.description());
+        if (device.percent() >= 0) {
+            sb.append("  ").append(device.percent()).append('%');
+        }
+        if (device.muted()) {
+            sb.append("  [muted]");
+        }
+        if (device.isDefault()) {
+            sb.append("  [default]");
+        }
+        return sb.toString();
+    }
+
     // ------------------------------------------------------------------
     // Pure command builders (unit-tested; no tool is invoked).
     // ------------------------------------------------------------------
@@ -262,6 +416,66 @@ public final class VolumeStatus {
         return new String[] {"amixer", "sset", control, muted ? "mute" : "unmute"};
     }
 
+    /** {@code wpctl status}. */
+    static String[] wpctlStatusCommand() {
+        return new String[] {"wpctl", "status"};
+    }
+
+    /** {@code pactl list sinks}. */
+    static String[] pactlListSinksCommand() {
+        return new String[] {"pactl", "list", "sinks"};
+    }
+
+    /** {@code pactl get-default-sink}. */
+    static String[] pactlGetDefaultSinkCommand() {
+        return new String[] {"pactl", "get-default-sink"};
+    }
+
+    /** {@code aplay -l}. */
+    static String[] aplayListCommand() {
+        return new String[] {"aplay", "-l"};
+    }
+
+    /** {@code wpctl set-default <id>}. */
+    static String[] wpctlSetDefaultCommand(String id) {
+        return new String[] {"wpctl", "set-default", id};
+    }
+
+    /** {@code pactl set-default-sink <name>}. */
+    static String[] pactlSetDefaultCommand(String name) {
+        return new String[] {"pactl", "set-default-sink", name};
+    }
+
+    /** {@code wpctl set-volume <id> N%}. */
+    static String[] wpctlSetDeviceVolumeCommand(String id, int percent) {
+        return new String[] {"wpctl", "set-volume", id, clamp(percent) + "%"};
+    }
+
+    /** {@code pactl set-sink-volume <name> N%}. */
+    static String[] pactlSetSinkVolumeCommand(String name, int percent) {
+        return new String[] {"pactl", "set-sink-volume", name, clamp(percent) + "%"};
+    }
+
+    /** {@code wpctl set-mute <id> 1|0}. */
+    static String[] wpctlSetDeviceMuteCommand(String id, boolean muted) {
+        return new String[] {"wpctl", "set-mute", id, muted ? "1" : "0"};
+    }
+
+    /** {@code pactl set-sink-mute <name> 1|0}. */
+    static String[] pactlSetSinkMuteCommand(String name, boolean muted) {
+        return new String[] {"pactl", "set-sink-mute", name, muted ? "1" : "0"};
+    }
+
+    /** {@code amixer -c <card> sset <control> N%}. */
+    static String[] amixerSetCardVolumeCommand(String card, String control, int percent) {
+        return new String[] {"amixer", "-c", card, "sset", control, clamp(percent) + "%"};
+    }
+
+    /** {@code amixer -c <card> sset <control> mute|unmute}. */
+    static String[] amixerSetCardMuteCommand(String card, String control, boolean muted) {
+        return new String[] {"amixer", "-c", card, "sset", control, muted ? "mute" : "unmute"};
+    }
+
     // ------------------------------------------------------------------
     // Public probes.
     // ------------------------------------------------------------------
@@ -289,6 +503,88 @@ public final class VolumeStatus {
             return;
         }
         setMutedJavaSound(muted);
+    }
+
+    /**
+     * The output devices (sinks/cards), most-authoritative backend first
+     * (PipeWire {@code wpctl status} -> PulseAudio {@code pactl list sinks} ->
+     * plain ALSA {@code aplay -l}); empty when none can be enumerated.
+     */
+    public static List<Device> devices() {
+        String wp = exec(wpctlStatusCommand());
+        if (wp != null) {
+            List<Device> sinks = parseWpctlSinks(wp);
+            if (!sinks.isEmpty()) {
+                return sinks;
+            }
+        }
+        String ps = exec(pactlListSinksCommand());
+        if (ps != null) {
+            List<Device> sinks = parsePactlSinks(ps, exec(pactlGetDefaultSinkCommand()));
+            if (!sinks.isEmpty()) {
+                return sinks;
+            }
+        }
+        String ap = exec(aplayListCommand());
+        if (ap != null) {
+            List<Device> cards = parseAlsaCards(ap);
+            if (!cards.isEmpty()) {
+                return cards;
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Makes {@code id} the default output device; false when the host has no
+     * sound server that supports switching (plain ALSA has no runtime default).
+     */
+    public static boolean setDefault(String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        return run(wpctlSetDefaultCommand(id)) || run(pactlSetDefaultCommand(id));
+    }
+
+    /**
+     * Sets a specific device's volume (0-100). A null/empty {@code id} falls
+     * back to the master volume; on plain ALSA the {@code id} is a card number.
+     */
+    public static void setVolume(String id, int percent) {
+        if (id == null || id.isEmpty()) {
+            setVolume(percent);
+            return;
+        }
+        int value = clamp(percent);
+        if (run(wpctlSetDeviceVolumeCommand(id, value))
+                || run(pactlSetSinkVolumeCommand(id, value))) {
+            return;
+        }
+        for (String control : ALSA_CONTROLS) {
+            if (run(amixerSetCardVolumeCommand(id, control, value))) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Sets a specific device's mute. A null/empty {@code id} falls back to the
+     * master mute; on plain ALSA the {@code id} is a card number.
+     */
+    public static void setMuted(String id, boolean muted) {
+        if (id == null || id.isEmpty()) {
+            setMuted(muted);
+            return;
+        }
+        if (run(wpctlSetDeviceMuteCommand(id, muted))
+                || run(pactlSetSinkMuteCommand(id, muted))) {
+            return;
+        }
+        for (String control : ALSA_CONTROLS) {
+            if (run(amixerSetCardMuteCommand(id, control, muted))) {
+                return;
+            }
+        }
     }
 
     // ------------------------------------------------------------------
