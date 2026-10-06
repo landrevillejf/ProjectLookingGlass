@@ -232,12 +232,15 @@ against is reckless scope creep). This is a deliberate, documented deviation.
    pure package-private static `X11WindowAssociator.matches(ruleCls, ruleName,
    ruleTitle, cls, name, title)` (both the sub-window and focused-window halves
    delegate to it) and is now unit-tested with plain Strings, so the real
-   association logic is covered without an `X11Client`. **Still deferred:** the
-   associator's *orchestration* — its constructor registers an
-   `LgEventConnector` listener and reads prefs, and `getAssociatedWindow` walks
-   the rule list over live `X11Client` instances, so exercising that end-to-end
-   still needs an injectable `X11Client`/event-connector fake (a larger,
-   behaviour-change-risky lift).
+   association logic is covered without an `X11Client`. **Also since closed:** the
+   associator's *orchestration* — `getAssociatedWindow` (rule walk, one-time
+   retirement, first-match-wins, focus guard) and `removeAllRules` are now
+   headless-tested through a `WindowAssociationTarget` interface seam
+   (implemented by `X11Client`, faked in tests) plus a no-wiring
+   `X11WindowAssociator(boolean)` constructor and a `setFocusedWindow` hook that
+   bypass the `LgEventConnector` listener and prefs load. **Still deferred:** the
+   constructor's *live* listener/prefs wiring (needs a running desktop) and PIT
+   scoped to the X11 package (until the mutation gate is enforceable repo-wide).
 
 ---
 
@@ -263,11 +266,18 @@ fixes the stock Escher unsigned read). A follow-up
 (`test/x11-window-associator-matcher`) then closed the last pure seam: the
 `X11WindowAssociator` cls/name/title rule matcher was extracted verbatim into a
 static `matches(...)` and unit-tested with plain Strings (8 more tests), so the
-real association decision is covered without needing an `X11Client`. **Remaining:**
-an injectable `X11Client`/`LgEventConnector` fake to exercise the associator's
-*orchestration* (`getAssociatedWindow` over live clients, the constructor's
-listener/prefs wiring), and wiring PIT scoped to the X11 package once the
-mutation gate is enforceable repo-wide.
+real association decision is covered without needing an `X11Client`. A second
+follow-up (`test/x11-associator-orchestration`) closed the associator's
+*orchestration* too: a `WindowAssociationTarget` interface seam (implemented by
+`X11Client`, faked in tests), a no-wiring `X11WindowAssociator(boolean)`
+constructor and a `setFocusedWindow` hook make `getAssociatedWindow` (rule walk,
+one-time retirement, first-match-wins, focus guard) and `removeAllRules`
+headless-testable — **14 more tests** (X11 package now 78). The refactor is
+behaviour-preserving except that the focused-window rule path is now null-safe on
+a missing WM_CLASS (previously an NPE), which a test pins. **Remaining:** only
+wiring PIT scoped to the X11 package once the mutation gate is enforceable
+repo-wide; the constructor's *live* `LgEventConnector`/prefs wiring needs a
+running desktop and is intentionally left to the integration phases.
 
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
