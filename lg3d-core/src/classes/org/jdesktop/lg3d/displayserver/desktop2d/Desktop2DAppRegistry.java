@@ -644,6 +644,46 @@ public final class Desktop2DAppRegistry {
     }
 
     /**
+     * Opens {@code file} in a hosted panel, if the panel supports it (a public
+     * {@code openFile(File)} or {@code openFile(Path)} method). Used by the
+     * file-association launcher to hand a double-clicked document to the
+     * application the user chose for its type (for example the PDF Viewer); a
+     * panel without such a method is left untouched. Reflective, like
+     * {@link #createPanel}, so lg3d-core keeps no compile-time dependency on the
+     * panel's module.
+     *
+     * @return true if the panel reported that it opened the file
+     */
+    public static boolean openFile(JComponent panel, java.io.File file) {
+        if (panel == null || file == null) {
+            return false;
+        }
+        try {
+            Method openFile = panel.getClass().getMethod("openFile", java.io.File.class);
+            Object result = openFile.invoke(panel, file);
+            return !(result instanceof Boolean) || ((Boolean) result).booleanValue();
+        } catch (NoSuchMethodException nsme) {
+            // Try the Path form before giving up.
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Could not open " + file + " in "
+                    + panel.getClass().getName(), e);
+            return false;
+        }
+        try {
+            Method openPath = panel.getClass().getMethod("openFile", Path.class);
+            Object result = openPath.invoke(panel, file.toPath());
+            return !(result instanceof Boolean) || ((Boolean) result).booleanValue();
+        } catch (NoSuchMethodException nsme) {
+            // This panel cannot open a document; nothing to do.
+            return false;
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Could not open " + file + " in "
+                    + panel.getClass().getName(), e);
+            return false;
+        }
+    }
+
+    /**
      * Runs a {@link Kind#SWING_FRAME} app's {@code main} inside this JVM on its
      * own thread, as {@code AppLaunchAction} does in the 3D desktop. The
      * {@code swingapp} verb's 3D window capture is deliberately skipped: there

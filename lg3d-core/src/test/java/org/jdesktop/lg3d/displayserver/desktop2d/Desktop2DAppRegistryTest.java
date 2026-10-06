@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import javax.swing.JPanel;
+import java.io.File;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DAppRegistry.Kind;
 import org.junit.jupiter.api.DisplayName;
@@ -739,12 +741,75 @@ class Desktop2DAppRegistryTest {
         Desktop2DAppRegistry.showDate(new JPanel(), LocalDate.now());
     }
 
+    @Test
+    @DisplayName("openFile hands a document to a panel with an openFile(File) hook")
+    void openFileUsesTheFileHook() {
+        DocumentPanel panel = new DocumentPanel();
+        File file = new File("/tmp/paper.pdf");
+        assertTrue(Desktop2DAppRegistry.openFile(panel, file));
+        assertEquals(file, panel.opened);
+    }
+
+    @Test
+    @DisplayName("openFile falls back to an openFile(Path) hook")
+    void openFileUsesThePathHook() {
+        PathDocumentPanel panel = new PathDocumentPanel();
+        File file = new File("/tmp/paper.pdf");
+        assertTrue(Desktop2DAppRegistry.openFile(panel, file));
+        assertEquals(file.toPath(), panel.opened);
+    }
+
+    @Test
+    @DisplayName("openFile reports a panel that declines the document")
+    void openFilePropagatesAFalseResult() {
+        assertFalse(Desktop2DAppRegistry.openFile(new DecliningPanel(),
+                new File("/tmp/paper.pdf")));
+    }
+
+    @Test
+    @DisplayName("openFile tolerates null and panels without the hook")
+    void openFileIsSafe() {
+        File file = new File("/tmp/paper.pdf");
+        assertFalse(Desktop2DAppRegistry.openFile(null, file));
+        assertFalse(Desktop2DAppRegistry.openFile(new DocumentPanel(), null));
+        // A plain JPanel has no openFile(File)/openFile(Path): the reflective
+        // lookup must swallow the NoSuchMethodException instead of throwing.
+        assertFalse(Desktop2DAppRegistry.openFile(new JPanel(), file));
+    }
+
     /** A stand-in for a date-navigable panel (the real one is AgendaPanel). */
     public static class DatePanel extends JPanel {
         LocalDate shown;
 
         public void jumpToDate(LocalDate date) {
             this.shown = date;
+        }
+    }
+
+    /** A stand-in for a document panel (the real one is PdfViewerPanel). */
+    public static class DocumentPanel extends JPanel {
+        File opened;
+
+        public boolean openFile(File file) {
+            this.opened = file;
+            return true;
+        }
+    }
+
+    /** A stand-in for a panel exposing only the {@code openFile(Path)} form. */
+    public static class PathDocumentPanel extends JPanel {
+        Path opened;
+
+        public boolean openFile(Path path) {
+            this.opened = path;
+            return true;
+        }
+    }
+
+    /** A stand-in for a panel that reports it could not open the document. */
+    public static class DecliningPanel extends JPanel {
+        public boolean openFile(File file) {
+            return false;
         }
     }
 }

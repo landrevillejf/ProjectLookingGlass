@@ -346,6 +346,11 @@ public class Desktop2D {
         slideshow = new WallpaperSlideshow(slideshowImages());
 
         instance = this;
+        // Route a file-type association that names one of the desktop's own
+        // applications (a PANEL / SWING_FRAME handler) back into this MDI host,
+        // so Opener can open a document in, say, the PDF Viewer rather than
+        // handing every associated file to an external process.
+        Opener.setFileAssociationLauncher(this::launchAssociatedFile);
         // Honour any desktop configuration persisted from a previous session
         // (taskbar position/thickness/font/icon scale/auto-hide). The wallpaper
         // stays the bundled default until the user picks one in the control
@@ -1581,6 +1586,70 @@ public class Desktop2D {
         return null;
     }
 
+    /**
+     * The {@link org.jdesktop.lg3d.utils.system.FileAssociationLauncher} for the
+     * running desktop: opens a file in one of the desktop's <em>own</em>
+     * applications when a file-type association names one. A {@code PANEL}
+     * handler is hosted in an internal frame (or brought forward if already open)
+     * and handed the file through {@link Desktop2DAppRegistry#openFile}; a
+     * {@code SWING_FRAME} handler is launched beside the desktop with the path
+     * appended. Returns false for an external command (or an unavailable app) so
+     * {@link org.jdesktop.lg3d.utils.system.Opener} runs it as a child process
+     * instead. Hosting a panel touches Swing, so the work is marshalled onto the
+     * EDT.
+     */
+    private boolean launchAssociatedFile(String command, Path file) {
+        Desktop2DAppRegistry.Kind kind = Desktop2DAppRegistry.classify(command);
+        if (kind == Desktop2DAppRegistry.Kind.PANEL) {
+            if (SwingUtilities.isEventDispatchThread()) {
+                openPanelAppWithFile(command, file);
+            } else {
+                SwingUtilities.invokeLater(() -> openPanelAppWithFile(command, file));
+            }
+            return true;
+        }
+        if (kind == Desktop2DAppRegistry.Kind.SWING_FRAME && file != null) {
+            Desktop2DAppRegistry.launchSwingFrame(
+                    command + " " + file.toAbsolutePath());
+            return true;
+        }
+        // EXTERNAL / UNAVAILABLE: let Opener run it as a child process (or fail).
+        return false;
+    }
+
+    /**
+     * Hosts the panel application named by {@code command} and opens {@code file}
+     * in it. An already-open window for the same app is brought forward and given
+     * the file, matching the single-window-per-app behaviour of the start menu.
+     * The descriptor is looked up in the start-menu model so the window keeps the
+     * app's real name and icon; a command with no descriptor falls back to its
+     * main-class name.
+     */
+    private void openPanelAppWithFile(String command, Path file) {
+        ItemSpec spec = null;
+        for (ItemSpec candidate : menuModel.getItems()) {
+            if (command.equals(candidate.getCommand())) {
+                spec = candidate;
+                break;
+            }
+        }
+        if (spec == null) {
+            String main = Desktop2DAppRegistry.mainClass(command);
+            spec = new ItemSpec(main, command, null, null, null);
+        }
+        Desktop2DWindow window = openPanelApp(spec, null, true);
+        if (window == null || file == null) {
+            return;
+        }
+        if (window.getContentPane().getComponentCount() > 0) {
+            JComponent panel = (JComponent) window.getContentPane().getComponent(0);
+            if (!Desktop2DAppRegistry.openFile(panel, file.toFile())) {
+                logger.log(Level.INFO, "{0} opened but could not load {1}",
+                        new Object[] { spec.getName(), file });
+            }
+        }
+    }
+
     /** Opens a file with the user's preferred application (xdg-open). */
     private void openWithSystem(Path path) {
         if (path == null) {
@@ -1691,6 +1760,7 @@ public class Desktop2D {
     public void exit() {
         logger.info("Shutting down the 2D desktop");
         instance = null;
+        Opener.setFileAssociationLauncher(null);
         // Capture the final placement of every open window while the frames are
         // still realized, so the next start reopens them where they were left.
         saveSession();
