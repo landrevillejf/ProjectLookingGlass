@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.displayserver.nativewindow.x11;
 
 import java.util.ArrayList;
 import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.logging.Logger;
@@ -151,7 +150,38 @@ final class X11WindowAssociator {
         if (focusedWindow==x11Client)
             focusedWindow = null;
     }
-    
+
+    /**
+     * Pure window-association rule match, extracted verbatim from the inlined
+     * checks in {@link WindowAssociationRuleEntry#getTargetWindow} so the
+     * matcher can be unit-tested headless: an {@link X11Client} extends
+     * {@code gnu.x11.Window} and needs a live {@code Display}, so it cannot be
+     * constructed in a test JVM. A clause matches when every non-null criterion
+     * equals the candidate's value and the (already compiled) title pattern, if
+     * any, fully matches the candidate title. Both the sub-window half and the
+     * focused-window half of a rule share this shape, so both delegate here.
+     *
+     * @param ruleCls   required WM_CLASS res_class, or null to ignore
+     * @param ruleName  required WM_CLASS res_name, or null to ignore
+     * @param ruleTitle compiled title regex, or null to ignore
+     * @param cls       candidate res_class (may be null)
+     * @param name      candidate res_name (may be null)
+     * @param title     candidate window title
+     */
+    static boolean matches(String ruleCls, String ruleName, Pattern ruleTitle,
+            String cls, String name, String title) {
+        if (ruleCls != null && !ruleCls.equals(cls)) {
+            return false;
+        }
+        if (ruleName != null && !ruleName.equals(name)) {
+            return false;
+        }
+        if (ruleTitle != null && !ruleTitle.matcher(title).matches()) {
+            return false;
+        }
+        return true;
+    }
+
     private static class WindowAssociationRuleEntry {
         private X11Client targetWindow;
         private String subWinResCls;
@@ -211,17 +241,8 @@ final class X11WindowAssociator {
 		name = subWinCandidate.classHint.res_name();
 	    }
 
-            if (subWinResCls != null && !subWinResCls.equals(cls)) {
+            if (!matches(subWinResCls, subWinResName, subWinTitlePattern, cls, name, title)) {
                 return null;
-            }
-            if (subWinResName != null && !subWinResName.equals(name)) {
-                return null;
-            }
-            if (subWinTitlePattern != null) {
-                Matcher sm = subWinTitlePattern.matcher(title);
-                if (!sm.matches()) {
-                    return null;
-                }
             }
             
             if (targetWindow != null) {
@@ -232,17 +253,8 @@ final class X11WindowAssociator {
             String fName = focusedWindow.classHint.res_name();
             String fTitle = focusedWindow.getName();
             
-            if (targetWinResCls != null && !targetWinResCls.equals(fCls)) {
+            if (!matches(targetWinResCls, targetWinResName, targetWinTitlePattern, fCls, fName, fTitle)) {
                 return null;
-            }
-            if (targetWinResName != null && !targetWinResName.equals(fName)) {
-                return null;
-            }
-            if (targetWinTitlePattern != null) {
-                Matcher sm = targetWinTitlePattern.matcher(fTitle);
-                if (!sm.matches()) {
-                    return null;
-                }
             }
             return focusedWindow;
         }

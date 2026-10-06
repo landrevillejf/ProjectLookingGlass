@@ -226,11 +226,18 @@ against is reckless scope creep). This is a deliberate, documented deviation.
    `ConfigureNotify(Display,byte[])`) only *store* the display and parse purely
    from the buffer, so a `null` display plus a synthetic buffer written through
    `Data`'s own `writeN` helpers (byte-order-agnostic) exercises them with **zero
-   production change**. **Still deferred:** the `X11WindowAssociator` state
-   machine — its constructor registers an `LgEventConnector` listener and reads
-   prefs, and its rules are keyed on `X11Client`, so it genuinely needs an
-   injectable `X11Client`/event-connector fake (a larger, behaviour-change-risky
-   lift) rather than the buffer-only trick above.
+   production change**. **Also since closed:** the `X11WindowAssociator` *rule
+   matcher* — the cls/name/title-pattern decision in
+   `WindowAssociationRuleEntry.getTargetWindow` was extracted verbatim into a
+   pure package-private static `X11WindowAssociator.matches(ruleCls, ruleName,
+   ruleTitle, cls, name, title)` (both the sub-window and focused-window halves
+   delegate to it) and is now unit-tested with plain Strings, so the real
+   association logic is covered without an `X11Client`. **Still deferred:** the
+   associator's *orchestration* — its constructor registers an
+   `LgEventConnector` listener and reads prefs, and `getAssociatedWindow` walks
+   the rule list over live `X11Client` instances, so exercising that end-to-end
+   still needs an injectable `X11Client`/event-connector fake (a larger,
+   behaviour-change-risky lift).
 
 ---
 
@@ -252,10 +259,15 @@ id), `X11FixesExt.FetchRegionReply` (rectangle count + `Enum` iteration) and
 `CursorNotifyEvent` (fields + synthetic flag), `X11DamageExt.NotifyEvent` (all
 accessors, signed area/geometry origins, `area()`/`geometry()`, `toString`), and
 `ConfigureNotifyBugFixed` (the signed 16-bit coordinate sign-extension that
-fixes the stock Escher unsigned read). **Remaining:** an injectable
-`X11Client`/`LgEventConnector` fake to unit-test the `X11WindowAssociator` rule
-matcher (§4.3), and wiring PIT scoped to the X11 package once the mutation gate
-is enforceable repo-wide.
+fixes the stock Escher unsigned read). A follow-up
+(`test/x11-window-associator-matcher`) then closed the last pure seam: the
+`X11WindowAssociator` cls/name/title rule matcher was extracted verbatim into a
+static `matches(...)` and unit-tested with plain Strings (8 more tests), so the
+real association decision is covered without needing an `X11Client`. **Remaining:**
+an injectable `X11Client`/`LgEventConnector` fake to exercise the associator's
+*orchestration* (`getAssociatedWindow` over live clients, the constructor's
+listener/prefs wiring), and wiring PIT scoped to the X11 package once the
+mutation gate is enforceable repo-wide.
 
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
