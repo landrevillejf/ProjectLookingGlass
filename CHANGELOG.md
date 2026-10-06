@@ -10,6 +10,36 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.52.0 —
 
 ### Added
+- **X11 compositor: shared pixel pipeline (foundation for native apps inside the
+  2D desktop)** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — refactored the
+  compositor's pixel readback into a **single source feeding two sinks**, so the
+  same redirected-window readback can drive the existing 3D `NativeWindow3D`
+  texture *and* an upcoming Swing panel hosted **inside** a `Desktop2DWindow`
+  (making a native X11 application appear within the 2D desktop instead of
+  escaping as a separate top-level window). `CompositeWindowImageLoader` now
+  `implements WindowPixelSource` (a `readRegion(x,y,w,h)` contract over the
+  Composite `NameWindowPixmap`) and its Z-pixmap scanline assembly was extracted
+  **verbatim** into a pure, `Display`-free static `decodeZPixmap(...)` — the one
+  decoder both sinks read through. A new `CompositedWindowSink` interface
+  (`present(region,x,y,w,h)` plus `resized`/`dispose` defaults) and a
+  `CompositedWindowPipeline` (implements `X11Compositor.DamageListener`; on a
+  damage report it clamps negative origins, reads the region and presents it, and
+  forwards resize/dispose) form the presentation-agnostic spine that holds no
+  `gnu.x11.Display` and no Java 3D reference, so the whole dispatch decision is
+  unit-testable headlessly with a fake source and a fake sink. The refactor is
+  **behaviour-preserving** for the live 3D tile path
+  (`X11Client.setupCompositeImageSource` is untouched) and adds two documented
+  hardenings to the decoder (empty/negative geometry and a null/short buffer now
+  decode to `null` instead of throwing). **16 new headless JUnit 5 tests**
+  (`CompositeWindowImageLoaderDecodeTest` and `CompositedWindowPipelineTest`,
+  taking the X11 package to 94) pin the scanline assembly (32/24/16-bpp, LSB/MSB,
+  stride/padding, truncation, the geometry/bpp/null guards) and the pipeline
+  (read-then-present, origin clamping, empty/null short-circuits, resize/dispose
+  forwarding, constructor null-checks, sink default no-ops). Roadmap §5 gains a
+  **Phase B.5 — shared pixel pipeline** entry.
+
+### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy
   theme that reproduces the 3D desktop's window-glass look** (`lg3d-core`,
   `org.jdesktop.lg3d.displayserver.desktop2d`) — `MetalThemeManager.builtIns()`

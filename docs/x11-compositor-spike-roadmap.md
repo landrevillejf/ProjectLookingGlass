@@ -279,6 +279,29 @@ wiring PIT scoped to the X11 package once the mutation gate is enforceable
 repo-wide; the constructor's *live* `LgEventConnector`/prefs wiring needs a
 running desktop and is intentionally left to the integration phases.
 
+**Phase B.5 — shared pixel pipeline (foundation for the 2D host).** The
+readback was refactored so the *one* pixel source can feed *two* presentation
+sinks, without either sink knowing how pixels were obtained
+(`feat/x11-composite-shared-pipeline`). `CompositeWindowImageLoader` now
+`implements WindowPixelSource` (a `readRegion(x,y,w,h)` contract over the
+Composite `NameWindowPixmap`) and its Z-pixmap scanline assembly was extracted
+verbatim into a pure, `Display`-free static `decodeZPixmap(...)` — the single
+decoder both sinks read through. A new `CompositedWindowSink` (a
+`present(region,x,y,w,h)` + `resized`/`dispose` contract) and a
+`CompositedWindowPipeline` (implements `X11Compositor.DamageListener`; on damage
+it clamps negative origins, reads the region and presents it, forwarding
+resize/dispose) form the presentation-agnostic spine: the 3D desktop registers a
+`NativeWindow3D` texture sink, the 2D desktop will register a Swing sink, and the
+same pipeline drives both. The refactor is behaviour-preserving for the live 3D
+tile path (`X11Client.setupCompositeImageSource` is untouched) and is fully
+headless-testable: `CompositeWindowImageLoaderDecodeTest` (8 tests, synthetic
+reply buffers pinning 32/24/16-bpp, LSB/MSB, scanline stride/padding and the
+geometry/bpp/truncation/null guards) and `CompositedWindowPipelineTest` (8 tests
+over fake source/sink pinning read-then-present, origin clamping, empty/null
+short-circuits, resize/dispose forwarding, constructor null-checks and the sink
+default no-ops). *Exit:* `:lg3d-core:test`/`build` green (X11 package now 94
+tests). This is the seam Phase C and the 2D-desktop host build on.
+
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the
