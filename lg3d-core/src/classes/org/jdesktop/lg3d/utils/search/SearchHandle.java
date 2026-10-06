@@ -37,7 +37,9 @@ public final class SearchHandle {
 
     /**
      * Builds a handle. {@code onDone} (may be null) runs exactly once on the
-     * thread that observes the walk complete, after the latch is released.
+     * thread that observes the walk complete, before the latch is released, so
+     * any thread returning from {@link #await} is guaranteed to see the
+     * callback's effects.
      */
     SearchHandle(Runnable onDone) {
         this.onDone = onDone;
@@ -78,11 +80,20 @@ public final class SearchHandle {
         matched.incrementAndGet();
     }
 
-    /** Signals completion exactly once and fires the {@code onDone} callback. */
+    /**
+     * Signals completion exactly once and fires the {@code onDone} callback.
+     * The callback runs <em>before</em> the latch is released so that a waiter
+     * returning from {@link #await} always observes its effects; the latch is
+     * released in a {@code finally} block so completion is signalled even if the
+     * callback throws.
+     */
     void finish() {
-        done.countDown();
-        if (onDone != null) {
-            onDone.run();
+        try {
+            if (onDone != null) {
+                onDone.run();
+            }
+        } finally {
+            done.countDown();
         }
     }
 }
