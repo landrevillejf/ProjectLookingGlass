@@ -46,6 +46,8 @@ public final class ShortcutMap {
     public static final String WINDOW_CLOSE = "window-close";
     public static final String WORKSPACE_NEXT = "workspace-next";
     public static final String WORKSPACE_PREVIOUS = "workspace-previous";
+    /** Opens the Advanced Search app (a desktop-wide file &amp; content finder). */
+    public static final String SEARCH = "search";
     /**
      * Prefix for the "move the focused window to workspace <em>n</em>" actions;
      * the action id is this prefix followed by the 0-based workspace index
@@ -94,6 +96,9 @@ public final class ShortcutMap {
         map.put("alt F2", RUN_DIALOG);
         map.put("control alt T", OPEN_TERMINAL);
         map.put("control W", WINDOW_CLOSE);
+        // Ctrl+Shift+F opens Advanced Search everywhere in the desktop, matching
+        // the "find in files" accelerator users expect from editors and IDEs.
+        map.put("control shift F", SEARCH);
         // Workspace paging. Alt+Shift+PageDown/PageUp step through the
         // workspaces; the host window manager reserves Ctrl+Alt+arrow and
         // Super+digit for its own workspace switching, so those are avoided.

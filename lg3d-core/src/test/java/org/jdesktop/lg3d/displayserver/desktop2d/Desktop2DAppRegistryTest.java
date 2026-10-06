@@ -660,6 +660,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("Advanced Search is hosted as a panel, not gated on 3D")
+    void searchIsAPanelApp() {
+        // The Search app is a pure Swing panel over the headless lg3d-core
+        // search engine, so it runs in the 2D desktop like any other panel app;
+        // the 3D desktop builds the same panel on a SwingNode via its Search
+        // wrapper. It is the target of the Ctrl+Shift+F accelerator.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.search.Search"));
+        assertEquals("org.jdesktop.lg3d.apps.search.SearchPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.search.Search"));
+    }
+
+    @Test
     @DisplayName("Software Update is hosted as a panel, not gated on 3D")
     void softwareUpdateIsAPanelApp() {
         // The Software Update app wraps the update-manager module's Swing

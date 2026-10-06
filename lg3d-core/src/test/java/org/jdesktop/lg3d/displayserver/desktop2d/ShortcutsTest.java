@@ -67,6 +67,11 @@ class ShortcutsTest {
         }
 
         @Override
+        public void search() {
+            fired.add(ShortcutMap.SEARCH);
+        }
+
+        @Override
         public void closeWindow() {
             fired.add(ShortcutMap.WINDOW_CLOSE);
         }
@@ -93,7 +98,7 @@ class ShortcutsTest {
         String[] ids = {
             ShortcutMap.SHOW_DESKTOP, ShortcutMap.SNAP_LEFT, ShortcutMap.SNAP_RIGHT,
             ShortcutMap.SNAP_MAXIMIZE, ShortcutMap.RUN_DIALOG, ShortcutMap.OPEN_TERMINAL,
-            ShortcutMap.WINDOW_CLOSE,
+            ShortcutMap.SEARCH, ShortcutMap.WINDOW_CLOSE,
         };
         for (String id : ids) {
             RecordingTarget target = new RecordingTarget();
