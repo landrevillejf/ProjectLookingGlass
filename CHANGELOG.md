@@ -35,6 +35,36 @@ work to make it build and run on a current toolchain.
   list, and `accentColor()` resolution) plus a new `DesktopConfigAccentTest`
   (blank default, round-trip + lower-casing, malformed/null/blank rejection, reset),
   none of which write real user prefs.
+- **Desktop Customization: icon packs (2D desktop)** (`lg3d-core`
+  `org.jdesktop.lg3d.displayserver.desktop2d` + `...utils.prefs`; `lg3d-apps`
+  `...controlcenter`) — the Customization panel gains an **Icon Pack** section that
+  re-themes the 2D desktop's application icons (start menu, quick-launch strip,
+  taskbar and window-frame icons) without touching the wallpaper or the theme. A
+  new pure model, `IconPack`, resolves one PNG by base name from a *bundled*
+  classpath pack (`resources/images/icon-packs/<id>`), an *imported* folder of PNGs
+  or an imported `.zip`, scaling synchronously to the requested edge; a new
+  `IconPackManager` lists what is available (default + discovered bundled packs +
+  the imported pack), picks the persisted active pack (falling back to default when
+  it disappears) and returns a single override for an app, keyed first by the
+  descriptor icon's base name (e.g. `mail3d.png`) then by an app-name slug (e.g.
+  `Mail 3D` → `mail-3d.png`) so procedurally-generated icons can be overridden too.
+  `AppIcons.iconFor(...)` now consults that override **first** and adds
+  `clearCache()`, so a pack replaces only the icons it ships and everything else
+  keeps its generated art. Two bundled packs ship — **Mono** (neutral greyscale)
+  and **Vivid** (saturation/contrast boost) — rendered from the committed app icons
+  by the new manual `lg3d-art/tools/GenerateIconPacks` tool and committed under
+  `lg3d-core/src/resources/images/icon-packs/`. Two new `DesktopConfig` prefs,
+  `icon.pack` and `icon.packDir`, persist the selection (normalised + wired through
+  load/save/reset), and `Desktop2D.applyIconPack(...)` applies it live by clearing
+  the icon cache, rebuilding the start menu, refreshing the taskbar
+  (`Desktop2DTaskbar.refreshIcons()`) and re-setting open windows' frame icons
+  (`Desktop2DWindow.refreshFrameIcon()`). Defaults keep today's behaviour, so
+  nothing changes until the user opts in. **New/extended headless JUnit 5 tests**:
+  a new `IconPackManagerTest` (bundled discovery, import from a temp folder *and* a
+  temp zip, base-name + slug keys, active-pack exclusivity, fallback to default,
+  path helpers) and `DesktopConfigIconPackTest` (blank defaults, round-trip,
+  null/reset), plus an extended `AppIconsTest` (override precedence + `clearCache`),
+  none of which write real user prefs.
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 

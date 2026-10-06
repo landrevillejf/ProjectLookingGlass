@@ -18,6 +18,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +29,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -35,6 +37,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
+import org.jdesktop.lg3d.displayserver.desktop2d.IconPack;
+import org.jdesktop.lg3d.displayserver.desktop2d.IconPackManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
@@ -68,18 +72,24 @@ public class CustomizationPanel implements ControlPanel {
     private final JList<String> themeList = new JList<>(themeNames);
     private final List<MetalThemeSpec> themeSpecs = new ArrayList<>();
 
+    /** Icon-pack selector: the available packs, default first. */
+    private final DefaultListModel<IconPack> packModel = new DefaultListModel<>();
+    private final JList<IconPack> packList = new JList<>(packModel);
+
     public CustomizationPanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             JPanel sections = new JPanel();
             sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
             sections.add(buildThemePanel());
-            // Later phases append their independent sections here (icon pack,
-            // window decoration) before the trailing glue.
+            sections.add(buildIconPackPanel());
+            // Later phases append their independent sections here (window
+            // decoration) before the trailing glue.
             sections.add(Box.createVerticalGlue());
             root.add(sections, BorderLayout.CENTER);
             root.add(statusLabel, BorderLayout.SOUTH);
             loadThemeState();
+            loadIconPackState();
         } else {
             JLabel note = new JLabel(
                     "<html><center>Theme, icon pack and window-decoration<br>"
@@ -109,6 +119,7 @@ public class CustomizationPanel implements ControlPanel {
     public void onShow() {
         if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             loadThemeState();
+            loadIconPackState();
         }
     }
 
@@ -270,6 +281,118 @@ public class CustomizationPanel implements ControlPanel {
         }
         loadThemeState();
         statusLabel.setText("Deleted theme: " + spec.name());
+    }
+
+    // ------------------------------------------------------------------
+    // Icon pack
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds the icon-pack section: a {@link JList} of the available packs (the
+     * default, the bundled packs and any imported pack - see
+     * {@link IconPackManager#available()}) plus Apply / Import Pack / Use
+     * Default buttons. Applying a pack re-resolves every 2D icon surface live
+     * through {@link Desktop2D#applyIconPack}; the default pack keeps the
+     * procedurally generated IconManager icons. A list selector (never a combo
+     * box) keeps the panel working when it is hosted offscreen in a
+     * {@code SwingNode}.
+     */
+    private JComponent buildIconPackPanel() {
+        packList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        packList.setVisibleRowCount(5);
+        JScrollPane packScroll = new JScrollPane(packList);
+        packScroll.setPreferredSize(new Dimension(180, 110));
+
+        JButton applyPack = new JButton("Apply");
+        applyPack.addActionListener(e -> applyIconPack());
+        JButton importPack = new JButton("Import Pack...");
+        importPack.setToolTipText("Import a folder of PNGs or a .zip as an icon pack");
+        importPack.addActionListener(e -> importIconPack());
+        JButton useDefault = new JButton("Use Default");
+        useDefault.setToolTipText("Restore the generated icons (no pack)");
+        useDefault.addActionListener(e -> useDefaultIconPack());
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        row.add(new JLabel("Icon pack:"));
+        row.add(packScroll);
+        JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 4));
+        buttons.add(applyPack);
+        buttons.add(importPack);
+        buttons.add(useDefault);
+        row.add(buttons);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(row, BorderLayout.CENTER);
+        panel.setBorder(BorderFactory.createTitledBorder("Icon Pack (2D desktop)"));
+        return panel;
+    }
+
+    /** Rebuilds the pack list and reflects the persisted selection. */
+    private void loadIconPackState() {
+        packModel.clear();
+        for (IconPack pack : IconPackManager.available()) {
+            packModel.addElement(pack);
+        }
+        String current = DesktopConfig.get().getIconPack();
+        for (int i = 0; i < packModel.size(); i++) {
+            if (packModel.get(i).id().equals(current)) {
+                packList.setSelectedIndex(i);
+                return;
+            }
+        }
+        // The persisted pack is gone (a removed import, say): show the default.
+        packList.setSelectedIndex(packModel.isEmpty() ? -1 : 0);
+    }
+
+    /** Applies the selected pack, preserving any imported pack's location. */
+    private void applyIconPack() {
+        IconPack pack = packList.getSelectedValue();
+        if (pack == null) {
+            warn("Select an icon pack first.");
+            return;
+        }
+        // Keep the imported folder/zip on record even when a bundled pack or the
+        // default is chosen, so the imported pack stays listed.
+        String dir = (pack.source() == IconPack.Source.IMPORTED)
+                ? pack.location() : DesktopConfig.get().getIconPackDir();
+        Desktop2D.applyIconPack(pack.id(), dir);
+        loadIconPackState();
+        statusLabel.setText("Icon pack applied: " + pack.displayName());
+    }
+
+    /**
+     * Imports a folder of PNGs or a {@code .zip} as an icon pack and activates
+     * it. The chooser is native Swing and is only reachable on the 2D desktop,
+     * where the control center is a real window rather than an offscreen
+     * {@code SwingNode} texture.
+     */
+    private void importIconPack() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose an icon-pack folder or .zip");
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        if (chooser.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File file = chooser.getSelectedFile();
+        if (file == null || !file.exists()) {
+            return;
+        }
+        Desktop2D.applyIconPack(IconPack.IMPORTED_ID, file.getAbsolutePath());
+        loadIconPackState();
+        for (int i = 0; i < packModel.size(); i++) {
+            if (IconPack.IMPORTED_ID.equals(packModel.get(i).id())) {
+                packList.setSelectedIndex(i);
+                break;
+            }
+        }
+        statusLabel.setText("Imported icon pack: " + file.getName());
+    }
+
+    /** Restores the generated icons (no pack), keeping any import on record. */
+    private void useDefaultIconPack() {
+        Desktop2D.applyIconPack("", DesktopConfig.get().getIconPackDir());
+        loadIconPackState();
+        statusLabel.setText("Icon pack: default (generated icons)");
     }
 
     private void warn(String message) {
