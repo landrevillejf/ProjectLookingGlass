@@ -28,6 +28,24 @@ work to make it build and run on a current toolchain.
   X server, injects synthetic input or takes screenshots, plus
   `docs/x11-compositor-spike-roadmap.md` (Stage-0–3 evidence, deferred work with
   rationale, and the spike→production roadmap).
+- **X11 compositor Phase B test hardening** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11`) — **25 new headless JUnit 5
+  tests** (the X11 package is now 56, all green under `:lg3d-core:test`/`build`)
+  covering the pure X-protocol wire decoders that the spike deferred, with **no
+  production change and no `gnu.x11.Display` fake**: their reading constructors
+  (`Data(byte[])`, `Event(Display,byte[],int)`, `ConfigureNotify(Display,byte[])`)
+  only *store* the display and parse purely from the buffer, so a `null` display
+  plus a synthetic buffer written through `Data`'s own byte-order-agnostic
+  `writeN` helpers exercises them directly. New suites pin
+  `X11ShmExt.GetImageReply` (header fields + the size-clamped `pixels()` copy that
+  never over-reads a short reply), `X11CompositeExt.OverlayReply` (overlay window
+  id), `X11FixesExt.FetchRegionReply` (rectangle count + `Enum` iteration) and
+  `CursorNotifyEvent` (fields + the synthetic-flag bit), `X11DamageExt.NotifyEvent`
+  (every accessor, signed area/geometry origins, `area()`/`geometry()`,
+  `toString`), and `ConfigureNotifyBugFixed` (the signed 16-bit coordinate
+  sign-extension that repairs the stock Escher unsigned read). The
+  `X11WindowAssociator` rule matcher stays deferred — it genuinely needs an
+  injectable `X11Client`/`LgEventConnector` fake. Roadmap §4.3/§5 updated.
 - **Remote Viewer** (`lg3d-apps`, `org.jdesktop.lg3d.apps.remoteviewer`) — a
   port of the standalone jrdesktop / Remote Viewer RMI remote-desktop tool,
   hosting its original `MainFrame` GUI (server start/stop, status, viewer

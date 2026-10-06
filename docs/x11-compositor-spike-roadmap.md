@@ -216,13 +216,21 @@ against is reckless scope creep). This is a deliberate, documented deviation.
    for full desktop-policy behaviour, not for compositing one NORMAL window.
    **Defer** to the EWMH phase.
 
-3. **Display-entangled test seams** not unit-tested in Stage 1 (they need a live
-   `gnu.x11.Display` and would require non-trivial fakes with behaviour-change
-   risk): extension reply/version parsing (`X11CompositeExt`, `X11DamageExt`,
-   `X11FixesExt`, `X11ShmExt`), the `X11WindowAssociator` state machine (its
-   constructor registers an `LgEventConnector` listener and reads prefs; its
-   rules are keyed on `X11Client`), and `ConfigureNotifyBugFixed`. **Defer** to a
-   test-hardening phase that introduces injectable fakes behind a seam.
+3. **Display-entangled test seams** not unit-tested in Stage 1. **Phase B has
+   since closed most of this** (see §5): the extension reply/event decoders
+   (`X11CompositeExt.OverlayReply`, `X11DamageExt.NotifyEvent`,
+   `X11FixesExt.FetchRegionReply`/`CursorNotifyEvent`, `X11ShmExt.GetImageReply`)
+   and `ConfigureNotifyBugFixed` are now headless-tested. The key realisation is
+   that these decoders do **not** need a `gnu.x11.Display` fake after all: their
+   reading constructors (`Data(byte[])`, `Event(Display,byte[],int)`,
+   `ConfigureNotify(Display,byte[])`) only *store* the display and parse purely
+   from the buffer, so a `null` display plus a synthetic buffer written through
+   `Data`'s own `writeN` helpers (byte-order-agnostic) exercises them with **zero
+   production change**. **Still deferred:** the `X11WindowAssociator` state
+   machine — its constructor registers an `LgEventConnector` listener and reads
+   prefs, and its rules are keyed on `X11Client`, so it genuinely needs an
+   injectable `X11Client`/event-connector fake (a larger, behaviour-change-risky
+   lift) rather than the buffer-only trick above.
 
 ---
 
@@ -234,11 +242,20 @@ Phased; each phase is independently shippable and testable against a bare Xorg.
 (`xterm`/`xeyes`) redirected → textured → input-forwarded on a bare Xorg; §5
 evidence recorded. *Exit:* harness reports `COMPLIANT` (all six PASS).
 
-**Phase B — test hardening.** Introduce minimal injectable fakes for
-`gnu.x11.Display` so the deferred seams in §4.3 become headless-testable
-(extension reply parsing, `X11WindowAssociator`, `ConfigureNotifyBugFixed`).
-Raise X11-module coverage materially. Wire PIT for the X11 package once the
-mutation gate is enforceable repo-wide.
+**Phase B — test hardening.** Raise X11-module coverage materially and make the
+§4.3 seams headless-testable. **Partially delivered** (`test/x11-compositor-phase-b-seams`):
+**25 new JUnit 5 tests** (the X11 package is now 56 tests, all green under
+`:lg3d-core:test`/`build`) cover the pure wire-decoder seams with no production
+change and no `Display` fake — `X11ShmExt.GetImageReply` (header fields,
+size-clamped `pixels()` copy), `X11CompositeExt.OverlayReply` (overlay window
+id), `X11FixesExt.FetchRegionReply` (rectangle count + `Enum` iteration) and
+`CursorNotifyEvent` (fields + synthetic flag), `X11DamageExt.NotifyEvent` (all
+accessors, signed area/geometry origins, `area()`/`geometry()`, `toString`), and
+`ConfigureNotifyBugFixed` (the signed 16-bit coordinate sign-extension that
+fixes the stock Escher unsigned read). **Remaining:** an injectable
+`X11Client`/`LgEventConnector` fake to unit-test the `X11WindowAssociator` rule
+matcher (§4.3), and wiring PIT scoped to the X11 package once the mutation gate
+is enforceable repo-wide.
 
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
