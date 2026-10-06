@@ -16,6 +16,7 @@
 package org.jdesktop.lg3d.utils.prefs;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.prefs.Preferences;
 import java.util.logging.Logger;
@@ -51,6 +52,9 @@ public final class DesktopConfig {
     private static final String KEY_POSITION = "taskbar.position";
     private static final String KEY_ICON_SCALE = "taskbar.iconScale";
     private static final String KEY_AUTO_HIDE = "taskbar.autoHide";
+    /** Per-item taskbar visibility: {@code taskbar.show.<ITEM>} booleans. */
+    private static final String KEY_TASKBAR_SHOW_PREFIX = "taskbar.show.";
+    private static final String KEY_TASKBAR_LABELS = "taskbar.labels";
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
     private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
@@ -225,6 +229,31 @@ public final class DesktopConfig {
         BOTTOM, TOP, LEFT, RIGHT
     }
 
+    /**
+     * The fixed pieces the 2D taskbar can show or hide, individually, from the
+     * control center. Every item is shown by default; hiding one removes it
+     * (and the space it occupied) from the bar.
+     */
+    public enum TaskbarItem {
+        START, QUICK_LAUNCH, DOCUMENTS, DOWNLOADS, WORKSPACES,
+        INDICATORS, NOTIFICATIONS, CLOCK, EXIT
+    }
+
+    /** How the taskbar's fixed buttons present themselves. */
+    public enum Labels {
+        /** Icon only; the descriptive text lives in the tooltip. */
+        ICONS_ONLY,
+        /** Icon plus a text label beside it. */
+        ICONS_AND_TEXT
+    }
+
+    /**
+     * Default taskbar button label style: icon-only, so the tray reads as a row
+     * of glyphs and the descriptive text is a hover tooltip.
+     */
+    public static final Labels DEFAULT_TASKBAR_LABELS = Labels.ICONS_ONLY;
+    private static final Labels DEF_TASKBAR_LABELS = DEFAULT_TASKBAR_LABELS;
+
     private static volatile DesktopConfig instance;
 
     private final Preferences prefs;
@@ -233,6 +262,9 @@ public final class DesktopConfig {
     private Position position = Position.BOTTOM;
     private float iconScale = DEF_ICON_SCALE;
     private boolean autoHide = DEF_AUTO_HIDE;
+    private Labels taskbarLabels = DEF_TASKBAR_LABELS;
+    private final EnumSet<TaskbarItem> taskbarShown =
+            EnumSet.allOf(TaskbarItem.class);
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
     private String holidayRegion = DEF_HOLIDAY_REGION;
@@ -289,6 +321,14 @@ public final class DesktopConfig {
         barScale = clampScale(prefs.getFloat(KEY_BAR_SCALE, DEF_BAR_SCALE));
         iconScale = clampScale(prefs.getFloat(KEY_ICON_SCALE, DEF_ICON_SCALE));
         autoHide = prefs.getBoolean(KEY_AUTO_HIDE, DEF_AUTO_HIDE);
+        taskbarLabels = parseLabels(
+                prefs.get(KEY_TASKBAR_LABELS, DEF_TASKBAR_LABELS.name()));
+        taskbarShown.clear();
+        for (TaskbarItem item : TaskbarItem.values()) {
+            if (prefs.getBoolean(KEY_TASKBAR_SHOW_PREFIX + item.name(), true)) {
+                taskbarShown.add(item);
+            }
+        }
         fontName = prefs.get(KEY_FONT_NAME, DEF_FONT_NAME);
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
@@ -386,6 +426,11 @@ public final class DesktopConfig {
         prefs.put(KEY_POSITION, position.name());
         prefs.putFloat(KEY_ICON_SCALE, iconScale);
         prefs.putBoolean(KEY_AUTO_HIDE, autoHide);
+        prefs.put(KEY_TASKBAR_LABELS, taskbarLabels.name());
+        for (TaskbarItem item : TaskbarItem.values()) {
+            prefs.putBoolean(KEY_TASKBAR_SHOW_PREFIX + item.name(),
+                    taskbarShown.contains(item));
+        }
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
         prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
@@ -431,6 +476,9 @@ public final class DesktopConfig {
         position = Position.BOTTOM;
         iconScale = DEF_ICON_SCALE;
         autoHide = DEF_AUTO_HIDE;
+        taskbarLabels = DEF_TASKBAR_LABELS;
+        taskbarShown.clear();
+        taskbarShown.addAll(EnumSet.allOf(TaskbarItem.class));
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
         holidayRegion = DEF_HOLIDAY_REGION;
@@ -601,6 +649,31 @@ public final class DesktopConfig {
 
     public void setAutoHide(boolean autoHide) {
         this.autoHide = autoHide;
+    }
+
+    /** How the taskbar's fixed buttons present themselves (icon-only default). */
+    public Labels getTaskbarLabels() {
+        return taskbarLabels;
+    }
+
+    public void setTaskbarLabels(Labels labels) {
+        this.taskbarLabels = (labels == null) ? DEF_TASKBAR_LABELS : labels;
+    }
+
+    /** Whether {@code item} is shown on the 2D taskbar (all shown by default). */
+    public boolean isTaskbarItemShown(TaskbarItem item) {
+        return item != null && taskbarShown.contains(item);
+    }
+
+    public void setTaskbarItemShown(TaskbarItem item, boolean shown) {
+        if (item == null) {
+            return;
+        }
+        if (shown) {
+            taskbarShown.add(item);
+        } else {
+            taskbarShown.remove(item);
+        }
     }
 
     public String getFontName() {
@@ -944,6 +1017,17 @@ public final class DesktopConfig {
             }
         }
         return Position.BOTTOM;
+    }
+
+    private static Labels parseLabels(String s) {
+        if (s != null) {
+            try {
+                return Labels.valueOf(s.trim());
+            } catch (IllegalArgumentException e) {
+                // fall through to the default
+            }
+        }
+        return DEF_TASKBAR_LABELS;
     }
 
     /** Trims/upper-cases a region token; null or blank falls back to {@code AUTO}. */

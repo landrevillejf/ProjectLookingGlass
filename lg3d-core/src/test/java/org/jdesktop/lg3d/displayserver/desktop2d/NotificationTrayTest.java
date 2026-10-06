@@ -15,7 +15,14 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.image.BufferedImage;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +58,7 @@ class NotificationTrayTest {
     void buttonTracksUnread() {
         NotificationModel model = new NotificationModel();
         NotificationTray tray = new NotificationTray(model);
+        tray.setIconOnly(false);   // assert the icon+text presentation
         assertEquals("Notifications", tray.button().getText());
         model.add("a", null, null);
         assertEquals("Notifications (1)", tray.button().getText());
@@ -64,6 +72,7 @@ class NotificationTrayTest {
     void openMarksAllRead() {
         NotificationModel model = new NotificationModel();
         NotificationTray tray = new NotificationTray(model);
+        tray.setIconOnly(false);
         model.add("a", "body", Notification.Kind.WARNING);
         model.add("b", null, null);
         assertEquals(2, model.unreadCount());
@@ -77,6 +86,7 @@ class NotificationTrayTest {
     @DisplayName("a null model is tolerated")
     void nullModelIsSafe() {
         NotificationTray tray = new NotificationTray(null);
+        tray.setIconOnly(false);
         assertEquals("Notifications", tray.button().getText());
         tray.markReadAndRebuild();
         tray.dispose();
@@ -97,11 +107,59 @@ class NotificationTrayTest {
         NotificationModel model = new NotificationModel();
         DoNotDisturb dnd = new DoNotDisturb();
         NotificationTray tray = new NotificationTray(model, dnd);
+        tray.setIconOnly(false);
         assertEquals("Notifications", tray.button().getText());
         dnd.enable();                       // fires the tray listener
         assertEquals("[DND] Notifications", tray.button().getText());
         dnd.disable();
         assertEquals("Notifications", tray.button().getText());
         tray.dispose();
+    }
+
+    @Test
+    @DisplayName("icon-only (the default) hides the text and badges the glyph")
+    void iconOnlyIsTheDefault() {
+        NotificationModel model = new NotificationModel();
+        NotificationTray tray = new NotificationTray(model);
+        assertNull(tray.button().getText(),
+                "icon-only presentation carries no button text");
+        assertEquals("Desktop notifications", tray.button().getToolTipText());
+        model.add("a", null, null);
+        assertEquals("Desktop notifications (1 unread)",
+                tray.button().getToolTipText(),
+                "the unread count moves into the tooltip");
+        assertNotNull(tray.button().getIcon());
+        // Switching to text mode restores the label and drops the badge text.
+        tray.setIconOnly(false);
+        assertEquals("Notifications (1)", tray.button().getText());
+        tray.dispose();
+    }
+
+    @Test
+    @DisplayName("the icon-only tooltip reports the unread count and DND state")
+    void tooltipText() {
+        assertEquals("Desktop notifications", NotificationTray.tooltip(0, false));
+        assertEquals("Desktop notifications (2 unread)",
+                NotificationTray.tooltip(2, false));
+        assertEquals("Desktop notifications \u2014 Do Not Disturb on",
+                NotificationTray.tooltip(0, true));
+        assertEquals("Desktop notifications (2 unread) \u2014 Do Not Disturb on",
+                NotificationTray.tooltip(2, true));
+    }
+
+    @Test
+    @DisplayName("badgedIcon returns the base glyph unless there is something unread")
+    void badgedIcon() {
+        Icon base = new ImageIcon(new BufferedImage(24, 24,
+                BufferedImage.TYPE_INT_ARGB));
+        assertSame(base, NotificationTray.badgedIcon(base, 0),
+                "no unread notifications means no badge");
+        assertSame(base, NotificationTray.badgedIcon(base, -3));
+        assertNull(NotificationTray.badgedIcon(null, 4),
+                "a null base stays null rather than throwing");
+        Icon badged = NotificationTray.badgedIcon(base, 3);
+        assertTrue(badged instanceof ImageIcon, "a badge composites a new image");
+        assertEquals(base.getIconWidth(), badged.getIconWidth());
+        assertEquals(base.getIconHeight(), badged.getIconHeight());
     }
 }

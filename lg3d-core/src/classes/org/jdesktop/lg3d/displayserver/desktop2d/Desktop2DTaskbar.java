@@ -92,6 +92,11 @@ public class Desktop2DTaskbar extends JPanel {
     private static final String DOWNLOADS_ICON =
             "resources/images/icon/folder-downloads.png";
 
+    /** Text labels for the chrome buttons, shown only in ICONS_AND_TEXT mode. */
+    private static final String START_LABEL = "Start";
+    private static final String DOCUMENTS_LABEL = "documents";
+    private static final String DOWNLOADS_LABEL = "downloads";
+
     /** Natural bar height at {@code barScale == 1.0}, in pixels. */
     static final int BASE_BAR_HEIGHT_PX = 34;
     /** Floor so a small bar scale never clips the buttons entirely. */
@@ -126,6 +131,10 @@ public class Desktop2DTaskbar extends JPanel {
     private final JButton startButton;
     private final JButton documentsButton;
     private final JButton downloadsButton;
+    private final JSeparator quickLaunchDivider;
+    private final NotificationTray notificationTray;
+    private final JButton notificationTrayButton;
+    private final JButton exitButton;
     private final Icon startIconBase;
     private final Icon documentsIconBase;
     private final Icon downloadsIconBase;
@@ -157,8 +166,8 @@ public class Desktop2DTaskbar extends JPanel {
         JPanel leftRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
         leftRow.setOpaque(false);
         startIconBase = Desktop2DStartMenu.icon(STAR_ICON);
-        startButton = new JButton("Start", startIconBase);
-        startButton.setToolTipText("Applications");
+        startButton = new JButton(startIconBase);
+        startButton.setToolTipText("Start - Applications");
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
         leftRow.add(startButton);
         // The pinned quick-launch strip sits between Start and the running-window
@@ -167,9 +176,9 @@ public class Desktop2DTaskbar extends JPanel {
         quickLaunchBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
         quickLaunchBar.setOpaque(false);
         leftRow.add(quickLaunchBar);
-        JSeparator divider = new JSeparator(JSeparator.VERTICAL);
-        divider.setPreferredSize(new Dimension(3, QUICKLAUNCH_ICON_BASE_PX));
-        leftRow.add(divider);
+        quickLaunchDivider = new JSeparator(JSeparator.VERTICAL);
+        quickLaunchDivider.setPreferredSize(new Dimension(3, QUICKLAUNCH_ICON_BASE_PX));
+        leftRow.add(quickLaunchDivider);
         leftRow.add(windowButtons);
         JPanel left = new JPanel(new GridBagLayout());
         left.setOpaque(false);
@@ -202,20 +211,21 @@ public class Desktop2DTaskbar extends JPanel {
         rightRow.add(indicators);
         // The notification-area button sits just left of the clock, the way a
         // system tray does; it reflects the desktop's shared notification log.
-        NotificationTray notificationTray =
+        notificationTray =
                 new NotificationTray(desktop.getNotificationModel(),
                         desktop.getDoNotDisturb());
-        rightRow.add(notificationTray.button());
+        notificationTrayButton = notificationTray.button();
+        rightRow.add(notificationTrayButton);
         rightRow.add(clock);
         // Clicking the clock opens a calendar with a small agenda for today.
         calendar = new CalendarPopup(clock, desktop.getNotificationModel());
         // Double-clicking a day in that calendar opens the Agenda at that date.
         calendar.setOnOpenDate(desktop::openAgendaAt);
-        JButton exit = new JButton("");
-        exit.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL,"Stop",24,24));
-        exit.setToolTipText("Leave the desktop");
-        exit.addActionListener(e -> desktop.confirmExit());
-        rightRow.add(exit);
+        exitButton = new JButton("");
+        exitButton.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL,"Stop",24,24));
+        exitButton.setToolTipText("Leave the desktop");
+        exitButton.addActionListener(e -> desktop.confirmExit());
+        rightRow.add(exitButton);
         JPanel right = new JPanel(new GridBagLayout());
         right.setOpaque(false);
         right.add(rightRow);
@@ -232,7 +242,9 @@ public class Desktop2DTaskbar extends JPanel {
 
     private JButton folderButton(String label, Icon icon,
                                  final JPopupMenu menu) {
-        JButton button = new JButton(label, icon);
+        // Icon-only by default; the descriptive text is the tooltip, and
+        // applyConfig() restores the label only in ICONS_AND_TEXT mode.
+        JButton button = new JButton(icon);
         button.setToolTipText("Recently modified files in ~/" + label);
         button.addActionListener(e -> showPopup(menu, button));
         return button;
@@ -609,6 +621,8 @@ public class Desktop2DTaskbar extends JPanel {
         startButton.setIcon(scaledIcon(startIconBase, iconScale));
         documentsButton.setIcon(scaledIcon(documentsIconBase, iconScale));
         downloadsButton.setIcon(scaledIcon(downloadsIconBase, iconScale));
+        // Show/hide each fixed piece and apply the configured label style.
+        applyContents(cfg);
         // The quick-launch shortcut icons follow the same configured scale.
         quickLaunchIconScale = iconScale;
         rebuildQuickLaunch();
@@ -626,6 +640,42 @@ public class Desktop2DTaskbar extends JPanel {
         }
         revalidate();
         repaint();
+    }
+
+    /**
+     * Shows or hides each fixed taskbar piece and applies the configured button
+     * label style (icon-only vs icon+text), per {@link DesktopConfig}. Hidden
+     * pieces are removed from the flow layout entirely, so the bar reclaims the
+     * space they occupied. Called from {@link #applyConfig()}.
+     */
+    private void applyContents(DesktopConfig cfg) {
+        boolean iconOnly =
+                cfg.getTaskbarLabels() == DesktopConfig.Labels.ICONS_ONLY;
+        startButton.setText(iconOnly ? null : START_LABEL);
+        documentsButton.setText(iconOnly ? null : DOCUMENTS_LABEL);
+        downloadsButton.setText(iconOnly ? null : DOWNLOADS_LABEL);
+        notificationTray.setIconOnly(iconOnly);
+
+        startButton.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.START));
+        boolean quickLaunchShown =
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.QUICK_LAUNCH);
+        quickLaunchBar.setVisible(quickLaunchShown);
+        quickLaunchDivider.setVisible(quickLaunchShown);
+        documentsButton.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.DOCUMENTS));
+        downloadsButton.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.DOWNLOADS));
+        workspacePager.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.WORKSPACES));
+        indicators.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.INDICATORS));
+        notificationTrayButton.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.NOTIFICATIONS));
+        clock.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.CLOCK));
+        exitButton.setVisible(
+                cfg.isTaskbarItemShown(DesktopConfig.TaskbarItem.EXIT));
     }
 
     private void setBarHeight(int height) {

@@ -160,6 +160,32 @@ work to make it build and run on a current toolchain.
   `.pdf` handler is never clobbered) plus four more `Desktop2DAppRegistryTest`
   cases pinning the reflective `openFile` (File hook, Path fallback, a declined
   result, null/no-hook safety).
+- **Taskbar: icon-only tray + fully configurable contents (2D desktop)**
+  (`lg3d-core` `...utils.prefs` + `...displayserver.desktop2d`; `lg3d-apps`
+  `...controlcenter`) — the taskbar's tray no longer spells out its buttons:
+  **Documents**, **Downloads** and **Notifications** now render as **icon only**,
+  with the descriptive text moved to the hover tooltip (and the notification
+  unread count kept at-a-glance as a small badge composited onto the glyph, plus
+  in the tooltip), and the same icon-only treatment applies to **Start**. The
+  whole bar is now **100% configurable from the Control Center**: `DesktopConfig`
+  gains a per-item visibility set (`taskbar.show.<ITEM>` for Start, quick-launch
+  strip, Documents, Downloads, workspace pager, system indicators, Notifications,
+  clock and Exit - each independently hideable, all shown by default) and a
+  button label style (`taskbar.labels`, `ICONS_ONLY` default / `ICONS_AND_TEXT`),
+  wired through load/save/reset. `Desktop2DTaskbar.applyConfig()` honours both
+  live - hidden pieces are removed from the flow layout so the bar reclaims their
+  space - and the **Desktop** control-center panel gains a *Taskbar buttons*
+  editor (a `JList` of the fixed buttons with a shown/hidden toggle, plus an
+  *Icons only / Icons and text* selector) alongside the existing thickness /
+  position / icon-size / auto-hide / font controls, so every aspect of the bar is
+  editable in one place. Defaults keep every piece visible, only the label style
+  changes (icon-only), so nothing disappears until the user opts in. **New/
+  extended headless JUnit 5 tests**: a new `DesktopConfigTaskbarContentsTest`
+  (all-shown + icon-only defaults, per-item round-trip and independence, null
+  safety, label round-trip, reset) plus extended `NotificationTrayTest` cases
+  (icon-only default hides the text and badges the glyph, the tooltip wording,
+  and `badgedIcon` returning the base glyph when there is nothing unread), none
+  of which write real user prefs.
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 

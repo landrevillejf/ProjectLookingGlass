@@ -19,6 +19,8 @@ import java.awt.Dimension;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
 import java.awt.Window;
+import java.util.EnumMap;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -30,6 +32,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import javax.swing.DefaultListModel;
 import org.jdesktop.lg3d.apps.TitledSwingWindow;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
@@ -38,8 +41,8 @@ import org.jdesktop.lg3d.wg.event.LgEventConnector;
 
 /**
  * Desktop configuration panel: taskbar thickness, docking position, icon size,
- * the Swing application UI font, the taskbar auto-hide toggle, and the calendar's
- * holiday region. Edits are
+ * the Swing application UI font, the taskbar auto-hide toggle, the taskbar's
+ * visible buttons and their label style, and the calendar's holiday region. Edits are
  * written to {@link DesktopConfig} (persisted via {@code java.util.prefs}) and
  * applied live by posting a {@link DesktopConfigChangeEvent} - the same bridge
  * pattern {@link AppearancePanel} uses for the wallpaper, so the running taskbar
@@ -72,6 +75,16 @@ public class DesktopPanel implements ControlPanel {
 
     private static final String[] AUTO_HIDE_LABELS = { "Off", "On" };
 
+    /** Display names, in {@link DesktopConfig.TaskbarItem} ordinal order. */
+    private static final String[] TASKBAR_ITEM_LABELS = {
+        "Start button", "Quick-launch strip", "Documents", "Downloads",
+        "Workspace pager", "System indicators", "Notifications", "Clock",
+        "Exit button"
+    };
+    private static final String[] TASKBAR_LABEL_LABELS = {
+        "Icons only", "Icons and text"
+    };
+
     // Holiday region for the 2D desktop's calendar popup. "AUTO" resolves from
     // the system locale; the rest are explicit jbusinessday region tokens
     // persisted in DesktopConfig (see HolidayCalendar's token grammar).
@@ -98,6 +111,12 @@ public class DesktopPanel implements ControlPanel {
     private final JList<String> autoHideList = new JList<>(AUTO_HIDE_LABELS);
     private final JList<String> fontList = new JList<>(fontFamilies());
     private final JList<String> holidayRegionList = new JList<>(HOLIDAY_REGION_LABELS);
+    private final DefaultListModel<String> itemsModel = new DefaultListModel<>();
+    private final JList<String> itemsList = new JList<>(itemsModel);
+    private final JList<String> labelsList = new JList<>(TASKBAR_LABEL_LABELS);
+    /** Pending per-item visibility, edited by the toggle and written on Apply. */
+    private final Map<DesktopConfig.TaskbarItem, Boolean> pendingShown =
+            new EnumMap<>(DesktopConfig.TaskbarItem.class);
     private final JLabel statusLabel = new JLabel(" ");
 
     public DesktopPanel() {
@@ -124,7 +143,10 @@ public class DesktopPanel implements ControlPanel {
 
         JPanel outer = new JPanel(new BorderLayout(10, 10));
         outer.add(columns, BorderLayout.NORTH);
-        outer.add(listBlock("Application font family", fontList, 6), BorderLayout.CENTER);
+        JPanel centerGrid = new JPanel(new GridLayout(1, 2, 10, 0));
+        centerGrid.add(listBlock("Application font family", fontList, 6));
+        centerGrid.add(taskbarContentsBlock());
+        outer.add(centerGrid, BorderLayout.CENTER);
 
         JButton apply = new JButton("Apply");
         apply.addActionListener(e -> apply());
@@ -189,6 +211,12 @@ public class DesktopPanel implements ControlPanel {
         selectNearest(fontSizeList, SIZE_VALUES, cfg.getFontSize());
         autoHideList.setSelectedIndex(cfg.isAutoHide() ? 1 : 0);
         holidayRegionList.setSelectedIndex(regionIndex(cfg.getHolidayRegion()));
+        for (DesktopConfig.TaskbarItem item : DesktopConfig.TaskbarItem.values()) {
+            pendingShown.put(item, cfg.isTaskbarItemShown(item));
+        }
+        refreshItemsList();
+        labelsList.setSelectedIndex(
+                cfg.getTaskbarLabels() == DesktopConfig.Labels.ICONS_AND_TEXT ? 1 : 0);
         fontList.setSelectedValue(cfg.getFontName(), true);
         if (fontList.getSelectedValue() == null && fontList.getModel().getSize() > 0) {
             fontList.setSelectedIndex(0);
@@ -204,6 +232,12 @@ public class DesktopPanel implements ControlPanel {
                 ? DesktopConfig.Position.TOP : DesktopConfig.Position.BOTTOM);
         cfg.setFontSize(SIZE_VALUES[index(fontSizeList, SIZE_VALUES.length)]);
         cfg.setAutoHide(index(autoHideList, 2) == 1);
+        for (DesktopConfig.TaskbarItem item : DesktopConfig.TaskbarItem.values()) {
+            cfg.setTaskbarItemShown(item, Boolean.TRUE.equals(pendingShown.get(item)));
+        }
+        cfg.setTaskbarLabels(index(labelsList, 2) == 1
+                ? DesktopConfig.Labels.ICONS_AND_TEXT
+                : DesktopConfig.Labels.ICONS_ONLY);
         cfg.setHolidayRegion(HOLIDAY_REGION_VALUES[index(holidayRegionList, HOLIDAY_REGION_VALUES.length)]);
         String family = fontList.getSelectedValue();
         if (family != null) {
@@ -241,6 +275,67 @@ public class DesktopPanel implements ControlPanel {
         syncFromConfig();
         apply();
         statusLabel.setText("Restored default desktop settings.");
+    }
+
+    // ------------------------------------------------------------------
+    // Taskbar contents (which buttons show, and icon-only vs icon+text)
+    // ------------------------------------------------------------------
+
+    /**
+     * The taskbar-contents editor: the list of fixed taskbar buttons with their
+     * pending shown/hidden state, a toggle for the selected row, and the label
+     * style selector (icon-only vs icon+text).
+     */
+    private JPanel taskbarContentsBlock() {
+        itemsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        itemsList.setVisibleRowCount(6);
+        JScrollPane sp = new JScrollPane(itemsList);
+        sp.setBorder(BorderFactory.createLineBorder(new Color(190, 196, 206)));
+
+        JButton toggle = new JButton("Toggle shown / hidden");
+        toggle.addActionListener(e -> toggleSelectedItem());
+
+        JPanel south = new JPanel(new BorderLayout(4, 4));
+        south.add(listBlock("Taskbar button labels", labelsList, 2), BorderLayout.NORTH);
+        south.add(toggle, BorderLayout.SOUTH);
+
+        JPanel p = new JPanel(new BorderLayout(4, 4));
+        p.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        p.add(new JLabel("Taskbar buttons (select, then toggle)"), BorderLayout.NORTH);
+        p.add(sp, BorderLayout.CENTER);
+        p.add(south, BorderLayout.SOUTH);
+        return p;
+    }
+
+    /** Flips the pending shown/hidden state of the selected taskbar button. */
+    private void toggleSelectedItem() {
+        int i = itemsList.getSelectedIndex();
+        DesktopConfig.TaskbarItem[] items = DesktopConfig.TaskbarItem.values();
+        if (i < 0 || i >= items.length) {
+            statusLabel.setText("Select a taskbar button first.");
+            return;
+        }
+        DesktopConfig.TaskbarItem item = items[i];
+        pendingShown.put(item, !Boolean.TRUE.equals(pendingShown.get(item)));
+        refreshItemsList();
+        itemsList.setSelectedIndex(i);
+    }
+
+    /** Rebuilds the taskbar-button rows from the pending state, keeping selection. */
+    private void refreshItemsList() {
+        int keep = itemsList.getSelectedIndex();
+        itemsModel.clear();
+        DesktopConfig.TaskbarItem[] items = DesktopConfig.TaskbarItem.values();
+        for (int i = 0; i < items.length && i < TASKBAR_ITEM_LABELS.length; i++) {
+            boolean shown = Boolean.TRUE.equals(pendingShown.get(items[i]));
+            itemsModel.addElement(TASKBAR_ITEM_LABELS[i]
+                    + (shown ? "  \u2014  shown" : "  \u2014  hidden"));
+        }
+        if (keep >= 0 && keep < itemsModel.size()) {
+            itemsList.setSelectedIndex(keep);
+        } else if (itemsModel.size() > 0) {
+            itemsList.setSelectedIndex(0);
+        }
     }
 
     // ------------------------------------------------------------------
