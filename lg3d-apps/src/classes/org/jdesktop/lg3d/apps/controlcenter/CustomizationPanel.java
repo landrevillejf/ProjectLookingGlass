@@ -307,7 +307,7 @@ public class CustomizationPanel implements ControlPanel {
         JButton applyPack = new JButton("Apply");
         applyPack.addActionListener(e -> applyIconPack());
         JButton createPack = new JButton("Create Pack...");
-        createPack.setToolTipText("Compose a new pack from the desktop's IconManager glyphs");
+        createPack.setToolTipText("Open the icon studio: compose a styled pack from the desktop's IconManager glyphs");
         createPack.addActionListener(e -> createIconPack());
         JButton importPack = new JButton("Import Pack...");
         importPack.setToolTipText("Import a folder of PNGs or a .zip as an icon pack");

@@ -94,6 +94,35 @@ work to make it build and run on a current toolchain.
   the `userRoot` override, save-and-discover a USER pack + resolve its override,
   blank-name/empty-icon rejection, delete, `targetFor` base-name/slug keys and
   `appIconTargets` safety), none of which write real user prefs.
+- **Desktop Customization: icon-pack studio — style packs with the full
+  IconManager vocabulary (2D desktop)** (`lg3d-core`
+  `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps` `...controlcenter`) —
+  the Create Pack… builder becomes a full **icon studio** that drives the bundled
+  IconManager library to the extent of its API instead of only dropping a raw
+  glyph per app. A new immutable `IconRecipe` (+ `Builder`, `toBuilder`,
+  `forApp`) describes one icon end-to-end: a `Source` (the bundled `GLYPH` *or*
+  any generative IconManager tile — `GLASS`, `COLOR`, `GRADIENT`, `CIRCULAR`,
+  `NEUMORPHISM`, `TEXT`, `PATTERN`, `STATUS`) plus an appearance chain (tint
+  colour + strength, gradient accent, `IconStyle`, `PatternType`, `StatusType`,
+  the six `IconEffect` post-processors, rounded-corner radius, drop shadow,
+  brightness/contrast, rotation and horizontal/vertical flip), with seven
+  `Preset` templates (flat, mono tint, glass, gradient, neumorphism, rounded
+  shadow, sepia vintage). `IconGlyphLibrary` gains a never-throw
+  `render(recipe,size)`/`renderIcon` pipeline that builds the source then runs
+  each appearance step individually guarded (a single unsupported effect degrades
+  rather than blanks the icon), plus the vocabulary accessors the studio lists
+  (`colors`/`styles`/`effects`/`patterns`/`statuses`, `color(IconColor)`,
+  `label(Enum)`) and a catalogue-wide `searchGlyphs(query)`. The rewritten
+  `IconPackBuilderDialog` adds a searchable glyph catalogue and a style studio
+  (preset/source/colour/style/pattern/status/effect `JList`s + tint/corner/
+  brightness/contrast/rotate sliders and shadow/flip toggles) with a large live
+  preview; one coherent pack style is stamped onto every assigned app's glyph at
+  save. All choice controls stay `JList` selectors per the offscreen `SwingNode`
+  rule, and defaults are unchanged. **New headless JUnit 5 tests**: a new
+  `IconRecipeRenderTest` (builder defaults + clamping, defensive effect set,
+  `forApp`/`toBuilder` immutability, preset templates, every generative source,
+  plain/tinted/gradient glyph, the full appearance chain, enum vocabularies and
+  search) — none of which write real user prefs.
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 
