@@ -29,7 +29,6 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -40,8 +39,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.ListSelectionModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
-import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
-import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec;
 import org.jdesktop.lg3d.scenemanager.utils.background.SimpleImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
@@ -93,11 +90,6 @@ public class AppearancePanel implements ControlPanel {
     private final DefaultListModel<String> cornerNames = new DefaultListModel<>();
     private final JList<String> cornerList = new JList<>(cornerNames);
 
-    /** Metal theme manager (2D desktop only): theme names + parallel specs. */
-    private final DefaultListModel<String> themeNames = new DefaultListModel<>();
-    private final JList<String> themeList = new JList<>(themeNames);
-    private final List<MetalThemeSpec> themeSpecs = new ArrayList<>();
-
     /** The slideshow source folder; empty means the bundled wallpapers. */
     private String slideshowFolder = "";
 
@@ -143,11 +135,10 @@ public class AppearancePanel implements ControlPanel {
         root.add(statusLabel, BorderLayout.SOUTH);
         JPanel north = new JPanel(new GridLayout(0, 1, 6, 6));
         // The window-glass selector drives the 3D desktop's Frame3D decoration
-        // (Glassy vs GPU Frosted), so it is 3D-only; the Metal theme manager
-        // re-skins the conventional 2D desktop, so it is shown there instead.
-        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
-            north.add(buildThemePanel());
-        } else {
+        // (Glassy vs GPU Frosted), so it is 3D-only. The 2D desktop's colour
+        // theme moved to the Customization panel, so Appearance keeps only the
+        // wallpaper and slideshow here.
+        if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             north.add(buildGlassPanel());
         }
         north.add(buildSlideshowPanel());
@@ -189,9 +180,7 @@ public class AppearancePanel implements ControlPanel {
         if (!names.isEmpty()) {
             nameList.setSelectedIndex(0);
         }
-        if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
-            loadThemeState();
-        } else {
+        if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             loadGlassState();
         }
         loadSlideshowState();
@@ -266,135 +255,6 @@ public class AppearancePanel implements ControlPanel {
                 : "Window glass: Glassy (classic)")
                 + ", rounded corners " + (rounded ? "on" : "off")
                 + " - applied to open windows and the bar, and saved");
-    }
-
-    /**
-     * Builds the Metal theme manager: a {@link JList} of the built-in themes
-     * (Steel, Ocean, Graphite, Emerald, Sunset, Glassy - see
-     * {@link MetalThemeManager#builtIns()}) plus any user-created themes, and
-     * Apply / New / Delete buttons. Shown on the conventional 2D desktop in
-     * place of the 3D-only window-glass selector. A list (never a combo box or
-     * radio buttons) keeps the panel working when it is hosted offscreen in a
-     * {@code SwingNode}. Applying a theme switches the 2D shell onto the Metal
-     * look-and-feel with the chosen palette and persists the selection, so it
-     * is restored at the next start-up.
-     */
-    private JComponent buildThemePanel() {
-        themeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        themeList.setVisibleRowCount(4);
-        JScrollPane themeScroll = new JScrollPane(themeList);
-        themeScroll.setPreferredSize(new Dimension(170, 90));
-
-        JButton applyTheme = new JButton("Apply");
-        applyTheme.addActionListener(e -> applyTheme());
-        JButton newTheme = new JButton("New...");
-        newTheme.addActionListener(e -> newTheme());
-        JButton deleteTheme = new JButton("Delete");
-        deleteTheme.addActionListener(e -> deleteTheme());
-        JButton systemLook = new JButton("System Look");
-        systemLook.setToolTipText("Revert to the native platform look and feel (GTK/Synth)");
-        systemLook.addActionListener(e -> useSystemLook());
-
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        row.add(new JLabel("Metal theme:"));
-        row.add(themeScroll);
-        JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 4));
-        buttons.add(applyTheme);
-        buttons.add(newTheme);
-        buttons.add(deleteTheme);
-        buttons.add(systemLook);
-        row.add(buttons);
-
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(row, BorderLayout.CENTER);
-        panel.setBorder(BorderFactory.createTitledBorder("Metal Theme (2D desktop)"));
-        return panel;
-    }
-
-    /** Rebuilds the theme list and reflects the persisted selection. */
-    private void loadThemeState() {
-        themeNames.clear();
-        themeSpecs.clear();
-        for (MetalThemeSpec spec : MetalThemeManager.available()) {
-            themeSpecs.add(spec);
-            themeNames.addElement(spec.name());
-        }
-        String current = DesktopConfig.get().getMetalTheme();
-        if (current == null || current.isBlank()) {
-            // No Metal theme is active (the native platform look is showing),
-            // so leave nothing selected rather than implying one is applied.
-            themeList.clearSelection();
-        } else {
-            themeList.setSelectedValue(current, true);
-        }
-    }
-
-    /** The spec behind the current list selection, or null. */
-    private MetalThemeSpec selectedTheme() {
-        int i = themeList.getSelectedIndex();
-        return (i >= 0 && i < themeSpecs.size()) ? themeSpecs.get(i) : null;
-    }
-
-    private void applyTheme() {
-        MetalThemeSpec spec = selectedTheme();
-        if (spec == null) {
-            warn("Select a Metal theme first.");
-            return;
-        }
-        MetalThemeManager.apply(spec);
-        statusLabel.setText("Metal theme applied: " + spec.name());
-    }
-
-    /**
-     * Reverts the 2D desktop to the native platform look-and-feel (GTK/Synth),
-     * undoing any applied Metal theme, and clears the persisted selection so the
-     * next start-up keeps the native look. The list selection is dropped to show
-     * that no Metal theme is active.
-     */
-    private void useSystemLook() {
-        MetalThemeManager.applySystem();
-        themeList.clearSelection();
-        statusLabel.setText("Restored the system look and feel (native GTK/Synth)");
-    }
-
-    /**
-     * Creates a user theme from a name and one accent colour (the rest of the
-     * palette is derived), stores it, and selects it. The dialogs are native
-     * Swing and are only reachable on the 2D desktop, where the control center
-     * is a real window rather than an offscreen {@code SwingNode} texture.
-     */
-    private void newTheme() {
-        String name = JOptionPane.showInputDialog(root, "New theme name:",
-                "New Metal Theme", JOptionPane.PLAIN_MESSAGE);
-        if (name == null || name.isBlank()) {
-            return;
-        }
-        java.awt.Color accent = JColorChooser.showDialog(root,
-                "Choose the theme accent colour", new java.awt.Color(0x66, 0x99, 0xCC));
-        if (accent == null) {
-            return;
-        }
-        MetalThemeSpec spec = MetalThemeSpec.fromAccent(name.trim(), accent);
-        MetalThemeManager.addCustom(spec);
-        loadThemeState();
-        themeList.setSelectedValue(spec.name(), true);
-        statusLabel.setText("Created Metal theme: " + spec.name()
-                + " - select it and press Apply");
-    }
-
-    /** Deletes the selected user theme (the built-ins cannot be removed). */
-    private void deleteTheme() {
-        MetalThemeSpec spec = selectedTheme();
-        if (spec == null) {
-            warn("Select a Metal theme to delete.");
-            return;
-        }
-        if (!MetalThemeManager.removeCustom(spec.name())) {
-            warn("\"" + spec.name() + "\" is a built-in theme and cannot be deleted.");
-            return;
-        }
-        loadThemeState();
-        statusLabel.setText("Deleted Metal theme: " + spec.name());
     }
 
     /**

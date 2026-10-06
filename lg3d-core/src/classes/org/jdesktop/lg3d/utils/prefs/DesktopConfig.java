@@ -65,6 +65,7 @@ public final class DesktopConfig {
     private static final String KEY_ROUNDED_CORNERS = "window.roundedCorners";
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
+    private static final String KEY_THEME_ACCENT = "theme.accent";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
     private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
     /** Wallpaper-schedule entries: a count plus per-index hour/minute/file. */
@@ -150,6 +151,12 @@ public final class DesktopConfig {
     public static final String DEFAULT_METAL_CUSTOM_THEMES = "";
     private static final String DEF_METAL_CUSTOM_THEMES = DEFAULT_METAL_CUSTOM_THEMES;
     /**
+     * Default theme accent colour: the empty string means "no explicit accent",
+     * so the accent derives from the active Metal theme's {@code primary2} shade.
+     */
+    public static final String DEFAULT_THEME_ACCENT = "";
+    private static final String DEF_THEME_ACCENT = DEFAULT_THEME_ACCENT;
+    /**
      * Whether the schedule swaps the wallpaper / re-lights the scene by default.
      * The two are independent opt-ins: either, both or neither can be enabled.
      */
@@ -225,6 +232,7 @@ public final class DesktopConfig {
     private boolean roundedCorners = DEF_ROUNDED_CORNERS;
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
+    private String accentColor = DEF_THEME_ACCENT;
     private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
     private boolean scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
     private List<ScheduleEntry> wallpaperSchedule =
@@ -288,6 +296,7 @@ public final class DesktopConfig {
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
+        accentColor = normalizeAccentColor(prefs.get(KEY_THEME_ACCENT, DEF_THEME_ACCENT));
         scheduleWallpaperEnabled = prefs.getBoolean(
                 KEY_SCHEDULE_WALLPAPER_ENABLED, DEF_SCHEDULE_WALLPAPER_ENABLED);
         scheduleLightingEnabled = prefs.getBoolean(
@@ -372,6 +381,7 @@ public final class DesktopConfig {
         prefs.putBoolean(KEY_ROUNDED_CORNERS, roundedCorners);
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
+        prefs.put(KEY_THEME_ACCENT, accentColor);
         prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
         prefs.putBoolean(KEY_SCHEDULE_LIGHTING_ENABLED, scheduleLightingEnabled);
         prefs.putInt(KEY_WP_COUNT, wallpaperSchedule.size());
@@ -414,6 +424,7 @@ public final class DesktopConfig {
         roundedCorners = DEF_ROUNDED_CORNERS;
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
+        accentColor = DEF_THEME_ACCENT;
         scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
         scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
         wallpaperSchedule = new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
@@ -491,6 +502,20 @@ public final class DesktopConfig {
 
     public void setMetalCustomThemes(String metalCustomThemes) {
         this.metalCustomThemes = normalizeCustomThemes(metalCustomThemes);
+    }
+
+    /**
+     * The explicit theme accent colour as a {@code #rrggbb} string, or the empty
+     * string when none has been chosen (the accent then derives from the active
+     * Metal theme). Read by
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager#accentColor()}.
+     */
+    public String getAccentColor() {
+        return accentColor;
+    }
+
+    public void setAccentColor(String hex) {
+        this.accentColor = normalizeAccentColor(hex);
     }
 
     public void setBarScale(float barScale) {
@@ -838,6 +863,19 @@ public final class DesktopConfig {
     /** Trims the encoded custom-theme list; null falls back to empty. */
     private static String normalizeCustomThemes(String s) {
         return (s == null) ? DEF_METAL_CUSTOM_THEMES : s.trim();
+    }
+
+    /**
+     * Keeps a well-formed {@code #rrggbb} accent colour (lower-cased); null,
+     * blank or malformed input falls back to the empty (derive-from-theme)
+     * default.
+     */
+    private static String normalizeAccentColor(String s) {
+        if (s == null) {
+            return DEF_THEME_ACCENT;
+        }
+        String t = s.trim().toLowerCase(java.util.Locale.ROOT);
+        return t.matches("#[0-9a-f]{6}") ? t : DEF_THEME_ACCENT;
     }
 
     private static Position parsePosition(String s) {

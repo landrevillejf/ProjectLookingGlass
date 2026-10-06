@@ -21,19 +21,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.util.List;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * Covers the pure Metal-theme seam: {@link MetalThemeSpec}'s encode/decode
  * round-trip (including malformed input), the built-in palettes (Steel, Ocean,
- * Graphite, Emerald, Sunset, Glassy), the accent-colour derivation behind "New
- * theme", the list serialisation used to persist custom themes, and the
- * {@link CustomMetalTheme} bridge that maps a spec onto the live {@code Metal}
- * palette. All headless: no look-and-feel is installed and no window is
- * realised.
+ * Graphite, Emerald, Sunset, Glassy, Midnight, Rosewood, Sand), the
+ * accent-colour derivation behind "New theme" and the resolved accent the
+ * manager reports, the list serialisation used to persist custom themes, and
+ * the {@link CustomMetalTheme} bridge that maps a spec onto the live
+ * {@code Metal} palette. All headless: no look-and-feel is installed and no
+ * window is realised.
  */
 class MetalThemeSpecTest {
+
+    @AfterEach
+    void restore() {
+        DesktopConfig.get().resetToDefaults();
+    }
 
     @Test
     @DisplayName("the built-in themes are named and fully coloured")
@@ -44,6 +52,9 @@ class MetalThemeSpecTest {
         assertEquals("Emerald", MetalThemeSpec.EMERALD.name());
         assertEquals("Sunset", MetalThemeSpec.SUNSET.name());
         assertEquals("Glassy", MetalThemeSpec.GLASSY.name());
+        assertEquals("Midnight", MetalThemeSpec.MIDNIGHT.name());
+        assertEquals("Rosewood", MetalThemeSpec.ROSEWOOD.name());
+        assertEquals("Sand", MetalThemeSpec.SAND.name());
         for (MetalThemeSpec spec : MetalThemeManager.builtIns()) {
             assertNotNull(spec.primary1());
             assertNotNull(spec.primary2());
@@ -157,7 +168,9 @@ class MetalThemeSpecTest {
     void managerResolve() {
         assertEquals(List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN,
                         MetalThemeSpec.GRAPHITE, MetalThemeSpec.EMERALD,
-                        MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY),
+                        MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY,
+                        MetalThemeSpec.MIDNIGHT, MetalThemeSpec.ROSEWOOD,
+                        MetalThemeSpec.SAND),
                 MetalThemeManager.builtIns());
         assertEquals("Ocean", MetalThemeManager.resolve("Ocean").name());
         assertEquals("Glassy", MetalThemeManager.resolve("Glassy").name());
@@ -165,5 +178,26 @@ class MetalThemeSpecTest {
         assertNull(MetalThemeManager.resolve("No Such Theme"));
         assertNotNull(MetalThemeManager.toTheme(MetalThemeSpec.STEEL));
         assertNotNull(MetalThemeManager.toTheme(MetalThemeSpec.GLASSY));
+    }
+
+    @Test
+    @DisplayName("accentColor resolves the explicit accent, else the active theme's primary2")
+    void accentColorResolves() {
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.resetToDefaults();
+        // No theme and no explicit accent: fall back to Steel's primary2.
+        assertEquals(MetalThemeSpec.STEEL.primary2().getRGB(),
+                MetalThemeManager.accentColor().getRGB());
+        // A chosen theme with no accent: use that theme's primary2.
+        cfg.setMetalTheme("Ocean");
+        assertEquals(MetalThemeSpec.OCEAN.primary2().getRGB(),
+                MetalThemeManager.accentColor().getRGB());
+        // An explicit accent wins over the theme and is parsed from #rrggbb.
+        cfg.setAccentColor("#123456");
+        assertEquals(0x123456, MetalThemeManager.accentColor().getRGB() & 0xFFFFFF);
+        // A malformed accent is ignored (normalised to blank), so the theme leads.
+        cfg.setAccentColor("not-a-colour");
+        assertEquals(MetalThemeSpec.OCEAN.primary2().getRGB(),
+                MetalThemeManager.accentColor().getRGB());
     }
 }

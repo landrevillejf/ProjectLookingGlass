@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.53.2-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Desktop Customization: colour themes + accent (2D desktop)** (`lg3d-core`
+  `org.jdesktop.lg3d.displayserver.desktop2d` + `...utils.prefs`; `lg3d-apps`
+  `...controlcenter`) — a new **Customization** control-center category (registered
+  right after Appearance) that gathers the personalisation controls that go
+  *beyond* the wallpaper on the conventional 2D desktop, so they live together
+  instead of being buried in Appearance. The existing Metal-theme manager **moves**
+  out of `AppearancePanel` into a new `CustomizationPanel` (Appearance keeps the
+  wallpaper + slideshow on 2D and the window-glass/rounded selector on 3D); the new
+  panel is gated on `Desktop2D.MODE_PROPERTY` and degrades to a "2D desktop only"
+  note on the 3D shell, and uses JList selectors throughout (never a combo box,
+  per the offscreen `SwingNode` rule). Three new built-in `MetalThemeSpec` palettes
+  ship alongside the existing six — **Midnight** (deep navy), **Rosewood**
+  (reddish-brown) and **Sand** (warm beige). A new **"Accent colour…"** button
+  recolours the whole shell from a single picked colour via
+  `MetalThemeSpec.fromAccent(...)`, and the accent is persisted separately as a new
+  `DesktopConfig` pref `theme.accent` (`getAccentColor()`/`setAccentColor()`, stored
+  `#rrggbb`, default `""` = derive from the active theme; normalised + wired through
+  load/save/reset). `MetalThemeManager.accentColor()` resolves the persisted accent
+  or the active theme's `primary2` (falling back to Steel), the seam the upcoming
+  window-decoration styling will read. Defaults keep today's behaviour, so nothing
+  changes until the user opts in. **New/extended headless JUnit 5 tests**: extended
+  `MetalThemeSpecTest` (the three new built-ins populated, the exact `builtIns()`
+  list, and `accentColor()` resolution) plus a new `DesktopConfigAccentTest`
+  (blank default, round-trip + lower-casing, malformed/null/blank rejection, reset),
+  none of which write real user prefs.
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 

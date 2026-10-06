@@ -14,6 +14,7 @@
  */
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
+import java.awt.Color;
 import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,14 +56,17 @@ public final class MetalThemeManager {
      * The built-in themes, in display order: {@code Steel} and {@code Ocean}
      * (the stock JDK Metal palettes), {@code Graphite} (neutral slate-grey),
      * {@code Emerald} (forest-green accent), {@code Sunset} (warm amber/coral
-     * accent) and {@code Glassy} (an ice-blue palette that reproduces the
-     * native 3D desktop's translucent window-glass look - see
-     * {@link MetalThemeSpec#GLASSY} for the colour provenance).
+     * accent), {@code Glassy} (an ice-blue palette that reproduces the native 3D
+     * desktop's translucent window-glass look - see {@link MetalThemeSpec#GLASSY}
+     * for the colour provenance), {@code Midnight} (deep navy), {@code Rosewood}
+     * (reddish-brown) and {@code Sand} (warm beige).
      */
     public static List<MetalThemeSpec> builtIns() {
         return List.of(MetalThemeSpec.STEEL, MetalThemeSpec.OCEAN,
                 MetalThemeSpec.GRAPHITE, MetalThemeSpec.EMERALD,
-                MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY);
+                MetalThemeSpec.SUNSET, MetalThemeSpec.GLASSY,
+                MetalThemeSpec.MIDNIGHT, MetalThemeSpec.ROSEWOOD,
+                MetalThemeSpec.SAND);
     }
 
     /**
@@ -107,6 +111,39 @@ public final class MetalThemeManager {
     /** Wraps {@code spec} in the live {@link CustomMetalTheme} Metal installs. */
     public static CustomMetalTheme toTheme(MetalThemeSpec spec) {
         return new CustomMetalTheme(spec);
+    }
+
+    /**
+     * The accent colour the 2D desktop is themed with: the explicit
+     * {@code theme.accent} the user picked in the control center, or - when none
+     * is set - the {@code primary2} shade of the active Metal theme (falling
+     * back to Steel when no theme is chosen). Consumed by the window-decoration
+     * styling so the title bar tracks the theme. Never {@code null}.
+     */
+    public static Color accentColor() {
+        DesktopConfig cfg = DesktopConfig.get();
+        Color explicit = parseHex(cfg.getAccentColor());
+        if (explicit != null) {
+            return explicit;
+        }
+        MetalThemeSpec spec = resolve(cfg.getMetalTheme());
+        return (spec != null ? spec : MetalThemeSpec.STEEL).primary2();
+    }
+
+    /** Parses a {@code #rrggbb} colour, or returns {@code null} if blank/malformed. */
+    private static Color parseHex(String hex) {
+        if (hex == null) {
+            return null;
+        }
+        String s = hex.trim();
+        if (s.length() != 7 || s.charAt(0) != '#') {
+            return null;
+        }
+        try {
+            return new Color(Integer.parseInt(s.substring(1), 16));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

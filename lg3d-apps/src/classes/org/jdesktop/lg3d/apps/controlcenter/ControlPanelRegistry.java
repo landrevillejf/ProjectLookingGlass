@@ -21,11 +21,12 @@ import java.util.logging.Logger;
 
 /**
  * Discovers the control center's category panels. The built-in panels
- * (Appearance, Desktop, Display, Sound, Power, Mouse & Keyboard, Shortcuts,
- * Notifications, Workspaces, Quick Launch, Network, Bluetooth, Printing,
- * Date & Time, Language & Region, Users, System, Schedule, Task Scheduler) are
- * registered on first access; extra panels can be contributed with
- * {@link #register(ControlPanel)} before the control center window is built.
+ * (Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
+ * Shortcuts, Notifications, Workspaces, Quick Launch, Network, Bluetooth,
+ * Printing, Date & Time, Language & Region, Users, System, Schedule,
+ * Task Scheduler) are registered on first access; extra panels can be
+ * contributed with {@link #register(ControlPanel)} before the control center
+ * window is built.
  *
  * <p>Every panel registers in each desktop mode, so the control center shows the
  * same categories on the 3D desktop and on the conventional Swing (2D) desktop.
@@ -68,6 +69,7 @@ public final class ControlPanelRegistry {
         if (!defaultsAdded) {
             defaultsAdded = true;
             addDefault(AppearancePanel::new, "Appearance");
+            addDefault(CustomizationPanel::new, "Customization");
             addDefault(DesktopPanel::new, "Desktop");
             addDefault(DisplayPanel::new, "Display");
             addDefault(SoundPanel::new, "Sound");
