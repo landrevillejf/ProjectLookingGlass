@@ -234,6 +234,15 @@ public class Desktop2D {
     private X11CompositorSession.Session compositedSession;
 
     /**
+     * The optional host {@code java.awt.SystemTray} mirror of the volume and
+     * network indicators, or null when the mirror is switched off
+     * ({@link DesktopConfig#isIndicatorsSystemTray()}) or the host has no system
+     * tray. Created/torn down by {@link #reconcileSystemTray} from
+     * {@link #reapplyConfig()}, so a control-center toggle takes effect live.
+     */
+    private SystemTrayBridge systemTray;
+
+    /**
      * Builds the desktop shell. Does not show it; call {@link #start()} (or
      * {@link #show()} on the EDT).
      */
@@ -1773,6 +1782,10 @@ public class Desktop2D {
             runDialog.hide();
         }
         stopSlideshowTimer();
+        if (systemTray != null) {
+            systemTray.stop();
+            systemTray = null;
+        }
         taskbar.stop();
         frame.setVisible(false);
         frame.dispose();
@@ -2369,8 +2382,29 @@ public class Desktop2D {
         content.add(taskbar, cfg.getPosition() == DesktopConfig.Position.TOP
                 ? BorderLayout.NORTH : BorderLayout.SOUTH);
         taskbar.applyConfig();
+        reconcileSystemTray(cfg);
         content.revalidate();
         content.repaint();
+    }
+
+    /**
+     * Brings the host system-tray mirror in line with the config: builds and
+     * starts a {@link SystemTrayBridge} when the mirror is enabled and the host
+     * supports a tray, pushes the per-indicator visibility into it, and tears it
+     * down when the mirror is disabled. A no-op on a host with no system tray
+     * (GNOME/Wayland), where {@link SystemTrayBridge#supported()} is false.
+     */
+    private void reconcileSystemTray(DesktopConfig cfg) {
+        if (cfg.isIndicatorsSystemTray() && SystemTrayBridge.supported()) {
+            if (systemTray == null) {
+                systemTray = new SystemTrayBridge();
+                systemTray.start();
+            }
+            systemTray.applyConfig(cfg);
+        } else if (systemTray != null) {
+            systemTray.stop();
+            systemTray = null;
+        }
     }
 
     /**

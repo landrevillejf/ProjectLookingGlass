@@ -55,6 +55,8 @@ public final class DesktopConfig {
     /** Per-item taskbar visibility: {@code taskbar.show.<ITEM>} booleans. */
     private static final String KEY_TASKBAR_SHOW_PREFIX = "taskbar.show.";
     private static final String KEY_TASKBAR_LABELS = "taskbar.labels";
+    private static final String KEY_INDICATOR_SHOW_PREFIX = "indicator.show.";
+    private static final String KEY_INDICATORS_SYSTEM_TRAY = "indicators.systemTray";
     private static final String KEY_FONT_NAME = "swing.fontName";
     private static final String KEY_FONT_SIZE = "swing.fontSize";
     private static final String KEY_HOLIDAY_REGION = "calendar.holidayRegion";
@@ -239,6 +241,16 @@ public final class DesktopConfig {
         INDICATORS, NOTIFICATIONS, CLOCK, EXIT
     }
 
+    /**
+     * The system indicators that can be mirrored into the host
+     * {@code java.awt.SystemTray}, toggled individually from the control
+     * center. Every indicator is shown by default; hiding one removes its tray
+     * icon. Only takes effect while {@link #isIndicatorsSystemTray()} is on.
+     */
+    public enum Indicator {
+        VOLUME, NETWORK
+    }
+
     /** How the taskbar's fixed buttons present themselves. */
     public enum Labels {
         /** Icon only; the descriptive text lives in the tooltip. */
@@ -254,6 +266,12 @@ public final class DesktopConfig {
     public static final Labels DEFAULT_TASKBAR_LABELS = Labels.ICONS_ONLY;
     private static final Labels DEF_TASKBAR_LABELS = DEFAULT_TASKBAR_LABELS;
 
+    /**
+     * By default the volume/network indicators live only on the lg3d taskbar;
+     * mirroring them into the host {@code java.awt.SystemTray} is opt-in.
+     */
+    private static final boolean DEF_INDICATORS_SYSTEM_TRAY = false;
+
     private static volatile DesktopConfig instance;
 
     private final Preferences prefs;
@@ -265,6 +283,9 @@ public final class DesktopConfig {
     private Labels taskbarLabels = DEF_TASKBAR_LABELS;
     private final EnumSet<TaskbarItem> taskbarShown =
             EnumSet.allOf(TaskbarItem.class);
+    private final EnumSet<Indicator> indicatorsShown =
+            EnumSet.allOf(Indicator.class);
+    private boolean indicatorsSystemTray = DEF_INDICATORS_SYSTEM_TRAY;
     private String fontName = DEF_FONT_NAME;
     private int fontSize = DEF_FONT_SIZE;
     private String holidayRegion = DEF_HOLIDAY_REGION;
@@ -329,6 +350,14 @@ public final class DesktopConfig {
                 taskbarShown.add(item);
             }
         }
+        indicatorsShown.clear();
+        for (Indicator ind : Indicator.values()) {
+            if (prefs.getBoolean(KEY_INDICATOR_SHOW_PREFIX + ind.name(), true)) {
+                indicatorsShown.add(ind);
+            }
+        }
+        indicatorsSystemTray = prefs.getBoolean(
+                KEY_INDICATORS_SYSTEM_TRAY, DEF_INDICATORS_SYSTEM_TRAY);
         fontName = prefs.get(KEY_FONT_NAME, DEF_FONT_NAME);
         fontSize = clampFontSize(prefs.getInt(KEY_FONT_SIZE, DEF_FONT_SIZE));
         position = parsePosition(prefs.get(KEY_POSITION, Position.BOTTOM.name()));
@@ -431,6 +460,11 @@ public final class DesktopConfig {
             prefs.putBoolean(KEY_TASKBAR_SHOW_PREFIX + item.name(),
                     taskbarShown.contains(item));
         }
+        for (Indicator ind : Indicator.values()) {
+            prefs.putBoolean(KEY_INDICATOR_SHOW_PREFIX + ind.name(),
+                    indicatorsShown.contains(ind));
+        }
+        prefs.putBoolean(KEY_INDICATORS_SYSTEM_TRAY, indicatorsSystemTray);
         prefs.put(KEY_FONT_NAME, fontName);
         prefs.putInt(KEY_FONT_SIZE, fontSize);
         prefs.put(KEY_HOLIDAY_REGION, holidayRegion);
@@ -479,6 +513,9 @@ public final class DesktopConfig {
         taskbarLabels = DEF_TASKBAR_LABELS;
         taskbarShown.clear();
         taskbarShown.addAll(EnumSet.allOf(TaskbarItem.class));
+        indicatorsShown.clear();
+        indicatorsShown.addAll(EnumSet.allOf(Indicator.class));
+        indicatorsSystemTray = DEF_INDICATORS_SYSTEM_TRAY;
         fontName = DEF_FONT_NAME;
         fontSize = DEF_FONT_SIZE;
         holidayRegion = DEF_HOLIDAY_REGION;
@@ -674,6 +711,35 @@ public final class DesktopConfig {
         } else {
             taskbarShown.remove(item);
         }
+    }
+
+    /** Whether {@code indicator} is shown in the tray (all shown by default). */
+    public boolean isIndicatorShown(Indicator indicator) {
+        return indicator != null && indicatorsShown.contains(indicator);
+    }
+
+    public void setIndicatorShown(Indicator indicator, boolean shown) {
+        if (indicator == null) {
+            return;
+        }
+        if (shown) {
+            indicatorsShown.add(indicator);
+        } else {
+            indicatorsShown.remove(indicator);
+        }
+    }
+
+    /**
+     * Whether the volume/network indicators are also mirrored into the host
+     * {@code java.awt.SystemTray} (off by default). When the host has no system
+     * tray the mirror is silently skipped regardless of this flag.
+     */
+    public boolean isIndicatorsSystemTray() {
+        return indicatorsSystemTray;
+    }
+
+    public void setIndicatorsSystemTray(boolean enabled) {
+        this.indicatorsSystemTray = enabled;
     }
 
     public String getFontName() {
