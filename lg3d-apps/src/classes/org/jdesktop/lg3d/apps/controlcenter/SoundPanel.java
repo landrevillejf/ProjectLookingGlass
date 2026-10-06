@@ -16,8 +16,12 @@ package org.jdesktop.lg3d.apps.controlcenter;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -26,57 +30,106 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.ListSelectionModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.VolumeStatus;
 
 /**
- * Sound panel: master output volume and mute, over the {@link VolumeStatus}
- * seam. The volume is a {@link JList} of decile presets (never a combo box or a
- * slider) so the panel keeps working when hosted offscreen in a {@code SwingNode}
- * on the 3D desktop; the same panel serves the 2D desktop. When no master audio
- * control exists (headless CI, no sound card) the panel degrades to a "no audio
- * device" note and Apply does nothing rather than failing.
+ * Sound panel: a master output volume {@link JSlider} and mute toggle, plus a
+ * list of the host's output devices (sinks/cards) that can be inspected and
+ * switched, all over the {@link VolumeStatus} seam.
+ *
+ * <p>The volume is a {@code JSlider} (drag-to-adjust, applied on release) and the
+ * device selector is a {@link JList} - never a combo box, whose heavyweight
+ * popup cannot be hosted offscreen in a {@code SwingNode}. {@code SwingNode}'s
+ * renderer forwards drag events to the hidden frame, so the slider works on the
+ * 3D desktop as well as the 2D one; the same panel serves both.</p>
+ *
+ * <p>When no master audio control exists (headless CI, no sound card) the panel
+ * degrades to a "no audio device" note with the controls disabled rather than
+ * failing, and an empty device list simply disables the switch button.</p>
  */
 public class SoundPanel implements ControlPanel {
 
-    /** The volume presets offered, in percent. */
-    static final int[] VOLUME_PRESETS = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
-
     private final JPanel root = new JPanel(new BorderLayout(8, 8));
-    private final DefaultListModel<String> volumes = new DefaultListModel<>();
-    private final JList<String> volumeList = new JList<>(volumes);
+    private final JSlider volumeSlider = new JSlider(0, 100, 50);
+    private final JLabel volumeValue = new JLabel("50%");
     private final JCheckBox muteBox = new JCheckBox("Muted");
+    private final DefaultListModel<String> deviceNames = new DefaultListModel<>();
+    private final JList<String> deviceList = new JList<>(deviceNames);
     private final JLabel statusLabel = new JLabel(" ");
-    private final JButton apply = new JButton("Apply");
+    private final JButton setDefault = new JButton("Set as Default");
+    private final JButton refresh = new JButton("Refresh");
+
+    /** The devices behind the current list rows, parallel to {@link #deviceNames}. */
+    private final List<VolumeStatus.Device> devices = new ArrayList<>();
+
+    /** Guards the slider/mute listeners while {@link #reload()} syncs them. */
+    private boolean syncing;
 
     public SoundPanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        for (int preset : VOLUME_PRESETS) {
-            volumes.addElement(preset + "%");
-        }
-        volumeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        volumeList.setVisibleRowCount(6);
-        JScrollPane scroll = new JScrollPane(volumeList);
-        scroll.setPreferredSize(new Dimension(150, 160));
-        scroll.setBorder(BorderFactory.createTitledBorder("Master volume"));
-
-        JPanel muteWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        muteWrap.add(muteBox);
-
-        JPanel center = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        center.add(scroll);
-        center.add(muteWrap);
-
-        apply.addActionListener(e -> applyVolume());
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        south.add(apply);
-
         root.add(statusLabel, BorderLayout.NORTH);
-        root.add(center, BorderLayout.CENTER);
-        root.add(south, BorderLayout.SOUTH);
+        root.add(buildCenter(), BorderLayout.CENTER);
+        root.add(buildButtons(), BorderLayout.SOUTH);
 
         reload();
+    }
+
+    /** The master-volume section stacked above the output-device list. */
+    private JComponent buildCenter() {
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.add(buildMaster());
+        center.add(Box.createVerticalStrut(8));
+        center.add(buildDevices());
+        return center;
+    }
+
+    /** The master volume slider, its live percentage read-out and mute box. */
+    private JComponent buildMaster() {
+        volumeSlider.setMajorTickSpacing(20);
+        volumeSlider.setMinorTickSpacing(5);
+        volumeSlider.setPaintTicks(true);
+        volumeSlider.setPaintLabels(true);
+        volumeSlider.addChangeListener(e -> onSliderChange());
+
+        muteBox.addActionListener(e -> onMuteToggle());
+
+        JPanel readout = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        readout.add(new JLabel("Master volume:"));
+        readout.add(volumeValue);
+
+        JPanel master = new JPanel(new BorderLayout(4, 4));
+        master.setBorder(BorderFactory.createTitledBorder("Master volume"));
+        master.add(readout, BorderLayout.NORTH);
+        master.add(volumeSlider, BorderLayout.CENTER);
+        JPanel muteWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        muteWrap.add(muteBox);
+        master.add(muteWrap, BorderLayout.SOUTH);
+        master.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+        return master;
+    }
+
+    /** The scrollable output-device list. */
+    private JComponent buildDevices() {
+        deviceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        deviceList.setVisibleRowCount(6);
+        JScrollPane scroll = new JScrollPane(deviceList);
+        scroll.setBorder(BorderFactory.createTitledBorder("Output devices"));
+        scroll.setPreferredSize(new Dimension(360, 150));
+        return scroll;
+    }
+
+    /** The Set-as-Default / Refresh button row. */
+    private JComponent buildButtons() {
+        setDefault.addActionListener(e -> setDefaultDevice());
+        refresh.addActionListener(e -> reload());
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.add(setDefault);
+        buttons.add(refresh);
+        return buttons;
     }
 
     @Override
@@ -101,42 +154,97 @@ public class SoundPanel implements ControlPanel {
 
     // ------------------------------------------------------------------
 
-    /** Re-reads the master volume, syncing the list, the mute box and status. */
-    private void reload() {
-        Optional<VolumeStatus.Level> level = VolumeStatus.read();
-        if (level.isEmpty()) {
-            volumeList.clearSelection();
-            muteBox.setSelected(false);
-            muteBox.setEnabled(false);
-            apply.setEnabled(false);
-            statusLabel.setText("No audio device (master volume unavailable).");
+    /**
+     * Live slider feedback: the percentage read-out tracks every change, but the
+     * volume is only pushed to the seam once the user releases the knob (the
+     * drag itself leaves {@code getValueIsAdjusting()} true), so dragging does
+     * not fire a CLI call per pixel.
+     */
+    private void onSliderChange() {
+        int percent = volumeSlider.getValue();
+        volumeValue.setText(percent + "%");
+        if (syncing || volumeSlider.getValueIsAdjusting()) {
             return;
         }
-        VolumeStatus.Level value = level.get();
-        muteBox.setEnabled(true);
-        apply.setEnabled(true);
-        volumeList.setSelectedIndex(indexOfVolume(value.percent()));
-        muteBox.setSelected(value.muted());
-        statusLabel.setText(VolumeStatus.label(value));
+        VolumeStatus.setVolume(percent);
     }
 
-    /** Pushes the selected preset and the mute state to the master control. */
-    private void applyVolume() {
-        int index = volumeList.getSelectedIndex();
-        if (index >= 0 && index < VOLUME_PRESETS.length) {
-            VolumeStatus.setVolume(VOLUME_PRESETS[index]);
+    /** Pushes the mute state to the seam when the user toggles the box. */
+    private void onMuteToggle() {
+        if (syncing) {
+            return;
         }
         VolumeStatus.setMuted(muteBox.isSelected());
-        reload();
     }
 
-    /**
-     * The preset index nearest {@code percent} (clamped), so a read volume of
-     * e.g. 47% selects the 50% row. Pure so it can be unit-tested headless.
-     */
-    static int indexOfVolume(int percent) {
-        int clamped = Math.max(0, Math.min(100, percent));
-        int index = Math.round(clamped / 10f);
-        return Math.max(0, Math.min(VOLUME_PRESETS.length - 1, index));
+    /** Re-reads the master volume and the device list, syncing every control. */
+    private void reload() {
+        syncing = true;
+        try {
+            Optional<VolumeStatus.Level> level = VolumeStatus.read();
+            if (level.isEmpty()) {
+                volumeSlider.setEnabled(false);
+                muteBox.setEnabled(false);
+                muteBox.setSelected(false);
+                statusLabel.setText("No audio device (master volume unavailable).");
+            } else {
+                VolumeStatus.Level value = level.get();
+                volumeSlider.setEnabled(true);
+                volumeSlider.setValue(value.percent());
+                volumeValue.setText(value.percent() + "%");
+                muteBox.setEnabled(true);
+                muteBox.setSelected(value.muted());
+                statusLabel.setText(VolumeStatus.label(value));
+            }
+            reloadDevices();
+        } finally {
+            syncing = false;
+        }
+    }
+
+    /** Re-reads the output devices, refreshing the list and switch button. */
+    private void reloadDevices() {
+        devices.clear();
+        deviceNames.clear();
+        for (VolumeStatus.Device device : VolumeStatus.devices()) {
+            devices.add(device);
+            deviceNames.addElement(VolumeStatus.deviceLabel(device));
+        }
+        if (deviceNames.isEmpty()) {
+            setDefault.setEnabled(false);
+            return;
+        }
+        setDefault.setEnabled(true);
+        deviceList.setSelectedIndex(defaultIndex());
+    }
+
+    /** The row of the current default device, or 0 when none is flagged. */
+    private int defaultIndex() {
+        for (int i = 0; i < devices.size(); i++) {
+            if (devices.get(i).isDefault()) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /** The device behind the selected row, or null when nothing is selected. */
+    private VolumeStatus.Device selectedDevice() {
+        int i = deviceList.getSelectedIndex();
+        return (i >= 0 && i < devices.size()) ? devices.get(i) : null;
+    }
+
+    /** Makes the selected device the default output, then re-reads the state. */
+    private void setDefaultDevice() {
+        VolumeStatus.Device device = selectedDevice();
+        if (device == null) {
+            statusLabel.setText("Select an output device first.");
+            return;
+        }
+        boolean ok = VolumeStatus.setDefault(device.id());
+        statusLabel.setText(ok
+                ? "Default output set to " + device.description()
+                : "Could not switch the default output (no sound server supports it).");
+        reload();
     }
 }

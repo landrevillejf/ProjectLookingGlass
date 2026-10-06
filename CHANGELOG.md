@@ -186,8 +186,68 @@ work to make it build and run on a current toolchain.
   (icon-only default hides the text and badges the glyph, the tooltip wording,
   and `badgedIcon` returning the base glyph when there is nothing unread), none
   of which write real user prefs.
+- **Sound: master volume slider + output-device management (2D desktop)**
+  (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`
+  `...controlcenter`) — the Control Center **Sound** panel is now a complete
+  mixer instead of a decile preset list: the master volume is a **drag
+  `JSlider`** (0-100, live percentage read-out, applied on release so dragging
+  does not fire a CLI call per pixel) beside the mute toggle, and below it an
+  **Output devices** `JList` *shows and manages the audio interfaces* — every
+  sink/card with its description, volume, `[muted]` and `[default]` markers, with
+  **Set as Default** to switch the active output and **Refresh** to re-enumerate.
+  The slider (not a combo box, whose heavyweight popup cannot be hosted
+  offscreen) works on both desktops because `SwingNode`'s renderer forwards drag
+  events to the hidden frame. `VolumeStatus` gains the device seam behind it:
+  a `Device(id,description,isDefault,percent,muted)` record, `devices()`
+  enumerating most-authoritative-first (**PipeWire** `wpctl status` →
+  **PulseAudio** `pactl list sinks` → **plain ALSA** `aplay -l`, the Linux From
+  Scratch / minimal case), `setDefault(id)` and per-device `setVolume(id,pct)` /
+  `setMuted(id,bool)`, plus a `deviceLabel(Device)` formatter. The parsers
+  (`parseWpctlSinks`/`parsePactlSinks`/`parseAlsaCards`), the label and the
+  per-backend device command arrays are pure, and every probe degrades to an
+  empty list / no-op when no tool exists (headless CI, no sound card), so the
+  panel simply disables the switch button. **New/extended headless JUnit 5
+  tests**: seven more `VolumeStatusTest` cases (the three device parsers,
+  `deviceLabel`, the exact device command arrays and a devices()/per-device
+  mutator no-throw guard) and a rewritten `SoundPanelTest` asserting the panel
+  hosts a 0-100 `JSlider` and an output-device `JList` — none of which invoke a
+  real audio tool or touch a sound card.
 
 ### Fixed
+- **Sound: master volume now works on PipeWire, PulseAudio and plain-ALSA hosts
+  (2D desktop)** (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d`) — the
+  Control Center **Sound** panel, the taskbar volume indicator and the
+  system-indicators widget all read the master volume through the `VolumeStatus`
+  seam, which only ever probed the `javax.sound.sampled` master `Port`. On a
+  modern Linux audio stack that port is either absent (PipeWire's ALSA
+  compatibility layer exposes PCM playback but **no** `MASTER_GAIN`/`MUTE`
+  control, so the JDK's Java Sound provider finds nothing) or reports a stale
+  ALSA view that does not track the real sink volume, so the panel wrongly
+  degraded to "No audio device (master volume unavailable)" and Apply/Mute were
+  disabled **even though audio worked fine**. `VolumeStatus` now tries the
+  host's native audio tooling most-authoritative-first — **PipeWire** via
+  `wpctl`, then **PulseAudio** via `pactl`, then **plain ALSA** via `amixer`
+  (the Linux From Scratch / minimal case with no sound server, driving the card
+  directly through `alsa-utils`; `Master` then `PCM` controls) — and only falls
+  back to the Java Sound `Port` when none of those tools exist (macOS, Windows,
+  a bare JDK). The Java Sound fallback's port filter is also **fixed**: it
+  previously required `Port.Info.isSource()` (a *capture* port), but a master
+  *output* gain lives on a *target* (playback) port, so the filter inverted the
+  match and never found the control even on hosts that expose one; it now scans
+  target ports and picks the first that supports `MASTER_GAIN`/`MUTE`. Reads
+  parse the tools' real output (`Volume: 1.40 [MUTED]`,
+  `front-left: 91749 / 140% / 8.77 dB`, `[100%] [on]`), percentages are clamped
+  to 0-100, and writes route to the first backend that succeeds; every probe
+  still degrades to empty / no-op when no tool and no port exist (headless CI,
+  no sound card). The parsing, the dB↔percentage maths and the per-backend
+  command arrays are pure and unchanged in signature, so no caller
+  (`SoundPanel`, `TaskbarIndicators`, `SystemIndicatorsCard`) needed edits.
+  **New headless JUnit 5 tests** extend `VolumeStatusTest` with the
+  `wpctl`/`pactl`/`amixer` parsers (scale, mute marker, over-100% clamping,
+  malformed/null rejection), the exact backend command arrays, and a guard that
+  the mutators no-op without throwing when no backend is present — none of which
+  invoke a real audio tool or touch a sound card.
+
 - **Control Center opens instantly, and the taskbar settings are discoverable (2D
   desktop)** (`lg3d-apps` `...controlcenter`) — the control center used to build
   *all* 21 category panels inside its constructor before the window was shown, and

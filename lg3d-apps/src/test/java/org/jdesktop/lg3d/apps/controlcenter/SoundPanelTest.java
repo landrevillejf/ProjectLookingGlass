@@ -17,19 +17,25 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Component;
+import java.awt.Container;
 import javax.swing.JComponent;
+import javax.swing.JList;
+import javax.swing.JSlider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * Headless construction test for the control center's Sound panel.
  *
- * <p>Building {@link SoundPanel} reads the master volume through the
- * {@code VolumeStatus} seam, which returns empty on a host with no audio device
- * (as in the test JVM), so the panel degrades to its "no audio device" state. It
- * creates only lightweight Swing components - no top-level window - so
- * constructing it under {@code java.awt.headless=true} is CI-safe.</p>
+ * <p>Building {@link SoundPanel} reads the master volume and the device list
+ * through the {@code VolumeStatus} seam, which returns empty on a host with no
+ * audio device (as in the test JVM), so the panel degrades to its "no audio
+ * device" state with an empty device list. It creates only lightweight Swing
+ * components - no top-level window - so constructing it under
+ * {@code java.awt.headless=true} is CI-safe.</p>
  */
 class SoundPanelTest {
 
@@ -61,13 +67,32 @@ class SoundPanelTest {
     }
 
     @Test
-    @DisplayName("the volume preset index snaps to the nearest clamped decile")
-    void volumeIndexSnaps() {
-        assertEquals(0, SoundPanel.indexOfVolume(0));
-        assertEquals(5, SoundPanel.indexOfVolume(47), "47% snaps to the 50% row");
-        assertEquals(5, SoundPanel.indexOfVolume(50));
-        assertEquals(10, SoundPanel.indexOfVolume(100));
-        assertEquals(10, SoundPanel.indexOfVolume(999), "clamped high");
-        assertEquals(0, SoundPanel.indexOfVolume(-5), "clamped low");
+    @DisplayName("the panel hosts a master volume slider and an output-device list")
+    void sliderAndDeviceListPresent() {
+        SoundPanel panel = new SoundPanel();
+        JSlider slider = find(panel.component(), JSlider.class);
+        assertNotNull(slider, "the master volume is a JSlider (SwingNode-safe)");
+        assertEquals(0, slider.getMinimum());
+        assertEquals(100, slider.getMaximum());
+        JList<?> list = find(panel.component(), JList.class);
+        assertNotNull(list, "the output devices are shown in a JList (never a combo box)");
+        assertTrue(list.getModel().getSize() >= 0, "the device list model is queryable");
+    }
+
+    /** Depth-first search for the first component of {@code type} in the tree. */
+    @SuppressWarnings("unchecked")
+    private static <T extends Component> T find(Container root, Class<T> type) {
+        if (type.isInstance(root)) {
+            return (T) root;
+        }
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container container) {
+                T found = find(container, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 }
