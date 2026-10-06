@@ -65,6 +65,35 @@ work to make it build and run on a current toolchain.
   path helpers) and `DesktopConfigIconPackTest` (blank defaults, round-trip,
   null/reset), plus an extended `AppIconsTest` (override precedence + `clearCache`),
   none of which write real user prefs.
+- **Desktop Customization: create icon packs from IconManager glyphs (2D
+  desktop)** (`lg3d-core` `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`
+  `...controlcenter`) — the Icon Pack section gains **Create Pack…** and **Delete
+  Pack**, so the user can *compose* a pack from the desktop's own bundled
+  IconManager glyph library rather than only choosing between the built-in
+  Mono/Vivid packs or importing PNGs. A new modal `IconPackBuilderDialog` lists the
+  themeable applications down the left (from the same start-menu descriptors the
+  2D menu is built from) and the glyph catalogue — category `JList` driving a
+  live-preview glyph `JList` — on the right; the user assigns one glyph per app and
+  saves under a name. `IconPack` gains a `Source.USER` and `IconPackManager` gains
+  user-pack discovery + persistence: packs are written as PNGs into named folders
+  under `~/.config/lg3d/icon-packs/<id>` (`saveUserPack`/`deleteUserPack`, id
+  sanitised from the name), discovered by scanning that root (`userPacks()`), and
+  listed by `available()` alongside the default, bundled and imported packs, so
+  several user packs coexist and the persisted `icon.pack` selects any of them with
+  no new preference. A new never-throw `IconGlyphLibrary` bridges IconManager for
+  the builder (category/glyph enumeration, `MissingIcon`→null, bundled-edge load +
+  resize, and rendering a glyph to a `BufferedImage` at `PACK_ICON_EDGE` for
+  saving), degrading to an empty catalogue when the jar is absent; the app
+  catalogue is exposed as `IconPackManager.appIconTargets()`, keyed by the
+  descriptor icon's base name else the app-name slug. All choice controls are
+  `JList` selectors per the offscreen `SwingNode` rule, and defaults are unchanged
+  so nothing themes until the user builds and applies a pack. **New/extended
+  headless JUnit 5 tests**: a new `IconGlyphLibraryTest` (category/label
+  enumeration, size-suffix stripping, blank/unknown-glyph → null, real-glyph
+  load + render) plus seven more `IconPackManagerTest` cases (`sanitizePackId`,
+  the `userRoot` override, save-and-discover a USER pack + resolve its override,
+  blank-name/empty-icon rejection, delete, `targetFor` base-name/slug keys and
+  `appIconTargets` safety), none of which write real user prefs.
 
 ## [1.53.1] — 2026-10-06 — Gradle / JDK 21 modernization
 

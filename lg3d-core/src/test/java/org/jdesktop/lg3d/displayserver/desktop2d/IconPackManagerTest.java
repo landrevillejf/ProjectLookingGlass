@@ -55,18 +55,24 @@ class IconPackManagerTest {
     @AfterEach
     void restore() {
         cfg.resetToDefaults();
+        System.clearProperty(IconPackManager.USER_ROOT_PROPERTY);
     }
 
-    /** A tiny 8x8 solid-colour PNG, as bytes (for temp folders and zips). */
-    private static byte[] png(Color c) throws Exception {
+    /** A tiny 8x8 solid-colour image, as a BufferedImage (for user packs). */
+    private static BufferedImage img(Color c) {
         BufferedImage img = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < 8; y++) {
             for (int x = 0; x < 8; x++) {
                 img.setRGB(x, y, c.getRGB());
             }
         }
+        return img;
+    }
+
+    /** A tiny 8x8 solid-colour PNG, as bytes (for temp folders and zips). */
+    private static byte[] png(Color c) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ImageIO.write(img, "png", out);
+        ImageIO.write(img(c), "png", out);
         return out.toByteArray();
     }
 
@@ -215,5 +221,102 @@ class IconPackManagerTest {
         assertEquals("chess", IconPackManager.slug("Chess"));
         assertNull(IconPackManager.slug("!!!"), "punctuation alone leaves no slug");
         assertNull(IconPackManager.slug(null));
+    }
+
+    @Test
+    @DisplayName("sanitizePackId() makes a filesystem-safe, dash-separated id")
+    void sanitizePackIdHelper() {
+        assertEquals("my-cool-pack", IconPackManager.sanitizePackId("My Cool Pack"));
+        assertEquals("vivid", IconPackManager.sanitizePackId("  Vivid "));
+        assertEquals("", IconPackManager.sanitizePackId("!!!"), "punctuation alone leaves no id");
+        assertEquals("", IconPackManager.sanitizePackId(null));
+    }
+
+    @Test
+    @DisplayName("userRoot() honours the override property")
+    void userRootOverride(@TempDir Path dir) {
+        System.setProperty(IconPackManager.USER_ROOT_PROPERTY, dir.toString());
+        assertEquals(dir, IconPackManager.userRoot());
+    }
+
+    @Test
+    @DisplayName("saveUserPack writes PNGs and the pack is discovered as USER")
+    void saveAndDiscoverUserPack(@TempDir Path dir) throws Exception {
+        System.setProperty(IconPackManager.USER_ROOT_PROPERTY, dir.toString());
+        java.util.Map<String, BufferedImage> icons = new java.util.LinkedHashMap<>();
+        icons.put("chess.png", img(Color.RED));
+        icons.put("mail-3d.png", img(Color.BLUE));
+
+        IconPack created = IconPackManager.saveUserPack("My Pack", icons);
+        assertNotNull(created, "a named pack with icons is saved");
+        assertEquals("my-pack", created.id(), "the id is sanitised from the name");
+        assertEquals(IconPack.Source.USER, created.source());
+        assertEquals("My Pack", created.displayName());
+        assertTrue(Files.isDirectory(dir.resolve("my-pack")), "the pack folder is created");
+        assertTrue(Files.isRegularFile(dir.resolve("my-pack").resolve("chess.png")));
+
+        assertTrue(IconPackManager.userPacks().stream().anyMatch(p -> "my-pack".equals(p.id())),
+                "the saved pack is discovered");
+        assertTrue(IconPackManager.available().stream().anyMatch(p -> "my-pack".equals(p.id())),
+                "a user pack is selectable");
+
+        cfg.setIconPack("my-pack");
+        assertEquals("my-pack", IconPackManager.active().id());
+        Icon icon = IconPackManager.overrideFor("resources/images/icon/chess.png", "Chess", 16);
+        assertNotNull(icon, "the user pack carries chess.png");
+        assertEquals(16, icon.getIconWidth());
+        assertNotNull(IconPackManager.overrideFor(null, "Mail 3D", 22),
+                "the user pack carries mail-3d.png (slug of 'Mail 3D')");
+    }
+
+    @Test
+    @DisplayName("saveUserPack rejects a blank name or an empty icon set")
+    void saveUserPackRejectsEmpty(@TempDir Path dir) {
+        System.setProperty(IconPackManager.USER_ROOT_PROPERTY, dir.toString());
+        java.util.Map<String, BufferedImage> icons = new java.util.LinkedHashMap<>();
+        icons.put("chess.png", img(Color.RED));
+        assertNull(IconPackManager.saveUserPack("!!!", icons), "a name with no id is rejected");
+        assertNull(IconPackManager.saveUserPack("Solo", java.util.Map.of()),
+                "an empty icon set is rejected");
+    }
+
+    @Test
+    @DisplayName("deleteUserPack removes the folder and un-lists the pack")
+    void deleteUserPack(@TempDir Path dir) {
+        System.setProperty(IconPackManager.USER_ROOT_PROPERTY, dir.toString());
+        java.util.Map<String, BufferedImage> icons = new java.util.LinkedHashMap<>();
+        icons.put("chess.png", img(Color.GREEN));
+        IconPack created = IconPackManager.saveUserPack("Doomed", icons);
+        assertNotNull(created);
+
+        assertTrue(IconPackManager.deleteUserPack("doomed"), "an existing user pack is deleted");
+        assertFalse(Files.exists(dir.resolve("doomed")), "the folder is gone");
+        assertTrue(IconPackManager.userPacks().stream().noneMatch(p -> "doomed".equals(p.id())),
+                "the deleted pack is no longer discovered");
+        assertFalse(IconPackManager.deleteUserPack("doomed"), "deleting twice is a no-op false");
+    }
+
+    @Test
+    @DisplayName("targetFor keys by descriptor base name, else by app-name slug")
+    void targetForKeyLogic() {
+        IconPackManager.AppIconTarget byResource =
+                IconPackManager.targetFor("Chess", "resources/images/icon/chess.png");
+        assertNotNull(byResource);
+        assertEquals("chess.png", byResource.baseName());
+        assertEquals("Chess", byResource.appName());
+
+        IconPackManager.AppIconTarget bySlug = IconPackManager.targetFor("Mail 3D", null);
+        assertNotNull(bySlug, "an app with no descriptor art still gets a slug key");
+        assertEquals("mail-3d.png", bySlug.baseName());
+
+        assertNull(IconPackManager.targetFor("!!!", null), "no usable key yields no target");
+        assertNull(IconPackManager.targetFor(null, null));
+    }
+
+    @Test
+    @DisplayName("appIconTargets() never returns null (empty off the desktop classpath)")
+    void appIconTargetsIsSafe() {
+        assertNotNull(IconPackManager.appIconTargets(),
+                "the catalogue is built from the descriptors, empty when none are present");
     }
 }

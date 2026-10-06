@@ -32,14 +32,17 @@ import javax.swing.ImageIcon;
  * {@code mail3d.png}), that {@link AppIcons} consults before it falls back to
  * the procedurally generated IconManager glyph or initials tile.
  *
- * <p>A pack comes from one of two {@linkplain Source sources}. A
+ * <p>A pack comes from one of three {@linkplain Source sources}. A
  * {@link Source#BUNDLED} pack is a directory under the runtime
  * {@code resources/images/icon-packs/<id>} tree assembled onto the classpath by
- * the build (see {@code IconPackManager}); an {@link Source#IMPORTED} pack is a
- * path on the local filesystem the user chose in the control center, either a
- * folder of PNGs or a {@code .zip} whose entries are those same file names. The
- * {@linkplain #defaultPack() default} pack carries no location and resolves
- * nothing, so {@link AppIcons} keeps today's behaviour.</p>
+ * the build (see {@code IconPackManager}); a {@link Source#USER} pack is one the
+ * user composed in the control center from IconManager glyphs, persisted as a
+ * named folder under {@code ~/.config/lg3d/icon-packs/<id>}; an
+ * {@link Source#IMPORTED} pack is a path on the local filesystem the user chose
+ * in the control center, either a folder of PNGs or a {@code .zip} whose entries
+ * are those same file names. The {@linkplain #defaultPack() default} pack
+ * carries no location and resolves nothing, so {@link AppIcons} keeps today's
+ * behaviour.</p>
  *
  * <p>Resolution reads the PNG and scales it to the requested edge, so one pack
  * serves the start menu (16&nbsp;px), the quick-launch strip (22&nbsp;px) and
@@ -55,6 +58,8 @@ public final class IconPack {
     public enum Source {
         /** A directory under the runtime {@code resources/images/icon-packs} tree. */
         BUNDLED,
+        /** A user-composed pack persisted under {@code ~/.config/lg3d/icon-packs/<id>}. */
+        USER,
         /** A user-chosen folder or {@code .zip} on the local filesystem. */
         IMPORTED
     }
@@ -97,6 +102,17 @@ public final class IconPack {
     public static IconPack bundled(String id) {
         return new IconPack(id, prettyName(id), Source.BUNDLED,
                 IconPackManager.BUNDLED_ROOT + "/" + id);
+    }
+
+    /**
+     * A user-composed pack: a named folder of PNGs under
+     * {@code ~/.config/lg3d/icon-packs/<id>} written by the control center's
+     * icon-pack builder. Its id is the (sanitised) folder name, so several user
+     * packs coexist and are discovered by scanning that root; the display name is
+     * the prettified id.
+     */
+    public static IconPack user(String id, String path) {
+        return new IconPack(id, prettyName(id), Source.USER, path);
     }
 
     /**
