@@ -16,7 +16,15 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import com.protonmail.landrevillejf.IconManager;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.List;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
@@ -38,9 +46,16 @@ import javax.swing.JPopupMenu;
  */
 final class NotificationTray {
 
+    /** The unread-count badge colour composited onto the tray glyph. */
+    private static final Color BADGE_COLOR = new Color(0xc0392b);
+
     private final NotificationModel model;
     private final DoNotDisturb dnd;
     private final JButton button;
+    /** The un-badged tray glyph; an unread count is composited over it. */
+    private final Icon baseIcon;
+    /** Icon-only presentation (text moves to the tooltip); default on. */
+    private boolean iconOnly = true;
     private final JPopupMenu menu;
     /** The model callback, held so {@link #dispose()} removes the same instance. */
     private final Runnable listener;
@@ -63,8 +78,8 @@ final class NotificationTray {
         this.model = model;
         this.dnd = dnd;
         this.button = new JButton();
-        this.button.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",24,24));
-        this.button.setToolTipText("Desktop notifications");
+        this.baseIcon = IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",24,24);
+        this.button.setIcon(baseIcon);
         this.button.addActionListener(e -> open());
         this.menu = new JPopupMenu();
         this.listener = this::refresh;
@@ -83,14 +98,81 @@ final class NotificationTray {
         return button;
     }
 
+    /**
+     * Switches between icon-only (descriptive text in the tooltip, unread count
+     * as a badge on the glyph) and icon-plus-text presentation, re-refreshing.
+     */
+    void setIconOnly(boolean iconOnly) {
+        if (this.iconOnly != iconOnly) {
+            this.iconOnly = iconOnly;
+            refresh();
+        }
+    }
+
     /** Syncs the button's badge to the model's unread count. */
     void refresh() {
         boolean dndActive = dnd != null && dnd.active(System.currentTimeMillis());
         int unread = (model == null) ? 0 : model.unreadCount();
-        button.setText(badgeLabel(unread, dndActive));
-        button.setToolTipText(dndActive
-                ? "Desktop notifications (Do Not Disturb on)"
-                : "Desktop notifications");
+        if (iconOnly) {
+            button.setText(null);
+            button.setIcon(badgedIcon(baseIcon, unread));
+            button.setToolTipText(tooltip(unread, dndActive));
+        } else {
+            button.setIcon(baseIcon);
+            button.setText(badgeLabel(unread, dndActive));
+            button.setToolTipText(dndActive
+                    ? "Desktop notifications (Do Not Disturb on)"
+                    : "Desktop notifications");
+        }
+    }
+
+    /**
+     * The hover text: the unread count and DND state, which icon-only
+     * presentation keeps off the button face.
+     */
+    static String tooltip(int unread, boolean dndActive) {
+        StringBuilder sb = new StringBuilder("Desktop notifications");
+        if (unread > 0) {
+            sb.append(" (").append(unread).append(" unread)");
+        }
+        if (dndActive) {
+            sb.append(" \u2014 Do Not Disturb on");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Composites a small unread-count badge onto the top-right of {@code base}
+     * so the at-a-glance signal survives icon-only presentation; with no unread
+     * notifications (or no base glyph) the base icon is returned unchanged.
+     */
+    static Icon badgedIcon(Icon base, int unread) {
+        if (base == null || unread <= 0) {
+            return base;
+        }
+        int w = Math.max(1, base.getIconWidth());
+        int h = Math.max(1, base.getIconHeight());
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            base.paintIcon(null, g, 0, 0);
+            String text = (unread > 9) ? "9+" : Integer.toString(unread);
+            int badge = Math.max(8, Math.round(Math.min(w, h) * 0.5f));
+            int x = w - badge;
+            g.setColor(BADGE_COLOR);
+            g.fillOval(x, 0, badge, badge);
+            g.setColor(Color.WHITE);
+            g.setFont(g.getFont().deriveFont(Font.BOLD, Math.max(7f, badge * 0.62f)));
+            FontMetrics metrics = g.getFontMetrics();
+            int tx = x + (badge - metrics.stringWidth(text)) / 2;
+            int ty = (badge + metrics.getAscent() - metrics.getDescent()) / 2;
+            g.drawString(text, tx, ty);
+        } finally {
+            g.dispose();
+        }
+        return new ImageIcon(image);
     }
 
     /** Marks the log read, rebuilds the popup and shows it above the button. */
