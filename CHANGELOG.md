@@ -192,6 +192,41 @@ work to make it build and run on a current toolchain.
   Obtaining a hardware GLX/DRI3 context and exercising the systemd/`xinit`
   hand-off, clean shutdown and crash recovery still require a bare-Xorg session
   (roadmap §5 Phases F/G).
+- **X11 compositor: WM → 2D-desktop lifecycle bridge — native apps now routed
+  *into* the 2D desktop** (`lg3d-core`,
+  `org.jdesktop.lg3d.displayserver.nativewindow.x11` +
+  `org.jdesktop.lg3d.displayserver.desktop2d`) — closes the last gap that kept a
+  real external X11 application from appearing as an ordinary window inside the
+  conventional 2D desktop. The pixel path (Phase B.5/B.6) and the desktop-side
+  host controller (Phase B.7) both existed, but **nothing connected the window
+  manager to the desktop**: `X11WindowManager` fired only the 3D texture path on
+  Map/Unmap/Configure/PropertyNotify and never notified
+  `Desktop2DCompositorHost`, so a redirected client had no route into a
+  `Desktop2DWindow`. This adds that route. **`WindowLifecycleListener`** (x11) is
+  a `gnu.x11`-free, Java-3D-free notification seam speaking only in window ids,
+  titles and pixel sizes (`windowMapped`/`windowResized`/`windowRetitled`/
+  `windowActivated`/`windowUnmapped`). **`X11WindowManager`** now holds a
+  `volatile` listener (installed via `setWindowLifecycleListener`) and fires it
+  from `mapNotify` (skipping lg3d's own window and InputOnly clients),
+  `configureNotify` (resize), `propertyNotify` WM_NAME (retitle), `activate`
+  (activation) and `unmapNotify`/`destroyNotify` (release); each callback is
+  isolated in a try/catch so a desktop-side failure is logged and never kills the
+  X event loop, and with no listener registered every fire is a no-op
+  (behaviour-preserving). **`CompositedWindowBridge`** (desktop2d) implements the
+  listener and forwards to a `Desktop2DCompositorHost`, marshalling each call onto
+  the Swing EDT through an injectable `Consumer<Runnable>` (`SWING_EDT` in
+  production, `DIRECT` in tests). The full chain a native app now travels is
+  documented in roadmap §5 Phase B.8: X redirect → `CompositeWindowImageLoader` →
+  `CompositedWindowPipeline` → `SwingCompositedWindowSink` → `Desktop2DWindow`
+  content pane, with the lifecycle driven WM → `WindowLifecycleListener` →
+  `CompositedWindowBridge` → `Desktop2DCompositorHost`. **7 new headless JUnit 5
+  tests** (`CompositedWindowBridgeTest`) pin map→open, resize/retitle/activate/
+  unmap forwarding, EDT-runner marshalling, and that both a controller failure
+  and a runner refusal are swallowed rather than thrown back to the X thread.
+  The remaining live step — the `Desktop2D` startup hook that constructs
+  `X11CompositedWindowHost` + `Desktop2DCompositorHost` + `CompositedWindowBridge`
+  and registers it once the WM has claimed the display — is the Phase G
+  session-integration step and needs a bare-Xorg host (roadmap §5 Phase B.8).
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy

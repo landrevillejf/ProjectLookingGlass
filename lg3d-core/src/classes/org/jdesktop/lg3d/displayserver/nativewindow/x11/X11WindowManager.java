@@ -112,6 +112,16 @@ final class X11WindowManager extends Application implements Runnable {
      * the X event thread observes it. See {@link X11Compositor}.
      */
     private volatile X11Compositor compositor;
+
+    /**
+     * Optional desktop-side listener that receives the window-manager lifecycle
+     * notifications (map/resize/retitle/activate/unmap) so native X11 clients
+     * can be hosted <em>inside</em> the conventional 2D desktop. Null unless a
+     * 2D shell registers one via {@link #setWindowLifecycleListener}. Declared
+     * volatile so the X event thread observes a listener installed from the
+     * initializing thread. See {@link WindowLifecycleListener}.
+     */
+    private volatile WindowLifecycleListener lifecycleListener;
     
     public X11WindowManager(String dpy) {
 	super(new String[] {"--display", dpy});
@@ -418,6 +428,7 @@ final class X11WindowManager extends Application implements Runnable {
 	}
 	client.raise();
 	client.set_input_focus();
+	fireWindowActivated(client);
 	display.check_error();
     }
 
@@ -480,6 +491,9 @@ final class X11WindowManager extends Application implements Runnable {
 	    compositor.refreshPixmapForWindow(client.id);
 	    client.compositeResized();
 	}
+
+	// 2D desktop hosting: propagate the new size to the hosted window.
+	fireWindowResized(client);
     }
 
     private void propertyNotify(PropertyNotify event) {
@@ -503,6 +517,7 @@ final class X11WindowManager extends Application implements Runnable {
 
 	    case Atom.WM_NAME_ID:	
 		client.setName(client.wm_name());
+		fireWindowRetitled(client);
 		break;
 
 	    case Atom.WM_ICON_NAME_ID: // fall through
@@ -736,6 +751,15 @@ final class X11WindowManager extends Application implements Runnable {
             client.setupCompositeInput(compositor);
         }
 
+        // 2D desktop hosting: notify the desktop-side listener so this native
+        // client is given a Desktop2DWindow (skipping lg3d's own window, which
+        // must not be hosted into itself, and InputOnly windows, which have no
+        // pixels to composite).
+        if (!(compositor != null && compositor.isOwnWindow(client.id))
+            && client.getWinClass() != X11Client.INPUT_ONLY) {
+            fireWindowMapped(client);
+        }
+
         display.check_error();
     }
 
@@ -760,6 +784,9 @@ final class X11WindowManager extends Application implements Runnable {
 	    client.teardownCompositeInput();
 	    compositor.teardownDamageForWindow(client.id);
 	}
+
+	// 2D desktop hosting: release the hosted window.
+	fireWindowUnmapped(client);
 
 	display.check_error();
         if (display.checkEventTypeWindow(DestroyNotify.CODE, client.id)) {
@@ -798,6 +825,9 @@ final class X11WindowManager extends Application implements Runnable {
 	    client.teardownCompositeInput();
 	    compositor.teardownDamageForWindow(client.id);
 	}
+
+	// 2D desktop hosting: release the hosted window.
+	fireWindowUnmapped(client);
     }
 
     private boolean checkUnmapDestroyEvent(Display display, X11Client client) {
@@ -925,6 +955,90 @@ final class X11WindowManager extends Application implements Runnable {
     /** Returns the active compositor, or null if compositing is disabled. */
     public X11Compositor getCompositor() {
         return compositor;
+    }
+
+    /**
+     * Installs the desktop-side lifecycle listener that hosts native X11 clients
+     * inside the conventional 2D desktop. Called after construction from the
+     * initializing thread; the X event thread then forwards map/resize/retitle/
+     * activate/unmap notifications to it. See {@link WindowLifecycleListener}.
+     */
+    public void setWindowLifecycleListener(WindowLifecycleListener listener) {
+        this.lifecycleListener = listener;
+    }
+
+    /** Returns the registered lifecycle listener, or null if none. */
+    public WindowLifecycleListener getWindowLifecycleListener() {
+        return lifecycleListener;
+    }
+
+    // ------------------------------------------------------------------
+    // Lifecycle notification (2D desktop hosting)
+    //
+    // Each helper is a no-op when no listener is registered, and isolates the
+    // callback in a try/catch so a desktop-side failure is logged and never
+    // propagates onto (and kills) the X event-dispatch thread.
+    // ------------------------------------------------------------------
+
+    private void fireWindowMapped(X11Client client) {
+        WindowLifecycleListener l = lifecycleListener;
+        if (l == null || client == null) {
+            return;
+        }
+        try {
+            l.windowMapped(client.id, client.getName(),
+                client.getWidth(), client.getHeight());
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "lifecycleListener.windowMapped failed", t);
+        }
+    }
+
+    private void fireWindowResized(X11Client client) {
+        WindowLifecycleListener l = lifecycleListener;
+        if (l == null || client == null) {
+            return;
+        }
+        try {
+            l.windowResized(client.id, client.getWidth(), client.getHeight());
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "lifecycleListener.windowResized failed", t);
+        }
+    }
+
+    private void fireWindowRetitled(X11Client client) {
+        WindowLifecycleListener l = lifecycleListener;
+        if (l == null || client == null) {
+            return;
+        }
+        try {
+            l.windowRetitled(client.id, client.getName());
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "lifecycleListener.windowRetitled failed", t);
+        }
+    }
+
+    private void fireWindowActivated(X11Client client) {
+        WindowLifecycleListener l = lifecycleListener;
+        if (l == null || client == null) {
+            return;
+        }
+        try {
+            l.windowActivated(client.id);
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "lifecycleListener.windowActivated failed", t);
+        }
+    }
+
+    private void fireWindowUnmapped(X11Client client) {
+        WindowLifecycleListener l = lifecycleListener;
+        if (l == null || client == null) {
+            return;
+        }
+        try {
+            l.windowUnmapped(client.id);
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "lifecycleListener.windowUnmapped failed", t);
+        }
     }
     
     public int getWindowWidthMax() {

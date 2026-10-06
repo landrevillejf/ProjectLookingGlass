@@ -342,6 +342,56 @@ fake opener building a real headless `Desktop2DWindow`. *Exit:*
 that instantiates `X11CompositedWindowHost` on a bare Xorg is the
 session-integration step (Phase G).
 
+**Phase B.8 — WM → 2D-desktop lifecycle bridge (native apps *inside* the 2D
+desktop).** The last missing link that makes a real external X11 application
+appear as an ordinary window in the conventional 2D desktop
+(`feat/x11-composite-shared-pipeline`). Until now the two halves existed but were
+never connected: `X11WindowManager` drove only the 3D texture path on
+Map/Unmap/Configure/PropertyNotify, and nothing ever notified
+`Desktop2DCompositorHost`, so a native client redirected by the compositor had no
+route into a `Desktop2DWindow`. This phase adds that route:
+
+- **`WindowLifecycleListener`** (x11) — a `gnu.x11`-free, Java-3D-free
+  notification seam speaking only in window ids, titles and pixel sizes:
+  `windowMapped` / `windowResized` / `windowRetitled` / `windowActivated` /
+  `windowUnmapped`.
+- **`X11WindowManager`** now holds a `volatile WindowLifecycleListener` (installed
+  via `setWindowLifecycleListener`) and fires it from `mapNotify` (skipping lg3d's
+  own window and InputOnly clients), `configureNotify` (resize),
+  `propertyNotify` WM_NAME (retitle), `activate` (activation) and
+  `unmapNotify`/`destroyNotify` (release). Each callback is isolated in a
+  try/catch so a desktop-side failure is logged and never kills the X event loop;
+  with no listener registered every fire is a no-op (behaviour-preserving).
+- **`CompositedWindowBridge`** (desktop2d) implements the listener and forwards to
+  a `Desktop2DCompositorHost`, marshalling each call onto the Swing EDT through an
+  injectable `Consumer<Runnable>` (`SWING_EDT` in production, `DIRECT` in tests).
+
+The complete path a native app's pixels + lifecycle now take into the 2D desktop:
+
+```
+external X11 client (xterm, firefox, …)
+  └─ X server Composite redirect (X11Compositor.redirectSubwindows)
+       ├─ PIXELS: NameWindowPixmap → CompositeWindowImageLoader (WindowPixelSource)
+       │            → CompositedWindowPipeline (DamageAccumulator + FramePacer +
+       │              ReadbackPlanner) → SwingCompositedWindowSink (JPanel canvas)
+       │            → Desktop2DWindow content pane
+       ├─ INPUT:  SwingX11InputForwarder (AWT listeners → XTest into the client)
+       └─ LIFECYCLE: X11WindowManager map/resize/retitle/activate/unmap
+                      → WindowLifecycleListener → CompositedWindowBridge (→ EDT)
+                      → Desktop2DCompositorHost → open/adjust/close Desktop2DWindow
+```
+
+Headless-tested: **`CompositedWindowBridgeTest` (7)** drives the bridge with the
+`DIRECT` runner and the fake host/opener, pinning map→open, resize/retitle/
+activate/unmap forwarding, EDT-runner marshalling, and that both a controller
+failure and a runner refusal are swallowed (never thrown back to the X thread).
+The WM fire-points themselves are Display-bound glue and, per the locked scope,
+are exercised only on a bare-Xorg host. **Still deferred (needs a bare Xorg):**
+the `Desktop2D` startup hook that constructs
+`X11CompositedWindowHost` + `Desktop2DCompositorHost` + `CompositedWindowBridge`
+and registers it via `X11WindowManager.setWindowLifecycleListener(...)` once the
+WM has claimed the display (the Phase G session-integration step).
+
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the
