@@ -65,6 +65,7 @@ import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.basic.BasicDesktopPaneUI;
 import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
+import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11CompositorSession;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 import org.jdesktop.lg3d.utils.system.Opener;
@@ -219,6 +220,18 @@ public class Desktop2D {
     private JPopupMenu documentsMenu;
     private JPopupMenu downloadsMenu;
     private RunDialog runDialog;
+
+    /**
+     * The live Phase G wiring that hosts native X11 clients as ordinary MDI
+     * windows in this desktop, or null when compositing-into-2D is not active
+     * (no live compositor session in this JVM, not opted in via
+     * {@code lg3d.x11.composite2d}, or headless). Installed in {@link #show()},
+     * torn down in {@link #exit()}.
+     */
+    private CompositedDesktopWiring.Handle compositedWiring;
+
+    /** The compositor session {@link #compositedWiring} is bound to, for teardown. */
+    private X11CompositorSession.Session compositedSession;
 
     /**
      * Builds the desktop shell. Does not show it; call {@link #start()} (or
@@ -387,6 +400,12 @@ public class Desktop2D {
         // that came due while the desktop was down, and then keeps firing tasks
         // on their crontab/interval/one-shot schedules from a daemon thread.
         TaskScheduler.get().start();
+        // Discover a live X11 compositor session in this same JVM and, when
+        // opted in, host native X11 clients as MDI windows here (Phase G). A
+        // no-op in every topology without a compositor session (dev mode, the
+        // *_nox configs, compositing disabled), so the default shell is
+        // unchanged.
+        installCompositedWindows();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -1296,6 +1315,59 @@ public class Desktop2D {
     }
 
     /**
+     * Discovers a live X11 compositor session running in this same JVM and,
+     * when the operator has opted in ({@code lg3d.x11.composite2d}) and we are
+     * not headless, wires native X11 clients to be hosted as ordinary MDI
+     * windows in this desktop (Phase G). A no-op — leaving the desktop exactly
+     * as before — in every topology that has no compositor session, so this
+     * never changes the default 2D shell. A wiring failure is logged and
+     * swallowed rather than aborting desktop start-up. Must run on the EDT
+     * (called from {@link #show()}).
+     */
+    private void installCompositedWindows() {
+        X11CompositorSession.Session session = X11CompositorSession.current();
+        boolean optIn = Boolean.getBoolean(CompositedDesktopWiring.OPT_IN_PROPERTY);
+        if (!CompositedDesktopWiring.shouldInstall(optIn, session != null,
+                GraphicsEnvironment.isHeadless())) {
+            return;
+        }
+        try {
+            compositedSession = session;
+            compositedWiring = CompositedDesktopWiring.install(session.host(),
+                    this::openCompositedWindow,
+                    session.registrar()::setWindowLifecycleListener);
+            logger.info("Hosting native X11 clients as 2D desktop windows");
+        } catch (RuntimeException ex) {
+            compositedSession = null;
+            compositedWiring = null;
+            logger.log(Level.WARNING,
+                    "Could not wire native X11 window hosting into the 2D"
+                            + " desktop", ex);
+        }
+    }
+
+    /**
+     * The {@link Desktop2DCompositorHost.WindowOpener} for composited native
+     * windows: mirrors {@link #hostPanel} (internal frame + taskbar button +
+     * workspace assignment + cascading placement) but does <em>not</em> persist
+     * the window into the saved session — a composited native client is
+     * transient, bound to the live X11 client, and cannot be relaunched from a
+     * descriptor on the next start. Runs on the EDT (the bridge marshals
+     * lifecycle events onto it).
+     */
+    private Desktop2DWindow openCompositedWindow(String title, JComponent content) {
+        Desktop2DWindow window = new Desktop2DWindow(title, null, content, title);
+        track(window);
+        desktop.add(window);
+        workspaces.assign(window.getAppName(), workspaces.current());
+        taskbar.windowOpened(window);
+        window.showIn(desktop);
+        desktop.revalidate();
+        desktop.repaint();
+        return window;
+    }
+
+    /**
      * Hosts an already-built Swing panel in a new (or existing, brought
      * forward) 2D desktop internal frame at runtime. This is the reusable entry
      * point any application uses to open a secondary window <em>inside</em> the
@@ -1626,6 +1698,7 @@ public class Desktop2D {
         uninstallShortcuts();
         toastLayer.uninstall();
         uninstallWidgetLayer();
+        disposeCompositedWindows();
         if (runDialog != null) {
             runDialog.hide();
         }
@@ -1634,6 +1707,22 @@ public class Desktop2D {
         frame.setVisible(false);
         frame.dispose();
         System.exit(0);
+    }
+
+    /**
+     * Tears down the Phase G native-window wiring: unregisters the window
+     * manager's lifecycle listener and disposes every hosted composited window.
+     * A no-op when it was never installed (the common case).
+     */
+    private void disposeCompositedWindows() {
+        if (compositedWiring == null) {
+            return;
+        }
+        final X11CompositorSession.Session session = compositedSession;
+        compositedWiring.dispose(session == null ? null
+                : () -> session.registrar().setWindowLifecycleListener(null));
+        compositedWiring = null;
+        compositedSession = null;
     }
 
     // ------------------------------------------------------------------

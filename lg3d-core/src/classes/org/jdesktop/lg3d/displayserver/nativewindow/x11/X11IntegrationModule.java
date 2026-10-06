@@ -52,6 +52,12 @@ public final class X11IntegrationModule implements IntegrationModule {
                 // Exempt lg3d's own Canvas3D window from WM management and
                 // Composite redirection so it keeps drawing directly to screen.
                 compositor.exemptOwnWindow();
+                // Publish the live session so a conventional 2D desktop running
+                // in this same JVM can discover it and host native X11 clients
+                // as MDI windows (Phase G). No-op for the 2D shell unless it
+                // opts in via CompositedDesktopWiring.OPT_IN_PROPERTY.
+                X11CompositorSession.publish(compositor, wm);
+                logger.fine("Published X11CompositorSession for 2D-desktop hosting");
             }
 
             logger.fine("X11 integration module successfully started");

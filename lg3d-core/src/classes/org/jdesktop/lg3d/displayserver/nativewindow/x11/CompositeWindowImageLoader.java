@@ -69,7 +69,8 @@ import java.util.logging.Logger;
  * @see X11Compositor
  * @see TiledNativeWindowImage
  */
-public class CompositeWindowImageLoader implements TiledNativeWindowImageLoader {
+public class CompositeWindowImageLoader
+        implements TiledNativeWindowImageLoader, WindowPixelSource {
 
     private static final Logger logger =
         Logger.getLogger("lg.x11.compositor.imageloader");
@@ -221,42 +222,9 @@ public class CompositeWindowImageLoader implements TiledNativeWindowImageLoader 
                 }
             }
 
-            int bytesPerPixel = bitsPerPixel >>> 3;
-            if (bytesPerPixel < 1 || bytesPerPixel > 4) {
-                logger.warning("Unsupported bits-per-pixel " + bitsPerPixel
-                    + " for depth " + depth);
-                return null;
-            }
-
-            // Scanline stride, padded up to the server's scanline-pad.
-            int padBytes = scanlinePad >>> 3;
-            int stride = ((w * bitsPerPixel + scanlinePad - 1) / scanlinePad)
-                * padBytes;
-
-            byte[] data = reply.data;
-            int needed = IMAGE_DATA_OFFSET + stride * h;
-            if (data.length < needed) {
-                logger.fine("Truncated GetImage reply: have " + data.length
-                    + " need " + needed + " (window resized?)");
-                return null;
-            }
-
             boolean lsb = display.image_byte_order == LSB_FIRST;
-            BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-            int[] row = new int[w];
-            for (int yy = 0; yy < h; yy++) {
-                int base = IMAGE_DATA_OFFSET + yy * stride;
-                for (int xx = 0; xx < w; xx++) {
-                    int pv = readPixel(data, base + xx * bytesPerPixel,
-                        bytesPerPixel, lsb);
-                    row[xx] = 0xff000000
-                        | (channel(pv, redMask) << 16)
-                        | (channel(pv, greenMask) << 8)
-                        | channel(pv, blueMask);
-                }
-                img.setRGB(0, yy, w, 1, row, 0, w);
-            }
-            return img;
+            return decodeZPixmap(reply.data, w, h, bitsPerPixel, scanlinePad,
+                lsb, redMask, greenMask, blueMask);
         } catch (gnu.x11.Error e) {
             // Most commonly BadMatch/BadDrawable when the pixmap was freed or
             // the window resized mid-read; the next DamageNotify retries.
@@ -264,6 +232,88 @@ public class CompositeWindowImageLoader implements TiledNativeWindowImageLoader 
                 + Integer.toHexString(pixmapId), e);
             return null;
         }
+    }
+
+    /**
+     * Decodes a raw {@code ZPixmap} pixel buffer (an {@code XGetImage} reply
+     * payload, pixels starting at {@link #IMAGE_DATA_OFFSET}) into a
+     * {@code TYPE_INT_RGB} {@link BufferedImage}.
+     *
+     * <p>This is the pure, {@link Display}-free core of
+     * {@link #readPixmapRegion} and the single shared pixel source both the 3D
+     * texture path ({@link #updateRegion} / {@link #loadTile}) and the 2D Swing
+     * path ({@link CompositedWindowPipeline}) read through, so it is unit-tested
+     * directly with synthetic buffers and no live X connection.</p>
+     *
+     * @param data         the full GetImage reply payload (header + pixels)
+     * @param w            region width, in pixels
+     * @param h            region height, in pixels
+     * @param bitsPerPixel server bits-per-pixel for the pixmap's depth
+     * @param scanlinePad  server scanline-pad, in bits
+     * @param lsb          true if the server image byte order is LSBFirst
+     * @param redMask      TrueColor red channel mask
+     * @param greenMask    TrueColor green channel mask
+     * @param blueMask     TrueColor blue channel mask
+     * @return the decoded image, or null if the geometry is empty, the
+     *         bits-per-pixel is unsupported, or the buffer is truncated
+     */
+    static BufferedImage decodeZPixmap(byte[] data, int w, int h,
+            int bitsPerPixel, int scanlinePad, boolean lsb,
+            int redMask, int greenMask, int blueMask) {
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        int bytesPerPixel = bitsPerPixel >>> 3;
+        if (bytesPerPixel < 1 || bytesPerPixel > 4) {
+            logger.warning("Unsupported bits-per-pixel " + bitsPerPixel);
+            return null;
+        }
+
+        // Scanline stride, padded up to the server's scanline-pad.
+        int padBytes = scanlinePad >>> 3;
+        int stride = ((w * bitsPerPixel + scanlinePad - 1) / scanlinePad)
+            * padBytes;
+
+        int needed = IMAGE_DATA_OFFSET + stride * h;
+        if (data == null || data.length < needed) {
+            logger.fine("Truncated GetImage reply: have "
+                + (data == null ? 0 : data.length) + " need " + needed
+                + " (window resized?)");
+            return null;
+        }
+
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        int[] row = new int[w];
+        for (int yy = 0; yy < h; yy++) {
+            int base = IMAGE_DATA_OFFSET + yy * stride;
+            for (int xx = 0; xx < w; xx++) {
+                int pv = readPixel(data, base + xx * bytesPerPixel,
+                    bytesPerPixel, lsb);
+                row[xx] = 0xff000000
+                    | (channel(pv, redMask) << 16)
+                    | (channel(pv, greenMask) << 8)
+                    | channel(pv, blueMask);
+            }
+            img.setRGB(0, yy, w, 1, row, 0, w);
+        }
+        return img;
+    }
+
+    /**
+     * Reads a rectangular region of this window's redirected Composite pixmap
+     * into a {@link BufferedImage}, or returns null if the window is not (yet)
+     * redirected or the read failed. This is the {@link WindowPixelSource}
+     * entry point: the shared source both the 3D texture path (via
+     * {@link #updateRegion}) and the 2D Swing path (via
+     * {@link CompositedWindowPipeline}) read pixels through.
+     */
+    @Override
+    public BufferedImage readRegion(int x, int y, int width, int height) {
+        int pixmapId = compositor.getPixmapId(windowId);
+        if (pixmapId < 0) {
+            return null;
+        }
+        return readPixmapRegion(pixmapId, x, y, width, height);
     }
 
     /** Assembles one pixel from {@code bytesPerPixel} bytes at {@code off}. */

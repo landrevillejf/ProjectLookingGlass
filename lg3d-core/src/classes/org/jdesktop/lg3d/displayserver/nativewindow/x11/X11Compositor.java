@@ -116,6 +116,14 @@ public class X11Compositor {
     private volatile int ownWindowId = -1;
 
     /**
+     * The session state machine (Phase G). It tracks lg3d's life as the sole X
+     * session client: driven to {@link SessionLifecycle.State#RUNNING} once
+     * redirection succeeds and through {@code SHUTTING_DOWN} to {@code STOPPED}
+     * on {@link #shutdown()}. Pure state tracking — it issues no X calls.
+     */
+    private final SessionLifecycle session = new SessionLifecycle();
+
+    /**
      * Callback invoked on the X event thread when a monitored window
      * repaints. Implementations typically read the damaged region and update
      * the window's texture.
@@ -142,10 +150,12 @@ public class X11Compositor {
     public X11Compositor(Display display, Window root) {
         this.display = display;
         this.root = root;
+        session.onEvent(SessionLifecycle.Event.START);
 
         try {
             initExtensions();
         } catch (NotFoundException e) {
+            session.onEvent(SessionLifecycle.Event.FAILURE);
             throw new RuntimeException(
                 "X11 compositor requires extension '" + e.getMessage()
                 + "' which is not available on this X server. "
@@ -156,6 +166,7 @@ public class X11Compositor {
         selectCursorEvents();
         enumerateExistingWindows();
         active = true;
+        session.onEvent(SessionLifecycle.Event.READY);
 
         logger.info("X11 compositor active on display "
             + display.toString() + " (Composite "
@@ -649,6 +660,13 @@ public class X11Compositor {
     public boolean isActive() { return active; }
 
     /**
+     * Returns the session state machine's current state (Phase G). A live
+     * session supervisor (the {@code xinit}/systemd hand-off) consults this to
+     * decide autostart, clean-shutdown and crash-recovery.
+     */
+    public SessionLifecycle.State getSessionState() { return session.state(); }
+
+    /**
      * Returns true if {@code windowId} is lg3d's own Canvas3D host window, which
      * the WM must not manage. False if the own window id is unknown.
      */
@@ -668,8 +686,13 @@ public class X11Compositor {
     public void shutdown() {
         if (!active) return;
         active = false;
+        session.onEvent(SessionLifecycle.Event.SHUTDOWN_REQUEST);
 
         logger.info("Shutting down X11 compositor");
+
+        // Stop advertising the session so a 2D desktop will no longer discover
+        // (or keep routing native windows through) a tearing-down compositor.
+        X11CompositorSession.clear();
 
         // Destroy all Damage objects.
         for (Map.Entry<Integer, Integer> entry : damageMap.entrySet()) {
@@ -688,5 +711,6 @@ public class X11Compositor {
         } catch (gnu.x11.Error e) {
             logger.log(Level.WARNING, "UnredirectSubwindows failed", e);
         }
+        session.onEvent(SessionLifecycle.Event.SHUTDOWN_COMPLETE);
     }
 }

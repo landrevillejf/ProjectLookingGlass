@@ -279,15 +279,169 @@ wiring PIT scoped to the X11 package once the mutation gate is enforceable
 repo-wide; the constructor's *live* `LgEventConnector`/prefs wiring needs a
 running desktop and is intentionally left to the integration phases.
 
+**Phase B.5 — shared pixel pipeline (foundation for the 2D host).** The
+readback was refactored so the *one* pixel source can feed *two* presentation
+sinks, without either sink knowing how pixels were obtained
+(`feat/x11-composite-shared-pipeline`). `CompositeWindowImageLoader` now
+`implements WindowPixelSource` (a `readRegion(x,y,w,h)` contract over the
+Composite `NameWindowPixmap`) and its Z-pixmap scanline assembly was extracted
+verbatim into a pure, `Display`-free static `decodeZPixmap(...)` — the single
+decoder both sinks read through. A new `CompositedWindowSink` (a
+`present(region,x,y,w,h)` + `resized`/`dispose` contract) and a
+`CompositedWindowPipeline` (implements `X11Compositor.DamageListener`; on damage
+it clamps negative origins, reads the region and presents it, forwarding
+resize/dispose) form the presentation-agnostic spine: the 3D desktop registers a
+`NativeWindow3D` texture sink, the 2D desktop will register a Swing sink, and the
+same pipeline drives both. The refactor is behaviour-preserving for the live 3D
+tile path (`X11Client.setupCompositeImageSource` is untouched) and is fully
+headless-testable: `CompositeWindowImageLoaderDecodeTest` (8 tests, synthetic
+reply buffers pinning 32/24/16-bpp, LSB/MSB, scanline stride/padding and the
+geometry/bpp/truncation/null guards) and `CompositedWindowPipelineTest` (8 tests
+over fake source/sink pinning read-then-present, origin clamping, empty/null
+short-circuits, resize/dispose forwarding, constructor null-checks and the sink
+default no-ops). *Exit:* `:lg3d-core:test`/`build` green (X11 package now 94
+tests). This is the seam Phase C and the 2D-desktop host build on.
+
+**Phase B.6 — 2D Swing sink + input forwarder.** The two ends that let a
+composited native window render *inside* the conventional 2D desktop
+(`feat/x11-composite-shared-pipeline`). `SwingCompositedWindowSink` is the 2D
+`CompositedWindowSink`: a full-window `BufferedImage` canvas that blits each
+damage region at its window offset (locked against the painting surface),
+repaints only the dirty rectangle, reallocates-and-preserves on `resized`, drops
+the canvas on `dispose`, and exposes a `getComponent()` `JPanel` for a
+`Desktop2DWindow` to embed. `SwingX11InputForwarder` is the 2D sibling of
+`X11InputForwarder`: AWT mouse/motion/wheel/key listeners on that component are
+re-injected into the real client window via XTest — the canvas is a 1:1 pixel
+copy, so a component-local point maps straight to `(winX+px, winY+py)` with no
+scene-graph pick to invert, key mapping reuses `X11InputForwarder.vkToKeysym`,
+and focus follows pointer-enter/press. Headless-tested:
+`SwingCompositedWindowSinkTest` (8) pins canvas accumulation/offset, resize
+preserve, dispose, degenerate clamping and the headless paint path;
+`SwingX11InputForwarderMappingTest` (8) pins the pure `mapPanelToRoot`,
+`mapAwtButton` and `keysyms_per_keycode`-aware `keysymToKeycode` seams.
+*Exit:* `:lg3d-core:test`/`build` green (X11 package now 110 tests). Increment 3
+wires these into `Desktop2DAppRegistry`/`Desktop2DWindow` so an `EXTERNAL` app is
+hosted rather than forked to the host WM.
+
+**Phase B.7 — 2D desktop host wiring.** The desktop-side plumbing that turns a
+composited native window into an ordinary MDI window *inside* the 2D desktop
+(`feat/x11-composite-shared-pipeline`). A Java-3D-free `CompositedWindowHost`
+seam (x11) speaks only in terms of a `JComponent` + lifecycle, so the
+`desktop2d` package consumes it without dragging in the scene graph; its
+production impl `X11CompositedWindowHost` wires a `CompositeWindowImageLoader`
+source → `SwingCompositedWindowSink` through a `CompositedWindowPipeline`,
+registers it as the window's `DamageListener`, primes a full-window read, and
+re-issues `NameWindowPixmap` on resize — the *display* half only (input stays the
+WM's glue via `SwingX11InputForwarder`). `Desktop2DCompositorHost` (desktop2d) is
+the controller: it owns the `windowId → Desktop2DWindow` map and folds
+map/resize/retitle/unmap/shutdown into it (a re-map folds into resize+retitle,
+unmap disposes the surface and closes the MDI window). Headless-tested:
+`Desktop2DCompositorHostTest` (8) drives the controller with a fake host and a
+fake opener building a real headless `Desktop2DWindow`. *Exit:*
+`:lg3d-core:test`/`build` green. The live WM claim + `Desktop2D` startup hook
+that instantiates `X11CompositedWindowHost` on a bare Xorg is the
+session-integration step (Phase G).
+
+**Phase B.8 — WM → 2D-desktop lifecycle bridge (native apps *inside* the 2D
+desktop).** The last missing link that makes a real external X11 application
+appear as an ordinary window in the conventional 2D desktop
+(`feat/x11-composite-shared-pipeline`). Until now the two halves existed but were
+never connected: `X11WindowManager` drove only the 3D texture path on
+Map/Unmap/Configure/PropertyNotify, and nothing ever notified
+`Desktop2DCompositorHost`, so a native client redirected by the compositor had no
+route into a `Desktop2DWindow`. This phase adds that route:
+
+- **`WindowLifecycleListener`** (x11) — a `gnu.x11`-free, Java-3D-free
+  notification seam speaking only in window ids, titles and pixel sizes:
+  `windowMapped` / `windowResized` / `windowRetitled` / `windowActivated` /
+  `windowUnmapped`.
+- **`X11WindowManager`** now holds a `volatile WindowLifecycleListener` (installed
+  via `setWindowLifecycleListener`) and fires it from `mapNotify` (skipping lg3d's
+  own window and InputOnly clients), `configureNotify` (resize),
+  `propertyNotify` WM_NAME (retitle), `activate` (activation) and
+  `unmapNotify`/`destroyNotify` (release). Each callback is isolated in a
+  try/catch so a desktop-side failure is logged and never kills the X event loop;
+  with no listener registered every fire is a no-op (behaviour-preserving).
+- **`CompositedWindowBridge`** (desktop2d) implements the listener and forwards to
+  a `Desktop2DCompositorHost`, marshalling each call onto the Swing EDT through an
+  injectable `Consumer<Runnable>` (`SWING_EDT` in production, `DIRECT` in tests).
+
+The complete path a native app's pixels + lifecycle now take into the 2D desktop:
+
+```
+external X11 client (xterm, firefox, …)
+  └─ X server Composite redirect (X11Compositor.redirectSubwindows)
+       ├─ PIXELS: NameWindowPixmap → CompositeWindowImageLoader (WindowPixelSource)
+       │            → CompositedWindowPipeline (DamageAccumulator + FramePacer +
+       │              ReadbackPlanner) → SwingCompositedWindowSink (JPanel canvas)
+       │            → Desktop2DWindow content pane
+       ├─ INPUT:  SwingX11InputForwarder (AWT listeners → XTest into the client)
+       └─ LIFECYCLE: X11WindowManager map/resize/retitle/activate/unmap
+                      → WindowLifecycleListener → CompositedWindowBridge (→ EDT)
+                      → Desktop2DCompositorHost → open/adjust/close Desktop2DWindow
+```
+
+Headless-tested: **`CompositedWindowBridgeTest` (7)** drives the bridge with the
+`DIRECT` runner and the fake host/opener, pinning map→open, resize/retitle/
+activate/unmap forwarding, EDT-runner marshalling, and that both a controller
+failure and a runner refusal are swallowed (never thrown back to the X thread).
+The WM fire-points themselves are Display-bound glue and, per the locked scope,
+are exercised only on a bare-Xorg host. **The `Desktop2D` startup hook is now
+delivered under Phase G** (below): it builds the `Desktop2DCompositorHost` +
+`CompositedWindowBridge` over the published session's `CompositedWindowHost` and
+registers it through the `WindowLifecycleRegistrar` seam once the WM has claimed
+the display.
+
 **Phase C — multi-window + focus/stacking.** Manage N simultaneous clients:
 map/unmap lifecycle, sibling stacking order, focus-follows-pointer vs
 click-to-focus, per-window Damage tracking, and correct z-order of the
 `NativeWindow3D` quads. Implement the InputOnly branch (§4.1).
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure
+focus/stacking brain now exists as **`CompositedWindowSet`** — it tracks the live
+window set, its sibling z-order (bottom→top) and the input focus under a
+`POINTER` (focus-follows-pointer) or `CLICK` (click-to-focus) policy, with
+`add`/`remove`/`raise`/`lower`/`retitle`/`activate`/`clear` and unmodifiable
+`stackTopDown()`/`windowsBottomUp()` views. It holds no X and no Java 3D state, so
+both desktops share it. `Desktop2DCompositorHost` maintains one (3-arg
+constructor selects the policy; 2-arg defaults to `POINTER`) and exposes
+`focusWindow`/`pointerEnter`/`focusedWindowId`/`stackTopDown`/`getFocusPolicy`.
+**21 headless tests** (`CompositedWindowSetTest` 13, +4 controller) pin stacking,
+focus-transfer-on-remove, raise/lower, both policies and the controller sync.
+**Still deferred (needs a bare Xorg):** driving the live `X11WindowManager`
+map/unmap/ConfigureNotify into this model, the X sibling z-order of the
+`NativeWindow3D` quads, and the non-override-redirect **InputOnly** branch
+(`X11WindowManager.java:710`) — implementing WM/InputOnly semantics blind, with
+no live Xorg to test against, remains the reckless scope creep §4 warns about.
+
 **Phase D — full EWMH.** Complete the `_NET_WM_STATE` / `_NET_WM_ALLOWED_ACTIONS`
 / `_NET_ACTIVE_WINDOW` / client-list and stacking hints (§4.2) so external
 toolkits behave (minimize/maximize/above/below, taskbar/pager hints), and so the
 application switcher can enumerate and activate external apps.
+
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure,
+spec-correct decision brain now exists as **`NetWmState`** — a static function
+over enums and `EnumSet`s with **no `gnu.x11.Display` and no atom ids**. It
+implements `applyChange` (REMOVE/ADD/TOGGLE, §5.9, null-safe, never mutates the
+input), `defaultStateFor` (per-window-type initial state), `allowedActions`
+(state + capabilities → the action set, incl. the maximized/fullscreen/skip-taskbar
+/above-below rules), and `decideActive` (focus-stealing prevention: an
+application-initiated activation → `DEMANDS_ATTENTION`, a pager/unspecified one →
+`ACTIVATE`). `X11WindowManagerHints` keeps the Display-bound half: its
+previously-stubbed `setNetWmState` / `setNetAllowedActions` (which hard-coded
+only the DIALOG case) now delegate to `NetWmState`, mapping each enum to its atom
+name via the 1:1 `stateAtomName`/`actionAtomName` convention and **filtering to
+the atoms already advertised in `_NET_SUPPORTED`**; a new `windowTypeFor(atomId)`
+maps the client's `_NET_WM_WINDOW_TYPE_*` id back to the enum. The client-list /
+stacking half is served by `CompositedWindowSet` (Phase C). **18 headless tests**
+(`NetWmStateTest`, X11 package now 140) pin the wire codes, atom-name mapping,
+all three state-change actions, every window type's default state, each
+allowed-action branch, both focus decisions and the unmodifiable view.
+**Still deferred (needs a bare Xorg):** round-tripping a live `_NET_WM_STATE`
+client message through `applyChange` and re-emitting the property, honouring
+`_NET_ACTIVE_WINDOW`/`_NET_CLIENT_LIST(_STACKING)` requests from real pagers, and
+verifying external toolkits react to the advertised actions — all require a live
+WM session on bare Xorg.
 
 **Phase E — performance: MIT-SHM fast path.** Today readback prefers MIT-SHM and
 falls back to `XGetImage`. Production needs: SHM pixmap attach/detach lifecycle
@@ -295,14 +449,93 @@ hardening, damage-region (not full-window) readback, texture-upload batching /
 PBO or `ImageComponent2D` reuse, and frame pacing to avoid uploading unchanged
 regions. Measure against a video-playing client.
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the pure perf brain
+now exists as three X-free, clock-free classes. **`DamageAccumulator`** coalesces
+the damage rects reported between frames into one bounding region (clamping
+negative origins, ignoring empty rects, `drain()`ing to an immutable `Region`),
+so a frame does one readback + one upload instead of one per damage event.
+**`FramePacer`** throttles presents to a minimum interval (clock-injected via an
+explicit `nowMillis`; first present always due; interval 0 = always due;
+`tryAcquire` is side-effect-free on refusal). **`ReadbackPlanner`** picks the
+MIT-SHM fast path over a core `XGetImage` round-trip (SHM only when attached,
+shared pixmaps supported and the region fits the segment) plus the ZPixmap
+`regionBytes`/`bytesPerPixel` sizing. **`CompositedWindowPipeline`** is wired to
+all three behaviour-preservingly: it accumulates each `damageReported`, presents
+the coalesced region only when its pacer says one is due, and gained
+`flush(windowId)` + `hasPendingDamage()`; the 2-arg constructor delegates with an
+always-due pacer so the live 3D tile path is unchanged. **29 headless tests**
+(`DamageAccumulatorTest` 9, `FramePacerTest` 8, `ReadbackPlannerTest` 8, +4
+pipeline coalescing/pacing; X11 package now 169) pin the geometry, throttle and
+path-selection branches. **Still deferred (needs a bare Xorg):** the live SHM
+segment attach/detach lifecycle, driving `flush` from the real render loop, and
+measuring the upload savings against a video-playing client.
+
 **Phase F — target GL/DRI3 bring-up.** On the LFS host, validate Java 3D
 (Jogamp) obtains a **hardware** GLX context with DRI3 on the real GPU DDX
 (contract §3.3); pin `lg3d.x11.ownwindowid` if auto-discovery of lg3d's own
 `Canvas3D` window id fails on the target driver.
 
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the bring-up
+decision is codified as **`GlBringUpPlanner`** — a pure function over a live
+`Probe` (`glxPresent`/`directRendering`/`dri3Present`/resolved own-window id)
+returning one `Verdict` (`READY`, `PIN_OWN_WINDOW_ID`, `SOFTWARE_ONLY`, `ABORT`)
+with the operator-facing `remediation` text, plus `resolveOwnWindowId(override,
+discovered)` capturing the override-then-discovery fallback that
+`X11Compositor.exemptOwnWindow()` already runs. It encodes the contract §5
+acceptance checks. **9 headless tests** (`GlBringUpPlannerTest`) pin every
+verdict branch and the own-window resolution. **Still deferred (needs the LFS
+host):** running the real GLX/DRI3 probe (`glxinfo`, the GLX extension query)
+on the target GPU DDX and feeding it to the planner — a hardware context cannot
+be obtained or measured headlessly.
+
 **Phase G — session integration.** The systemd/`xinit` hand-off (contract §3.6):
 lg3d as the sole session client on `:0`, clean shutdown (`Shutting down X11
 compositor`), crash recovery, and login/`xdm`-style autostart.
+
+*Partially delivered* (`feat/x11-composite-shared-pipeline`): the session state
+machine now exists as **`SessionLifecycle`** — `INIT → STARTING → RUNNING →
+SHUTTING_DOWN → STOPPED` with `CRASHED`/`RECOVERING` branches, a bounded
+crash-recovery budget (`canRecover`), refused (not thrown) illegal transitions,
+and the ordered `shutdownSteps()` teardown list. It is **wired into
+`X11Compositor`**: the constructor advances `START → READY` (or `FAILURE` when a
+required extension is missing) and `shutdown()` drives `SHUTTING_DOWN →
+STOPPED`, exposed via `getSessionState()`. **12 headless tests**
+(`SessionLifecycleTest`) pin the full transition table, the recovery budget and
+the teardown order. **Still deferred (needs the LFS host):** the actual
+systemd/`xinit` unit hand-off, process supervision and login/`xdm` autostart
+that drive this machine, and observing clean shutdown / crash recovery in a live
+session.
+
+*Delivered — 2D-desktop in-JVM session integration*
+(`feat/x11-composite-shared-pipeline`): the other half of "session integration" —
+letting the conventional 2D desktop *discover* a live compositor running in the
+same JVM and host native X11 clients as ordinary MDI windows — is now wired end
+to end. **`X11CompositorSession`** (x11) is a discovery holder
+`X11IntegrationModule` publishes once redirection succeeds (and
+`X11Compositor.shutdown()` clears); its `Session` exposes only the Java-3D-free
+interface types — a `CompositedWindowHost` and a **`WindowLifecycleRegistrar`**
+(the new public seam `X11WindowManager` implements, since the WM class is
+package-private) — so `desktop2d` never drags in the scene graph or `gnu.x11`.
+**`CompositedDesktopWiring`** (desktop2d) is the turnkey assembly: a pure
+`shouldInstall(optIn, sessionLive, headless)` decision, a
+`desktopOpener(JDesktopPane)`, and `install(host, opener, registrar)` returning a
+`Handle` that tears down via `dispose(unregister)`. `Desktop2D.show()` calls the
+guarded `installCompositedWindows()`, which reads
+`X11CompositorSession.current()` and installs only when the operator opted in via
+**`lg3d.x11.composite2d`**, a session is live and the JVM is not headless;
+composited windows open through a rich opener (taskbar button + workspace
+assignment + cascading placement, but *not* session-persisted, since a native
+client is transient) and `exit()` disposes the wiring. In every topology without
+a live compositor session (dev mode, the `*_nox` configs, compositing disabled)
+nothing is published and the 2D shell is unchanged. **16 headless tests**
+(`X11CompositorSessionTest` 7, `CompositedDesktopWiringTest` 9) pin the holder's
+publish/null-clear/replace lifecycle, the install truth table and null guards,
+the default opener, and the full map→window→dispose path over a real headless
+`JDesktopPane` (EDT-flushed). **Still deferred (needs a combined bare-Xorg
+launch):** no production topology yet runs the 2D Swing desktop *and* the X11
+WM/compositor in one JVM — `Main` treats 3D and 2D as mutually exclusive and the
+`*_x` configs start the 3D desktop — so the live registration path is exercised
+only once such a combined launch exists on the LFS host.
 
 ---
 
