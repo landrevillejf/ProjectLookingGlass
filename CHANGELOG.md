@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.51.1 —
+## [Unreleased] — 1.52.0 —
 
 ### Added
 - **Metal theme collection for the conventional 2D desktop, incl. a Glassy
