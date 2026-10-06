@@ -85,6 +85,10 @@ public class DesktopPanel implements ControlPanel {
         "Icons only", "Icons and text"
     };
 
+    /** Display names, in {@link DesktopConfig.Indicator} ordinal order. */
+    private static final String[] INDICATOR_LABELS = { "Volume", "Network" };
+    private static final String[] SYSTEM_TRAY_LABELS = { "Off", "On" };
+
     // Holiday region for the 2D desktop's calendar popup. "AUTO" resolves from
     // the system locale; the rest are explicit jbusinessday region tokens
     // persisted in DesktopConfig (see HolidayCalendar's token grammar).
@@ -117,6 +121,12 @@ public class DesktopPanel implements ControlPanel {
     /** Pending per-item visibility, edited by the toggle and written on Apply. */
     private final Map<DesktopConfig.TaskbarItem, Boolean> pendingShown =
             new EnumMap<>(DesktopConfig.TaskbarItem.class);
+    private final JList<String> systemTrayList = new JList<>(SYSTEM_TRAY_LABELS);
+    private final DefaultListModel<String> indicatorsModel = new DefaultListModel<>();
+    private final JList<String> indicatorsList = new JList<>(indicatorsModel);
+    /** Pending per-indicator tray visibility, edited by the toggle, written on Apply. */
+    private final Map<DesktopConfig.Indicator, Boolean> pendingIndicatorShown =
+            new EnumMap<>(DesktopConfig.Indicator.class);
     private final JLabel statusLabel = new JLabel(" ");
 
     public DesktopPanel() {
@@ -129,6 +139,7 @@ public class DesktopPanel implements ControlPanel {
         // instead of a second row that fell under the fold of the 720x500
         // window (the reason the taskbar settings looked absent).
         left.add(taskbarContentsBlock());
+        left.add(systemTrayBlock());
         left.add(listBlock("Taskbar thickness", barList, 3));
         left.add(listBlock("Icon size", iconList, 3));
         left.add(listBlock("Taskbar auto-hide", autoHideList, 2));
@@ -219,6 +230,11 @@ public class DesktopPanel implements ControlPanel {
         refreshItemsList();
         labelsList.setSelectedIndex(
                 cfg.getTaskbarLabels() == DesktopConfig.Labels.ICONS_AND_TEXT ? 1 : 0);
+        systemTrayList.setSelectedIndex(cfg.isIndicatorsSystemTray() ? 1 : 0);
+        for (DesktopConfig.Indicator ind : DesktopConfig.Indicator.values()) {
+            pendingIndicatorShown.put(ind, cfg.isIndicatorShown(ind));
+        }
+        refreshIndicatorsList();
         fontList.setSelectedValue(cfg.getFontName(), true);
         if (fontList.getSelectedValue() == null && fontList.getModel().getSize() > 0) {
             fontList.setSelectedIndex(0);
@@ -240,6 +256,10 @@ public class DesktopPanel implements ControlPanel {
         cfg.setTaskbarLabels(index(labelsList, 2) == 1
                 ? DesktopConfig.Labels.ICONS_AND_TEXT
                 : DesktopConfig.Labels.ICONS_ONLY);
+        cfg.setIndicatorsSystemTray(index(systemTrayList, 2) == 1);
+        for (DesktopConfig.Indicator ind : DesktopConfig.Indicator.values()) {
+            cfg.setIndicatorShown(ind, Boolean.TRUE.equals(pendingIndicatorShown.get(ind)));
+        }
         cfg.setHolidayRegion(HOLIDAY_REGION_VALUES[index(holidayRegionList, HOLIDAY_REGION_VALUES.length)]);
         String family = fontList.getSelectedValue();
         if (family != null) {
@@ -340,6 +360,73 @@ public class DesktopPanel implements ControlPanel {
             itemsList.setSelectedIndex(keep);
         } else if (itemsModel.size() > 0) {
             itemsList.setSelectedIndex(0);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // System tray indicators (host java.awt.SystemTray mirror)
+    // ------------------------------------------------------------------
+
+    /**
+     * The system-tray editor: a mirror on/off selector, the list of indicators
+     * (volume, network) with their pending shown/hidden state, and a toggle for
+     * the selected row. The mirror puts live volume/network glyphs into the host
+     * {@code java.awt.SystemTray}; the setting persists regardless, but the
+     * mirror is silently skipped on a host with no system tray (e.g. GNOME on
+     * Wayland, which dropped the XEmbed tray protocol).
+     */
+    private JPanel systemTrayBlock() {
+        indicatorsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        indicatorsList.setVisibleRowCount(2);
+        JScrollPane sp = new JScrollPane(indicatorsList);
+        sp.setBorder(BorderFactory.createLineBorder(new Color(190, 196, 206)));
+
+        JButton toggle = new JButton("Toggle shown / hidden");
+        toggle.addActionListener(e -> toggleSelectedIndicator());
+
+        JPanel south = new JPanel(new BorderLayout(4, 4));
+        south.add(listBlock("Mirror into system tray", systemTrayList, 2), BorderLayout.NORTH);
+        south.add(toggle, BorderLayout.SOUTH);
+
+        JPanel p = new JPanel(new BorderLayout(4, 4));
+        p.setBorder(BorderFactory.createTitledBorder("System tray indicators"));
+        JLabel title = new JLabel("Select an indicator, then toggle it shown / hidden.");
+        title.setFont(title.getFont().deriveFont(
+                java.awt.Font.ITALIC, title.getFont().getSize2D() - 1f));
+        p.add(title, BorderLayout.NORTH);
+        p.add(sp, BorderLayout.CENTER);
+        p.add(south, BorderLayout.SOUTH);
+        return p;
+    }
+
+    /** Flips the pending shown/hidden state of the selected tray indicator. */
+    private void toggleSelectedIndicator() {
+        int i = indicatorsList.getSelectedIndex();
+        DesktopConfig.Indicator[] inds = DesktopConfig.Indicator.values();
+        if (i < 0 || i >= inds.length) {
+            statusLabel.setText("Select a system tray indicator first.");
+            return;
+        }
+        DesktopConfig.Indicator ind = inds[i];
+        pendingIndicatorShown.put(ind, !Boolean.TRUE.equals(pendingIndicatorShown.get(ind)));
+        refreshIndicatorsList();
+        indicatorsList.setSelectedIndex(i);
+    }
+
+    /** Rebuilds the tray-indicator rows from the pending state, keeping selection. */
+    private void refreshIndicatorsList() {
+        int keep = indicatorsList.getSelectedIndex();
+        indicatorsModel.clear();
+        DesktopConfig.Indicator[] inds = DesktopConfig.Indicator.values();
+        for (int i = 0; i < inds.length && i < INDICATOR_LABELS.length; i++) {
+            boolean shown = Boolean.TRUE.equals(pendingIndicatorShown.get(inds[i]));
+            indicatorsModel.addElement(INDICATOR_LABELS[i]
+                    + (shown ? "  \u2014  shown" : "  \u2014  hidden"));
+        }
+        if (keep >= 0 && keep < indicatorsModel.size()) {
+            indicatorsList.setSelectedIndex(keep);
+        } else if (indicatorsModel.size() > 0) {
+            indicatorsList.setSelectedIndex(0);
         }
     }
 
