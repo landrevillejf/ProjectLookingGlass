@@ -10,6 +10,40 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.61.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Software Update: apply a release bundle to the installed desktop (the LFS
+  production path)** (`update-manager` `com.protonmail.landrevillejf.swingide.update`)
+  — the update pipeline could already check, download and verify (SHA-256 +
+  optional PGP) the published `lg3d-<version>.zip`, but the ported `UpdateInstaller`
+  only knew how to replace a *single* running JAR (`cp new.jar current.jar` +
+  `java -jar current.jar`), so it could never apply lg3d's multi-jar, classpath-launched
+  bundle — the desktop could not actually be updated in place. A new
+  `BundleUpdateInstaller` + `InstallLocation` close that gap: `InstallLocation`
+  resolves the release-bundle root (the `update.install.dir` config key → the
+  `lg3d.install.dir` system property → inferred from `<root>/lib/update-manager-*.jar`,
+  validated by the `lib/` + `lg3d.sh` layout), and when a root is detected *and*
+  the verified artifact is a ZIP, `UpdateService.installNow` /
+  `applyStagedUpdateOnExit` route to the bundle installer instead of the single-jar
+  one (which stays the fallback for a plain jar or a development launch, so nothing
+  else changes). The bundle installer extracts the archive into a staging directory
+  behind a zip-slip guard, validates the staged layout, then hands a deferred bash
+  script the destructive work once the JVM has exited: snapshot the managed entries
+  (`lib/ resources/ etc/ ext/ lg3d.sh README.txt VERSION`) into a timestamped
+  rollback directory that carries a standalone `restore.sh`, replace them with the
+  staged tree, and optionally relaunch `lg3d.sh`. A read-only install prefix (the
+  common distro case) is applied under `pkexec` when privilege escalation is
+  enabled. Relaunch defaults to **off** (`update.bundle.relaunch=false`): under the
+  LFS deployment lg3d *is* the X session started by systemd/xinit, so the session
+  manager restarts it and an in-app `System.exit` must not try to relaunch the
+  session itself; a windowed user can opt in. **New headless JUnit 5 tests**:
+  `InstallLocationTest` (property override, jar-path inference, invalid/blank/
+  throwing inputs, layout validation), `BundleUpdateInstallerTest` (staging,
+  zip-slip rejection, magic-header detection, layout validation, apply/restore
+  script generation with and without relaunch, both `pkexec`/`bash` launch-command
+  branches, accessors) and `UpdateServiceBundleInstallTest` (bundle vs single-jar
+  routing, the config-driven install dir, the relaunch flag and installer
+  injection); the destructive `System.exit` / real `pkexec` spawn stay overridden,
+  so no test kills the JVM or touches a real install. See
+  `update-manager/AGENTS.md`.
 - **Web Browser: a developer extension/plugin API (Java SPI), an in-browser
   manager, built-in reference extensions, browser-completeness upgrades and a
   proper window icon** (`lg3d-apps` `org.jdesktop.lg3d.apps.webbrowser` + a new
