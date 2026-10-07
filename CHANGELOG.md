@@ -31,6 +31,22 @@ work to make it build and run on a current toolchain.
   (enabled, required, key id `9A5DAD01CF4F5054`, fingerprint) and
   `docs/release-process.md` §13.1/§13.4/§13.5 + `update-manager/AGENTS.md` are
   updated to match.
+- **LFS system management: front-end contract + shared init-system backend
+  (Phase 0)** (`lg3d-core`, docs) — adds `system-management-contract.md`, a
+  normative (RFC 2119) contract making the lg3d desktop a *front-end* that drives
+  the LFS/BLFS-installed CLIs (`systemctl`/`rc-service`/`sv`/`s6-svc`,
+  `lfs-update`, `nmcli`, `cryptsetup`, `nft`, `tor`, …) and never re-implements,
+  locks or second-guesses them. It inherits `lfs-x11-contract.md` and the LPM §5
+  integration rules (argument vectors not shell interpolation, separate
+  stdout/stderr capture, per-operation polkit escalation via `PrivilegedRunner`,
+  unprivileged read-only paths, serialized mutating ops, verbatim error fidelity,
+  exit codes as state) and maps every subsystem to a lg3d surface (Control Center
+  panels / existing apps). Adds the shared `org.jdesktop.lg3d.utils.system.InitSystemService`
+  socle: pure init detection (systemd → openrc → runit → s6 → sysvinit) and
+  operation → CLI argument-vector mapping mirroring the builder's
+  `06b-service-management.sh`, with 20 headless JUnit 5 tests covering the
+  detection matrix, every per-init vector, and graceful degradation. No app
+  behaviour changes yet; the per-subsystem panels land in later phases.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
