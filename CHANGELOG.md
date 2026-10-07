@@ -44,6 +44,22 @@ work to make it build and run on a current toolchain.
   injection); the destructive `System.exit` / real `pkexec` spawn stay overridden,
   so no test kills the JVM or touches a real install. See
   `update-manager/AGENTS.md`.
+- **Software Update: an end-to-end release-bundle install proof + the LFS
+  acceptance runbook** (`scripts/update`, `docs`, `update-manager`) — the
+  `BundleUpdateInstaller` unit tests deliberately stub the two destructive steps
+  (the real `pkexec` / `System.exit` spawn), so nothing yet proved the *whole*
+  chain against a real archive. A new `scripts/update/bundle-install-proof.sh`
+  closes that gap: it runs the real installer (taken from the release bundle's own
+  `lib/`) against the real `:lg3d-core:releaseBundle` `lg3d-<version>.zip` in a
+  throwaway sandbox — stage → snapshot → deferred apply script → verify the NEW
+  tree (`VERSION`, the full `lib/` jar set, the stale marker gone) → `restore.sh`
+  rollback — for both `installBundle` and `installBundleOnExit`. It never touches a
+  real install, never escalates (`escalationEnabled=false`) and never relaunches
+  (`relaunchEnabled=false`). `docs/lfs-x11-contract.md` gains a new **§7 "In-place
+  update of the lg3d desktop"** (how the bundle is applied, install-root resolution,
+  the normative "relaunch stays off under LFS" rule, rollback, and the §7.5
+  acceptance gate that runs this harness to PASS); the README's LFS deployment
+  section and `update-manager/AGENTS.md` (QA) now point at it.
 - **Web Browser: a developer extension/plugin API (Java SPI), an in-browser
   manager, built-in reference extensions, browser-completeness upgrades and a
   proper window icon** (`lg3d-apps` `org.jdesktop.lg3d.apps.webbrowser` + a new

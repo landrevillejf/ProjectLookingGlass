@@ -195,7 +195,68 @@ themselves, but this is discouraged: Xephyr has **no direct GL by default**
 (Java 3D may fail to obtain a hardware context) and is **not** the production LFS
 target. The provisioned LFS host MUST satisfy §3–§5 with a **bare Xorg** session.
 
-## 7. References
+## 7. In-place update of the lg3d desktop (release bundle)
+
+The desktop ships as a multi-jar **release bundle** (`lg3d-<version>.zip`,
+produced by `:lg3d-core:releaseBundle` and published by
+`.github/workflows/release.yml` together with the `version.json` the
+update-manager reads). On the LFS host lg3d is **updated in place by applying
+that bundle** — never by replacing a single jar (the ported single-jar installer
+cannot update a classpath-launched multi-jar tree).
+
+### 7.1 How the update is applied
+The Software Update app (`update-manager`, `BundleUpdateInstaller` +
+`InstallLocation`) resolves the install root, extracts the verified bundle into a
+staging directory behind a zip-slip guard, snapshots the current managed entries
+into a timestamped rollback directory carrying a standalone `restore.sh`, then
+hands a **deferred bash apply-script** the destructive replacement **after the
+desktop JVM has exited** (so the classpath jars are never rewritten under a live
+process). The managed entries replaced wholesale are
+`lib/ resources/ etc/ ext/ lg3d.sh README.txt VERSION`; everything else under the
+root is left untouched. A read-only install prefix (the common distro case, e.g.
+`/opt/lg3d`) is applied under `pkexec` when privilege escalation is enabled.
+
+### 7.2 Install-root resolution
+The root is resolved in order: `update.install.dir` (config) →
+`lg3d.install.dir` (system property) → inferred from
+`<root>/lib/update-manager-*.jar`, validated by the `lib/` + `lg3d.sh` layout.
+On the LFS host **pin it explicitly** (e.g. `-Dlg3d.install.dir=/opt/lg3d`) so
+detection never depends on where the running jar happens to live.
+
+### 7.3 Relaunch posture (normative — MUST)
+`update.bundle.relaunch` **MUST** stay `false` on the LFS host. lg3d *is* the X
+session: the apply step exits the JVM and the session manager (`Restart=on-failure`
+in the §3.6 unit, or `xinit`) brings the desktop back on the new bundle. An
+in-app relaunch would fight the session manager. (A windowed dev user may opt in.)
+
+### 7.4 Rollback
+Each update leaves a snapshot under
+`~/.lg3d/backups/bundles/lg3d-bundle-backup-<timestamp>/`. If the new bundle
+fails to boot, `bash <snapshot>/restore.sh` reverts the managed entries to the
+previous version — from a plain shell, even when the desktop no longer starts.
+
+### 7.5 Acceptance (update path)
+Before the host is declared update-capable, in addition to §5:
+
+1. **Bundle proof (authoritative).** From the lg3d checkout:
+   ```bash
+   scripts/update/bundle-install-proof.sh                       # immediate install path
+   scripts/update/bundle-install-proof.sh -m installBundleOnExit # apply-on-exit path
+   ```
+   Both MUST end with `PASS: end-to-end release-bundle update + rollback
+   verified`. The harness runs the real installer classes taken from the bundle's
+   own `lib/`, the real generated apply/restore scripts and a real deferred
+   replacement — entirely inside a temp sandbox (never a real install), never
+   escalating (`pkexec`) and never relaunching a desktop. It builds the bundle if
+   one is not already present (or takes `-z <zip>`).
+2. **Live drill (optional, on a host you can afford to revert).** Trigger the
+   update from the Software Update app against the published `version.json`;
+   confirm the desktop exits, the apply-script replaces the tree, the session
+   restarts on the new `VERSION`, and `restore.sh` reverts it.
+
+Record the output of (1) alongside the §5 compliance evidence.
+
+## 8. References
 
 - [`x11-compositor-spike-roadmap.md`](x11-compositor-spike-roadmap.md) — spike
   report (Stages 0–3 evidence), the §5 acceptance checklist mapped to
@@ -203,6 +264,11 @@ target. The provisioned LFS host MUST satisfy §3–§5 with a **bare Xorg** ses
   spike→production roadmap.
 - `scripts/x11/live-proof.sh` — the Stage-4 live-proof harness (never starts an
   X server, never injects synthetic input, never screenshots).
+- `scripts/update/bundle-install-proof.sh` — the §7.5 end-to-end release-bundle
+  update + rollback proof harness (sandboxed, no escalation, no relaunch).
+- `update-manager` (`com.protonmail.landrevillejf.swingide.update`) —
+  `BundleUpdateInstaller` / `InstallLocation` (the §7 in-place update path); see
+  `update-manager/AGENTS.md`.
 
 - README → **X11 compositor mode** (including the `--nested <display>` dev flag)
   and **Deployment target (Linux From Scratch)**.
