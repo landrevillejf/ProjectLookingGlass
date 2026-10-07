@@ -17,6 +17,7 @@
 | Command | `java org.jdesktop.lg3d.apps.webbrowser.WebBrowser` |
 | Descriptor | `src/config/webbrowser.lgcfg` → `config/demo` |
 | Engine | **JavaFX `WebView` (WebKit)** via OpenJFX `21.0.12`, `linux` classifier (GPLv2 + Classpath Exception) — the first OpenJFX dependency in the repo |
+| Extensions | Java SPI (`ServiceLoader`) in `...webbrowser.ext`; built-ins via `META-INF/services`, third-party jars in `~/.lg3d/webbrowser/extensions`; manager = `ExtensionManagerDialog` (see [`docs/webbrowser-extensions.md`](../../../../../../../../docs/webbrowser-extensions.md)) |
 | Persistence | Jackson JSON under `~/.lg3d/webbrowser/` (override with `-Dlg3d.webbrowser.dir`) |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -38,16 +39,43 @@
   `Platform.runLater`; state changes report back through a `Listener` on the FX
   thread.
 - **BrowserPanel** — the Swing face (public no-arg constructor, as
-  `Desktop2DAppRegistry.createPanel` requires): a tab strip, a navigation toolbar
-  (back/forward/reload/stop/home, smart URL field, bookmarks menu, find, zoom,
-  view-source, downloads, history, settings), a `JFXPanel` centre hosting the
-  `FxBrowser` scene, and a status/progress bar with an HTTPS indicator. Building
+  `Desktop2DAppRegistry.createPanel` requires): a tab strip (with a per-tab close
+  button), a navigation toolbar (back/forward/reload/stop/home, smart URL field,
+  bookmarks menu, find, zoom, view-source, downloads, history, settings,
+  **Extensions**, plus any extension toolbar contributions), a `JFXPanel` centre
+  hosting the `FxBrowser` scene, and a status/progress bar with an HTTPS
+  indicator. Window-level shortcuts: Ctrl+T/W/L/R/F and Ctrl+Tab / Ctrl+Shift+Tab.
+  Settings carries **Clear history** / **Clear cookies** privacy actions. Building
   the `JFXPanel` on the EDT boots the JavaFX toolkit; FX work is marshalled with
   `Platform.runLater` and callbacks return to the EDT via
-  `SwingUtilities.invokeLater`.
+  `SwingUtilities.invokeLater`. The panel constructs the `ExtensionRegistry` +
+  `ExtensionBroker` and opens `ExtensionManagerDialog` from the Extensions button.
 - **WebBrowserApp** — a top-level `JFrame` hosting `BrowserPanel`
   (`DISPOSE_ON_CLOSE`, releasing the FX engines on close). This is the child
-  process the 3D preview spawns, and it runs standalone too.
+  process the 3D preview spawns, and it runs standalone too. It calls
+  `setIconImage` from the assembled `resources/images/icon/webbrowser.png` so the
+  top-level window shows the browser glyph, not the OS default "home folder"; the
+  2D MDI frame + taskbar already resolve the descriptor icon through
+  `AppIcons.iconFor` in `lg3d-core`.
+- **Extension SPI (`...webbrowser.ext`, AWT/JavaFX-free, headless-tested)** —
+  `BrowserExtension` (all-default hooks: `onNavigate`, `onPopup`,
+  `onPageLoaded`, `onBrowserStarted/Stopping`, `toolbarContributions`) plus the
+  immutable value types (`ExtensionManifest`, the `Permission` enum,
+  `NavigationRequest`/`Decision`, `PopupRequest`/`Decision`, `PageContext`,
+  `BrowserContext`, `ToolbarContribution`, `ExtensionState`).
+  **`ExtensionRegistry`** discovers built-ins via `ServiceLoader`
+  (`META-INF/services/org.jdesktop.lg3d.apps.webbrowser.ext.BrowserExtension`,
+  bundled by the `META-INF/services/**` include in `lg3d-apps/build.gradle`) and
+  third-party jars from `~/.lg3d/webbrowser/extensions` via a scoped child
+  `URLClassLoader`; built-ins start enabled + pre-granted, third-party extensions
+  start **disabled with nothing granted** (the permission gate). **`ExtensionBroker`**
+  dispatches hooks behind the granted-permission gate and isolates every call in
+  `try/catch` (a throwing extension is logged + skipped, never fatal).
+  `FxBrowser.setExtensionBroker` injects the broker (built by `BrowserPanel`),
+  which the popup handler, `loadInternal` and the `SUCCEEDED` page-loaded hook
+  consult. Three in-tree reference extensions (`ext.builtin`): `PopupBlocker`,
+  `TrackerBlocker`, `HttpsUpgrade`. Enable/grant state persists as
+  `extensions.json` via `BrowserStore`.
 - **WebBrowser** — the 3D entry: installs the hosted look and feel and shows
   `BrowserPreviewPanel` in a `TitledSwingWindow`. Builds **no** JavaFX.
 - **BrowserPreviewPanel** — pure Swing, **imports no `javafx.*`**: product art, a
@@ -88,7 +116,13 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   `BookmarkStoreTest`, `HistoryStoreTest`, `TabModelTest`, `BrowserSettingsTest`,
   `DownloadRecordTest`, `BrowserStoreTest`) and `WebKitThreadGuardTest` (the
   JDK-8346250 WebSocket swallow-vs-delegate guard) run headless
-  (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`. `Desktop2DAppRegistryTest` asserts the
+  (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`. The extension
+  system is covered headlessly too: `ExtensionManifestTest`, `ExtensionRegistryTest`
+  (classpath + temp-dir jar discovery, the permission gate, enable/grant
+  persistence), `ExtensionBrokerTest` (dispatch, exception isolation, permission
+  enforcement, block/redirect, content-script gating, toolbar de-dup),
+  `BrowserStoreExtensionsTest` and `PopupBlocker`/`TrackerBlocker`/
+  `HttpsUpgradeExtensionTest`. `Desktop2DAppRegistryTest` asserts the
   command classifies as `PANEL` and maps to `BrowserPanel`. The GUI itself has no
   coverage/mutation gate; verify it with the in-JVM probe + `lgscreen-*.png`
   capture on the host X display (2D MDI browser navigates; 3D preview + child
@@ -124,6 +158,13 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   real WebKit engine). The browser degrades gracefully (the preview shows
   guidance) if JavaFX is absent at runtime.
 - Linux only: just the `linux` classifier is wired, mirroring the Jogamp natives.
+- **The extension permission gate is a consent/UX boundary, not a JVM sandbox.**
+  Extension code runs in-process with the user's full privileges; the JVM has no
+  capability sandbox for in-process bytecode. The gate makes an extension declare
+  its permissions, makes the user approve them in `ExtensionManagerDialog`, and
+  enforces them on every hook (no unapproved navigate / popup-block /
+  content-script / toolbar). It cannot stop a malicious jar once loaded — install
+  only trusted extensions. Failure isolation (every hook `try/catch`) is always on.
 - **WebSockets are unavailable on Linux (upstream JDK-8346250).** JavaFX 21's
   `libjfxwebkit.so` omits the `com.sun.webkit.network.SocketStreamHandle`
   `twkDidOpen`/`twkDidClose` natives, so a page that opens a WebSocket throws

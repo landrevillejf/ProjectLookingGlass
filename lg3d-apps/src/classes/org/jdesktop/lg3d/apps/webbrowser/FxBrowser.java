@@ -39,6 +39,10 @@ import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
 import javafx.scene.web.WebView;
 import javafx.util.Callback;
+import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionBroker;
+import org.jdesktop.lg3d.apps.webbrowser.ext.NavigationDecision;
+import org.jdesktop.lg3d.apps.webbrowser.ext.NavigationRequest;
+import org.jdesktop.lg3d.apps.webbrowser.ext.PopupRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,6 +118,7 @@ public final class FxBrowser {
     private BrowserSettings settings;
     private Path downloadDir;
     private boolean shuttingDown;
+    private volatile ExtensionBroker broker;
 
     /**
      * Creates the controller. Call {@link #createRoot()} on the JavaFX thread
@@ -127,6 +132,18 @@ public final class FxBrowser {
         this.settings = (settings == null) ? new BrowserSettings() : settings;
         this.downloadDir = resolveDownloadDir(this.settings.getDownloadDir());
         installCookiePolicy(this.settings);
+    }
+
+    /**
+     * Injects the extension broker that drives the {@code BrowserExtension}
+     * hooks. May be null (or set later from the panel); while null, the popup /
+     * navigate / page-loaded hooks are simply skipped. Called on the EDT before
+     * the first load; the field is volatile so the FX thread sees it.
+     *
+     * @param broker the broker, or null to disable extension hooks
+     */
+    public void setExtensionBroker(ExtensionBroker broker) {
+        this.broker = broker;
     }
 
     // ------------------------------------------------------------------
@@ -449,6 +466,7 @@ public final class FxBrowser {
                         String title = engine.getTitle();
                         updateActiveModel(title, loc);
                         listener.onPageCommitted(loc, title);
+                        notifyPageLoaded(engine, loc, title);
                         fireTabsChanged();
                         listener.onStatusMessage("");
                     } else if (state == Worker.State.FAILED) {
@@ -460,6 +478,13 @@ public final class FxBrowser {
         engine.setCreatePopupHandler(new Callback<PopupFeatures, WebEngine>() {
             @Override
             public WebEngine call(PopupFeatures config) {
+                ExtensionBroker b = broker;
+                if (b != null && b.isPopupBlocked(new PopupRequest(getLocation(), false))) {
+                    // A popup-blocking extension vetoed this window; returning
+                    // null tells WebKit not to create a popup engine at all.
+                    listener.onStatusMessage("Popup blocked by an extension");
+                    return null;
+                }
                 // Open popups / target=_blank links in a real new tab instead of
                 // a separate window, so the tabbed model stays authoritative.
                 int index = model.addTab("New Tab", null);
@@ -472,15 +497,54 @@ public final class FxBrowser {
         });
     }
 
+    /**
+     * Fires the {@code onPageLoaded} content-script hook for the committed page.
+     * The broker supplies a live script runner only to extensions granted
+     * CONTENT_SCRIPT; a throwing or bad script is contained here so it can never
+     * break the page or the load listener.
+     */
+    private void notifyPageLoaded(WebEngine engine, String loc, String title) {
+        ExtensionBroker b = broker;
+        if (b == null) {
+            return;
+        }
+        b.notifyPageLoaded(loc, title, js -> {
+            try {
+                engine.executeScript(js);
+            } catch (RuntimeException e) {
+                LOG.warn("Content script failed on {}; ignored", loc, e);
+            }
+        });
+    }
+
     private void loadInternal(String url) {
         WebEngine engine = activeEngine();
         if (engine == null || url == null || url.isBlank()) {
             return;
         }
-        if (maybeDownload(url)) {
+        String target = url;
+        ExtensionBroker b = broker;
+        if (b != null) {
+            NavigationDecision decision =
+                    b.onNavigate(new NavigationRequest(url, activeTabId()));
+            if (decision.isBlock()) {
+                listener.onStatusMessage("Navigation blocked by an extension: " + url);
+                return;
+            }
+            if (decision.isRedirect()) {
+                String redirected = decision.getTargetUrl();
+                if (redirected.isBlank()) {
+                    return;
+                }
+                // Load the redirect target directly (not via loadInternal) so an
+                // extension cannot cause a re-consult / redirect loop.
+                target = redirected;
+            }
+        }
+        if (maybeDownload(target)) {
             return;
         }
-        engine.load(url);
+        engine.load(target);
     }
 
     private String targetUrl(String url) {
@@ -521,6 +585,12 @@ public final class FxBrowser {
     private WebEngine activeEngine() {
         WebView v = activeView();
         return (v == null) ? null : v.getEngine();
+    }
+
+    /** @return the active tab's id, or -1 when there is none. */
+    private int activeTabId() {
+        TabModel.Tab tab = model.getActiveTab();
+        return (tab == null) ? -1 : tab.getId();
     }
 
     private WebHistory activeHistory() {
@@ -632,6 +702,23 @@ public final class FxBrowser {
                 ? CookiePolicy.ACCEPT_ALL
                 : CookiePolicy.ACCEPT_NONE;
         CookieHandler.setDefault(new CookieManager(null, policy));
+    }
+
+    /**
+     * Clears the cookie store the browser controls (best-effort privacy action),
+     * then reinstalls the current policy over a fresh store. Callable from any
+     * thread; the JDK {@link CookieManager} is process-wide.
+     */
+    public void clearCookies() {
+        CookieHandler handler = CookieHandler.getDefault();
+        if (handler instanceof CookieManager) {
+            try {
+                ((CookieManager) handler).getCookieStore().removeAll();
+            } catch (RuntimeException e) {
+                LOG.warn("Could not clear the cookie store", e);
+            }
+        }
+        installCookiePolicy(settings);
     }
 
     // ------------------------------------------------------------------
