@@ -52,6 +52,24 @@ work to make it build and run on a current toolchain.
   gating, toolbar de-dup), `BrowserStoreExtensionsTest` (extensions.json
   round-trip + defensive reads) and `PopupBlocker`/`TrackerBlocker`/
   `HttpsUpgradeExtensionTest`. See `docs/webbrowser-extensions.md`.
+- **Web Browser: a dedicated release workflow for the extension API jar**
+  (`lg3d-apps` build + `.github/workflows/release-webbrowser-api.yml`) — the
+  `org.jdesktop.lg3d.apps.webbrowser.ext` SPI can now be published on its own, so
+  third-party extension developers compile against a small, stable
+  `lg3d-webbrowser-ext-api-<version>.jar` (plus a `-sources.jar`) instead of the
+  whole `lg3d-apps`. Two on-demand Gradle tasks (`:lg3d-apps:webBrowserApiJar` /
+  `:webBrowserApiSourcesJar`) package exactly the developer contract — the
+  `BrowserExtension` interface and its immutable value types — excluding the
+  browser's internal runtime (`ExtensionRegistry` / `ExtensionBroker` /
+  `ExtensionState`) and the `ext.builtin` reference implementations. A new manual
+  (`workflow_dispatch`) workflow builds both jars and publishes a **dedicated**
+  GitHub Release tagged `webbrowser-api-v<version>` with the jar, sources and a
+  `SHA256SUMS.txt`; that tag namespace deliberately does not match the desktop
+  bundle's `v*` trigger, so the two release lines stay independent, and a
+  `-dev`/`-rc` version publishes as a pre-release (never `releases/latest`).
+  Verified locally: the produced jar is self-consistent (a third-party
+  `BrowserExtension` compiles against it alone) and `-PreleaseVersion` stamps the
+  version.
 - **Advanced Search: a streaming file &amp; content finder bound to Ctrl+Shift+F**
   (`lg3d-core` `org.jdesktop.lg3d.utils.search` +
   `...displayserver.desktop2d`; `lg3d-apps` `org.jdesktop.lg3d.apps.search`) — a

@@ -116,6 +116,75 @@ jar {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Web Browser extension API jar (on-demand)
+// -----------------------------------------------------------------------------
+// The Web Browser extension SPI (org.jdesktop.lg3d.apps.webbrowser.ext) is what
+// third-party extension developers compile against (see
+// docs/webbrowser-extensions.md). They need ONLY the public contract -- the
+// BrowserExtension interface plus its immutable value types -- not the whole
+// lg3d-apps jar (JavaFX, Java 3D, every other app) and not the browser's
+// internal runtime. These two tasks package that stable subset into a small
+// standalone API jar (plus a sources jar) that
+// .github/workflows/release-webbrowser-api.yml publishes as its own dedicated
+// GitHub Release. They are on-demand (not wired into `build`/`assemble`), so the
+// ordinary compile/test path and the desktop release bundle are unaffected.
+//
+// Contents rule: the top-level ext package (ext/*.class, which by construction
+// excludes the ext/builtin/** reference implementations) MINUS the three
+// internal runtime classes that are not part of the developer contract:
+//   - ExtensionRegistry  ServiceLoader/URLClassLoader discovery; it also
+//                        references the parent-package BrowserStore, so it is
+//                        not standalone-compilable.
+//   - ExtensionBroker    the browser's hook dispatcher.
+//   - ExtensionState     persistence DTO for enable/grant state.
+// The remaining ext types have no dependency on those (verified), so the jar is
+// self-consistent. A NEW value type added to ext is published automatically; a
+// new *internal* class must be added to the exclude lists below.
+//
+// -PreleaseVersion=<v> overrides the stamped version (the release workflow passes
+// it); otherwise the canonical project.version is used.
+def webBrowserExtApi = 'org/jdesktop/lg3d/apps/webbrowser/ext'
+def webBrowserApiVersion = (findProperty('releaseVersion') ?: project.version).toString()
+
+tasks.register('webBrowserApiJar', Jar) {
+    group = 'build'
+    description = 'Package the standalone Web Browser extension API jar (the ...webbrowser.ext SPI + value types only).'
+    dependsOn sourceSets.main.classesTaskName
+    archiveBaseName = 'lg3d-webbrowser-ext-api'
+    archiveVersion = webBrowserApiVersion
+    from(sourceSets.main.output.classesDirs) {
+        include "${webBrowserExtApi}/*.class"
+        exclude "${webBrowserExtApi}/ExtensionRegistry*.class"
+        exclude "${webBrowserExtApi}/ExtensionBroker*.class"
+        exclude "${webBrowserExtApi}/ExtensionState*.class"
+    }
+    manifest {
+        attributes(
+                'Implementation-Title': 'lg3d-webbrowser-ext-api',
+                'Implementation-Version': webBrowserApiVersion)
+    }
+}
+
+tasks.register('webBrowserApiSourcesJar', Jar) {
+    group = 'build'
+    description = 'Package the sources for the Web Browser extension API jar (developer convenience).'
+    archiveBaseName = 'lg3d-webbrowser-ext-api'
+    archiveVersion = webBrowserApiVersion
+    archiveClassifier = 'sources'
+    from(sourceSets.main.allJava) {
+        include "${webBrowserExtApi}/*.java"
+        exclude "${webBrowserExtApi}/ExtensionRegistry.java"
+        exclude "${webBrowserExtApi}/ExtensionBroker.java"
+        exclude "${webBrowserExtApi}/ExtensionState.java"
+    }
+    manifest {
+        attributes(
+                'Implementation-Title': 'lg3d-webbrowser-ext-api (sources)',
+                'Implementation-Version': webBrowserApiVersion)
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     // The Help Center's HelpSet-loading test constructs a JHelp but never shows
