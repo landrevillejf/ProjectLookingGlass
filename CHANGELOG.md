@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.63.0-dev — Gradle / JDK 21 modernization
+## [Unreleased] — 1.64.0-dev — Gradle / JDK 21 modernization
 
 ### Added
 - **Archive: a multi-format archive browser for the desktop** (`lg3d-apps`
