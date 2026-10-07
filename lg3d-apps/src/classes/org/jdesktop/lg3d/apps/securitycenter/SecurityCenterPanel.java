@@ -42,6 +42,8 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.utils.system.ProcessRunner;
+import org.jdesktop.lg3d.utils.system.SecurityService;
 
 /**
  * The Security Center's user interface: an <em>Antivirus</em> tab that scans a
@@ -99,6 +101,8 @@ public class SecurityCenterPanel extends JPanel {
     private final JLabel selinuxValue = new JLabel("-");
     private final JLabel firewallValue = new JLabel("-");
     private final JLabel antivirusValue = new JLabel("-");
+    private final JLabel apparmorValue = new JLabel("-");
+    private final JLabel sshValue = new JLabel("-");
     private final JLabel lastScanLabel = new JLabel("Last scan: never");
     private final JButton refreshBtn = new JButton("Refresh");
 
@@ -220,15 +224,19 @@ public class SecurityCenterPanel extends JPanel {
         ratingLabel.setBorder(BorderFactory.createEmptyBorder(6, 6, 12, 6));
         panel.add(ratingLabel);
 
-        JPanel posture = new JPanel(new GridLayout(3, 2, 8, 8));
+        JPanel posture = new JPanel(new GridLayout(5, 2, 8, 8));
         posture.setBorder(BorderFactory.createTitledBorder("Host posture"));
         posture.add(new JLabel("SELinux:"));
         posture.add(selinuxValue);
         posture.add(new JLabel("Firewall:"));
         posture.add(firewallValue);
+        posture.add(new JLabel("AppArmor:"));
+        posture.add(apparmorValue);
+        posture.add(new JLabel("SSH daemon:"));
+        posture.add(sshValue);
         posture.add(new JLabel("Antivirus:"));
         posture.add(antivirusValue);
-        posture.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
+        posture.setMaximumSize(new Dimension(Integer.MAX_VALUE, 210));
         panel.add(posture);
 
         concernsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -548,7 +556,48 @@ public class SecurityCenterPanel extends JPanel {
         }
         SecuritySnapshot probed = new SecuritySnapshot(
                 selinux, firewall, scanner.isPresent(), scanner.orElse(""), version);
-        SwingUtilities.invokeLater(() -> applySnapshot(probed));
+
+        // §4.6: AppArmor and the SSH daemon are read through the shared
+        // SecurityService (read-only, unprivileged). A missing tool or an
+        // unprivileged read degrades to an honest label, never a fake "secure".
+        String apparmor = readAppArmorLabel();
+        String ssh = readSshdLabel();
+
+        SwingUtilities.invokeLater(() -> {
+            applySnapshot(probed);
+            renderHostServices(apparmor, ssh);
+        });
+    }
+
+    /**
+     * Reads the AppArmor posture via {@link SecurityService} (read-only), on the
+     * probe's background thread. A missing tool is "Not installed"; a non-zero
+     * exit (e.g. it needs root) is "Unknown", never a false all-clear.
+     */
+    private String readAppArmorLabel() {
+        ProcessRunner.Result r = SecurityService.runRead(SecurityService.Operation.APPARMOR_STATUS);
+        if (!r.isStarted()) {
+            return "Not installed";
+        }
+        if (!r.isSuccess()) {
+            return "Unknown";
+        }
+        return SecurityService.parseAppArmor(r.getStdout()).describe();
+    }
+
+    /**
+     * Reads the SSH daemon state via {@link SecurityService}, which maps the
+     * init-system {@code status sshd} (§4.1), on the probe's background thread.
+     * An undetectable init or an absent unit is "Unknown".
+     */
+    private String readSshdLabel() {
+        ProcessRunner.Result r = SecurityService.runRead(SecurityService.Operation.SSHD_STATUS);
+        if (!r.isStarted()) {
+            return "Unknown";
+        }
+        String out = r.getStdout().isEmpty() ? r.getStderr() : r.getStdout();
+        return SecurityService.describeSshd(
+                SecurityService.parseSshdState(r.getExitCode(), out));
     }
 
     /**
@@ -582,6 +631,19 @@ public class SecurityCenterPanel extends JPanel {
             }
         }
         setStatus("Security posture updated.");
+    }
+
+    /**
+     * Renders the AppArmor / SSH-daemon posture rows on the overview tab.
+     * Package-visible so a test can drive these rows with synthetic labels,
+     * without running any probe.
+     *
+     * @param apparmorText the AppArmor label (null renders as "-")
+     * @param sshText      the SSH daemon label (null renders as "-")
+     */
+    void renderHostServices(String apparmorText, String sshText) {
+        apparmorValue.setText(apparmorText == null ? "-" : apparmorText);
+        sshValue.setText(sshText == null ? "-" : sshText);
     }
 
     private static Color colorForRating(String rating) {
@@ -811,5 +873,15 @@ public class SecurityCenterPanel extends JPanel {
     /** The last applied posture snapshot, or null before the first refresh. */
     SecuritySnapshot snapshot() {
         return snapshot;
+    }
+
+    /** The overview AppArmor posture row text. */
+    String apparmorText() {
+        return apparmorValue.getText();
+    }
+
+    /** The overview SSH-daemon posture row text. */
+    String sshText() {
+        return sshValue.getText();
     }
 }
