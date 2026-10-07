@@ -17,12 +17,12 @@
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Panels:** `ControlCenterPanel` is a `JList` navigation list + `CardLayout` (not a
-`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-three panels
+`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-four panels
 implement the `ControlPanel` interface and are registered by `ControlPanelRegistry`,
 in order: Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
 Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications, Network,
 Bluetooth, Printing,
-Date & Time, Language & Region, Users, System, Services, System Update, Schedule, Task Scheduler.
+Date & Time, Language & Region, Users, System, Services, System Update, Storage, Schedule, Task Scheduler.
 
 ## Roles
 
@@ -42,7 +42,7 @@ Date & Time, Language & Region, Users, System, Services, System Update, Schedule
   `EventProcessor` warnings before calling an interaction broken.
 - **Business Analyst** — A shipped system utility (display, sound, power, mouse &
   keyboard, shortcuts, notifications, workspaces, quick launch, network, Bluetooth, printing,
-  date & time, language & region, users, system info, services, system update, appearance, schedule, and the
+  date & time, language & region, users, system info, services, system update, storage/LUKS, appearance, schedule, and the
   cron-style task scheduler). Hold it
   to production standards: real tests, review, backward
   compatibility — not "it's just a demo".
@@ -72,7 +72,7 @@ bump; stage only intended paths (never `git add -A`).
 
 ## Overview
 
-Control Center is a system settings application that provides a Swing-based UI for configuring the desktop, display, sound, power, input, shortcuts, notifications, workspaces, quick launch, network, Bluetooth, printing, date & time, language & region, users, system information, appearance and the wallpaper/lighting schedule. It demonstrates hosting a traditional Swing panel within a 3D Frame3D using SwingNode.
+Control Center is a system settings application that provides a Swing-based UI for configuring the desktop, display, sound, power, input, shortcuts, notifications, workspaces, quick launch, network, Bluetooth, printing, date & time, language & region, users, system information, storage & LUKS, appearance and the wallpaper/lighting schedule. It demonstrates hosting a traditional Swing panel within a 3D Frame3D using SwingNode.
 
 ## Purpose
 
@@ -93,7 +93,7 @@ Control Center is a system settings application that provides a Swing-based UI f
   `WorkspacesPanel`, `QuickLaunchPanel`, `FileAssociationsPanel`, `NetworkPanel`,
   `BluetoothPanel`,
   `PrintingPanel`, `DateTimePanel`, `LocalePanel`, `UsersPanel`, `SystemInfoPanel`,
-  `ServicesPanel`, `SystemUpdatePanel`, `SchedulePanel`, `TaskSchedulerPanel`
+  `ServicesPanel`, `SystemUpdatePanel`, `StoragePanel`, `SchedulePanel`, `TaskSchedulerPanel`
 - **Seams** - the `lg3d-core` `displayserver.desktop2d` helpers the panels drive
   (`VolumeStatus`, `BatteryStatus`, `BrightnessStatus`, `ThermalService`,
   `NetworkConnections`, `PrinterStatus`, `TimeZoneStatus`, `LocaleStatus`,
@@ -109,7 +109,7 @@ Frame3D (Control Center)
     └── ControlCenterPanel (JPanel)
         ├── JList (navigation)
         └── CardLayout (selected ControlPanel)
-            └── the 23 panels registered by ControlPanelRegistry
+            └── the 24 panels registered by ControlPanelRegistry
 ```
 
 ### Swing Integration Pattern
