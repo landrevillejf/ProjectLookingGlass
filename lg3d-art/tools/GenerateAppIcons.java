@@ -144,6 +144,10 @@ public class GenerateAppIcons {
         // Advanced calculator (Swing panel hosted on a SwingNode); the bundled
         // glyph set has no calculator, so the keypad glyph is drawn in-tool.
         {"calculator.png",  IconColor.TEAL,        IconCategory.GENERAL, KEYPAD_GLYPH},
+        // Archive (Swing ZIP/TAR browser hosted on a SwingNode / 2D MDI frame);
+        // the bundled glyph set has no archive box, so the in-tool package box
+        // glyph is reused on an orange tile (distinct from LPM Console's green).
+        {"archive.png",     IconColor.ORANGE,      IconCategory.GENERAL, PACKAGE_GLYPH},
         // Media Writer (Swing panel hosted on a SwingNode); the bundled glyph
         // set has no optical disc, so the disc glyph is drawn in-tool.
         {"mediawriter.png", IconColor.BLUE,        IconCategory.GENERAL, DISC_GLYPH},

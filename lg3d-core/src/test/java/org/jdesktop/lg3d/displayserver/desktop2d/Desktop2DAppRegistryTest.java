@@ -54,6 +54,8 @@ class Desktop2DAppRegistryTest {
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.calculator.Calculator"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.archive.Archive"));
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.mediawriter.MediaWriter"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.firewall.Firewall"));
@@ -183,6 +185,9 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.calculator.CalculatorPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.calculator.Calculator"));
+        assertEquals("org.jdesktop.lg3d.apps.archive.ArchivePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.archive.Archive"));
         assertEquals("org.jdesktop.lg3d.apps.taskmanager.TaskManagerPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.taskmanager.TaskManager"));

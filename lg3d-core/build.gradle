@@ -391,6 +391,18 @@ tasks.register('run', JavaExec) {
     def pdfboxLibs = configurations.detachedConfiguration(
         dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"))
 
+    // The Archive app (lg3d-apps, org.jdesktop.lg3d.apps.archive) browses,
+    // extracts and creates archives of every common open format through Apache
+    // Commons Compress, whose .xz / .lzma support is delegated to the optional
+    // XZ for Java codec. Both are Maven dependencies of lg3d-apps, but this run
+    // classpath is assembled from packaged jars rather than that module's
+    // runtimeClasspath, so resolve them here directly -- otherwise the in-JVM
+    // start-menu launch dies with NoClassDefFoundError:
+    // org/apache/commons/compress/archivers/ArchiveStreamFactory.
+    def archiveLibs = configurations.detachedConfiguration(
+        dependencies.create("org.apache.commons:commons-compress:${libs.versions.commonsCompress.get()}"),
+        dependencies.create("org.tukaani:xz:${libs.versions.xz.get()}"))
+
     // The Mail app (lg3d-incubator, org.jdesktop.lg3d.apps.mail) is a real
     // IMAP/SMTP client on Jakarta Mail 2.x via the Eclipse Angus provider.
     // angus-mail is a Maven dependency of lg3d-incubator, but this run classpath
@@ -478,7 +490,7 @@ tasks.register('run', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, ftpClientJar, runtimeResourcesDir, incubatorExtJars,
-              agendaLibs, javaHelpLibs, pdfboxLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
+              agendaLibs, javaHelpLibs, pdfboxLibs, archiveLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
               javafxLibs, iconManagerLib, mailLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
@@ -821,6 +833,10 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.jogamp.joal:joal:${libs.versions.jogampNatives.get()}:${jogampNatives}"),
         dependencies.create("javax.help:javahelp:${libs.versions.javahelp.get()}"),
         dependencies.create("org.apache.pdfbox:pdfbox:${libs.versions.pdfbox.get()}"),
+        // Apache Commons Compress (+ the optional XZ for Java codec) for the
+        // Archive app's multi-format zip/tar/gz/bz2/xz/cpio/ar/7z support.
+        dependencies.create("org.apache.commons:commons-compress:${libs.versions.commonsCompress.get()}"),
+        dependencies.create("org.tukaani:xz:${libs.versions.xz.get()}"),
         // Jakarta Mail 2.x (Eclipse Angus) for the Mail client's real IMAP/SMTP
         // backend; jakarta.mail-api comes in transitively.
         dependencies.create("org.eclipse.angus:angus-mail:${libs.versions.angusMail.get()}"),

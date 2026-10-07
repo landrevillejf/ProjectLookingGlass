@@ -107,6 +107,17 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.controlcenter.ControlCenterPanel");
         panels.put("org.jdesktop.lg3d.apps.calculator.Calculator",
                 "org.jdesktop.lg3d.apps.calculator.CalculatorPanel");
+        // The Archive tool (lg3d-apps, org.jdesktop.lg3d.apps.archive) browses,
+        // extracts and creates archives of every common open format: a Swing
+        // panel over the AWT-free, path-traversal-hardened ArchiveManager engine
+        // (Apache Commons Compress). In the 3D desktop its Archive wrapper hosts
+        // the panel on a SwingNode inside a Frame3D via TitledSwingWindow; here
+        // the very same panel opens as an MDI internal frame, so archive handling
+        // is fully usable without 3D. The lg3d-apps jar (with slf4j, Commons
+        // Compress and XZ) is on the desktop run classpath, so the reflective
+        // lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.archive.Archive",
+                "org.jdesktop.lg3d.apps.archive.ArchivePanel");
         panels.put("org.jdesktop.lg3d.apps.mediawriter.MediaWriter",
                 "org.jdesktop.lg3d.apps.mediawriter.MediaWriterPanel");
         // The Help Center is a JavaHelp (javax.help) JHelp viewer inside a plain
