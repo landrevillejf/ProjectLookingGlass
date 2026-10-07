@@ -102,11 +102,13 @@ file plus the root `AGENTS.md`.
 - Specify behaviour per the `UpdateRepository.parseUpdateInfo` `version.json`
   schema and the channel model; the release workflow is the producer, this module
   the consumer.
-- Keep the signing story explicit: with `RELEASE_SIGNING_KEY` +
-  `RELEASE_SIGNING_PASSPHRASE` the release is signed and
-  `update.signature.enabled` can be turned on with the bundled public key;
-  without them `version.json` omits `signatureUrl`/`signingKeyId` and
-  checksum-only verification applies.
+- Keep the signing story explicit: releases are signed with the configured
+  `RELEASE_SIGNING_KEY`, and clients enforce the bundled public key **fail-closed**
+  (`update.signature.enabled` + `update.signature.required` both `true`). If the
+  signing secret were ever removed, `version.json` would omit
+  `signatureUrl`/`signingKeyId` and fail-closed clients would reject that release —
+  so the secret must stay configured (checksum-only verification applies only to
+  older clients still on `enabled=false`).
 - Document the remaining single-jar install gap as a functional limitation.
 
 ## Project Manager
@@ -244,18 +246,23 @@ signed and ships `lg3d-<version>.zip.asc` + `public-key.asc` with
 key is committed at `src/main/resources/public-key.asc` and referenced by
 `update.signature.public.key.resource`; `update.signature.key.id` and
 `update.signature.fingerprint` are pre-set to that key so the strict verification
-path is ready. The private half lives only in the GitHub secret — never commit it.
+path is ready. The private half lives in the CI secret, the signing operator's
+keyring and an offline escrow bundle (`docs/release-process.md` §13.5) — never
+commit it.
 
-> **Client enforcement is ON** (`update.signature.enabled=true`): the gate runs on
-> every update and a present-but-invalid signature — a tampered bundle — always
-> fails, which is safe now that every release is signed and the public key ships in
-> the jar. `update.signature.required` stays **`false`** for the staged roll-out, so
-> a hypothetical *unsigned* release only logs a warning (the SHA-256 checksum still
-> gates the install) instead of bricking the update path; flip it to `true`
-> (fail-closed) once `enabled=true` has proven stable in the field. Rotating the key
-> means re-exporting `public-key.asc`, updating `key.id` / `fingerprint`, and
-> shipping a client release *before* swapping the signing secret, so clients never
-> reject a valid new signature.
+> **Client enforcement is ON and fail-closed** (`update.signature.enabled=true` +
+> `update.signature.required=true`): the gate runs on every update and an
+> unverifiable signature — a tampered bundle *or* a missing one — is rejected. This
+> is safe now that every release is signed and the public key ships in the jar
+> (proven end-to-end on v1.64.0). **Operational implication:** the
+> `RELEASE_SIGNING_KEY` CI secret must stay configured, or fail-closed clients
+> cannot install a future unsigned release; to soften temporarily set
+> `required=false` (a missing signature then only warns — an invalid one still
+> always fails). Rotating the key means re-exporting `public-key.asc`, updating
+> `key.id` / `fingerprint`, and shipping a client release *before* swapping the
+> signing secret, so clients never reject a valid new signature. The private key +
+> revocation certificate are escrowed for offline backup (see `docs/release-process.md`
+> §13.5); never commit them.
 
 **Remaining gap:** `UpdateInstaller` replaces a *single* running JAR
 (`JarLocator.getCurrentJarPath()`) — the single-jar model this module was ported

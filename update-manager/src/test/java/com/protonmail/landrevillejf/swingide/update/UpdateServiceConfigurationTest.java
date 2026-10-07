@@ -127,10 +127,10 @@ class UpdateServiceConfigurationTest {
     }
 
     /**
-     * Signature enforcement ships ON by default now that every release is signed:
-     * the gate runs (a tampered bundle is rejected), while a missing signature
-     * still only warns because {@code required} stays off during the staged
-     * roll-out. The bundled release key id/fingerprint must be present so the
+     * Signature enforcement ships ON and fail-closed by default now that every
+     * release is signed and the public key is bundled: the gate runs on every
+     * update and an unverifiable signature (tampered <em>or</em> missing) is
+     * rejected. The bundled release key id/fingerprint must be present so the
      * strict verification path resolves without a user file.
      */
     @Test
@@ -138,7 +138,7 @@ class UpdateServiceConfigurationTest {
         UpdateService updateService = newService();
 
         assertThat(updateService.isSignatureVerificationEnabled()).isTrue();
-        assertThat(updateService.isSignatureRequired()).isFalse();
+        assertThat(updateService.isSignatureRequired()).isTrue();
         assertThat(updateService.getConfiguration())
             .containsEntry(UpdateService.CONFIG_SIGNATURE_KEY_RESOURCE, "public-key.asc")
             .containsEntry(UpdateService.CONFIG_SIGNATURE_KEY_ID, "9A5DAD01CF4F5054")

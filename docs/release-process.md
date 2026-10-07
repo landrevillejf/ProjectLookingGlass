@@ -292,15 +292,15 @@ and configuration, not code.
 | Fingerprint | `C0D85590B541798C5280C7F69A5DAD01CF4F5054` |
 | CI secrets | `RELEASE_SIGNING_KEY` (base64 armored private key, no passphrase) + `RELEASE_SIGNING_KEY_ID` — **configured** |
 | Bundled public key | [`update-manager/src/main/resources/public-key.asc`](../update-manager/src/main/resources/public-key.asc) — **committed** |
-| Client config | `update.signature.key.id` + `update.signature.fingerprint` pre-set; **`update.signature.enabled=true`** (enforcement on), `update.signature.required=false` (fail-open on a *missing* signature) |
+| Client config | `update.signature.key.id` + `update.signature.fingerprint` pre-set; **`update.signature.enabled=true`** and **`update.signature.required=true`** — full fail-closed enforcement |
 
 So releases cut from now on **are signed** (they publish `lg3d-<version>.zip.asc`
 and `public-key.asc`, and `version.json` carries `signatureUrl` + `signingKeyId`),
-and clients **enforce the signature** (`update.signature.enabled=true`): a
-present-but-invalid signature — i.e. a tampered bundle — always fails the update.
-Only the final fail-closed step, `update.signature.required=true`, is still deferred
-(§13.4) so that a hypothetical *unsigned* release warns rather than bricks the
-update path.
+and clients **enforce the signature fail-closed** (`enabled=true` +
+`required=true`): an update whose signature cannot be verified — tampered *or*
+missing — is rejected. **Operational implication:** the `RELEASE_SIGNING_KEY`
+secret must stay configured; an unsigned release would be uninstallable by these
+clients (see §13.2).
 
 ### 13.2 What `release.yml` does with the secrets
 
@@ -310,8 +310,12 @@ key-id (from `RELEASE_SIGNING_KEY_ID`, else the first secret key), and runs
 --detach-sign` over the raw zip bytes — exactly the format
 `UpdateSignatureVerifier` parses. It then exports `public-key.asc`. The *Generate
 version.json* step adds `signatureUrl` / `signingKeyId` only when signing ran; an
-unsigned release simply omits them and clients fall back to checksum-only. If the
-secrets are ever removed, releases keep publishing — just unsigned.
+unsigned release simply omits them. **Because clients are now fail-closed
+(`required=true`), an unsigned release would be rejected by any client that has
+this config** — so the `RELEASE_SIGNING_KEY` / `RELEASE_SIGNING_KEY_ID` secrets
+must never be removed while fail-closed clients are in the field. (Older clients
+still on `enabled=false`, and any client that downgrades `required` to `false`,
+fall back to checksum-only and would still install it.)
 
 ### 13.3 Verifying a published signature (out of band)
 
@@ -328,31 +332,42 @@ freshly-imported key and does not affect the verification result.
 
 ### 13.4 Client enforcement roll-out
 
-Verification is enabled in two stages so a signing regression can never strand the
-whole install base at once. The defaults live in
+Both enforcement stages are **shipped**; the defaults live in
 [`update-manager/src/main/resources/update-config.properties`](../update-manager/src/main/resources/update-config.properties):
 
-1. **`update.signature.enabled=true` — DONE (shipped).** `UpdateService.verifySignature`
-   runs the gate on every update: a present-but-invalid signature **always** fails,
-   so a tampered bundle is rejected. While `required=false`, a *missing*
-   key/signature only logs a warning and the SHA-256 checksum still gates the
-   install.
-2. `update.signature.required=true` — **still pending.** Fail-closed: an update
-   whose signature cannot be verified is rejected outright. Turn this on only once
-   `enabled=true` has shipped in at least one release and proven stable, so an
-   unexpected unsigned release (e.g. a removed/expired signing secret) does not
-   block every client from updating.
+1. **`update.signature.enabled=true` — DONE.** `UpdateService.verifySignature`
+   runs `UpdateSignatureGate` on every update: a present-but-invalid signature
+   **always** fails, so a tampered bundle is rejected.
+2. **`update.signature.required=true` — DONE (fail-closed).** An update whose
+   signature cannot be verified — tampered *or* missing — is rejected outright.
+   This was enabled directly (rather than staged behind a field trial of
+   `enabled=true`) because signing is already proven end-to-end on v1.64.0 and
+   every release from v1.64.0 on is signed. The trade-off is now operational: the
+   `RELEASE_SIGNING_*` secrets must stay configured, or fail-closed clients cannot
+   update. To soften temporarily, set `required=false` (a missing signature then
+   only warns) — but an invalid signature still always fails.
 
 ### 13.5 Key rotation & escrow
 
 - A **revocation certificate** was generated with the key and lives in the signing
-  operator's `~/.gnupg/openpgp-revocs.d/<fingerprint>.rev`; keep it (and an offline
-  export of the private key) in escrow.
+  operator's `~/.gnupg/openpgp-revocs.d/<fingerprint>.rev`. An **offline escrow
+  bundle** (armored private-key export + the revocation certificate + a SHA-256
+  manifest + restore/revoke instructions) is staged outside the repository in
+  `~/.lg3d-release-signing-escrow/` (mode `0700`, files `0600`) for copying to
+  offline media; the local staging copy is shredded once the offline copy is
+  verified. **Never** commit the private key or the escrow bundle to the repo.
+  - Restore on a new machine: `gpg --import <escrow>/release-signing-key.asc`.
+  - Revoke (only if the key is compromised/retired):
+    `gpg --import <escrow>/C0D8…5054.rev`, then publish/replace the CI secret.
+  - Re-load the CI secret from the escrowed private key:
+    `gpg --armor --export-secret-keys <key-id> | base64 -w0 | gh secret set RELEASE_SIGNING_KEY`.
 - The key has **no expiry**; rotation is manual. To rotate: generate a new key,
   re-export `public-key.asc`, update `update.signature.key.id` / `.fingerprint`,
   **ship a client release first**, then swap the `RELEASE_SIGNING_KEY` /
   `RELEASE_SIGNING_KEY_ID` secrets — so clients already trust the new key before it
-  starts signing. Revoke the old key if it was compromised.
+  starts signing. Revoke the old key if it was compromised. Because clients are
+  fail-closed, keep the old public key trusted (do not purge it) until every
+  in-field client has upgraded past the rotation release.
 - Restrict who can read/rotate the `RELEASE_SIGNING_*` secrets and protect `main`:
   any run of `release.yml` can read the signing secret.
 

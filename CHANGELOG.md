@@ -18,13 +18,19 @@ work to make it build and run on a current toolchain.
   `update.signature.enabled` to **`true`**. `UpdateService.verifySignature` now runs
   `UpdateSignatureGate` on every update, so a present-but-invalid signature (a
   tampered `lg3d-<version>.zip`) fails the install instead of being ignored; the
-  SHA-256 checksum still gates it too. `update.signature.required` stays `false`
-  for the staged roll-out, so a hypothetical *unsigned* release only logs a warning
-  rather than bricking the update path — fail-closed (`required=true`) is the
-  documented final step once this has proven stable. A new
+  SHA-256 checksum still gates it too. `update.signature.required` is also flipped
+  to **`true`** (fail-closed): an update whose signature cannot be verified —
+  tampered *or* missing — is now rejected outright rather than merely warned about.
+  This is enabled directly because signing is proven end-to-end and every release
+  from v1.64.0 on is signed; the operational consequence is that the
+  `RELEASE_SIGNING_KEY` CI secret must stay configured, or fail-closed clients
+  cannot install a future unsigned release. The signing private key and its
+  revocation certificate are escrowed for offline backup (never committed; see
+  `docs/release-process.md` §13.5). A new
   `testPackagedDefaultsEnableSignatureVerification` locks the shipped defaults
-  (enabled, key id `9A5DAD01CF4F5054`, fingerprint) and `docs/release-process.md`
-  §13.4 + `update-manager/AGENTS.md` are updated to match.
+  (enabled, required, key id `9A5DAD01CF4F5054`, fingerprint) and
+  `docs/release-process.md` §13.1/§13.4/§13.5 + `update-manager/AGENTS.md` are
+  updated to match.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
