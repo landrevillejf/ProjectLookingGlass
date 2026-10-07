@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <java version="1.5.0" class="java.beans.XMLDecoder">
- <!-- Start Menu item: Archive (from lg3d-apps). A ZIP / TAR archive browser
+ <!-- Start Menu item: Archive (from lg3d-apps). A multi format archive browser
  whose Swing panel is hosted on a SwingNode inside a Frame3D via
  TitledSwingWindow: list entries, extract to a chosen folder and create a new
- ZIP. The very same panel opens as an MDI internal frame in the 2D/Swing
- desktop. Launched in-JVM via the "java <class>" command; lives in the
- Utilities menu group. -->
+ archive. Reads ZIP, 7z, TAR, tar.gz/bz2/xz, gz/bz2/xz, CPIO and AR; creates
+ ZIP, TAR, TAR.GZ, TAR.BZ2 and TAR.XZ. The very same panel opens as an MDI
+ internal frame in the 2D/Swing desktop. Launched in-JVM via the "java <class>"
+ command; lives in the Utilities menu group. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
    <string>java org.jdesktop.lg3d.apps.archive.Archive</string>
   </void>
   <void property="desc">
-   <string>Browse, extract and create ZIP and TAR archives</string>
+   <string>Browse, extract and create archives of every common format (ZIP, 7z, TAR, tar.gz/bz2/xz, gz, bz2, xz, CPIO, AR)</string>
   </void>
   <void property="displayResourceType">
    <string>ICON</string>

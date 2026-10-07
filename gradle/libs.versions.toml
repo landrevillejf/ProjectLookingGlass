@@ -55,6 +55,14 @@ greenmail = "2.1.3"       # com.icegreen:greenmail (Apache-2.0, test-only)
 # (Apache-2.0) replacement: Loader.loadPDF + PDFRenderer.renderImageWithDPI give
 # the page->BufferedImage contract the reader consumes.
 pdfbox = "3.0.5"          # org.apache.pdfbox:pdfbox (Apache-2.0)
+# The Archive app (lg3d-apps, org.jdesktop.lg3d.apps.archive) browses, extracts
+# and creates archives of every common open format (zip, tar, tar.gz/.tgz,
+# tar.bz2, tar.xz, gz, bz2, xz, cpio, ar, 7z) through Apache Commons Compress.
+# XZ / LZMA support is an optional Commons Compress codec backed by XZ for Java
+# (org.tukaani:xz), so it is declared explicitly. (zstd / brotli would need
+# further optional native codecs and RAR is proprietary, so both are out of scope.)
+commonsCompress = "1.27.1" # org.apache.commons:commons-compress (Apache-2.0)
+xz = "1.9"                # org.tukaani:xz (public domain; XZ/LZMA codec for Commons Compress)
 # OpenJFX (JavaFX) powers the Web Browser (lg3d-apps,
 # org.jdesktop.lg3d.apps.webbrowser): a real WebKit engine via javafx.web.WebView.
 # It is the project's only JavaFX dependency. Licensed GPLv2 + Classpath
@@ -135,6 +143,14 @@ greenmail = { module = "com.icegreen:greenmail", version.ref = "greenmail" }
 # (replaces the proprietary JPedal library). Pulls in fontbox +
 # pdfbox-io + commons-logging transitively from Maven Central.
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+
+# Apache Commons Compress: the multi-format archive engine backing the lg3d-apps
+# Archive app (zip/tar/gz/bz2/xz/cpio/ar/7z). XZ for Java (org.tukaani:xz) is the
+# optional codec Commons Compress delegates .xz / .lzma to. Both are also resolved
+# onto the lg3d-core desktop run classpath and into the release bundle (see
+# lg3d-core/build.gradle), so the in-JVM start-menu launch finds them.
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+xz = { module = "org.tukaani:xz", version.ref = "xz" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and

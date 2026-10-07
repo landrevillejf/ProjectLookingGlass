@@ -26,6 +26,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Dimension;
@@ -35,18 +36,19 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The Archive application's user interface: choose a ZIP or TAR archive, list
- * its entries, extract it to a chosen directory, or create a new ZIP from a
- * directory. One panel serves both the 3D desktop (hosted on a SwingNode
- * inside a Frame3D by the {@link Archive} wrapper via {@code TitledSwingWindow})
- * and the 2D/Swing desktop (opened as an MDI internal frame through
- * {@code Desktop2DAppRegistry.PANEL_APPS}).
+ * The Archive application's user interface: choose an archive of any supported
+ * format, list its entries, extract it to a chosen directory, or create a new
+ * archive from a directory. One panel serves both the 3D desktop (hosted on a
+ * SwingNode inside a Frame3D by the {@link Archive} wrapper via
+ * {@code TitledSwingWindow}) and the 2D/Swing desktop (opened as an MDI internal
+ * frame through {@code Desktop2DAppRegistry.PANEL_APPS}).
  *
  * <p>All blocking archive I/O runs on a {@link SwingWorker}; the EDT only ever
- * paints. The heavy lifting is delegated to the AWT-free {@link ZipManager} and
- * {@link TarManager}, which are Zip-Slip hardened. File and directory pickers
- * use {@link JFileChooser}, whose top-level dialog {@code SwingNode} captures
- * into the 3D scene.</p>
+ * paints. The heavy lifting is delegated to the AWT-free, Zip-Slip hardened
+ * {@link ArchiveManager}, which reads and writes every common open archive
+ * format through Apache Commons Compress. File and directory pickers use
+ * {@link JFileChooser}, whose top-level dialog {@code SwingNode} captures into
+ * the 3D scene.</p>
  */
 @Slf4j
 public class ArchivePanel extends JPanel {
@@ -55,29 +57,32 @@ public class ArchivePanel extends JPanel {
     public static final int WIDTH_PX = 640;
     public static final int HEIGHT_PX = 420;
 
+    /** Extensions offered by the archive file pickers (all open formats). */
+    private static final String[] ARCHIVE_EXTENSIONS = {
+            "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2",
+            "xz", "txz", "lzma", "cpio", "ar",
+    };
+
     private final JTextField pathField = new JTextField(24);
     private final DefaultListModel<String> entryModel = new DefaultListModel<>();
     private final JLabel statusLabel = new JLabel(" ");
-    private final ZipManager zipManager;
-    private final TarManager tarManager;
+    private final ArchiveManager archiveManager;
     private File currentArchive;
     private Runnable onClose;
 
-    /** Creates the panel with its own archive engines. */
+    /** Creates the panel with its own archive engine. */
     public ArchivePanel() {
-        this(new ZipManager(), new TarManager());
+        this(new ArchiveManager());
     }
 
     /**
      * Creates the panel.
      *
-     * @param zipManager ZIP operations
-     * @param tarManager TAR operations
+     * @param archiveManager the multi-format archive engine
      */
-    public ArchivePanel(ZipManager zipManager, TarManager tarManager) {
+    public ArchivePanel(ArchiveManager archiveManager) {
         super(new BorderLayout(4, 4));
-        this.zipManager = zipManager;
-        this.tarManager = tarManager;
+        this.archiveManager = archiveManager;
         setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
 
@@ -87,7 +92,7 @@ public class ArchivePanel extends JPanel {
         listButton.addActionListener(e -> listEntries());
         JButton extractButton = new JButton("Extract...");
         extractButton.addActionListener(e -> extractArchive());
-        JButton createButton = new JButton("Create ZIP...");
+        JButton createButton = new JButton("Create...");
         createButton.addActionListener(e -> createArchive());
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> {
@@ -142,6 +147,9 @@ public class ArchivePanel extends JPanel {
 
     private void chooseArchive() {
         JFileChooser chooser = new JFileChooser();
+        chooser.setFileFilter(new FileNameExtensionFilter(
+                "Archives (zip, 7z, tar, tar.gz, tar.bz2, tar.xz, gz, bz2, xz, cpio, ar)",
+                ARCHIVE_EXTENSIONS));
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             showArchive(chooser.getSelectedFile());
         }
@@ -215,32 +223,43 @@ public class ArchivePanel extends JPanel {
         }
         final File sourceDir = chooser.getSelectedFile();
         JFileChooser save = new JFileChooser();
-        save.setDialogTitle("Choose the ZIP file to create");
+        save.setDialogTitle("Choose the archive to create (.zip, .tar, .tar.gz, .tar.bz2, .tar.xz)");
         if (save.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         File selected = save.getSelectedFile();
-        final File targetZip = selected.getName().toLowerCase(Locale.ROOT).endsWith(".zip")
+        final File target = hasKnownArchiveSuffix(selected.getName())
                 ? selected
                 : new File(selected.getParentFile(), selected.getName() + ".zip");
-        setStatus("Creating " + targetZip.getName() + "...");
+        setStatus("Creating " + target.getName() + "...");
         new SwingWorker<Integer, Void>() {
             @Override
             protected Integer doInBackground() throws IOException {
-                return zipManager.create(sourceDir, targetZip);
+                return archiveManager.create(sourceDir, target);
             }
 
             @Override
             protected void done() {
                 try {
                     int count = get();
-                    setStatus("Created " + targetZip.getName() + " with " + count + " files");
+                    setStatus("Created " + target.getName() + " with " + count + " files");
                 } catch (Exception ex) {
                     log.warn("Creation failed: {}", ex.getMessage());
                     setStatus("Creation failed");
                 }
             }
         }.execute();
+    }
+
+    /** True when the name already ends in one of the extensions we can create. */
+    private static boolean hasKnownArchiveSuffix(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        for (String ext : ARCHIVE_EXTENSIONS) {
+            if (lower.endsWith("." + ext)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean notReady() {
@@ -257,16 +276,10 @@ public class ArchivePanel extends JPanel {
     }
 
     private List<String> list(File archive) throws IOException {
-        return isZip(archive) ? zipManager.list(archive) : tarManager.list(archive);
+        return archiveManager.list(archive);
     }
 
     private int extract(File archive, File targetDir) throws IOException {
-        return isZip(archive)
-                ? zipManager.extract(archive, targetDir)
-                : tarManager.extract(archive, targetDir);
-    }
-
-    private boolean isZip(File archive) {
-        return archive.getName().toLowerCase(Locale.ROOT).endsWith(".zip");
+        return archiveManager.extract(archive, targetDir);
     }
 }

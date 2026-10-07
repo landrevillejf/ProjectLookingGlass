@@ -203,6 +203,16 @@ dependencies {
     // onto the lg3d-core desktop run classpath (see lg3d-core/build.gradle) so
     // the in-JVM start-menu launch can find javax.help.*.
     implementation libs.javahelp
+    // Apache Commons Compress (Apache-2.0) powers the Archive app
+    // (org.jdesktop.lg3d.apps.archive): browsing, extracting and creating every
+    // common open archive format (zip, tar, tar.gz/.tgz, tar.bz2, tar.xz, gz,
+    // bz2, xz, cpio, ar, 7z). XZ for Java (org.tukaani:xz) is the optional codec
+    // Commons Compress delegates .xz / .lzma to. Both are ALSO resolved onto the
+    // lg3d-core desktop run classpath and into the release bundle (see
+    // lg3d-core/build.gradle), so the in-JVM start-menu launch can find
+    // org.apache.commons.compress.* and org.tukaani.xz.*.
+    implementation libs.commons.compress
+    implementation libs.xz
     // The Software Update app (org.jdesktop.lg3d.apps.update) wraps the
     // update-manager module's Swing pipeline (UpdateService / UpdatePresenter /
     // UpdateSettingsPanel). Its runtime deps (jackson-databind, slf4j,

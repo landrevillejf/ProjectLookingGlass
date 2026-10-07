@@ -8,7 +8,7 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Production** utility (ZIP / TAR archive browser) |
+| Status | **Production** utility (multi-format archive browser) |
 | Entry point | `Archive.main` → `TitledSwingWindow.show(...)` hosting `ArchivePanel` |
 | Surface | **SwingNode-in-Frame3D** (640x420); the same panel is reused as a 2D MDI frame |
 | Start-menu name / group | Archive / **Utilities** |
@@ -17,10 +17,10 @@
 | Icon | `lg3d-core/src/resources/images/icon/archive.png` (in-tool `PackageBox` glyph, orange tile) |
 | Build | `./gradlew :lg3d-apps:build` |
 
-**Components:** `ArchivePanel` (Swing UI) + `ZipManager` (`java.util.zip`
-list/extract/create, Zip-Slip hardened) + `TarManager` (dependency-free POSIX
-tar reader, path-traversal guarded). Both engines are AWT-free and
-headless-testable (`ArchiveManagersTest`).
+**Components:** `ArchivePanel` (Swing UI) + `ArchiveManager`, a single AWT-free
+engine built on Apache Commons Compress that lists/extracts/creates archives of
+every common open format (path-traversal hardened). It is headless-testable
+(`ArchiveManagerTest`).
 
 ## Roles
 
@@ -31,18 +31,25 @@ headless-testable (`ArchiveManagersTest`).
 - **Engineer / Developer** — Follow the core UI/UX rulebook: Metal LAF via
   `installHostedLookAndFeel`, EDT hops from lg3d listeners, blocking archive I/O
   on a `SwingWorker` (never the EDT), `dispose()` on discard. `JFileChooser`
-  pickers are captured into the 3D scene by `SwingNodeWindowCapture`. Extraction
-  and creation must keep the Zip-Slip / path-traversal guards. Jogamp packages
-  only; Lombok `@Slf4j` for logging (both are already on the module classpath).
-- **QA** — Unit-test `ZipManager`/`TarManager` headless (round-trip + the
-  traversal guards, see `ArchiveManagersTest`). Verify the hosted window with the
+  pickers are captured into the 3D scene by `SwingNodeWindowCapture`. Archive
+  formats go through `ArchiveManager` (Commons Compress) — add new read formats
+  by extending its magic-byte/stream dispatch, and new write formats by extending
+  `create`'s filename dispatch + `wrapCompressor`. Extraction must keep the
+  canonical-path traversal guard. Commons Compress + XZ are declared in
+  `lg3d-apps/build.gradle` **and** wired onto the hand-assembled `:lg3d-core` run
+  classpath + `releaseBundle` (they are not inherited). Jogamp packages only;
+  Lombok `@Slf4j` for logging.
+- **QA** — Unit-test `ArchiveManager` headless (multi-format round-trips + the
+  traversal guards, see `ArchiveManagerTest`). Verify the hosted window with the
   in-JVM probe + internal screencapture; a black host capture under Wayland is not
   a defect. Read the log for `EventProcessor` warnings first.
 - **Business Analyst** — A shipped Utilities tool: browse, list, extract and
-  create ZIP/TAR archives without leaving the desktop. Production standards apply.
+  create archives of any common format without leaving the desktop. Production
+  standards apply.
 - **Functional Analyst** — Spec user-visible function (choose an archive, list
-  entries, extract to a folder, create a ZIP) plus the contract with core
-  (SwingNode surface, optional archive-file argument, descriptor fields).
+  entries, extract to a folder, create an archive whose format follows the output
+  name) plus the contract with core (SwingNode surface, optional archive-file
+  argument, descriptor fields).
 - **Project Manager** — Commit scope `lg3d-apps`. Done = build +
   `./run-lg3d.sh` + capture/log evidence in the PR. Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame + transparency
@@ -58,9 +65,10 @@ bump; stage only intended paths (never `git add -A`).
 
 ## Known limitations
 
-- TAR support is read-only (list + extract regular files and directories); TAR
-  creation is not implemented — "Create ZIP..." produces ZIP archives only.
-- No gzip/bzip2/xz (`.tar.gz`, `.tgz`) or 7z/rar support; only uncompressed tar
-  and ZIP.
+- Creation is limited to ZIP, TAR, TAR.GZ, TAR.BZ2 and TAR.XZ (the format is
+  chosen from the output file name). 7-Zip, CPIO and AR are read-only, and the
+  single-file compressor streams (`.gz`/`.bz2`/`.xz`) are read/extract only.
+- RAR is proprietary and Zstandard / Brotli need extra optional native codecs, so
+  those formats are deliberately out of scope.
 - No per-entry selective extraction or drag-and-drop; the whole archive is
   extracted to the chosen folder.
