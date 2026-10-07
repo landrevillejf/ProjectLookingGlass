@@ -47,6 +47,22 @@ work to make it build and run on a current toolchain.
   `06b-service-management.sh`, with 20 headless JUnit 5 tests covering the
   detection matrix, every per-init vector, and graceful degradation. No app
   behaviour changes yet; the per-subsystem panels land in later phases.
+- **LFS system management Phase 1: a Services control-center panel**
+  (`lg3d-apps`, `lg3d-core`) — adds `ServicesPanel`, a thin front-end over
+  `InitSystemService` registered as the Control Center's 22nd category
+  (“Services”). It detects the running supervisor (systemd / openrc / runit /
+  s6 / sysvinit), lists its units in a `JList` (never a combo box, so it survives
+  offscreen `SwingNode` hosting), shows a read-only `status` view and drives
+  start/stop/restart/enable/disable through that supervisor's native CLI.
+  Read-only ops run unprivileged via `ProcessRunner`; mutating ops are confirmed
+  and escalated per-operation via `PrivilegedRunner` (polkit), and are disabled
+  (panel becomes read-only) when `pkexec` is absent or the operation is
+  unsupported for the detected init (sysvinit has no enable/disable). Non-zero
+  exits are shown verbatim as a result, not a crash. `InitSystemService` gains a
+  pure, headless-tested `parseServiceList`/`listServiceEntries` (systemd
+  `list-units`, openrc `rc-status`, and the `ls`-based backends) plus
+  `ServiceEntry`; 6 new parser tests join the 20 Phase 0 tests and a headless
+  `ServicesPanelTest` covers construction, lifecycle and lazy registration.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

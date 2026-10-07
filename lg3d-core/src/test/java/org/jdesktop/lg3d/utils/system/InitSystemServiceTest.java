@@ -21,6 +21,7 @@ import java.util.List;
 import org.jdesktop.lg3d.utils.system.InitSystemService.InitSystem;
 import org.jdesktop.lg3d.utils.system.InitSystemService.Operation;
 import org.jdesktop.lg3d.utils.system.InitSystemService.Probes;
+import org.jdesktop.lg3d.utils.system.InitSystemService.ServiceEntry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -289,5 +290,85 @@ class InitSystemServiceTest {
                 assertTrue(mentions, init + "/" + op + " references the service name");
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // LIST output parsing
+
+    @Test
+    @DisplayName("systemd list-units lines parse into name / active-sub state / description")
+    void parsesSystemdUnits() {
+        List<ServiceEntry> parsed = InitSystemService.parseServiceList(InitSystem.SYSTEMD, List.of(
+                "  sshd.service        loaded active running OpenSSH Daemon",
+                "cron.service loaded active running Regular background processing",
+                "\u25cf failed.service     loaded failed failed  A broken unit"));
+        assertEquals(3, parsed.size());
+        assertEquals("sshd", parsed.get(0).getName());
+        assertEquals("active running", parsed.get(0).getState());
+        assertEquals("OpenSSH Daemon", parsed.get(0).getDetail());
+        assertEquals("cron", parsed.get(1).getName());
+        assertEquals("Regular background processing", parsed.get(1).getDetail());
+        // the leading bullet marker is stripped from the unit name
+        assertEquals("failed", parsed.get(2).getName());
+        assertEquals("failed failed", parsed.get(2).getState());
+    }
+
+    @Test
+    @DisplayName("a systemd unit with no description still yields a state")
+    void parsesSystemdUnitWithoutDescription() {
+        List<ServiceEntry> parsed = InitSystemService.parseServiceList(
+                InitSystem.SYSTEMD, List.of("tor.service loaded active running"));
+        assertEquals(1, parsed.size());
+        assertEquals("tor", parsed.get(0).getName());
+        assertEquals("active running", parsed.get(0).getState());
+        assertEquals("", parsed.get(0).getDetail());
+    }
+
+    @Test
+    @DisplayName("openrc rc-status lines split on the bar; runlevel headers are skipped")
+    void parsesOpenrcStatus() {
+        List<ServiceEntry> parsed = InitSystemService.parseServiceList(InitSystem.OPENRC, List.of(
+                "Runlevel: default",
+                " sshd                                 |  started",
+                " net                                  |  stopped",
+                "Dynamic Runlevel: needed"));
+        assertEquals(2, parsed.size(), "the two runlevel headers are not services");
+        assertEquals("sshd", parsed.get(0).getName());
+        assertEquals("started", parsed.get(0).getState());
+        assertEquals("net", parsed.get(1).getName());
+        assertEquals("stopped", parsed.get(1).getState());
+    }
+
+    @Test
+    @DisplayName("ls-based backends (runit/s6/sysvinit) treat each line as a bare name")
+    void parsesLsBackends() {
+        for (InitSystem init : new InitSystem[] {
+                InitSystem.RUNIT, InitSystem.S6, InitSystem.SYSVINIT }) {
+            List<ServiceEntry> parsed = InitSystemService.parseServiceList(
+                    init, List.of("sshd", "cron", "  tor  "));
+            assertEquals(3, parsed.size(), init + " lists three names");
+            assertEquals("sshd", parsed.get(0).getName());
+            assertEquals("", parsed.get(0).getState(), init + " has no state column");
+            assertEquals("tor", parsed.get(2).getName(), "names are trimmed");
+        }
+    }
+
+    @Test
+    @DisplayName("parsing drops blank/null lines and degrades on null/UNKNOWN input")
+    void parsingDegradesGracefully() {
+        assertTrue(InitSystemService.parseServiceList(null, List.of("sshd")).isEmpty());
+        assertTrue(InitSystemService.parseServiceList(InitSystem.SYSTEMD, null).isEmpty());
+        assertTrue(InitSystemService.parseServiceList(InitSystem.UNKNOWN, List.of("sshd")).isEmpty());
+        assertTrue(InitSystemService.parseServiceList(
+                InitSystem.SYSTEMD, java.util.Arrays.asList("", "   ", null)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("ServiceEntry label shows the state when present, else just the name")
+    void serviceEntryLabel() {
+        assertEquals("sshd  \u2014  active running",
+                new ServiceEntry("sshd", "active running", "OpenSSH").toString());
+        assertEquals("tor", new ServiceEntry("tor", "", "").toString());
+        assertEquals("", new ServiceEntry(null, null, null).getName());
     }
 }

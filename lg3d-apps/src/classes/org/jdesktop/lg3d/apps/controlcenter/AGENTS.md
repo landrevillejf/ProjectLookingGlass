@@ -17,12 +17,12 @@
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Panels:** `ControlCenterPanel` is a `JList` navigation list + `CardLayout` (not a
-`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-one panels
+`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-two panels
 implement the `ControlPanel` interface and are registered by `ControlPanelRegistry`,
 in order: Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
 Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications, Network,
 Bluetooth, Printing,
-Date & Time, Language & Region, Users, System, Schedule, Task Scheduler.
+Date & Time, Language & Region, Users, System, Services, Schedule, Task Scheduler.
 
 ## Roles
 
@@ -42,7 +42,7 @@ Date & Time, Language & Region, Users, System, Schedule, Task Scheduler.
   `EventProcessor` warnings before calling an interaction broken.
 - **Business Analyst** — A shipped system utility (display, sound, power, mouse &
   keyboard, shortcuts, notifications, workspaces, quick launch, network, Bluetooth, printing,
-  date & time, language & region, users, system info, appearance, schedule, and the
+  date & time, language & region, users, system info, services, appearance, schedule, and the
   cron-style task scheduler). Hold it
   to production standards: real tests, review, backward
   compatibility — not "it's just a demo".
@@ -93,7 +93,7 @@ Control Center is a system settings application that provides a Swing-based UI f
   `WorkspacesPanel`, `QuickLaunchPanel`, `FileAssociationsPanel`, `NetworkPanel`,
   `BluetoothPanel`,
   `PrintingPanel`, `DateTimePanel`, `LocalePanel`, `UsersPanel`, `SystemInfoPanel`,
-  `SchedulePanel`, `TaskSchedulerPanel`
+  `ServicesPanel`, `SchedulePanel`, `TaskSchedulerPanel`
 - **Seams** - the `lg3d-core` `displayserver.desktop2d` helpers the panels drive
   (`VolumeStatus`, `BatteryStatus`, `BrightnessStatus`, `ThermalService`,
   `NetworkConnections`, `PrinterStatus`, `TimeZoneStatus`, `LocaleStatus`,
@@ -109,7 +109,7 @@ Frame3D (Control Center)
     └── ControlCenterPanel (JPanel)
         ├── JList (navigation)
         └── CardLayout (selected ControlPanel)
-            └── the 21 panels registered by ControlPanelRegistry
+            └── the 22 panels registered by ControlPanelRegistry
 ```
 
 ### Swing Integration Pattern
