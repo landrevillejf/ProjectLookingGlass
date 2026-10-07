@@ -454,4 +454,155 @@ public final class InitSystemService {
         }
         return r.getStdoutLines();
     }
+
+    /**
+     * Lists the known services for {@code init} and parses each raw output line
+     * into a {@link ServiceEntry}. Read-only; returns an empty list when listing
+     * is unsupported or the supervisor is absent.
+     */
+    public static List<ServiceEntry> listServiceEntries(InitSystem init) {
+        return parseServiceList(init, listServices(init));
+    }
+
+    // ------------------------------------------------------------------
+    // Pure output parsing (headless-testable; no process is spawned).
+
+    /**
+     * Parses the raw stdout lines of a {@link Operation#LIST} command into
+     * {@link ServiceEntry} values, per init system. The exact shape differs by
+     * supervisor:
+     * <ul>
+     *   <li>systemd {@code list-units --no-legend}: {@code UNIT LOAD ACTIVE SUB
+     *       DESCRIPTION} - the name is the unit minus its {@code .service}
+     *       suffix and the state is {@code ACTIVE SUB}.</li>
+     *   <li>openrc {@code rc-status --all}: {@code name | state} - lines without
+     *       a {@code |} (runlevel headers) are skipped.</li>
+     *   <li>runit / s6 / sysvinit {@code ls}: each line is a bare service name
+     *       with no state.</li>
+     * </ul>
+     * Blank and {@code null} lines are dropped; parsing never throws.
+     */
+    public static List<ServiceEntry> parseServiceList(InitSystem init, List<String> rawLines) {
+        List<ServiceEntry> out = new ArrayList<>();
+        if (init == null || rawLines == null) {
+            return out;
+        }
+        for (String line : rawLines) {
+            if (line == null) {
+                continue;
+            }
+            String t = stripBullet(line.trim());
+            if (t.isEmpty()) {
+                continue;
+            }
+            ServiceEntry e = parseLine(init, t);
+            if (e != null) {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
+    /** Removes the leading {@code ●} / {@code *} marker systemctl prints. */
+    private static String stripBullet(String s) {
+        String t = s;
+        while (!t.isEmpty()) {
+            char c = t.charAt(0);
+            if (c == '\u25cf' || c == '*' || c == '\u00b7') {
+                t = t.substring(1).trim();
+            } else {
+                break;
+            }
+        }
+        return t;
+    }
+
+    private static ServiceEntry parseLine(InitSystem init, String line) {
+        switch (init) {
+            case SYSTEMD:
+                return parseSystemdUnit(line);
+            case OPENRC:
+                return parseOpenrcLine(line);
+            case RUNIT:
+            case S6:
+            case SYSVINIT:
+                return new ServiceEntry(line, "", line);
+            case UNKNOWN:
+            default:
+                return null;
+        }
+    }
+
+    private static ServiceEntry parseSystemdUnit(String line) {
+        String[] f = line.split("\\s+");
+        if (f.length == 0 || f[0].isEmpty()) {
+            return null;
+        }
+        String unit = f[0];
+        String name = unit.endsWith(".service")
+                ? unit.substring(0, unit.length() - ".service".length())
+                : unit;
+        // UNIT LOAD ACTIVE SUB DESCRIPTION...
+        String state;
+        String desc;
+        if (f.length >= 4) {
+            state = f[2] + " " + f[3];
+            desc = String.join(" ", java.util.Arrays.copyOfRange(f, 4, f.length));
+        } else if (f.length == 3) {
+            state = f[2];
+            desc = "";
+        } else {
+            state = "";
+            desc = "";
+        }
+        return new ServiceEntry(name, state, desc);
+    }
+
+    private static ServiceEntry parseOpenrcLine(String line) {
+        int bar = line.indexOf('|');
+        if (bar < 0) {
+            // A runlevel header ("Runlevel: default") or noise; not a service.
+            return null;
+        }
+        String name = line.substring(0, bar).trim();
+        String state = line.substring(bar + 1).trim();
+        if (name.isEmpty()) {
+            return null;
+        }
+        return new ServiceEntry(name, state, line);
+    }
+
+    /**
+     * One parsed service row: its name, a best-effort state string (may be empty
+     * for the {@code ls}-based backends) and a detail/description for display.
+     */
+    public static final class ServiceEntry {
+        private final String name;
+        private final String state;
+        private final String detail;
+
+        public ServiceEntry(String name, String state, String detail) {
+            this.name = (name == null) ? "" : name;
+            this.state = (state == null) ? "" : state;
+            this.detail = (detail == null) ? "" : detail;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getState() {
+            return state;
+        }
+
+        public String getDetail() {
+            return detail;
+        }
+
+        /** A one-line label for a list cell: the name plus its state, if any. */
+        @Override
+        public String toString() {
+            return state.isEmpty() ? name : (name + "  \u2014  " + state);
+        }
+    }
 }
