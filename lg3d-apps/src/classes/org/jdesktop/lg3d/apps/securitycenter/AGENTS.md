@@ -14,7 +14,7 @@
 | Start-menu name / group | Security Center / **System** |
 | Command | `java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter` |
 | Descriptor | `src/config/securitycenter.lgcfg` → `config/demo` |
-| Engine | **No in-tree virus engine.** Scanning is delegated to an installed **ClamAV**: `clamdscan` (daemon) preferred, `clamscan` (standalone) fallback; definitions updated via `freshclam`. Posture is probed with `getenforce` (SELinux) and `firewall-cmd --state` (firewalld). A missing tool degrades to honest guidance, never a fake result |
+| Engine | **No in-tree virus engine.** Scanning is delegated to an installed **ClamAV**: `clamdscan` (daemon) preferred, `clamscan` (standalone) fallback; definitions updated via `freshclam`. Posture is probed with `getenforce` (SELinux) and `firewall-cmd --state` (firewalld), plus **AppArmor** (`aa-status`) and the **SSH daemon** (init-system `status sshd`) through the shared `SecurityService` (§4.6). A missing tool degrades to honest guidance, never a fake result |
 | Persistence | Jackson JSON under `~/.lg3d/securitycenter` (settings + scan history) via `SecurityCenterStore`; override dir with `-Dlg3d.securitycenter.dir`. Quarantine **moves** infected files to the configured folder (default `<config>/quarantine`) — it never deletes |
 | Security | No secret and no scanned content is stored in config — only the target folder, scan options and finished scan summaries. Infected files are quarantined (moved), not destroyed |
 | Build | `./gradlew :lg3d-apps:build` |
@@ -29,8 +29,9 @@
 - **SecurityCenterPanel** — the one Swing UI (no-arg constructor, no Java 3D): an
   **Antivirus** tab (target + Browse, recursive / quarantine / update-first
   options, scanner picker, Update / Scan / Stop, a summary line and a findings
-  list), a **Security Overview** tab (rating header, SELinux / Firewall /
-  Antivirus posture cards, a recommendations list, last-scan line and Refresh) and
+  list), a **Security Overview** tab (rating header, SELinux / Firewall / AppArmor
+  / SSH daemon / Antivirus posture cards, a recommendations list, last-scan line
+  and Refresh) and
   an EAST scan-history dock. No scanner, probe or dialog runs until the user
   presses Scan / Update / Refresh (or first opens the Overview tab); each external
   command runs on a daemon thread.
@@ -41,6 +42,13 @@
 - **SecurityProbe** — the AWT-free posture seam: builds the `getenforce` /
   `firewall-cmd --state` commands and parses them into `SelinuxMode` /
   `FirewallState` (an authorization failure is `UNKNOWN`, not "not running").
+- **SecurityService** (shared, `org.jdesktop.lg3d.utils.system` in lg3d-core) — the
+  §4.6 backend the Overview tab reads AppArmor and the SSH daemon through:
+  `runRead(APPARMOR_STATUS)` / `runRead(SSHD_STATUS)` build the `aa-status` and
+  init-system `status sshd` vectors and parse them (`parseAppArmor` /
+  `parseSshdState`), never spawning until the user refreshes. This panel keeps
+  `SecurityProbe` for its SELinux/firewall rating and only reaches for the shared
+  service for the two new host rows.
 - **ScanReport / Detection / VersionInfo / SecuritySnapshot** — immutable records:
   a parsed scan (counts, detections, exit code, whether the summary was seen), a
   single finding (`INFECTED` / `ERROR`), the engine/database version and the
@@ -69,14 +77,16 @@
   only reached from a user action, never the constructor, so headless tests can
   build the panel. Never call `System.exit`. Obey the core UI/UX rulebook.
 - **QA** — `AntivirusBackendTest`, `SecurityProbeTest`, `SecurityCenterStoreTest`
-  and `SecurityCenterPanelTest` run headless (39 tests): the backend suite asserts
+  and `SecurityCenterPanelTest` run headless (40 tests): the backend suite asserts
   scanner resolution, the command builders and the parse of recorded ClamAV output
   (clean, infected, per-file error, daemon-down, empty) plus version/update
   parsing; the probe suite asserts SELinux/firewall parsing (including the
   authorization-failure → `UNKNOWN` path) and the snapshot concerns/rating; the
   store suite asserts bean invariants, JSON round-trips, corrupt/missing-file
   resilience and the quarantine dir; the panel suite drives `applyReport` /
-  `applySnapshot` / `addRecord` with synthetic values — never spawning a scanner.
+  `applySnapshot` / `addRecord` / `renderHostServices` with synthetic values —
+  never spawning a scanner. The AppArmor / SSH vectors and parsers behind
+  `renderHostServices` are covered by `SecurityServiceTest` in lg3d-core.
   For the 3D host use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver security utility: scan a folder for viruses

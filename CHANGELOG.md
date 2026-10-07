@@ -124,6 +124,32 @@ work to make it build and run on a current toolchain.
   `NetworkPanelTest`. The legacy `desktop2d.NetworkConnections` nmcli-only seam is
   left intact (still unit-tested); `NetworkPanel` now routes uniformly through
   `NetworkService`.
+- **LFS system management Phase 4a: Security — nftables / AppArmor / SELinux /
+  SSH over real backends** (`lg3d-apps`, `lg3d-core`) — adds the shared
+  `org.jdesktop.lg3d.utils.system.SecurityService`, the §4.6 host-security
+  front-end: it detects which backends are installed (`nft`,
+  `apparmor_status`/`aa-status`, `getenforce`/`selinuxenabled`, `sshd`) and builds
+  the exact argument vectors — `nft list ruleset` (read) and
+  `nft -f /etc/nftables.conf` (**mutating**, escalated, confirmed), `aa-status`,
+  `getenforce`, `selinuxenabled` (exit code = enabled?) and the sshd lifecycle —
+  delegating sshd status/start/stop to `InitSystemService` (§4.1) so no init logic
+  is duplicated. It never re-implements firewall/MAC logic and never writes `/etc`
+  directly (§6). The `firewall` app gains an **nftables** tab (resolving its
+  long-standing “no nftables support” gap): a read-only `nft list ruleset` view plus
+  a confirmed, polkit-escalated “apply `/etc/nftables.conf`” action, both off the
+  EDT behind an indeterminate progress bar with the controls disabled while in
+  flight (serialization) and a non-zero exit shown verbatim as state; the legacy
+  firewalld/iptables Rules tab and the panel’s 5s-refresh `Timer` + `setOnClose`
+  lifecycle seam are preserved, and construction stays headless-safe (no process
+  until the user acts). The `securitycenter` Security Overview grows **AppArmor**
+  and **SSH daemon** rows read through `SecurityService` (read-only, unprivileged)
+  alongside the existing SELinux/firewalld/antivirus posture, a missing tool or an
+  unprivileged read degrading to an honest label rather than a false “secure”; the
+  existing `SecurityProbe`/`SecuritySnapshot` rating seam is untouched.
+  `SecurityService` (the detection matrix, the §4.6 vectors and pure parsers for
+  `getenforce`, `selinuxenabled`, `aa-status`, `nft list ruleset` and the
+  init-specific `status sshd` shapes) is injectable with 27 headless tests, plus a
+  headless `FirewallPanelTest` and a new `renderHostServices` overview case.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

@@ -16,9 +16,10 @@
 | Descriptor | `src/config/firewall.lgcfg` → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` |
 
-**Components:** `FirewallPanel` (Swing UI + 5s refresh `Timer`) +
-`FirewallService` (firewalld/iptables backend) +
-`FirewallStatus`/`FirewallRule` (data models).
+**Components:** `FirewallPanel` (Swing UI: a **Rules** tab with the 5s refresh
+`Timer`, plus an **nftables** tab) + `FirewallService` (legacy firewalld/iptables
+backend) + the shared `org.jdesktop.lg3d.utils.system.SecurityService` (the §4.6
+`nft` read/apply backend) + `FirewallStatus`/`FirewallRule` (data models).
 
 ## Roles
 
@@ -30,9 +31,13 @@
   paint, no modal dialogs (in-panel confirm for enable/disable), EDT hops from lg3d
   listeners, `dispose()` on discard, Metal LAF via `installHostedLookAndFeel`.
   **Always stop the refresh timer on close** (leak guard). Jogamp packages only.
-- **QA** — Unit-test `FirewallService` command parsing headless (no real firewall
-  changes in CI). Verify the hosted window and 5s refresh with the in-JVM probe +
-  internal screencapture; a black host capture under Wayland is not a defect.
+- **QA** — The nft/AppArmor/SELinux/sshd command vectors and pure parsers live in
+  `SecurityService` (lg3d-core), covered headless by `SecurityServiceTest` (27
+  tests); `FirewallPanelTest` asserts the panel constructs headless, exposes the
+  Rules + nftables tabs and gates the nft controls on backend/polkit availability
+  — no real firewall change runs in CI. Verify the hosted window and 5s refresh
+  with the in-JVM probe + internal screencapture; a black host capture under
+  Wayland is not a defect.
 - **Business Analyst** — A shipped system utility (manage firewall rules and
   network security). Production standards apply; note enable/disable is a sensitive
   action requiring confirmation.
@@ -117,10 +122,16 @@ panel.setOnClose(new Runnable() {
 
 ### Firewall Backend
 
-The service auto-detects the firewall backend:
-- **firewalld**: Uses `firewall-cmd` commands (preferred)
-- **iptables**: Falls back to `iptables` commands
-- Commands requiring privileges use `pkexec` for authentication
+Two backends coexist:
+- **nftables** (contract §4.6, the modern path): the **nftables** tab reads the
+  live ruleset with `nft list ruleset` (unprivileged, via `SecurityService`) and
+  applies `/etc/nftables.conf` with `nft -f` — confirmed, then escalated through
+  `PrivilegedRunner` (polkit). The desktop only builds the argument vector and
+  renders the tool's output verbatim; it never re-implements nft logic (§6).
+- **firewalld / iptables** (legacy `FirewallService`): the **Rules** tab
+  auto-detects `firewall-cmd` (preferred) and falls back to `iptables` for the
+  rule table and Enable/Disable.
+- Commands requiring privileges use `pkexec` for authentication.
 
 ### Timer Management
 
@@ -179,6 +190,7 @@ Launch standalone:
 - Five-second refresh interval is fixed (not configurable)
 - No rule editing functionality implemented
 - No add/remove rule UI
-- Limited to firewalld/iptables (no nftables support)
+- nftables is read + apply/reload only (`nft list ruleset` /
+  `nft -f /etc/nftables.conf`); per-rule nft editing is not implemented
 - Requires pkexec/polkit for privilege escalation
 - Limited to basic rule information

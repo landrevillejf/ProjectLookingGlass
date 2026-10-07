@@ -169,4 +169,21 @@ class SecurityCenterPanelTest {
         assertEquals("/tmp/keep", second.history().get(0).getTarget());
         assertTrue(second.statusText().startsWith("Ready"), "reload does not probe");
     }
+
+    @Test
+    @DisplayName("renderHostServices drives the AppArmor / SSH rows without probing")
+    void renderHostServices(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        assertEquals("-", panel.apparmorText(), "unprobed rows start blank");
+        assertEquals("-", panel.sshText());
+
+        panel.renderHostServices("Loaded (3 enforce, 0 complain)", "Running");
+        assertTrue(panel.apparmorText().contains("Loaded"), panel.apparmorText());
+        assertEquals("Running", panel.sshText());
+
+        // Nulls render as "-", never an NPE.
+        panel.renderHostServices(null, null);
+        assertEquals("-", panel.apparmorText());
+        assertEquals("-", panel.sshText());
+    }
 }
