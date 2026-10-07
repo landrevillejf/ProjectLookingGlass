@@ -10,6 +10,18 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.63.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Archive: a ZIP / TAR archive browser for the desktop** (`lg3d-apps`
+  `org.jdesktop.lg3d.apps.archive`) — a new Utilities start-menu app that opens
+  an archive, lists its entries, extracts it to a chosen folder and creates a new
+  ZIP from a directory. The Swing `ArchivePanel` is hosted on a `SwingNode`
+  inside a `Frame3D` via `TitledSwingWindow` in the 3D desktop and, registered in
+  `Desktop2DAppRegistry.PANEL_APPS`, opens as an MDI internal frame in the 2D/Swing
+  desktop — one panel, both desktops. Archive I/O runs off the EDT on a
+  `SwingWorker` and is delegated to the AWT-free, path-traversal-hardened
+  `ZipManager` (`java.util.zip`) and `TarManager` (a dependency-free POSIX tar
+  reader). Ships an in-tool `PackageBox` start-menu icon
+  (`resources/images/icon/archive.png`) and headless `ArchiveManagersTest`
+  round-trip + Zip-Slip / tar-slip guard coverage.
 - **Software Update: apply a release bundle to the installed desktop (the LFS
   production path)** (`update-manager` `com.protonmail.landrevillejf.swingide.update`)
   — the update pipeline could already check, download and verify (SHA-256 +
