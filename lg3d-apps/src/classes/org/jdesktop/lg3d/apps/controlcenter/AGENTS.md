@@ -98,7 +98,14 @@ Control Center is a system settings application that provides a Swing-based UI f
   (`VolumeStatus`, `BatteryStatus`, `BrightnessStatus`, `ThermalService`,
   `NetworkConnections`, `PrinterStatus`, `TimeZoneStatus`, `LocaleStatus`,
   `InputSettings`, `BluetoothStatus`, `ShortcutMap`) plus the `Desktop2D`
-  control-center hooks
+  control-center hooks. The system-management panels additionally drive the
+  `lg3d-core` `utils.system` backends defined by `system-management-contract.md`
+  (`InitSystemService` for Services, `LfsUpdateService` for System Update,
+  `StorageService`/`LuksService` for Storage, `NetworkService` for Network) - thin,
+  injectable CLI argument-vector builders that reuse `ProcessRunner`/
+  `PrivilegedRunner`. `NetworkPanel` routes uniformly through `NetworkService`
+  (NetworkManager → dhcpcd → systemd-networkd → read-only `ip`); `NetworkConnections`
+  remains the legacy `desktop2d` nmcli-only seam.
 
 ## Architecture
 
@@ -198,7 +205,8 @@ Launch via main method:
   `JComboBox` or free key-capture - because an offscreen-hosted `SwingNode` cannot
   reliably deliver those events
 - The system panels depend on their host tools (timedatectl, localectl, xset,
-  bluetoothctl/rfkill) and degrade to a read-only or "unavailable" state when a
-  tool, the hardware, or an X server is absent (for example under Wayland)
+  bluetoothctl/rfkill, nmcli/dhcpcd/networkctl/ip, lsblk/blkid/cryptsetup) and
+  degrade to a read-only or "unavailable" state when a tool, the hardware, or an X
+  server is absent (for example under Wayland)
 - Limited to Swing components (no native 3D controls in panels)
 - Fixed panel size (not responsive to screen size changes)

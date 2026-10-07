@@ -102,6 +102,28 @@ work to make it build and run on a current toolchain.
   §4.5 `cryptsetup`/`lfs-encrypt-disk` vectors, mutating/destructive `Operation`
   classification, `parseStatus`) are pure/injectable, with 8 + 13 headless tests plus
   a headless `StoragePanelTest`.
+- **LFS system management Phase 3b: Network panel backend detection & fallback**
+  (`lg3d-apps`, `lg3d-core`) — extends `NetworkPanel` from a NetworkManager-only
+  view into a thin front-end over the new `NetworkService`, which detects the
+  running network backend in the contract's §4.4 order — NetworkManager (`nmcli`
+  or the `NetworkManager` daemon) → dhcpcd → systemd-networkd (`networkctl`) → a
+  read-only `ip` fallback — and maps list / status / up / down onto that backend's
+  native CLI (it never re-implements networking and never edits config directly).
+  The panel lists connections/links in a `JList` (never a combo box, so it survives
+  offscreen `SwingNode` hosting), shows read-only link/address state and drives
+  connect/disconnect through the owning tool. Read-only probes run **unprivileged**
+  via `ProcessRunner`; mutations are **confirmed**, run **off the EDT** behind an
+  indeterminate progress bar with every control disabled while in flight
+  (serialization), and are escalated per-operation via `PrivilegedRunner` (polkit)
+  on `dhcpcd`/`networkd` — while on NetworkManager `nmcli` runs unprivileged and the
+  daemon raises its own single prompt (§7 item 5). The read-only `ip` fallback and a
+  no-backend host disable connect/disconnect and show a note rather than failing.
+  `NetworkService` (the backend-detection matrix, the exact §4.4 argument vectors,
+  and pure parsers for `nmcli -t` escaped colons, `ip -o link`, `networkctl list`
+  and `/etc/dhcpcd.conf`) is injectable with 30 headless tests, plus a headless
+  `NetworkPanelTest`. The legacy `desktop2d.NetworkConnections` nmcli-only seam is
+  left intact (still unit-tested); `NetworkPanel` now routes uniformly through
+  `NetworkService`.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
