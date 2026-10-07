@@ -246,15 +246,16 @@ key is committed at `src/main/resources/public-key.asc` and referenced by
 `update.signature.fingerprint` are pre-set to that key so the strict verification
 path is ready. The private half lives only in the GitHub secret — never commit it.
 
-> **Client enforcement is deliberately still OFF** (`update.signature.enabled=false`,
-> `update.signature.required=false`) for the first signed releases, so an older
-> client without the bundled key is not stranded. Once a signed release has been
-> verified end-to-end (`gpg --verify lg3d-<v>.zip.asc lg3d-<v>.zip` → *Good
-> signature*), flip `update.signature.enabled=true` (then `required=true` for a
-> fail-closed posture) in a follow-up change. Rotating the key means re-exporting
-> `public-key.asc`, updating `key.id` / `fingerprint`, and shipping a client
-> release *before* swapping the signing secret, so clients never reject a valid
-> new signature.
+> **Client enforcement is ON** (`update.signature.enabled=true`): the gate runs on
+> every update and a present-but-invalid signature — a tampered bundle — always
+> fails, which is safe now that every release is signed and the public key ships in
+> the jar. `update.signature.required` stays **`false`** for the staged roll-out, so
+> a hypothetical *unsigned* release only logs a warning (the SHA-256 checksum still
+> gates the install) instead of bricking the update path; flip it to `true`
+> (fail-closed) once `enabled=true` has proven stable in the field. Rotating the key
+> means re-exporting `public-key.asc`, updating `key.id` / `fingerprint`, and
+> shipping a client release *before* swapping the signing secret, so clients never
+> reject a valid new signature.
 
 **Remaining gap:** `UpdateInstaller` replaces a *single* running JAR
 (`JarLocator.getCurrentJarPath()`) — the single-jar model this module was ported

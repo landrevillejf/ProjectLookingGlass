@@ -10,6 +10,21 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.65.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Software Update: OpenPGP signature verification is now enforced by default**
+  (`update-manager`) — now that every release is signed by the CI release-signing
+  key and the matching public key ships inside the jar (v1.64.0 was the first
+  signed release, verified end-to-end: `gpg --verify` = *Good signature*, a
+  one-byte-tampered bundle = *BAD signature*), the client flips
+  `update.signature.enabled` to **`true`**. `UpdateService.verifySignature` now runs
+  `UpdateSignatureGate` on every update, so a present-but-invalid signature (a
+  tampered `lg3d-<version>.zip`) fails the install instead of being ignored; the
+  SHA-256 checksum still gates it too. `update.signature.required` stays `false`
+  for the staged roll-out, so a hypothetical *unsigned* release only logs a warning
+  rather than bricking the update path — fail-closed (`required=true`) is the
+  documented final step once this has proven stable. A new
+  `testPackagedDefaultsEnableSignatureVerification` locks the shipped defaults
+  (enabled, key id `9A5DAD01CF4F5054`, fingerprint) and `docs/release-process.md`
+  §13.4 + `update-manager/AGENTS.md` are updated to match.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

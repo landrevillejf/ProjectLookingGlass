@@ -292,12 +292,15 @@ and configuration, not code.
 | Fingerprint | `C0D85590B541798C5280C7F69A5DAD01CF4F5054` |
 | CI secrets | `RELEASE_SIGNING_KEY` (base64 armored private key, no passphrase) + `RELEASE_SIGNING_KEY_ID` — **configured** |
 | Bundled public key | [`update-manager/src/main/resources/public-key.asc`](../update-manager/src/main/resources/public-key.asc) — **committed** |
-| Client config | `update.signature.key.id` + `update.signature.fingerprint` pre-set; `update.signature.enabled=false`, `update.signature.required=false` |
+| Client config | `update.signature.key.id` + `update.signature.fingerprint` pre-set; **`update.signature.enabled=true`** (enforcement on), `update.signature.required=false` (fail-open on a *missing* signature) |
 
 So releases cut from now on **are signed** (they publish `lg3d-<version>.zip.asc`
 and `public-key.asc`, and `version.json` carries `signatureUrl` + `signingKeyId`),
-but clients do **not yet enforce** the signature. Enforcement is turned on in a
-deliberate follow-up step (§13.4) once a signed release has been verified.
+and clients **enforce the signature** (`update.signature.enabled=true`): a
+present-but-invalid signature — i.e. a tampered bundle — always fails the update.
+Only the final fail-closed step, `update.signature.required=true`, is still deferred
+(§13.4) so that a hypothetical *unsigned* release warns rather than bricks the
+update path.
 
 ### 13.2 What `release.yml` does with the secrets
 
@@ -323,17 +326,22 @@ gpg --verify lg3d-<version>.zip.asc lg3d-<version>.zip
 The "not certified with a trusted signature" warning is expected for a
 freshly-imported key and does not affect the verification result.
 
-### 13.4 Turning on client enforcement (follow-up)
+### 13.4 Client enforcement roll-out
 
-Once §13.3 passes for a real release, flip the client defaults in
+Verification is enabled in two stages so a signing regression can never strand the
+whole install base at once. The defaults live in
 [`update-manager/src/main/resources/update-config.properties`](../update-manager/src/main/resources/update-config.properties):
 
-1. `update.signature.enabled=true` — `UpdateService.verifySignature` now runs the
-   gate. A missing key/signature only logs a warning while `required=false`; a
-   present-but-invalid signature **always** fails.
-2. `update.signature.required=true` — fail-closed: an update whose signature
-   cannot be verified is rejected. Do this only after `enabled=true` has shipped
-   and proven stable, so older clients are not stranded.
+1. **`update.signature.enabled=true` — DONE (shipped).** `UpdateService.verifySignature`
+   runs the gate on every update: a present-but-invalid signature **always** fails,
+   so a tampered bundle is rejected. While `required=false`, a *missing*
+   key/signature only logs a warning and the SHA-256 checksum still gates the
+   install.
+2. `update.signature.required=true` — **still pending.** Fail-closed: an update
+   whose signature cannot be verified is rejected outright. Turn this on only once
+   `enabled=true` has shipped in at least one release and proven stable, so an
+   unexpected unsigned release (e.g. a removed/expired signing secret) does not
+   block every client from updating.
 
 ### 13.5 Key rotation & escrow
 
