@@ -63,6 +63,24 @@ work to make it build and run on a current toolchain.
   `list-units`, openrc `rc-status`, and the `ls`-based backends) plus
   `ServiceEntry`; 6 new parser tests join the 20 Phase 0 tests and a headless
   `ServicesPanelTest` covers construction, lifecycle and lazy registration.
+- **LFS system management Phase 2: a System Update control-center panel**
+  (`lg3d-apps`, `lg3d-core`) — adds `SystemUpdatePanel`, a thin front-end over
+  the new `LfsUpdateService`, registered as the Control Center's 23rd category
+  (“System Update”). It drives the builder-installed `/usr/bin/lfs-update`
+  (`check`/`status`/`upgrade`) and never re-implements the updater (upgrade
+  itself backs up `/etc`+`/boot`, runs `lpm update-db`/`upgrade` and rebuilds the
+  kernel + GRUB). Read-only `check`/`status` run unprivileged; the mutating
+  `upgrade` is confirmed and escalated per-operation via `PrivilegedRunner`
+  (polkit), runs **off the EDT** behind an indeterminate progress bar with every
+  control disabled while in flight (serialization), and shows a non-zero exit
+  verbatim as state. Output is ANSI-stripped (`lfs-update` colourises with no
+  disable switch) and the check exit code is read as state (1 = up to date). The
+  panel states the three-layer update model the contract mandates —
+  `update-manager` (the lg3d bundle), `lpm` (packages) and `lfs-update` (the whole
+  system) — and degrades to a read-only note when `lfs-update` is absent (a
+  non-LFS host). `LfsUpdateService` is pure/injectable (command vectors,
+  `stripAnsi`, `interpretCheck`, lenient `parseStatus`) with 9 headless tests,
+  plus a headless `SystemUpdatePanelTest`.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
