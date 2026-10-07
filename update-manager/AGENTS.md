@@ -38,9 +38,12 @@ file plus the root `AGENTS.md`.
 - The module is **not** wired into the display server directly — it is surfaced
   only through the demo-apps panel. Preserve that loose coupling; do not add a
   hard `lg3d-core` dependency.
-- The single-jar `UpdateInstaller` model is a **known gap** for a multi-jar
-  classpath desktop; any change to the apply/install path is an architecture
-  decision.
+- The single-jar `UpdateInstaller` model is the **ported fallback**; the
+  multi-jar desktop is updated through `BundleUpdateInstaller` +
+  `InstallLocation` (a ZIP artifact applied to a detected release-bundle root).
+  Any change to the apply/install path — bundle detection, the managed-entry set,
+  the deferred apply/rollback script, or the relaunch posture — is an
+  architecture decision.
 
 ## Engineer / Developer
 
@@ -70,8 +73,12 @@ file plus the root `AGENTS.md`.
   `avoidCallsTo = ['java.awt', 'javax.swing']`). Coverage/mutation gates are the
   stated 100% / 0 target, not enforced.
 - Verify the check → download → verify path against the published `version.json`
-  schema; the in-app *apply* step is not yet wired (document the gap, don't claim
-  a full install).
+  schema. The *apply* step now has two routes: `BundleUpdateInstaller` for a ZIP
+  artifact + detected release-bundle root (the LFS production case), and the
+  single-jar `UpdateInstaller` fallback otherwise. Cover bundle detection, the
+  zip-slip guard, the staged layout validation, the deferred apply/rollback
+  script generation and both `launchCommand` branches; the destructive
+  `System.exit` / real `pkexec` spawn stay overridden in tests (never exercised).
 
 ## Business Analyst
 
@@ -229,10 +236,22 @@ applies.
 
 **Remaining gap:** `UpdateInstaller` replaces a *single* running JAR
 (`JarLocator.getCurrentJarPath()`) — the single-jar model this module was ported
-from. lg3d is a multi-jar desktop launched from a classpath, so the in-app
-*apply* step is not yet wired to the bundle; `update.auto.download` /
-`update.auto.install` default to `false`, and the check → download → verify path
-is what the published metadata currently exercises.
+from — and stays the fallback for a plain-jar artifact or a development launch.
+lg3d is a multi-jar desktop launched from a classpath, so the **bundle** path is
+handled by `BundleUpdateInstaller`: when `InstallLocation` resolves a release
+bundle root (`update.install.dir` → the `lg3d.install.dir` system property →
+inferred from `<root>/lib/update-manager-*.jar`, validated by `lib/` +
+`lg3d.sh`) *and* the verified artifact is a ZIP, `UpdateService.installNow` /
+`applyStagedUpdateOnExit` route to it instead. It extracts the archive into a
+staging dir (zip-slip guarded), then a deferred bash script — launched after the
+JVM exits, under `pkexec` when the root is read-only and escalation is enabled —
+snapshots the managed entries (`lib/ resources/ etc/ ext/ lg3d.sh README.txt
+VERSION`) into a timestamped rollback dir (with a `restore.sh`), replaces them
+with the staged tree, and optionally relaunches `lg3d.sh`. Relaunch defaults to
+**off** (`update.bundle.relaunch=false`): under the LFS production target lg3d
+*is* the X session (systemd/xinit), so the session manager restarts it and an
+in-app `System.exit` must not try to. `update.auto.download` / `update.auto.install`
+still default to `false`.
 
 ## Build & test
 

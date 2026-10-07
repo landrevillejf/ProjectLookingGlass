@@ -108,6 +108,20 @@ public class UpdateService {
      */
     public static final String CONFIG_GITHUB_TOKEN = "update.github.token";
 
+    /**
+     * Configuration key holding the release bundle install root, overriding the
+     * value inferred from the running jar (see {@link InstallLocation}). Blank
+     * falls back on the {@code lg3d.install.dir} system property, then inference.
+     */
+    public static final String CONFIG_INSTALL_DIR = "update.install.dir";
+
+    /**
+     * Configuration key making an immediate bundle install relaunch {@code lg3d.sh}
+     * after applying. Defaults to {@code false}: under the LFS production target
+     * lg3d is the X session, so the session manager restarts it.
+     */
+    public static final String CONFIG_BUNDLE_RELAUNCH = "update.bundle.relaunch";
+
     /** Name of the user configuration file overriding the packaged defaults. */
     public static final String USER_CONFIG_FILE_NAME = "update-config.properties";
 
@@ -150,6 +164,12 @@ public class UpdateService {
 
     /** Lazily created rollback trigger evaluating the start-up health. */
     private volatile RollbackTrigger rollbackTrigger;
+
+    /** Lazily created locator of the release bundle install root. */
+    private volatile InstallLocation installLocation;
+
+    /** Lazily created installer applying a downloaded release bundle. */
+    private volatile BundleUpdateInstaller bundleInstaller;
 
     /** Verified update JARs staged by the auto-download feature, by version. */
     private final Map<String, Path> stagedUpdates = new ConcurrentHashMap<>();
@@ -508,6 +528,13 @@ public class UpdateService {
             verifySignature(downloadedFile, update);
             verify(downloadedFile, update);
 
+            Optional<BundleUpdateInstaller> bundle = resolveBundleInstaller(downloadedFile);
+            if (bundle.isPresent()) {
+                notifications.notifyInstallationStarted(update.getVersion());
+                bundle.get().installBundle(downloadedFile);
+                return; // Not reached: installBundle exits the JVM
+            }
+
             ensureTargetWritable();
 
             Path rollbackArchive = prepareDowngradeBackup();
@@ -699,6 +726,13 @@ public class UpdateService {
 
     private void applyStagedUpdateOnExit(UpdateInfo update, Path stagedJar) {
         try {
+            Optional<BundleUpdateInstaller> bundle = resolveBundleInstaller(stagedJar);
+            if (bundle.isPresent()) {
+                bundle.get().installBundleOnExit(stagedJar);
+                log.info("Bundle update to {} applied on exit", update.getVersion());
+                return;
+            }
+
             ensureTargetWritable();
             Path rollbackArchive = prepareDowngradeBackup();
             markRollbackPending();
@@ -708,6 +742,45 @@ public class UpdateService {
             log.error("Could not apply the staged update on exit: {}", e.getMessage());
             notifications.notifyError("Update failed", String.valueOf(e.getMessage()));
         }
+    }
+
+    /**
+     * Resolves the bundle installer to apply {@code artifact} with, or empty when
+     * the legacy single-jar path must be used instead.
+     * <p>
+     * The bundle path is selected only when the desktop runs from a release bundle
+     * ({@link InstallLocation#detect()} finds a root) <em>and</em> the verified
+     * artifact is a ZIP archive. A development launch (no bundle layout) or a plain
+     * jar artifact therefore keeps the original behaviour untouched.
+     * </p>
+     *
+     * @param artifact the downloaded, verified update file
+     * @return the bundle installer, or empty to fall back on the single-jar path
+     */
+    private Optional<BundleUpdateInstaller> resolveBundleInstaller(Path artifact) {
+        if (artifact == null || !Files.isRegularFile(artifact)) {
+            return Optional.empty();
+        }
+
+        Optional<Path> root = getInstallLocation().detect();
+        if (root.isEmpty()) {
+            return Optional.empty();
+        }
+
+        BundleUpdateInstaller candidate = getBundleInstaller(root.get());
+        try {
+            if (!candidate.isZipArchive(artifact)) {
+                log.debug("Install root is a bundle but the artifact is not a zip, "
+                    + "using the single-jar installer");
+                return Optional.empty();
+            }
+        } catch (UpdateException e) {
+            log.warn("Cannot inspect the update artifact, using the single-jar installer: {}",
+                e.getMessage());
+            return Optional.empty();
+        }
+
+        return Optional.of(candidate);
     }
 
     private Path download(UpdateInfo update) throws UpdateException {
@@ -1025,6 +1098,68 @@ public class UpdateService {
      */
     public synchronized void setRollbackTrigger(RollbackTrigger rollbackTrigger) {
         this.rollbackTrigger = rollbackTrigger;
+    }
+
+    /**
+     * Lazily created locator of the release bundle install root.
+     */
+    public synchronized InstallLocation getInstallLocation() {
+        if (installLocation == null) {
+            // The install root may be pinned through update.install.dir (config) or
+            // lg3d.install.dir (system property); the config value wins, then the
+            // property, then inference from the running jar.
+            installLocation = new InstallLocation(JarLocator::getCurrentJarPath, key -> {
+                if (InstallLocation.INSTALL_DIR_PROPERTY.equals(key)) {
+                    String fromConfig = config.getProperty(CONFIG_INSTALL_DIR, "").trim();
+                    if (!fromConfig.isEmpty()) {
+                        return fromConfig;
+                    }
+                }
+                return System.getProperty(key);
+            });
+        }
+        return installLocation;
+    }
+
+    /**
+     * Overrides the install location locator, used by tests.
+     */
+    public synchronized void setInstallLocation(InstallLocation installLocation) {
+        this.installLocation = installLocation;
+    }
+
+    /**
+     * Bundle installer applying a downloaded release bundle. An instance injected
+     * through {@link #setBundleInstaller(BundleUpdateInstaller)} is returned as-is;
+     * otherwise one is built once for the detected install root.
+     *
+     * @param installRoot the release bundle root to update
+     * @return the bundle installer
+     */
+    public synchronized BundleUpdateInstaller getBundleInstaller(Path installRoot) {
+        if (bundleInstaller == null) {
+            bundleInstaller = new BundleUpdateInstaller(
+                installRoot,
+                null,
+                null,
+                isBundleRelaunchEnabled(),
+                isPrivilegeEscalationEnabled());
+        }
+        return bundleInstaller;
+    }
+
+    /**
+     * Overrides the bundle installer, used by tests to inject a non-destructive one.
+     */
+    public synchronized void setBundleInstaller(BundleUpdateInstaller bundleInstaller) {
+        this.bundleInstaller = bundleInstaller;
+    }
+
+    /**
+     * Whether an immediate bundle install relaunches {@code lg3d.sh} after applying.
+     */
+    public boolean isBundleRelaunchEnabled() {
+        return Boolean.parseBoolean(config.getProperty(CONFIG_BUNDLE_RELAUNCH, "false"));
     }
 
     /**
