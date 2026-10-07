@@ -10,6 +10,28 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.64.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Signed releases: a live PGP signing key wired end-to-end** (`update-manager`,
+  `.github/workflows/release.yml`, `docs`) — the release-signing machinery already
+  existed on both ends (CI signs an armored detached `lg3d-<version>.zip.asc`;
+  `UpdateSignatureGate` / `UpdateSignatureVerifier` / `PGPKeyManager` verify it),
+  but was dormant: no key, no bundled public key and every client flag off. A
+  dedicated *Project Looking Glass Release Signing* RSA-4096 key (long id
+  `9A5DAD01CF4F5054`, fingerprint `C0D85590B541798C5280C7F69A5DAD01CF4F5054`,
+  no expiry, no passphrase) is now configured in the `RELEASE_SIGNING_KEY` +
+  `RELEASE_SIGNING_KEY_ID` repository secrets, so every release cut from now on is
+  signed and publishes `.zip.asc` + `public-key.asc` with `signatureUrl` /
+  `signingKeyId` populated in `version.json`. The matching **public** key is
+  committed at `update-manager/src/main/resources/public-key.asc` and
+  `update.signature.key.id` / `.fingerprint` are pre-set to it, so the strict
+  verification path is ready. Client *enforcement* stays deliberately off for this
+  first pass (`update.signature.enabled=false`, `update.signature.required=false`)
+  so an older client without the bundled key is not stranded; flipping it on is a
+  documented follow-up. The legacy checksum-only `UpdateVerifier.verifyWithSignature`
+  is now `@Deprecated` with an honest notice (it never cryptographically verified
+  the signature — real enforcement is `UpdateSignatureGate`), replacing the
+  misleading `TODO: Implement PGP signature verification` stubs. New
+  `docs/release-process.md` §13 documents the key, the out-of-band
+  `gpg --verify` check, the enforcement roll-out and the rotation/escrow procedure.
 - **Archive: a multi-format archive browser for the desktop** (`lg3d-apps`
   `org.jdesktop.lg3d.apps.archive`) — a new Utilities start-menu app that opens
   an archive, lists its entries, extracts it to a chosen folder and creates a new

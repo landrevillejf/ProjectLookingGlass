@@ -271,3 +271,85 @@ tag + Release in-run with the default `GITHUB_TOKEN` (no `RELEASE_PAT` is needed
 because it does not rely on a tag-push hand-off to fire). A `-dev`/`-rc`/`-alpha`/
 `-beta` version is published as a GitHub **pre-release**, so it never becomes
 `releases/latest`.
+
+---
+
+## 13. Signed releases (PGP)
+
+Every desktop release can carry an **armored detached OpenPGP signature** so the
+update-manager can prove a bundle came from the project and was not tampered with.
+The signing machinery is already implemented on both ends — [`release.yml`](../.github/workflows/release.yml)
+signs, and `update-manager`'s `UpdateSignatureGate` / `UpdateSignatureVerifier` /
+`PGPKeyManager` verify — so shipping a signed release is a matter of key material
+and configuration, not code.
+
+### 13.1 Current state (live)
+
+| Item | Value |
+| --- | --- |
+| Signing key | *Project Looking Glass Release Signing* (RSA 4096, sign-only, no expiry) |
+| Long key-id | `9A5DAD01CF4F5054` |
+| Fingerprint | `C0D85590B541798C5280C7F69A5DAD01CF4F5054` |
+| CI secrets | `RELEASE_SIGNING_KEY` (base64 armored private key, no passphrase) + `RELEASE_SIGNING_KEY_ID` — **configured** |
+| Bundled public key | [`update-manager/src/main/resources/public-key.asc`](../update-manager/src/main/resources/public-key.asc) — **committed** |
+| Client config | `update.signature.key.id` + `update.signature.fingerprint` pre-set; `update.signature.enabled=false`, `update.signature.required=false` |
+
+So releases cut from now on **are signed** (they publish `lg3d-<version>.zip.asc`
+and `public-key.asc`, and `version.json` carries `signatureUrl` + `signingKeyId`),
+but clients do **not yet enforce** the signature. Enforcement is turned on in a
+deliberate follow-up step (§13.4) once a signed release has been verified.
+
+### 13.2 What `release.yml` does with the secrets
+
+The *Sign the bundle* step decodes `RELEASE_SIGNING_KEY`, imports it, resolves the
+key-id (from `RELEASE_SIGNING_KEY_ID`, else the first secret key), and runs
+`gpg --batch --yes --pinentry-mode loopback --local-user <id> --armor
+--detach-sign` over the raw zip bytes — exactly the format
+`UpdateSignatureVerifier` parses. It then exports `public-key.asc`. The *Generate
+version.json* step adds `signatureUrl` / `signingKeyId` only when signing ran; an
+unsigned release simply omits them and clients fall back to checksum-only. If the
+secrets are ever removed, releases keep publishing — just unsigned.
+
+### 13.3 Verifying a published signature (out of band)
+
+```bash
+# Download the three assets from the GitHub Release, then:
+gpg --import public-key.asc
+gpg --verify lg3d-<version>.zip.asc lg3d-<version>.zip
+#   -> "Good signature from \"Project Looking Glass Release Signing ...\""
+#      key-id 9A5DAD01CF4F5054 / fingerprint C0D8 5590 ... CF4F 5054
+```
+
+The "not certified with a trusted signature" warning is expected for a
+freshly-imported key and does not affect the verification result.
+
+### 13.4 Turning on client enforcement (follow-up)
+
+Once §13.3 passes for a real release, flip the client defaults in
+[`update-manager/src/main/resources/update-config.properties`](../update-manager/src/main/resources/update-config.properties):
+
+1. `update.signature.enabled=true` — `UpdateService.verifySignature` now runs the
+   gate. A missing key/signature only logs a warning while `required=false`; a
+   present-but-invalid signature **always** fails.
+2. `update.signature.required=true` — fail-closed: an update whose signature
+   cannot be verified is rejected. Do this only after `enabled=true` has shipped
+   and proven stable, so older clients are not stranded.
+
+### 13.5 Key rotation & escrow
+
+- A **revocation certificate** was generated with the key and lives in the signing
+  operator's `~/.gnupg/openpgp-revocs.d/<fingerprint>.rev`; keep it (and an offline
+  export of the private key) in escrow.
+- The key has **no expiry**; rotation is manual. To rotate: generate a new key,
+  re-export `public-key.asc`, update `update.signature.key.id` / `.fingerprint`,
+  **ship a client release first**, then swap the `RELEASE_SIGNING_KEY` /
+  `RELEASE_SIGNING_KEY_ID` secrets — so clients already trust the new key before it
+  starts signing. Revoke the old key if it was compromised.
+- Restrict who can read/rotate the `RELEASE_SIGNING_*` secrets and protect `main`:
+  any run of `release.yml` can read the signing secret.
+
+> The signing secret is stored **without a passphrase** for non-interactive CI use,
+> so the GitHub secret *is* the protection. If a passphrase is preferred, add
+> `RELEASE_SIGNING_PASSPHRASE`; `release.yml` already passes it through
+> `--passphrase` when present.
+

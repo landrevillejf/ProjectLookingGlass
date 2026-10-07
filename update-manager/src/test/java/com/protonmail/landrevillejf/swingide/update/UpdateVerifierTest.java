@@ -57,6 +57,7 @@ class UpdateVerifierTest {
     }
     
     @Test
+    @SuppressWarnings("deprecation") // exercises the deprecated checksum-only path
     void testVerifyWithSignatureSuccess() throws IOException {
         Path jarFile = tempDir.resolve("test.jar");
         Path sigFile = tempDir.resolve("test.jar.asc");
@@ -73,6 +74,7 @@ class UpdateVerifierTest {
     }
     
     @Test
+    @SuppressWarnings("deprecation") // exercises the deprecated checksum-only path
     void testVerifyWithSignatureFailureWhenSignatureFileMissing() throws IOException {
         Path jarFile = tempDir.resolve("test.jar");
         Path sigFile = tempDir.resolve("missing.jar.asc");

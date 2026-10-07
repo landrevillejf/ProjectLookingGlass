@@ -19,6 +19,19 @@ import lombok.extern.slf4j.Slf4j;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * Checksum-only integrity verifier for a downloaded update.
+ * <p>
+ * This class verifies the SHA-256 checksum of an artifact and nothing else. It
+ * deliberately does <strong>not</strong> perform OpenPGP signature verification:
+ * the real, enforced detached-signature path lives in
+ * {@link com.protonmail.landrevillejf.swingide.update.security.UpdateSignatureGate}
+ * (over {@code UpdateSignatureVerifier} + {@code PGPKeyManager}), which
+ * {@code UpdateService.verifySignature} runs when {@code update.signature.enabled}
+ * is set. Checksum and signature are complementary: the checksum catches
+ * corruption, the signature catches a tampered source.
+ * </p>
+ */
 @Slf4j
 public class UpdateVerifier {
     
@@ -42,8 +55,8 @@ public class UpdateVerifier {
                 );
             }
             
-            // TODO: Implement PGP signature verification
-            // For now, we only verify checksum
+            // Checksum-only by design: OpenPGP signature verification is enforced
+            // separately by UpdateSignatureGate (see the class Javadoc), not here.
             log.info("Checksum verified successfully for: {}", jarFile);
             
             return new VerificationResult(
@@ -60,6 +73,17 @@ public class UpdateVerifier {
         }
     }
     
+    /**
+     * Checks the SHA-256 checksum and that a signature file is present, but does
+     * <strong>not</strong> cryptographically verify the OpenPGP signature.
+     *
+     * @deprecated this method gives no signature assurance — a well-formed but
+     *     forged {@code .asc} passes as long as the file exists. Use
+     *     {@link com.protonmail.landrevillejf.swingide.update.security.UpdateSignatureGate#verify}
+     *     for real detached-signature enforcement. Retained only for backward
+     *     compatibility.
+     */
+    @Deprecated
     public VerificationResult verifyWithSignature(
         Path jarFile,
         Path signatureFile
@@ -68,23 +92,22 @@ public class UpdateVerifier {
             // Verify checksum first
             String actualChecksum = ChecksumCalculator.calculateSHA256(jarFile);
             log.debug("File checksum: {}", actualChecksum);
-            
-            // TODO: Implement PGP signature verification
-            // This would require Bouncy Castle or similar library
-            // For now, we return success if the file exists and has a valid checksum
-            
+
+            // NOTE: no OpenPGP verification happens here (see the deprecation
+            // notice); only the presence of the signature file is checked. Real
+            // signature enforcement is UpdateSignatureGate.
             if (!Files.exists(signatureFile)) {
                 return new VerificationResult(
                     false,
                     "Signature file not found"
                 );
             }
-            
-            log.info("Signature verification not yet implemented, skipping");
-            
+
+            log.info("Signature not cryptographically verified here; use UpdateSignatureGate");
+
             return new VerificationResult(
                 true,
-                "Checksum verified (signature verification not implemented)"
+                "Checksum verified (signature verification not performed)"
             );
             
         } catch (Exception e) {
