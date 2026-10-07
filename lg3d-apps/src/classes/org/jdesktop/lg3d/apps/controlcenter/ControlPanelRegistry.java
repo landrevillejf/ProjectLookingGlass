@@ -24,7 +24,7 @@ import java.util.logging.Logger;
  * (Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
  * Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications,
  * Network, Bluetooth, Printing, Date & Time, Language & Region, Users, System,
- * Services, System Update, Schedule, Task Scheduler) are registered on first access; extra panels can be
+ * Services, System Update, Storage, Schedule, Task Scheduler) are registered on first access; extra panels can be
  * contributed with {@link #register(ControlPanel)} before the control center
  * window is built.
  *
@@ -186,6 +186,7 @@ public final class ControlPanelRegistry {
         addDefault(SystemInfoPanel::new, "System");
         addDefault(ServicesPanel::new, "Services");
         addDefault(SystemUpdatePanel::new, "System Update");
+        addDefault(StoragePanel::new, "Storage");
         addDefault(SchedulePanel::new, "Schedule");
         addDefault(TaskSchedulerPanel::new, "Task Scheduler");
     }

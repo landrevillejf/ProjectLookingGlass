@@ -81,6 +81,27 @@ work to make it build and run on a current toolchain.
   non-LFS host). `LfsUpdateService` is pure/injectable (command vectors,
   `stripAnsi`, `interpretCheck`, lenient `parseStatus`) with 9 headless tests,
   plus a headless `SystemUpdatePanelTest`.
+- **LFS system management Phase 3a: a Storage & LUKS control-center panel**
+  (`lg3d-apps`, `lg3d-core`) — adds `StoragePanel`, a thin front-end over the new
+  `StorageService`/`LuksService`, registered as the Control Center's 24th category
+  (“Storage”). It lists block devices read-only from `lsblk -P` in a `JList` (never
+  a combo box, so it survives offscreen `SwingNode` hosting), reads a device UUID
+  with `blkid` and shows `cryptsetup status`, and drives the LUKS lifecycle through
+  the owning CLIs — it never re-implements encryption and never edits
+  `/etc/crypttab`/`/etc/fstab` directly. `luksOpen`/`luksClose`/`luksAddKey` are
+  **mutating** (confirmed, escalated per-operation via `PrivilegedRunner`/polkit);
+  `luksFormat` and the `lfs-encrypt-disk` helper are **destructive** (they erase all
+  data) so they additionally require an explicit **typed** confirmation of the
+  device path before the polkit prompt. Passphrases are collected into a
+  `JPasswordField` and fed through **stdin**, never as command-line arguments. Every
+  op runs **off the EDT** behind an indeterminate progress bar with all controls
+  disabled while in flight (serialization), and a non-zero exit is shown verbatim as
+  state. The panel degrades to read-only when `cryptsetup` is absent and to an
+  “unavailable” note (spawning nothing) when `lsblk` is absent. `StorageService`
+  (lsblk/blkid vectors, `parseDevices`/`BlockDevice`) and `LuksService` (the exact
+  §4.5 `cryptsetup`/`lfs-encrypt-disk` vectors, mutating/destructive `Operation`
+  classification, `parseStatus`) are pure/injectable, with 8 + 13 headless tests plus
+  a headless `StoragePanelTest`.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
