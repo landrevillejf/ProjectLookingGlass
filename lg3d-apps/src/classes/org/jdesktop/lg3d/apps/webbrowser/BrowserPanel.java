@@ -18,12 +18,15 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.scene.Scene;
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -38,7 +41,12 @@ import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
+import javax.swing.InputMap;
 import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionBroker;
+import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionRegistry;
+import org.jdesktop.lg3d.apps.webbrowser.ext.ToolbarContribution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +84,13 @@ public class BrowserPanel extends JPanel {
     private final List<DownloadRecord> downloads = new ArrayList<>(store.loadDownloads());
     private final BrowserSettings settings = store.loadSettings();
 
+    /** Extension discovery + enable/grant state, and the hook-dispatch broker. */
+    private final ExtensionRegistry extensions = new ExtensionRegistry(store);
+    private final ExtensionBroker broker = new ExtensionBroker(extensions,
+            url -> run(fx -> fx.newTab(url)),
+            url -> run(fx -> fx.load(url)),
+            this::postStatus);
+
     private final JFXPanel fxPanel = new JFXPanel();   // boots the FX toolkit on the EDT
     private final JPanel tabStrip = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
     private final JButton newTabButton = new JButton("+");
@@ -96,6 +111,7 @@ public class BrowserPanel extends JPanel {
     private final JButton downloadsButton = new JButton("Downloads");
     private final JButton historyButton = new JButton("History");
     private final JButton settingsButton = new JButton("Settings");
+    private final JButton extensionsButton = new JButton("Extensions");
     private final JButton closeButton = new JButton("Close");
 
     private final JLabel securityLabel = new JLabel(" ");
@@ -112,6 +128,7 @@ public class BrowserPanel extends JPanel {
         super(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
 
+        scanExtensions();
         add(buildTabStripRow(), BorderLayout.NORTH);
         add(fxPanel, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
@@ -119,7 +136,22 @@ public class BrowserPanel extends JPanel {
         progressBar.setPreferredSize(new Dimension(120, 14));
         progressBar.setStringPainted(false);
         updateNavEnabled(false);
+        installKeyBindings();
         bootJavaFx();
+    }
+
+    /**
+     * Discovers extensions (built-ins + {@code ~/.lg3d/webbrowser/extensions}
+     * jars), applies persisted enable/grant state and fires the startup hook.
+     * Guarded so a bad jar or a throwing extension can never stop the browser
+     * from opening.
+     */
+    private void scanExtensions() {
+        try {
+            extensions.scan();
+        } catch (RuntimeException e) {
+            LOG.warn("Extension scan failed; continuing without extensions", e);
+        }
     }
 
     /** Sets the callback invoked when the user presses Close. */
@@ -217,17 +249,55 @@ public class BrowserPanel extends JPanel {
         historyButton.addActionListener(e -> showHistory());
         settingsButton.setToolTipText("Settings");
         settingsButton.addActionListener(e -> showSettings());
+        extensionsButton.setToolTipText("Manage extensions");
+        extensionsButton.addActionListener(e -> showExtensions());
         bar.add(sourceButton);
         bar.add(downloadsButton);
         bar.add(historyButton);
         bar.add(settingsButton);
+        bar.add(extensionsButton);
         bar.addSeparator();
+
+        addToolbarContributions(bar);
 
         closeButton.setToolTipText("Close the browser");
         closeButton.addActionListener(e -> closeBrowser());
         bar.add(closeButton);
         bar.add(Box.createHorizontalGlue());
         return bar;
+    }
+
+    /**
+     * Renders one button per {@link ToolbarContribution} from enabled extensions
+     * granted TOOLBAR. Contributions run their action on the EDT.
+     */
+    private void addToolbarContributions(JToolBar bar) {
+        List<ToolbarContribution> contributions;
+        try {
+            contributions = broker.toolbarContributions();
+        } catch (RuntimeException e) {
+            LOG.warn("Could not collect toolbar contributions", e);
+            return;
+        }
+        if (contributions.isEmpty()) {
+            return;
+        }
+        bar.addSeparator();
+        for (ToolbarContribution c : contributions) {
+            JButton button = new JButton(c.getLabel());
+            button.setToolTipText(c.getTooltip());
+            button.addActionListener(e -> {
+                Runnable action = c.getOnClick();
+                if (action != null) {
+                    try {
+                        action.run();
+                    } catch (RuntimeException ex) {
+                        LOG.warn("Toolbar contribution {} failed", c.getId(), ex);
+                    }
+                }
+            });
+            bar.add(button);
+        }
     }
 
     private JPanel buildStatusBar() {
@@ -259,6 +329,7 @@ public class BrowserPanel extends JPanel {
             WebKitThreadGuard.installOnCurrentThread();
             try {
                 FxBrowser browser = new FxBrowser(new PanelListener(), settings);
+                browser.setExtensionBroker(broker);
                 Scene scene = new Scene(browser.createRoot(), javafx.scene.paint.Color.WHITE);
                 fxPanel.setScene(scene);
                 fx = browser;
@@ -270,6 +341,13 @@ public class BrowserPanel extends JPanel {
                     }
                 }
                 ready = true;
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        broker.notifyStarted();
+                    } catch (RuntimeException e) {
+                        LOG.warn("Extension startup hook failed", e);
+                    }
+                });
             } catch (Throwable t) {
                 LOG.error("Could not start the JavaFX browser", t);
                 SwingUtilities.invokeLater(() -> statusLabel.setText(
@@ -414,11 +492,30 @@ public class BrowserPanel extends JPanel {
                     }
                 });
                 tabStrip.add(button);
+                tabStrip.add(buildTabCloseButton(index, browser.getModel().size() > 1));
             }
         }
         tabStrip.add(newTabButton);
         tabStrip.revalidate();
         tabStrip.repaint();
+    }
+
+    /**
+     * The little {@code \u00D7} that closes a tab (the tab strip previously only
+     * supported middle-click). Disabled on the last remaining tab so the browser
+     * always keeps one open, matching {@link FxBrowser#closeTab}.
+     */
+    private JButton buildTabCloseButton(int index, boolean enabled) {
+        JButton close = new JButton("\u00D7");
+        close.setToolTipText("Close tab");
+        close.setFont(close.getFont().deriveFont(Font.PLAIN, 12f));
+        close.setMargin(new java.awt.Insets(0, 4, 0, 4));
+        close.setFocusable(false);
+        close.setBorderPainted(false);
+        close.setContentAreaFilled(false);
+        close.setEnabled(enabled);
+        close.addActionListener(e -> run(fx -> fx.closeTab(index)));
+        return close;
     }
 
     // ------------------------------------------------------------------
@@ -580,6 +677,7 @@ public class BrowserPanel extends JPanel {
         form.add(cookies);
         form.add(priv);
         form.add(restore);
+        form.add(buildPrivacyRow());
 
         int result = JOptionPane.showConfirmDialog(this, form, "Settings",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -607,6 +705,111 @@ public class BrowserPanel extends JPanel {
         form.add(row);
     }
 
+    /** Privacy actions row: clear the stored history and the cookie jar. */
+    private JPanel buildPrivacyRow() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        JButton clearHistory = new JButton("Clear history");
+        clearHistory.addActionListener(e -> clearHistory());
+        JButton clearCookies = new JButton("Clear cookies");
+        clearCookies.addActionListener(e -> clearCookies());
+        row.add(clearHistory);
+        row.add(clearCookies);
+        return row;
+    }
+
+    private void clearHistory() {
+        int result = JOptionPane.showConfirmDialog(this,
+                "Clear all browsing history?", "Clear history",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (result != JOptionPane.YES_OPTION) {
+            return;
+        }
+        history.clear();
+        store.saveHistory(history.list(), settings.getHistoryLimit());
+        statusLabel.setText("History cleared");
+    }
+
+    private void clearCookies() {
+        int result = JOptionPane.showConfirmDialog(this,
+                "Clear all cookies?", "Clear cookies",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (result != JOptionPane.YES_OPTION) {
+            return;
+        }
+        run(fx -> fx.clearCookies());
+        statusLabel.setText("Cookies cleared");
+    }
+
+    /** Opens the modal extension manager (enable/disable, permissions, rescan). */
+    private void showExtensions() {
+        try {
+            new ExtensionManagerDialog(this, extensions).setVisible(true);
+        } catch (RuntimeException e) {
+            LOG.warn("Could not open the extension manager", e);
+            JOptionPane.showMessageDialog(this,
+                    "Could not open the extension manager: " + e.getMessage(),
+                    "Extensions", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Keyboard shortcuts (EDT)
+    // ------------------------------------------------------------------
+
+    /**
+     * Binds the browser-completeness shortcuts at the window level so they work
+     * regardless of which child has focus: Ctrl+T new tab, Ctrl+W close tab,
+     * Ctrl+L focus address, Ctrl+R reload, Ctrl+F find, Ctrl+Tab / Ctrl+Shift+Tab
+     * cycle tabs.
+     */
+    private void installKeyBindings() {
+        InputMap im = getInputMap(WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = getActionMap();
+        bind(im, am, "ctrl T", "newTab", e -> openNewTab());
+        bind(im, am, "ctrl W", "closeTab", e -> closeActiveTab());
+        bind(im, am, "ctrl L", "focusAddress", e -> {
+            urlField.requestFocusInWindow();
+            urlField.selectAll();
+        });
+        bind(im, am, "ctrl R", "reload", e -> run(fx -> fx.reload()));
+        bind(im, am, "ctrl F", "find", e -> showFind());
+        bind(im, am, "ctrl TAB", "nextTab", e -> cycleTab(1));
+        bind(im, am, "ctrl shift TAB", "prevTab", e -> cycleTab(-1));
+    }
+
+    private void bind(InputMap im, ActionMap am, String stroke, String key,
+                      ActionListener action) {
+        im.put(KeyStroke.getKeyStroke(stroke), key);
+        am.put(key, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                action.actionPerformed(e);
+            }
+        });
+    }
+
+    private void closeActiveTab() {
+        FxBrowser browser = fx;
+        if (browser == null) {
+            return;
+        }
+        int index = browser.getActiveIndex();
+        if (index >= 0 && browser.getModel().size() > 1) {
+            run(fx -> fx.closeTab(index));
+        }
+    }
+
+    private void cycleTab(int delta) {
+        run(fx -> {
+            int n = fx.getModel().size();
+            if (n <= 1) {
+                return;
+            }
+            int next = ((fx.getActiveIndex() + delta) % n + n) % n;
+            fx.selectTab(next);
+        });
+    }
+
     // ------------------------------------------------------------------
     // Persistence (EDT)
     // ------------------------------------------------------------------
@@ -631,6 +834,11 @@ public class BrowserPanel extends JPanel {
         persistSession();
         store.saveHistory(history.list(), settings.getHistoryLimit());
         store.saveBookmarks(new ArrayList<>(bookmarks.list()));
+        try {
+            broker.notifyStopping();
+        } catch (RuntimeException e) {
+            LOG.warn("Extension shutdown hook failed", e);
+        }
         FxBrowser browser = fx;
         if (browser != null) {
             browser.shutdown();
@@ -641,6 +849,11 @@ public class BrowserPanel extends JPanel {
     // ------------------------------------------------------------------
     // Small helpers
     // ------------------------------------------------------------------
+
+    /** Posts a status-line message from any thread onto the EDT. */
+    private void postStatus(String msg) {
+        SwingUtilities.invokeLater(() -> statusLabel.setText(msg));
+    }
 
     private String statusTitle(String url) {
         FxBrowser browser = fx;

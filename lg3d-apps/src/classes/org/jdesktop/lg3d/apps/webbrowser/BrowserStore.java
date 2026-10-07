@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +54,7 @@ public final class BrowserStore {
     static final String HISTORY_FILE = "history.json";
     static final String DOWNLOADS_FILE = "downloads.json";
     static final String SESSION_FILE = "session.json";
+    static final String EXTENSIONS_FILE = "extensions.json";
 
     private final Path configDir;
     private final ObjectMapper mapper;
@@ -177,6 +179,20 @@ public final class BrowserStore {
     /** Persists the open-tab URLs. */
     public void saveSession(List<String> urls) {
         write(SESSION_FILE, nonNull(urls));
+    }
+
+    // ------------------------------------------------------------------
+    // Extensions (enable / permission-grant state)
+    // ------------------------------------------------------------------
+
+    /** @return the persisted extension states, or an empty list on any error. */
+    public List<ExtensionState> loadExtensionStates() {
+        return readList(EXTENSIONS_FILE, new TypeReference<List<ExtensionState>>() { });
+    }
+
+    /** Persists the extension enable/grant states. */
+    public void saveExtensionStates(List<ExtensionState> states) {
+        write(EXTENSIONS_FILE, nonNull(states));
     }
 
     // ------------------------------------------------------------------

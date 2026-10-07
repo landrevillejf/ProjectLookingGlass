@@ -23,6 +23,11 @@ sourceSets {
             // as resources so the app can visualize its own code.
             srcDir 'src/classes'
             include 'org/**'
+            // ServiceLoader registrations for the Web Browser extension SPI (the
+            // built-in reference extensions under .../webbrowser/ext/builtin).
+            // These live outside the org/** tree, so they need an explicit
+            // include to be bundled into lg3d-apps.jar.
+            include 'META-INF/services/**'
             // Specifically include the .java files for CallViewer
             include 'org/jdesktop/lg3d/apps/callviewer/*.java'
             include 'org/jdesktop/lg3d/apps/cdviewer/CDViewer.java'

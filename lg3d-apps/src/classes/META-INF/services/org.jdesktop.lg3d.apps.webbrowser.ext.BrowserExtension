@@ -1,0 +1,3 @@
+org.jdesktop.lg3d.apps.webbrowser.ext.builtin.PopupBlockerExtension
+org.jdesktop.lg3d.apps.webbrowser.ext.builtin.TrackerBlockerExtension
+org.jdesktop.lg3d.apps.webbrowser.ext.builtin.HttpsUpgradeExtension

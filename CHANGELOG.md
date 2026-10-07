@@ -10,6 +10,48 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.59.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Web Browser: a developer extension/plugin API (Java SPI), an in-browser
+  manager, built-in reference extensions, browser-completeness upgrades and a
+  proper window icon** (`lg3d-apps` `org.jdesktop.lg3d.apps.webbrowser` + a new
+  `...webbrowser.ext` SPI package) — the JavaFX/WebKit browser gains a
+  first-class extension system. `BrowserExtension` is the SPI (all-default
+  hooks: `onNavigate`, `onPopup`, `onPageLoaded`, `onBrowserStarted/Stopping`,
+  `toolbarContributions`), published with immutable value types
+  (`ExtensionManifest`, a `Permission` enum, `NavigationRequest`/`Decision`,
+  `PopupRequest`/`Decision`, `PageContext`, `BrowserContext`,
+  `ToolbarContribution`) that hold no AWT/JavaFX reference, so extensions are
+  headless-testable. `ExtensionRegistry` discovers built-ins through
+  `ServiceLoader` (`META-INF/services`) *and* third-party jars dropped into
+  `~/.lg3d/webbrowser/extensions` via a scoped child `URLClassLoader`; a
+  third-party extension starts **disabled with nothing granted** until the user
+  approves it in the new **Extensions** manager dialog (`ExtensionManagerDialog`:
+  enable/disable, an explicit permission-grant gate, per-extension permission
+  editing, rescan, open-folder), and the enable/grant state persists as
+  `extensions.json` through `BrowserStore`. `ExtensionBroker` dispatches every
+  hook behind the granted-permission gate and isolates failures (a throwing
+  extension is logged and skipped, never fatal); `FxBrowser` consults it for the
+  popup handler (a `POPUP` veto returns `null`, suppressing the window),
+  `loadInternal` (a `NAVIGATE` BLOCK skips the load, a REDIRECT loads the
+  target) and `Worker.State.SUCCEEDED` (the `onPageLoaded` content-script point,
+  whose script runner is live only for a `CONTENT_SCRIPT` grant). Three built-in
+  reference extensions ship in-tree and exercise the same SPI: **Popup Blocker**
+  (blocks non-user-initiated popups), **Tracker Blocker** (vetoes a bundled
+  tracker/ad host list + hides common ad containers) and **HTTPS Upgrade**
+  (redirects http→https except local hosts). Browser completeness: window-level
+  shortcuts (Ctrl+T/W/L/R/F, Ctrl+Tab / Ctrl+Shift+Tab), a per-tab close button
+  in the strip, and Settings **Clear history** / **Clear cookies** privacy
+  actions. The standalone/child-process `WebBrowserApp` frame now sets its icon
+  (`setIconImage` from the assembled `resources/images/icon/webbrowser.png`),
+  fixing the bare-`JFrame` OS-default "home folder" glyph; the 2D MDI frame and
+  taskbar already resolve the descriptor icon. The security model is documented
+  honestly as a **consent/UX boundary, not a JVM sandbox** (in-JVM code is
+  trusted). **New headless JUnit 5 tests**: `ExtensionManifestTest`,
+  `ExtensionRegistryTest` (classpath + temp-dir jar discovery, the permission
+  gate, enable/grant persistence), `ExtensionBrokerTest` (dispatch, exception
+  isolation, permission enforcement, block/redirect decisions, content-script
+  gating, toolbar de-dup), `BrowserStoreExtensionsTest` (extensions.json
+  round-trip + defensive reads) and `PopupBlocker`/`TrackerBlocker`/
+  `HttpsUpgradeExtensionTest`. See `docs/webbrowser-extensions.md`.
 - **Advanced Search: a streaming file &amp; content finder bound to Ctrl+Shift+F**
   (`lg3d-core` `org.jdesktop.lg3d.utils.search` +
   `...displayserver.desktop2d`; `lg3d-apps` `org.jdesktop.lg3d.apps.search`) — a
@@ -278,6 +320,27 @@ work to make it build and run on a current toolchain.
   real audio tool or touch a sound card.
 
 ### Fixed
+- **JOGL's `AppContextInfo` reflection warning is gone from the dev-mode
+  console log** (`lg3d-core`, the `:lg3d-core:run` task) — JOGL's AWT/JAWT
+  bridge (exercised when attaching the GL layer on macOS) reflectively calls
+  `sun.awt.AppContext.getAppContext()` via `setAccessible(true)`. JDK 21's
+  strong `java.desktop` encapsulation let the existing `--add-exports
+  java.desktop/sun.awt.image=ALL-UNNAMED` through for direct access but not
+  for that *reflective* `setAccessible` on the (different) `sun.awt` package,
+  which needs it *opened*, so every launch logged an
+  `InaccessibleObjectException`/`IllegalAccessException` stack trace from the
+  `J3D-Renderer` and `AppKit` threads. The `run` task now also passes
+  `--add-opens java.desktop/sun.awt=ALL-UNNAMED` (a superset of the existing
+  export, harmless on every platform) alongside it.
+  **Note:** an attempt in this same change to also force real exclusive
+  full-screen on macOS via `GraphicsDevice#setFullScreenWindow` was reverted
+  before merging — forcing an already-realized `Canvas3D`'s native GL surface
+  into AWT exclusive full-screen mode is **not safe to do after the window is
+  shown** and broke the running desktop in manual testing. The underlying
+  "dev-mode `NoBorderFullScreen` doesn't cover the real screen on macOS" issue
+  (menu bar / Dock painting over the undecorated frame) is **still open** and
+  needs a safer fix verified with an attached display, not headless log
+  checks.
 - **Web Browser: WebSocket pages no longer spam `UnsatisfiedLinkError` stack
   traces (2D desktop + standalone)** (`lg3d-apps`
   `org.jdesktop.lg3d.apps.webbrowser`) — the Linux WebKit native library shipped
@@ -1632,27 +1695,6 @@ work to make it build and run on a current toolchain.
   contract and that Close/maximize delegate to the host callback;
   `Desktop2DHostedPanelTest` asserts `openHostedPanel` returns null with no 2D
   instance).
-- **JOGL's `AppContextInfo` reflection warning is gone from the dev-mode
-  console log** (`lg3d-core`, the `:lg3d-core:run` task) — JOGL's AWT/JAWT
-  bridge (exercised when attaching the GL layer on macOS) reflectively calls
-  `sun.awt.AppContext.getAppContext()` via `setAccessible(true)`. JDK 21's
-  strong `java.desktop` encapsulation let the existing `--add-exports
-  java.desktop/sun.awt.image=ALL-UNNAMED` through for direct access but not
-  for that *reflective* `setAccessible` on the (different) `sun.awt` package,
-  which needs it *opened*, so every launch logged an
-  `InaccessibleObjectException`/`IllegalAccessException` stack trace from the
-  `J3D-Renderer` and `AppKit` threads. The `run` task now also passes
-  `--add-opens java.desktop/sun.awt=ALL-UNNAMED` (a superset of the existing
-  export, harmless on every platform) alongside it.
-  **Note:** an attempt in this same change to also force real exclusive
-  full-screen on macOS via `GraphicsDevice#setFullScreenWindow` was reverted
-  before merging — forcing an already-realized `Canvas3D`'s native GL surface
-  into AWT exclusive full-screen mode is **not safe to do after the window is
-  shown** and broke the running desktop in manual testing. The underlying
-  "dev-mode `NoBorderFullScreen` doesn't cover the real screen on macOS" issue
-  (menu bar / Dock painting over the undecorated frame) is **still open** and
-  needs a safer fix verified with an attached display, not headless log
-  checks.
 - **The 2D start-up splash now paints instead of showing a grey rectangle**
   (`lg3d-core`, `org.jdesktop.lg3d.displayserver.Desktop2DSplash`) — the splash
   added for the 2D/Swing desktop mapped its window and then immediately handed
