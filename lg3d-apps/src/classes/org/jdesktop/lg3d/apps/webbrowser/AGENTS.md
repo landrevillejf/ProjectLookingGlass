@@ -18,6 +18,7 @@
 | Descriptor | `src/config/webbrowser.lgcfg` → `config/demo` |
 | Engine | **JavaFX `WebView` (WebKit)** via OpenJFX `21.0.12`, `linux` classifier (GPLv2 + Classpath Exception) — the first OpenJFX dependency in the repo |
 | Extensions | Java SPI (`ServiceLoader`) in `...webbrowser.ext`; built-ins via `META-INF/services`, third-party jars in `~/.lg3d/webbrowser/extensions`; manager = `ExtensionManagerDialog` (see [`docs/webbrowser-extensions.md`](../../../../../../../../docs/webbrowser-extensions.md)) |
+| Extension API jar | `:lg3d-apps:webBrowserApiJar` / `:webBrowserApiSourcesJar` package the `...webbrowser.ext` SPI + value types only (no internal `ExtensionRegistry`/`ExtensionBroker`/`ExtensionState`, no `ext.builtin`) into `lg3d-webbrowser-ext-api-<version>.jar`; `.github/workflows/release-webbrowser-api.yml` (manual `workflow_dispatch`) publishes it to a dedicated `webbrowser-api-v<version>` GitHub Release, independent of the desktop `v*` release |
 | Persistence | Jackson JSON under `~/.lg3d/webbrowser/` (override with `-Dlg3d.webbrowser.dir`) |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -75,7 +76,14 @@
   which the popup handler, `loadInternal` and the `SUCCEEDED` page-loaded hook
   consult. Three in-tree reference extensions (`ext.builtin`): `PopupBlocker`,
   `TrackerBlocker`, `HttpsUpgrade`. Enable/grant state persists as
-  `extensions.json` via `BrowserStore`.
+  `extensions.json` via `BrowserStore`. The SPI doubles as a **published API**:
+  `:lg3d-apps:webBrowserApiJar` / `:webBrowserApiSourcesJar` package just the
+  developer contract (the `ext` SPI + value types, excluding
+  `ExtensionRegistry`/`ExtensionBroker`/`ExtensionState` and `ext.builtin`) into
+  `lg3d-webbrowser-ext-api-<version>.jar`, which
+  `.github/workflows/release-webbrowser-api.yml` publishes to a dedicated
+  `webbrowser-api-v<version>` GitHub Release on manual dispatch (independent of
+  the desktop `v*` release).
 - **WebBrowser** — the 3D entry: installs the hosted look and feel and shows
   `BrowserPreviewPanel` in a `TitledSwingWindow`. Builds **no** JavaFX.
 - **BrowserPreviewPanel** — pure Swing, **imports no `javafx.*`**: product art, a

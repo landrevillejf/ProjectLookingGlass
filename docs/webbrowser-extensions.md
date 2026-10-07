@@ -121,8 +121,38 @@ com.example.blocker.MyPopupBlocker
 ```
 
 Build a jar containing your classes and that service file. Your jar must be
-compiled against `lg3d-apps` (for the `ext` package); mark it `compileOnly` —
-the browser provides the SPI at runtime.
+compiled against the extension API; mark that dependency `compileOnly` — the
+browser provides the SPI at runtime, so nothing needs bundling.
+
+### Getting the API jar
+
+You do **not** need all of `lg3d-apps` to compile an extension. The SPI is
+published on its own as a small, stable **`lg3d-webbrowser-ext-api-<version>.jar`**
+(plus a `-sources.jar` for IDEs) that contains exactly
+`org.jdesktop.lg3d.apps.webbrowser.ext` — the `BrowserExtension` interface and its
+immutable value types — and **not** the browser's internal runtime
+(`ExtensionRegistry` / `ExtensionBroker` / `ExtensionState`) nor the `ext.builtin`
+reference extensions. Download it from the dedicated **`webbrowser-api-v<version>`**
+GitHub Release (the repository's *Releases* page), then compile against it:
+
+```gradle
+// Gradle — provided by the browser at runtime, so never bundle it.
+compileOnly files('libs/lg3d-webbrowser-ext-api-<version>.jar')
+```
+
+That jar is produced by two on-demand Gradle tasks:
+
+```bash
+./gradlew :lg3d-apps:webBrowserApiJar :lg3d-apps:webBrowserApiSourcesJar
+# add -PreleaseVersion=<v> to stamp a specific version instead of the build's own
+```
+
+Maintainers publish it by running the **Release Web Browser API** workflow
+(`.github/workflows/release-webbrowser-api.yml`, *Actions → Run workflow*,
+optionally with a `version` input); it builds both jars and uploads them — with a
+`SHA256SUMS.txt` — to the `webbrowser-api-v<version>` release. This is independent
+of the desktop-bundle release (`release.yml`, the `v*` tag), so cutting one never
+cuts the other.
 
 ---
 

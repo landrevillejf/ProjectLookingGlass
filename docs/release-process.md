@@ -246,3 +246,28 @@ click.
 | `release/X.Y.Z` PR exists but no new RC | `refresh-rc` only fires on a **push to an existing** branch (`created == false`). Push a commit, or run `cut-rc` manually. |
 | Notes missing the PR appendix | `gh` was unauthenticated/offline at build time. The CHANGELOG section is still emitted; re-run once `RELEASE_PAT`/`gh` is available. |
 | Wrong next version | Version comes from commit types since the last **stable** tag. Check `bash scripts/release/next-version.sh`, or pass an explicit `version` override on dispatch. |
+
+---
+
+## 12. Standalone artifact releases (outside the train)
+
+Not every releasable artifact is the desktop bundle. Some are published by their
+own small, on-demand workflows that are **independent of the release train** and of
+`release.yml`:
+
+| Artifact | Workflow | Trigger | Release tag |
+| --- | --- | --- | --- |
+| Web Browser extension API jar — `lg3d-webbrowser-ext-api-<version>.jar` + `-sources.jar` + `SHA256SUMS.txt` | [`.github/workflows/release-webbrowser-api.yml`](../.github/workflows/release-webbrowser-api.yml) | manual (`workflow_dispatch`, optional `version` input) | `webbrowser-api-v<version>` |
+
+The Web Browser extension API jar packages only the
+`org.jdesktop.lg3d.apps.webbrowser.ext` SPI + value types (see
+[`docs/webbrowser-extensions.md`](webbrowser-extensions.md)), so extension
+developers compile against a small, stable artifact instead of all of `lg3d-apps`.
+It is built by the on-demand `:lg3d-apps:webBrowserApiJar` /
+`:webBrowserApiSourcesJar` Gradle tasks. Its `webbrowser-api-v*` tag namespace
+deliberately does **not** match `release.yml`'s `v*` glob, so publishing the API
+jar never triggers a desktop release (and vice-versa); the workflow creates its own
+tag + Release in-run with the default `GITHUB_TOKEN` (no `RELEASE_PAT` is needed,
+because it does not rely on a tag-push hand-off to fire). A `-dev`/`-rc`/`-alpha`/
+`-beta` version is published as a GitHub **pre-release**, so it never becomes
+`releases/latest`.
