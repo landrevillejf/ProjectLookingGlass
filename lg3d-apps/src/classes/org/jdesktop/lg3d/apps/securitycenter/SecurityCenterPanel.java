@@ -48,8 +48,10 @@ import org.jdesktop.lg3d.utils.system.SecurityService;
 /**
  * The Security Center's user interface: an <em>Antivirus</em> tab that scans a
  * chosen target through an installed ClamAV, a <em>Security Overview</em> tab
- * that aggregates the host's SELinux / firewall / antivirus posture, and a scan
- * history dock on the right. One panel serves both the 3D desktop (hosted on a
+ * that aggregates the host's SELinux / firewall / AppArmor / SSH / antivirus
+ * posture, a <em>Privacy</em> tab ({@link PrivacyPanel}) that drives the tor
+ * service and shows its read-only config and log, and a scan history dock on the
+ * right. One panel serves both the 3D desktop (hosted on a
  * SwingNode inside a Frame3D by the {@code SecurityCenter} wrapper) and the
  * 2D/Swing desktop (opened as an MDI internal frame via
  * {@code Desktop2DAppRegistry.PANEL_APPS}).
@@ -106,6 +108,9 @@ public class SecurityCenterPanel extends JPanel {
     private final JLabel lastScanLabel = new JLabel("Last scan: never");
     private final JButton refreshBtn = new JButton("Refresh");
 
+    /** The tabbed pane (Antivirus / Security Overview / Privacy); a field so a test can inspect it. */
+    private final JTabbedPane tabs = new JTabbedPane();
+
     private Runnable onClose;
     private volatile boolean scanning;
     private volatile boolean updating;
@@ -153,9 +158,9 @@ public class SecurityCenterPanel extends JPanel {
     // ------------------------------------------------------------------
 
     private Component buildTabs() {
-        JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Antivirus", buildAntivirusTab());
         tabs.addTab("Security Overview", buildOverviewTab());
+        tabs.addTab("Privacy", new PrivacyPanel());
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 1 && snapshot == null
                     && settings.isRefreshOverviewOnOpen()) {
@@ -883,5 +888,15 @@ public class SecurityCenterPanel extends JPanel {
     /** The overview SSH-daemon posture row text. */
     String sshText() {
         return sshValue.getText();
+    }
+
+    /** The number of top-level tabs (Antivirus / Security Overview / Privacy). */
+    int tabCount() {
+        return tabs.getTabCount();
+    }
+
+    /** The title of tab {@code i}. */
+    String tabTitle(int i) {
+        return tabs.getTitleAt(i);
     }
 }

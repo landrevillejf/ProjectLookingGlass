@@ -171,6 +171,16 @@ class SecurityCenterPanelTest {
     }
 
     @Test
+    @DisplayName("the panel offers Antivirus / Security Overview / Privacy tabs")
+    void hasThreeTabs(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        assertEquals(3, panel.tabCount());
+        assertEquals("Antivirus", panel.tabTitle(0));
+        assertEquals("Security Overview", panel.tabTitle(1));
+        assertEquals("Privacy", panel.tabTitle(2));
+    }
+
+    @Test
     @DisplayName("renderHostServices drives the AppArmor / SSH rows without probing")
     void renderHostServices(@TempDir Path dir) {
         SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));

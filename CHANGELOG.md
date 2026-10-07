@@ -150,6 +150,30 @@ work to make it build and run on a current toolchain.
   `getenforce`, `selinuxenabled`, `aa-status`, `nft list ruleset` and the
   init-specific `status sshd` shapes) is injectable with 27 headless tests, plus a
   headless `FirewallPanelTest` and a new `renderHostServices` overview case.
+- **LFS system management Phase 4b: Privacy — tor over the init abstraction**
+  (`lg3d-apps`, `lg3d-core`) — adds the shared
+  `org.jdesktop.lg3d.utils.system.PrivacyService`, the §4.7 privacy front-end: it
+  detects whether `tor` and a supported init system are present and whether
+  `/etc/tor/torrc` and `/var/log/tor/notices.log` exist, then drives the tor
+  lifecycle (status / start / stop / restart) by **delegating entirely to
+  `InitSystemService`** (§4.1) with `tor` as the service name — there is no
+  tor-specific reimplementation (§6). The config and the notices log are shown
+  **read-only** through bounded NIO file reads (a trailing 256 KiB window, so a
+  large log cannot exhaust memory); the panel never writes `/etc` or `/var/log`.
+  The `securitycenter` app gains a third **Privacy** tab (`PrivacyPanel`): the
+  status read and both file views run **unprivileged** (no escalation for a
+  read-only view, §4.4), while start/stop/restart are **confirmed** and escalated
+  per-operation via `PrivilegedRunner` (polkit), run **off the EDT** behind an
+  indeterminate progress bar with the controls disabled while in flight
+  (serialization, §3.3), and report a non-zero exit or a cancelled prompt verbatim
+  as state (§3.2, §7 item 5). A missing tor, an undetected init or an absent
+  polkit agent degrades the buttons and shows honest guidance rather than a false
+  result; an unreadable root-only log degrades to an honest privilege note. The
+  existing Antivirus / Security Overview tabs and the `SecurityProbe` rating seam
+  are untouched. `PrivacyService` (the detection matrix, the init-delegated
+  vectors, the pure `parseTorState` / `describeTor` and the bounded `readFile` /
+  `FileContent`) is injectable with 22 headless tests, plus a headless
+  `PrivacyPanelTest` and a new three-tab `SecurityCenterPanelTest` case.
 
 ## [1.64.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
