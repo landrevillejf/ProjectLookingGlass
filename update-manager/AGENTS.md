@@ -14,7 +14,7 @@
 | Root package | `com.protonmail.landrevillejf.swingide.update.*` (kept as-is from the external "Swing IDE" origin; only lg3d-facing identifiers/strings were re-pointed). |
 | Depends on | Jackson, Bouncycastle OpenPGP, slf4j (+nop), Lombok (compile-only); tests use JUnit 5, Mockito, AssertJ. **No `lg3d-core` dependency.** |
 | Surfaced as | The **"Software Update"** start-menu app (Utilities group): `UpdateManagerPanel` (demo-apps) → `UpdateManager` (`TitledSwingWindow`/`SwingNode` in 3D) or an MDI frame in the 2D desktop via `Desktop2DAppRegistry.PANEL_APPS`. |
-| Build / test | `./gradlew :update-manager:test` (308 tests, headless) · `:update-manager:build` · `:update-manager:pitest` (report-only). |
+| Build / test | `./gradlew :update-manager:test` (341 tests, headless) · `:update-manager:build` · `:update-manager:pitest` (report-only). |
 | Release side | `.github/workflows/release.yml` publishes the `version.json` this module reads. |
 
 ## How the roles work together
@@ -79,6 +79,15 @@ file plus the root `AGENTS.md`.
   zip-slip guard, the staged layout validation, the deferred apply/rollback
   script generation and both `launchCommand` branches; the destructive
   `System.exit` / real `pkexec` spawn stay overridden in tests (never exercised).
+- The destructive apply/rollback path is proven **end-to-end** by
+  [`../scripts/update/bundle-install-proof.sh`](../scripts/update/bundle-install-proof.sh),
+  which runs the real `BundleUpdateInstaller` (taken from the release bundle's own
+  `lib/`) against the real `:lg3d-core:releaseBundle` ZIP in a throwaway sandbox:
+  stage → snapshot → deferred apply script → verify the NEW tree → `restore.sh`
+  rollback. It never touches a real install, never escalates
+  (`escalationEnabled=false`) and never relaunches (`relaunchEnabled=false`). This
+  is the LFS acceptance gate — see
+  [`../docs/lfs-x11-contract.md`](../docs/lfs-x11-contract.md) §7.
 
 ## Business Analyst
 
@@ -260,7 +269,7 @@ on Java 25+):
 
 ```bash
 export JAVA_HOME=/home/fedora/.jdks/jdk-21.0.12.1+1
-./gradlew :update-manager:test          # 308 tests, headless
+./gradlew :update-manager:test          # 341 tests, headless
 ./gradlew :update-manager:build         # jar + checkstyle (report-only) + jacoco
 ```
 

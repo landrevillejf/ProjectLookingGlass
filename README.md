@@ -403,6 +403,16 @@ enables); if discovery fails on the target, pin the id with the
 `JAVA_TOOL_OPTIONS=-Dlg3d.x11.ownwindowid=<id>`. For a leaner production session
 you can also run the built jars directly instead of via Gradle.
 
+**Updating in place.** Once installed, the desktop is updated by *applying the
+published release bundle* (`lg3d-<version>.zip`) to the install tree, not by
+replacing a single jar. The Software Update app (`update-manager`) stages the
+verified bundle, snapshots the current tree for rollback (`restore.sh`), and
+hands a deferred script the replacement after the session JVM exits — so
+`Restart=on-failure` (or `xinit`) brings the desktop back on the new version.
+Keep `update.bundle.relaunch=false` and pin `-Dlg3d.install.dir=/opt/lg3d`.
+See [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md) §7; the end-to-end
+update + rollback path is proven by `scripts/update/bundle-install-proof.sh`.
+
 ## What was changed to make it build & run
 
 ### Java 3D migration
