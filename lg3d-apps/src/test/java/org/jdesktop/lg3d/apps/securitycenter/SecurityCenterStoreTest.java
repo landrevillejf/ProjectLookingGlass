@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -174,5 +175,53 @@ class SecurityCenterStoreTest {
                 System.setProperty(SecurityCenterStore.DIR_PROPERTY, previous);
             }
         }
+    }
+
+    @Test
+    @DisplayName("the activity log survives a save / load round-trip, oldest first")
+    void auditRoundTrip(@TempDir Path dir) {
+        SecurityCenterStore store = new SecurityCenterStore(dir);
+        store.saveAudit(List.of(
+                new AuditEvent(1000L, AuditEvent.CATEGORY_SCAN, "first"),
+                new AuditEvent(2000L, AuditEvent.CATEGORY_VPN, "second")));
+
+        List<AuditEvent> back = new SecurityCenterStore(dir).loadAudit();
+        assertEquals(2, back.size());
+        assertEquals("scan", back.get(0).getCategory());
+        assertEquals("first", back.get(0).getMessage());
+        assertEquals(1000L, back.get(0).getEpochMillis());
+        assertEquals("vpn", back.get(1).getCategory());
+        assertEquals("second", back.get(1).getMessage());
+    }
+
+    @Test
+    @DisplayName("saving caps the activity log at AUDIT_LIMIT, trimming the oldest")
+    void auditIsCapped(@TempDir Path dir) {
+        SecurityCenterStore store = new SecurityCenterStore(dir);
+        int total = SecurityCenterStore.AUDIT_LIMIT + 25;
+        List<AuditEvent> events = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            events.add(new AuditEvent(i, AuditEvent.CATEGORY_POSTURE, "event-" + i));
+        }
+        store.saveAudit(events);
+
+        List<AuditEvent> back = new SecurityCenterStore(dir).loadAudit();
+        assertEquals(SecurityCenterStore.AUDIT_LIMIT, back.size(), "the log is capped");
+        assertEquals("event-25", back.get(0).getMessage(), "the oldest 25 were trimmed");
+        assertEquals("event-" + (total - 1), back.get(back.size() - 1).getMessage(),
+                "the newest event is kept");
+    }
+
+    @Test
+    @DisplayName("a missing or corrupt activity log yields empty, never throws")
+    void auditIsDefensive(@TempDir Path dir) throws IOException {
+        SecurityCenterStore store = new SecurityCenterStore(dir);
+        assertTrue(store.loadAudit().isEmpty(), "a missing log is empty");
+
+        Files.writeString(dir.resolve(SecurityCenterStore.AUDIT_FILE), "not-a-list");
+        assertTrue(new SecurityCenterStore(dir).loadAudit().isEmpty(), "a corrupt log is empty");
+
+        store.saveAudit(null);
+        assertTrue(new SecurityCenterStore(dir).loadAudit().isEmpty(), "saving null clears the log");
     }
 }

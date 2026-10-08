@@ -161,4 +161,21 @@ public final class SecurityProbe {
             case UNKNOWN -> "Unknown (needs authorization)";
         };
     }
+
+    /**
+     * A short human label for the read-only VPN tunnel state, for the overview
+     * card. A connected tunnel is annotated with whether its kill switch is
+     * armed, since a tunnel that can silently fall back to clearnet is weaker
+     * than one that fails closed.
+     *
+     * @param connected  whether a VPN tunnel is currently up
+     * @param killSwitch whether the connected tunnel's kill switch is armed
+     * @return the display label, never null
+     */
+    public static String describeVpn(boolean connected, boolean killSwitch) {
+        if (!connected) {
+            return "Not connected";
+        }
+        return killSwitch ? "Connected (kill switch armed)" : "Connected (kill switch off)";
+    }
 }

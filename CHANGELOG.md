@@ -108,6 +108,35 @@ work to make it build and run on a current toolchain.
   and builds the mirror as a headless-paintable `JComponent`; when the asset is
   not on the classpath (e.g. headless tests) the mirror is simply omitted and the
   splash degrades to the previous name+version card.
+- **Security Center: a Whonix-like security hub — grade, hardening advisor and
+  activity log** (`lg3d-apps`, `lg3d-core`) — the Security Center grows from an
+  antivirus scanner with a passive posture card into an aggregate *security hub*
+  that ties the host posture, the private (Tor) mode and the VPN tunnel together.
+  A new pure `SecurityScore` weights six defense-in-depth checks (SELinux
+  enforcing, firewall running, an antivirus scanner installed, its definitions
+  known, private (Tor) mode on, and a VPN tunnel up with its kill switch armed)
+  into a 0-100 total and an A-F `Grade` shown in the Overview header, coloured
+  green/amber/red; the two anonymity layers are weighted so a fully patched host
+  that simply runs no tunnel still grades a B. A new pure `HardeningRules`
+  derives an ordered, worst-first `Recommendation` list (each with a `Severity`
+  and an `Action`) that replaces the old flat concerns list, and a **Remediate**
+  button acts on the selected one — switch to the Privacy/Antivirus tab, run
+  `freshclam`, re-probe, or, where the fix lives outside the app, surface honest
+  guidance. The Overview posture grid gains **Private (Tor) mode** and **VPN
+  tunnel** rows, read from the in-memory `TorPrivateMode.state()` and a read-only
+  `nmcli` query (`VpnBackend`/`VpnStatus`, degrading to unknown, never a guessed
+  "connected"), with the kill-switch state read from the VPN app's own profile
+  store. A new **Activity** tab is an append-only audit trail (`AuditEvent`,
+  persisted by `SecurityCenterStore.saveAudit`/`loadAudit`, capped at 500
+  entries) recording every scan, definition update, posture read, private-mode
+  transition, network cut and VPN tunnel change; the live tor/cut listeners are
+  registered in `addNotify` and dropped in `removeNotify`, so a headless-built
+  panel leaves no global listener behind. The grade is published to core through
+  the new side-effect-free `SecurityPosture` seam (apps → core), letting the 2D
+  taskbar privacy shield tooltip double as the aggregate security indicator and
+  paint a caution colour on a poor (D/F) grade. Every new decision (`SecurityScore`,
+  `HardeningRules`, `AuditEvent`, `SecurityPosture`, `SecurityProbe.describeVpn`,
+  the `PrivacyStatus` grade overloads) is pure and headless-tested.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure

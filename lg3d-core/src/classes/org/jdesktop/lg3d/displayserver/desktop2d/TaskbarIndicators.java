@@ -30,6 +30,7 @@ import javax.swing.event.ChangeEvent;
 import com.protonmail.landrevillejf.IconManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
+import org.jdesktop.lg3d.utils.system.SecurityPosture;
 import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
@@ -232,8 +233,9 @@ final class TaskbarIndicators extends JPanel {
     void applyPrivacy(TorPrivateMode.State state) {
         privacyLabel.setVisible(PrivacyStatus.visible(state));
         privacyLabel.setText(PrivacyStatus.glyph(state));
-        privacyLabel.setToolTipText(PrivacyStatus.label(state));
-        Color alarm = PrivacyStatus.color(state);
+        String grade = SecurityPosture.grade();
+        privacyLabel.setToolTipText(PrivacyStatus.label(state, grade));
+        Color alarm = PrivacyStatus.color(state, grade);
         privacyLabel.setForeground(
                 alarm != null ? alarm : privacyDefaultColor);
     }

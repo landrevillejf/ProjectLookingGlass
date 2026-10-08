@@ -79,4 +79,61 @@ class PrivacyStatusTest {
                 "the alarm colour is red-dominant: " + cut);
         assertEquals(cut, PrivacyStatus.CUT_COLOR);
     }
+
+    @Test
+    @DisplayName("a blank grade leaves the tooltip unchanged; a real grade appends it")
+    void labelWithGrade() {
+        for (TorPrivateMode.State state : TorPrivateMode.State.values()) {
+            assertEquals(PrivacyStatus.label(state), PrivacyStatus.label(state, null),
+                    state + ": a null grade adds nothing");
+            assertEquals(PrivacyStatus.label(state), PrivacyStatus.label(state, "  "),
+                    state + ": a blank grade adds nothing");
+        }
+        String augmented = PrivacyStatus.label(TorPrivateMode.State.ON, "B");
+        assertTrue(augmented.startsWith(PrivacyStatus.label(TorPrivateMode.State.ON)), augmented);
+        assertTrue(augmented.contains("security grade B"), augmented);
+        assertTrue(PrivacyStatus.label(TorPrivateMode.State.OFF, " A ").contains("security grade A"),
+                "the grade letter is trimmed");
+    }
+
+    @Test
+    @DisplayName("a cut stays red; otherwise only a poor grade paints the caution colour")
+    void colorWithGrade() {
+        // A cut wins regardless of the grade.
+        assertEquals(PrivacyStatus.CUT_COLOR, PrivacyStatus.color(TorPrivateMode.State.CUT, "A"));
+        assertEquals(PrivacyStatus.CUT_COLOR, PrivacyStatus.color(TorPrivateMode.State.CUT, "F"));
+
+        // A poor grade (D/F) paints the caution colour on a non-cut state.
+        assertEquals(PrivacyStatus.ATTENTION_COLOR,
+                PrivacyStatus.color(TorPrivateMode.State.ON, "D"));
+        assertEquals(PrivacyStatus.ATTENTION_COLOR,
+                PrivacyStatus.color(TorPrivateMode.State.ON, "f"));
+        assertEquals(PrivacyStatus.ATTENTION_COLOR,
+                PrivacyStatus.color(TorPrivateMode.State.ENABLING, "F"));
+
+        // A good or absent grade inherits the taskbar colour (null).
+        assertNull(PrivacyStatus.color(TorPrivateMode.State.ON, "A"));
+        assertNull(PrivacyStatus.color(TorPrivateMode.State.ON, "C"));
+        assertNull(PrivacyStatus.color(TorPrivateMode.State.ON, ""));
+        assertEquals(PrivacyStatus.ATTENTION_COLOR,
+                PrivacyStatus.color(TorPrivateMode.State.OFF, "D"),
+                "colour is grade-driven; visible(OFF) hides the shield anyway");
+
+        // The one-arg form still ignores any grade.
+        assertNull(PrivacyStatus.color(TorPrivateMode.State.ON));
+    }
+
+    @Test
+    @DisplayName("only a D or F counts as a poor grade")
+    void poorGrade() {
+        assertTrue(PrivacyStatus.isPoorGrade("D"));
+        assertTrue(PrivacyStatus.isPoorGrade("f"));
+        assertTrue(PrivacyStatus.isPoorGrade("  d  "));
+        assertFalse(PrivacyStatus.isPoorGrade("A"));
+        assertFalse(PrivacyStatus.isPoorGrade("B"));
+        assertFalse(PrivacyStatus.isPoorGrade("C"));
+        assertFalse(PrivacyStatus.isPoorGrade(""));
+        assertFalse(PrivacyStatus.isPoorGrade("   "));
+        assertFalse(PrivacyStatus.isPoorGrade(null));
+    }
 }

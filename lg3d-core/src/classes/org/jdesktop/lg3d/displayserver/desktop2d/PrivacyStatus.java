@@ -15,6 +15,7 @@
 package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import java.awt.Color;
+import java.util.Locale;
 import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
@@ -32,6 +33,9 @@ public final class PrivacyStatus {
 
     /** The alarm colour the cut glyph is rendered in. */
     static final Color CUT_COLOR = new Color(0xE7, 0x4C, 0x3C);
+
+    /** The caution colour a poor (D/F) security grade is rendered in. */
+    static final Color ATTENTION_COLOR = new Color(0xE6, 0x7E, 0x22);
 
     private PrivacyStatus() {
         // no instances
@@ -68,6 +72,24 @@ public final class PrivacyStatus {
     }
 
     /**
+     * Detailed tooltip text augmented with the Security Center's last letter
+     * grade, so the shield doubles as the aggregate security indicator. A blank
+     * or null grade leaves the tooltip exactly as
+     * {@link #label(TorPrivateMode.State)} (no score is invented); never null.
+     *
+     * @param state the private-mode state
+     * @param grade the last published security grade letter (may be null / blank)
+     * @return the tooltip text
+     */
+    public static String label(TorPrivateMode.State state, String grade) {
+        String base = label(state);
+        if (grade == null || grade.isBlank()) {
+            return base;
+        }
+        return base + "  -  security grade " + grade.trim();
+    }
+
+    /**
      * True when the indicator should be visible: the mode carries a guarantee
      * worth showing (enabling, on, or cut). Off - and a null state - hide it.
      */
@@ -78,8 +100,37 @@ public final class PrivacyStatus {
     /**
      * The glyph's foreground: alarming red while the kill switch has cut the
      * network, {@code null} (inherit the taskbar's colour) otherwise.
+     *
+     * @param state the private-mode state
+     * @return the foreground colour, or null to inherit
      */
     public static Color color(TorPrivateMode.State state) {
-        return state == TorPrivateMode.State.CUT ? CUT_COLOR : null;
+        return color(state, "");
+    }
+
+    /**
+     * The glyph's foreground augmented with the security grade: a cut still wins
+     * (alarming red), otherwise a poor grade (D or F) paints the caution colour
+     * and anything else inherits the taskbar's colour. An unassessed host is
+     * never painted as an alarm.
+     *
+     * @param state the private-mode state
+     * @param grade the last published security grade letter (may be null / blank)
+     * @return the foreground colour, or null to inherit
+     */
+    public static Color color(TorPrivateMode.State state, String grade) {
+        if (state == TorPrivateMode.State.CUT) {
+            return CUT_COLOR;
+        }
+        return isPoorGrade(grade) ? ATTENTION_COLOR : null;
+    }
+
+    /** True when a grade letter is poor enough (D or F) to warn on the shield. */
+    static boolean isPoorGrade(String grade) {
+        if (grade == null) {
+            return false;
+        }
+        String letter = grade.trim().toUpperCase(Locale.ROOT);
+        return letter.equals("D") || letter.equals("F");
     }
 }
