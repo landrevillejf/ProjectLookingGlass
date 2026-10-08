@@ -8,12 +8,12 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Sample / test** (plain Swing harness) — not shipped |
+| Status | **Sample / test** (plain Swing harness) — de-listed from the start menu; source kept in-tree |
 | Entry point | `TestFrame.main` (NetBeans-generated Swing `JFrame`) |
 | Surface | **2D Swing** `JFrame` (conventional widgets), brought into the desktop by window capture |
-| Start-menu name / group | Swing Test / **Tests** |
+| Start-menu name / group | **None** — the descriptor was removed (was Swing Test / **Tests**) |
 | Command | `java org.jdesktop.lg3d.apps.swingtest.TestFrame` |
-| Descriptor | `src/config/swingtest.lgcfg` → `config/demo` |
+| Descriptor | **removed** — `src/config/swingtest.lgcfg` deleted (no longer discovered or posted) |
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Components:** `TestFrame` (NetBeans-generated) + `DialogPanel` + `MyLabel` +
@@ -30,7 +30,7 @@
 - **QA** — Verify the frame is created and captured into the desktop (in-JVM probe +
   internal screencapture); `SwingAppLauncher` logs only on failure, so silence means
   it came up. A black host capture under Wayland is not a defect.
-- **Business Analyst** — Test fixture under **Tests**; no end-user product value.
+- **Business Analyst** — Test fixture (de-listed from the start menu); no end-user product value.
 - **Functional Analyst** — Spec as a harness (show a frame with a label, text field,
   dialog panel). No product behaviour to define.
 - **Project Manager** — Commit scope `lg3d-apps`. Low priority; opportunistic.

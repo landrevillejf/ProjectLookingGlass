@@ -170,7 +170,7 @@ match. Entries are handled by kind:
   carry over between the 2D and 3D desktops. Add/remove them from the Widget
   Gallery, as in 3D.
 - **Conventional Swing apps** that insist on their own top-level window
-  (**Paint**, **Swing Test**, **Screen Snapshot**) launch in-JVM and appear
+  (**Paint** and **Screen Snapshot**) launch in-JVM and appear
   beside the desktop. In 2D, **Screen Snapshot** captures by painting the
   desktop window to a PNG (`lgscreen-<i>-<n>.png` in the chosen folder) instead
   of reading the 3D raster.
@@ -194,7 +194,7 @@ match. Entries are handled by kind:
 2D desktop, so their menu entries are **omitted entirely** rather than shown
 greyed out — the 2D start menu (and its live search) lists only what this
 desktop can actually run. That covers the 3D-only sample and tool entries such as
-**Swing Node Test** and **Image Studio**. (The widgets are *not* in this category
+**Image Studio**. (The widgets are *not* in this category
 — see above. The incubator's
 other 3D-only apps likewise do not appear, because their descriptors are not
 among the discovered ones.) A 3D-only command reached another way — for example a

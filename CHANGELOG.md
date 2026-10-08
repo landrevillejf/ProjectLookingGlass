@@ -40,8 +40,8 @@ work to make it build and run on a current toolchain.
   `Tutorial 1/2/3` (menu group **Tests**) are no longer posted: their descriptors
   `src/config/tutorial{1,2,3}.lgcfg` were deleted. The source stays in-tree and
   still compiles and can be launched manually in-JVM; only the menu entries are
-  removed. The **Tests** group still holds `swingtest`, `swingnode` and the
-  incubator `physics` item, so it remains visible.
+  removed. (The **Tests** group is not linked from `Main`, so it is never
+  rendered; its remaining `swingtest` / `swingnode` entries are removed below.)
 - **Luncher and Natural Language Control dropped from the start menu**
   (`lg3d-apps`, `lg3d-incubator`) — both are 3D-only sample/experimental apps (a
   glassy-cube card launcher menu, and a voice/typed-command controller that is
@@ -50,6 +50,15 @@ work to make it build and run on a current toolchain.
   and `src/config/nlc.lgcfg` were deleted, so neither is discovered or posted to
   any menu. Both still compile in `lg3d-incubator` and can be launched manually
   in-JVM; only the menu entries are removed.
+- **Swing Test and Swing Node Test dropped from the start menu** (`lg3d-apps`) —
+  the two `Tests`-group developer harnesses (a plain-Swing `JFrame` capture
+  fixture and the custom-`SwingNodeRenderer` cloth demo) are no longer posted:
+  their descriptors `src/config/swingtest.lgcfg` and `src/config/swingnode.lgcfg`
+  were deleted. The `Tests` group was already unreachable from `Main` (a leftover
+  of the earlier Demos unlinking), so neither entry was visible in any case; this
+  makes the removal explicit. Both sources stay in-tree and still compile and can
+  be launched manually in-JVM — `TestFrame` remains classified as a conventional
+  Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
