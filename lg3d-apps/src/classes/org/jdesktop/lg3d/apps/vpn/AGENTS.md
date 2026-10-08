@@ -15,7 +15,7 @@
 | Command | `java org.jdesktop.lg3d.apps.vpn.Vpn` |
 | Descriptor | `src/config/vpn.lgcfg` → `config/demo` |
 | Engine | **No in-tree tunnel stack.** The connection is delegated to an installed tool: **`nmcli`** preferred (it reuses NetworkManager's stored VPN connections and secrets), **`openvpn`** / **`wg-quick`** for a config file the user imports. A missing tool, or a connect that needs privilege the session lacks, degrades to honest guidance, never a fake "connected" |
-| Persistence | Jackson JSON under `~/.lg3d/vpn` via `VpnStore`: `settings.json` (preferred backend, auto-connect, last profile, refresh-on-open) and `profiles.json` (imported profiles). Override dir with `-Dlg3d.vpn.dir` |
+| Persistence | Jackson JSON under `~/.lg3d/vpn` via `VpnStore`: `settings.json` (preferred backend, auto-connect, last profile, refresh-on-open) and `profiles.json` (imported profiles with their auto-connect and kill-switch flags). Override dir with `-Dlg3d.vpn.dir` |
 | Security | **Stores no secret** — NetworkManager keeps its own VPN credentials, and an imported OpenVPN/WireGuard config keeps its own keys where the user left them (only the path is remembered) |
 | Build | `./gradlew :lg3d-apps:build` |
 
@@ -28,20 +28,33 @@
   outside the desktop; a `windowClosed` handler calls `stopTunnel()`. Never calls
   `System.exit`.
 - **VpnPanel** — the one Swing UI (no-arg constructor, no Java 3D): a profile dock
-  (NetworkManager connections discovered live, plus imported `.ovpn`/`.conf`), a
-  detail/status centre with Connect and Disconnect, a backend picker, Import and
-  Remove. No process, probe or dialog runs until the user acts (Refresh / Connect /
-  Disconnect / Import); each external command runs on a daemon thread and hops back
-  to the EDT to render.
+  (NetworkManager connections discovered live, plus imported `.ovpn`/`.conf`) with
+  New / Edit / Import / Remove, a detail/status centre with Connect, Disconnect and
+  Verify tunnel, an auto-connect and a per-profile kill-switch checkbox, and a
+  backend picker. A 5 s Swing `Timer` (started in `addNotify`, stopped in
+  `removeNotify`) polls the live tunnel state, so an unexpected drop can arm the
+  kill switch and/or schedule an auto-reconnect; the cut lifts on reconnect, on
+  un-arming or on close. No process, probe, timer or dialog runs until the panel is
+  shown or the user acts (Refresh / Connect / Disconnect / Import / New / Edit /
+  Verify); each external command and the IP-echo fetch run on a daemon thread and
+  hop back to the EDT to render, so the panel constructs and is asserted on
+  headless.
 - **VpnBackend** — the AWT-free tunnel seam: resolves which tool to drive, builds
   the exact `nmcli connection up/down`, `openvpn --config … --daemon` and `wg-quick
   up/down` command lines, and **parses** terse `nmcli` output into `VpnProfile` /
   `VpnStatus` (escape-aware on `\:`). Pure and side-effect free, so the whole
   command / parser table is unit-testable headless against recorded `nmcli` output.
+- **ReconnectPolicy / TunnelVerdict** — the pure decision seams behind the live
+  behaviour: `ReconnectPolicy` is an overflow-safe exponential backoff (a delay for
+  a 1-based attempt, a ceiling clamp and a `shouldRetry` cap) and `TunnelVerdict`
+  classifies a leak check (`TUNNELED` / `LEAK` / `UNREACHABLE`) by comparing the
+  pre-tunnel baseline public IP with the current one. Both are side-effect free and
+  unit-tested without a clock, thread, tunnel or network.
 - **ConnectionType / VpnProfile / VpnStatus** — the tolerant type enum (`fromText`
   maps an `nmcli` TYPE or a file extension), the normalising profile bean (uuid ⇒
-  NetworkManager-managed, configPath ⇒ file-driven) and the immutable status record
-  (clears identity when disconnected, derives its own `summary()`).
+  NetworkManager-managed, configPath ⇒ file-driven, plus the `autoConnect` and
+  migration-safe `killSwitch` flags) and the immutable status record (clears
+  identity when disconnected, derives its own `summary()`).
 - **VpnSettings / VpnStore** — the Jackson preferences bean and defensive JSON
   persistence (a corrupt/missing file yields defaults / an empty list, never throws).
 
@@ -64,16 +77,21 @@
   process/`JFileChooser` path so it is reached only from a user action, never the
   constructor, so headless tests can build the panel. Never call `System.exit`. Obey
   the core UI/UX rulebook.
-- **QA** — `VpnBackendTest`, `VpnModelTest`, `VpnStoreTest` and `VpnPanelTest` run
-  headless (42 tests): the backend suite asserts tool resolution, the exact command
-  builders (nmcli uuid/name, openvpn, wg-quick + guards) and the parse of recorded
-  `nmcli` output (VPN vs LAN/wireless rows, escaped colons, active/inactive status,
-  `.ovpn` remote extraction, result/backend descriptions); the model suite asserts
-  the tolerant type mapping, profile normalisation and the status record; the store
-  suite asserts settings/profile round-trips, corrupt/missing-file resilience and the
-  dir override; the panel suite drives `applyStatus` / `addProfile` /
-  `applyDiscoveredProfiles` / `profileForConfig` with synthetic values — never
-  spawning a tunnel. For the 3D host use the in-JVM probe + internal screencapture
+- **QA** — `VpnBackendTest`, `VpnModelTest`, `VpnStoreTest`, `VpnPanelTest`,
+  `ReconnectPolicyTest` and `TunnelVerdictTest` run headless (60 tests): the backend
+  suite asserts tool resolution, the exact command builders and the parse of recorded
+  `nmcli` output; the model suite asserts the tolerant type mapping, profile
+  normalisation (incl. the `killSwitch` default) and the status record; the store
+  suite asserts settings/profile round-trips, kill-switch persistence and
+  migration-safety (an older `profiles.json` loads with it off), corrupt/missing-file
+  resilience and the dir override; `ReconnectPolicyTest` asserts the backoff
+  schedule, ceiling clamp, retry cap and overflow safety; `TunnelVerdictTest` asserts
+  the leak classification and IP parse; the panel suite drives `applyStatus` /
+  `applyPolledStatus` / `addProfile` / `applyDiscoveredProfiles` / `profileForConfig`
+  / `saveProfile` / `applyVerdict` with synthetic values — asserting the kill-switch
+  cut/restore and the scheduled reconnect on an unexpected drop — never spawning a
+  tunnel, timer or network fetch (it restores the global `NetworkCut` before and
+  after each test). For the 3D host use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver network utility: list the host's VPN
   connections, import an OpenVPN/WireGuard config, and bring a tunnel up or down
@@ -84,7 +102,12 @@
   said (never claim an in-tree stack or a false "connected"), remember imported
   profiles by path, and persist preferences — with the command/parse decisions hidden
   behind `VpnBackend`. Connecting is specified as "hand off to the resolved tool",
-  and an unprivileged or missing-tool case as guidance, not a silent failure.
+  and an unprivileged or missing-tool case as guidance, not a silent failure. The
+  live contract adds: track the tunnel while open, reconnect an auto-connect profile
+  that drops (bounded backoff), cut the desktop's network on an unexpected drop of a
+  kill-switch-armed profile until it returns (fails closed, reusing `NetworkCut`),
+  and verify the tunnel by proving the public egress IP changed — an unchanged IP is
+  a leak, never a silent pass.
 - **Project Manager** — Commit scope `lg3d-apps`; the registration also touches
   `lg3d-core` (`Desktop2DAppRegistry` panel mapping + test) and the icon in
   `lg3d-core` resources, plus the `lg3d-art` icon tool — call that out. Done =

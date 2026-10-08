@@ -40,6 +40,7 @@ public class VpnProfile {
     private String configPath = "";
     private String backend = "";
     private boolean autoConnect = false;
+    private boolean killSwitch = false;
 
     /** No-arg constructor for Jackson. */
     public VpnProfile() {
@@ -120,6 +121,24 @@ public class VpnProfile {
 
     public void setAutoConnect(boolean autoConnect) {
         this.autoConnect = autoConnect;
+    }
+
+    /**
+     * True when this profile is armed with a <em>kill switch</em>: if its tunnel
+     * drops unexpectedly the desktop's network clients are cut (via
+     * {@code org.jdesktop.lg3d.utils.system.NetworkCut}) until the tunnel is back,
+     * so traffic can never silently fall back to the clearnet. Defaults to false, so
+     * a {@code profiles.json} written before this field existed deserialises safely
+     * with the kill switch off.
+     *
+     * @return true when an unexpected drop of this profile should cut the network
+     */
+    public boolean isKillSwitch() {
+        return killSwitch;
+    }
+
+    public void setKillSwitch(boolean killSwitch) {
+        this.killSwitch = killSwitch;
     }
 
     /**

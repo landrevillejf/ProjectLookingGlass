@@ -93,6 +93,17 @@ class VpnModelTest {
     }
 
     @Test
+    @DisplayName("a profile's kill switch defaults off and toggles")
+    void profileKillSwitch() {
+        VpnProfile p = new VpnProfile();
+        assertFalse(p.isKillSwitch(), "the migration-safe default is off");
+        p.setKillSwitch(true);
+        assertTrue(p.isKillSwitch());
+        p.setKillSwitch(false);
+        assertFalse(p.isKillSwitch());
+    }
+
+    @Test
     @DisplayName("the convenience constructor carries name / uuid / type")
     void profileConstructor() {
         VpnProfile p = new VpnProfile("Office", "u1", ConnectionType.OPENVPN);
