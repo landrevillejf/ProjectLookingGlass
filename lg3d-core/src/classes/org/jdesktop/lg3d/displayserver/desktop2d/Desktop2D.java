@@ -69,6 +69,7 @@ import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11CompositorSession;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 import org.jdesktop.lg3d.utils.system.Opener;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 import org.jdesktop.lg3d.utils.taskscheduler.TaskScheduler;
 
 /**
@@ -234,6 +235,14 @@ public class Desktop2D {
     private X11CompositorSession.Session compositedSession;
 
     /**
+     * Mirrors private (Tor) mode state changes onto the taskbar's privacy
+     * indicator, and warns the user the moment the kill switch cuts the
+     * network. Registered in the constructor, removed again in {@link #exit()}.
+     */
+    private final TorPrivateMode.Listener privateModeListener =
+            this::onPrivateModeChanged;
+
+    /**
      * The optional host {@code java.awt.SystemTray} mirror of the volume and
      * network indicators, or null when the mirror is switched off
      * ({@link DesktopConfig#isIndicatorsSystemTray()}) or the host has no system
@@ -304,6 +313,12 @@ public class Desktop2D {
         brightnessDimmer = new BrightnessDimmer();
         frame.setGlassPane(brightnessDimmer);
         taskbar.indicators().setSoftwareBrightness(brightnessDimmer::setPercent);
+
+        // Private (Tor) mode: clicking the taskbar shield opens the Security
+        // Center, and every state change re-reads the indicator. A CUT (the
+        // kill switch tripped) also raises a warning the user cannot miss.
+        taskbar.indicators().setPrivacyClick(this::openSecurityCenter);
+        TorPrivateMode.addListener(privateModeListener);
 
         Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getMaximumWindowBounds();
@@ -1236,6 +1251,36 @@ public class Desktop2D {
         }
     }
 
+    /**
+     * Opens (or brings forward) the Security Center, whose Privacy tab drives
+     * private (Tor) mode. Invoked when the user clicks the taskbar's privacy
+     * indicator; the panel is hosted reflectively like every other PANEL app,
+     * so lg3d-core keeps no compile-time dependency on lg3d-apps.
+     */
+    private void openSecurityCenter() {
+        openApp(new ItemSpec("Security Center",
+                "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter",
+                "Security and privacy", null, null));
+    }
+
+    /**
+     * Handles a private (Tor) mode transition: refreshes the taskbar indicator
+     * and, when the kill switch has cut the network because tor stopped, warns
+     * the user. The monitor thread fires this, so the Swing work is marshalled
+     * onto the EDT.
+     */
+    private void onPrivateModeChanged(TorPrivateMode.State from,
+                                      TorPrivateMode.State to) {
+        SwingUtilities.invokeLater(() -> {
+            taskbar.indicators().refreshStatuses();
+            if (to == TorPrivateMode.State.CUT) {
+                raiseNotification("Private mode: Tor stopped",
+                        "The network has been cut to prevent leaks",
+                        Notification.Kind.WARNING);
+            }
+        });
+    }
+
     /** Opens the file manager internal frame at {@code directory}. */
     public void openFileManager(Path directory) {
         ItemSpec item = new ItemSpec("File Manager",
@@ -1789,6 +1834,7 @@ public class Desktop2D {
             runDialog.hide();
         }
         stopSlideshowTimer();
+        TorPrivateMode.removeListener(privateModeListener);
         if (systemTray != null) {
             systemTray.stop();
             systemTray = null;

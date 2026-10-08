@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.Kind;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -159,5 +160,36 @@ class TaskbarIndicatorsTest {
         indicators.applyBrightness(Optional.of(new BrightnessStatus.Level(79)), true);
         assertEquals("Bri 79%", indicators.brightnessText(),
                 "a writable backlight reports its own value back");
+    }
+
+    @Test
+    @DisplayName("the privacy glyph tracks the private (Tor) mode state")
+    void privacyStates() {
+        indicators.applyPrivacy(TorPrivateMode.State.ON);
+        assertTrue(indicators.privacyVisible());
+        assertEquals("Tor >>", indicators.privacyText());
+        indicators.applyPrivacy(TorPrivateMode.State.ENABLING);
+        assertEquals("Tor ..", indicators.privacyText());
+        indicators.applyPrivacy(TorPrivateMode.State.CUT);
+        assertEquals("Tor !!", indicators.privacyText());
+        assertTrue(indicators.privacyVisible(), "a cut must stay visible");
+    }
+
+    @Test
+    @DisplayName("an off private mode hides the privacy glyph")
+    void privacyOffHides() {
+        indicators.applyPrivacy(TorPrivateMode.State.ON);
+        assertTrue(indicators.privacyVisible());
+        indicators.applyPrivacy(TorPrivateMode.State.OFF);
+        assertFalse(indicators.privacyVisible(), "off means no shield");
+        assertEquals("", indicators.privacyText());
+    }
+
+    @Test
+    @DisplayName("a null privacy click callback is tolerated")
+    void privacyClickNullSafe() {
+        indicators.setPrivacyClick(null);
+        indicators.applyPrivacy(TorPrivateMode.State.ON);
+        assertTrue(indicators.privacyVisible());
     }
 }

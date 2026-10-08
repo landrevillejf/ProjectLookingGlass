@@ -10,6 +10,33 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Private (Tor) mode: a Whonix-like desktop-wide anonymity switch**
+  (`lg3d-core`, `lg3d-apps`) — a new shared `TorPrivateMode`
+  (`org.jdesktop.lg3d.utils.system`) forces *all* desktop traffic through tor and
+  fails closed. `enable()` probes the tor service (§4.7 `PrivacyService`), starts
+  it through polkit only if it is not running, then applies JVM SOCKS enforcement
+  (`socksProxyHost=127.0.0.1`, `socksProxyPort=9050`, overridable via
+  `lg.tor.socksPort`, `socksNonProxyHosts=localhost|127.*`) plus a SOCKS5
+  `ProxySelector` with remote DNS, and arms a 5 s daemon monitor. The moment tor
+  stops while the mode is on, the monitor trips the state machine
+  (`OFF/ENABLING/ON → CUT`) and raises the new global `NetworkCut` flag: because
+  the SOCKS endpoint is now dead, every JVM/env-var client socket is *refused*
+  rather than silently falling back to clearnet, so a leak is impossible by
+  construction. `leakCheck()` fetches `check.torproject.org/api/ip` through the
+  proxy only and parses the verdict (`TOR_CONFIRMED` / `NOT_TOR` / `UNREACHABLE`).
+  Every decision (`transition` / `monitorTick` / `proxyProperties` / `proxyEnv` /
+  `parseTorCheck`) is pure and injectable, so it is headless-tested without
+  spawning tor. External child processes launched by the 2D desktop inherit
+  `http_proxy`/`https_proxy`/`all_proxy=socks5h://127.0.0.1:9050` while the mode is
+  on (`Desktop2DAppRegistry.launchExternal`). A new taskbar **privacy indicator**
+  (`PrivacyStatus` + `TaskbarIndicators`) shows a shield glyph (`Tor >>` on,
+  `Tor ..` enabling, `Tor !!` cut, hidden while off), turns red on a cut, opens the
+  Security Center on click, and a cut raises a warning toast. The Security Center's
+  **Privacy** tab gains a *Private (Tor) mode* section (Enable / Disable / *Verify
+  no leak*, a live state line and a red CUT banner), and the **web browser**
+  enforces the mode: while cut it refuses remote navigations and renders an honest
+  `TOR_CUT` page (new `LoadFailure.Reason` + `TorCutGuard`), and while on it forces
+  a non-persisting cookie session.
 - **Web browser: address-bar security indicator + site-info popup** (`lg3d-apps`)
   — a clickable indicator now sits next to the address bar (the status-bar lock
   stays as its echo). It classifies the current URL through the new JavaFX-free

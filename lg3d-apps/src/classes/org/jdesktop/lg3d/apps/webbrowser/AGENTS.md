@@ -48,7 +48,11 @@
   (readability-style DOM-extraction JS + a clean, escaped, ad-free HTML render),
   and `EncodingFallback` (the blank-page workaround's decisions: blank-DOM
   detection from a cheap element/text probe, `Content-Encoding` decode for
-  identity/`none`/gzip/deflate, charset resolution and `<base>`-tag injection).
+  identity/`none`/gzip/deflate, charset resolution and `<base>`-tag injection),
+  and `TorCutGuard` (the private (Tor) mode decisions: whether a raised
+  `NetworkCut` must block a *remote* navigation — local `file:`/`about:`/`data:`
+  URLs are spared, they cannot leak — the honest `TOR_CUT` failure to render, and
+  whether tor-on forces a private (non-persisting) cookie session).
 - **FxBrowser** — the only class that touches `javafx.scene.web`. Owns one
   `WebView`/`WebEngine` per tab (keyed on `TabModel.Tab` id) in a
   `ConcurrentHashMap`, wires location / title / `LoadWorker` progress + state /
@@ -64,7 +68,13 @@
   one-shot: `FxBrowser` re-fetches the URL with the `java.net.http` client and
   renders it via `loadContent` with an injected `<base>` (`EncodingFallback`),
   keeping the real URL in the address bar/tab/history, or falls back to an honest
-  `UNDECODABLE_BODY` error page. Downloads are robust: a
+  `UNDECODABLE_BODY` error page. Private (Tor) mode is enforced here too: while
+  the desktop's `NetworkCut` flag is raised (tor stopped under `TorPrivateMode`),
+  `loadInternal` refuses any remote navigation and renders the honest `TOR_CUT`
+  cut page instead of letting WebKit attempt a load that would fail or leak in the
+  clear (via `TorCutGuard`), and `installCookiePolicy` forces a non-persisting
+  session while tor is on regardless of the standalone "Private browsing"
+  setting. Downloads are robust: a
   `java.net.http` client with connect + per-request timeouts, `ContentDisposition`
   naming, a streaming copy loop with incremental progress + a cancel flag, and IO
   failures classified through the same `LoadFailure` vocabulary. Read-only getters
@@ -173,9 +183,9 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   `BookmarkStoreTest`, `HistoryStoreTest`, `TabModelTest`, `BrowserSettingsTest`,
   `DownloadRecordTest`, `BrowserStoreTest`), the decision-logic tests
   (`LoadFailureTest`, `HtmlTest`, `ErrorPageTest` incl. XSS-escaping +
-  retry-anchor presence, `ContentDispositionTest`, `SecurityInfoTest`,
-  `SiteStatsTest`, `FindScriptTest`, `ReaderExtractorTest`,
-  `EncodingFallbackTest`) and
+  retry-anchor presence + the `TOR_CUT` shield page, `ContentDispositionTest`,
+  `SecurityInfoTest`, `SiteStatsTest`, `FindScriptTest`, `ReaderExtractorTest`,
+  `EncodingFallbackTest`, `TorCutGuardTest`) and
   `WebKitThreadGuardTest` (the JDK-8346250 WebSocket swallow-vs-delegate guard)
   run headless (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`.
   The extension system is covered headlessly too: `ExtensionManifestTest`,

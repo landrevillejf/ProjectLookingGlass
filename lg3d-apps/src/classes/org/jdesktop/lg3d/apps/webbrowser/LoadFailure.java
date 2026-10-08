@@ -89,6 +89,18 @@ public final class LoadFailure {
                 "An installed extension blocked this page.",
                 false,
                 "Review your extensions if you expected this page to load."),
+        /**
+         * Private (Tor) mode's kill switch cut the network because tor stopped,
+         * so the browser refuses to navigate rather than let a request escape in
+         * the clear. Fails closed: the SOCKS endpoint is dead, so nothing loads
+         * until tor is running again (or private mode is turned off).
+         */
+        TOR_CUT("Network cut for your privacy",
+                "Private (Tor) mode stopped tor, so the network was cut to prevent a leak.",
+                false,
+                "Traffic stays blocked until tor runs again - nothing can leak in the clear.",
+                "Re-enable private mode, or turn it off, in the Security Center's Privacy tab.",
+                "Once tor is back, reload this page."),
         /** The address was not a usable URL. */
         MALFORMED_URL("Invalid address",
                 "The address could not be understood as a URL.",

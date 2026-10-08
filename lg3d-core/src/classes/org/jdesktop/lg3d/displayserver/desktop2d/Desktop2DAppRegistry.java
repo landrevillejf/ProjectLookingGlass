@@ -32,6 +32,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JComponent;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
  * Knows which of the desktop's applications the 2D desktop can run, and how.
@@ -760,6 +761,13 @@ public final class Desktop2DAppRegistry {
             if (displayName != null) {
                 pb.environment().put("DISPLAY", displayName);
             }
+            // While private (Tor) mode is on, external children inherit the
+            // socks5h proxy so their traffic rides tor too; the map is empty
+            // (a no-op) while the mode is off. Fails closed: when the mode is
+            // CUT the SOCKS endpoint is dead, so a child that honoured the
+            // proxy cannot silently fall back to clearnet.
+            pb.environment().putAll(TorPrivateMode.proxyEnv(
+                    TorPrivateMode.isOn(), TorPrivateMode.socksPort()));
             Process process = pb.start();
             drainOutput(command, process);
             return true;
