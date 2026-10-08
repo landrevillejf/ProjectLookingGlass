@@ -48,6 +48,16 @@ work to make it build and run on a current toolchain.
   `Desktop2DStartMenu.appendGroups` sets the icon on each category `JMenu`, and
   the cache is cleared alongside `AppIcons` on an icon-pack switch so the
   categories refresh too.
+- **2D splash: a looking-glass "mirror" with the mascot** (`lg3d-core`) — the
+  start-up splash of the conventional 2D/Swing desktop is no longer a bare
+  name+version card: it now opens with a rounded, lit "looking-glass" mirror in
+  which the project mascot — the same `lg3d-logo.png` icon the About window
+  shows — is seen through the glass, over a faded vertical reflection of itself
+  on the surface below (a nod to the remote-viewing conceit behind the product's
+  name). `Desktop2DSplash` loads the mascot from the runtime `resources/` tree
+  and builds the mirror as a headless-paintable `JComponent`; when the asset is
+  not on the classpath (e.g. headless tests) the mirror is simply omitted and the
+  splash degrades to the previous name+version card.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure

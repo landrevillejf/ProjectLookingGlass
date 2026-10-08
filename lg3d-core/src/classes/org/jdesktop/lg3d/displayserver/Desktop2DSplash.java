@@ -14,16 +14,29 @@
  */
 package org.jdesktop.lg3d.displayserver;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
@@ -39,10 +52,12 @@ import javax.swing.SwingUtilities;
  * {@link SplashStarter}/{@link SplashWindow} (a full-bleed image plus a version
  * and build-date caption). The 2D desktop showed nothing, so a cold start looked
  * like a hang while the shell, the start menu and the restored session were
- * assembled. This gives it an equivalent - but deliberately plain - cue: an
- * undecorated, always-on-top window carrying only the product name and the
- * resolved build version, exactly as requested. It never loads the artwork
- * splash and never touches the 3D code path.</p>
+ * assembled. This gives it an equivalent cue: an undecorated, always-on-top
+ * window carrying the product name, the resolved build version and - as a nod to
+ * the remote-viewing conceit behind the product's name - a "looking-glass"
+ * mirror in which the project mascot (the same icon the About window shows) is
+ * seen through the glass with a faded reflection beneath it. It never loads the
+ * artwork splash and never touches the 3D code path.</p>
  *
  * <p>Like the rest of the desktop's dialogs, the content logic is split from the
  * window assembly so it is unit-testable headless: {@link #resolveVersion},
@@ -73,6 +88,28 @@ public final class Desktop2DSplash {
 
     /** Heading font size, in points. */
     private static final float HEADING_FONT_SIZE = 26f;
+
+    /**
+     * Classpath location of the mascot shown in the looking-glass - the same
+     * icon the About window loads, so the splash and About agree on the face of
+     * the product.
+     */
+    static final String MASCOT_PATH = "resources/images/icon/lg3d-logo.png";
+
+    /** Height, in pixels, the mascot is scaled to inside the looking-glass. */
+    private static final int MASCOT_HEIGHT = 88;
+
+    /** Padding between the mascot and the glass frame, in pixels. */
+    private static final int GLASS_PAD = 8;
+
+    /** Corner arc of the rounded looking-glass, in pixels. */
+    private static final float GLASS_ARC = 26f;
+
+    /** Gap between the glass and its reflection, in pixels. */
+    private static final int REFLECTION_GAP = 4;
+
+    /** Fraction of the mascot height used for the mirrored reflection. */
+    private static final float REFLECTION_RATIO = 0.5f;
 
     /** The single splash window currently showing, or null when none is. */
     private static JWindow window;
@@ -130,6 +167,13 @@ public final class Desktop2DSplash {
                 BorderFactory.createLineBorder(new Color(0x33, 0x66, 0x99), 2),
                 BorderFactory.createEmptyBorder(36, 56, 36, 56)));
 
+        JComponent mirror = buildMirror(loadMascot());
+        if (mirror != null) {
+            mirror.setAlignmentX(Component.CENTER_ALIGNMENT);
+            content.add(mirror);
+            content.add(Box.createVerticalStrut(14));
+        }
+
         JLabel name = new JLabel(PRODUCT_NAME, SwingConstants.CENTER);
         name.setFont(name.getFont().deriveFont(Font.BOLD, HEADING_FONT_SIZE));
         name.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -141,6 +185,154 @@ public final class Desktop2DSplash {
         version.setAlignmentX(Component.CENTER_ALIGNMENT);
         content.add(version);
         return content;
+    }
+
+    // ------------------------------------------------------------------
+    // The looking-glass "mirror"
+    // ------------------------------------------------------------------
+
+    /**
+     * Reads the mascot PNG from the classpath, or null when it cannot be read
+     * (e.g. the runtime-resources tree is not on the classpath), so the splash
+     * simply omits the mirror instead of failing.
+     */
+    static BufferedImage loadMascot() {
+        ClassLoader loader = Desktop2DSplash.class.getClassLoader();
+        try (InputStream in = loader.getResourceAsStream(MASCOT_PATH)) {
+            if (in == null) {
+                return null;
+            }
+            return ImageIO.read(in);
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Could not load the splash mascot " + MASCOT_PATH, e);
+            return null;
+        }
+    }
+
+    /**
+     * Builds the looking-glass mirror for {@code mascot}, or null when there is
+     * no mascot to reflect. A {@code JComponent} with no top-level window, so it
+     * can be constructed and painted headless.
+     */
+    static JComponent buildMirror(BufferedImage mascot) {
+        if (mascot == null) {
+            return null;
+        }
+        return new MirrorPanel(mascot);
+    }
+
+    /**
+     * The mirror: the mascot seen through a rounded, lit "looking-glass" with a
+     * metallic frame and a diagonal sheen, over a faded vertical reflection of
+     * itself on the surface below - the remote-viewing nod.
+     */
+    private static final class MirrorPanel extends JPanel {
+
+        private final BufferedImage mascot;
+        private final BufferedImage reflection;
+
+        MirrorPanel(BufferedImage source) {
+            setOpaque(false);
+            int height = Math.min(MASCOT_HEIGHT, source.getHeight());
+            int width = Math.max(1, (int) Math.round(
+                    (double) source.getWidth() * height / source.getHeight()));
+            this.mascot = scale(source, width, height);
+            this.reflection = reflect(this.mascot,
+                    (int) Math.max(1, Math.round(height * REFLECTION_RATIO)));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(
+                    mascot.getWidth() + 2 * GLASS_PAD + 4,
+                    2 * GLASS_PAD + mascot.getHeight()
+                            + REFLECTION_GAP + reflection.getHeight() + 4);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            if (g2 == null) {
+                return;
+            }
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                        RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                int mx = (getWidth() - mascot.getWidth()) / 2;
+                int my = GLASS_PAD + 2;
+                RoundRectangle2D glass = new RoundRectangle2D.Double(
+                        mx - GLASS_PAD, my - GLASS_PAD,
+                        mascot.getWidth() + 2.0 * GLASS_PAD,
+                        mascot.getHeight() + 2.0 * GLASS_PAD,
+                        GLASS_ARC, GLASS_ARC);
+                // The lit glass surface.
+                g2.setPaint(new GradientPaint(0, my - GLASS_PAD,
+                        new Color(0xEC, 0xF4, 0xFA),
+                        0, my + mascot.getHeight() + GLASS_PAD,
+                        new Color(0xB7, 0xCB, 0xDC)));
+                g2.fill(glass);
+                // The mascot seen through the glass.
+                Shape oldClip = g2.getClip();
+                g2.clip(glass);
+                g2.drawImage(mascot, mx, my, null);
+                // A diagonal sheen so the surface reads as reflective glass.
+                g2.setComposite(AlphaComposite.getInstance(
+                        AlphaComposite.SRC_OVER, 0.28f));
+                g2.setPaint(new GradientPaint(mx, my, Color.WHITE,
+                        mx + mascot.getWidth(), my + mascot.getHeight(),
+                        new Color(255, 255, 255, 0)));
+                g2.fill(glass);
+                g2.setComposite(AlphaComposite.SrcOver);
+                g2.setClip(oldClip);
+                // The metallic frame.
+                g2.setStroke(new BasicStroke(2f));
+                g2.setPaint(new GradientPaint(0, my - GLASS_PAD,
+                        new Color(0x8A, 0x9B, 0xA8),
+                        0, my + mascot.getHeight() + GLASS_PAD,
+                        new Color(0x33, 0x66, 0x99)));
+                g2.draw(glass);
+                // The mirrored reflection on the surface below the glass.
+                g2.drawImage(reflection, mx,
+                        my + mascot.getHeight() + GLASS_PAD + REFLECTION_GAP, null);
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /** A bilinear-scaled ARGB copy of {@code src}. */
+    private static BufferedImage scale(BufferedImage src, int w, int h) {
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = out.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(src, 0, 0, w, h, null);
+        g.dispose();
+        return out;
+    }
+
+    /**
+     * A vertically-flipped copy of {@code src} squeezed to {@code height} and
+     * faded top-to-bottom, for the mirror reflection.
+     */
+    private static BufferedImage reflect(BufferedImage src, int height) {
+        int w = src.getWidth();
+        BufferedImage flipped = new BufferedImage(w, src.getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = flipped.createGraphics();
+        g.drawImage(src, 0, 0, w, src.getHeight(), 0, src.getHeight(), w, 0, null);
+        g.dispose();
+        BufferedImage out = scale(flipped, w, height);
+        Graphics2D fade = out.createGraphics();
+        fade.setComposite(AlphaComposite.DstIn);
+        fade.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 0.45f),
+                0, height, new Color(0, 0, 0, 0f)));
+        fade.fillRect(0, 0, w, height);
+        fade.dispose();
+        return out;
     }
 
     // ------------------------------------------------------------------
