@@ -27,7 +27,10 @@ work to make it build and run on a current toolchain.
   `DesktopConfigChangeEvent` that `LayeredImageBackground`, `PanoImageBackground`
   and `SwayingSimpleImageBackground` listen for and swap on the spot). The pure
   id parsing (`DesktopConfig` normalization, `CornerLogo.Model.fromConfig`) is
-  headless-tested.
+  headless-tested. The Control Center window's default content height is raised
+  (500 → 620px, in `ControlCenter` / `ControlCenterPanel`) so the Appearance
+  panel's now-three stacked 3D-only sections stay fully visible without having
+  to maximize the window.
 - **Private (Tor) mode: a Whonix-like desktop-wide anonymity switch**
   (`lg3d-core`, `lg3d-apps`) — a new shared `TorPrivateMode`
   (`org.jdesktop.lg3d.utils.system`) forces *all* desktop traffic through tor and
