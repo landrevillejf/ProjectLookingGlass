@@ -26,16 +26,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * JSON persistence for the Security Center's preferences and scan history.
+ * JSON persistence for the Security Center's preferences, scan history and
+ * append-only activity log.
  *
  * <p>Configuration lives under {@code ~/.lg3d/securitycenter/} by default;
  * override with the system property {@link #DIR_PROPERTY} (tests point it at a
  * temp folder). Every read is defensive: a missing, empty or corrupt file yields
- * default settings / an empty history and is logged, never thrown, so a damaged
- * config can never stop the app from opening.</p>
+ * default settings / an empty history / an empty log and is logged, never thrown,
+ * so a damaged config can never stop the app from opening.</p>
  *
  * <p>The store holds no secrets and no scanned file data - it records only the
- * scan target, the scan options and the aggregate outcome of finished scans.</p>
+ * scan target, the scan options, the aggregate outcome of finished scans, and
+ * short category + message activity events.</p>
  */
 public final class SecurityCenterStore {
 
@@ -47,6 +49,14 @@ public final class SecurityCenterStore {
 
     static final String SETTINGS_FILE = "settings.json";
     static final String HISTORY_FILE = "history.json";
+    static final String AUDIT_FILE = "audit.json";
+
+    /**
+     * The append-only activity log is capped: the oldest entries past this count
+     * are trimmed on save, so a long-lived desktop cannot grow the file without
+     * bound. Recent history is all an audit trail needs.
+     */
+    public static final int AUDIT_LIMIT = 500;
 
     private final Path configDir;
     private final ObjectMapper mapper;
@@ -146,6 +156,37 @@ public final class SecurityCenterStore {
     public void saveHistory(List<ScanRecord> history) {
         List<ScanRecord> src = (history == null) ? new ArrayList<>() : history;
         write(HISTORY_FILE, src);
+    }
+
+    /** @return the saved activity log (oldest first), or an empty list on any error. */
+    public List<AuditEvent> loadAudit() {
+        Path file = configDir.resolve(AUDIT_FILE);
+        if (!Files.isRegularFile(file)) {
+            return new ArrayList<>();
+        }
+        try {
+            List<AuditEvent> list = mapper.readValue(file.toFile(),
+                    new TypeReference<List<AuditEvent>>() { });
+            return (list == null) ? new ArrayList<>() : list;
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("Could not read {}; starting empty", file, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Persists the activity log. The log is append-only at the UI level; this
+     * caps it at {@link #AUDIT_LIMIT} entries, trimming the oldest so the file
+     * cannot grow without bound.
+     *
+     * @param audit the events to persist (oldest first); null saves an empty log
+     */
+    public void saveAudit(List<AuditEvent> audit) {
+        List<AuditEvent> src = (audit == null) ? new ArrayList<>() : new ArrayList<>(audit);
+        if (src.size() > AUDIT_LIMIT) {
+            src = new ArrayList<>(src.subList(src.size() - AUDIT_LIMIT, src.size()));
+        }
+        write(AUDIT_FILE, src);
     }
 
     private void write(String fileName, Object value) {

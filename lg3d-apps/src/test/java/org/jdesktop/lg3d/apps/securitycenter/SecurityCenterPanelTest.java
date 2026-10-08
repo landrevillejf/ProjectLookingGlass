@@ -15,11 +15,15 @@ package org.jdesktop.lg3d.apps.securitycenter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.List;
+import org.jdesktop.lg3d.utils.system.SecurityPosture;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -116,7 +120,7 @@ class SecurityCenterPanelTest {
     }
 
     @Test
-    @DisplayName("applySnapshot renders the rating and the recommendations")
+    @DisplayName("applySnapshot renders the rating, the grade and the recommendations")
     void applySnapshot(@TempDir Path dir) {
         SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
         panel.applySnapshot(new SecuritySnapshot(
@@ -126,8 +130,17 @@ class SecurityCenterPanelTest {
         assertEquals("Attention needed",
                 panel.snapshot().rating());
         assertTrue(panel.ratingText().contains("Attention needed"), panel.ratingText());
-        assertEquals(2, panel.concernsCount(), "permissive + firewall down");
+        // firewall down (HIGH) + SELinux permissive (MEDIUM) + tor off (LOW).
+        assertEquals(3, panel.concernsCount(), panel.recommendationAt(0).toString());
         assertEquals("Security posture updated.", panel.statusText());
+
+        // A grade is computed and published for the taskbar shield.
+        assertNotNull(panel.score(), "a posture read computes a score");
+        assertTrue(panel.scoreText().contains("Grade"), panel.scoreText());
+        // The read is recorded in the activity trail.
+        assertTrue(panel.auditSize() >= 1, "a posture read is audited");
+        assertEquals(AuditEvent.CATEGORY_POSTURE,
+                panel.audit().get(panel.audit().size() - 1).getCategory());
 
         // A null snapshot is ignored (the previous one is kept).
         panel.applySnapshot(null);
@@ -135,15 +148,24 @@ class SecurityCenterPanelTest {
     }
 
     @Test
-    @DisplayName("a fully protected snapshot shows the all-clear recommendation")
+    @DisplayName("a fully protected snapshot shows the all-clear and grades A")
     void applyGoodSnapshot(@TempDir Path dir) {
         SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
         panel.applySnapshot(new SecuritySnapshot(
                 SecurityProbe.SelinuxMode.ENFORCING,
                 SecurityProbe.FirewallState.RUNNING,
-                true, "clamscan", new VersionInfo("1.4.6", "27171", "")));
+                true, "clamscan", new VersionInfo("1.4.6", "27171", ""),
+                TorPrivateMode.State.ON, true, true));
         assertTrue(panel.ratingText().contains("Good"), panel.ratingText());
         assertEquals(1, panel.concernsCount(), "a single 'no action needed' line");
+        assertTrue(panel.recommendationAt(0).title().contains("No action needed"),
+                panel.recommendationAt(0).title());
+        assertEquals(SecurityScore.Grade.A, panel.score().grade());
+        assertTrue(panel.scoreText().contains("Grade A (100/100)"), panel.scoreText());
+        assertEquals("On - traffic forced through tor", panel.torText());
+        assertEquals("Connected (kill switch armed)", panel.vpnText());
+        // The grade is published through the core seam for the taskbar shield.
+        assertEquals("A", SecurityPosture.grade());
     }
 
     @Test
@@ -171,13 +193,14 @@ class SecurityCenterPanelTest {
     }
 
     @Test
-    @DisplayName("the panel offers Antivirus / Security Overview / Privacy tabs")
-    void hasThreeTabs(@TempDir Path dir) {
+    @DisplayName("the panel offers Antivirus / Overview / Privacy / Activity tabs")
+    void hasFourTabs(@TempDir Path dir) {
         SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
-        assertEquals(3, panel.tabCount());
+        assertEquals(4, panel.tabCount());
         assertEquals("Antivirus", panel.tabTitle(0));
         assertEquals("Security Overview", panel.tabTitle(1));
         assertEquals("Privacy", panel.tabTitle(2));
+        assertEquals("Activity", panel.tabTitle(3));
     }
 
     @Test
@@ -195,5 +218,80 @@ class SecurityCenterPanelTest {
         panel.renderHostServices(null, null);
         assertEquals("-", panel.apparmorText());
         assertEquals("-", panel.sshText());
+    }
+
+    @Test
+    @DisplayName("remediate switches to the tab a recommendation asks for")
+    void remediateSwitchesTab(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        // tor off yields an OPEN_PRIVACY finding; no scanner yields OPEN_ANTIVIRUS.
+        panel.applySnapshot(new SecuritySnapshot(
+                SecurityProbe.SelinuxMode.ENFORCING,
+                SecurityProbe.FirewallState.RUNNING,
+                false, "", VersionInfo.unknown(),
+                TorPrivateMode.State.OFF, false, false));
+
+        int privacy = indexOfAction(panel, HardeningRules.Action.OPEN_PRIVACY);
+        assertTrue(privacy >= 0, "a tor-off host offers the Privacy tab");
+        panel.remediate(privacy);
+        assertEquals(2, panel.selectedTabIndex(), "Remediate jumped to the Privacy tab");
+
+        int antivirus = indexOfAction(panel, HardeningRules.Action.OPEN_ANTIVIRUS);
+        assertTrue(antivirus >= 0, "a scanner-less host offers the Antivirus tab");
+        panel.remediate(antivirus);
+        assertEquals(0, panel.selectedTabIndex(), "Remediate jumped to the Antivirus tab");
+    }
+
+    @Test
+    @DisplayName("remediate on an INFO finding only reports guidance; a bad index is safe")
+    void remediateInfoAndOutOfRange(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        panel.applySnapshot(new SecuritySnapshot(
+                SecurityProbe.SelinuxMode.DISABLED,
+                SecurityProbe.FirewallState.RUNNING,
+                true, "clamscan", new VersionInfo("1.4.6", "27171", ""),
+                TorPrivateMode.State.ON, true, true));
+        int info = indexOfAction(panel, HardeningRules.Action.INFO);
+        assertTrue(info >= 0, "SELinux disabled is an INFO finding");
+        int before = panel.selectedTabIndex();
+        panel.remediate(info);
+        assertEquals(before, panel.selectedTabIndex(), "an INFO finding does not move the tabs");
+        assertFalse(panel.statusText().isBlank(), "the guidance is surfaced in the status line");
+
+        // Out-of-range and negative indices are safe no-ops.
+        panel.remediate(-1);
+        panel.remediate(999);
+        assertTrue(panel.statusText().contains("Select a recommendation"), panel.statusText());
+    }
+
+    @Test
+    @DisplayName("the activity trail persists and reloads on the next open")
+    void auditReloads(@TempDir Path dir) {
+        SecurityCenterPanel first = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        first.applySnapshot(new SecuritySnapshot(
+                SecurityProbe.SelinuxMode.ENFORCING,
+                SecurityProbe.FirewallState.RUNNING,
+                true, "clamscan", new VersionInfo("1.4.6", "27171", "")));
+        int logged = first.auditSize();
+        assertTrue(logged >= 1, "a posture read is audited");
+
+        SecurityCenterPanel second = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        assertEquals(logged, second.auditSize(), "the trail is reloaded from disk");
+        assertEquals(AuditEvent.CATEGORY_POSTURE,
+                second.audit().get(second.audit().size() - 1).getCategory());
+    }
+
+    private static int indexOfAction(SecurityCenterPanel panel, HardeningRules.Action action) {
+        for (int i = 0; i < panel.concernsCount(); i++) {
+            if (panel.recommendationAt(i).action() == action) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @AfterEach
+    void clearPosture() {
+        SecurityPosture.clear();
     }
 }

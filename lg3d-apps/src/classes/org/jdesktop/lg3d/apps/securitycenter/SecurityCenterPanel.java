@@ -42,8 +42,15 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.apps.vpn.VpnBackend;
+import org.jdesktop.lg3d.apps.vpn.VpnProfile;
+import org.jdesktop.lg3d.apps.vpn.VpnStatus;
+import org.jdesktop.lg3d.apps.vpn.VpnStore;
+import org.jdesktop.lg3d.utils.system.NetworkCut;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
+import org.jdesktop.lg3d.utils.system.SecurityPosture;
 import org.jdesktop.lg3d.utils.system.SecurityService;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
  * The Security Center's user interface: an <em>Antivirus</em> tab that scans a
@@ -73,18 +80,23 @@ public class SecurityCenterPanel extends JPanel {
 
     private static final Color GOOD = new Color(0, 140, 0);
     private static final Color ATTENTION = new Color(200, 80, 0);
+    private static final Color BAD = new Color(200, 0, 0);
     private static final Color MUTED = new Color(90, 90, 90);
 
     private final SecurityCenterStore store;
     private final SecurityCenterSettings settings;
     private final List<ScanRecord> history = new ArrayList<>();
+    private final List<AuditEvent> audit = new ArrayList<>();
 
     private final DefaultListModel<ScanRecord> historyModel = new DefaultListModel<>();
     private final JList<ScanRecord> historyList = new JList<>(historyModel);
     private final DefaultListModel<Detection> findingsModel = new DefaultListModel<>();
     private final JList<Detection> findingsList = new JList<>(findingsModel);
-    private final DefaultListModel<String> concernsModel = new DefaultListModel<>();
-    private final JList<String> concernsList = new JList<>(concernsModel);
+    private final DefaultListModel<HardeningRules.Recommendation> concernsModel =
+            new DefaultListModel<>();
+    private final JList<HardeningRules.Recommendation> concernsList = new JList<>(concernsModel);
+    private final DefaultListModel<AuditEvent> auditModel = new DefaultListModel<>();
+    private final JList<AuditEvent> auditList = new JList<>(auditModel);
     private final JLabel statusLabel = new JLabel("Ready");
 
     // Antivirus tab
@@ -100,13 +112,17 @@ public class SecurityCenterPanel extends JPanel {
 
     // Overview tab
     private final JLabel ratingLabel = new JLabel("Security status: not checked yet");
+    private final JLabel scoreLabel = new JLabel("Security score: not checked yet");
     private final JLabel selinuxValue = new JLabel("-");
     private final JLabel firewallValue = new JLabel("-");
     private final JLabel antivirusValue = new JLabel("-");
     private final JLabel apparmorValue = new JLabel("-");
     private final JLabel sshValue = new JLabel("-");
+    private final JLabel torValue = new JLabel("-");
+    private final JLabel vpnValue = new JLabel("-");
     private final JLabel lastScanLabel = new JLabel("Last scan: never");
     private final JButton refreshBtn = new JButton("Refresh");
+    private final JButton remediateBtn = new JButton("Remediate");
 
     /** The tabbed pane (Antivirus / Security Overview / Privacy); a field so a test can inspect it. */
     private final JTabbedPane tabs = new JTabbedPane();
@@ -121,6 +137,26 @@ public class SecurityCenterPanel extends JPanel {
     private volatile String statusMessage = "Ready";
     private long scanStartMillis;
     private SecuritySnapshot snapshot;
+    private SecurityScore.Result lastScore;
+    private Boolean lastVpnConnected;
+
+    /**
+     * Mirrors live private-mode transitions into the activity log. Registered in
+     * {@link #addNotify()} / removed in {@link #removeNotify()}, so a panel built
+     * but never shown (a headless test) leaves no global listener behind; the
+     * monitor thread fires it, so the Swing work hops to the EDT.
+     */
+    private final TorPrivateMode.Listener torAuditListener =
+            (from, to) -> SwingUtilities.invokeLater(() -> logEvent(AuditEvent.CATEGORY_PRIVACY,
+                    "Private (Tor) mode: " + TorPrivateMode.describe(from)
+                            + " -> " + TorPrivateMode.describe(to)));
+
+    /** Mirrors the desktop-wide network cut into the activity log; same lifecycle. */
+    private final Runnable cutAuditListener =
+            () -> SwingUtilities.invokeLater(() -> logEvent(AuditEvent.CATEGORY_CUT,
+                    NetworkCut.isCut()
+                            ? "Network CUT - the privacy guarantee is down"
+                            : "Network restored - the privacy guarantee is back"));
 
     /** Builds the panel with the default store. */
     public SecurityCenterPanel() {
@@ -147,10 +183,33 @@ public class SecurityCenterPanel extends JPanel {
         applySettingsToWidgets();
         history.addAll(store.loadHistory());
         refreshHistory();
+        audit.addAll(store.loadAudit());
+        refreshAudit();
         wireListeners();
         refreshScannerBox();
         refreshLastScanLabel();
         updateButtons();
+    }
+
+    /**
+     * Registers the live private-mode and network-cut listeners when the panel
+     * joins a realized hierarchy, so a panel built but never shown (a headless
+     * test) leaves no global listener behind. Pairing this with
+     * {@link #removeNotify()} keeps the shared listener lists clean.
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        TorPrivateMode.addListener(torAuditListener);
+        NetworkCut.addListener(cutAuditListener);
+    }
+
+    /** Drops the live listeners when the panel leaves the screen. */
+    @Override
+    public void removeNotify() {
+        TorPrivateMode.removeListener(torAuditListener);
+        NetworkCut.removeListener(cutAuditListener);
+        super.removeNotify();
     }
 
     // ------------------------------------------------------------------
@@ -161,6 +220,7 @@ public class SecurityCenterPanel extends JPanel {
         tabs.addTab("Antivirus", buildAntivirusTab());
         tabs.addTab("Security Overview", buildOverviewTab());
         tabs.addTab("Privacy", new PrivacyPanel());
+        tabs.addTab("Activity", buildActivityTab());
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 1 && snapshot == null
                     && settings.isRefreshOverviewOnOpen()) {
@@ -226,10 +286,15 @@ public class SecurityCenterPanel extends JPanel {
 
         ratingLabel.setFont(ratingLabel.getFont().deriveFont(java.awt.Font.BOLD, 20f));
         ratingLabel.setForeground(MUTED);
-        ratingLabel.setBorder(BorderFactory.createEmptyBorder(6, 6, 12, 6));
+        ratingLabel.setBorder(BorderFactory.createEmptyBorder(6, 6, 4, 6));
         panel.add(ratingLabel);
 
-        JPanel posture = new JPanel(new GridLayout(5, 2, 8, 8));
+        scoreLabel.setFont(scoreLabel.getFont().deriveFont(java.awt.Font.BOLD, 15f));
+        scoreLabel.setForeground(MUTED);
+        scoreLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 12, 6));
+        panel.add(scoreLabel);
+
+        JPanel posture = new JPanel(new GridLayout(7, 2, 8, 8));
         posture.setBorder(BorderFactory.createTitledBorder("Host posture"));
         posture.add(new JLabel("SELinux:"));
         posture.add(selinuxValue);
@@ -241,19 +306,50 @@ public class SecurityCenterPanel extends JPanel {
         posture.add(sshValue);
         posture.add(new JLabel("Antivirus:"));
         posture.add(antivirusValue);
-        posture.setMaximumSize(new Dimension(Integer.MAX_VALUE, 210));
+        posture.add(new JLabel("Private (Tor) mode:"));
+        posture.add(torValue);
+        posture.add(new JLabel("VPN tunnel:"));
+        posture.add(vpnValue);
+        posture.setMaximumSize(new Dimension(Integer.MAX_VALUE, 280));
         panel.add(posture);
 
         concernsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane concerns = new JScrollPane(concernsList);
-        concerns.setBorder(BorderFactory.createTitledBorder("Recommendations"));
-        concerns.setPreferredSize(new Dimension(100, 160));
+        concerns.setBorder(BorderFactory.createTitledBorder("Recommendations (worst first)"));
+        concerns.setPreferredSize(new Dimension(100, 130));
         panel.add(concerns);
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         south.add(lastScanLabel);
         south.add(refreshBtn);
+        south.add(remediateBtn);
         panel.add(south);
+        return panel;
+    }
+
+    /**
+     * Builds the <em>Activity</em> tab: the append-only audit trail of what the
+     * hub observed and did - scans, definition updates, posture reads, private
+     * (Tor) mode transitions, network cuts and VPN tunnel changes - newest
+     * first. The trail is capped at {@link SecurityCenterStore#AUDIT_LIMIT}
+     * entries so it cannot grow without bound; nothing here spawns a process, so
+     * it constructs headless.
+     */
+    private Component buildActivityTab() {
+        JPanel panel = new JPanel(new BorderLayout(4, 4));
+        panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        auditList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scroll = new JScrollPane(auditList);
+        scroll.setBorder(BorderFactory.createTitledBorder("Activity (append-only)"));
+        panel.add(scroll, BorderLayout.CENTER);
+
+        JLabel note = new JLabel("<html><i>Every scan, definition update, posture "
+                + "read, private-mode change, network cut and VPN transition is "
+                + "recorded here. The trail keeps the most recent "
+                + SecurityCenterStore.AUDIT_LIMIT + " entries.</i></html>");
+        note.setBorder(BorderFactory.createEmptyBorder(6, 6, 2, 6));
+        panel.add(note, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -318,6 +414,7 @@ public class SecurityCenterPanel extends JPanel {
         stopBtn.addActionListener(e -> stopScan());
         updateBtn.addActionListener(e -> updateDefinitions());
         refreshBtn.addActionListener(e -> refreshOverview());
+        remediateBtn.addActionListener(e -> remediate(concernsList.getSelectedIndex()));
         targetField.addActionListener(e -> readScanSettings());
         recursiveCheck.addActionListener(e -> readScanSettings());
         quarantineCheck.addActionListener(e -> readScanSettings());
@@ -475,6 +572,8 @@ public class SecurityCenterPanel extends JPanel {
         record.setDurationMillis(durationMillis);
         addRecord(record);
         refreshLastScanLabel();
+        logEvent(AuditEvent.CATEGORY_SCAN, "Scan of " + ScanRecord.shorten(target)
+                + " (" + scanner + "): " + summaryLabel.getText());
     }
 
     /** Stops a running scan (destroys the scanner process). */
@@ -517,6 +616,7 @@ public class SecurityCenterPanel extends JPanel {
                 updating = false;
                 updateButtons();
                 setStatus(message);
+                logEvent(AuditEvent.CATEGORY_DEFINITIONS, "Definition update: " + message);
             });
         }, "lg3d-av-update");
         thread.setDaemon(true);
@@ -559,8 +659,18 @@ public class SecurityCenterPanel extends JPanel {
                 version = AntivirusBackend.parseVersion(String.join("\n", v.lines));
             }
         }
+
+        // The anonymity layers: private (Tor) mode is an in-memory read (no
+        // process), and the VPN tunnel is a read-only nmcli query. Both degrade
+        // to "off / not connected" rather than a false all-clear.
+        TorPrivateMode.State tor = TorPrivateMode.state();
+        VpnStatus vpn = readVpnStatus();
+        boolean vpnConnected = vpn.connected();
+        boolean vpnKillSwitch = vpnConnected && readVpnKillSwitch(vpn.profileName());
+
         SecuritySnapshot probed = new SecuritySnapshot(
-                selinux, firewall, scanner.isPresent(), scanner.orElse(""), version);
+                selinux, firewall, scanner.isPresent(), scanner.orElse(""), version,
+                tor, vpnConnected, vpnKillSwitch);
 
         // §4.6: AppArmor and the SSH daemon are read through the shared
         // SecurityService (read-only, unprivileged). A missing tool or an
@@ -606,6 +716,42 @@ public class SecurityCenterPanel extends JPanel {
     }
 
     /**
+     * Reads the live VPN tunnel state, read-only, on the probe's background
+     * thread. Only {@code nmcli} reports active connections, so when it is not
+     * the resolved backend (or is absent) this is an honest
+     * {@link VpnStatus#unknown()} rather than a guessed "connected".
+     */
+    private VpnStatus readVpnStatus() {
+        Optional<String> backend = VpnBackend.resolveBackend("", SecurityCenterPanel::onPath);
+        if (backend.isEmpty() || !VpnBackend.NMCLI.equals(backend.get())) {
+            return VpnStatus.unknown();
+        }
+        ProcessResult r = exec(VpnBackend.activeConnectionsCommand(), false);
+        if (r.ioError) {
+            return VpnStatus.unknown();
+        }
+        return VpnBackend.parseStatus(r.lines);
+    }
+
+    /**
+     * True when the connected profile is armed with a kill switch, read from the
+     * VPN app's own profile store (a missing profile is treated as unarmed).
+     *
+     * @param profileName the active connection's name
+     */
+    private boolean readVpnKillSwitch(String profileName) {
+        if (profileName == null || profileName.isBlank()) {
+            return false;
+        }
+        for (VpnProfile profile : new VpnStore().loadProfiles()) {
+            if (profileName.equals(profile.getName())) {
+                return profile.isKillSwitch();
+            }
+        }
+        return false;
+    }
+
+    /**
      * Renders a posture snapshot on the overview tab. Package-visible so a test
      * can drive the overview with a synthetic snapshot, without running probes.
      *
@@ -626,15 +772,33 @@ public class SecurityCenterPanel extends JPanel {
                 ? value.scanner() + (value.version().isPresent()
                         ? "  -  " + value.version() : "")
                 : "Not installed");
+        torValue.setText(TorPrivateMode.describe(value.tor()));
+        vpnValue.setText(SecurityProbe.describeVpn(value.vpnConnected(), value.vpnKillSwitch()));
+
+        SecurityScore.Result score = SecurityScore.compute(value);
+        lastScore = score;
+        scoreLabel.setText("Security score: " + score.header());
+        scoreLabel.setForeground(colorForGrade(score.grade()));
+        // Publish the grade through the core seam so the taskbar privacy shield
+        // tooltip can show it (apps -> core; core never computes the score).
+        SecurityPosture.publish(String.valueOf(score.grade()));
+
         concernsModel.clear();
-        List<String> concerns = value.concerns();
-        if (concerns.isEmpty()) {
-            concernsModel.addElement("No action needed - the system looks protected.");
+        List<HardeningRules.Recommendation> recommendations = HardeningRules.evaluate(value);
+        if (recommendations.isEmpty()) {
+            concernsModel.addElement(new HardeningRules.Recommendation(
+                    "No action needed - the system looks protected.",
+                    "Every hardening check passed.",
+                    HardeningRules.Action.INFO, HardeningRules.Severity.LOW));
         } else {
-            for (String concern : concerns) {
-                concernsModel.addElement(concern);
+            for (HardeningRules.Recommendation recommendation : recommendations) {
+                concernsModel.addElement(recommendation);
             }
         }
+
+        logVpnTransition(value.vpnConnected());
+        logEvent(AuditEvent.CATEGORY_POSTURE,
+                "Host posture read: " + postureSummary(value, score));
         setStatus("Security posture updated.");
     }
 
@@ -659,6 +823,107 @@ public class SecurityCenterPanel extends JPanel {
             return ATTENTION;
         }
         return MUTED;
+    }
+
+    /** Maps a letter grade onto the overview's colour vocabulary. */
+    private static Color colorForGrade(SecurityScore.Grade grade) {
+        if (grade == null) {
+            return MUTED;
+        }
+        return switch (grade) {
+            case A, B -> GOOD;
+            case C -> ATTENTION;
+            case D, F -> BAD;
+        };
+    }
+
+    /** A one-line summary of the posture for the activity log. */
+    private static String postureSummary(SecuritySnapshot value, SecurityScore.Result score) {
+        return score.header()
+                + ", SELinux " + SecurityProbe.describeSelinux(value.selinux())
+                + ", firewall " + SecurityProbe.describeFirewall(value.firewall())
+                + ", tor " + TorPrivateMode.describe(value.tor())
+                + ", VPN " + SecurityProbe.describeVpn(
+                        value.vpnConnected(), value.vpnKillSwitch());
+    }
+
+    /**
+     * Records a VPN connect / disconnect in the activity log when the observed
+     * state changes, then remembers it so the next probe only logs a real
+     * transition. The first probe seeds the baseline without logging.
+     */
+    private void logVpnTransition(boolean connected) {
+        if (lastVpnConnected == null) {
+            lastVpnConnected = connected;
+            return;
+        }
+        if (lastVpnConnected != connected) {
+            logEvent(AuditEvent.CATEGORY_VPN, connected
+                    ? "VPN tunnel connected"
+                    : "VPN tunnel disconnected");
+            lastVpnConnected = connected;
+        }
+    }
+
+    /**
+     * Appends one event to the in-memory trail (capped at
+     * {@link SecurityCenterStore#AUDIT_LIMIT}), persists it and refreshes the
+     * Activity tab. Called on the EDT.
+     */
+    private void logEvent(String category, String message) {
+        audit.add(new AuditEvent(category, message));
+        while (audit.size() > SecurityCenterStore.AUDIT_LIMIT) {
+            audit.remove(0);
+        }
+        store.saveAudit(new ArrayList<>(audit));
+        refreshAudit();
+    }
+
+    /** Repopulates the Activity list newest-first from the in-memory trail. */
+    private void refreshAudit() {
+        auditModel.clear();
+        for (int i = audit.size() - 1; i >= 0; i--) {
+            auditModel.addElement(audit.get(i));
+        }
+    }
+
+    /**
+     * Acts on the selected recommendation: switch to the relevant tab, run an
+     * in-panel fix (update definitions / re-probe), or - where the fix lives
+     * outside this app - surface the guidance in the status line. A negative or
+     * out-of-range index is a safe no-op. Package-visible so a test can drive
+     * the tab-switch / info paths without spawning a process.
+     *
+     * @param index the selected recommendation's row
+     */
+    void remediate(int index) {
+        if (index < 0 || index >= concernsModel.size()) {
+            setStatus("Select a recommendation to remediate.");
+            return;
+        }
+        HardeningRules.Recommendation recommendation = concernsModel.getElementAt(index);
+        switch (recommendation.action()) {
+            case OPEN_PRIVACY -> selectTab("Privacy");
+            case OPEN_ANTIVIRUS -> selectTab("Antivirus");
+            case UPDATE_DEFINITIONS -> updateDefinitions();
+            case REFRESH_OVERVIEW -> {
+                selectTab("Security Overview");
+                refreshOverview();
+            }
+            case INFO -> {
+                // The fix lives outside this app; the detail line is the guidance.
+            }
+        }
+        setStatus(recommendation.detail().isBlank()
+                ? recommendation.title() : recommendation.detail());
+    }
+
+    /** Selects a tab by title; an unknown title leaves the selection unchanged. */
+    private void selectTab(String title) {
+        int index = tabs.indexOfTab(title);
+        if (index >= 0) {
+            tabs.setSelectedIndex(index);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -890,7 +1155,7 @@ public class SecurityCenterPanel extends JPanel {
         return sshValue.getText();
     }
 
-    /** The number of top-level tabs (Antivirus / Security Overview / Privacy). */
+    /** The number of top-level tabs (Antivirus / Security Overview / Privacy / Activity). */
     int tabCount() {
         return tabs.getTabCount();
     }
@@ -898,5 +1163,45 @@ public class SecurityCenterPanel extends JPanel {
     /** The title of tab {@code i}. */
     String tabTitle(int i) {
         return tabs.getTitleAt(i);
+    }
+
+    /** The index of the currently selected tab. */
+    int selectedTabIndex() {
+        return tabs.getSelectedIndex();
+    }
+
+    /** The overview score header text (e.g. "Security score: Grade B (80/100)"). */
+    String scoreText() {
+        return scoreLabel.getText();
+    }
+
+    /** The last computed score result, or null before the first posture read. */
+    SecurityScore.Result score() {
+        return lastScore;
+    }
+
+    /** The overview private-(Tor)-mode row text. */
+    String torText() {
+        return torValue.getText();
+    }
+
+    /** The overview VPN-tunnel row text. */
+    String vpnText() {
+        return vpnValue.getText();
+    }
+
+    /** The recommendation at row {@code i}, or null when out of range. */
+    HardeningRules.Recommendation recommendationAt(int i) {
+        return (i < 0 || i >= concernsModel.size()) ? null : concernsModel.getElementAt(i);
+    }
+
+    /** The number of activity-log rows shown (newest first). */
+    int auditSize() {
+        return auditModel.size();
+    }
+
+    /** An unmodifiable view of the activity trail, oldest first. */
+    List<AuditEvent> audit() {
+        return List.copyOf(audit);
     }
 }

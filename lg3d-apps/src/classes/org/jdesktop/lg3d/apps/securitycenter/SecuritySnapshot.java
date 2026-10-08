@@ -15,27 +15,38 @@ package org.jdesktop.lg3d.apps.securitycenter;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
  * The host's aggregated security posture shown on the Security Overview tab:
  * the SELinux mode, the firewall state, whether an antivirus scanner is
- * installed (and which one), and the ClamAV engine / database version. The panel
- * assembles one of these from the {@link SecurityProbe} and
- * {@link AntivirusBackend} parser results after a refresh; {@link #concerns()}
- * turns it into the plain-language advice list the overview renders.
+ * installed (and which one), the ClamAV engine / database version, the private
+ * (Tor) mode state and whether a VPN tunnel is up (with its kill switch armed).
+ * The panel assembles one of these from the {@link SecurityProbe} and
+ * {@link AntivirusBackend} parser results plus the in-memory
+ * {@link TorPrivateMode#state()} and a read-only VPN check after a refresh;
+ * {@link #concerns()} turns the host rows into the plain-language advice list,
+ * while {@link SecurityScore} and {@link HardeningRules} consume the whole
+ * snapshot to derive the grade and the ordered recommendations.
  *
  * @param selinux          the SELinux enforcement mode
  * @param firewall         the firewall running state
  * @param scannerAvailable whether a ClamAV scanner was found on the PATH
  * @param scanner          the scanner name (empty when none is available)
  * @param version          the ClamAV engine / database version
+ * @param tor              the private (Tor) mode state ({@link TorPrivateMode.State})
+ * @param vpnConnected     whether a VPN tunnel is currently up
+ * @param vpnKillSwitch    whether the connected tunnel's kill switch is armed
  */
 public record SecuritySnapshot(
         SecurityProbe.SelinuxMode selinux,
         SecurityProbe.FirewallState firewall,
         boolean scannerAvailable,
         String scanner,
-        VersionInfo version) {
+        VersionInfo version,
+        TorPrivateMode.State tor,
+        boolean vpnConnected,
+        boolean vpnKillSwitch) {
 
     /** Normalises nulls so a snapshot is always safe to render. */
     public SecuritySnapshot {
@@ -44,6 +55,29 @@ public record SecuritySnapshot(
         scanner = (scanner == null) ? "" : scanner.trim();
         version = (version == null) ? VersionInfo.unknown() : version;
         scannerAvailable = scannerAvailable && !scanner.isBlank();
+        tor = (tor == null) ? TorPrivateMode.State.OFF : tor;
+    }
+
+    /**
+     * Backward-compatible host-only form: no anonymity or tunnel layer is
+     * asserted, so tor reads {@link TorPrivateMode.State#OFF} and the VPN is
+     * down. Callers and tests that only probe SELinux / firewall / antivirus
+     * keep compiling against this constructor.
+     *
+     * @param selinux          the SELinux enforcement mode
+     * @param firewall         the firewall running state
+     * @param scannerAvailable whether a ClamAV scanner was found on the PATH
+     * @param scanner          the scanner name (empty when none is available)
+     * @param version          the ClamAV engine / database version
+     */
+    public SecuritySnapshot(
+            SecurityProbe.SelinuxMode selinux,
+            SecurityProbe.FirewallState firewall,
+            boolean scannerAvailable,
+            String scanner,
+            VersionInfo version) {
+        this(selinux, firewall, scannerAvailable, scanner, version,
+                TorPrivateMode.State.OFF, false, false);
     }
 
     /** An all-unknown snapshot, used before the first refresh. */
