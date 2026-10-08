@@ -90,6 +90,10 @@ public class AppearancePanel implements ControlPanel {
     private final DefaultListModel<String> cornerNames = new DefaultListModel<>();
     private final JList<String> cornerList = new JList<>(cornerNames);
 
+    /** Corner-logo model selector (Java logo / Looking-Glass mascot). 3D only. */
+    private final DefaultListModel<String> cornerLogoNames = new DefaultListModel<>();
+    private final JList<String> cornerLogoList = new JList<>(cornerLogoNames);
+
     /** The slideshow source folder; empty means the bundled wallpapers. */
     private String slideshowFolder = "";
 
@@ -140,6 +144,7 @@ public class AppearancePanel implements ControlPanel {
         // wallpaper and slideshow here.
         if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             north.add(buildGlassPanel());
+            north.add(buildCornerLogoPanel());
         }
         north.add(buildSlideshowPanel());
         root.add(north, BorderLayout.NORTH);
@@ -182,6 +187,7 @@ public class AppearancePanel implements ControlPanel {
         }
         if (!Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             loadGlassState();
+            loadCornerLogoState();
         }
         loadSlideshowState();
     }
@@ -255,6 +261,74 @@ public class AppearancePanel implements ControlPanel {
                 : "Window glass: Glassy (classic)")
                 + ", rounded corners " + (rounded ? "on" : "off")
                 + " - applied to open windows and the bar, and saved");
+    }
+
+    /** Corner-logo model ids, parallel to the selector labels. */
+    private static final String[] CORNER_LOGO_IDS = {"java", "mascot"};
+
+    /**
+     * Builds the 3D-desktop corner-logo selector: a two-entry {@link JList}
+     * (Java logo / Looking-Glass mascot) plus an apply button. A list selector
+     * (never a combo box or radio buttons) keeps the panel working when it is
+     * hosted offscreen in a {@code SwingNode}. The choice is persisted on
+     * {@link DesktopConfig}; the image backgrounds listen for the posted
+     * {@link DesktopConfigChangeEvent} and swap the corner model live.
+     */
+    private JComponent buildCornerLogoPanel() {
+        cornerLogoNames.addElement("Java logo (classic)");
+        cornerLogoNames.addElement("Looking Glass mascot");
+        cornerLogoList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        cornerLogoList.setVisibleRowCount(2);
+        JScrollPane logoScroll = new JScrollPane(cornerLogoList);
+        logoScroll.setPreferredSize(new Dimension(200, 58));
+
+        JButton applyLogo = new JButton("Apply");
+        applyLogo.addActionListener(e -> applyCornerLogo());
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        row.add(new JLabel("Corner model:"));
+        row.add(logoScroll);
+        row.add(applyLogo);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(row, BorderLayout.CENTER);
+        panel.setBorder(BorderFactory.createTitledBorder("Corner Logo"));
+        return panel;
+    }
+
+    /** Reflects the persisted corner-logo model in the selector. */
+    private void loadCornerLogoState() {
+        cornerLogoList.setSelectedIndex(
+                cornerLogoIndex(DesktopConfig.get().getCornerLogo()));
+    }
+
+    private void applyCornerLogo() {
+        String id = cornerLogoId(cornerLogoList.getSelectedIndex());
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setCornerLogo(id);
+        cfg.save();
+        // The image backgrounds listen for this event and rebuild the corner-logo
+        // artwork in place, so the new model shows immediately - no restart.
+        LgEventConnector.getLgEventConnector().postEvent(
+                new DesktopConfigChangeEvent(), null);
+        statusLabel.setText("Corner logo: "
+                + cornerLogoList.getSelectedValue() + " - applied and saved");
+    }
+
+    /** Selector row for a stored corner-logo id, falling back to Java. */
+    private static int cornerLogoIndex(String id) {
+        for (int i = 0; i < CORNER_LOGO_IDS.length; i++) {
+            if (CORNER_LOGO_IDS[i].equals(id)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /** The corner-logo id for a selector row, falling back to Java. */
+    private static String cornerLogoId(int index) {
+        return (index >= 0 && index < CORNER_LOGO_IDS.length)
+                ? CORNER_LOGO_IDS[index] : CORNER_LOGO_IDS[0];
     }
 
     /**
