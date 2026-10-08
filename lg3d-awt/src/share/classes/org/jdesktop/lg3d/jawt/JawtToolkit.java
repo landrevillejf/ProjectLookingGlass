@@ -61,7 +61,7 @@ import org.jdesktop.lg3d.jawt.toplevel.JawtWindowPeer;
  * JawtToolkit is a AWT implementation for running AWT/Swing applications
  * and applets inside an already running JVM. The primary goal of this
  * toolkit is to allow running AWT/Swing apps unchanged inside
- * <a href="http://lg3d.dev.java.net">Project Looking Glass</a> but
+ * <a href="https://github.com/landrevillejf/ProjectLookingGlass">Project Looking Glass</a> but
  * an attempt has been made to make this generic enough that it can be
  * run inside any Java container.
  *

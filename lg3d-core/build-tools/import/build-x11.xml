@@ -246,7 +246,7 @@
       *** Error ***
       lg3d-x11 not found:
       You need to checkout lg3d-x11 in order to complete the release build.
-      See https://lg3d-core.dev.java.net/lg3d-developers-guide.html for details.
+      See https://github.com/landrevillejf/ProjectLookingGlass for details.
         </fail>
     </target>
 

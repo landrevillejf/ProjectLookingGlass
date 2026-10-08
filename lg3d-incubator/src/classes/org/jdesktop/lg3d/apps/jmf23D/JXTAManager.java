@@ -135,7 +135,7 @@ public class JXTAManager {
             mdadv.setVersion("Version 1.0");
             mdadv.setCreator("sun.com");
             mdadv.setModuleSpecID(moduleSpecID);
-            mdadv.setSpecURI("http://lg3d.dev.java.net/Algea3D");
+            mdadv.setSpecURI("https://github.com/landrevillejf/ProjectLookingGlass");
 
             return moduleSpecID;
         } catch (IOException io) {

@@ -68,6 +68,16 @@ work to make it build and run on a current toolchain.
   `https://github.com/landrevillejf/ProjectLookingGlass`. Only the descriptor
   `command` in `lg3d-core/src/etc/lg3d/startmenu.lgcfg` changes; the item name,
   icon and group are untouched.
+- **Swept the remaining dead `dev.java.net` URLs in live sources** (multiple
+  modules) — the original Sun/java.net project domain has been dead for ~20
+  years, so it is replaced with this GitHub repository in the orgchart sample
+  `contacts.xml` (contributor `photoURL` / `url` entries), the jmf23D
+  `JXTAManager` JXTA module-spec URI, the legacy Ant `build.xml` javadoc footer
+  and `build-x11.xml` developer-guide hint, the retired `lg3d-awt` `JawtToolkit`
+  javadoc link, and the `Issue381` javadoc tracker reference. The historical
+  website snapshots under the various `www/` trees, the packaging templates
+  (`dpkg` / `win32`) and the sample `.msg` mailing-list data still carry the old
+  domain and are intentionally left untouched (archival, not user-facing).
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
