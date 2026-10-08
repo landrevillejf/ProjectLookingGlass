@@ -26,14 +26,21 @@ import java.util.List;
  * current URL for the strip label). Closing a tab keeps the active index on a
  * neighbour, and the model never allows zero tabs to be selected while tabs
  * remain.</p>
+ *
+ * <p>The model is mutated on the JavaFX Application Thread but read from the EDT
+ * (to rebuild the tab strip and persist the session), so every accessor and
+ * mutator is {@code synchronized}, {@link Tab}'s mutable fields are
+ * {@code volatile}, and {@link #list()} returns an immutable snapshot copy rather
+ * than a live view. That makes concurrent read-while-mutating safe instead of a
+ * {@link java.util.ConcurrentModificationException} waiting to happen.</p>
  */
 public final class TabModel {
 
     /** One browser tab: a stable id plus the display title and current URL. */
     public static final class Tab {
         private final int id;
-        private String title = "";
-        private String url = "";
+        private volatile String title = "";
+        private volatile String url = "";
 
         Tab(int id, String title, String url) {
             this.id = id;
@@ -80,7 +87,7 @@ public final class TabModel {
      * @param url   the initial URL (may be null)
      * @return the index of the new tab
      */
-    public int addTab(String title, String url) {
+    public synchronized int addTab(String title, String url) {
         Tab tab = new Tab(nextId++, title, url);
         tabs.add(tab);
         activeIndex = tabs.size() - 1;
@@ -93,7 +100,7 @@ public final class TabModel {
      * @param index the tab to close
      * @return true when a tab was removed
      */
-    public boolean closeTab(int index) {
+    public synchronized boolean closeTab(int index) {
         if (index < 0 || index >= tabs.size()) {
             return false;
         }
@@ -114,7 +121,7 @@ public final class TabModel {
      * @param index the tab to activate
      * @return true when the active tab changed
      */
-    public boolean selectTab(int index) {
+    public synchronized boolean selectTab(int index) {
         if (index < 0 || index >= tabs.size() || index == activeIndex) {
             return false;
         }
@@ -129,7 +136,7 @@ public final class TabModel {
      * @param to   the target index
      * @return true when the tab moved
      */
-    public boolean moveTab(int from, int to) {
+    public synchronized boolean moveTab(int from, int to) {
         if (from < 0 || from >= tabs.size() || to < 0 || to >= tabs.size() || from == to) {
             return false;
         }
@@ -151,7 +158,7 @@ public final class TabModel {
      * @param title the new title (null leaves it unchanged)
      * @param url   the new URL (null leaves it unchanged)
      */
-    public void updateActive(String title, String url) {
+    public synchronized void updateActive(String title, String url) {
         Tab tab = getActiveTab();
         if (tab == null) {
             return;
@@ -165,32 +172,32 @@ public final class TabModel {
     }
 
     /** @return the active tab, or null when there are none. */
-    public Tab getActiveTab() {
+    public synchronized Tab getActiveTab() {
         return (activeIndex >= 0 && activeIndex < tabs.size()) ? tabs.get(activeIndex) : null;
     }
 
     /** @return the tab at {@code index}, or null when out of range. */
-    public Tab getTab(int index) {
+    public synchronized Tab getTab(int index) {
         return (index >= 0 && index < tabs.size()) ? tabs.get(index) : null;
     }
 
     /** @return the active index, or -1 when there are no tabs. */
-    public int getActiveIndex() {
+    public synchronized int getActiveIndex() {
         return activeIndex;
     }
 
-    /** @return an unmodifiable view of the tabs, in strip order. */
-    public List<Tab> list() {
-        return Collections.unmodifiableList(tabs);
+    /** @return an immutable snapshot copy of the tabs, in strip order. */
+    public synchronized List<Tab> list() {
+        return Collections.unmodifiableList(new ArrayList<>(tabs));
     }
 
     /** @return the number of open tabs. */
-    public int size() {
+    public synchronized int size() {
         return tabs.size();
     }
 
     /** @return true when no tabs are open. */
-    public boolean isEmpty() {
+    public synchronized boolean isEmpty() {
         return tabs.isEmpty();
     }
 }

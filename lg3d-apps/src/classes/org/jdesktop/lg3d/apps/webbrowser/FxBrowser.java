@@ -15,6 +15,7 @@ package org.jdesktop.lg3d.apps.webbrowser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -25,11 +26,18 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.beans.value.ObservableValue;
 import javafx.concurrent.Worker;
@@ -51,8 +59,15 @@ import org.slf4j.LoggerFactory;
  * created and driven on the JavaFX Application Thread. It owns the tab list
  * (the {@link TabModel}) and the parallel {@code WebView} map, wires every
  * engine listener (location, title, load progress/state, popups), applies the
- * {@link BrowserSettings} (JavaScript, user agent, cookies, zoom) and offers
- * best-effort downloads.
+ * {@link BrowserSettings} (JavaScript, user agent, cookies, zoom, timeouts) and
+ * offers robust, cancellable downloads.
+ *
+ * <p>All decision logic (failure classification, error-page markup, download
+ * naming, find-in-page and reader scripts) lives in JavaFX-free helper classes
+ * so it is unit-tested headlessly; this class only marshals threads and drives
+ * WebKit. A failed navigation is diagnosed by {@link LoadFailure} and rendered
+ * as an honest {@link ErrorPage} instead of a blank tab, and a per-navigation
+ * watchdog cancels loads that stall past the configured page timeout.</p>
  *
  * <p>This is the only place in the app that touches {@code javafx.scene.web},
  * and it is never constructed in the 3D desktop JVM: there the pure-Swing
@@ -61,7 +76,10 @@ import org.slf4j.LoggerFactory;
  * shares a process with the Java&nbsp;3D OpenGL context.</p>
  *
  * <p>Every mutating method marshals its work through {@link Platform#runLater}
- * so the Swing {@link BrowserPanel} can call them freely from the EDT. State
+ * so the Swing {@link BrowserPanel} can call them freely from the EDT. The
+ * read-only navigation getters ({@link #canGoBack()}, {@link #getLocation()},
+ * {@link #getZoom()} ...) read a {@code volatile} {@link NavSnapshot} refreshed
+ * on the FX thread, so the EDT never reaches into WebKit off-thread. State
  * changes are reported back through the {@link Listener}, which fires on the
  * JavaFX thread; the panel re-marshals to the EDT.</p>
  */
@@ -73,6 +91,13 @@ public final class FxBrowser {
     private static final double MIN_ZOOM = 0.25d;
     private static final double MAX_ZOOM = 4.0d;
     private static final double ZOOM_STEP = 1.25d;
+
+    /** Fixed TCP connect timeout for the download client. */
+    private static final int CONNECT_TIMEOUT_SECONDS = 20;
+    /** Streaming copy buffer size for downloads. */
+    private static final int COPY_BUFFER_BYTES = 8192;
+    /** Report download progress at most once per this many bytes. */
+    private static final long PROGRESS_REPORT_BYTES = 65536L;
 
     /** File extensions treated as a direct download rather than a page. */
     private static final String[] DOWNLOAD_EXTENSIONS = {
@@ -105,19 +130,76 @@ public final class FxBrowser {
 
         /** A download record changed state. */
         default void onDownloadChanged(DownloadRecord record) { }
+
+        /**
+         * A navigation failed; an {@link ErrorPage} has been rendered for it.
+         *
+         * @param url     the URL that failed (never null, may be empty)
+         * @param failure the classified failure (never null)
+         */
+        default void onLoadFailed(String url, LoadFailure failure) { }
+
+        /**
+         * The find-in-page match counts changed.
+         *
+         * @param active the 1-based index of the focused match, or 0 when none
+         * @param total  the total number of matches on the page
+         */
+        default void onFindResults(int active, int total) { }
+
+        /** An extension blocked a navigation to {@code url}. */
+        default void onNavigationBlocked(String url) { }
+
+        /** An extension blocked a popup requested from {@code url}. */
+        default void onPopupBlocked(String url) { }
+    }
+
+    /**
+     * An immutable snapshot of the active tab's navigation state, recomputed on
+     * the FX thread so the EDT can read back/forward/location/zoom without
+     * touching WebKit off-thread.
+     */
+    private static final class NavSnapshot {
+        static final NavSnapshot EMPTY = new NavSnapshot(false, false, "", 1.0d);
+
+        final boolean canBack;
+        final boolean canForward;
+        final String location;
+        final double zoom;
+
+        NavSnapshot(boolean canBack, boolean canForward, String location, double zoom) {
+            this.canBack = canBack;
+            this.canForward = canForward;
+            this.location = (location == null) ? "" : location;
+            this.zoom = zoom;
+        }
     }
 
     private final TabModel model = new TabModel();
-    private final Map<Integer, WebView> views = new java.util.HashMap<>();
+    private final Map<Integer, WebView> views = new ConcurrentHashMap<>();
     private final StackPane root = new StackPane();
     private final Listener listener;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
 
-    private BrowserSettings settings;
-    private Path downloadDir;
-    private boolean shuttingDown;
+    /** Single daemon scheduler that fires per-navigation load timeouts. */
+    private final ScheduledExecutorService watchdogScheduler =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "webbrowser-watchdog");
+                t.setDaemon(true);
+                return t;
+            });
+    private final Map<Integer, ScheduledFuture<?>> watchdogs = new ConcurrentHashMap<>();
+    /** Per-tab last failed network URL, so Reload/anchor can retry it. */
+    private final Map<Integer, String> failedUrls = new ConcurrentHashMap<>();
+    /** Tabs whose next SUCCEEDED is our own error page, not a real navigation. */
+    private final Set<Integer> pendingErrorRender = ConcurrentHashMap.newKeySet();
+    /** In-flight download cancel flags, keyed by URL. */
+    private final Map<String, AtomicBoolean> downloadFlags = new ConcurrentHashMap<>();
+
+    private volatile HttpClient httpClient;
+    private volatile BrowserSettings settings;
+    private volatile Path downloadDir;
+    private volatile NavSnapshot nav = NavSnapshot.EMPTY;
+    private volatile boolean shuttingDown;
     private volatile ExtensionBroker broker;
 
     /**
@@ -131,6 +213,7 @@ public final class FxBrowser {
         this.listener = (listener == null) ? new Listener() { } : listener;
         this.settings = (settings == null) ? new BrowserSettings() : settings;
         this.downloadDir = resolveDownloadDir(this.settings.getDownloadDir());
+        this.httpClient = buildHttpClient(this.settings);
         installCookiePolicy(this.settings);
     }
 
@@ -183,13 +266,8 @@ public final class FxBrowser {
     /** Opens a new tab and loads {@code url} (or the home page when null). */
     public void newTab(String url) {
         runOnFx(() -> {
-            int index = model.addTab("New Tab", null);
-            TabModel.Tab tab = model.getTab(index);
-            WebView view = createView();
-            views.put(tab.getId(), view);
-            showActive();
+            addTabView("New Tab", null);
             loadInternal(targetUrl(url));
-            fireTabsChanged();
         });
     }
 
@@ -200,8 +278,18 @@ public final class FxBrowser {
             if (tab == null || model.size() <= 1) {
                 return;
             }
-            WebView view = views.remove(tab.getId());
+            int id = tab.getId();
+            // Release the tab's async resources before dropping its view.
+            disarmWatchdog(id);
+            failedUrls.remove(id);
+            pendingErrorRender.remove(id);
+            WebView view = views.remove(id);
             if (view != null) {
+                try {
+                    view.getEngine().getLoadWorker().cancel();
+                } catch (RuntimeException ignored) {
+                    // best effort
+                }
                 view.getEngine().loadContent("");
                 root.getChildren().remove(view);
             }
@@ -233,10 +321,7 @@ public final class FxBrowser {
     public void load(String url) {
         runOnFx(() -> {
             if (model.isEmpty()) {
-                int index = model.addTab("New Tab", null);
-                WebView view = createView();
-                views.put(model.getTab(index).getId(), view);
-                showActive();
+                addTabView("New Tab", null);
             }
             loadInternal(targetUrl(url));
         });
@@ -252,16 +337,36 @@ public final class FxBrowser {
         runOnFx(() -> { WebHistory h = activeHistory(); if (h != null) h.go(1); });
     }
 
-    /** Reloads the active tab. */
+    /**
+     * Reloads the active tab. When the tab is currently showing an error page,
+     * this retries the original failed URL instead of reloading the error card.
+     */
     public void reload() {
-        runOnFx(() -> { WebEngine e = activeEngine(); if (e != null) e.reload(); });
+        runOnFx(() -> {
+            int id = activeTabId();
+            String failed = (id >= 0) ? failedUrls.remove(id) : null;
+            if (failed != null) {
+                loadInternal(failed);
+                return;
+            }
+            WebEngine e = activeEngine();
+            if (e != null) {
+                e.reload();
+            }
+        });
     }
 
     /** Stops the active tab's load. */
     public void stop() {
         // WebEngine.stop() is private; cancelling the LoadWorker is the public
         // equivalent and stops the in-flight navigation.
-        runOnFx(() -> { WebEngine e = activeEngine(); if (e != null) e.getLoadWorker().cancel(); });
+        runOnFx(() -> {
+            disarmWatchdog(activeTabId());
+            WebEngine e = activeEngine();
+            if (e != null) {
+                e.getLoadWorker().cancel();
+            }
+        });
     }
 
     /** Loads the configured home page. */
@@ -269,42 +374,75 @@ public final class FxBrowser {
         load(settings.getHomePage());
     }
 
-    /** @return true when the active tab can go back. */
+    /** @return true when the active tab can go back (thread-safe snapshot). */
     public boolean canGoBack() {
-        WebHistory h = activeHistory();
-        return h != null && h.getCurrentIndex() > 0;
+        return nav.canBack;
     }
 
-    /** @return true when the active tab can go forward. */
+    /** @return true when the active tab can go forward (thread-safe snapshot). */
     public boolean canGoForward() {
-        WebHistory h = activeHistory();
-        if (h == null) {
-            return false;
-        }
-        return h.getCurrentIndex() < h.getEntries().size() - 1;
+        return nav.canForward;
     }
 
-    /** @return the active tab's current location, or "" (FX thread). */
+    /** @return the active tab's current location, or "" (thread-safe snapshot). */
     public String getLocation() {
-        WebEngine e = activeEngine();
-        return (e == null || e.getLocation() == null) ? "" : e.getLocation();
+        return nav.location;
     }
 
     // ------------------------------------------------------------------
     // Page tools (thread-safe)
     // ------------------------------------------------------------------
 
-    /** Highlights the next occurrence of {@code text} on the active page. */
+    /**
+     * Highlights every occurrence of {@code text} on the active page and reports
+     * the match counts through {@link Listener#onFindResults}. A null/blank
+     * query clears the highlights.
+     */
     public void find(String text) {
-        if (text == null || text.isBlank()) {
-            return;
-        }
-        String escaped = text.replace("\\", "\\\\").replace("'", "\\'");
         runOnFx(() -> {
             WebEngine e = activeEngine();
-            if (e != null) {
-                e.executeScript("window.find('" + escaped + "', false, false, true)");
+            if (e == null) {
+                return;
             }
+            exec(e, FindScript.installHelpersScript());
+            int[] counts = FindScript.parseCounts(exec(e, FindScript.highlightScript(text)));
+            listener.onFindResults(counts[0], counts[1]);
+        });
+    }
+
+    /** Advances to the next find match (wrapping) and reports the counts. */
+    public void findNext() {
+        runOnFx(() -> {
+            WebEngine e = activeEngine();
+            if (e == null) {
+                return;
+            }
+            int[] counts = FindScript.parseCounts(exec(e, FindScript.nextScript()));
+            listener.onFindResults(counts[0], counts[1]);
+        });
+    }
+
+    /** Moves to the previous find match (wrapping) and reports the counts. */
+    public void findPrev() {
+        runOnFx(() -> {
+            WebEngine e = activeEngine();
+            if (e == null) {
+                return;
+            }
+            int[] counts = FindScript.parseCounts(exec(e, FindScript.prevScript()));
+            listener.onFindResults(counts[0], counts[1]);
+        });
+    }
+
+    /** Clears all find highlights and resets the reported counts to zero. */
+    public void clearFind() {
+        runOnFx(() -> {
+            WebEngine e = activeEngine();
+            if (e == null) {
+                return;
+            }
+            exec(e, FindScript.clearScript());
+            listener.onFindResults(0, 0);
         });
     }
 
@@ -315,19 +453,33 @@ public final class FxBrowser {
             if (e == null) {
                 return;
             }
-            Object html;
-            try {
-                html = e.executeScript("document.documentElement.outerHTML");
-            } catch (RuntimeException ex) {
-                html = null;
-            }
+            String loc = e.getLocation();
+            String title = "Source: " + safeTitle(e);
+            Object html = exec(e, "document.documentElement.outerHTML");
             String source = (html == null) ? "(source unavailable)" : html.toString();
-            int index = model.addTab("Source: " + safeTitle(e), e.getLocation());
-            WebView view = createView();
-            views.put(model.getTab(index).getId(), view);
-            showActive();
+            WebView view = addTabView(title, loc);
             view.getEngine().loadContent(source, "text/plain");
-            fireTabsChanged();
+        });
+    }
+
+    /**
+     * Extracts the active page's main article and opens it, ad-free, in a new
+     * tab (the same pattern as {@link #viewSource()}).
+     */
+    public void enterReaderMode() {
+        runOnFx(() -> {
+            WebEngine e = activeEngine();
+            if (e == null) {
+                return;
+            }
+            String source = fxLocation();
+            Object json = exec(e, ReaderExtractor.EXTRACT_JS);
+            ReaderArticle article = ReaderExtractor.parse(json == null ? null : json.toString());
+            String t = article.getTitle();
+            String label = (t == null || t.isBlank()) ? "Reader" : t;
+            WebView view = addTabView(label, source);
+            view.getEngine().loadContent(
+                    ReaderExtractor.renderHtml(article, source), ReaderExtractor.CONTENT_TYPE);
         });
     }
 
@@ -348,19 +500,19 @@ public final class FxBrowser {
             if (v != null) {
                 v.setZoom(1.0d);
                 settings.setZoom(1.0d);
+                refreshNav();
             }
         });
     }
 
-    /** @return the active tab's zoom (FX thread), or 1.0. */
+    /** @return the active tab's zoom (thread-safe snapshot), or 1.0. */
     public double getZoom() {
-        WebView v = activeView();
-        return (v == null) ? 1.0d : v.getZoom();
+        return nav.zoom;
     }
 
     /**
      * Applies new settings to every open engine (JavaScript, user agent,
-     * cookies, home page, download directory).
+     * cookies, home page, download directory, timeouts).
      *
      * @param next the settings to apply (null is ignored)
      */
@@ -371,6 +523,7 @@ public final class FxBrowser {
         runOnFx(() -> {
             this.settings = next;
             this.downloadDir = resolveDownloadDir(next.getDownloadDir());
+            this.httpClient = buildHttpClient(next);
             installCookiePolicy(next);
             for (WebView v : views.values()) {
                 WebEngine e = v.getEngine();
@@ -388,12 +541,33 @@ public final class FxBrowser {
         return settings;
     }
 
-    /** Releases every engine; call when the host window closes. */
+    /**
+     * Requests cancellation of the in-flight download for {@code url} (a no-op
+     * when there is none). The partial file is removed by the download thread.
+     */
+    public void cancelDownload(String url) {
+        if (url == null) {
+            return;
+        }
+        AtomicBoolean flag = downloadFlags.get(url);
+        if (flag != null) {
+            flag.set(true);
+        }
+    }
+
+    /** Releases every engine and async resource; call when the host window closes. */
     public void shutdown() {
         shuttingDown = true;
+        for (AtomicBoolean flag : downloadFlags.values()) {
+            flag.set(true);
+        }
+        downloadFlags.clear();
+        disarmAllWatchdogs();
+        watchdogScheduler.shutdownNow();
         runOnFx(() -> {
             for (WebView v : views.values()) {
                 try {
+                    v.getEngine().getLoadWorker().cancel();
                     v.getEngine().loadContent("");
                 } catch (RuntimeException ignored) {
                     // best effort
@@ -413,7 +587,18 @@ public final class FxBrowser {
     // Internals (JavaFX thread unless noted)
     // ------------------------------------------------------------------
 
-    private WebView createView() {
+    /** Creates a new tab with its view, shows it, and returns the view. */
+    private WebView addTabView(String title, String url) {
+        int index = model.addTab(title, url);
+        TabModel.Tab tab = model.getTab(index);
+        WebView view = createView(tab.getId());
+        views.put(tab.getId(), view);
+        showActive();
+        fireTabsChanged();
+        return view;
+    }
+
+    private WebView createView(int tabId) {
         WebView view = new WebView();
         view.setContextMenuEnabled(true);
         view.setZoom(settings.getZoom());
@@ -423,16 +608,17 @@ public final class FxBrowser {
         if (ua != null && !ua.isBlank()) {
             engine.setUserAgent(ua.trim());
         }
-        wire(engine);
+        wire(engine, tabId);
         return view;
     }
 
-    private void wire(WebEngine engine) {
+    private void wire(WebEngine engine, int tabId) {
         engine.locationProperty().addListener(
                 (ObservableValue<? extends String> ov, String oldLoc, String loc) -> {
                     if (!shuttingDown) {
                         listener.onLocationChanged(loc == null ? "" : loc);
                         listener.onStatusMessage(loc == null ? "" : loc);
+                        refreshNav();
                     }
                 });
         engine.titleProperty().addListener(
@@ -461,17 +647,29 @@ public final class FxBrowser {
                         return;
                     }
                     if (state == Worker.State.SUCCEEDED) {
+                        disarmWatchdog(tabId);
                         listener.onProgress(-1.0d);
-                        String loc = engine.getLocation();
-                        String title = engine.getTitle();
-                        updateActiveModel(title, loc);
-                        listener.onPageCommitted(loc, title);
-                        notifyPageLoaded(engine, loc, title);
-                        fireTabsChanged();
-                        listener.onStatusMessage("");
+                        if (pendingErrorRender.remove(tabId)) {
+                            // Our own error page just committed; not a real page.
+                            listener.onStatusMessage("");
+                        } else {
+                            failedUrls.remove(tabId);
+                            String loc = engine.getLocation();
+                            String title = engine.getTitle();
+                            updateActiveModel(title, loc);
+                            listener.onPageCommitted(loc, title);
+                            notifyPageLoaded(engine, loc, title);
+                            fireTabsChanged();
+                            listener.onStatusMessage("");
+                        }
                     } else if (state == Worker.State.FAILED) {
+                        disarmWatchdog(tabId);
                         listener.onProgress(-1.0d);
-                        listener.onStatusMessage("Failed to load " + engine.getLocation());
+                        handleLoadFailure(engine, tabId, worker.getException());
+                    } else if (state == Worker.State.CANCELLED) {
+                        disarmWatchdog(tabId);
+                        listener.onProgress(-1.0d);
+                        listener.onStatusMessage("");
                     }
                     fireNavigationState();
                 });
@@ -479,22 +677,48 @@ public final class FxBrowser {
             @Override
             public WebEngine call(PopupFeatures config) {
                 ExtensionBroker b = broker;
-                if (b != null && b.isPopupBlocked(new PopupRequest(getLocation(), false))) {
+                if (b != null && b.isPopupBlocked(new PopupRequest(fxLocation(), false))) {
                     // A popup-blocking extension vetoed this window; returning
                     // null tells WebKit not to create a popup engine at all.
                     listener.onStatusMessage("Popup blocked by an extension");
+                    listener.onPopupBlocked(fxLocation());
                     return null;
                 }
                 // Open popups / target=_blank links in a real new tab instead of
                 // a separate window, so the tabbed model stays authoritative.
-                int index = model.addTab("New Tab", null);
-                WebView view = createView();
-                views.put(model.getTab(index).getId(), view);
-                showActive();
-                fireTabsChanged();
-                return view.getEngine();
+                return addTabView("New Tab", null).getEngine();
             }
         });
+    }
+
+    /** Classifies a load failure, renders its error page and notifies the panel. */
+    private void handleLoadFailure(WebEngine engine, int tabId, Throwable ex) {
+        String loc = engine.getLocation();
+        LoadFailure failure = LoadFailure.classify(ex, loc);
+        if (tabId >= 0 && isNetworkUrl(loc)) {
+            failedUrls.put(tabId, loc);
+        }
+        listener.onStatusMessage(failure.getTitle());
+        renderError(engine, tabId, failure);
+        listener.onLoadFailed((loc == null) ? "" : loc, failure);
+    }
+
+    /** Loads the styled error card into {@code engine} for {@code failure}. */
+    private void renderError(WebEngine engine, int tabId, LoadFailure failure) {
+        if (engine == null) {
+            return;
+        }
+        if (tabId >= 0) {
+            pendingErrorRender.add(tabId);
+        }
+        try {
+            engine.loadContent(ErrorPage.html(failure), ErrorPage.CONTENT_TYPE);
+        } catch (RuntimeException e) {
+            if (tabId >= 0) {
+                pendingErrorRender.remove(tabId);
+            }
+            LOG.warn("Could not render the error page for {}", failure.getUrl(), e);
+        }
     }
 
     /**
@@ -522,13 +746,15 @@ public final class FxBrowser {
         if (engine == null || url == null || url.isBlank()) {
             return;
         }
+        int tabId = activeTabId();
         String target = url;
         ExtensionBroker b = broker;
         if (b != null) {
             NavigationDecision decision =
-                    b.onNavigate(new NavigationRequest(url, activeTabId()));
+                    b.onNavigate(new NavigationRequest(url, tabId));
             if (decision.isBlock()) {
                 listener.onStatusMessage("Navigation blocked by an extension: " + url);
+                listener.onNavigationBlocked(url);
                 return;
             }
             if (decision.isRedirect()) {
@@ -544,7 +770,9 @@ public final class FxBrowser {
         if (maybeDownload(target)) {
             return;
         }
+        failedUrls.remove(tabId);
         engine.load(target);
+        armWatchdog(tabId, engine, target);
     }
 
     private String targetUrl(String url) {
@@ -562,6 +790,7 @@ public final class FxBrowser {
         double next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, v.getZoom() * factor));
         v.setZoom(next);
         settings.setZoom(next);
+        refreshNav();
     }
 
     private void showActive() {
@@ -571,6 +800,7 @@ public final class FxBrowser {
         if (active != null) {
             root.getChildren().add(active);
         }
+        refreshNav();
     }
 
     private void updateActiveModel(String title, String url) {
@@ -598,9 +828,27 @@ public final class FxBrowser {
         return (e == null) ? null : e.getHistory();
     }
 
+    /** @return the active engine's live location, or "" (FX thread only). */
+    private String fxLocation() {
+        WebEngine e = activeEngine();
+        return (e == null || e.getLocation() == null) ? "" : e.getLocation();
+    }
+
     private String safeTitle(WebEngine engine) {
         String t = engine.getTitle();
         return (t == null || t.isBlank()) ? engine.getLocation() : t;
+    }
+
+    /** Recomputes the {@link #nav} snapshot from live WebKit state (FX thread). */
+    private void refreshNav() {
+        WebHistory h = activeHistory();
+        WebEngine e = activeEngine();
+        WebView v = activeView();
+        boolean back = h != null && h.getCurrentIndex() > 0;
+        boolean fwd = h != null && h.getCurrentIndex() < h.getEntries().size() - 1;
+        String loc = (e == null || e.getLocation() == null) ? "" : e.getLocation();
+        double zoom = (v == null) ? 1.0d : v.getZoom();
+        nav = new NavSnapshot(back, fwd, loc, zoom);
     }
 
     private void fireTabsChanged() {
@@ -608,11 +856,74 @@ public final class FxBrowser {
     }
 
     private void fireLocation() {
-        listener.onLocationChanged(getLocation());
+        refreshNav();
+        listener.onLocationChanged(nav.location);
     }
 
     private void fireNavigationState() {
-        listener.onNavigationStateChanged(canGoBack(), canGoForward());
+        refreshNav();
+        listener.onNavigationStateChanged(nav.canBack, nav.canForward);
+    }
+
+    // ------------------------------------------------------------------
+    // Navigation watchdog
+    // ------------------------------------------------------------------
+
+    /**
+     * Schedules a timeout for the navigation just started on {@code tabId}. If
+     * it is still loading after the configured page timeout, the load is
+     * cancelled and a TIMEOUT error page is rendered. Disarmed by any terminal
+     * worker state, a new navigation, or {@link #shutdown()}.
+     */
+    private void armWatchdog(int tabId, WebEngine engine, String url) {
+        if (tabId < 0 || engine == null) {
+            return;
+        }
+        disarmWatchdog(tabId);
+        final int seconds = Math.max(1, settings.getPageTimeoutSeconds());
+        ScheduledFuture<?> future = watchdogScheduler.schedule(() -> {
+            watchdogs.remove(tabId);
+            runOnFx(() -> {
+                if (shuttingDown) {
+                    return;
+                }
+                Worker<Void> worker = engine.getLoadWorker();
+                Worker.State state = worker.getState();
+                // The page may have finished right at the deadline; don't nuke it.
+                if (state == Worker.State.SUCCEEDED || state == Worker.State.FAILED) {
+                    return;
+                }
+                try {
+                    worker.cancel();
+                } catch (RuntimeException ignored) {
+                    // best effort
+                }
+                LoadFailure failure = LoadFailure.of(LoadFailure.Reason.TIMEOUT, url,
+                        "No response within " + seconds + "s");
+                if (isNetworkUrl(url)) {
+                    failedUrls.put(tabId, url);
+                }
+                listener.onProgress(-1.0d);
+                listener.onStatusMessage(failure.getTitle());
+                renderError(engine, tabId, failure);
+                listener.onLoadFailed(url, failure);
+                fireNavigationState();
+            });
+        }, seconds, TimeUnit.SECONDS);
+        watchdogs.put(tabId, future);
+    }
+
+    private void disarmWatchdog(int tabId) {
+        ScheduledFuture<?> future = watchdogs.remove(tabId);
+        if (future != null) {
+            future.cancel(false);
+        }
+    }
+
+    private void disarmAllWatchdogs() {
+        for (Integer id : new ArrayList<>(watchdogs.keySet())) {
+            disarmWatchdog(id);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -645,37 +956,92 @@ public final class FxBrowser {
 
     private void startDownload(String url) {
         DownloadRecord record = new DownloadRecord(url, fileNameFor(url));
-        listener.onDownloadChanged(record);
-        Thread worker = new Thread(() -> runDownload(url, record), "webbrowser-download");
+        AtomicBoolean cancel = new AtomicBoolean(false);
+        downloadFlags.put(url, cancel);
+        listener.onDownloadChanged(record.copy());
+        Thread worker = new Thread(() -> runDownload(url, record, cancel), "webbrowser-download");
         worker.setDaemon(true);
         worker.start();
     }
 
-    /** Runs off the FX thread: streams the body to disk and updates the record. */
-    private void runDownload(String url, DownloadRecord record) {
+    /**
+     * Runs off the FX thread: streams the body to disk with a bounded timeout,
+     * reporting incremental progress and honouring the cancel flag. The record
+     * is mutated here but only ever handed to the listener as a {@code copy()},
+     * so the EDT/FX reader never sees a torn state.
+     */
+    private void runDownload(String url, DownloadRecord record, AtomicBoolean cancel) {
+        Path target = null;
         try {
             Files.createDirectories(downloadDir);
-            Path target = uniquePath(downloadDir.resolve(record.getFileName()));
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(Math.max(1, settings.getDownloadTimeoutSeconds())))
+                    .GET()
+                    .build();
             HttpResponse<InputStream> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() >= 400) {
-                record.markFailed("HTTP " + response.statusCode());
-                listener.onDownloadChanged(record);
+            int status = response.statusCode();
+            if (status >= 400) {
+                LoadFailure failure = LoadFailure.fromHttpStatus(status, url);
+                record.markFailed(failure.getTitle() + " (" + failure.getDetail() + ")");
+                listener.onDownloadChanged(record.copy());
                 return;
             }
-            try (InputStream in = response.body()) {
-                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            String disposition = response.headers().firstValue("Content-Disposition").orElse(null);
+            String name = ContentDisposition.fileName(disposition);
+            if (name == null || name.isBlank()) {
+                name = fileNameFor(url);
             }
-            record.markComplete(target.toString(), Files.size(target));
+            record.setFileName(name);
+            long total = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+            if (total > 0) {
+                record.setTotalBytes(total);
+            }
+            target = uniquePath(downloadDir.resolve(name));
+
+            long written = 0L;
+            long lastReport = 0L;
+            boolean cancelled = false;
+            byte[] buffer = new byte[COPY_BUFFER_BYTES];
+            try (InputStream in = response.body();
+                 OutputStream out = Files.newOutputStream(target)) {
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    if (cancel.get()) {
+                        cancelled = true;
+                        break;
+                    }
+                    out.write(buffer, 0, n);
+                    written += n;
+                    if (written - lastReport >= PROGRESS_REPORT_BYTES) {
+                        lastReport = written;
+                        record.updateProgress(written, Math.max(total, 0L));
+                        listener.onDownloadChanged(record.copy());
+                    }
+                }
+            }
+            if (cancelled) {
+                record.markCancelled();
+                deleteQuietly(target);
+                listener.onDownloadChanged(record.copy());
+                return;
+            }
+            record.markComplete(target.toString(), written);
         } catch (IOException | InterruptedException | RuntimeException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            record.markFailed(String.valueOf(e.getMessage()));
-            LOG.warn("Download failed for {}", url, e);
+            if (cancel.get()) {
+                record.markCancelled();
+            } else {
+                record.markFailed(LoadFailure.describe(e));
+                LOG.warn("Download failed for {}", url, e);
+            }
+            deleteQuietly(target);
+        } finally {
+            downloadFlags.remove(url);
         }
-        listener.onDownloadChanged(record);
+        listener.onDownloadChanged(record.copy());
         openWithSystemHandler(record);
     }
 
@@ -724,6 +1090,48 @@ public final class FxBrowser {
     // ------------------------------------------------------------------
     // Helpers (callable from any thread unless noted)
     // ------------------------------------------------------------------
+
+    /** Runs a script on the engine, containing any WebKit/runtime failure. */
+    private static Object exec(WebEngine engine, String script) {
+        try {
+            return engine.executeScript(script);
+        } catch (RuntimeException e) {
+            LOG.debug("Script execution failed; ignored", e);
+            return null;
+        }
+    }
+
+    /** Builds a download client with a bounded TCP connect timeout. */
+    private static HttpClient buildHttpClient(BrowserSettings s) {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL);
+        try {
+            builder.connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS));
+        } catch (RuntimeException ignored) {
+            // A bad timeout value must never make the browser unusable.
+        }
+        return builder.build();
+    }
+
+    private static boolean isNetworkUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String l = url.toLowerCase(Locale.ROOT);
+        return l.startsWith("http://") || l.startsWith("https://")
+                || l.startsWith("file://") || l.startsWith("ftp://");
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException | RuntimeException ignored) {
+            // best effort
+        }
+    }
 
     private static void runOnFx(Runnable action) {
         if (Platform.isFxApplicationThread()) {

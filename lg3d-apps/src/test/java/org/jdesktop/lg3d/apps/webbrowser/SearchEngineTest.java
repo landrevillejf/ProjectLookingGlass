@@ -64,4 +64,17 @@ class SearchEngineTest {
         assertSame(SearchEngine.DUCKDUCKGO, SearchEngine.values()[0],
                 "DuckDuckGo is the first/default engine");
     }
+
+    @Test
+    @DisplayName("the added engines resolve and build search URLs")
+    void extraEngines() {
+        assertSame(SearchEngine.BRAVE, SearchEngine.fromName("brave"));
+        assertSame(SearchEngine.ECOSIA, SearchEngine.fromName("Ecosia"));
+        assertSame(SearchEngine.MOJEEK, SearchEngine.fromName("mojeek"));
+        assertSame(SearchEngine.WIKIPEDIA, SearchEngine.fromName("wikipedia"));
+        assertTrue(SearchEngine.BRAVE.searchUrl("cat").contains("search.brave.com"));
+        assertTrue(SearchEngine.ECOSIA.searchUrl("cat").contains("ecosia.org"));
+        assertTrue(SearchEngine.MOJEEK.searchUrl("cat").contains("mojeek.com"));
+        assertTrue(SearchEngine.WIKIPEDIA.searchUrl("cat").contains("wikipedia.org"));
+    }
 }

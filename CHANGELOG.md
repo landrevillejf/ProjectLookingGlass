@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.66.1-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Web browser: address-bar security indicator + site-info popup** (`lg3d-apps`)
+  — a clickable indicator now sits next to the address bar (the status-bar lock
+  stays as its echo). It classifies the current URL through the new JavaFX-free
+  `SecurityInfo` (`SECURE` / `NOT_SECURE` / `LOCAL` / `INTERNAL` / `UNKNOWN`,
+  built on `UrlNormalizer`) and opens a popup showing the connection security,
+  host, scheme, JavaScript/cookie state and this site's blocked-navigation and
+  blocked-popup counts. A new `SiteStats` (host → counters) is fed by two new
+  `FxBrowser.Listener` callbacks, `onNavigationBlocked` / `onPopupBlocked`, fired
+  when the extension broker vetoes a navigation or a popup.
+- **Web browser: inline find bar with live match counts** (`lg3d-apps`) — the
+  modal find dialog is replaced by a docked find bar (Ctrl+F or the Find button;
+  Enter = next, Shift+Enter = previous, Esc = close and clear). It highlights
+  every match and shows “n of m”, powered by the new JavaFX-free `FindScript`,
+  which safely escapes the query into a JS string literal (no injection through
+  the find field) and parses the returned counts; `FxBrowser` gains
+  `find`/`findNext`/`findPrev`/`clearFind` and an `onFindResults` callback.
+- **Web browser: reader mode** (`lg3d-apps`) — a new **Reader** toolbar button
+  extracts the active page's main article and reopens it, clean and ad-free, in a
+  new tab (the same pattern as view-source). The readability-style DOM heuristic
+  runs in WebKit (`ReaderExtractor.EXTRACT_JS`); the JSON parse and the styled,
+  fully-escaped page rendering are JavaFX-free (`ReaderArticle` /
+  `ReaderExtractor`) and unit-tested headlessly.
+- **Web browser: four more search engines** (`lg3d-apps`) — `Brave Search`,
+  `Ecosia`, `Mojeek` and `Wikipedia` join `SearchEngine`; the settings combo
+  already lists every value, so they are selectable with no other change.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure
@@ -61,6 +86,33 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **Web browser: honest error pages, a load watchdog and robust downloads**
+  (`lg3d-apps`) — a failed navigation no longer leaves a blank tab with only a
+  status string. `FxBrowser` now classifies the failure with the new JavaFX-free
+  `LoadFailure` (walking the whole cause chain, then falling back to WebKit's
+  message text) and renders a styled, XSS-escaped `ErrorPage` with recovery tips
+  and a “Try again” button when retrying makes sense; the toolbar Reload retries
+  the original URL. A per-navigation watchdog on a shared daemon scheduler cancels
+  a load that stalls past the new `pageTimeoutSeconds` setting and shows a TIMEOUT
+  page, and `Worker.State.CANCELLED` now resets progress/status instead of being
+  ignored. Downloads stream through a buffered copy loop with incremental
+  progress, a `downloadTimeoutSeconds` request timeout and a client connect
+  timeout, name the file from `Content-Disposition` (RFC 6266/5987, via the new
+  `ContentDisposition`) before falling back to the URL, and can be cancelled from
+  the downloads dialog (the partial file is removed); IO failures are reported
+  with the same readable vocabulary.
+- **Web browser: thread-safety between the EDT and the JavaFX thread**
+  (`lg3d-apps`) — `TabModel` is now internally synchronised, its mutable `Tab`
+  fields are `volatile` and `list()` returns an immutable snapshot copy, so the
+  EDT iterating the tab strip while the FX thread mutates it can no longer hit a
+  `ConcurrentModificationException`. `FxBrowser`'s view map is a
+  `ConcurrentHashMap` and its read-only getters (`canGoBack`/`canGoForward`/
+  `getLocation`/`getZoom`) read a `volatile` navigation snapshot refreshed on the
+  FX thread instead of reaching into `WebHistory`/`WebView` off-thread; the zoom
+  label is likewise updated via `SwingUtilities.invokeLater`. Session restore is
+  defensive (skips blank/`view-source:` entries, caps the restored tab count, and
+  one bad URL can no longer abort startup), and closing a tab or shutting down now
+  cancels its watchdog, in-flight download and cached error state.
 - **Oversized taskbar icon for plugins that build their icon early** (`lg3d-core`)
   — the Terminator (exit) taskbar item's Jolly Roger icon could render far larger
   than its neighbours in the right-hand group and, on its hover-grow, loom over and

@@ -39,6 +39,12 @@ public class BrowserSettings {
     /** Default zoom (1.0 = 100%). */
     public static final double DEFAULT_ZOOM = 1.0d;
 
+    /** Default per-page navigation timeout, in seconds. */
+    public static final int DEFAULT_PAGE_TIMEOUT_SECONDS = 30;
+
+    /** Default download request timeout, in seconds. */
+    public static final int DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 300;
+
     private String homePage = DEFAULT_HOME_PAGE;
     private String searchEngineName = SearchEngine.DUCKDUCKGO.name();
     /** Empty means "use the WebEngine's own user agent". */
@@ -51,6 +57,8 @@ public class BrowserSettings {
     private double zoom = DEFAULT_ZOOM;
     /** Directory downloads are saved to; empty means the user's Downloads. */
     private String downloadDir = "";
+    private int pageTimeoutSeconds = DEFAULT_PAGE_TIMEOUT_SECONDS;
+    private int downloadTimeoutSeconds = DEFAULT_DOWNLOAD_TIMEOUT_SECONDS;
 
     public String getHomePage() {
         return (homePage == null || homePage.isBlank()) ? DEFAULT_HOME_PAGE : homePage.trim();
@@ -105,6 +113,18 @@ public class BrowserSettings {
     public String getDownloadDir() { return downloadDir; }
     public void setDownloadDir(String downloadDir) { this.downloadDir = (downloadDir == null) ? "" : downloadDir; }
 
+    /** @return the per-page navigation timeout in seconds, always &gt; 0. */
+    public int getPageTimeoutSeconds() { return pageTimeoutSeconds; }
+    public void setPageTimeoutSeconds(int seconds) {
+        this.pageTimeoutSeconds = (seconds <= 0) ? DEFAULT_PAGE_TIMEOUT_SECONDS : seconds;
+    }
+
+    /** @return the download request timeout in seconds, always &gt; 0. */
+    public int getDownloadTimeoutSeconds() { return downloadTimeoutSeconds; }
+    public void setDownloadTimeoutSeconds(int seconds) {
+        this.downloadTimeoutSeconds = (seconds <= 0) ? DEFAULT_DOWNLOAD_TIMEOUT_SECONDS : seconds;
+    }
+
     /** @return an independent copy of these settings. */
     public BrowserSettings copy() {
         BrowserSettings s = new BrowserSettings();
@@ -118,6 +138,8 @@ public class BrowserSettings {
         s.historyLimit = this.historyLimit;
         s.zoom = this.zoom;
         s.downloadDir = this.downloadDir;
+        s.pageTimeoutSeconds = this.pageTimeoutSeconds;
+        s.downloadTimeoutSeconds = this.downloadTimeoutSeconds;
         return s;
     }
 }

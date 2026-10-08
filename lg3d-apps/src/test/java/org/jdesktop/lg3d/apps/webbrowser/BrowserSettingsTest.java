@@ -96,4 +96,31 @@ class BrowserSettingsTest {
         copy.setHomePage("https://changed.com");
         assertEquals("https://example.com", s.getHomePage(), "the original is untouched");
     }
+
+    @Test
+    @DisplayName("page/download timeouts default and clamp non-positive values")
+    void timeouts() {
+        BrowserSettings s = new BrowserSettings();
+        assertEquals(BrowserSettings.DEFAULT_PAGE_TIMEOUT_SECONDS, s.getPageTimeoutSeconds());
+        assertEquals(BrowserSettings.DEFAULT_DOWNLOAD_TIMEOUT_SECONDS, s.getDownloadTimeoutSeconds());
+        s.setPageTimeoutSeconds(0);
+        assertEquals(BrowserSettings.DEFAULT_PAGE_TIMEOUT_SECONDS, s.getPageTimeoutSeconds());
+        s.setPageTimeoutSeconds(-5);
+        assertEquals(BrowserSettings.DEFAULT_PAGE_TIMEOUT_SECONDS, s.getPageTimeoutSeconds());
+        s.setPageTimeoutSeconds(45);
+        assertEquals(45, s.getPageTimeoutSeconds());
+        s.setDownloadTimeoutSeconds(600);
+        assertEquals(600, s.getDownloadTimeoutSeconds());
+    }
+
+    @Test
+    @DisplayName("copy carries the timeout settings")
+    void copyTimeouts() {
+        BrowserSettings s = new BrowserSettings();
+        s.setPageTimeoutSeconds(11);
+        s.setDownloadTimeoutSeconds(22);
+        BrowserSettings copy = s.copy();
+        assertEquals(11, copy.getPageTimeoutSeconds());
+        assertEquals(22, copy.getDownloadTimeoutSeconds());
+    }
 }

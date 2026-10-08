@@ -35,7 +35,15 @@ public enum SearchEngine {
     /** Bing. */
     BING("Bing", "https://www.bing.com/search?q={query}"),
     /** Startpage (Google results without tracking). */
-    STARTPAGE("Startpage", "https://www.startpage.com/sp/search?query={query}");
+    STARTPAGE("Startpage", "https://www.startpage.com/sp/search?query={query}"),
+    /** Brave Search (independent, privacy-focused index). */
+    BRAVE("Brave Search", "https://search.brave.com/search?q={query}"),
+    /** Ecosia (plants trees with its ad revenue). */
+    ECOSIA("Ecosia", "https://www.ecosia.org/search?q={query}"),
+    /** Mojeek (independent crawler, no tracking). */
+    MOJEEK("Mojeek", "https://www.mojeek.com/search?q={query}"),
+    /** Wikipedia (English). */
+    WIKIPEDIA("Wikipedia", "https://en.wikipedia.org/w/index.php?search={query}");
 
     /** Placeholder in a query template replaced by the encoded search terms. */
     public static final String QUERY_TOKEN = "{query}";

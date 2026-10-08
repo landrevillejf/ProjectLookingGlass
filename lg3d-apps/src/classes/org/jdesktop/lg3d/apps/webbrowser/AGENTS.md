@@ -26,29 +26,62 @@
 
 - **Model (JavaFX-free, AWT-free, headless-tested)** — `UrlNormalizer` (smart
   address bar: scheme passthrough / `https://` for host-like text / search
-  otherwise), `SearchEngine` (DuckDuckGo default, Google, Bing, Startpage),
-  `Bookmark` + `BookmarkStore`, `HistoryEntry` + `HistoryStore` (capped,
-  de-duplicated, transient-scheme-filtered), `TabModel` (+ nested `Tab`),
-  `BrowserSettings`, `DownloadRecord`, and `BrowserStore` (the one Jackson
+  otherwise), `SearchEngine` (DuckDuckGo default, Google, Bing, Startpage, Brave,
+  Ecosia, Mojeek, Wikipedia), `Bookmark` + `BookmarkStore`, `HistoryEntry` +
+  `HistoryStore` (capped, de-duplicated, transient-scheme-filtered), `TabModel`
+  (+ nested `Tab`; `synchronized` mutators/accessors and `list()` returns a
+  defensive snapshot, so the EDT can iterate while the FX thread mutates),
+  `BrowserSettings` (+ `pageTimeoutSeconds` / `downloadTimeoutSeconds`, clamped
+  >0 and carried in `copy()`), `DownloadRecord` (+ `totalBytes`,
+  `updateProgress`, `markCancelled`), and `BrowserStore` (the one Jackson
   persistence facade; defensive reads never throw).
+- **Decision logic (JavaFX-free, AWT-free, headless-tested)** — every new browser
+  behaviour lives in a pure class the FX/Swing layers only call: `LoadFailure` (a
+  `Reason` enum + `classify(Throwable, url)` that walks the cause chain and
+  WebKit's message text into a retryable, human-readable failure), `ErrorPage` (a
+  self-contained, XSS-escaped HTML error document with a conditional "Try again"
+  anchor), `Html` (the shared escaper), `ContentDisposition` (RFC 6266/5987
+  download filename parsing), `SecurityInfo` (classifies a URL into SECURE /
+  NOT_SECURE / LOCAL / INTERNAL with a summary + warning), `SiteStats` (per-host
+  trackers/popups-blocked counters), `FindScript` (injection-safe find-in-page JS
+  + match-count parsing), and `ReaderArticle` + `ReaderExtractor`
+  (readability-style DOM-extraction JS + a clean, escaped, ad-free HTML render).
 - **FxBrowser** — the only class that touches `javafx.scene.web`. Owns one
-  `WebView`/`WebEngine` per tab (keyed on `TabModel.Tab` id), wires location /
-  title / `LoadWorker` progress + state / `createPopupHandler` listeners, applies
-  settings (JavaScript, user agent, cookies via `java.net.CookieManager`), does
-  zoom, find-in-page (`window.find`), view-source (renders `outerHTML` as text in
-  a new tab) and best-effort downloads. Every mutator marshals through
+  `WebView`/`WebEngine` per tab (keyed on `TabModel.Tab` id) in a
+  `ConcurrentHashMap`, wires location / title / `LoadWorker` progress + state /
+  `createPopupHandler` listeners, applies settings (JavaScript, user agent,
+  cookies via `java.net.CookieManager`), does zoom, find-in-page (via
+  `FindScript`), view-source and reader mode (both render generated HTML in a new
+  tab). A `FAILED` load classifies through `LoadFailure` and renders an
+  `ErrorPage` (retry remembers the failed URL per tab); `CANCELLED` resets
+  progress; a shared daemon `ScheduledExecutorService` watchdog cancels + times
+  out a stalled navigation (timeout from settings). Downloads are robust: a
+  `java.net.http` client with connect + per-request timeouts, `ContentDisposition`
+  naming, a streaming copy loop with incremental progress + a cancel flag, and IO
+  failures classified through the same `LoadFailure` vocabulary. Read-only getters
+  (`canGoBack`/`canGoForward`/`getLocation`/`getZoom`) read a `volatile`
+  `NavSnapshot` refreshed on the FX thread instead of touching
+  `WebHistory`/`WebView` off-thread. Every mutator marshals through
   `Platform.runLater`; state changes report back through a `Listener` on the FX
-  thread.
+  thread, which now also carries `onLoadFailed`, `onFindResults`,
+  `onNavigationBlocked` and `onPopupBlocked`.
 - **BrowserPanel** — the Swing face (public no-arg constructor, as
   `Desktop2DAppRegistry.createPanel` requires): a tab strip (with a per-tab close
-  button), a navigation toolbar (back/forward/reload/stop/home, smart URL field,
-  bookmarks menu, find, zoom, view-source, downloads, history, settings,
-  **Extensions**, plus any extension toolbar contributions), a `JFXPanel` centre
-  hosting the `FxBrowser` scene, and a status/progress bar with an HTTPS
-  indicator. Window-level shortcuts: Ctrl+T/W/L/R/F and Ctrl+Tab / Ctrl+Shift+Tab.
-  Settings carries **Clear history** / **Clear cookies** privacy actions. Building
-  the `JFXPanel` on the EDT boots the JavaFX toolkit; FX work is marshalled with
-  `Platform.runLater` and callbacks return to the EDT via
+  button), a navigation toolbar (back/forward/reload/stop/home, a clickable
+  `SecurityInfo` indicator, smart URL field, bookmarks menu, find, reader, zoom,
+  view-source, downloads, history, settings, **Extensions**, plus any extension
+  toolbar contributions), a `JFXPanel` centre hosting the `FxBrowser` scene above
+  an inline find bar (field, "n of m" count, prev/next/close; Ctrl+F opens,
+  Enter = next, Shift+Enter = prev, Esc closes), and a status/progress bar with an
+  HTTPS echo. The security indicator opens a site-info popup (connection
+  security, host, cookie/JS state, per-site trackers/popups blocked, tallied in
+  `SiteStats`); the downloads dialog is a scrolling list with per-row Cancel +
+  progress; settings gains page/download timeout fields and keeps **Clear
+  history** / **Clear cookies**. Session restore is defensive (skips
+  blank/`view-source:` URLs, caps at `MAX_RESTORED_TABS`, and one bad URL cannot
+  abort startup). Window-level shortcuts: Ctrl+T/W/L/R/F and Ctrl+Tab /
+  Ctrl+Shift+Tab. Building the `JFXPanel` on the EDT boots the JavaFX toolkit; FX
+  work is marshalled with `Platform.runLater` and callbacks return to the EDT via
   `SwingUtilities.invokeLater`. The panel constructs the `ExtensionRegistry` +
   `ExtensionBroker` and opens `ExtensionManagerDialog` from the Extensions button.
 - **WebBrowserApp** — a top-level `JFrame` hosting `BrowserPanel`
@@ -122,24 +155,33 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   packages only in any 3D code; obey the core UI/UX rulebook.
 - **QA** — The model tests (`UrlNormalizerTest`, `SearchEngineTest`,
   `BookmarkStoreTest`, `HistoryStoreTest`, `TabModelTest`, `BrowserSettingsTest`,
-  `DownloadRecordTest`, `BrowserStoreTest`) and `WebKitThreadGuardTest` (the
-  JDK-8346250 WebSocket swallow-vs-delegate guard) run headless
-  (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`. The extension
-  system is covered headlessly too: `ExtensionManifestTest`, `ExtensionRegistryTest`
+  `DownloadRecordTest`, `BrowserStoreTest`), the decision-logic tests
+  (`LoadFailureTest`, `HtmlTest`, `ErrorPageTest` incl. XSS-escaping +
+  retry-anchor presence, `ContentDispositionTest`, `SecurityInfoTest`,
+  `SiteStatsTest`, `FindScriptTest`, `ReaderExtractorTest`) and
+  `WebKitThreadGuardTest` (the JDK-8346250 WebSocket swallow-vs-delegate guard)
+  run headless (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`.
+  The extension system is covered headlessly too: `ExtensionManifestTest`,
+  `ExtensionRegistryTest`
   (classpath + temp-dir jar discovery, the permission gate, enable/grant
   persistence), `ExtensionBrokerTest` (dispatch, exception isolation, permission
   enforcement, block/redirect, content-script gating, toolbar de-dup),
   `BrowserStoreExtensionsTest` and `PopupBlocker`/`TrackerBlocker`/
   `HttpsUpgradeExtensionTest`. `Desktop2DAppRegistryTest` asserts the
-  command classifies as `PANEL` and maps to `BrowserPanel`. The GUI itself has no
-  coverage/mutation gate; verify it with the in-JVM probe + `lgscreen-*.png`
-  capture on the host X display (2D MDI browser navigates; 3D preview + child
+  command classifies as `PANEL` and maps to `BrowserPanel`. `FxBrowser` and
+  `BrowserPanel` stay without unit tests (they need a live toolkit), consistent
+  with the suite. The GUI itself has no coverage/mutation gate; verify it with the
+  in-JVM probe + `lgscreen-*.png` capture on the host X display (2D MDI browser
+  navigates; error page, find bar, reader, security popup; 3D preview + child
   process launch). A black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver utility: browse the modern web from the
-  desktop without installing a separate browser. Value = tabbed browsing, search,
-  bookmarks, history, find, zoom, view-source, JS + cookies, private browsing and
-  downloads, surfaced honestly within what WebKit/`WebView` can really do (a full
-  download manager and true DevTools are delegated or omitted, not faked).
+  desktop without installing a separate browser. Value = tabbed browsing, search
+  (eight engines), bookmarks, history, an inline find bar with match counts,
+  reader mode, zoom, view-source, an address-bar security indicator + site-info,
+  JS + cookies, private browsing, resilient downloads (progress, cancel,
+  timeouts) and honest, retryable error pages — surfaced within what
+  WebKit/`WebView` can really do (a full download manager and true DevTools are
+  delegated or omitted, not faked).
 - **Functional Analyst** — Spec the *browser contract*: resolve address-bar text
   (URL vs search), navigate (back/forward/reload/stop/home), manage tabs, record
   de-duplicated capped history, bookmark by URL idempotently, persist settings and
@@ -166,6 +208,13 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   real WebKit engine). The browser degrades gracefully (the preview shows
   guidance) if JavaFX is absent at runtime.
 - Linux only: just the `linux` classifier is wired, mirroring the Jogamp natives.
+- **Error pages, view-source and reader mode are generated documents** rendered
+  with `WebEngine.loadContent(html, "text/html")`, not real navigations, so they
+  carry no history URL and every interpolated value is HTML-escaped (`Html`) to
+  stay XSS-safe. The navigation watchdog is a shared daemon
+  `ScheduledExecutorService`; `shutdown()` cancels all watchdog tasks + in-flight
+  downloads and stops the scheduler, and closing a tab disarms its watchdog,
+  cancels its download and drops its cached failure/security state.
 - **The extension permission gate is a consent/UX boundary, not a JVM sandbox.**
   Extension code runs in-process with the user's full privileges; the JVM has no
   capability sandbox for in-process bytecode. The gate makes an extension declare

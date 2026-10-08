@@ -46,6 +46,8 @@ public class DownloadRecord {
     /** Absolute path the file was saved to (empty until known/complete). */
     private String path = "";
     private long bytes;
+    /** Expected total size in bytes, or 0 when the server did not say. */
+    private long totalBytes;
     private Status status = Status.IN_PROGRESS;
     private String error = "";
     private long startedAt = System.currentTimeMillis();
@@ -76,6 +78,9 @@ public class DownloadRecord {
     public long getBytes() { return bytes; }
     public void setBytes(long bytes) { this.bytes = Math.max(0L, bytes); }
 
+    public long getTotalBytes() { return totalBytes; }
+    public void setTotalBytes(long totalBytes) { this.totalBytes = Math.max(0L, totalBytes); }
+
     public Status getStatus() { return (status == null) ? Status.IN_PROGRESS : status; }
     public void setStatus(Status status) { this.status = status; }
 
@@ -99,6 +104,29 @@ public class DownloadRecord {
         this.error = (reason == null) ? "" : reason;
     }
 
+    /** Marks the record cancelled by the user. */
+    public void markCancelled() {
+        this.status = Status.CANCELLED;
+        this.error = "";
+    }
+
+    /**
+     * Records incremental transfer progress while the download is still running.
+     * Does not change a terminal state ({@link Status#COMPLETE},
+     * {@link Status#FAILED}, {@link Status#CANCELLED}) so a late progress callback
+     * cannot resurrect a finished download.
+     *
+     * @param bytesSoFar bytes written to disk (clamped non-negative)
+     * @param totalBytes expected total, or 0 when unknown (clamped non-negative)
+     */
+    public void updateProgress(long bytesSoFar, long totalBytes) {
+        this.bytes = Math.max(0L, bytesSoFar);
+        this.totalBytes = Math.max(0L, totalBytes);
+        if (this.status == Status.IN_PROGRESS || this.status == null) {
+            this.status = Status.IN_PROGRESS;
+        }
+    }
+
     /** @return an independent copy of this record. */
     public DownloadRecord copy() {
         DownloadRecord d = new DownloadRecord();
@@ -106,6 +134,7 @@ public class DownloadRecord {
         d.fileName = this.fileName;
         d.path = this.path;
         d.bytes = this.bytes;
+        d.totalBytes = this.totalBytes;
         d.status = this.status;
         d.error = this.error;
         d.startedAt = this.startedAt;
