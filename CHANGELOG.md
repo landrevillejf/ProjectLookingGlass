@@ -35,6 +35,19 @@ work to make it build and run on a current toolchain.
 - **Web browser: four more search engines** (`lg3d-apps`) — `Brave Search`,
   `Ecosia`, `Mojeek` and `Wikipedia` join `SearchEngine`; the settings combo
   already lists every value, so they are selectable with no other change.
+- **2D start menu: icons on the category sub-menus** (`lg3d-core`) — the category
+  folders in the 2D desktop's start menu (Internet, Utilities, Games, Media,
+  Office, Education, Developers, System, ...) now carry a recognisable
+  IconManager glyph instead of a bare text label, matching the iconned
+  application entries inside them. A new `CategoryIcons` maps each group name to
+  a curated glyph (Internet → WebComponent, Utilities → Preferences, Games →
+  Play, Media → Movie, Office → Normal, Education → Information, Developers →
+  Application, System → Host, Demos → TipOfTheDay, Early Prototypes → Applet,
+  ...) and falls back to the `AppIcons` seam, so an uncurated group still gets a
+  semantic glyph or an initials tile and honours the user's active icon pack.
+  `Desktop2DStartMenu.appendGroups` sets the icon on each category `JMenu`, and
+  the cache is cleared alongside `AppIcons` on an icon-pack switch so the
+  categories refresh too.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure

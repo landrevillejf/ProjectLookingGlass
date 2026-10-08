@@ -2011,6 +2011,7 @@ public class Desktop2D {
      */
     private void refreshIconPack() {
         AppIcons.clearCache();
+        CategoryIcons.clearCache();
         synchronized (this) {
             startMenu = null;
         }

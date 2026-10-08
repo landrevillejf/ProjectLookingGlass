@@ -120,6 +120,10 @@ public final class Desktop2DStartMenu {
                 continue;
             }
             JMenu subMenu = new JMenu(child.getName());
+            // Give the category sub-menu a recognisable glyph (Internet, Media,
+            // System, ...) so the tree reads at a glance, matching the iconned
+            // application entries inside it.
+            subMenu.setIcon(CategoryIcons.iconFor(child.getName(), ICON_SIZE));
             subMenu.setToolTipText(child.getDesc());
             Set<String> nested = new LinkedHashSet<>(ancestors);
             nested.add(child.getName());
