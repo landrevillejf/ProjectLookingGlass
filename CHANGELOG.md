@@ -23,6 +23,12 @@ work to make it build and run on a current toolchain.
   skipped as before, the 3D start menu is untouched, and a 3D-only command
   reached another way (e.g. a restored session) still reports that it needs the
   3D desktop via `Desktop2D.openApp`.
+- **Two apps moved to a better-fitting start-menu group** (`lg3d-apps`) — **PDF
+  Viewer** moves from **Media** to **Office** (it is a document reader, not a
+  multimedia player) and **Remote Viewer** moves from **Developers** to
+  **Internet** (a remote-desktop client, alongside SSH / VPN / FTP). Only the
+  `menuGroup` in each `.lgcfg` descriptor changes; the launch command, icon and
+  the 2D-desktop `Desktop2DAppRegistry.PANEL_APPS` mapping are untouched.
 
 ### Removed
 - **CallViewer dropped from the start menu** (`lg3d-apps`) — the 3D source-code
@@ -36,6 +42,14 @@ work to make it build and run on a current toolchain.
   still compiles and can be launched manually in-JVM; only the menu entries are
   removed. The **Tests** group still holds `swingtest`, `swingnode` and the
   incubator `physics` item, so it remains visible.
+- **Luncher and Natural Language Control dropped from the start menu**
+  (`lg3d-apps`, `lg3d-incubator`) — both are 3D-only sample/experimental apps (a
+  glassy-cube card launcher menu, and a voice/typed-command controller that is
+  also runtime-blocked on a microphone + the Stanford NLP model), the same family
+  as the tutorials/CallViewer above. Their descriptors `src/config/luncher.lgcfg`
+  and `src/config/nlc.lgcfg` were deleted, so neither is discovered or posted to
+  any menu. Both still compile in `lg3d-incubator` and can be launched manually
+  in-JVM; only the menu entries are removed.
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

@@ -23,7 +23,7 @@
    <string>resource:///resources/images/icon/remoteviewer.png</string>
   </void>
   <void property="menuGroup">
-   <string>Developers</string>
+   <string>Internet</string>
   </void>
   <void property="name">
    <string>Remote Viewer</string>

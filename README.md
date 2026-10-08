@@ -194,8 +194,8 @@ match. Entries are handled by kind:
 2D desktop, so their menu entries are **omitted entirely** rather than shown
 greyed out — the 2D start menu (and its live search) lists only what this
 desktop can actually run. That covers the 3D-only sample and tool entries such as
-**Swing Node Test**, **Image Studio**, **Luncher** and **Natural Language
-Control**. (The widgets are *not* in this category — see above. The incubator's
+**Swing Node Test** and **Image Studio**. (The widgets are *not* in this category
+— see above. The incubator's
 other 3D-only apps likewise do not appear, because their descriptors are not
 among the discovered ones.) A 3D-only command reached another way — for example a
 window restored from a saved session — still explains that it *“Requires the 3D

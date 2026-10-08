@@ -8,10 +8,10 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Ported, registered, but runtime-blocked** (needs a microphone + speech/NLP stack) |
+| Status | **Ported but removed from the start menu, and runtime-blocked** (needs a microphone + speech/NLP stack); source still builds |
 | Entry point | `nlc.Main` (+ `nlc.listeners.RotateFrameListener`) |
 | Surface | **Controller/listener** app — posts `LgEvent`s (`CloseFrameEvent`, `FocusFrameEvent`, `HideFrameEvent`, `LaunchApplicationEvent`) to drive other windows; no primary 3D UI of its own |
-| Start-menu name / group | Natural Language Control / **Utilities** — descriptor **`lg3d-apps/src/config/nlc.lgcfg`** → `config/demo` (**discovered**) |
+| Start-menu name / group | **None** — `lg3d-apps/src/config/nlc.lgcfg` was deleted, so NLC is no longer discovered or posted to any menu |
 | Command | `java org.jdesktop.lg3d.apps.nlc.Main` |
 | Runtime blocker | Needs a **microphone** + the Stanford parser (`ext/javanlp`) and the grammar resource `englishPCFG.ser.gz`; `StanfordFactory` originally read `lg.etcdir+"/lg3d/englishPCFG.ser.gz"` (absent) — ported to a jar/temp-file fallback |
 | Build | `./gradlew :lg3d-incubator:build` |
@@ -20,8 +20,9 @@
 
 - **Architect** — An event-based voice/natural-language controller: it parses speech and
   posts `LgEvent`s that focus/hide/close/launch other windows. It has no scene of its
-  own. It is **registered** (descriptor in `lg3d-apps`) but cannot fully run
-  without audio hardware + the NLP model. Keep the event contract stable — that is its
+  own. Its start-menu descriptor was **removed** (a 3D-only experimental controller that
+  also cannot fully run without audio hardware + the NLP model), so it is no longer
+  registered or launched. Keep the event contract stable — that is its
   integration surface.
 - **Engineer / Developer** — Load the grammar model from a classpath/jar resource; for
   APIs needing a real file path (`LexicalizedParser`), copy the jar resource to a temp
@@ -35,7 +36,7 @@
   hardware and an aging NLP stack.
 - **Functional Analyst** — Spec the voice-command → `LgEvent` mapping (close/focus/
   hide/launch) and the grammar-resource contract; record the hardware/model blocker.
-- **Project Manager** — Commit scope `lg3d-incubator`; descriptor lives in
+- **Project Manager** — Commit scope `lg3d-incubator`; the descriptor was removed from
   `lg3d-apps` (PR may span two modules). Track the `ext/javanlp` run-classpath
   dependency as integration risk.
 - **UI/UX (3D & 2D)** — No primary UI; its "UX" is the effect on other windows via

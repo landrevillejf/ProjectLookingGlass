@@ -11,7 +11,7 @@
 | Status | **Production** daily-driver utility (document reader) |
 | Entry point | `PdfViewer.main` → `TitledSwingWindow.show(...)` |
 | Surface | **SwingNode-in-Frame3D** (hosts `PdfViewerPanel` on a `SwingNode` quad); the same panel is reused in the 2D desktop |
-| Start-menu name / group | PDF Viewer / **Media** |
+| Start-menu name / group | PDF Viewer / **Office** |
 | Command | `java org.jdesktop.lg3d.apps.pdfviewer.PdfViewer` |
 | Descriptor | `src/config/pdfviewer.lgcfg` → `config/demo` |
 | PDF backend | **Apache PDFBox** (`org.apache.pdfbox:pdfbox`, Apache-2.0) — `PdfDocument` rasterises each page with `Loader.loadPDF` + `PDFRenderer.renderImageWithDPI` |

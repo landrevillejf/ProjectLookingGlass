@@ -8,18 +8,19 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Ported & live** (was excluded for API drift; ported with a jar-resource fallback) |
+| Status | **Ported, removed from the start menu** — source still builds; the descriptor was deleted (3D-only sample launcher, same cleanup as the tutorials/CallViewer) |
 | Entry point | `luncher.Luncher1` (also `Luncher2`); `GlassyCubeTaskbarItem` (`Tapp`) is the taskbar variant |
 | Surface | **pure-3D** card launcher (`GlassyCardMenu` extends `Container3D`, `TextPanel` extends `Shape3D`) |
-| Start-menu name / group | Luncher / **Utilities** — descriptor **`lg3d-apps/src/config/luncher.lgcfg`** → `config/demo` (**discovered**) |
+| Start-menu name / group | **None** — `lg3d-apps/src/config/luncher.lgcfg` was deleted, so Luncher is no longer discovered or posted to any menu |
 | Command | `java org.jdesktop.lg3d.apps.luncher.Luncher1` |
 | Runtime note | `MenuConfigFileReader` originally used `getResource("etc/lg3d/MenuConfigFile.xml")` (null → NPE); fixed to fall back to a class-relative/classpath resource |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 ## Roles
 
-- **Architect** — A native-3D card launcher menu. Unlike most incubator prototypes it
-  is **ported and registered** (its descriptor lives in `lg3d-apps/src/config`).
+- **Architect** — A native-3D card launcher menu. It is **ported and still builds**, but
+  its start-menu descriptor was **removed** (a 3D-only sample that overlaps the built-in
+  start menu), so it is no longer registered or launched.
   Keep the menu-config loading resilient: legacy `etc/`-relative paths are not
   installed by this port, so resource lookups must fall back to the jar/classpath.
 - **Engineer / Developer** — Obey the core UI/UX rulebook (texture pixels before
@@ -32,8 +33,8 @@
 - **Business Analyst** — An alternative 3D launcher UX (card menu). Niche but
   functional; overlaps the desktop's built-in start menu.
 - **Functional Analyst** — Spec user-visible function (open a card menu, pick an app to
-  launch) plus the config-resource contract and the discovered descriptor location.
-- **Project Manager** — Commit scope `lg3d-incubator`; the descriptor lives in
+  launch) plus the config-resource contract; it is no longer surfaced via a descriptor.
+- **Project Manager** — Commit scope `lg3d-incubator`; the descriptor was removed from
   `lg3d-apps`, so a PR may span two modules — say so. Done = build +
   `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D only**: glassy cards + text panels in a `Container3D`.
