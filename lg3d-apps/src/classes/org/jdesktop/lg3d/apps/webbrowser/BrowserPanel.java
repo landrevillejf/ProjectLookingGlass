@@ -13,6 +13,8 @@
  */
 package org.jdesktop.lg3d.apps.webbrowser;
 
+import com.protonmail.landrevillejf.IconManager;
+import com.protonmail.landrevillejf.MissingIcon;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -30,6 +32,7 @@ import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -80,6 +83,14 @@ public class BrowserPanel extends JPanel {
 
     /** Upper bound on tabs restored from a saved session, to cap startup work. */
     private static final int MAX_RESTORED_TABS = 20;
+
+    /**
+     * Square edge (px) the bundled IconManager toolbar glyphs ship at. Only 16
+     * and 24 exist; {@code loadIcon} at any other edge silently returns the
+     * red-X {@link MissingIcon}, so the toolbar buttons load at 16 (matching
+     * {@code RemoteViewerPanel}).
+     */
+    private static final int ICON_EDGE = 16;
 
     private final BrowserStore store = new BrowserStore();
     private final BookmarkStore bookmarks = new BookmarkStore(store.loadBookmarks());
@@ -182,6 +193,27 @@ public class BrowserPanel extends JPanel {
     // Toolbar construction
     // ------------------------------------------------------------------
 
+    /**
+     * Applies a bundled IconManager toolbar glyph to {@code button} and clears
+     * its text label so the icon stands alone (every toolbar button already
+     * carries a tooltip). IconManager is a compile-only dependency the build
+     * places on the desktop run classpath; if the jar is absent or the glyph is
+     * unknown, {@code loadIcon} throws or returns a {@link MissingIcon} and the
+     * button simply keeps its text label, so the toolbar always renders.
+     */
+    private static void applyIcon(JButton button, IconManager.IconCategory category,
+            String glyph) {
+        try {
+            Icon icon = IconManager.loadIcon(category, glyph, ICON_EDGE, ICON_EDGE);
+            if (icon != null && !(icon instanceof MissingIcon)) {
+                button.setIcon(icon);
+                button.setText("");
+            }
+        } catch (Throwable t) {
+            LOG.debug("Could not load toolbar glyph {}/{}", category, glyph, t);
+        }
+    }
+
     private JPanel buildTabStripRow() {
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
@@ -193,6 +225,7 @@ public class BrowserPanel extends JPanel {
     private JScrollPane buildTabStrip() {
         tabStrip.setBackground(new Color(232, 234, 238));
         newTabButton.setToolTipText("New tab");
+        applyIcon(newTabButton, IconManager.IconCategory.GENERAL, "Add");
         newTabButton.addActionListener(e -> openNewTab());
         JScrollPane scroll = new JScrollPane(tabStrip,
                 JScrollPane.VERTICAL_SCROLLBAR_NEVER,
@@ -213,6 +246,11 @@ public class BrowserPanel extends JPanel {
         reloadButton.setToolTipText("Reload");
         stopButton.setToolTipText("Stop loading");
         homeButton.setToolTipText("Home page");
+        applyIcon(backButton, IconManager.IconCategory.NAVIGATION, "Back");
+        applyIcon(forwardButton, IconManager.IconCategory.NAVIGATION, "Forward");
+        applyIcon(reloadButton, IconManager.IconCategory.GENERAL, "Refresh");
+        applyIcon(stopButton, IconManager.IconCategory.GENERAL, "Stop");
+        applyIcon(homeButton, IconManager.IconCategory.NAVIGATION, "Home");
         backButton.addActionListener(e -> run(fx -> fx.back()));
         forwardButton.addActionListener(e -> run(fx -> fx.forward()));
         reloadButton.addActionListener(e -> run(fx -> fx.reload()));
@@ -241,15 +279,19 @@ public class BrowserPanel extends JPanel {
         bookmarkButton.setToolTipText("Bookmark this page");
         bookmarkButton.addActionListener(e -> bookmarkCurrent());
         bookmarksMenuButton.setToolTipText("Bookmarks");
+        applyIcon(bookmarksMenuButton, IconManager.IconCategory.GENERAL, "Bookmarks");
         bookmarksMenuButton.addActionListener(e -> showBookmarksMenu());
         bar.add(bookmarkButton);
         bar.add(bookmarksMenuButton);
         bar.addSeparator();
 
         findButton.setToolTipText("Find in page");
+        applyIcon(findButton, IconManager.IconCategory.GENERAL, "Find");
         findButton.addActionListener(e -> openFindBar());
         zoomOutButton.setToolTipText("Zoom out");
         zoomInButton.setToolTipText("Zoom in");
+        applyIcon(zoomOutButton, IconManager.IconCategory.GENERAL, "ZoomOut");
+        applyIcon(zoomInButton, IconManager.IconCategory.GENERAL, "ZoomIn");
         zoomOutButton.addActionListener(e -> run(fx -> { fx.zoomOut(); SwingUtilities.invokeLater(this::refreshZoom); }));
         zoomInButton.addActionListener(e -> run(fx -> { fx.zoomIn(); SwingUtilities.invokeLater(this::refreshZoom); }));
         zoomLabel.setToolTipText("Reset zoom");
@@ -270,12 +312,16 @@ public class BrowserPanel extends JPanel {
         sourceButton.setToolTipText("View page source");
         sourceButton.addActionListener(e -> run(fx -> fx.viewSource()));
         downloadsButton.setToolTipText("Downloads");
+        applyIcon(downloadsButton, IconManager.IconCategory.GENERAL, "Save");
         downloadsButton.addActionListener(e -> showDownloads());
         historyButton.setToolTipText("Browsing history");
+        applyIcon(historyButton, IconManager.IconCategory.GENERAL, "History");
         historyButton.addActionListener(e -> showHistory());
         settingsButton.setToolTipText("Settings");
+        applyIcon(settingsButton, IconManager.IconCategory.GENERAL, "Preferences");
         settingsButton.addActionListener(e -> showSettings());
         extensionsButton.setToolTipText("Manage extensions");
+        applyIcon(extensionsButton, IconManager.IconCategory.DEVELOPMENT, "WebComponent");
         extensionsButton.addActionListener(e -> showExtensions());
         bar.add(readerButton);
         bar.add(sourceButton);
@@ -394,6 +440,8 @@ public class BrowserPanel extends JPanel {
         findPrevButton.setToolTipText("Previous match");
         findNextButton.setToolTipText("Next match");
         findCloseButton.setToolTipText("Close find bar");
+        applyIcon(findPrevButton, IconManager.IconCategory.NAVIGATION, "Up");
+        applyIcon(findNextButton, IconManager.IconCategory.NAVIGATION, "Down");
         findPrevButton.addActionListener(e -> run(fx -> fx.findPrev()));
         findNextButton.addActionListener(e -> run(fx -> fx.findNext()));
         findCloseButton.addActionListener(e -> closeFindBar());

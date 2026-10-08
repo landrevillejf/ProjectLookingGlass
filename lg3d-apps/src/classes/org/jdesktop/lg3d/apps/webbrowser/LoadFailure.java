@@ -94,6 +94,17 @@ public final class LoadFailure {
                 "The address could not be understood as a URL.",
                 false,
                 "Check the address for typos or illegal characters."),
+        /**
+         * The server compressed the body with a Content-Encoding this browser
+         * engine cannot decode, so WebKit discarded it and the direct re-fetch
+         * could not recover it either.
+         */
+        UNDECODABLE_BODY("Page can't be displayed",
+                "The site compressed this page in a format this browser engine can't decode.",
+                true,
+                "The page was served with an unsupported Content-Encoding (such as Brotli or zstd).",
+                "Try again - the site may answer with a plain body next time.",
+                "Opening the address in another browser will usually work."),
         /** No specific cause could be determined. */
         UNKNOWN("This page isn't working",
                 "The page could not be loaded.",

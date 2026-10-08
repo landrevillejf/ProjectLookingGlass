@@ -142,6 +142,73 @@ work to make it build and run on a current toolchain.
   website snapshots under the various `www/` trees, the packaging templates
   (`dpkg` / `win32`) and the sample `.msg` mailing-list data still carry the old
   domain and are intentionally left untouched (archival, not user-facing).
+- **A benign JavaFX/WebKit `SEVERE` log no longer pops the desktop crash dialog**
+  (`lg3d-core`) — visiting a site that serves a `Content-Encoding` JavaFX 21's
+  WebKit loader cannot decode (Brotli, zstd, or a non-standard `none`, as
+  `www.cam4.com` does) makes `com.sun.webkit.network.URLLoader` log
+  “Unknown encoding type '…' found, discarding” at `SEVERE`. `LogHandler` used to
+  raise the full-screen “save your work / crash reporter” `ErrorDialog` for *any*
+  `SEVERE` record from *any* logger, so merely loading such a page looked like a
+  fatal crash even though the desktop kept running. `LogHandler` now suppresses
+  `SEVERE` records whose logger or source class is a third-party UI/web engine
+  (`com.sun.javafx.`, `com.sun.webkit.`, `javafx.`) — genuine `lg.*` severe
+  errors still raise the dialog — and builds it on the EDT. `ErrorDialog` is also
+  modernised: the dead 2006 personal crash-reporter URL
+  (`pinaraf.robertlan.eu.org`) is replaced by this project's live issue tracker
+  (overridable via the `lg.crashreport.url` property), a **Copy details** button
+  is added, the message/trace panes are read-only and selectable, the
+  window-close button now matches **OK** (so a fatal error still exits), and the
+  message text is assembled by a pure, unit-tested `buildMessage`. The page
+  itself still renders empty because JavaFX 21 discards the undecodable body — an
+  engine limitation fixed only in JavaFX 24+ (needs JDK 22+, beyond this port's
+  JDK 21 pin).
+- **Web browser: blank pages from an undecodable `Content-Encoding` now recover**
+  (`lg3d-apps`) — a follow-up to the crash-dialog fix above. JavaFX 21's WebKit
+  still *discards* the body of a page served with an encoding it cannot decode
+  (Brotli, zstd, or a non-standard `none`), so the load reports `SUCCEEDED` yet
+  renders blank. `FxBrowser` now probes the committed DOM (a cheap element/text
+  count, no serialisation) and, when it is an empty skeleton for a network URL,
+  re-fetches the page with the JDK `java.net.http` client — which does not
+  advertise `Accept-Encoding` and so is normally answered with a plain body, and
+  decodes gzip/deflate itself — then renders it via `loadContent` with an injected
+  `<base>` tag so relative links and images still resolve, keeping the real URL in
+  the address bar, tab and history. It is one-shot per navigation; if the body is
+  genuinely undecodable (br/zstd) the tab shows an honest `UNDECODABLE_BODY` error
+  page instead of staying blank. Every decision (blank-DOM detection,
+  `Content-Encoding` decode, charset resolution, base-tag injection) lives in the
+  JavaFX-free `EncodingFallback`, unit-tested headlessly.
+- **JavaFX/WebKit engine noise no longer floods the desktop console** (`lg3d-core`)
+  — the crash-dialog suppression above stopped the *dialog*, but the logging
+  `ConsoleHandler` (level `ALL`) still printed every benign engine record to
+  stderr, so browsing a heavy site spammed repeated
+  `SEVERE: Unknown encoding type 'none' found, discarding`, the
+  `Unsupported JavaFX configuration: … 'unnamed module'` warning and WebKit
+  media-player `Unrecognized file signature!` warnings. `logging.properties` now
+  turns the third-party engine loggers (`com.sun.javafx`, `com.sun.webkit`,
+  `javafx`, `com.sun.media.jfxmedia`) `OFF`, so those records are never published.
+  The desktop's own `lg.*` logging is untouched, and any single engine logger can
+  still be raised there without a code change.
+- **The "multiple SLF4J providers" startup warning is gone** (`lg3d-core`) — the
+  bundled `libs/IconManager-1.6.0.jar` is a shaded fat jar that registers
+  `slf4j-simple` through `META-INF/services`, which collided with the desktop's
+  own silent `slf4j-nop` provider, so SLF4J logged
+  `Class path contains multiple SLF4J providers` at every launch before picking
+  one. A new `:lg3d-core:slimIconManagerJar` task repackages that jar verbatim
+  minus the single provider-registration entry, and both the desktop run classpath
+  and the release bundle now use the slimmed copy, leaving `slf4j-nop` as the sole
+  provider. The child-process fat jars (swing-ide / openapi-editor / payloadman)
+  are deliberately left untouched — each keeps its own provider in its own JVM.
+- **Web browser toolbar now uses IconManager glyphs** (`lg3d-apps`) — the JavaFX
+  Web Browser's Swing chrome (`BrowserPanel`) drew its navigation and tool buttons
+  with plain text labels ("Back", "Forward", "Reload", …). They now load the
+  bundled `IconManager` toolbar glyphs — navigation (Back/Forward/Home/Up/Down),
+  Refresh, Stop, Bookmarks, Find, ZoomIn/ZoomOut, Save (downloads), History,
+  Preferences (settings) and WebComponent (extensions) — matching the icon
+  vocabulary the rest of the desktop (e.g. `RemoteViewerPanel`) already uses, with
+  each button's text cleared so the icon stands alone over its existing tooltip.
+  Icon loading is guarded: IconManager is a compile-only jar on the desktop run
+  classpath, so a missing jar or unknown glyph leaves the button's text label
+  intact rather than breaking the toolbar.
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

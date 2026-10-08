@@ -44,8 +44,11 @@
   download filename parsing), `SecurityInfo` (classifies a URL into SECURE /
   NOT_SECURE / LOCAL / INTERNAL with a summary + warning), `SiteStats` (per-host
   trackers/popups-blocked counters), `FindScript` (injection-safe find-in-page JS
-  + match-count parsing), and `ReaderArticle` + `ReaderExtractor`
-  (readability-style DOM-extraction JS + a clean, escaped, ad-free HTML render).
+  + match-count parsing), `ReaderArticle` + `ReaderExtractor`
+  (readability-style DOM-extraction JS + a clean, escaped, ad-free HTML render),
+  and `EncodingFallback` (the blank-page workaround's decisions: blank-DOM
+  detection from a cheap element/text probe, `Content-Encoding` decode for
+  identity/`none`/gzip/deflate, charset resolution and `<base>`-tag injection).
 - **FxBrowser** — the only class that touches `javafx.scene.web`. Owns one
   `WebView`/`WebEngine` per tab (keyed on `TabModel.Tab` id) in a
   `ConcurrentHashMap`, wires location / title / `LoadWorker` progress + state /
@@ -55,7 +58,13 @@
   tab). A `FAILED` load classifies through `LoadFailure` and renders an
   `ErrorPage` (retry remembers the failed URL per tab); `CANCELLED` resets
   progress; a shared daemon `ScheduledExecutorService` watchdog cancels + times
-  out a stalled navigation (timeout from settings). Downloads are robust: a
+  out a stalled navigation (timeout from settings). A load that reports
+  `SUCCEEDED` yet committed an empty DOM skeleton (WebKit discarded a body whose
+  `Content-Encoding` it cannot decode — see *Known caveats*) is recovered
+  one-shot: `FxBrowser` re-fetches the URL with the `java.net.http` client and
+  renders it via `loadContent` with an injected `<base>` (`EncodingFallback`),
+  keeping the real URL in the address bar/tab/history, or falls back to an honest
+  `UNDECODABLE_BODY` error page. Downloads are robust: a
   `java.net.http` client with connect + per-request timeouts, `ContentDisposition`
   naming, a streaming copy loop with incremental progress + a cancel flag, and IO
   failures classified through the same `LoadFailure` vocabulary. Read-only getters
@@ -84,6 +93,13 @@
   work is marshalled with `Platform.runLater` and callbacks return to the EDT via
   `SwingUtilities.invokeLater`. The panel constructs the `ExtensionRegistry` +
   `ExtensionBroker` and opens `ExtensionManagerDialog` from the Extensions button.
+  Toolbar buttons draw the bundled `IconManager` glyphs (via the guarded
+  `applyIcon` helper, which loads at the 16px bundled edge and treats a
+  `MissingIcon`/absent-jar as "keep the text label") — navigation
+  (Back/Forward/Home/Up/Down), Refresh, Stop, Bookmarks, Find, ZoomIn/ZoomOut,
+  Save (downloads), History, Preferences (settings), WebComponent (extensions) and
+  Add (new tab) — the same vocabulary `RemoteViewerPanel` uses; the stateful
+  address-bar security indicator and the bookmark star stay text glyphs.
 - **WebBrowserApp** — a top-level `JFrame` hosting `BrowserPanel`
   (`DISPOSE_ON_CLOSE`, releasing the FX engines on close). This is the child
   process the 3D preview spawns, and it runs standalone too. It calls
@@ -158,7 +174,8 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   `DownloadRecordTest`, `BrowserStoreTest`), the decision-logic tests
   (`LoadFailureTest`, `HtmlTest`, `ErrorPageTest` incl. XSS-escaping +
   retry-anchor presence, `ContentDispositionTest`, `SecurityInfoTest`,
-  `SiteStatsTest`, `FindScriptTest`, `ReaderExtractorTest`) and
+  `SiteStatsTest`, `FindScriptTest`, `ReaderExtractorTest`,
+  `EncodingFallbackTest`) and
   `WebKitThreadGuardTest` (the JDK-8346250 WebSocket swallow-vs-delegate guard)
   run headless (`java.awt.headless=true`) and never build a `WebView`/`JFXPanel`.
   The extension system is covered headlessly too: `ExtensionManifestTest`,
@@ -232,6 +249,20 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   spamming stack traces; every other throwable is re-dispatched untouched. A real
   fix needs JavaFX 24+, which requires JDK 22+ — out of reach on this
   JDK-21-pinned desktop.
+- **Undecodable `Content-Encoding` blanks the page (upstream JavaFX 21 limit).**
+  WebKit's `HTTP2Loader` decodes only gzip/deflate; a site answering with Brotli,
+  zstd or a non-standard `none` makes it log
+  `Unknown encoding type '…' found, discarding` at SEVERE and throw the body away,
+  so the load still reports `SUCCEEDED` but renders blank. `LogHandler`
+  (`lg3d-core`) refuses to raise the crash dialog for these engine loggers and
+  `logging.properties` turns the engine loggers `OFF` so they do not flood the
+  console. The blank body itself is worked around, not fixed: `FxBrowser` detects
+  the empty DOM and re-fetches through the JDK `java.net.http` client (which does
+  not advertise `Accept-Encoding`, so it is normally answered with a plain body),
+  rendering it with `EncodingFallback` + an injected `<base>`. A body that is
+  genuinely br/zstd-compressed still cannot be decoded here and shows an
+  `UNDECODABLE_BODY` error page. A true engine fix needs JavaFX 24+ / JDK 22+, out
+  of reach on this pin.
 
 ## Communication & coherence
 

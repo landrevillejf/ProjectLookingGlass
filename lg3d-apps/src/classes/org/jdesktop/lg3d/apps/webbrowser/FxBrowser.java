@@ -108,6 +108,18 @@ public final class FxBrowser {
         ".wav", ".flac", ".ogg", ".webm", ".csv"
     };
 
+    /**
+     * Cheap DOM probe run after a load reports SUCCEEDED. It returns
+     * {@code "elementCount:textLength"} without serialising the document: WebKit
+     * leaves an empty {@code <html><head></head><body></body></html>} skeleton
+     * (three elements, no text) when it discards a body it cannot decode, while
+     * any real page -- including a JS-rendered one, whose scripts have already
+     * run by SUCCEEDED -- has far more. {@link EncodingFallback} makes the call.
+     */
+    private static final String BLANK_DOM_PROBE =
+            "(function(){var b=document.body;var t=b?(b.textContent||'').trim().length:0;"
+            + "return document.getElementsByTagName('*').length+':'+t;})()";
+
     /** Receives state changes, always on the JavaFX Application Thread. */
     public interface Listener {
         /** The tab list changed (added/closed/selected/retitled). */
@@ -192,6 +204,10 @@ public final class FxBrowser {
     private final Map<Integer, String> failedUrls = new ConcurrentHashMap<>();
     /** Tabs whose next SUCCEEDED is our own error page, not a real navigation. */
     private final Set<Integer> pendingErrorRender = ConcurrentHashMap.newKeySet();
+    /** Tabs whose next SUCCEEDED is a blank-page recovery {@code loadContent}. */
+    private final Set<Integer> recoveryRender = ConcurrentHashMap.newKeySet();
+    /** Tabs that already tried the one-shot blank-page recovery this navigation. */
+    private final Set<Integer> blankRecoveryAttempted = ConcurrentHashMap.newKeySet();
     /** In-flight download cancel flags, keyed by URL. */
     private final Map<String, AtomicBoolean> downloadFlags = new ConcurrentHashMap<>();
 
@@ -283,6 +299,8 @@ public final class FxBrowser {
             disarmWatchdog(id);
             failedUrls.remove(id);
             pendingErrorRender.remove(id);
+            recoveryRender.remove(id);
+            blankRecoveryAttempted.remove(id);
             WebView view = views.remove(id);
             if (view != null) {
                 try {
@@ -652,6 +670,19 @@ public final class FxBrowser {
                         if (pendingErrorRender.remove(tabId)) {
                             // Our own error page just committed; not a real page.
                             listener.onStatusMessage("");
+                        } else if (recoveryRender.remove(tabId)) {
+                            // A blank-page recovery loadContent just committed.
+                            // loadContent gives the document no location, so keep
+                            // the real URL in the address bar, tab and history.
+                            String real = failedUrls.get(tabId);
+                            String title = engine.getTitle();
+                            if (real != null) {
+                                updateActiveModel(title, real);
+                                listener.onLocationChanged(real);
+                                listener.onPageCommitted(real, title);
+                            }
+                            fireTabsChanged();
+                            listener.onStatusMessage("");
                         } else {
                             failedUrls.remove(tabId);
                             String loc = engine.getLocation();
@@ -661,6 +692,7 @@ public final class FxBrowser {
                             notifyPageLoaded(engine, loc, title);
                             fireTabsChanged();
                             listener.onStatusMessage("");
+                            probeBlankRecovery(engine, tabId, loc);
                         }
                     } else if (state == Worker.State.FAILED) {
                         disarmWatchdog(tabId);
@@ -741,6 +773,111 @@ public final class FxBrowser {
         });
     }
 
+    // ------------------------------------------------------------------
+    // Blank-page workaround (undecodable Content-Encoding)
+    // ------------------------------------------------------------------
+
+    /**
+     * Runs after a network page reports SUCCEEDED: when WebKit discarded the
+     * body (an empty DOM skeleton, the signature of an undecodable
+     * {@code Content-Encoding}), re-fetch the page with the JDK HTTP client and
+     * render it directly. One-shot per navigation, and only when JavaScript is
+     * on (the probe needs it) and the URL is a network address. FX thread.
+     */
+    private void probeBlankRecovery(WebEngine engine, int tabId, String url) {
+        if (tabId < 0 || !isNetworkUrl(url) || blankRecoveryAttempted.contains(tabId)
+                || !settings.isJavaScriptEnabled()) {
+            return;
+        }
+        Object raw = exec(engine, BLANK_DOM_PROBE);
+        int[] counts = EncodingFallback.parseProbe(raw == null ? null : raw.toString());
+        if (!EncodingFallback.isBlankDom(counts[0], counts[1])) {
+            return;
+        }
+        blankRecoveryAttempted.add(tabId);
+        // Remember the real URL so Reload retries it and the recovered document
+        // can be committed under it (loadContent has no location of its own).
+        failedUrls.put(tabId, url);
+        listener.onStatusMessage("This page rendered blank; re-fetching it directly...");
+        Thread worker = new Thread(() -> recoverBlankPage(tabId, url), "webbrowser-recover");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * Off the FX thread: re-fetches {@code url} with the JDK HTTP client (which
+     * does not advertise {@code Accept-Encoding}, so it is normally answered with
+     * a plain body, and can decode gzip/deflate itself), then renders it with an
+     * injected {@code <base>} tag. Any failure falls back to an honest error page.
+     */
+    private void recoverBlankPage(int tabId, String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(Math.max(1, settings.getPageTimeoutSeconds())))
+                    .header("Accept",
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .GET()
+                    .build();
+            HttpResponse<byte[]> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            int status = response.statusCode();
+            if (status >= 400) {
+                renderRecoveryFailure(tabId, url, LoadFailure.fromHttpStatus(status, url));
+                return;
+            }
+            String encoding = response.headers().firstValue("Content-Encoding").orElse(null);
+            String contentType = response.headers().firstValue("Content-Type").orElse("text/html");
+            byte[] body = EncodingFallback.decode(response.body(), encoding);
+            String html = new String(body, EncodingFallback.charsetFor(contentType));
+            String based = EncodingFallback.injectBaseTag(html, url);
+            runOnFx(() -> {
+                if (shuttingDown) {
+                    return;
+                }
+                WebEngine e = engineFor(tabId);
+                if (e == null) {
+                    return;
+                }
+                recoveryRender.add(tabId);
+                e.loadContent(based, "text/html");
+            });
+        } catch (IOException e) {
+            // An unsupported Content-Encoding (br/zstd) or a transport failure:
+            // show an honest card instead of leaving the tab blank.
+            renderRecoveryFailure(tabId, url, LoadFailure.of(
+                    LoadFailure.Reason.UNDECODABLE_BODY, url, EncodingFallback.describe(e)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
+            renderRecoveryFailure(tabId, url, LoadFailure.of(
+                    LoadFailure.Reason.UNKNOWN, url, LoadFailure.describe(e)));
+        }
+    }
+
+    /** Renders the fallback error page for a recovery that could not complete. */
+    private void renderRecoveryFailure(int tabId, String url, LoadFailure failure) {
+        runOnFx(() -> {
+            if (shuttingDown) {
+                return;
+            }
+            WebEngine e = engineFor(tabId);
+            if (e == null) {
+                return;
+            }
+            listener.onProgress(-1.0d);
+            listener.onStatusMessage(failure.getTitle());
+            renderError(e, tabId, failure);
+            listener.onLoadFailed(url, failure);
+            fireNavigationState();
+        });
+    }
+
+    /** @return the engine of the tab with {@code tabId}, or null if it is gone. */
+    private WebEngine engineFor(int tabId) {
+        WebView v = views.get(tabId);
+        return (v == null) ? null : v.getEngine();
+    }
+
     private void loadInternal(String url) {
         WebEngine engine = activeEngine();
         if (engine == null || url == null || url.isBlank()) {
@@ -771,6 +908,9 @@ public final class FxBrowser {
             return;
         }
         failedUrls.remove(tabId);
+        // A fresh navigation resets the one-shot blank-page recovery state.
+        blankRecoveryAttempted.remove(tabId);
+        recoveryRender.remove(tabId);
         engine.load(target);
         armWatchdog(tabId, engine, target);
     }
