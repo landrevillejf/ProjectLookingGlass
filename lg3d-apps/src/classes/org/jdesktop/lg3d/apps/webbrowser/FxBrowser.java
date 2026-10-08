@@ -51,6 +51,8 @@ import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.webbrowser.ext.NavigationDecision;
 import org.jdesktop.lg3d.apps.webbrowser.ext.NavigationRequest;
 import org.jdesktop.lg3d.apps.webbrowser.ext.PopupRequest;
+import org.jdesktop.lg3d.utils.system.NetworkCut;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -735,6 +737,23 @@ public final class FxBrowser {
         listener.onLoadFailed((loc == null) ? "" : loc, failure);
     }
 
+    /**
+     * Renders the private (Tor) mode cut page for a navigation the kill switch
+     * refused, records it as the tab's failed URL (so Reload retries it once tor
+     * is back) and notifies the panel. FX thread; aborts the load.
+     */
+    private void renderCut(WebEngine engine, int tabId, String url) {
+        LoadFailure failure = TorCutGuard.failure(url);
+        if (tabId >= 0 && isNetworkUrl(url)) {
+            failedUrls.put(tabId, url);
+        }
+        listener.onProgress(-1.0d);
+        listener.onStatusMessage(failure.getTitle());
+        renderError(engine, tabId, failure);
+        listener.onLoadFailed(url, failure);
+        fireNavigationState();
+    }
+
     /** Loads the styled error card into {@code engine} for {@code failure}. */
     private void renderError(WebEngine engine, int tabId, LoadFailure failure) {
         if (engine == null) {
@@ -905,6 +924,14 @@ public final class FxBrowser {
             }
         }
         if (maybeDownload(target)) {
+            return;
+        }
+        // Private (Tor) mode kill switch: while the desktop's network is cut
+        // (tor stopped), refuse any remote navigation and render an honest cut
+        // page instead of letting WebKit attempt a load that would silently fail
+        // or leak in the clear. A local file:/about: URL is never blocked.
+        if (TorCutGuard.blocks(NetworkCut.isCut(), target)) {
+            renderCut(engine, tabId, target);
             return;
         }
         failedUrls.remove(tabId);
@@ -1204,7 +1231,12 @@ public final class FxBrowser {
     // ------------------------------------------------------------------
 
     private void installCookiePolicy(BrowserSettings s) {
-        CookiePolicy policy = (s.isCookiesEnabled() && !s.isPrivateBrowsing())
+        // Private (Tor) mode forces a private session: while it is on, cookies
+        // are never persisted regardless of the standalone "Private browsing"
+        // setting, so the anonymity guarantee cannot leak through the cookie jar.
+        boolean privateSession = TorCutGuard.forcePrivateSession(
+                TorPrivateMode.isOn(), s.isPrivateBrowsing());
+        CookiePolicy policy = (s.isCookiesEnabled() && !privateSession)
                 ? CookiePolicy.ACCEPT_ALL
                 : CookiePolicy.ACCEPT_NONE;
         CookieHandler.setDefault(new CookieManager(null, policy));

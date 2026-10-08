@@ -15,8 +15,10 @@ package org.jdesktop.lg3d.apps.securitycenter;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -75,5 +77,28 @@ class PrivacyPanelTest {
         PrivacyPanel panel = new PrivacyPanel();
         assertEquals(panel.startEnabled(), panel.stopEnabled());
         assertEquals(panel.stopEnabled(), panel.restartEnabled());
+    }
+
+    @Test
+    @DisplayName("the private-mode section starts labelled and uncut")
+    void privateModeDefaults() {
+        PrivacyPanel panel = new PrivacyPanel();
+        assertTrue(panel.privateModeText().startsWith("Private (Tor) mode:"),
+                panel.privateModeText());
+        // No test enables the (global) mode, so it is OFF here: no CUT banner.
+        assertEquals(TorPrivateMode.State.OFF, TorPrivateMode.state());
+        assertFalse(panel.cutBannerVisible(), "the CUT banner is hidden while off");
+    }
+
+    @Test
+    @DisplayName("private-mode controls are gated on availability and the off state")
+    void privateModeGating() {
+        PrivacyPanel panel = new PrivacyPanel();
+        // Enable needs the same manageable-tor + polkit gate as Start, and is
+        // offered from OFF; Disable/Verify need an active mode, so both are off.
+        assertEquals(panel.torManageable() && panel.polkitAvailable(), panel.enableEnabled(),
+                "enable needs tor + init + polkit, and the mode is off");
+        assertFalse(panel.disableEnabled(), "nothing to disable while the mode is off");
+        assertFalse(panel.verifyEnabled(), "verify only makes sense while the mode is on");
     }
 }

@@ -85,4 +85,18 @@ class ErrorPageTest {
             assertTrue(html.contains(Html.escape(tip)), "missing tip: " + tip);
         }
     }
+
+    @Test
+    @DisplayName("a private-mode cut renders its shield page with no retry anchor")
+    void torCutPage() {
+        LoadFailure f = TorCutGuard.failure("https://example.com");
+        String html = ErrorPage.html(f);
+        assertTrue(html.contains(Html.escape(LoadFailure.Reason.TOR_CUT.getTitle())),
+                "the cut title is shown, HTML-escaped");
+        assertTrue(html.contains("&#128737;"), "the cut page carries the shield icon");
+        assertFalse(html.contains("class=\"btn\""), "a cut is not retryable");
+        for (String tip : f.getTips()) {
+            assertTrue(html.contains(Html.escape(tip)), "missing cut tip: " + tip);
+        }
+    }
 }

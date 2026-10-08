@@ -19,6 +19,8 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -26,11 +28,13 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import org.jdesktop.lg3d.utils.system.PrivacyService;
 import org.jdesktop.lg3d.utils.system.PrivacyService.Operation;
 import org.jdesktop.lg3d.utils.system.PrivilegedRunner;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
  * The Security Center's <em>Privacy</em> section (LFS/BLFS system-management
@@ -70,6 +74,23 @@ public class PrivacyPanel extends JPanel {
     private final JButton stopBtn = new JButton("Stop");
     private final JButton restartBtn = new JButton("Restart");
 
+    // -- Private (Tor) mode: the Whonix-like desktop-wide anonymity switch. --
+    private final JLabel privateModeLabel = new JLabel("Private (Tor) mode: -");
+    private final JLabel cutBanner = new JLabel(
+            "CUT - tor stopped; the network is refused to prevent leaks");
+    private final JButton enableBtn = new JButton("Enable Private Mode");
+    private final JButton disableBtn = new JButton("Disable");
+    private final JButton verifyBtn = new JButton("Verify no leak");
+
+    /**
+     * Mirrors live private-mode transitions onto this section. Registered in
+     * {@link #addNotify()} and removed in {@link #removeNotify()}, so a panel
+     * that is built but never shown (a headless test) leaves no global listener
+     * behind; the monitor thread fires it, so the Swing work hops to the EDT.
+     */
+    private final TorPrivateMode.Listener privateModeListener =
+            (from, to) -> SwingUtilities.invokeLater(() -> renderPrivateMode(to));
+
     /** True while a background operation is in flight (serialization guard). */
     private boolean busy;
 
@@ -94,7 +115,7 @@ public class PrivacyPanel extends JPanel {
         torLogPresent = PrivacyService.hasTorLog(probes);
         polkitAvailable = PrivilegedRunner.isAvailable();
 
-        add(buildHeader(), BorderLayout.NORTH);
+        add(buildNorth(), BorderLayout.NORTH);
         add(buildViewer(), BorderLayout.CENTER);
         add(buildSouth(), BorderLayout.SOUTH);
 
@@ -111,7 +132,28 @@ public class PrivacyPanel extends JPanel {
                     + "the read-only views work, but start/stop/restart are disabled.");
         }
         wireListeners();
+        renderPrivateMode(TorPrivateMode.state());
         updateButtons();
+    }
+
+    /**
+     * Registers the live private-mode listener when the panel actually joins a
+     * realized hierarchy, and renders the current state. Pairing this with
+     * {@link #removeNotify()} keeps the global {@link TorPrivateMode} listener
+     * list free of panels that are no longer on screen.
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        TorPrivateMode.addListener(privateModeListener);
+        renderPrivateMode(TorPrivateMode.state());
+    }
+
+    /** Drops the live private-mode listener when the panel leaves the screen. */
+    @Override
+    public void removeNotify() {
+        TorPrivateMode.removeListener(privateModeListener);
+        super.removeNotify();
     }
 
     // ------------------------------------------------------------------
@@ -124,6 +166,45 @@ public class PrivacyPanel extends JPanel {
         header.add(torStatusLabel, BorderLayout.NORTH);
         header.add(privacyNote, BorderLayout.SOUTH);
         return header;
+    }
+
+    /**
+     * Stacks the tor-service header above the private (Tor) mode section, so the
+     * whole NORTH region reads as one column without stretching the viewer.
+     */
+    private Component buildNorth() {
+        JPanel north = new JPanel();
+        north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
+        north.add(buildHeader());
+        north.add(Box.createVerticalStrut(8));
+        north.add(buildPrivateModeSection());
+        return north;
+    }
+
+    /**
+     * Builds the "Private (Tor) mode" section: the state line, a red CUT banner
+     * shown only while the kill switch has tripped, and the Enable / Disable /
+     * Verify-no-leak controls. Construction is process-free - it only reads the
+     * in-memory {@link TorPrivateMode#state()}.
+     */
+    private Component buildPrivateModeSection() {
+        JPanel section = new JPanel(new BorderLayout(4, 4));
+        section.setBorder(BorderFactory.createTitledBorder("Private (Tor) mode"));
+
+        privateModeLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        cutBanner.setForeground(new Color(200, 40, 40));
+        cutBanner.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        cutBanner.setVisible(false);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        buttons.add(enableBtn);
+        buttons.add(disableBtn);
+        buttons.add(verifyBtn);
+
+        section.add(privateModeLabel, BorderLayout.NORTH);
+        section.add(cutBanner, BorderLayout.CENTER);
+        section.add(buttons, BorderLayout.SOUTH);
+        return section;
     }
 
     private Component buildViewer() {
@@ -353,6 +434,131 @@ public class PrivacyPanel extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // Private (Tor) mode: the desktop-wide anonymity switch (Whonix-like).
+    // Enable may start tor through polkit and runs off the EDT; Disable only
+    // clears the in-JVM enforcement (no privilege, no process); Verify fetches
+    // the tor-project check through the proxy only, also off the EDT.
+
+    /** Renders the mode's state line, the CUT banner and the button gating. */
+    private void renderPrivateMode(TorPrivateMode.State state) {
+        privateModeLabel.setText("Private (Tor) mode: " + TorPrivateMode.describe(state));
+        boolean cut = (state == TorPrivateMode.State.CUT);
+        cutBanner.setVisible(cut);
+        if (cut) {
+            privacyNote.setText("Private mode CUT the network because tor stopped; "
+                    + "traffic stays refused until tor runs again.");
+        }
+        updateButtons();
+    }
+
+    /** Enables private mode off the EDT (it may escalate to start tor). */
+    private void enablePrivateMode() {
+        if (busy) {
+            return;
+        }
+        if (!torManageable || !polkitAvailable) {
+            privacyNote.setText("Private mode needs a manageable tor service and "
+                    + "privilege escalation (pkexec); neither is fully available here.");
+            return;
+        }
+        setBusy(true);
+        privacyNote.setText(" ");
+        viewer.setText("Enabling private (Tor) mode...\n\n"
+                + "Traffic will be forced through tor (SOCKS 127.0.0.1:"
+                + TorPrivateMode.socksPort() + ").\n"
+                + "Approve the administrative-privilege prompt if tor must be started.");
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                return TorPrivateMode.enable();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    boolean on = Boolean.TRUE.equals(get());
+                    privacyNote.setText(on
+                            ? "Private (Tor) mode is on: desktop traffic is forced through tor."
+                            : "Private mode was not enabled (tor is not manageable, or the "
+                                    + "privilege prompt was cancelled).");
+                } catch (Exception ex) {
+                    privacyNote.setText("Enabling private mode failed: " + ex.getMessage());
+                } finally {
+                    setBusy(false);
+                    renderPrivateMode(TorPrivateMode.state());
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Disables private mode. This only clears the in-JVM SOCKS enforcement and
+     * stops the monitor - it never stops the tor service - so it needs no
+     * privilege and runs straight on the EDT.
+     */
+    private void disablePrivateMode() {
+        if (busy) {
+            return;
+        }
+        TorPrivateMode.disable();
+        privacyNote.setText("Private (Tor) mode is off; the SOCKS enforcement is cleared.");
+        renderPrivateMode(TorPrivateMode.state());
+    }
+
+    /** Verifies, through the proxy only, that traffic really exits via tor. */
+    private void verifyNoLeak() {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        privacyNote.setText(" ");
+        viewer.setText("Checking for leaks via " + TorPrivateMode.CHECK_URL + "\n"
+                + "(fetched through the tor SOCKS proxy only)...");
+        new SwingWorker<TorPrivateMode.LeakVerdict, Void>() {
+            @Override
+            protected TorPrivateMode.LeakVerdict doInBackground() {
+                return TorPrivateMode.leakCheck();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    renderLeak(get());
+                } catch (Exception ex) {
+                    privacyNote.setText("The leak check failed: " + ex.getMessage());
+                } finally {
+                    setBusy(false);
+                }
+            }
+        }.execute();
+    }
+
+    /** Reports the leak-check verdict honestly; a non-tor result is a warning. */
+    private void renderLeak(TorPrivateMode.LeakVerdict verdict) {
+        TorPrivateMode.LeakVerdict v = (verdict == null)
+                ? TorPrivateMode.LeakVerdict.UNREACHABLE : verdict;
+        switch (v) {
+            case TOR_CONFIRMED -> {
+                privacyNote.setText("No leak: this traffic is confirmed to exit through tor.");
+                viewer.setText("check.torproject.org sees this connection as Tor.\n"
+                        + "Your real address is hidden behind the tor network.");
+            }
+            case NOT_TOR -> {
+                privacyNote.setText("LEAK: the check did NOT see tor - your real IP may be exposed.");
+                viewer.setText("WARNING: check.torproject.org did not see this traffic as Tor.\n"
+                        + "A leak may have occurred; do not trust private mode right now.\n"
+                        + "Turn private mode off and on again, or check the tor service.");
+            }
+            case UNREACHABLE -> {
+                privacyNote.setText("The leak check could not reach check.torproject.org.");
+                viewer.setText("check.torproject.org was unreachable.\n"
+                        + "This usually means tor is not running, or the network is cut.");
+            }
+        }
+        viewer.setCaretPosition(0);
+    }
+
+    // ------------------------------------------------------------------
     // Button wiring / serialization
 
     private void setBusy(boolean value) {
@@ -371,6 +577,19 @@ public class PrivacyPanel extends JPanel {
         startBtn.setEnabled(canManage);
         stopBtn.setEnabled(canManage);
         restartBtn.setEnabled(canManage);
+
+        // Private (Tor) mode gating follows the live state:
+        TorPrivateMode.State mode = TorPrivateMode.state();
+        boolean active = mode != TorPrivateMode.State.OFF;
+        // Enable may start tor (polkit) and is meaningful only from OFF or CUT
+        // (a cut can be retried); it is a no-op while already on/enabling.
+        enableBtn.setEnabled(canManage
+                && (mode == TorPrivateMode.State.OFF || mode == TorPrivateMode.State.CUT));
+        // Disable only clears the in-JVM enforcement (no privilege), so it is
+        // available whenever the mode is active and nothing else is in flight.
+        disableBtn.setEnabled(idle && active);
+        // Verify fetches through the proxy, so it only makes sense while ON.
+        verifyBtn.setEnabled(idle && mode == TorPrivateMode.State.ON);
     }
 
     /** Wires the section's buttons (called once from the constructor). */
@@ -381,6 +600,9 @@ public class PrivacyPanel extends JPanel {
         startBtn.addActionListener(e -> mutateTor(Operation.TOR_START));
         stopBtn.addActionListener(e -> mutateTor(Operation.TOR_STOP));
         restartBtn.addActionListener(e -> mutateTor(Operation.TOR_RESTART));
+        enableBtn.addActionListener(e -> enablePrivateMode());
+        disableBtn.addActionListener(e -> disablePrivateMode());
+        verifyBtn.addActionListener(e -> verifyNoLeak());
     }
 
     // ------------------------------------------------------------------
@@ -460,5 +682,30 @@ public class PrivacyPanel extends JPanel {
     /** Whether the "Restart" control is enabled. */
     boolean restartEnabled() {
         return restartBtn.isEnabled();
+    }
+
+    /** The private (Tor) mode state line. */
+    String privateModeText() {
+        return privateModeLabel.getText();
+    }
+
+    /** Whether the red CUT banner is showing. */
+    boolean cutBannerVisible() {
+        return cutBanner.isVisible();
+    }
+
+    /** Whether the "Enable Private Mode" control is enabled. */
+    boolean enableEnabled() {
+        return enableBtn.isEnabled();
+    }
+
+    /** Whether the private-mode "Disable" control is enabled. */
+    boolean disableEnabled() {
+        return disableBtn.isEnabled();
+    }
+
+    /** Whether the "Verify no leak" control is enabled. */
+    boolean verifyEnabled() {
+        return verifyBtn.isEnabled();
     }
 }

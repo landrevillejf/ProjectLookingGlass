@@ -112,6 +112,8 @@ public final class ErrorPage {
                 return "&#8987;";     // hourglass
             case TLS_ERROR:
                 return "&#128274;";   // lock
+            case TOR_CUT:
+                return "&#128737;";   // shield (private mode cut)
             case HTTP_CLIENT_ERROR:
             case HTTP_SERVER_ERROR:
                 return "&#9888;";     // warning

@@ -53,9 +53,24 @@
 - **PrivacyPanel** — the Security Center's *Privacy* tab (§4.7): a thin Swing
   front-end over the shared `PrivacyService` that shows the tor service state and
   drives start/stop/restart through the §4.1 init abstraction, plus read-only
-  `/etc/tor/torrc` and `/var/log/tor/notices.log` views. Plain labels / buttons /
-  text area (never a combo box), headless-safe to construct, and it never writes
+  `/etc/tor/torrc` and `/var/log/tor/notices.log` views. It also carries the
+  **Private (Tor) mode** section — the Whonix-like desktop-wide anonymity switch
+  over the shared `TorPrivateMode` (Enable / Disable / *Verify no leak*, a live
+  state line and a red CUT banner): Enable may start tor through polkit and runs
+  off the EDT, Disable only clears the in-JVM SOCKS enforcement (no privilege),
+  and Verify fetches `check.torproject.org` through the proxy only. Plain labels /
+  buttons / text area (never a combo box), headless-safe to construct (it only
+  reads the in-memory `TorPrivateMode.state()`, never spawns), and it never writes
   `/etc` or `/var/log`.
+- **TorPrivateMode / NetworkCut** (shared, `org.jdesktop.lg3d.utils.system` in
+  lg3d-core) — the Whonix-like private-mode engine and the global fails-closed
+  cut flag it raises. `TorPrivateMode` forces JVM SOCKS (`socksProxyHost` /
+  `socksProxyPort`, overridable via `lg.tor.socksPort`) + a SOCKS5 `ProxySelector`,
+  runs a 5 s daemon monitor that trips `OFF/ENABLING/ON → CUT` the moment tor
+  stops (raising `NetworkCut`, so every client socket is refused rather than
+  leaking clearnet), and does the proxy-only leak check; every decision
+  (`transition` / `monitorTick` / `proxyProperties` / `proxyEnv` / `parseTorCheck`)
+  is pure and headless-tested.
 - **PrivacyService** (shared, `org.jdesktop.lg3d.utils.system` in lg3d-core) — the
   §4.7 backend: it detects tor / init / file presence with non-spawning probes,
   **delegates the whole tor lifecycle to `InitSystemService`** (no tor-specific
@@ -91,7 +106,7 @@
   only reached from a user action, never the constructor, so headless tests can
   build the panel. Never call `System.exit`. Obey the core UI/UX rulebook.
 - **QA** — `AntivirusBackendTest`, `SecurityProbeTest`, `SecurityCenterStoreTest`,
-  `SecurityCenterPanelTest` and `PrivacyPanelTest` run headless (46 tests): the
+  `SecurityCenterPanelTest` and `PrivacyPanelTest` run headless (48 tests): the
   backend suite asserts
   scanner resolution, the command builders and the parse of recorded ClamAV output
   (clean, infected, per-file error, daemon-down, empty) plus version/update
@@ -101,11 +116,14 @@
   resilience and the quarantine dir; the panel suite drives `applyReport` /
   `applySnapshot` / `addRecord` / `renderHostServices` with synthetic values —
   never spawning a scanner — and asserts the three tabs (Antivirus / Security
-  Overview / Privacy); `PrivacyPanelTest` asserts headless construction and the
-  tor / init / polkit / file button gating. The AppArmor / SSH vectors and parsers
+  Overview / Privacy); `PrivacyPanelTest` asserts headless construction, the
+  tor / init / polkit / file button gating and the private (Tor) mode section
+  (state line, hidden CUT banner while off, and Enable/Disable/Verify gating). The
+  `TorPrivateMode` / `NetworkCut` decisions behind it are covered by
+  `TorPrivateModeTest` / `NetworkCutTest`. The AppArmor / SSH vectors and parsers
   behind `renderHostServices` are covered by `SecurityServiceTest`, and the tor
   lifecycle vectors, `parseTorState` and bounded file reads behind `PrivacyPanel`
-  by `PrivacyServiceTest`, both in lg3d-core.
+  by `PrivacyServiceTest`, all in lg3d-core.
   For the 3D host use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver security utility: scan a folder for viruses
