@@ -24,7 +24,14 @@ import org.jdesktop.lg3d.apps.TitledSwingWindow;
 public class ControlCenter {
 
     private static final int PANEL_W = 720;
-    private static final int PANEL_H = 500;
+    // Tall enough that the Appearance panel's stacked sections (Window Glass +
+    // Corner Logo + Wallpaper Slideshow over the wallpaper preview) fit without
+    // maximizing; the corner-logo selector pushed the old 500px content area
+    // past its preferred height and collapsed the wallpaper list. Must match
+    // ControlCenterPanel's preferred size so the chrome and the packed Swing
+    // content agree (TitledSwingWindow.show builds the title bar / spines /
+    // thumbnail for PANEL_W x PANEL_H while setJPanel packs to the preferred).
+    private static final int PANEL_H = 620;
 
     public static void main(String[] args) {
         new ControlCenter();

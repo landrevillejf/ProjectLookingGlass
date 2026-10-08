@@ -88,7 +88,12 @@ public class ControlCenterPanel extends JPanel {
 
     public ControlCenterPanel() {
         super(new BorderLayout());
-        setPreferredSize(new Dimension(720, 500));
+        // Must match ControlCenter.PANEL_H: TitledSwingWindow.show builds the
+        // window chrome for that pixel height while setJPanel packs this panel
+        // to its preferred size, so the two have to agree or the content and
+        // the title bar / spines / thumbnail desync. 620 keeps the Appearance
+        // panel's stacked sections fully visible without maximizing.
+        setPreferredSize(new Dimension(720, 620));
         setBackground(new Color(238, 240, 244));
 
         cardPanel.add(buildLoadingCard(), LOADING_KEY);

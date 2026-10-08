@@ -50,7 +50,10 @@ Date & Time, Language & Region, Users, System, Services, System Update, Storage,
   contract with core (SwingNode surface, descriptor fields, PANEL_APPS reuse).
   Note the Appearance/Desktop panels are omitted under `lg.desktop2d`; the
   Customization panel registers in every mode but its 2D-only sections degrade to a
-  "2D desktop only" note on the 3D shell.
+  "2D desktop only" note on the 3D shell. The Appearance panel's *Corner Logo*
+  selector (Java logo vs the Looking-Glass mascot) is likewise 3D-only: it writes
+  `DesktopConfig.cornerLogo` and posts a `DesktopConfigChangeEvent` that the
+  `lg3d-core` image backgrounds listen for to swap the corner model live.
 - **Project Manager** — Commit scope `lg3d-apps`. Done = build +
   `./run-lg3d.sh` + capture/log evidence in the PR. Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame (title strip,

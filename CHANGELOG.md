@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **3D desktop: a choice of corner-logo model** (`lg3d-core`, `lg3d-apps`) — the
+  decorative 3D model that floats in the corner of the image backgrounds is now
+  selectable. The fixed `JavaLogo` (the four `Java-logo-*.png` panels that tilt
+  with the mouse) is replaced by a `CornerLogo`
+  (`org.jdesktop.lg3d.scenemanager.utils.background`) whose outer node is a
+  *stable* drag handle — the `PickableRegion` the `WindowRotator` /
+  `SceneTempZoomer` gestures bind to — while the visible artwork lives in a child
+  that `setModel(Model)` rebuilds in place, so the model swaps live without
+  re-wiring the scene. Two models ship: `JAVA` (the classic logo, unchanged) and
+  `MASCOT`, the Looking-Glass mascot (`resources/images/icon/lg3d-logo.png`, the
+  same icon the 2D splash and the About window reflect) rendered as a single
+  textured panel with the same mouse-driven tilt. The choice is persisted on
+  `DesktopConfig` (`desktop.cornerLogo`, default `java`) and picked in **Control
+  Center ▸ Appearance ▸ Corner Logo** (a 3D-only `JList`; applying posts a
+  `DesktopConfigChangeEvent` that `LayeredImageBackground`, `PanoImageBackground`
+  and `SwayingSimpleImageBackground` listen for and swap on the spot). The pure
+  id parsing (`DesktopConfig` normalization, `CornerLogo.Model.fromConfig`) is
+  headless-tested. The Control Center window's default content height is raised
+  (500 → 620px, in `ControlCenter` / `ControlCenterPanel`) so the Appearance
+  panel's now-three stacked 3D-only sections stay fully visible without having
+  to maximize the window.
 - **Private (Tor) mode: a Whonix-like desktop-wide anonymity switch**
   (`lg3d-core`, `lg3d-apps`) — a new shared `TorPrivateMode`
   (`org.jdesktop.lg3d.utils.system`) forces *all* desktop traffic through tor and
