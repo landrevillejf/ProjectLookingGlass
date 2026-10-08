@@ -18,14 +18,17 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import org.junit.jupiter.api.DisplayName;
@@ -162,6 +165,69 @@ class Desktop2DSplashTest {
                 "the splash paints a predominantly white card, not a grey block");
         assertTrue(dark > 0,
                 "the product name and version are drawn as dark text on the card");
+    }
+
+    @Test
+    @DisplayName("the looking-glass is omitted when there is no mascot to reflect")
+    void mirrorWithoutMascotIsNull() {
+        assertNull(Desktop2DSplash.buildMirror(null),
+                "no mascot means no mirror, never a blank frame");
+    }
+
+    @Test
+    @DisplayName("the looking-glass shows the mascot through the glass with a reflection")
+    void mirrorPaintsMascotAndReflection() {
+        BufferedImage mascot = new BufferedImage(40, 60, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D mg = mascot.createGraphics();
+        mg.setColor(Color.RED);
+        mg.fillRect(0, 0, 40, 60);
+        mg.dispose();
+
+        JComponent mirror = Desktop2DSplash.buildMirror(mascot);
+        assertNotNull(mirror, "a mascot yields a looking-glass component");
+        Dimension pref = mirror.getPreferredSize();
+        assertTrue(pref.width >= 40, "the glass is at least as wide as the mascot");
+        assertTrue(pref.height > 60,
+                "glass plus its reflection is taller than the mascot alone");
+
+        mirror.setSize(pref);
+        BufferedImage img = new BufferedImage(Math.max(1, pref.width),
+                Math.max(1, pref.height), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            mirror.paint(g);
+        } finally {
+            g.dispose();
+        }
+        assertTrue(containsRed(img),
+                "the mascot is visible through the looking-glass");
+    }
+
+    @Test
+    @DisplayName("the mascot degrades to null off the runtime classpath, omitting the mirror")
+    void mascotDegradesAndContentStillBuilds() {
+        // The runtime-resources "resources/" tree is only on the desktop run
+        // classpath, not the test classpath, so the PNG cannot be resolved here;
+        // loadMascot must return null (not throw) and buildContent must simply
+        // omit the mirror rather than fail.
+        assertNull(Desktop2DSplash.loadMascot());
+        assertNotNull(Desktop2DSplash.buildContent());
+    }
+
+    /** True when any pixel of {@code img} carries the fixture's red. */
+    private static boolean containsRed(BufferedImage img) {
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                int p = img.getRGB(x, y);
+                int r = (p >> 16) & 0xff;
+                int g = (p >> 8) & 0xff;
+                int b = p & 0xff;
+                if (r > 120 && g < 90 && b < 90) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** The text of every {@link JLabel} directly held by {@code panel}. */
