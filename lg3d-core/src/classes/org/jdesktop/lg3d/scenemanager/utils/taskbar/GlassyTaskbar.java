@@ -347,6 +347,12 @@ public class GlassyTaskbar extends Taskbar {
             insertAt = 0;
         }
         targetContainer.addChild(item, insertAt);
+        // Normalise any icon nested in the item (e.g. a Pseudo3DIcon wrapped in a
+        // Tapp) to the configured icon size. A plugin may build its icon before
+        // the taskbar publishes DesktopConfig's icon scale, so it would otherwise
+        // keep a stale baked scale that the periodic rescaleIcons() pass cannot
+        // see through the wrapper.
+        rescaleDeep(item, DesktopConfig.get().getIconScale());
     }
     
     @Override
@@ -487,8 +493,28 @@ public class GlassyTaskbar extends Taskbar {
     private void rescaleChildren(Container3D container, float scale) {
         for (int i = 0; i < container.numChildren(); i++) {
             Node child = container.getChild(i);
-            if (child instanceof Pseudo3DIcon) {
-                ((Pseudo3DIcon) child).rescale(scale);
+            if (child instanceof Component3D) {
+                rescaleDeep((Component3D) child, scale);
+            }
+        }
+    }
+
+    /**
+     * Rescales {@code comp} and every {@link Pseudo3DIcon} nested beneath it, so
+     * icons wrapped in a container (a {@code Tapp} taskbar item) follow the
+     * configured icon size instead of keeping their construction-time scale.
+     */
+    private void rescaleDeep(Component3D comp, float scale) {
+        if (comp instanceof Pseudo3DIcon) {
+            ((Pseudo3DIcon) comp).rescale(scale);
+        }
+        if (comp instanceof Container3D) {
+            Container3D inner = (Container3D) comp;
+            for (int i = 0; i < inner.numChildren(); i++) {
+                Node child = inner.getChild(i);
+                if (child instanceof Component3D) {
+                    rescaleDeep((Component3D) child, scale);
+                }
             }
         }
     }

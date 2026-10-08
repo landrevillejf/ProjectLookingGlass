@@ -61,6 +61,18 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **Oversized taskbar icon for plugins that build their icon early** (`lg3d-core`)
+  — the Terminator (exit) taskbar item's Jolly Roger icon could render far larger
+  than its neighbours in the right-hand group and, on its hover-grow, loom over and
+  intercept clicks meant for the exit dialog's ✓ / ✗ buttons. Root cause: a
+  `SceneManagerPlugin` (e.g. `Terminator`) constructs its `Pseudo3DIcon` before the
+  taskbar publishes `DesktopConfig`'s icon scale, baking the default 1.0 scale,
+  and because the icon is wrapped in a `Tapp` the `rescaleIcons()` pass — which
+  only visited *direct* `Pseudo3DIcon` children of the `shortcuts` / `themes` rows
+  — never corrected it. `GlassyTaskbar` and `AdvancedGlassyTaskbar.addTaskbarItem`
+  now normalise any `Pseudo3DIcon` nested in a newly added item to the configured
+  icon scale, and the rescale pass recurses into container wrappers so later
+  icon-size changes reach wrapped icons too.
 - **"Lg3d Homepage" start-menu item pointed at a dead URL** (`lg3d-core`) — the
   Developers-group link launched `firefox http://lg3d-core.dev.java.net`, the
   original Sun/java.net project home that has been dead for ~20 years. It now
