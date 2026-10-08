@@ -282,7 +282,14 @@ public abstract class SwingNodeRenderer extends Group implements SwingNodeJFrame
         
         //logger.severe("XY "+x+" "+y);
         //logger.severe("XY "+(x/width3D)*component.getWidth()+" "+(y/height3D)*component.getHeight());
-        return new Point((int)((x/width3D)*hiddenFrame.getWidth()),(int)((y/height3D)*hiddenFrame.getHeight()));
+        // Scale by the PANEL's pixel size, not the hidden frame's: the frame is
+        // packed to the panel only at setJPanel time, while a later native
+        // resize (maximize) grows the panel first. Using a stale frame size
+        // here mapped clicks into the old, smaller pixel space and made the 3D
+        // cursor hit the wrong control on a maximized window.
+        int fw = (panel != null) ? panel.getWidth() : hiddenFrame.getWidth();
+        int fh = (panel != null) ? panel.getHeight() : hiddenFrame.getHeight();
+        return new Point((int)((x/width3D)*fw),(int)((y/height3D)*fh));
     }
     
 }

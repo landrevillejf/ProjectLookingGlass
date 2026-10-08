@@ -188,6 +188,18 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **Maximized hosted Swing windows: the 3D cursor clicked the wrong control**
+  (`lg3d-core`) — maximizing a `SwingNode`-hosted window (Control Center, Task
+  Manager, …) resizes the panel natively via `SwingNode.setHostedSize` but left
+  the hidden host `JFrame` at the size it was packed to in `setJPanel`, so the
+  input path disagreed with itself: `SwingNodeRenderer.calcPositionInPanel`
+  scaled the picked 3D point by the stale frame width/height and AWT retargeted
+  the forwarded event into that too-small frame, landing hits offset (normal
+  size was unaffected because frame and panel still matched). `setHostedSize`
+  now re-packs the hidden frame after revalidating the panel so the dispatch
+  root tracks the panel, and `calcPositionInPanel` scales by the panel's own
+  pixel size (frame as fallback) so the mapped coordinate is always in the
+  space the Swing children are laid out in.
 - **Web browser: honest error pages, a load watchdog and robust downloads**
   (`lg3d-apps`) — a failed navigation no longer leaves a blank tab with only a
   status string. `FxBrowser` now classifies the failure with the new JavaFX-free
