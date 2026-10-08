@@ -289,6 +289,12 @@ public class SwingNode extends Component3D {
                 // Swing hierarchy so every nested layout manager reflows.
                 p.invalidate();
                 p.validate();
+                // Keep the hidden host frame's bounds equal to the panel's. It
+                // is packed to the panel at setJPanel time, but a native resize
+                // (maximize) only grew the panel; AWT then retargeted forwarded
+                // clicks against the stale, smaller frame and hits landed
+                // offset. Re-pack so the dispatch root tracks the panel.
+                hiddenFrame.pack();
                 p.repaint();
                 requestRecapture();
             }
