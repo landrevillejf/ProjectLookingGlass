@@ -30,6 +30,7 @@ import javax.swing.event.ChangeEvent;
 import com.protonmail.landrevillejf.IconManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
+import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
 /**
  * The taskbar's system-indicator cluster: small text glyphs for master volume,
@@ -63,6 +64,9 @@ final class TaskbarIndicators extends JPanel {
     private final JLabel brightnessLabel = new JLabel();
     private final JLabel networkLabel = new JLabel();
     private final JLabel batteryLabel = new JLabel();
+    private final JLabel privacyLabel = new JLabel();
+    /** The taskbar's inherited label colour, restored when a CUT red clears. */
+    private final Color privacyDefaultColor = privacyLabel.getForeground();
     private final JSlider volumeSlider = new JSlider(0, 100, 0);
     private final JPopupMenu volumePopup = new JPopupMenu();
     private final JSlider brightnessSlider = new JSlider(0, 100, 0);
@@ -75,6 +79,12 @@ final class TaskbarIndicators extends JPanel {
     private boolean adjustingSlider;
     /** Guards against the brightness slider's own change events fighting a refresh. */
     private boolean adjustingBrightnessSlider;
+
+    /**
+     * Receives the click on the private-mode indicator, so the desktop can open
+     * the Security Center's Privacy tab where the mode is driven.
+     */
+    private Runnable privacyClick;
 
     /**
      * The last percentage the user dragged the brightness slider to. While the
@@ -95,7 +105,8 @@ final class TaskbarIndicators extends JPanel {
         setOpaque(false);
 
         for (JLabel label : new JLabel[] {
-                volumeLabel, brightnessLabel, networkLabel, batteryLabel}) {
+                volumeLabel, brightnessLabel, networkLabel, batteryLabel,
+                privacyLabel}) {
             label.setOpaque(false);
             add(label);
         }
@@ -138,6 +149,18 @@ final class TaskbarIndicators extends JPanel {
         brightnessSlider.addChangeListener(this::onBrightnessSliderChange);
         brightnessPopup.add(brightnessSlider);
 
+        privacyLabel.setToolTipText("Private (Tor) mode");
+        privacyLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // Pressed only: a press+release pair would open the Security
+                // Center twice for a single click.
+                if (privacyClick != null) {
+                    privacyClick.run();
+                }
+            }
+        });
+
         volumeTimer = new Timer(VOLUME_INTERVAL_MS, e -> refreshVolume());
         volumeTimer.setRepeats(true);
         statusTimer = new Timer(STATUS_INTERVAL_MS, e -> refreshStatuses());
@@ -164,6 +187,7 @@ final class TaskbarIndicators extends JPanel {
         applyNetwork(NetworkStatus.read());
         applyBattery(BatteryStatus.read());
         applyBrightness(BrightnessStatus.read(), BrightnessStatus.isControllable());
+        applyPrivacy(TorPrivateMode.state());
     }
 
     /**
@@ -173,6 +197,14 @@ final class TaskbarIndicators extends JPanel {
      */
     void setSoftwareBrightness(IntConsumer consumer) {
         softwareBrightness = consumer;
+    }
+
+    /**
+     * Registers the callback invoked when the user clicks the private-mode
+     * indicator (the desktop opens the Security Center's Privacy tab).
+     */
+    void setPrivacyClick(Runnable callback) {
+        privacyClick = callback;
     }
 
     /** Applies an already-read volume (headless-testable seam). */
@@ -190,6 +222,20 @@ final class TaskbarIndicators extends JPanel {
     void applyNetwork(State state) {
         networkLabel.setText(NetworkStatus.glyph(state));
         networkLabel.setToolTipText(NetworkStatus.label(state));
+    }
+
+    /**
+     * Applies an already-read private (Tor) mode state (headless-testable
+     * seam): the shield glyph is hidden while the mode is off, like the battery
+     * glyph on a battery-less host.
+     */
+    void applyPrivacy(TorPrivateMode.State state) {
+        privacyLabel.setVisible(PrivacyStatus.visible(state));
+        privacyLabel.setText(PrivacyStatus.glyph(state));
+        privacyLabel.setToolTipText(PrivacyStatus.label(state));
+        Color alarm = PrivacyStatus.color(state);
+        privacyLabel.setForeground(
+                alarm != null ? alarm : privacyDefaultColor);
     }
 
     /** Applies an already-read brightness, hiding the glyph when absent. */
@@ -264,6 +310,14 @@ final class TaskbarIndicators extends JPanel {
 
     String brightnessText() {
         return brightnessLabel.getText();
+    }
+
+    String privacyText() {
+        return privacyLabel.getText();
+    }
+
+    boolean privacyVisible() {
+        return privacyLabel.isVisible();
     }
 
     Icon batteryIcon() {
