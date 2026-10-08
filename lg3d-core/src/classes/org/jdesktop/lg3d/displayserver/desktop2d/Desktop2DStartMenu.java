@@ -153,8 +153,9 @@ public final class Desktop2DStartMenu {
     }
 
     /**
-     * Creates one menu entry, or null when the entry must be omitted entirely
-     * (an external command whose executable is not installed).
+     * Creates one menu entry, or null when the entry must be omitted entirely:
+     * an external command whose executable is not installed, or a 3D-only
+     * application the 2D desktop cannot run.
      */
     static JMenuItem createItem(ItemSpec item, final Launcher launcher) {
         Desktop2DAppRegistry.Kind kind =
@@ -165,13 +166,16 @@ public final class Desktop2DStartMenu {
                     item.getName());
             return null;
         }
+        if (kind == Desktop2DAppRegistry.Kind.UNAVAILABLE) {
+            // A pure Java 3D application has no scene to render into on the 2D
+            // desktop. Hide it entirely rather than showing a greyed-out entry:
+            // the 2D menu lists only what this desktop can actually run.
+            logger.log(Level.FINE, "3D-only application, skipping 2D menu item {0}",
+                    item.getName());
+            return null;
+        }
         JMenuItem entry = new JMenuItem(item.getName(),
                 AppIcons.iconFor(item.getName(), item.getIconResource(), ICON_SIZE));
-        if (kind == Desktop2DAppRegistry.Kind.UNAVAILABLE) {
-            entry.setEnabled(false);
-            entry.setToolTipText(Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP);
-            return entry;
-        }
         entry.setToolTipText(item.getDesc() != null ? item.getDesc()
                 : item.getCommand());
         entry.addActionListener(e -> launcher.launch(item));

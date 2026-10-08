@@ -190,16 +190,18 @@ match. Entries are handled by kind:
   on `loginctl` / `systemctl` / `xdg-screensaver`, so on a host without them it
   simply does not appear.
 
-**What is disabled.** Pure Java 3D applications have no scene to render into, so
-their menu entries appear **greyed out** with the tooltip *“Requires the 3D
-desktop”* rather than being hidden; the remaining ones are the sample and
-tutorial entries (**Tutorial 1–3**, **Swing Node Test**) plus **Image Studio**,
-**Luncher** and **Natural Language Control**. (The widgets are *not* in this
-category — see above. The incubator's other 3D-only apps do not appear in the
-menu at all, because their descriptors are not among the discovered ones.) The
-Control Center registers all of its panels in every mode; its **Appearance** and
-**Desktop** panels drive whichever desktop is running. The 3D desktop and its
-boot path are otherwise untouched.
+**What is hidden.** Pure Java 3D applications have no scene to render into on the
+2D desktop, so their menu entries are **omitted entirely** rather than shown
+greyed out — the 2D start menu (and its live search) lists only what this
+desktop can actually run. That covers the 3D-only sample and tool entries such as
+**Swing Node Test**, **Image Studio**, **Luncher** and **Natural Language
+Control**. (The widgets are *not* in this category — see above. The incubator's
+other 3D-only apps likewise do not appear, because their descriptors are not
+among the discovered ones.) A 3D-only command reached another way — for example a
+window restored from a saved session — still explains that it *“Requires the 3D
+desktop”*. The Control Center registers all of its panels in every mode; its
+**Appearance** and **Desktop** panels drive whichever desktop is running. The 3D
+desktop and its boot path are otherwise untouched.
 
 ## Desktop shell features
 

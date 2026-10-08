@@ -17,6 +17,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 import java.awt.BorderLayout;
 import java.awt.event.KeyEvent;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -163,7 +164,14 @@ final class StartMenuSearch {
             matches = List.of();
             Desktop2DStartMenu.appendTree(menu, model, launcher);
         } else {
-            matches = AppSearch.match(model.getItems(), query);
+            matches = AppSearch.match(model.getItems(), query).stream()
+                    // A 3D-only application is hidden from the 2D menu tree, so
+                    // it must not surface as a search match either; dropping it
+                    // here keeps resultCount(), the rendered rows and
+                    // launchTopMatch() consistent.
+                    .filter(it -> Desktop2DAppRegistry.classify(it.getCommand())
+                            != Desktop2DAppRegistry.Kind.UNAVAILABLE)
+                    .collect(Collectors.toList());
             if (matches.isEmpty()) {
                 JMenuItem none = new JMenuItem(NO_MATCH_LABEL);
                 none.setEnabled(false);
