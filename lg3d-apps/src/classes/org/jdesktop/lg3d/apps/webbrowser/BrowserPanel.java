@@ -44,6 +44,7 @@ import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 import javax.swing.InputMap;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentListener;
 import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionRegistry;
 import org.jdesktop.lg3d.apps.webbrowser.ext.ToolbarContribution;
@@ -77,6 +78,9 @@ public class BrowserPanel extends JPanel {
     public static final int WIDTH_PX = 1024;
     public static final int HEIGHT_PX = 768;
 
+    /** Upper bound on tabs restored from a saved session, to cap startup work. */
+    private static final int MAX_RESTORED_TABS = 20;
+
     private final BrowserStore store = new BrowserStore();
     private final BookmarkStore bookmarks = new BookmarkStore(store.loadBookmarks());
     private final HistoryStore history =
@@ -101,9 +105,12 @@ public class BrowserPanel extends JPanel {
     private final JButton homeButton = new JButton("Home");
     private final JTextField urlField = new JTextField();
     private final JButton goButton = new JButton("Go");
+    /** Address-bar security indicator; click opens the site-info popup. */
+    private final JButton securityButton = new JButton(" ");
     private final JButton bookmarkButton = new JButton("\u2605");
     private final JButton bookmarksMenuButton = new JButton("Bookmarks");
     private final JButton findButton = new JButton("Find");
+    private final JButton readerButton = new JButton("Reader");
     private final JButton zoomOutButton = new JButton("-");
     private final JLabel zoomLabel = new JLabel("100%");
     private final JButton zoomInButton = new JButton("+");
@@ -118,6 +125,18 @@ public class BrowserPanel extends JPanel {
     private final JLabel statusLabel = new JLabel(" ");
     private final JProgressBar progressBar = new JProgressBar(0, 100);
 
+    /** Inline find bar (hidden until Ctrl+F / the Find button reveals it). */
+    private final JPanel findBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+    private final JTextField findField = new JTextField(18);
+    private final JLabel findCountLabel = new JLabel("0 of 0");
+    private final JButton findPrevButton = new JButton("\u25B2");
+    private final JButton findNextButton = new JButton("\u25BC");
+    private final JButton findCloseButton = new JButton("\u00D7");
+
+    /** Per-site blocked-event counters, surfaced in the site-info popup. */
+    private final SiteStats siteStats = new SiteStats();
+    private volatile String currentUrl = "";
+
     private Runnable onClose;
     private volatile FxBrowser fx;
     private volatile boolean ready;
@@ -130,7 +149,7 @@ public class BrowserPanel extends JPanel {
 
         scanExtensions();
         add(buildTabStripRow(), BorderLayout.NORTH);
-        add(fxPanel, BorderLayout.CENTER);
+        add(buildCenter(), BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
 
         progressBar.setPreferredSize(new Dimension(120, 14));
@@ -206,10 +225,15 @@ public class BrowserPanel extends JPanel {
         bar.add(homeButton);
         bar.addSeparator();
 
+        securityButton.setToolTipText("Connection security - click for site info");
+        securityButton.setFocusable(false);
+        securityButton.setMargin(new java.awt.Insets(0, 6, 0, 6));
+        securityButton.addActionListener(e -> showSiteInfo());
         urlField.setToolTipText("Enter an address or search terms");
         urlField.addActionListener(e -> navigateTo(urlField.getText()));
         goButton.setToolTipText("Go");
         goButton.addActionListener(e -> navigateTo(urlField.getText()));
+        bar.add(securityButton);
         bar.add(urlField);
         bar.add(goButton);
         bar.addSeparator();
@@ -223,16 +247,16 @@ public class BrowserPanel extends JPanel {
         bar.addSeparator();
 
         findButton.setToolTipText("Find in page");
-        findButton.addActionListener(e -> showFind());
+        findButton.addActionListener(e -> openFindBar());
         zoomOutButton.setToolTipText("Zoom out");
         zoomInButton.setToolTipText("Zoom in");
-        zoomOutButton.addActionListener(e -> run(fx -> { fx.zoomOut(); refreshZoom(); }));
-        zoomInButton.addActionListener(e -> run(fx -> { fx.zoomIn(); refreshZoom(); }));
+        zoomOutButton.addActionListener(e -> run(fx -> { fx.zoomOut(); SwingUtilities.invokeLater(this::refreshZoom); }));
+        zoomInButton.addActionListener(e -> run(fx -> { fx.zoomIn(); SwingUtilities.invokeLater(this::refreshZoom); }));
         zoomLabel.setToolTipText("Reset zoom");
         zoomLabel.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
-                run(fx -> { fx.zoomReset(); refreshZoom(); });
+                run(fx -> { fx.zoomReset(); SwingUtilities.invokeLater(BrowserPanel.this::refreshZoom); });
             }
         });
         bar.add(findButton);
@@ -241,6 +265,8 @@ public class BrowserPanel extends JPanel {
         bar.add(zoomInButton);
         bar.addSeparator();
 
+        readerButton.setToolTipText("Reader mode - clean, ad-free article view");
+        readerButton.addActionListener(e -> run(fx -> fx.enterReaderMode()));
         sourceButton.setToolTipText("View page source");
         sourceButton.addActionListener(e -> run(fx -> fx.viewSource()));
         downloadsButton.setToolTipText("Downloads");
@@ -251,6 +277,7 @@ public class BrowserPanel extends JPanel {
         settingsButton.addActionListener(e -> showSettings());
         extensionsButton.setToolTipText("Manage extensions");
         extensionsButton.addActionListener(e -> showExtensions());
+        bar.add(readerButton);
         bar.add(sourceButton);
         bar.add(downloadsButton);
         bar.add(historyButton);
@@ -316,6 +343,70 @@ public class BrowserPanel extends JPanel {
         return status;
     }
 
+    /** The WebView host plus the inline find bar docked along its bottom edge. */
+    private JPanel buildCenter() {
+        JPanel center = new JPanel(new BorderLayout());
+        center.add(fxPanel, BorderLayout.CENTER);
+        center.add(buildFindBar(), BorderLayout.SOUTH);
+        return center;
+    }
+
+    private JPanel buildFindBar() {
+        findBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(200, 202, 206)),
+                BorderFactory.createEmptyBorder(3, 6, 3, 6)));
+        findBar.setVisible(false);
+        findField.setToolTipText("Find in page (Enter = next, Shift+Enter = previous, Esc = close)");
+        findField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                runFind();
+            }
+
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                runFind();
+            }
+
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                runFind();
+            }
+        });
+        findField.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                int code = e.getKeyCode();
+                if (code == java.awt.event.KeyEvent.VK_ENTER) {
+                    if (e.isShiftDown()) {
+                        run(fx -> fx.findPrev());
+                    } else {
+                        run(fx -> fx.findNext());
+                    }
+                    e.consume();
+                } else if (code == java.awt.event.KeyEvent.VK_ESCAPE) {
+                    closeFindBar();
+                    e.consume();
+                }
+            }
+        });
+        findCountLabel.setForeground(new Color(90, 92, 96));
+        findPrevButton.setToolTipText("Previous match");
+        findNextButton.setToolTipText("Next match");
+        findCloseButton.setToolTipText("Close find bar");
+        findPrevButton.addActionListener(e -> run(fx -> fx.findPrev()));
+        findNextButton.addActionListener(e -> run(fx -> fx.findNext()));
+        findCloseButton.addActionListener(e -> closeFindBar());
+        updateFindCount(0, 0);
+        findBar.add(new JLabel("Find:"));
+        findBar.add(findField);
+        findBar.add(findCountLabel);
+        findBar.add(findPrevButton);
+        findBar.add(findNextButton);
+        findBar.add(findCloseButton);
+        return findBar;
+    }
+
     // ------------------------------------------------------------------
     // JavaFX boot + listener
     // ------------------------------------------------------------------
@@ -336,8 +427,24 @@ public class BrowserPanel extends JPanel {
                 if (session.isEmpty()) {
                     browser.newTab(settings.getHomePage());
                 } else {
+                    int restored = 0;
                     for (String url : session) {
-                        browser.newTab(url);
+                        if (restored >= MAX_RESTORED_TABS) {
+                            break;
+                        }
+                        if (url == null || url.isBlank() || url.startsWith("view-source:")) {
+                            continue;
+                        }
+                        try {
+                            browser.newTab(url);
+                            restored++;
+                        } catch (RuntimeException e) {
+                            // One bad saved URL must never abort startup.
+                            LOG.warn("Could not restore tab for {}; skipped", url, e);
+                        }
+                    }
+                    if (restored == 0) {
+                        browser.newTab(settings.getHomePage());
                     }
                 }
                 ready = true;
@@ -386,7 +493,12 @@ public class BrowserPanel extends JPanel {
                     urlField.setText(url == null ? "" : url);
                     updatingUrlField = false;
                 }
+                currentUrl = (url == null) ? "" : url;
                 updateSecurity(url);
+                // A new document has no find highlights; reset the counter.
+                if (findBar.isVisible()) {
+                    updateFindCount(0, 0);
+                }
             });
         }
 
@@ -425,17 +537,54 @@ public class BrowserPanel extends JPanel {
         @Override
         public void onDownloadChanged(DownloadRecord record) {
             SwingUtilities.invokeLater(() -> {
-                downloads.removeIf(d -> d.getUrl().equals(record.getUrl())
-                        && d.getStartedAt() == record.getStartedAt()
-                        && d.getStatus() == DownloadRecord.Status.IN_PROGRESS
-                        && record.getStatus() != DownloadRecord.Status.IN_PROGRESS);
-                if (!downloads.contains(record)) {
+                // Replace any existing row for the same (url, startedAt) so the
+                // frequent progress copies update in place instead of piling up.
+                int existing = -1;
+                for (int i = 0; i < downloads.size(); i++) {
+                    DownloadRecord d = downloads.get(i);
+                    if (d.getUrl().equals(record.getUrl())
+                            && d.getStartedAt() == record.getStartedAt()) {
+                        existing = i;
+                        break;
+                    }
+                }
+                if (existing >= 0) {
+                    downloads.set(existing, record);
+                } else {
                     downloads.add(record);
                 }
-                store.saveDownloads(new ArrayList<>(downloads));
-                statusLabel.setText("Download " + record.getStatus().name().toLowerCase()
-                        + ": " + record.getFileName());
+                // Only touch the disk on a terminal state, not on every chunk.
+                if (record.getStatus() != DownloadRecord.Status.IN_PROGRESS) {
+                    store.saveDownloads(new ArrayList<>(downloads));
+                }
+                statusLabel.setText(record.getFileName() + " - " + downloadStatusText(record));
             });
+        }
+
+        @Override
+        public void onLoadFailed(String url, LoadFailure failure) {
+            SwingUtilities.invokeLater(() -> {
+                currentUrl = (url == null) ? "" : url;
+                statusLabel.setText(failure.getTitle());
+                updateSecurity(url);
+            });
+        }
+
+        @Override
+        public void onFindResults(int active, int total) {
+            SwingUtilities.invokeLater(() -> updateFindCount(active, total));
+        }
+
+        @Override
+        public void onNavigationBlocked(String url) {
+            siteStats.recordNavigationBlocked(url);
+            SwingUtilities.invokeLater(() -> statusLabel.setText("Blocked by an extension: " + url));
+        }
+
+        @Override
+        public void onPopupBlocked(String url) {
+            siteStats.recordPopupBlocked(url);
+            SwingUtilities.invokeLater(() -> statusLabel.setText("Popup blocked: " + url));
         }
     }
 
@@ -528,17 +677,85 @@ public class BrowserPanel extends JPanel {
     }
 
     private void updateSecurity(String url) {
-        if (UrlNormalizer.isSecure(url)) {
-            securityLabel.setText("\uD83D\uDD12");
-            securityLabel.setForeground(new Color(0, 128, 0));
-            securityLabel.setToolTipText("Secure connection (HTTPS)");
-        } else if (url != null && !url.isBlank()) {
-            securityLabel.setText("\u26A0");
-            securityLabel.setForeground(new Color(200, 120, 0));
-            securityLabel.setToolTipText("Not a secure connection");
-        } else {
-            securityLabel.setText(" ");
+        SecurityInfo info = SecurityInfo.of(url);
+        switch (info.getLevel()) {
+            case SECURE:
+                setIndicator("\uD83D\uDD12", new Color(0, 128, 0), info.getSummary());
+                break;
+            case NOT_SECURE:
+                setIndicator("\u26A0", new Color(200, 120, 0), info.getSummary());
+                break;
+            case LOCAL:
+            case INTERNAL:
+                setIndicator("\u2139", new Color(90, 92, 96), info.getSummary());
+                break;
+            default:
+                setIndicator(" ", Color.DARK_GRAY, "");
+                break;
         }
+    }
+
+    /** Drives both the address-bar button and the status-bar echo together. */
+    private void setIndicator(String glyph, Color color, String summary) {
+        String text = (summary == null || summary.isBlank()) ? "Connection security" : summary;
+        securityButton.setText(glyph);
+        securityButton.setForeground(color);
+        securityButton.setToolTipText(text + " - click for site info");
+        securityLabel.setText(glyph);
+        securityLabel.setForeground(color);
+        securityLabel.setToolTipText(text);
+    }
+
+    /**
+     * The site-info popup: connection security, host/scheme, JavaScript and
+     * cookie state, and this site's blocked-navigation / blocked-popup counts.
+     */
+    private void showSiteInfo() {
+        String url = currentUrl;
+        SecurityInfo info = SecurityInfo.of(url);
+        SiteStats.Counts counts = siteStats.forUrl(url);
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItemPlaceholder.add(menu, headingFor(info));
+        if (!info.getHost().isBlank()) {
+            JMenuItemPlaceholder.add(menu, "Host:  " + info.getHost());
+        }
+        if (!info.getScheme().isBlank()) {
+            JMenuItemPlaceholder.add(menu, "Scheme:  " + info.getScheme());
+        }
+        JMenuItemPlaceholder.add(menu, "JavaScript:  "
+                + (settings.isJavaScriptEnabled() ? "enabled" : "disabled"));
+        JMenuItemPlaceholder.add(menu, "Cookies:  " + cookieState());
+        menu.addSeparator();
+        JMenuItemPlaceholder.add(menu, "Navigations blocked:  " + counts.getNavigationsBlocked());
+        JMenuItemPlaceholder.add(menu, "Popups blocked:  " + counts.getPopupsBlocked());
+        String warning = info.getWarning();
+        if (warning != null && !warning.isBlank()) {
+            menu.addSeparator();
+            JMenuItemPlaceholder.add(menu, warning);
+        }
+        menu.show(securityButton, 0, securityButton.getHeight());
+    }
+
+    private static String headingFor(SecurityInfo info) {
+        switch (info.getLevel()) {
+            case SECURE:
+                return "Secure connection";
+            case NOT_SECURE:
+                return "Not secure";
+            case LOCAL:
+                return "Local content";
+            case INTERNAL:
+                return "Internal page";
+            default:
+                return "No page loaded";
+        }
+    }
+
+    private String cookieState() {
+        if (settings.isPrivateBrowsing()) {
+            return "off (private browsing)";
+        }
+        return settings.isCookiesEnabled() ? "enabled" : "disabled";
     }
 
     private void refreshZoom() {
@@ -600,12 +817,43 @@ public class BrowserPanel extends JPanel {
     // Find / source / history / downloads / settings dialogs (EDT)
     // ------------------------------------------------------------------
 
-    private void showFind() {
-        String text = JOptionPane.showInputDialog(this, "Find in page:", "Find",
-                JOptionPane.PLAIN_MESSAGE);
-        if (text != null && !text.isBlank()) {
-            run(fx -> fx.find(text));
+    /** Reveals and focuses the inline find bar, re-running any existing query. */
+    private void openFindBar() {
+        findBar.setVisible(true);
+        findBar.revalidate();
+        findBar.repaint();
+        findField.requestFocusInWindow();
+        findField.selectAll();
+        String existing = findField.getText();
+        if (existing != null && !existing.isBlank()) {
+            run(fx -> fx.find(existing));
         }
+    }
+
+    /** Hides the find bar and clears any highlights on the page. */
+    private void closeFindBar() {
+        run(fx -> fx.clearFind());
+        findBar.setVisible(false);
+        findBar.revalidate();
+        findBar.repaint();
+        updateFindCount(0, 0);
+    }
+
+    /** Re-highlights for the current field text (find-as-you-type). */
+    private void runFind() {
+        String text = findField.getText();
+        if (text == null || text.isBlank()) {
+            run(fx -> fx.clearFind());
+            updateFindCount(0, 0);
+            return;
+        }
+        run(fx -> fx.find(text));
+    }
+
+    private void updateFindCount(int active, int total) {
+        findCountLabel.setText(total == 0 ? "0 of 0" : active + " of " + total);
+        findNextButton.setEnabled(total > 0);
+        findPrevButton.setEnabled(total > 0);
     }
 
     private void showHistory() {
@@ -630,24 +878,71 @@ public class BrowserPanel extends JPanel {
     }
 
     private void showDownloads() {
-        StringBuilder sb = new StringBuilder();
+        JPanel list = new JPanel();
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         if (downloads.isEmpty()) {
-            sb.append("No downloads.");
+            list.add(new JLabel("No downloads."));
         } else {
-            for (DownloadRecord d : downloads) {
-                sb.append(d.getFileName()).append("  [").append(d.getStatus()).append("]");
-                if (d.getBytes() > 0) {
-                    sb.append("  ").append(d.getBytes() / 1024).append(" KB");
-                }
-                if (!d.getError().isBlank()) {
-                    sb.append("  ").append(d.getError());
-                }
-                sb.append('\n');
+            // Newest first.
+            for (int i = downloads.size() - 1; i >= 0; i--) {
+                list.add(buildDownloadRow(downloads.get(i)));
             }
-            sb.append("\nSaved to: ").append(fxDownloadDir());
         }
-        JOptionPane.showMessageDialog(this, sb.toString(), "Downloads",
-                JOptionPane.INFORMATION_MESSAGE);
+        JLabel dir = new JLabel("Saved to: " + fxDownloadDir());
+        dir.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setPreferredSize(new Dimension(440, 240));
+        scroll.getVerticalScrollBar().setUnitIncrement(12);
+        JPanel content = new JPanel(new BorderLayout());
+        content.add(scroll, BorderLayout.CENTER);
+        content.add(dir, BorderLayout.SOUTH);
+        JOptionPane.showMessageDialog(this, content, "Downloads",
+                JOptionPane.PLAIN_MESSAGE);
+    }
+
+    private JPanel buildDownloadRow(DownloadRecord d) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        JLabel name = new JLabel(truncate(d.getFileName(), 26));
+        name.setToolTipText(d.getUrl());
+        row.add(name);
+        row.add(new JLabel(downloadStatusText(d)));
+        if (d.getStatus() == DownloadRecord.Status.IN_PROGRESS) {
+            JButton cancel = new JButton("Cancel");
+            cancel.addActionListener(e -> run(fx -> fx.cancelDownload(d.getUrl())));
+            row.add(cancel);
+        }
+        return row;
+    }
+
+    private String downloadStatusText(DownloadRecord d) {
+        switch (d.getStatus()) {
+            case COMPLETE:
+                return "complete (" + humanBytes(d.getBytes()) + ")";
+            case FAILED:
+                return "failed: " + (d.getError().isBlank() ? "error" : d.getError());
+            case CANCELLED:
+                return "cancelled";
+            case IN_PROGRESS:
+            default:
+                long total = d.getTotalBytes();
+                if (total > 0) {
+                    long pct = Math.min(100L, d.getBytes() * 100L / total);
+                    return pct + "% of " + humanBytes(total);
+                }
+                return humanBytes(d.getBytes());
+        }
+    }
+
+    private static String humanBytes(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        if (bytes < 1024L * 1024L) {
+            return (bytes / 1024L) + " KB";
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
     private String fxDownloadDir() {
@@ -664,6 +959,10 @@ public class BrowserPanel extends JPanel {
         engine.setSelectedItem(settings.getSearchEngine());
         JTextField ua = new JTextField(settings.getUserAgent(), 28);
         JTextField dir = new JTextField(settings.getDownloadDir(), 28);
+        JTextField pageTimeout =
+                new JTextField(String.valueOf(settings.getPageTimeoutSeconds()), 6);
+        JTextField downloadTimeout =
+                new JTextField(String.valueOf(settings.getDownloadTimeoutSeconds()), 6);
         JCheckBox js = new JCheckBox("Enable JavaScript", settings.isJavaScriptEnabled());
         JCheckBox cookies = new JCheckBox("Enable cookies", settings.isCookiesEnabled());
         JCheckBox priv = new JCheckBox("Private browsing", settings.isPrivateBrowsing());
@@ -673,6 +972,8 @@ public class BrowserPanel extends JPanel {
         addRow(form, "Search engine:", engine);
         addRow(form, "User agent:", ua);
         addRow(form, "Download dir:", dir);
+        addRow(form, "Page load timeout (s):", pageTimeout);
+        addRow(form, "Download timeout (s):", downloadTimeout);
         form.add(js);
         form.add(cookies);
         form.add(priv);
@@ -688,6 +989,10 @@ public class BrowserPanel extends JPanel {
         settings.setSearchEngine((SearchEngine) engine.getSelectedItem());
         settings.setUserAgent(ua.getText());
         settings.setDownloadDir(dir.getText());
+        settings.setPageTimeoutSeconds(
+                parseIntOr(pageTimeout.getText(), settings.getPageTimeoutSeconds()));
+        settings.setDownloadTimeoutSeconds(
+                parseIntOr(downloadTimeout.getText(), settings.getDownloadTimeoutSeconds()));
         settings.setJavaScriptEnabled(js.isSelected());
         settings.setCookiesEnabled(cookies.isSelected());
         settings.setPrivateBrowsing(priv.isSelected());
@@ -703,6 +1008,14 @@ public class BrowserPanel extends JPanel {
         row.add(new JLabel(label));
         row.add(field);
         form.add(row);
+    }
+
+    private static int parseIntOr(String text, int fallback) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (RuntimeException e) {
+            return fallback;
+        }
     }
 
     /** Privacy actions row: clear the stored history and the cookie jar. */
@@ -772,7 +1085,12 @@ public class BrowserPanel extends JPanel {
             urlField.selectAll();
         });
         bind(im, am, "ctrl R", "reload", e -> run(fx -> fx.reload()));
-        bind(im, am, "ctrl F", "find", e -> showFind());
+        bind(im, am, "ctrl F", "find", e -> openFindBar());
+        bind(im, am, "ESCAPE", "closeFind", e -> {
+            if (findBar.isVisible()) {
+                closeFindBar();
+            }
+        });
         bind(im, am, "ctrl TAB", "nextTab", e -> cycleTab(1));
         bind(im, am, "ctrl shift TAB", "prevTab", e -> cycleTab(-1));
     }
