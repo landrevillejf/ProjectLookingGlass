@@ -142,6 +142,26 @@ work to make it build and run on a current toolchain.
   website snapshots under the various `www/` trees, the packaging templates
   (`dpkg` / `win32`) and the sample `.msg` mailing-list data still carry the old
   domain and are intentionally left untouched (archival, not user-facing).
+- **A benign JavaFX/WebKit `SEVERE` log no longer pops the desktop crash dialog**
+  (`lg3d-core`) — visiting a site that serves a `Content-Encoding` JavaFX 21's
+  WebKit loader cannot decode (Brotli, zstd, or a non-standard `none`, as
+  `www.cam4.com` does) makes `com.sun.webkit.network.URLLoader` log
+  “Unknown encoding type '…' found, discarding” at `SEVERE`. `LogHandler` used to
+  raise the full-screen “save your work / crash reporter” `ErrorDialog` for *any*
+  `SEVERE` record from *any* logger, so merely loading such a page looked like a
+  fatal crash even though the desktop kept running. `LogHandler` now suppresses
+  `SEVERE` records whose logger or source class is a third-party UI/web engine
+  (`com.sun.javafx.`, `com.sun.webkit.`, `javafx.`) — genuine `lg.*` severe
+  errors still raise the dialog — and builds it on the EDT. `ErrorDialog` is also
+  modernised: the dead 2006 personal crash-reporter URL
+  (`pinaraf.robertlan.eu.org`) is replaced by this project's live issue tracker
+  (overridable via the `lg.crashreport.url` property), a **Copy details** button
+  is added, the message/trace panes are read-only and selectable, the
+  window-close button now matches **OK** (so a fatal error still exits), and the
+  message text is assembled by a pure, unit-tested `buildMessage`. The page
+  itself still renders empty because JavaFX 21 discards the undecodable body — an
+  engine limitation fixed only in JavaFX 24+ (needs JDK 22+, beyond this port's
+  JDK 21 pin).
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
