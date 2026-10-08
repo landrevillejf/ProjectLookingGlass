@@ -24,6 +24,19 @@ work to make it build and run on a current toolchain.
   reached another way (e.g. a restored session) still reports that it needs the
   3D desktop via `Desktop2D.openApp`.
 
+### Removed
+- **CallViewer dropped from the start menu** (`lg3d-apps`) — the 3D source-code
+  call-graph visualizer (a preliminary developer sample) did not run reliably, so
+  its start-menu descriptor `src/config/callviewer.lgcfg` was deleted and it is no
+  longer discovered or posted. The source stays in-tree and still compiles, and the
+  app can be launched manually in-JVM; only the menu entry is removed.
+- **Tutorials dropped from the start menu** (`lg3d-apps`) — the teaching samples
+  `Tutorial 1/2/3` (menu group **Tests**) are no longer posted: their descriptors
+  `src/config/tutorial{1,2,3}.lgcfg` were deleted. The source stays in-tree and
+  still compiles and can be launched manually in-JVM; only the menu entries are
+  removed. The **Tests** group still holds `swingtest`, `swingnode` and the
+  incubator `physics` item, so it remains visible.
+
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
 ### Added
