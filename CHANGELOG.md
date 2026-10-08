@@ -11,6 +11,19 @@ work to make it build and run on a current toolchain.
 
 ### Added
 
+### Changed
+- **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure
+  Java 3D app has no scene to render into on the 2D/Swing desktop, so its
+  start-menu entry is now **omitted entirely** instead of being shown greyed out
+  with the “Requires the 3D desktop” tooltip. `Desktop2DStartMenu.createItem`
+  returns null for `Kind.UNAVAILABLE` commands (like it already did for an
+  external command whose executable is missing), and `StartMenuSearch` filters
+  the same commands out of its live-search matches so the result count, the
+  rendered rows and “launch top match” stay consistent. Empty categories are
+  skipped as before, the 3D start menu is untouched, and a 3D-only command
+  reached another way (e.g. a restored session) still reports that it needs the
+  3D desktop via `Desktop2D.openApp`.
+
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
 ### Added

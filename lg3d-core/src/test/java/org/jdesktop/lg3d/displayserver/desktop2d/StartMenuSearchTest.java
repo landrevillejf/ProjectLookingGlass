@@ -46,9 +46,15 @@ class StartMenuSearchTest {
         MenuModel model = new MenuModel(
                 List.of(new GroupSpec("Main", null, List.of(), true)),
                 List.of(
-                        new ItemSpec("Calculator", "swingapp calc", "Do sums", "Main", null),
-                        new ItemSpec("Terminal", "swingapp term", "Command line", "Main", null),
-                        new ItemSpec("File Manager", "swingapp files", "Browse", "Main", null)));
+                        new ItemSpec("Calculator",
+                                "java org.jdesktop.lg3d.apps.calculator.Calculator",
+                                "Do sums", "Main", null),
+                        new ItemSpec("Terminal",
+                                "java org.jdesktop.lg3d.apps.taskmanager.TaskManager",
+                                "Command line", "Main", null),
+                        new ItemSpec("File Manager",
+                                "java org.jdesktop.lg3d.apps.filemanager.FileManager",
+                                "Browse", "Main", null)));
         return new StartMenuSearch(model, launched::add);
     }
 
@@ -116,5 +122,30 @@ class StartMenuSearchTest {
         s.applyQuery("");
         s.launchTopMatch();
         assertTrue(launched.isEmpty(), "no match list to launch from");
+    }
+
+    @Test
+    @DisplayName("a 3D-only application is hidden from the tree and from search")
+    void threeDOnlyIsHidden() {
+        MenuModel model = new MenuModel(
+                List.of(new GroupSpec("Main", null, List.of(), true)),
+                List.of(
+                        new ItemSpec("Calculator",
+                                "java org.jdesktop.lg3d.apps.calculator.Calculator",
+                                "Do sums", "Main", null),
+                        // A pure Java 3D command: its main class is neither a
+                        // registered panel nor a Swing frame, so classify()
+                        // returns UNAVAILABLE and the 2D menu must hide it.
+                        new ItemSpec("Space Game",
+                                "java org.jdesktop.lg3d.demo.SpaceGame3D",
+                                "A pure-3D game", "Main", null)));
+        StartMenuSearch s = new StartMenuSearch(model, launched::add);
+        assertEquals(1, s.contentCount(),
+                "only the runnable Calculator renders; the 3D-only app is hidden");
+        s.applyQuery("space");
+        assertEquals(0, s.resultCount(),
+                "a 3D-only app never surfaces as a search match");
+        assertEquals(StartMenuSearch.NO_MATCH_LABEL, contentAt(s, 0).getText(),
+                "the query falls through to the '(no match)' placeholder");
     }
 }
