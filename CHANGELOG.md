@@ -37,6 +37,29 @@ work to make it build and run on a current toolchain.
   enforces the mode: while cut it refuses remote navigations and renders an honest
   `TOR_CUT` page (new `LoadFailure.Reason` + `TorCutGuard`), and while on it forces
   a non-persisting cookie session.
+- **VPN client: live status, auto-reconnect, kill switch and tunnel verification**
+  (`lg3d-apps`) — the VPN front end (`apps/vpn`) grows from a manual
+  connect/disconnect panel into a production-grade tunnel client while keeping the
+  same honest, dependency-free delegation to `nmcli` / `openvpn` / `wg-quick`. A
+  5 s Swing-Timer poll of `VpnBackend.parseStatus` now tracks the live tunnel state
+  while the panel is open (started in `addNotify`, stopped in `removeNotify`, so a
+  headless-constructed panel spawns nothing), replacing manual-only Refresh. An
+  unexpected drop of a profile marked *auto-connect* drives a pure
+  `ReconnectPolicy` (exponential backoff, 2 s→60 s ceiling, 5-attempt cap,
+  overflow-safe) that reschedules the connect until the tunnel returns or the cap
+  is reached. A new per-profile **kill switch** (a `killSwitch` flag on
+  `VpnProfile`, migration-safe off for older `profiles.json`) reuses PR 1's global
+  `NetworkCut` seam: an armed tunnel that drops unexpectedly cuts the desktop's
+  network clients so traffic can never silently fall back to the clearnet, and the
+  cut lifts automatically on reconnect (or on un-arming / closing the panel). A
+  **Verify tunnel** button records the public egress IP just before the tunnel
+  comes up and re-checks it on demand through `java.net.http`, classifying the
+  result with the pure `TunnelVerdict` (`TUNNELED` / `LEAK` / `UNREACHABLE`) — an
+  unchanged IP is reported as a leak, never a false pass. **New…** / **Edit…**
+  dialogs (name, type, gateway, auto-connect, kill switch) complement the existing
+  Import / Remove. Every decision (backoff, leak classification) is pure and
+  headless-tested; the panel still constructs with no timer, thread, process or
+  dialog.
 - **Web browser: address-bar security indicator + site-info popup** (`lg3d-apps`)
   — a clickable indicator now sits next to the address bar (the status-bar lock
   stays as its echo). It classifies the current URL through the new JavaFX-free

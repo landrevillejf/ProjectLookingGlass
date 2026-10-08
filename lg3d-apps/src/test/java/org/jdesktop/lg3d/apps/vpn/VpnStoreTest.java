@@ -58,6 +58,7 @@ class VpnStoreTest {
         VpnProfile nm = new VpnProfile("Office", "u1", ConnectionType.GENERIC);
         nm.setBackend("nmcli");
         nm.setAutoConnect(true);
+        nm.setKillSwitch(true);
         VpnProfile imported = new VpnProfile("home", "", ConnectionType.OPENVPN);
         imported.setConfigPath("/home/u/home.ovpn");
         imported.setBackend("openvpn");
@@ -69,10 +70,26 @@ class VpnStoreTest {
         assertEquals("Office", back.get(0).getName());
         assertEquals(ConnectionType.GENERIC, back.get(0).getType());
         assertTrue(back.get(0).isAutoConnect());
+        assertTrue(back.get(0).isKillSwitch(), "the kill switch round-trips");
         assertEquals("home", back.get(1).getName());
         assertEquals(ConnectionType.OPENVPN, back.get(1).getType());
         assertEquals("/home/u/home.ovpn", back.get(1).getConfigPath());
         assertEquals("gw.example.com", back.get(1).getHost());
+        assertFalse(back.get(1).isKillSwitch());
+    }
+
+    @Test
+    @DisplayName("a profiles.json predating the kill switch loads with it off")
+    void killSwitchIsMigrationSafe(@TempDir Path dir) throws IOException {
+        // An old-format file with no "killSwitch" key at all.
+        Files.writeString(dir.resolve(VpnStore.PROFILES_FILE),
+                "[{\"name\":\"Office\",\"uuid\":\"u1\","
+                        + "\"type\":\"GENERIC\",\"autoConnect\":true}]");
+        List<VpnProfile> back = new VpnStore(dir).loadProfiles();
+        assertEquals(1, back.size());
+        assertEquals("Office", back.get(0).getName());
+        assertTrue(back.get(0).isAutoConnect());
+        assertFalse(back.get(0).isKillSwitch(), "an absent field deserialises to the off default");
     }
 
     @Test

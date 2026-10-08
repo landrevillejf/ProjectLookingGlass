@@ -26,9 +26,14 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,11 +46,15 @@ import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import org.jdesktop.lg3d.utils.system.NetworkCut;
 
 /**
  * The VPN client's user interface: a profile dock (NetworkManager connections
@@ -74,6 +83,12 @@ public class VpnPanel extends JPanel {
     private static final Color GOOD = new Color(0, 140, 0);
     private static final Color ATTENTION = new Color(200, 80, 0);
     private static final Color MUTED = new Color(90, 90, 90);
+    private static final Color BAD = new Color(200, 0, 0);
+
+    /** Public-IP echo service used by the tunnel leak check (plain-text body). */
+    static final String IP_ECHO_URL = "https://api.ipify.org";
+    /** Live-status polling interval while the panel is open, in milliseconds. */
+    static final int STATUS_POLL_MS = 5000;
 
     private final VpnStore store;
     private final VpnSettings settings;
@@ -87,7 +102,11 @@ public class VpnPanel extends JPanel {
     private final JButton refreshBtn = new JButton("Refresh");
     private final JButton importBtn = new JButton("Import Config...");
     private final JButton removeBtn = new JButton("Remove");
+    private final JButton newBtn = new JButton("New...");
+    private final JButton editBtn = new JButton("Edit...");
+    private final JButton verifyBtn = new JButton("Verify tunnel");
     private final JCheckBox autoConnectCheck = new JCheckBox("Connect this profile automatically on open");
+    private final JCheckBox killSwitchCheck = new JCheckBox("Kill switch - cut the network if this tunnel drops");
 
     private final JLabel bannerLabel = new JLabel("Not connected", JLabel.CENTER);
     private final JLabel nameValue = new JLabel("-");
@@ -95,6 +114,7 @@ public class VpnPanel extends JPanel {
     private final JLabel hostValue = new JLabel("-");
     private final JLabel userValue = new JLabel("-");
     private final JLabel backendValue = new JLabel("-");
+    private final JLabel tunnelValue = new JLabel("-");
     private final JLabel statusLabel = new JLabel("Ready");
 
     private Runnable onClose;
@@ -102,6 +122,17 @@ public class VpnPanel extends JPanel {
     private volatile VpnStatus status = VpnStatus.unknown();
     private volatile Process tunnelProcess;
     private volatile String statusMessage = "Ready";
+
+    private final ReconnectPolicy reconnectPolicy = ReconnectPolicy.defaultPolicy();
+    private Timer statusTimer;
+    private Timer reconnectTimer;
+    private int reconnectAttempts;
+    private volatile boolean statusPollInFlight;
+    private volatile VpnProfile lastConnectedProfile;
+    private volatile VpnProfile reconnectProfile;
+    private volatile boolean vpnCutActive;
+    private volatile String baselinePublicIp = "";
+    private volatile TunnelVerdict lastVerdict;
 
     /** Builds the panel with the default store. */
     public VpnPanel() {
@@ -159,6 +190,8 @@ public class VpnPanel extends JPanel {
         panel.add(scroll);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
+        buttons.add(newBtn);
+        buttons.add(editBtn);
         buttons.add(refreshBtn);
         buttons.add(importBtn);
         buttons.add(removeBtn);
@@ -179,15 +212,22 @@ public class VpnPanel extends JPanel {
         addDetailRow(panel, c, row++, "Gateway:", hostValue);
         addDetailRow(panel, c, row++, "Username:", userValue);
         addDetailRow(panel, c, row++, "Driven by:", backendValue);
+        addDetailRow(panel, c, row++, "Tunnel check:", tunnelValue);
 
         c.gridx = 0;
         c.gridy = row++;
         c.gridwidth = 2;
         panel.add(autoConnectCheck, c);
 
+        c.gridx = 0;
+        c.gridy = row++;
+        c.gridwidth = 2;
+        panel.add(killSwitchCheck, c);
+
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
         actions.add(connectBtn);
         actions.add(disconnectBtn);
+        actions.add(verifyBtn);
         c.gridx = 0;
         c.gridy = row++;
         c.gridwidth = 2;
@@ -265,6 +305,9 @@ public class VpnPanel extends JPanel {
         refreshBtn.addActionListener(e -> refresh());
         importBtn.addActionListener(e -> importConfig());
         removeBtn.addActionListener(e -> removeSelected());
+        newBtn.addActionListener(e -> showProfileDialog(null));
+        editBtn.addActionListener(e -> editSelected());
+        verifyBtn.addActionListener(e -> verifyTunnel());
         profileList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 loadSelectedIntoDetail();
@@ -276,6 +319,20 @@ public class VpnPanel extends JPanel {
                 selected.setAutoConnect(autoConnectCheck.isSelected());
                 persist();
             }
+        });
+        killSwitchCheck.addActionListener(e -> {
+            VpnProfile selected = profileList.getSelectedValue();
+            if (selected == null) {
+                return;
+            }
+            selected.setKillSwitch(killSwitchCheck.isSelected());
+            persist();
+            if (!selected.isKillSwitch()) {
+                restoreVpnCut();
+            }
+            setStatus(selected.isKillSwitch()
+                    ? "Kill switch armed for " + selected.getName() + "."
+                    : "Kill switch off for " + selected.getName() + ".");
         });
         backendBox.addActionListener(e -> {
             Object sel = backendBox.getSelectedItem();
@@ -303,6 +360,7 @@ public class VpnPanel extends JPanel {
             userValue.setText("-");
             backendValue.setText("-");
             autoConnectCheck.setSelected(false);
+            killSwitchCheck.setSelected(false);
             return;
         }
         nameValue.setText(profile.getName().isBlank() ? "-" : profile.getName());
@@ -313,6 +371,7 @@ public class VpnPanel extends JPanel {
                 profile.getBackend().isBlank() ? settings.getPreferredBackend()
                         : profile.getBackend()));
         autoConnectCheck.setSelected(profile.isAutoConnect());
+        killSwitchCheck.setSelected(profile.isKillSwitch());
     }
 
     // ------------------------------------------------------------------
@@ -537,6 +596,9 @@ public class VpnPanel extends JPanel {
     }
 
     private void runConnect(List<String> command, String backend, VpnProfile profile) {
+        // Record the direct egress IP before the tunnel comes up, so "Verify tunnel"
+        // can prove the tunnel actually changed the route (best effort; blank offline).
+        baselinePublicIp = fetchPublicIp();
         ProcessResult result = exec(command);
         String message = VpnBackend.describeResult(result.lines, result.exitCode, true);
         VpnStatus newStatus;
@@ -564,6 +626,11 @@ public class VpnPanel extends JPanel {
         if (connecting) {
             setStatus("Busy - wait for the current operation to finish.");
             return;
+        }
+        // An explicit disconnect cancels any pending auto-reconnect loop.
+        reconnectProfile = null;
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
         }
         VpnProfile profile = profileList.getSelectedValue();
         String backend = (profile != null && !profile.getBackend().isBlank())
@@ -617,6 +684,387 @@ public class VpnPanel extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // Live status polling (Swing Timer, started only while shown)
+    // ------------------------------------------------------------------
+
+    /**
+     * Starts the {@value #STATUS_POLL_MS} ms live-status poll. Called from
+     * {@link #addNotify()} (never the constructor) so a headless-constructed panel
+     * that is never shown spawns no timer and runs no {@code nmcli}.
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (statusTimer == null) {
+            statusTimer = new Timer(STATUS_POLL_MS, e -> pollStatus());
+            statusTimer.setRepeats(true);
+        }
+        if (!statusTimer.isRunning()) {
+            statusTimer.start();
+        }
+    }
+
+    /**
+     * Stops the poll / reconnect timers and lifts any kill-switch cut this panel
+     * raised, so closing the window never leaves the desktop's network clients stuck
+     * cut with no way to restore them.
+     */
+    @Override
+    public void removeNotify() {
+        if (statusTimer != null) {
+            statusTimer.stop();
+        }
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
+        }
+        reconnectProfile = null;
+        restoreVpnCut();
+        super.removeNotify();
+    }
+
+    /**
+     * One live-status tick: resolves {@code nmcli}, reads the active connections on a
+     * daemon thread and applies the result on the EDT. Skipped while a connect /
+     * disconnect is running or a previous poll is still in flight; a read error is
+     * ignored rather than flapping the UI to "disconnected".
+     */
+    private void pollStatus() {
+        if (connecting || statusPollInFlight) {
+            return;
+        }
+        Optional<String> backend = VpnBackend.resolveBackend(
+                settings.getPreferredBackend(), VpnPanel::onPath);
+        if (backend.isEmpty() || !VpnBackend.NMCLI.equals(backend.get())) {
+            // Live polling needs nmcli; an imported-only setup has no CLI status.
+            return;
+        }
+        statusPollInFlight = true;
+        Thread thread = new Thread(() -> {
+            ProcessResult active = exec(VpnBackend.activeConnectionsCommand());
+            final VpnStatus probed = active.ioError ? null : VpnBackend.parseStatus(active.lines);
+            SwingUtilities.invokeLater(() -> {
+                statusPollInFlight = false;
+                if (probed != null) {
+                    applyPolledStatus(probed);
+                }
+            });
+        }, "lg3d-vpn-status-poll");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Applies a status read by the live poll. Unlike {@link #applyStatus} (used for a
+     * user action or a manual refresh), a connected-then-disconnected transition seen
+     * here is an <em>unexpected drop</em> and is handled as such. Package-visible so a
+     * test can drive a drop deterministically without {@code nmcli} or a timer.
+     *
+     * @param value the polled status (null is ignored)
+     */
+    void applyPolledStatus(VpnStatus value) {
+        if (value == null) {
+            return;
+        }
+        boolean wasConnected = status.connected();
+        boolean nowConnected = value.connected();
+        applyStatus(value);
+        if (wasConnected && !nowConnected && !connecting) {
+            onUnexpectedDrop();
+        }
+    }
+
+    /**
+     * Reacts to a tunnel that was up going down on its own: arms the kill switch
+     * (cutting the desktop's network clients) when the dropped profile asked for it,
+     * and schedules auto-reconnect when the profile is auto-connect.
+     */
+    private void onUnexpectedDrop() {
+        VpnProfile dropped = lastConnectedProfile;
+        boolean armed = dropped != null && dropped.isKillSwitch();
+        boolean auto = dropped != null && dropped.isAutoConnect();
+        if (armed) {
+            armVpnCut("Tunnel dropped unexpectedly - network cut to prevent a leak.");
+        }
+        if (auto) {
+            reconnectProfile = dropped;
+            reconnectAttempts = 0;
+            scheduleReconnect();
+        } else if (!armed) {
+            bannerLabel.setText("Tunnel dropped");
+            bannerLabel.setForeground(ATTENTION);
+        }
+    }
+
+    /**
+     * Raises the desktop-wide network cut (PR 1's {@link NetworkCut} seam) and shows
+     * the alarm. Only this panel's own cut is tracked, so restoring it never stomps a
+     * cut raised by the Tor private mode.
+     */
+    private void armVpnCut(String why) {
+        if (!vpnCutActive) {
+            vpnCutActive = true;
+            NetworkCut.cut();
+        }
+        bannerLabel.setText("Kill switch: network cut");
+        bannerLabel.setForeground(BAD);
+        setStatus(why);
+    }
+
+    /** Lifts a cut this panel raised; a no-op when it did not. */
+    private void restoreVpnCut() {
+        if (vpnCutActive) {
+            vpnCutActive = false;
+            NetworkCut.restore();
+        }
+    }
+
+    /**
+     * Schedules the next auto-reconnect attempt using the pure {@link ReconnectPolicy}
+     * backoff, or reports that the retry cap was reached.
+     */
+    private void scheduleReconnect() {
+        VpnProfile profile = reconnectProfile;
+        if (profile == null) {
+            return;
+        }
+        if (!reconnectPolicy.shouldRetry(reconnectAttempts)) {
+            reconnectProfile = null;
+            bannerLabel.setText("Reconnect failed");
+            bannerLabel.setForeground(BAD);
+            setStatus("Gave up reconnecting " + profile.getName() + " after "
+                    + reconnectAttempts + " attempt(s). Connect manually, or check the tunnel.");
+            return;
+        }
+        long delay = reconnectPolicy.delayForAttempt(reconnectAttempts + 1);
+        bannerLabel.setText("Reconnecting in " + Math.max(1, delay / 1000) + "s...");
+        bannerLabel.setForeground(ATTENTION);
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
+        }
+        reconnectTimer = new Timer((int) Math.min(delay, Integer.MAX_VALUE),
+                e -> attemptReconnect());
+        reconnectTimer.setRepeats(false);
+        reconnectTimer.start();
+    }
+
+    /** One auto-reconnect attempt: bump the counter and re-run connect for the profile. */
+    private void attemptReconnect() {
+        reconnectAttempts++;
+        VpnProfile profile = reconnectProfile;
+        if (profile == null || status.connected() || connecting) {
+            return;
+        }
+        profileList.setSelectedValue(profile, true);
+        connect();
+    }
+
+    // ------------------------------------------------------------------
+    // Tunnel verification (public-IP leak check)
+    // ------------------------------------------------------------------
+
+    /**
+     * Verifies the live tunnel by fetching the current public IP and comparing it with
+     * the baseline recorded when the tunnel came up. Guarded so it only runs from the
+     * button (never the constructor) and only while connected.
+     */
+    void verifyTunnel() {
+        if (!status.connected()) {
+            setStatus("Connect a tunnel first, then verify it.");
+            return;
+        }
+        setStatus("Verifying tunnel via " + IP_ECHO_URL + " ...");
+        verifyBtn.setEnabled(false);
+        Thread thread = new Thread(() -> {
+            String now = fetchPublicIp();
+            TunnelVerdict verdict = TunnelVerdict.classify(baselinePublicIp, now);
+            SwingUtilities.invokeLater(() -> renderVerdict(verdict, now));
+        }, "lg3d-vpn-verify");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Fetches the public egress IP from {@link #IP_ECHO_URL} as plain text. Runs on a
+     * daemon thread; any failure yields an empty string so the caller reports
+     * {@link TunnelVerdict#UNREACHABLE} rather than guessing. Never throws.
+     */
+    private String fetchPublicIp() {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(8))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder(URI.create(IP_ECHO_URL))
+                    .timeout(Duration.ofSeconds(8))
+                    .header("Accept", "text/plain")
+                    .GET()
+                    .build();
+            HttpResponse<String> response =
+                    client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() / 100 != 2) {
+                return "";
+            }
+            return TunnelVerdict.parsePublicIp(response.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "";
+        } catch (IOException | RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** Renders a leak-check verdict on the tunnel row and status line. */
+    private void renderVerdict(TunnelVerdict verdict, String ip) {
+        TunnelVerdict v = (verdict == null) ? TunnelVerdict.UNREACHABLE : verdict;
+        lastVerdict = v;
+        String shown = (ip == null || ip.isBlank()) ? "unreachable" : ip;
+        tunnelValue.setText(v.describe() + "  [egress: " + shown + "]");
+        tunnelValue.setForeground(v == TunnelVerdict.LEAK ? BAD
+                : (v == TunnelVerdict.TUNNELED ? GOOD : MUTED));
+        setStatus(v.describe());
+        updateButtons();
+    }
+
+    // ------------------------------------------------------------------
+    // New / Edit profile dialogs
+    // ------------------------------------------------------------------
+
+    /** Opens the Edit dialog for the selected profile, or asks for a selection. */
+    private void editSelected() {
+        VpnProfile selected = profileList.getSelectedValue();
+        if (selected == null) {
+            setStatus("Select a profile to edit.");
+            return;
+        }
+        showProfileDialog(selected);
+    }
+
+    /**
+     * Builds and shows the New / Edit profile form (name, type, gateway, auto-connect,
+     * kill switch) and, on OK, applies it via {@link #saveProfile}. Only ever reached
+     * from a button action, so the panel still constructs headless.
+     *
+     * @param existing the profile to edit, or null to create a new one
+     */
+    private void showProfileDialog(VpnProfile existing) {
+        JTextField nameField = new JTextField(existing == null ? "" : existing.getName(), 20);
+        JTextField hostField = new JTextField(existing == null ? "" : existing.getHost(), 20);
+        JComboBox<String> typeBox = new JComboBox<>(typeLabels());
+        ConnectionType currentType = (existing == null) ? ConnectionType.GENERIC : existing.getType();
+        typeBox.setSelectedItem(currentType.describe());
+        JCheckBox autoBox = new JCheckBox("Connect automatically on open",
+                existing != null && existing.isAutoConnect());
+        JCheckBox killBox = new JCheckBox("Kill switch - cut the network if it drops",
+                existing != null && existing.isKillSwitch());
+
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(4, 6, 4, 6);
+        g.anchor = GridBagConstraints.WEST;
+        int r = 0;
+        g.gridx = 0;
+        g.gridy = r;
+        form.add(new JLabel("Name:"), g);
+        g.gridx = 1;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.weightx = 1.0;
+        form.add(nameField, g);
+        r++;
+        g.gridx = 0;
+        g.gridy = r;
+        g.fill = GridBagConstraints.NONE;
+        g.weightx = 0;
+        form.add(new JLabel("Type:"), g);
+        g.gridx = 1;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.weightx = 1.0;
+        form.add(typeBox, g);
+        r++;
+        g.gridx = 0;
+        g.gridy = r;
+        g.fill = GridBagConstraints.NONE;
+        g.weightx = 0;
+        form.add(new JLabel("Gateway:"), g);
+        g.gridx = 1;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.weightx = 1.0;
+        form.add(hostField, g);
+        r++;
+        g.gridx = 0;
+        g.gridy = r;
+        g.gridwidth = 2;
+        form.add(autoBox, g);
+        r++;
+        g.gridy = r;
+        form.add(killBox, g);
+
+        int choice = JOptionPane.showConfirmDialog(this, form,
+                (existing == null) ? "New Profile" : "Edit Profile",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (choice != JOptionPane.OK_OPTION) {
+            return;
+        }
+        saveProfile(existing, nameField.getText(), typeForLabel((String) typeBox.getSelectedItem()),
+                hostField.getText(), autoBox.isSelected(), killBox.isSelected());
+    }
+
+    /** The combo labels for every {@link ConnectionType}, in enum order. */
+    private static String[] typeLabels() {
+        ConnectionType[] types = ConnectionType.values();
+        String[] labels = new String[types.length];
+        for (int i = 0; i < types.length; i++) {
+            labels[i] = types[i].describe();
+        }
+        return labels;
+    }
+
+    /** Maps a combo label back to its type ({@link ConnectionType#GENERIC} when unknown). */
+    private static ConnectionType typeForLabel(String label) {
+        for (ConnectionType type : ConnectionType.values()) {
+            if (type.describe().equals(label)) {
+                return type;
+            }
+        }
+        return ConnectionType.GENERIC;
+    }
+
+    /**
+     * Applies the New / Edit form values to a profile (creating one when
+     * {@code existing} is null), persists and re-selects it. Package-visible so a test
+     * can drive create / edit without a dialog.
+     *
+     * @param existing    the profile to edit, or null to create a new one
+     * @param name        the profile name (normalised by the bean)
+     * @param type        the connection type (null keeps the current type)
+     * @param host        the gateway / host (normalised by the bean)
+     * @param autoConnect whether to auto-connect on open
+     * @param killSwitch  whether an unexpected drop should cut the network
+     * @return the saved profile, never null
+     */
+    VpnProfile saveProfile(VpnProfile existing, String name, ConnectionType type, String host,
+                           boolean autoConnect, boolean killSwitch) {
+        boolean isNew = (existing == null);
+        VpnProfile profile = isNew ? new VpnProfile() : existing;
+        profile.setName(name);
+        if (type != null) {
+            profile.setType(type);
+        }
+        profile.setHost(host);
+        profile.setAutoConnect(autoConnect);
+        profile.setKillSwitch(killSwitch);
+        if (isNew) {
+            profiles.add(profile);
+        }
+        refreshProfileList();
+        profileList.setSelectedValue(profile, true);
+        persist();
+        loadSelectedIntoDetail();
+        setStatus((isNew ? "Created " : "Updated ")
+                + (profile.getName().isBlank() ? "profile" : profile.getName()) + ".");
+        return profile;
+    }
+
+    // ------------------------------------------------------------------
     // Status rendering
     // ------------------------------------------------------------------
 
@@ -631,6 +1079,21 @@ public class VpnPanel extends JPanel {
             return;
         }
         this.status = value;
+        if (value.connected()) {
+            reconnectAttempts = 0;
+            reconnectProfile = null;
+            if (reconnectTimer != null) {
+                reconnectTimer.stop();
+            }
+            restoreVpnCut();
+            VpnProfile matched = findByName(profiles, value.profileName());
+            if (matched != null) {
+                lastConnectedProfile = matched;
+            }
+        } else if (reconnectProfile != null && !connecting && !isReconnectScheduled()) {
+            // A reconnect attempt just failed - step to the next backoff slot.
+            scheduleReconnect();
+        }
         renderStatus();
         setStatus(value.summary());
     }
@@ -656,6 +1119,9 @@ public class VpnPanel extends JPanel {
         refreshBtn.setEnabled(!connecting);
         importBtn.setEnabled(!connecting);
         removeBtn.setEnabled(!connecting);
+        newBtn.setEnabled(!connecting);
+        editBtn.setEnabled(!connecting);
+        verifyBtn.setEnabled(!connecting && status.connected());
     }
 
     // ------------------------------------------------------------------
@@ -787,5 +1253,35 @@ public class VpnPanel extends JPanel {
     /** The live settings bean (package-visible for tests). */
     VpnSettings settings() {
         return settings;
+    }
+
+    /** True while this panel has the desktop's network cut (kill switch tripped). */
+    boolean isVpnCutActive() {
+        return vpnCutActive;
+    }
+
+    /** The number of auto-reconnect attempts made since the tunnel was last up. */
+    int reconnectAttempts() {
+        return reconnectAttempts;
+    }
+
+    /** True while an auto-reconnect attempt is scheduled and waiting to fire. */
+    boolean isReconnectScheduled() {
+        return reconnectTimer != null && reconnectTimer.isRunning();
+    }
+
+    /** The last tunnel-verification verdict, or null when never verified. */
+    TunnelVerdict lastVerdict() {
+        return lastVerdict;
+    }
+
+    /** Sets the baseline public IP a later {@link #verifyTunnel()} compares against. */
+    void setBaselinePublicIp(String ip) {
+        this.baselinePublicIp = (ip == null) ? "" : ip.trim();
+    }
+
+    /** Drives a tunnel verdict onto the UI without a network fetch (test seam). */
+    void applyVerdict(TunnelVerdict verdict, String ip) {
+        renderVerdict(verdict, ip);
     }
 }
