@@ -279,6 +279,32 @@ tasks.register('runtimeResources', Sync) {
 }
 
 // ---------------------------------------------------------------------------
+// slimIconManagerJar: repackage the bundled IconManager fat jar without its
+// embedded SLF4J provider registration
+// ---------------------------------------------------------------------------
+// libs/IconManager-1.6.0.jar is a shaded fat jar that bundles slf4j-simple and
+// registers it via META-INF/services/org.slf4j.spi.SLF4JServiceProvider. The
+// desktop already places slf4j-api plus the silent slf4j-nop provider on its own
+// classpath, so at startup SLF4J's ServiceLoader finds TWO providers (nop and
+// simple) and logs "Class path contains multiple SLF4J providers" before picking
+// one. IconManager only needs the slf4j *facade*; dropping its provider
+// registration leaves slf4j-nop as the single provider and silences the warning,
+// without changing what IconManager can log (its calls bind to nop, as intended).
+// The jar is repackaged verbatim minus that one 38-byte service entry (a Zip task
+// copies MANIFEST.MF and every other entry as-is and, unlike Jar, injects no
+// manifest of its own). The child-process fat jars (swing-ide / openapi-editor /
+// payloadman) are deliberately left untouched: each runs in its OWN JVM where its
+// bundled slf4j-simple is the intended, sole provider.
+def slimIconManagerJar = tasks.register('slimIconManagerJar', Zip) {
+    group = 'build'
+    description = 'Repackage libs/IconManager-1.6.0.jar without its embedded SLF4J provider registration'
+    archiveFileName = 'IconManager-1.6.0.jar'
+    destinationDirectory = layout.buildDirectory.dir('slim-jars')
+    from zipTree(rootProject.file('libs/IconManager-1.6.0.jar'))
+    exclude 'META-INF/services/org.slf4j.spi.SLF4JServiceProvider'
+}
+
+// ---------------------------------------------------------------------------
 // run: launch the LG3D display server in "development mode"
 // ---------------------------------------------------------------------------
 // Dev mode (lg.fws.mode=dev) runs the 3D desktop inside an ordinary window
@@ -370,7 +396,10 @@ tasks.register('run', JavaExec) {
     // dependency of lg3d-core and is not packaged into that jar, so it must be
     // placed on the desktop run classpath explicitly -- otherwise the start menu
     // and taskbar die with NoClassDefFoundError the first time an icon resolves.
-    def iconManagerLib = files(rootProject.file('libs/IconManager-1.6.0.jar'))
+    // The desktop uses the SLIMMED copy (see :slimIconManagerJar above) so its
+    // embedded slf4j-simple provider does not collide with the desktop's own
+    // slf4j-nop and trigger the "multiple SLF4J providers" startup warning.
+    def iconManagerLib = files(slimIconManagerJar)
 
     // The Help Center app (lg3d-apps, org.jdesktop.lg3d.apps.help) embeds a
     // JavaHelp (javax.help) JHelp viewer. JavaHelp is a Maven dependency of
@@ -900,7 +929,10 @@ tasks.register('releaseBundle', Zip) {
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
         // The bundled IconManager library the 2D desktop draws its application
         // icons and tray gauges with (compile-only above, so it must ship here).
-        from(rootProject.file('libs/IconManager-1.6.0.jar'))
+        // The SLIMMED copy ships (see :slimIconManagerJar) so the release
+        // launcher's wildcard lib/* classpath does not expose a second SLF4J
+        // provider alongside the desktop's slf4j-nop.
+        from(slimIconManagerJar)
         // The external swing-ide fat jar (fetched into libs/, not committed; see
         // :fetchSwingIdeJar). Ships at lib/swing-ide.jar, which the release
         // lg3d.sh points -Dswingide.jar at. When it has not been fetched this is
