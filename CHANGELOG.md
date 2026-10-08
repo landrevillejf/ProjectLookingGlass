@@ -60,6 +60,15 @@ work to make it build and run on a current toolchain.
   be launched manually in-JVM — `TestFrame` remains classified as a conventional
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
+### Fixed
+- **"Lg3d Homepage" start-menu item pointed at a dead URL** (`lg3d-core`) — the
+  Developers-group link launched `firefox http://lg3d-core.dev.java.net`, the
+  original Sun/java.net project home that has been dead for ~20 years. It now
+  opens this project's GitHub repository,
+  `https://github.com/landrevillejf/ProjectLookingGlass`. Only the descriptor
+  `command` in `lg3d-core/src/etc/lg3d/startmenu.lgcfg` changes; the item name,
+  icon and group are untouched.
+
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 
 ### Added
