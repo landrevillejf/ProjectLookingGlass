@@ -204,6 +204,16 @@ Robustness is enforced regardless: every hook call is wrapped in `try/catch`, so
 a throwing extension is logged and skipped — it can never break the browser or
 the other extensions.
 
+> **Blocks are observable.** When an enabled extension returns `BLOCK` from
+> `onNavigate`, or the popup hook vetoes a window, the browser no longer swallows
+> the decision: `FxBrowser` fires its `onNavigationBlocked(url)` /
+> `onPopupBlocked(url)` listener callbacks, and the panel tallies them per host in
+> a `SiteStats` counter. The user sees those counts — navigations blocked and
+> popups blocked for the current site — in the address-bar **site-info popup**
+> (click the security indicator). These are internal browser callbacks, **not**
+> new SPI hooks: the extension contract above is unchanged, and an extension
+> neither sees nor controls the counting.
+
 ---
 
 ## 5. Built-in reference extensions
