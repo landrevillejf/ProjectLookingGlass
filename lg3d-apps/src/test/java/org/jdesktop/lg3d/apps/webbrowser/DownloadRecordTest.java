@@ -94,4 +94,47 @@ class DownloadRecordTest {
         copy.markFailed("changed");
         assertEquals(DownloadRecord.Status.COMPLETE, d.getStatus(), "the original is untouched");
     }
+
+    @Test
+    @DisplayName("updateProgress records bytes/total while in progress")
+    void progress() {
+        DownloadRecord d = new DownloadRecord("https://a.com/f.zip", "f.zip");
+        d.updateProgress(1024L, 4096L);
+        assertEquals(1024L, d.getBytes());
+        assertEquals(4096L, d.getTotalBytes());
+        assertEquals(DownloadRecord.Status.IN_PROGRESS, d.getStatus());
+    }
+
+    @Test
+    @DisplayName("updateProgress clamps negatives and never resurrects a terminal state")
+    void progressGuards() {
+        DownloadRecord d = new DownloadRecord("u", "f");
+        d.updateProgress(-5L, -9L);
+        assertEquals(0L, d.getBytes());
+        assertEquals(0L, d.getTotalBytes());
+        d.markComplete("/tmp/f", 10L);
+        d.updateProgress(1L, 2L);
+        assertEquals(DownloadRecord.Status.COMPLETE, d.getStatus(),
+                "a late progress callback cannot un-finish a download");
+    }
+
+    @Test
+    @DisplayName("markCancelled sets CANCELLED and clears the error")
+    void cancelled() {
+        DownloadRecord d = new DownloadRecord("u", "f");
+        d.setError("stale");
+        d.markCancelled();
+        assertEquals(DownloadRecord.Status.CANCELLED, d.getStatus());
+        assertEquals("", d.getError());
+    }
+
+    @Test
+    @DisplayName("setTotalBytes clamps negatives and copy carries it")
+    void totalBytesCopy() {
+        DownloadRecord d = new DownloadRecord("u", "f");
+        d.setTotalBytes(-1L);
+        assertEquals(0L, d.getTotalBytes());
+        d.setTotalBytes(2048L);
+        assertEquals(2048L, d.copy().getTotalBytes());
+    }
 }

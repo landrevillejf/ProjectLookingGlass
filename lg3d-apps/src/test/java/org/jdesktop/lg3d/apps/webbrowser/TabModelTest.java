@@ -134,4 +134,16 @@ class TabModelTest {
         assertNull(model.getTab(-1));
         assertFalse(model.list().isEmpty());
     }
+
+    @Test
+    @DisplayName("list() returns a snapshot copy isolated from later mutation")
+    void listIsSnapshot() {
+        TabModel model = new TabModel();
+        model.addTab("A", "https://a.com");
+        java.util.List<TabModel.Tab> snapshot = model.list();
+        assertEquals(1, snapshot.size());
+        model.addTab("B", "https://b.com");
+        assertEquals(1, snapshot.size(), "the earlier snapshot does not grow (no CME on the EDT)");
+        assertEquals(2, model.list().size());
+    }
 }
