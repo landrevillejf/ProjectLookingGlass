@@ -8,12 +8,12 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Sample / preliminary** developer tool (3D source visualizer) — not a shipped utility |
+| Status | **Sample / preliminary** developer tool (3D source visualizer) — not shipped; removed from the start menu (did not run reliably) |
 | Entry point | `SourceViewer.main` |
 | Surface | **pure-3D `Frame3D`** (source rendered into textures, call lines in 3D) |
-| Start-menu name / group | Source Viewer — the descriptor sets `ignoreConfig=true`, so it is **read but not posted** to the start menu |
-| Command | `java org.jdesktop.lg3d.apps.callviewer.SourceViewer` |
-| Descriptor | `src/config/callviewer.lgcfg` → `config/demo` |
+| Start-menu name / group | **None** — the descriptor was removed, so it is no longer discovered or posted to the start menu |
+| Command | `java org.jdesktop.lg3d.apps.callviewer.SourceViewer` (manual/in-JVM only) |
+| Descriptor | removed (`src/config/callviewer.lgcfg` deleted); the source stays in-tree and still compiles |
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Components:** `SourceWindow` / `SourceTexture` / `LineData` / `CalledByData` /
@@ -32,8 +32,10 @@
 - **Business Analyst** — Developer-facing sample; no end-user product value. Keep
   expectations aligned: it demonstrates a technique.
 - **Functional Analyst** — Spec as a demonstration (render a source file, draw its
-  call graph). The descriptor's `ignoreConfig=true` keeps it out of the start menu by
-  design; flip that only if it is ever promoted to a shipped tool.
+  call graph). The start-menu descriptor was deleted because the tool did not run
+  reliably, so it is no longer discoverable; it can still be launched manually
+  in-JVM. Re-add a `src/config/callviewer.lgcfg` descriptor only if it is ever
+  promoted to a shipped, working tool.
 - **Project Manager** — Commit scope `lg3d-apps`. Low priority; changes are
   opportunistic. Branch → PR against `main`.
 - **UI/UX (3D & 2D)** — **3D only**: textured source panes + coloured call lines in
