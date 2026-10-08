@@ -26,8 +26,10 @@ import java.net.URL;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.scenemanager.utils.SceneControl;
 import org.jdesktop.lg3d.scenemanager.utils.appcontainer.AppContainer;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -52,7 +54,7 @@ public class SwayingSimpleImageBackground extends Background {
     private SceneControl scenemanager;
     private Component3D bgPanelComp;
     private Component3D wSwayer;
-    private JavaLogo logo;
+    private CornerLogo logo;
     
      public SwayingSimpleImageBackground(URL urlFilename) {
         if (urlFilename == null) {
@@ -96,8 +98,9 @@ public class SwayingSimpleImageBackground extends Background {
         bgPanelComp.setScale(3.0f);
         bgPanelComp.addChild(bgPanel);
         
-        // Setup the Java logo
-        logo = new JavaLogo();
+        // Setup the corner logo (model chosen in the Control Center).
+        logo = new CornerLogo(
+                CornerLogo.Model.fromConfig(DesktopConfig.get().getCornerLogo()));
         addChild(logo);
         
         SceneTempZoomer zoomer = new SceneTempZoomer(logo, 1.0f);
@@ -123,6 +126,23 @@ public class SwayingSimpleImageBackground extends Background {
             }
             public Class<LgEvent>[] getTargetEventClasses() {
                 return new Class[] {ScreenResolutionChangedEvent.class};
+            }
+        });
+
+        // Swap the corner-logo model live when the user changes it in the Control
+        // Center: setModel rebuilds only the artwork (the drag handle stays put),
+        // then changeSize re-anchors it in the corner.
+        LgEventConnector.getLgEventConnector().addListener(
+                LgEventSource.ALL_SOURCES,
+                new LgEventListener() {
+            public void processEvent(final LgEvent event) {
+                logo.setModel(CornerLogo.Model.fromConfig(
+                        DesktopConfig.get().getCornerLogo()));
+                Toolkit3D t3d = Toolkit3D.getToolkit3D();
+                changeSize(t3d.getScreenWidth(), t3d.getScreenHeight());
+            }
+            public Class<LgEvent>[] getTargetEventClasses() {
+                return new Class[] {DesktopConfigChangeEvent.class};
             }
         });
     }

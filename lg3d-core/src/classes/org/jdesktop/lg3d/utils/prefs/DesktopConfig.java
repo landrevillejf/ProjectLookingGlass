@@ -74,6 +74,7 @@ public final class DesktopConfig {
     private static final String KEY_THEME_ACCENT = "theme.accent";
     private static final String KEY_ICON_PACK = "icon.pack";
     private static final String KEY_ICON_PACK_DIR = "icon.packDir";
+    private static final String KEY_CORNER_LOGO = "desktop.cornerLogo";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
     private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
     /** Wallpaper-schedule entries: a count plus per-index hour/minute/file. */
@@ -176,6 +177,15 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_ICON_PACK_DIR = "";
     private static final String DEF_ICON_PACK_DIR = DEFAULT_ICON_PACK_DIR;
+    /**
+     * Default 3D-desktop corner-logo model id: {@code "java"} keeps the classic
+     * Java/Sun logo that rotates with the mouse; {@code "mascot"} shows the
+     * Looking-Glass mascot (the same icon the 2D splash and the About window
+     * reflect). Read by
+     * {@link org.jdesktop.lg3d.scenemanager.utils.background.CornerLogo}.
+     */
+    public static final String DEFAULT_CORNER_LOGO = "java";
+    private static final String DEF_CORNER_LOGO = DEFAULT_CORNER_LOGO;
     /**
      * Whether the schedule swaps the wallpaper / re-lights the scene by default.
      * The two are independent opt-ins: either, both or neither can be enabled.
@@ -302,6 +312,7 @@ public final class DesktopConfig {
     private String accentColor = DEF_THEME_ACCENT;
     private String iconPack = DEF_ICON_PACK;
     private String iconPackDir = DEF_ICON_PACK_DIR;
+    private String cornerLogo = DEF_CORNER_LOGO;
     private boolean scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
     private boolean scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
     private List<ScheduleEntry> wallpaperSchedule =
@@ -384,6 +395,7 @@ public final class DesktopConfig {
         accentColor = normalizeAccentColor(prefs.get(KEY_THEME_ACCENT, DEF_THEME_ACCENT));
         iconPack = normalizeIconPack(prefs.get(KEY_ICON_PACK, DEF_ICON_PACK));
         iconPackDir = normalizeIconPackDir(prefs.get(KEY_ICON_PACK_DIR, DEF_ICON_PACK_DIR));
+        cornerLogo = normalizeCornerLogo(prefs.get(KEY_CORNER_LOGO, DEF_CORNER_LOGO));
         scheduleWallpaperEnabled = prefs.getBoolean(
                 KEY_SCHEDULE_WALLPAPER_ENABLED, DEF_SCHEDULE_WALLPAPER_ENABLED);
         scheduleLightingEnabled = prefs.getBoolean(
@@ -481,6 +493,7 @@ public final class DesktopConfig {
         prefs.put(KEY_THEME_ACCENT, accentColor);
         prefs.put(KEY_ICON_PACK, iconPack);
         prefs.put(KEY_ICON_PACK_DIR, iconPackDir);
+        prefs.put(KEY_CORNER_LOGO, cornerLogo);
         prefs.putBoolean(KEY_SCHEDULE_WALLPAPER_ENABLED, scheduleWallpaperEnabled);
         prefs.putBoolean(KEY_SCHEDULE_LIGHTING_ENABLED, scheduleLightingEnabled);
         prefs.putInt(KEY_WP_COUNT, wallpaperSchedule.size());
@@ -532,6 +545,7 @@ public final class DesktopConfig {
         accentColor = DEF_THEME_ACCENT;
         iconPack = DEF_ICON_PACK;
         iconPackDir = DEF_ICON_PACK_DIR;
+        cornerLogo = DEF_CORNER_LOGO;
         scheduleWallpaperEnabled = DEF_SCHEDULE_WALLPAPER_ENABLED;
         scheduleLightingEnabled = DEF_SCHEDULE_LIGHTING_ENABLED;
         wallpaperSchedule = new ArrayList<>(DEFAULT_WALLPAPER_SCHEDULE);
@@ -648,6 +662,21 @@ public final class DesktopConfig {
 
     public void setIconPackDir(String path) {
         this.iconPackDir = normalizeIconPackDir(path);
+    }
+
+    /**
+     * The id of the 3D-desktop corner-logo model to display: {@code "java"} (the
+     * classic Java/Sun logo) or {@code "mascot"} (the Looking-Glass mascot). Only
+     * the backgrounds that host the corner logo render it; the value is read when
+     * a background is built and re-applied live on
+     * {@link org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent}.
+     */
+    public String getCornerLogo() {
+        return cornerLogo;
+    }
+
+    public void setCornerLogo(String id) {
+        this.cornerLogo = normalizeCornerLogo(id);
     }
 
     public void setBarScale(float barScale) {
@@ -1072,6 +1101,19 @@ public final class DesktopConfig {
     /** Trims the imported icon-pack path; null falls back to empty (none). */
     private static String normalizeIconPackDir(String s) {
         return (s == null) ? DEF_ICON_PACK_DIR : s.trim();
+    }
+
+    /**
+     * Normalizes a corner-logo model id to one of the supported values
+     * ({@code "java"} or {@code "mascot"}); null, blank or an unknown token all
+     * fall back to the default ({@code "java"}).
+     */
+    private static String normalizeCornerLogo(String s) {
+        if (s == null) {
+            return DEF_CORNER_LOGO;
+        }
+        String t = s.trim().toLowerCase(java.util.Locale.ROOT);
+        return t.equals("mascot") ? "mascot" : DEF_CORNER_LOGO;
     }
 
     private static Position parsePosition(String s) {

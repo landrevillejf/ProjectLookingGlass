@@ -28,6 +28,7 @@ import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.scenemanager.utils.SceneControl;
 import org.jdesktop.lg3d.scenemanager.utils.appcontainer.AppContainer;
+import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.taskbar.Taskbar;
 import org.jdesktop.lg3d.sg.Appearance;
@@ -36,6 +37,7 @@ import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
+import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.Disc;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.PickableRegion;
@@ -72,7 +74,7 @@ public class PanoImageBackground extends Background {
     private ArrayList<BgPanelComp> bgPanelList;
     private ArrayList<AppContWrapper> appContList;
     private Component3D appContGroup;
-    private JavaLogo logo;
+    private CornerLogo logo;
     private Component3D leftEdgeSpot;
     private Component3D rightEdgeSpot;
     
@@ -112,9 +114,10 @@ public class PanoImageBackground extends Background {
         initWidth = toolkit3d.getScreenWidth();
         initHeight = toolkit3d.getScreenHeight();
         
-        // Setup the Java logo and appContGroup.
+        // Setup the corner logo (model chosen in the Control Center) and appContGroup.
         // Do the followings before invoking setupKeyScreenParams()
-        logo = new JavaLogo();
+        logo = new CornerLogo(
+                CornerLogo.Model.fromConfig(DesktopConfig.get().getCornerLogo()));
         addChild(logo);
         appContGroup = new Component3D();
         appContGroup.setAnimation(new NaturalMotionAnimation(500));
@@ -272,6 +275,23 @@ public class PanoImageBackground extends Background {
                 }
                 public Class<LgEvent>[] getTargetEventClasses() {
                     return new Class[] {ScreenResolutionChangedEvent.class};
+                }
+            });
+
+        // Swap the corner-logo model live when the user changes it in the Control
+        // Center: setModel rebuilds only the artwork (the drag handle stays put),
+        // then setupKeyScreenParams re-anchors it in the corner.
+        LgEventConnector.getLgEventConnector().addListener(
+            LgEventSource.ALL_SOURCES,
+            new LgEventListener() {
+                public void processEvent(final LgEvent event) {
+                    logo.setModel(CornerLogo.Model.fromConfig(
+                            DesktopConfig.get().getCornerLogo()));
+                    Toolkit3D t3d = Toolkit3D.getToolkit3D();
+                    setupKeyScreenParams(t3d.getScreenWidth(), t3d.getScreenHeight());
+                }
+                public Class<LgEvent>[] getTargetEventClasses() {
+                    return new Class[] {DesktopConfigChangeEvent.class};
                 }
             });
     }
