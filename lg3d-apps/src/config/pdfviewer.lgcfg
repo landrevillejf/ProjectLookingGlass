@@ -9,7 +9,7 @@
  Launched in-JVM via the "java <class>" command; the lg3d-apps jar and the
  PDFBox jars are on the :lg3d-core:run classpath. Discovery only scans
  config/demo and config/incubator, so this descriptor lives in
- lg3d-apps/src/config (bundled to config/demo). The "Media" menuGroup is
+ lg3d-apps/src/config (bundled to config/demo). The "Office" menuGroup is
  declared in lg3d-core/src/etc/lg3d/startmenu.lgcfg. -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
@@ -25,7 +25,7 @@
    <string>resource:///resources/images/icon/pdf-viewer.png</string>
   </void>
   <void property="menuGroup">
-   <string>Media</string>
+   <string>Office</string>
   </void>
   <void property="name">
    <string>PDF Viewer</string>

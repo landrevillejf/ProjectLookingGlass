@@ -22,7 +22,7 @@
 
 /**
  * Issue 381
- * https://lg3d-core.dev.java.net/issues/show_bug.cgi?id=381
+ * https://github.com/landrevillejf/ProjectLookingGlass (the original java.net issue-381 tracker is defunct)
  *
  * Test program for ensuring Frame3D's are gc'ed once they are removed
  * from the graph and go out of scope.

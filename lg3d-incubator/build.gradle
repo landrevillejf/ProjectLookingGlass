@@ -29,10 +29,12 @@
 // FuzzyEdgePanel.setSize(float,float,float,float), SimpleAppearance.setTexture(URL)
 // and the absence of an awt.Color constructor on vecmath Color3f/Color4f. Four
 // of them -- luncher, nlc, orgchart and jmf23D -- were small, self-contained
-// drift and have been ported to the current API; they now build. Their start-menu
-// descriptors live in lg3d-apps/src/config (bundled to config/demo), because
-// discovery only scans config/demo and config/incubator while this module's own
-// src/config is bundled to config/ -- the same precedent Image Studio follows.
+// drift and have been ported to the current API; they now build. The start-menu
+// descriptors that remain live in lg3d-apps/src/config (bundled to config/demo),
+// because discovery only scans config/demo and config/incubator while this
+// module's own src/config is bundled to config/ -- the same precedent Image
+// Studio follows. (luncher's and nlc's descriptors were later deleted: both are
+// 3D-only sample/experimental apps, de-listed from the menu like the tutorials.)
 //
 // One app in this group remains excluded:
 //

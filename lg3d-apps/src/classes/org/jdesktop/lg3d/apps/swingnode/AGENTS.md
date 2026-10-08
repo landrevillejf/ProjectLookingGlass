@@ -9,12 +9,12 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Sample / test** (SwingNode harness) — reference for a custom renderer, not shipped |
+| Status | **Sample / test** (SwingNode harness) — reference for a custom renderer; de-listed from the start menu, source kept in-tree |
 | Entry point | `SwingNodeTest.main` |
 | Surface | **SwingNode-in-Frame3D** with a **custom `SwingNodeRenderer`** (Swing panel mapped onto deformable cloth geometry) |
-| Start-menu name / group | Swing Node Test / **Tests** |
+| Start-menu name / group | **None** — the descriptor was removed (was Swing Node Test / **Tests**) |
 | Command | `java org.jdesktop.lg3d.apps.swingnode.SwingNodeTest` |
-| Descriptor | `src/config/swingnode.lgcfg` → `config/demo` |
+| Descriptor | **removed** — `src/config/swingnode.lgcfg` deleted (no longer discovered or posted) |
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Components:** `SwingNodeTest` + `ClothSwingNodeGeometry` (custom
@@ -34,7 +34,7 @@
 - **QA** — Verify the cloth renders the live Swing texture and deforms without
   tearing (in-JVM probe + internal screencapture). Watch the log for the texture NPE
   and for per-frame re-attach mistakes (a common live-texture bug).
-- **Business Analyst** — Developer-facing test harness (lives under **Tests**). Value
+- **Business Analyst** — Developer-facing test harness (de-listed from the start menu). Value
   is proving the custom-renderer path, not an end-user feature.
 - **Functional Analyst** — Spec as a demonstration (render a Swing panel onto
   animated cloth; `ControlFrame` tweaks parameters). Keep it aligned with

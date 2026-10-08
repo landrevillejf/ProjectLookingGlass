@@ -379,7 +379,7 @@ startmenu.lgcfg - Basic Start Menu configuration file
  </object>
 <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
-   <string>firefox http://lg3d-core.dev.java.net</string>
+   <string>firefox https://github.com/landrevillejf/ProjectLookingGlass</string>
   </void>
   <void property="desc">
    <string>Lg3d Homepage</string>

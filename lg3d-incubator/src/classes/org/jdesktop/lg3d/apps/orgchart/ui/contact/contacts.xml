@@ -26,12 +26,12 @@
                     <entry key="locale" value="en_US"/>
                     <entry key="email" value="Hideya.Kawahara@Sun.COM"/>
                     <entry key="manager" value="Juan Soto"/>
-                    <entry key="photoURL" value="https://lg3d-core.dev.java.net/images/contributors/hideya.jpg"/>
+                    <entry key="photoURL" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                     <entry key="screenName" value="hideya@jaba.red.iplanet.com"/>
                     <entry key="sn" value="Kawahara"/>
                     <entry key="timezone" value="US/Pacific"/>
                     <entry key="uid" value="hideya"/>
-                    <entry key="url" value="https://lg3d-core.dev.java.net/lg3d-contributorspotlight.html"/>
+                    <entry key="url" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                 </map>
             </node>
             <node name="Paul Byrne">
@@ -45,12 +45,12 @@
                     <entry key="locale" value="en_US"/>
                     <entry key="email" value="Paul.Byrne@Sun.COM"/>
                     <entry key="manager" value="Juan Soto"/>
-                    <entry key="photoURL" value="https://lg3d-core.dev.java.net/images/contributors/paulby.jpg"/>
+                    <entry key="photoURL" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                     <entry key="screenName" value="paulby@jaba.red.iplanet.com"/>
                     <entry key="sn" value="Byrne"/>
                     <entry key="timezone" value="US/Pacific"/>
                     <entry key="uid" value="paulby"/>
-                    <entry key="url" value="https://lg3d-core.dev.java.net/lg3d-contributorspotlight.html"/>
+                    <entry key="url" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                 </map>
             </node>
             <node name="Deron Johnson">
@@ -64,12 +64,12 @@
                     <entry key="locale" value="en_CA"/>
                     <entry key="manager" value="Juan Soto"/>
                     <entry key="email" value="Deron.Johnson@Sun.COM"/>
-                    <entry key="photoURL" value="https://lg3d-core.dev.java.net/images/contributors/deronj.jpg"/>
+                    <entry key="photoURL" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                     <entry key="screenName" value="deronj@jaba.red.iplanet.com"/>
                     <entry key="sn" value="Johnson"/>
                     <entry key="timezone" value="US/Pacific"/>
                     <entry key="uid" value="deronj"/>
-                    <entry key="url" value="https://lg3d-core.dev.java.net/lg3d-contributorspotlight.html"/>
+                    <entry key="url" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                 </map>
             </node>
             <node name="Duke">
@@ -80,12 +80,12 @@
                     <entry key="givenName" value="Duke"/>
                     <entry key="l" value="LALALAND"/>
                     <entry key="locale" value="en_CA"/>
-                    <entry key="photoURL" value="https://lg3d-incubator.dev.java.net/images/duke.png"/>
+                    <entry key="photoURL" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                     <entry key="screenName" value="duke@jaba.red.iplanet.com"/>
                     <entry key="sn" value="Duke"/>
                     <entry key="timezone" value="US/Pacific"/>
                     <entry key="uid" value="duke"/>
-                    <entry key="url" value="https://lg3d-core.dev.java.net/lg3d-contributorspotlight.html"/>
+                    <entry key="url" value="https://github.com/landrevillejf/ProjectLookingGlass"/>
                 </map>
             </node>
         </node>

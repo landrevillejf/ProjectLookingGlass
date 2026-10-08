@@ -23,6 +23,12 @@ work to make it build and run on a current toolchain.
   skipped as before, the 3D start menu is untouched, and a 3D-only command
   reached another way (e.g. a restored session) still reports that it needs the
   3D desktop via `Desktop2D.openApp`.
+- **Two apps moved to a better-fitting start-menu group** (`lg3d-apps`) — **PDF
+  Viewer** moves from **Media** to **Office** (it is a document reader, not a
+  multimedia player) and **Remote Viewer** moves from **Developers** to
+  **Internet** (a remote-desktop client, alongside SSH / VPN / FTP). Only the
+  `menuGroup` in each `.lgcfg` descriptor changes; the launch command, icon and
+  the 2D-desktop `Desktop2DAppRegistry.PANEL_APPS` mapping are untouched.
 
 ### Removed
 - **CallViewer dropped from the start menu** (`lg3d-apps`) — the 3D source-code
@@ -34,8 +40,44 @@ work to make it build and run on a current toolchain.
   `Tutorial 1/2/3` (menu group **Tests**) are no longer posted: their descriptors
   `src/config/tutorial{1,2,3}.lgcfg` were deleted. The source stays in-tree and
   still compiles and can be launched manually in-JVM; only the menu entries are
-  removed. The **Tests** group still holds `swingtest`, `swingnode` and the
-  incubator `physics` item, so it remains visible.
+  removed. (The **Tests** group is not linked from `Main`, so it is never
+  rendered; its remaining `swingtest` / `swingnode` entries are removed below.)
+- **Luncher and Natural Language Control dropped from the start menu**
+  (`lg3d-apps`, `lg3d-incubator`) — both are 3D-only sample/experimental apps (a
+  glassy-cube card launcher menu, and a voice/typed-command controller that is
+  also runtime-blocked on a microphone + the Stanford NLP model), the same family
+  as the tutorials/CallViewer above. Their descriptors `src/config/luncher.lgcfg`
+  and `src/config/nlc.lgcfg` were deleted, so neither is discovered or posted to
+  any menu. Both still compile in `lg3d-incubator` and can be launched manually
+  in-JVM; only the menu entries are removed.
+- **Swing Test and Swing Node Test dropped from the start menu** (`lg3d-apps`) —
+  the two `Tests`-group developer harnesses (a plain-Swing `JFrame` capture
+  fixture and the custom-`SwingNodeRenderer` cloth demo) are no longer posted:
+  their descriptors `src/config/swingtest.lgcfg` and `src/config/swingnode.lgcfg`
+  were deleted. The `Tests` group was already unreachable from `Main` (a leftover
+  of the earlier Demos unlinking), so neither entry was visible in any case; this
+  makes the removal explicit. Both sources stay in-tree and still compile and can
+  be launched manually in-JVM — `TestFrame` remains classified as a conventional
+  Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
+
+### Fixed
+- **"Lg3d Homepage" start-menu item pointed at a dead URL** (`lg3d-core`) — the
+  Developers-group link launched `firefox http://lg3d-core.dev.java.net`, the
+  original Sun/java.net project home that has been dead for ~20 years. It now
+  opens this project's GitHub repository,
+  `https://github.com/landrevillejf/ProjectLookingGlass`. Only the descriptor
+  `command` in `lg3d-core/src/etc/lg3d/startmenu.lgcfg` changes; the item name,
+  icon and group are untouched.
+- **Swept the remaining dead `dev.java.net` URLs in live sources** (multiple
+  modules) — the original Sun/java.net project domain has been dead for ~20
+  years, so it is replaced with this GitHub repository in the orgchart sample
+  `contacts.xml` (contributor `photoURL` / `url` entries), the jmf23D
+  `JXTAManager` JXTA module-spec URI, the legacy Ant `build.xml` javadoc footer
+  and `build-x11.xml` developer-guide hint, the retired `lg3d-awt` `JawtToolkit`
+  javadoc link, and the `Issue381` javadoc tracker reference. The historical
+  website snapshots under the various `www/` trees, the packaging templates
+  (`dpkg` / `win32`) and the sample `.msg` mailing-list data still carry the old
+  domain and are intentionally left untouched (archival, not user-facing).
 
 ## [1.66.0] — 2026-10-07 — Gradle / JDK 21 modernization
 

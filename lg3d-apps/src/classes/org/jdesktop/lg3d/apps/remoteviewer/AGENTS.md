@@ -11,7 +11,7 @@
 | Status | **Production-grade** RMI remote-desktop server + viewer (ported from the standalone jrdesktop / Remote Viewer tool) |
 | Entry point | `RemoteViewer.main` → `show()` → `TitledSwingWindow.show(...)`; `Main.main` runs the original standalone CLI (`server` / `viewer` / `display` modes) |
 | Surface | **SwingNode-in-Frame3D** (480x380, hosts `RemoteViewerPanel`); the same panel is reused in the 2D desktop as an MDI internal frame |
-| Start-menu name / group | Remote Viewer / **Developers** |
+| Start-menu name / group | Remote Viewer / **Internet** |
 | Command | `java org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer` |
 | Descriptor | `src/config/remoteviewer.lgcfg` → `config/demo` |
 | Engine | **JDK-only RMI remote desktop.** The server captures the screen with `java.awt.Robot` (via `server.main.robot`), injects remote mouse/keyboard, syncs the clipboard and serves file lists over an RMI registry (`server.rmi.Server` / `ServerImpl` / `ServerInterface`); the viewer (`viewer.rmi.Viewer` + `ViewerHost` / `ViewerPanel` / `ScreenPlayer` / `Recorder`) connects, plays the remote screen and forwards input. Optional SSL uses a `keystore` / `truststore` and `MultihomeRMIClientSocketFactory`. Image compression is `ImageUtility` (JPEG/PNG); payloads are zipped by `ZipUtility` |
