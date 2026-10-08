@@ -8,12 +8,12 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Tutorial / sample** code (teaching material, not a shipped utility) |
+| Status | **Tutorial / sample** code (teaching material, not a shipped utility) — removed from the start menu |
 | Entry points | `Tutorial1.main`, `Tutorial2.main`, `Tutorial3.main` (+ `SwingNodeTutorial`, `TestPanel`, `GlassyTutorial3TaskbarItem`) |
 | Surface | **pure-3D `Frame3D` + `Component3D`** (Tutorials 1-3); `SwingNodeTutorial` shows the SwingNode path |
-| Start-menu name / group | Tutorial 1 / 2 / 3 / **Tests** |
-| Commands | `java org.jdesktop.lg3d.apps.tutorial.Tutorial1` (…2, …3) |
-| Descriptors | `src/config/tutorial1.lgcfg`, `tutorial2.lgcfg`, `tutorial3.lgcfg` → `config/demo` |
+| Start-menu name / group | **None** — the descriptors were removed, so the tutorials are no longer discovered or posted |
+| Commands | `java org.jdesktop.lg3d.apps.tutorial.Tutorial1` (…2, …3) — manual/in-JVM only |
+| Descriptors | removed (`src/config/tutorial{1,2,3}.lgcfg` deleted); the source stays in-tree and still compiles |
 | Build | `./gradlew :lg3d-apps:build` |
 
 ## Key components
@@ -41,7 +41,8 @@
   + internal screencapture (`lg3d-core/lgscreen-*.png`). A black host capture under
   Wayland is not a defect. There is little headless logic to unit-test here.
 - **Business Analyst** — Value is **developer onboarding**, not end-user features.
-  These occupy the **Tests** menu group on purpose; they are not daily-driver tools.
+  The start-menu descriptors were removed so these no longer occupy the **Tests**
+  menu group; they remain available as reference material launched manually in-JVM.
 - **Functional Analyst** — Spec each tutorial as a *learning outcome* (what concept
   it demonstrates) rather than a product feature. Keep the progression 1 → 2 → 3 →
   SwingNode coherent and non-overlapping.
