@@ -430,7 +430,7 @@ thing to read — it distinguishes **Production** / **Production-grade** apps fr
 
 | App module | Per-app guides | Location |
 | --- | --- | --- |
-| `lg3d-apps` | 39 apps | `lg3d-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
+| `lg3d-apps` | 40 apps | `lg3d-apps/src/classes/org/jdesktop/lg3d/apps/<app>/AGENTS.md` |
 | `lg3d-incubator` | 35 apps/libraries (incl. excluded + framework trees) | `lg3d-incubator/src/classes/.../<app>/AGENTS.md` |
 
 > **Naming note.** This module was renamed from the legacy `lg3d-demo-apps`: the

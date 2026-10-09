@@ -255,6 +255,21 @@ public final class Desktop2DAppRegistry {
         // the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.pdfviewer.PdfViewer",
                 "org.jdesktop.lg3d.apps.pdfviewer.PdfViewerPanel");
+        // The Advanced Text Editor (lg3d-apps, org.jdesktop.lg3d.apps.texteditor)
+        // is a production plain-text and source-code editor: a multi-tab Swing
+        // panel over AWT-free engine classes (tokenising SyntaxHighlighter for
+        // 16 languages, pure-String SearchEngine, guarded atomic TextFileIO,
+        // merge-on-type undo, persisted settings) plus a TextEditorExtension SPI
+        // loaded through META-INF/services. In the 3D desktop its
+        // AdvancedTextEditor wrapper hosts the panel on a SwingNode inside a
+        // Frame3D via TitledSwingWindow; here the very same panel opens as an MDI
+        // internal frame, so the editor is fully usable without 3D. Its public
+        // openFile(File) hook also makes it available to the file-association
+        // launcher. The lg3d-apps jar is on the desktop run
+        // classpath, so the reflective lookup resolves and the panel loads no
+        // Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditor",
+                "org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditorPanel");
         // The Firewall app (lg3d-apps, org.jdesktop.lg3d.apps.firewall) is a
         // production firewall management application with a Swing panel showing
         // status, active rules, and enable/disable controls. In the 3D desktop

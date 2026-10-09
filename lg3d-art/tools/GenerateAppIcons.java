@@ -126,6 +126,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector brick wall (firewall) instead of a bundled glyph. */
     private static final String WALL_GLYPH = "FirewallBricks";
 
+    /** Glyph name that draws a built-in vector text page with a pencil (advanced text editor) instead of a bundled glyph. */
+    private static final String TEXT_EDITOR_GLYPH = "TextEditorPage";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -254,6 +257,11 @@ public class GenerateAppIcons {
         // glyph set already carries the universal magnifier ("Find"), so it is
         // reused here on a vivid tile rather than drawn in-tool.
         {"search.png", IconColor.CYAN, IconCategory.GENERAL, "Find"},
+        // Advanced Text Editor (Swing multi-tab editor hosted on a SwingNode /
+        // 2D MDI frame; Office menu group). The bundled glyph set has nothing
+        // editor shaped, so a page of text with a pencil is drawn in-tool like
+        // the document page and the marks above.
+        {"text-editor.png", IconColor.BLUE, IconCategory.TEXT, TEXT_EDITOR_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -318,6 +326,8 @@ public class GenerateAppIcons {
                 glyph = drawSendPlaneGlyph(GLYPH);
             } else if (WALL_GLYPH.equals(glyphName)) {
                 glyph = drawWallGlyph(GLYPH);
+            } else if (TEXT_EDITOR_GLYPH.equals(glyphName)) {
+                glyph = drawTextEditorGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -1113,6 +1123,47 @@ public class GenerateAppIcons {
         g.drawLine(7, 21, 7, 26);
         g.drawLine(16, 21, 16, 26);
         g.drawLine(25, 21, 25, 26);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the advanced text editor glyph: a page of text (lines punched out
+     * so the tile gradient shows through) with a pencil laid diagonally across
+     * its lower right corner. The bundled {@code toolbarButtonGraphics} set
+     * carries nothing editor shaped, so it is drawn in-tool like the document
+     * page, brick wall and the marks above. Designed in a 32x32 space and
+     * scaled to {@code size}.
+     */
+    private static Icon drawTextEditorGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Page body.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(3, 2, 18, 26, 2, 2);
+        // Punch the text lines out so the tile gradient reads as type.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.4f));
+        g.drawLine(6, 7, 18, 7);
+        g.drawLine(6, 11, 18, 11);
+        g.drawLine(6, 15, 18, 15);
+        g.drawLine(6, 19, 14, 19);
+        g.setComposite(AlphaComposite.SrcOver);
+        // Pencil across the lower right corner (shaft, ferrule band, tip).
+        g.rotate(Math.toRadians(-45), 22, 22);
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(19, 12, 6, 16, 2, 2);
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fillRect(19, 15, 6, 2);
+        g.setColor(Color.WHITE);
+        GeneralPath tip = new GeneralPath();
+        tip.moveTo(19, 28);
+        tip.lineTo(25, 28);
+        tip.lineTo(22, 32);
+        tip.closePath();
+        g.fill(tip);
         g.dispose();
         return new ImageIcon(image);
     }
