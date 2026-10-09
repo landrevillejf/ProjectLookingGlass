@@ -286,6 +286,14 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **P2P transport: a peer whose link dies during registration no longer leaks**
+  (`lg3d-apps`) — when the remote socket closed between the Noise handshake and
+  the peer-map registration, `onClosed` fired before `byChannel.put` and reaped
+  nothing, so the dead peer stayed in the mesh forever (surfaced in CI as a
+  flaky failure of `P2pNodeTest`'s trust-rejection test). `registerChannel` now
+  re-checks `isOpen()` after registering and reaps the channel there; a
+  deterministic regression test stalls the adoption inside the peer verifier so
+  the teardown lands in exactly that window.
 - **Maximized hosted Swing windows: the 3D cursor clicked the wrong control**
   (`lg3d-core`) — maximizing a `SwingNode`-hosted window (Control Center, Task
   Manager, …) resizes the panel natively via `SwingNode.setHostedSize` but left

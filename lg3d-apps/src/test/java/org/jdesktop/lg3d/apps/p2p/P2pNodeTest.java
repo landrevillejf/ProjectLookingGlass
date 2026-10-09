@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -189,6 +191,42 @@ class P2pNodeTest {
             // A briefly saw the inbound link, then B tore it down.
             assertTrue(awaitTrue(() -> a.getPeerCount() == 0),
                     "A should end with no peers once B closes the rejected link");
+        }
+    }
+
+    @Test
+    @DisplayName("a link that dies during registration is reaped, not leaked")
+    void linkDeadDuringRegistrationIsReaped(@TempDir Path dirA, @TempDir Path dirB)
+            throws Exception {
+        Recorder recA = new Recorder();
+        Recorder recB = new Recorder();
+        try (P2pNode a = newNode("alice", dirA, recA);
+             P2pNode b = newNode("bob", dirB, recB)) {
+            a.start();
+            // Stall A's adoption inside the verifier so B's teardown lands while
+            // A is still between the handshake and its peer-map registration -
+            // the window where onClosed reaps nothing. Without the post-
+            // registration reap in registerChannel the dead peer leaks forever.
+            CountDownLatch inVerifier = new CountDownLatch(1);
+            a.setPeerVerifier(fingerprint -> {
+                inVerifier.countDown();
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return true;
+            });
+            assertNotNull(b.connect("localhost", a.getPort()));
+            assertTrue(inVerifier.await(2, TimeUnit.SECONDS), "A should reach its verifier");
+            b.disconnect(a.getFingerprint());
+            // A adopts the peer once the stall ends, but the link is already dead
+            // by then, so registration must yield the connected+disconnected pair
+            // and an empty mesh. Without the post-registration reap the dead peer
+            // stays in the map forever: connected, never disconnected, count 1.
+            assertTrue(awaitTrue(() -> !recA.connected.isEmpty()
+                            && a.getPeerCount() == 0 && !recA.disconnected.isEmpty()),
+                    "a peer whose link died during registration must be reaped, not leaked");
         }
     }
 

@@ -288,6 +288,13 @@ public final class P2pNode implements SecureChannel.Listener, AutoCloseable {
         }
         channel.sendControl(P2pMessage.presence(nickname, STATUS_ONLINE, fingerprint));
         firePeerConnected(peer);
+        // The link can die while we are registering it: onClosed then reaped
+        // nothing (byChannel.put above had not run yet) and the dead peer would
+        // leak in the mesh forever. Re-check once after registration and reap
+        // here; a close racing after this check is reaped by onClosed itself.
+        if (!channel.isOpen()) {
+            onClosed(channel, "Link closed during registration");
+        }
         return peer;
     }
 
