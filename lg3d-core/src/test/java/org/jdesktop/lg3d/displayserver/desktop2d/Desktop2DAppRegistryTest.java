@@ -329,6 +329,21 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the Advanced Text Editor maps to its Swing panel")
+    void textEditorIsHostedPanel() {
+        // The Advanced Text Editor is a plain Swing multi-tab editor over
+        // AWT-free engine classes; the 3D desktop hosts the panel on a
+        // SwingNode via its AdvancedTextEditor wrapper while the 2D/Swing
+        // desktop opens the same panel as an MDI internal frame.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditor"));
+        assertEquals(
+                "org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditorPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditor"));
+    }
+
+    @Test
     @DisplayName("the Video Conference app maps to its Swing panel")
     void videoConferenceIsHostedPanel() {
         // The Video Conference app (lg3d-apps) is a Jitsi Meet client: a plain
