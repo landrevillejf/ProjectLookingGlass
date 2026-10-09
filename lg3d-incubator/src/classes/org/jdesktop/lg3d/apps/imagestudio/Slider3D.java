@@ -194,10 +194,7 @@ public class Slider3D extends Component3D {
     }
 
     private void updateValueText() {
-        String s = intFmt
-                ? String.format(fmt, Integer.valueOf(Math.round(value)))
-                : String.format(fmt, Float.valueOf(value));
-        valueText.setText(s);
+        valueText.setText(OpCatalog.formatValue(fmt, intFmt, value));
     }
 
     private static float clamp(float v, float lo, float hi) {

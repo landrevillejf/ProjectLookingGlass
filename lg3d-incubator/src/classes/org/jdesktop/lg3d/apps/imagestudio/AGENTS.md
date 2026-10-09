@@ -11,7 +11,7 @@
 | --- | --- |
 | Status | **Production-grade** native-3D app (supported showcase) |
 | Entry point | `ImageStudioApp.main` → builds `ImageStudioFrame3D`, then `changeEnabled(true)` / `changeVisible(true)` |
-| Surface | **pure-3D `Frame3D`** — the entire UI is scene-graph nodes driven by the live-texture pattern |
+| Surface | **3D:** pure-`Frame3D` — the entire UI is scene-graph nodes driven by the live-texture pattern. **2D desktop:** plain Swing `ImageStudioPanel` hosted as an MDI frame (`Desktop2DAppRegistry.PANEL_APPS`, keyed on `ImageStudioApp`) |
 | Start-menu name / group | Image Studio / **Utilities** |
 | Command | `java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp` |
 | Descriptor | **`lg3d-apps/src/config/imagestudio.lgcfg`** → `config/demo` (incubator `src/config` is not scanned) |
@@ -25,6 +25,13 @@
   for live slider dragging.
 - **JaiProcessor** — ~27 JAI rendered ops (geometry/color/filter/math) + histogram +
   PNG/JPEG/TIFF I/O.
+- **OpCatalog** — the single source of truth for the op catalog (four category
+  tabs, ~27 labelled/ranged ops, the code→`JaiProcessor` factory and the
+  parameter formatter), rendered as 3D buttons by **Toolbar3D** and as Swing
+  buttons by **ImageStudioPanel**.
+- **ImageStudioPanel** — the 2D/Swing editing surface: category tabs + op grid,
+  armed-parameter slider (same continuous-edit semantics), fit-to-view canvas,
+  RGB histogram, `~/Pictures` filmstrip + Open/Save/Save As. Loads no Java 3D.
 - **ImageCanvas3D** — the image quad: one power-of-two RGBA `ImageComponent2D`
   updated via `.set(RenderedImage)`.
 - **Ui3D / Slider3D / Toolbar3D / Histogram3D / FileStrip3D** — the runtime-drawn 3D
@@ -33,11 +40,14 @@
 
 ## Roles
 
-- **Architect** — A flagship **native-3D** app: no Swing panel, the whole UI is
-  scene-graph nodes. Keep the model (`EditorModel`/`JaiProcessor`) free of AWT so it
-  unit-tests headless; keep the 3D widgets (`Ui3D` family) reusable. JAI is an
+- **Architect** — A flagship **native-3D** app with a dual surface: the 3D
+  desktop builds the `Frame3D`; the 2D desktop hosts `ImageStudioPanel`. Both
+  share the engine (`EditorModel`/`JaiProcessor`) and the one `OpCatalog`, so
+  an op added there appears on both surfaces. Keep the model/catalog AWT-free so
+  it unit-tests headless; keep the 3D widgets (`Ui3D` family) reusable. JAI is an
   architecture-level dependency (needs the `sun.awt.image` export) — changing it
-  touches `lg3d-core`'s `run` classpath.
+  touches `lg3d-core`'s `run` classpath **and** the incubator `test` task's
+  `--add-exports`.
 - **Engineer / Developer** — Obey the core UI/UX rulebook and the **live-texture
   rule**: one fixed-size `ImageComponent2D` with `ALLOW_IMAGE_WRITE` attached to a
   `Texture2D` **once, off-live**; every edit only repaints the `BufferedImage` and
@@ -47,7 +57,10 @@
   PNG/JPEG; reserve the JAI codec for TIFF/BMP (JAI's JPEG encoder references the
   JDK-removed `com.sun.image.codec.jpeg`). Jogamp packages only.
 - **QA** — Unit-test `EditorModel` (undo/redo, continuous edits) and `JaiProcessor`
-  op math headless. Verify the 3D UI with the in-JVM probe + internal screencapture
+  op math headless; `ImageStudioPanelTest` drives the Swing panel + real JAI ops
+  headless (the incubator `test` task carries the `--add-exports
+  java.desktop/sun.awt.image=ALL-UNNAMED` the vendored JAI needs). Verify the 3D UI
+  with the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black host capture under Wayland is not a defect.
   Confirm the run classpath has the JAI jars + `--add-exports` (else `IllegalAccessError`
   on `sun.awt.image`).
@@ -60,9 +73,11 @@
   `lg3d-apps`, so an app PR usually spans two modules — say so. Done = build +
   `:lg3d-core:runtimeResources` (icon) + `./run-lg3d.sh` + capture/log evidence.
 - **UI/UX (3D & 2D)** — **3D-dominant**: canvas, toolbar, slider, histogram and
-  filmstrip are all runtime-drawn scene-graph widgets (no PNG assets). The only 2D is
-  the native Swing `JFileChooser` for open/save. Follow the glassy vocabulary, depth
-  ordering and click-driven-input rules from core.
+  filmstrip are all runtime-drawn scene-graph widgets (no PNG assets), with native
+  Swing `JFileChooser` for open/save. The 2D desktop gets the full editor as
+  `ImageStudioPanel` (Swing tabs/grid/slider mirroring the same catalog and arming
+  semantics). Follow the glassy vocabulary, depth ordering and click-driven-input
+  rules from core.
 
 ## Communication & coherence
 
