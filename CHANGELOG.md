@@ -10,6 +10,42 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Advanced Text Editor: Spring Boot / JSON / Hash extensions, user-editable
+  shortcuts and a permission grant UI** (`lg3d-apps`) — three purely additive
+  follow-ups on the extension surface, all in one train. **Three more bundled
+  providers** join the nine: **Spring Boot Tools** (`lg3d.spring-boot-tools`,
+  category `Spring`) converts `application.properties`↔`application.yml` —
+  `propertiesToYaml` builds a nested `LinkedHashMap` tree and renders it with
+  two-space indent (comments/blank lines kept as a header), `yamlToProperties`
+  walks an indent stack and indexes block sequences as `key[n]` (Spring's relaxed
+  binding form); **JSON Tools** (`lg3d.json-tools`, category `Data`) minifies and
+  pretty-prints (4-space indent) with a scanner that honours string literals and
+  backslash escapes, so it never corrupts quoted content and needs no JSON parse;
+  **Hash Tools** (`lg3d.hash-tools`, category `Encoding`) emits MD5 / SHA-1 /
+  SHA-256 hex of the selection via `MessageDigest` (UTF-8). The curated order
+  gains Spring and Data, and the toolbar now carries **44 actions across twelve
+  providers**. **User-editable shortcuts**: `EditorSettings` gains an
+  `acceleratorOverrides` map (contribution id → `KeyStroke` spec; a blank value
+  deliberately unbinds, an absent key keeps the declared default) round-tripped
+  through `toMap`/`fromMap` and persisted with the other settings; the panel
+  binds and shows the *effective* accelerator (override wins) and exposes
+  `Host.getAccelerator` / `setAccelerator(index, spec)`, and the `ExtensionsCard`
+  grows a shortcut bar (current shortcut + **Rebind** + **Clear**) where Rebind
+  arms a one-shot key grab on the actions list (only A–Z / 0–9 with
+  Ctrl/Alt/Shift/Meta are assignable). **Extension permission grant UI**: the
+  card's management column now lists each selected extension's declared
+  `TextEditorPermission`s as checkboxes, fed by `Host.permissionsFor(id)` and
+  driven through `Host.setPermission(id, name, boolean)` into the existing
+  `ExtensionRegistry.grant` (which persists); toggling TOOLBAR immediately adds
+  or drops that extension's actions, and `show()` preserves the selection across
+  a rebuild. All new `Host` methods are default no-ops, so third-party hosts stay
+  source-compatible, and nothing existing is scrapped. Covered by three new
+  headless suites (`SpringBootToolsTest`, `JsonToolsTest`, `HashToolsTest`) plus
+  accelerator-rebind / override-persistence / permission-grant panel tests and
+  card rebind / permission wiring tests; `AdvancedTextEditorPanelTest` now
+  isolates the extension store via the `lg3d.texteditor.dir` property so
+  enable/permission writes never touch `~/.lg3d`. The whole module build stays
+  green.
 - **Advanced Text Editor: extension accelerators, an enable/disable manager and
   two more dev extensions** (`lg3d-apps`) — purely additive follow-up to the
   category grouping below. A `ToolbarContribution` can now carry an optional
