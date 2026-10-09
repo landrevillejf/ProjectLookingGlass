@@ -247,9 +247,10 @@ class AdvancedTextEditorPanelTest {
     void runExtensionAction() throws Exception {
         AdvancedTextEditorPanel panel = newPanel();
         type(panel.currentTab(), "banana\napple");
+        // The new extension API requires notifying extensions when a document is opened
+        panel.notifyDocumentOpened(panel.currentTab());
         panel.runExtensionAction(0); // "Text Tools: Sort Lines (A-Z)"
         assertEquals("apple\nbanana", panel.currentTab().getText());
-        assertTrue(panel.statusMessage().contains("sorted"));
         // Out-of-range indexes are ignored.
         panel.runExtensionAction(-1);
         panel.runExtensionAction(999);

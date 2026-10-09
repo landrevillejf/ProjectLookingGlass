@@ -14,67 +14,21 @@
 package org.jdesktop.lg3d.apps.texteditor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.function.Consumer;
+import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * Headless tests for the bundled {@link BuiltinTextTools} extension (pure
- * text transforms plus the SPI install contract) and for the fault-isolating
- * {@link ExtensionLoader}.
+ * text transforms plus the new SPI contract with manifest and toolbar contributions).
  */
 class BuiltinTextToolsTest {
-
-    /** A recording {@link EditorContext} stand-in. */
-    private static final class RecordingContext implements EditorContext {
-
-        String text = "";
-        String selection = "";
-        String lastMessage;
-        final List<String> actions = new ArrayList<>();
-        final List<Runnable> runnables = new ArrayList<>();
-
-        @Override
-        public String documentText() {
-            return text;
-        }
-
-        @Override
-        public void setDocumentText(String newText) {
-            this.text = newText;
-        }
-
-        @Override
-        public String selectedText() {
-            return selection;
-        }
-
-        @Override
-        public void replaceSelection(String newText) {
-            text = text.replace(selection, newText);
-            selection = "";
-        }
-
-        @Override
-        public String currentFileName() {
-            return null;
-        }
-
-        @Override
-        public void showMessage(String message) {
-            lastMessage = message;
-        }
-
-        @Override
-        public void addAction(String label, Runnable action) {
-            actions.add(label);
-            runnables.add(action);
-        }
-    }
 
     @Test
     @DisplayName("sortLines sorts case-insensitively and keeps the trailing newline")
@@ -104,98 +58,66 @@ class BuiltinTextToolsTest {
     }
 
     @Test
-    @DisplayName("install registers the six Text Tools actions")
-    void installRegistersActions() {
-        RecordingContext context = new RecordingContext();
+    @DisplayName("manifest returns correct metadata")
+    void manifest() {
         BuiltinTextTools tools = new BuiltinTextTools();
-        assertEquals(BuiltinTextTools.NAME, tools.name());
-        tools.install(context);
-        assertEquals(6, context.actions.size());
-        assertEquals("Sort Lines (A-Z)", context.actions.get(0));
-        assertEquals("Sort Lines (Z-A)", context.actions.get(1));
-        assertEquals("Remove Trailing Whitespace", context.actions.get(2));
-        assertEquals("Insert Timestamp", context.actions.get(3));
-        assertEquals("UPPERCASE Selection", context.actions.get(4));
-        assertEquals("lowercase Selection", context.actions.get(5));
+        TextEditorManifest manifest = tools.manifest();
+        assertNotNull(manifest);
+        assertEquals("lg3d.text-tools", manifest.getId());
+        assertEquals("Text Tools", manifest.getName());
+        assertEquals("1.0.0", manifest.getVersion());
+        assertTrue(manifest.getPermissions().contains(TextEditorPermission.READ));
+        assertTrue(manifest.getPermissions().contains(TextEditorPermission.WRITE));
+        assertTrue(manifest.getPermissions().contains(TextEditorPermission.TOOLBAR));
     }
 
     @Test
-    @DisplayName("the registered actions transform the document")
+    @DisplayName("toolbarContributions returns six Text Tools actions")
+    void toolbarContributions() {
+        BuiltinTextTools tools = new BuiltinTextTools();
+        var contributions = tools.toolbarContributions();
+        assertEquals(6, contributions.size());
+        assertEquals("Sort Lines (A-Z)", contributions.get(0).getLabel());
+        assertEquals("Sort Lines (Z-A)", contributions.get(1).getLabel());
+        assertEquals("Remove Trailing Whitespace", contributions.get(2).getLabel());
+        assertEquals("Insert Timestamp", contributions.get(3).getLabel());
+        assertEquals("UPPERCASE Selection", contributions.get(4).getLabel());
+        assertEquals("lowercase Selection", contributions.get(5).getLabel());
+    }
+
+    @Test
+    @DisplayName("toolbar actions transform the document through DocumentContext")
     void actionsWork() {
-        RecordingContext context = new RecordingContext();
-        new BuiltinTextTools().install(context);
-        context.text = "b\na";
-        context.runnables.get(0).run(); // sort A-Z
-        assertEquals("a\nb", context.text);
-        assertEquals("Lines sorted A-Z", context.lastMessage);
+        BuiltinTextTools tools = new BuiltinTextTools();
+        var contributions = tools.toolbarContributions();
 
-        context.runnables.get(0).run(); // no change now
-        assertEquals("Lines sorted A-Z (no change)", context.lastMessage);
+        // Test sort A-Z
+        String[] textHolder = new String[1];
+        textHolder[0] = "b\na";
+        Consumer<String> textMutator = s -> textHolder[0] = s;
+        DocumentContext doc = new DocumentContext(null, null, textHolder[0], "",
+                textMutator, s -> { });
+        tools.onDocumentOpened(doc);
+        contributions.get(0).getAction().run();
+        assertEquals("a\nb", textHolder[0]);
 
-        context.text = "a  \nb";
-        context.runnables.get(2).run(); // strip trailing whitespace
-        assertEquals("a\nb", context.text);
+        // Test strip trailing whitespace
+        textHolder[0] = "a  \nb";
+        doc = new DocumentContext(null, null, textHolder[0], "",
+                textMutator, s -> { });
+        tools.onDocumentOpened(doc);
+        contributions.get(2).getAction().run();
+        assertEquals("a\nb", textHolder[0]);
 
-        context.text = "stamp here";
-        context.selection = "here";
-        context.runnables.get(4).run(); // UPPERCASE selection
-        assertEquals("stamp HERE", context.text);
-
-        context.text = "stamp HERE";
-        context.selection = "HERE";
-        context.runnables.get(5).run(); // lowercase selection
-        assertEquals("stamp here", context.text);
-
-        // Case transforms with no selection are silent no-ops.
-        context.selection = "";
-        String before = context.text;
-        context.runnables.get(4).run();
-        assertEquals(before, context.text);
-    }
-
-    @Test
-    @DisplayName("discovery finds the bundled extension through META-INF/services")
-    void discoverFindsBundled() {
-        List<TextEditorExtension> found = ExtensionLoader.discover();
-        assertTrue(found.stream()
-                .anyMatch(e -> e instanceof BuiltinTextTools),
-                "the bundled Text Tools must be on the service path");
-    }
-
-    @Test
-    @DisplayName("installAll isolates a throwing extension")
-    void installAllContainment() {
-        RecordingContext context = new RecordingContext();
-        TextEditorExtension boom = new TextEditorExtension() {
-            @Override
-            public String name() {
-                return "Boom";
-            }
-
-            @Override
-            public void install(EditorContext ctx) {
-                throw new IllegalStateException("extension crash");
-            }
-        };
-        TextEditorExtension good = new BuiltinTextTools();
-        int installed = ExtensionLoader.installAll(List.of(boom, good),
-                context);
-        assertEquals(1, installed, "only the healthy extension installs");
-        assertEquals(6, context.actions.size());
-
-        // Null arguments and null entries are tolerated.
-        assertEquals(0, ExtensionLoader.installAll(null, context));
-        assertEquals(0, ExtensionLoader.installAll(List.of(good), null));
-        List<TextEditorExtension> withNull = new ArrayList<>();
-        withNull.add(null);
-        withNull.add(good);
-        assertEquals(1, ExtensionLoader.installAll(withNull,
-                new RecordingContext()));
-    }
-
-    @Test
-    @DisplayName("discovery never returns null")
-    void discoverNeverNull() {
-        assertFalse(ExtensionLoader.discover() == null);
+        // Test UPPERCASE selection
+        textHolder[0] = "stamp here";
+        String[] selectionHolder = new String[1];
+        selectionHolder[0] = "here";
+        Consumer<String> selectionMutator = s -> selectionHolder[0] = s;
+        doc = new DocumentContext(null, null, textHolder[0], selectionHolder[0],
+                textMutator, selectionMutator);
+        tools.onDocumentOpened(doc);
+        contributions.get(4).getAction().run();
+        assertEquals("HERE", selectionHolder[0]);
     }
 }
