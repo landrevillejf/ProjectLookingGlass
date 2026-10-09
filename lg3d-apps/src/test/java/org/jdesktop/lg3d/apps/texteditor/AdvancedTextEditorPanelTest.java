@@ -80,14 +80,14 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 46 toolbar actions")
+    @DisplayName("the bundled extensions install their 52 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
         // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
         // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
-        // + Spring Boot Tools 4 + Hash Tools 3
-        assertEquals(46, panel.extensionActionCount());
+        // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
+        assertEquals(52, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -114,10 +114,24 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(12, infos.size());
+        assertEquals(13, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.jvm-build-tools")));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extension actions run against the live text, not the open-time snapshot")
+    void extensionActionSeesLiveText() throws Exception {
+        AdvancedTextEditorPanel panel = newPanel();
+        EditorTab tab = panel.currentTab();
+        // The tab was opened empty; the snapshot an extension holds would
+        // otherwise stay empty and every action would silently no-op.
+        type(tab, "b\na");
+        panel.runExtensionAction(0); // BuiltinTextTools sort-az, whole document
+        assertEquals("a\nb", tab.getText());
         panel.dispose();
     }
 

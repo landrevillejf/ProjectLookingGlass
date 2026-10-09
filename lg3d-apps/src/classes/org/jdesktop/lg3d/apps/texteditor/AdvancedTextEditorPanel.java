@@ -1021,6 +1021,10 @@ public class AdvancedTextEditorPanel extends JPanel
             return;
         }
         cards.show(center, CARD_EDITOR);
+        // Extensions hold the document snapshot taken at open time; refresh it
+        // so every action runs against the live text (a build action must
+        // compile what the user currently sees, not the file as opened).
+        notifyDocumentOpened(currentTab());
         try {
             extensionActions.get(index).run().run();
         } catch (Throwable t) {
