@@ -86,4 +86,9 @@ Generated artwork (no third-party contribution involved):
   that script to change its size or re-tint it rather than editing the
   pixels by hand.
 
+- background/LookingGlass-Wordmark.jpg
+  The same tool run with --no-mark: identical backdrop and identical
+  caption position, without the mascot. Generated, not hand-edited, for
+  the same reason.
+
 Thanks for your contributions!
