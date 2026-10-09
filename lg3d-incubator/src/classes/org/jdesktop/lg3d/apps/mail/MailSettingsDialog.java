@@ -95,6 +95,8 @@ final class MailSettingsDialog extends JDialog {
     private final JCheckBox confirmDelete = new JCheckBox("Confirm before deleting");
     private final JCheckBox renderHtml =
             new JCheckBox("Render HTML mail (remote content is always blocked)");
+    private final JCheckBox notifyNewMail =
+            new JCheckBox("Notify on new mail (desktop toast)");
 
     private boolean committed;
 
@@ -211,6 +213,7 @@ final class MailSettingsDialog extends JDialog {
 
         p.add(confirmDelete);
         p.add(renderHtml);
+        p.add(notifyNewMail);
         return p;
     }
 
@@ -291,6 +294,7 @@ final class MailSettingsDialog extends JDialog {
         checkInterval.setValue(settings.getCheckIntervalMinutes());
         confirmDelete.setSelected(settings.isConfirmOnDelete());
         renderHtml.setSelected(settings.isRenderHtml());
+        notifyNewMail.setSelected(settings.isNotifyOnNewMail());
         accentColor = settings.getAccentColor();
         paintAccent();
     }
@@ -321,6 +325,7 @@ final class MailSettingsDialog extends JDialog {
         settings.setCheckIntervalMinutes((Integer) checkInterval.getValue());
         settings.setConfirmOnDelete(confirmDelete.isSelected());
         settings.setRenderHtml(renderHtml.isSelected());
+        settings.setNotifyOnNewMail(notifyNewMail.isSelected());
         settings.setAccentColor(accentColor);
         settings.save();
         ruleStore.saveAll(rules);

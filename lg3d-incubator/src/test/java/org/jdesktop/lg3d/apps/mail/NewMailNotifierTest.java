@@ -135,7 +135,7 @@ class NewMailNotifierTest {
                 true);
 
         assertEquals(1, titles.size());
-        assertEquals("Bob <bob@x.com>: Lunch?", bodies.get(0));
+        assertEquals("Bob: Lunch?", bodies.get(0));
     }
 
     @Test

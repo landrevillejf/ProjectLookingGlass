@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.jdesktop.lg3d.apps.orgchart.ui.agenda.AgendaButton;
+import org.jdesktop.lg3d.scenemanager.utils.hud.NotificationService;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
@@ -59,6 +60,16 @@ public class Mail3D extends Frame3D {
 
     private MailSessionManager manager;
     private MailView view;
+    private MailSettings settings = MailSettings.load();
+
+    /**
+     * Shared new-mail detector: raises the 3D desktop toast (via
+     * {@link NotificationService}) when an inbox reload brings unseen unread
+     * mail, exactly like the 2D {@link MailPanel}.
+     */
+    private final NewMailNotifier newMailNotifier = new NewMailNotifier(
+            (title, body, kind) -> NotificationService.get().post(
+                    title, body, kind));
 
     private final List<MailFolder> folders = new ArrayList<MailFolder>();
     private final List<MailMessage> messages = new ArrayList<MailMessage>();
@@ -96,6 +107,11 @@ public class Mail3D extends Frame3D {
             setVisible(true);
             changeEnabled(true);
             reload();
+            // Silent background poll on the manager's daemon scheduler: it only
+            // touches the view when mail actually arrived, so the 3D desktop
+            // learns about new messages without the user pressing Inbox.
+            manager.startAutoCheck(settings.getCheckIntervalMinutes(),
+                    this::checkForNewMail);
         } catch (Exception e) {
             throw new RuntimeException("Failed to start Mail3D", e);
         }
@@ -253,6 +269,33 @@ public class Mail3D extends Frame3D {
         messages.addAll(fetched);
         selected = null;
         view.setStatus("");
+        newMailNotifier.onFolderLoaded(account.getId(), folder, fetched,
+                settings.isNotifyOnNewMail());
+    }
+
+    /**
+     * The auto-check tick: refetches the current folder only to run the
+     * new-mail detector, and repaints the list only when something arrived.
+     */
+    private void checkForNewMail() {
+        try {
+            if (account == null) {
+                return;
+            }
+            List<MailMessage> fetched = manager.fetch(account.getId(), folder);
+            List<MailMessage> arrived = newMailNotifier.onFolderLoaded(
+                    account.getId(), folder, fetched,
+                    settings.isNotifyOnNewMail());
+            if (!arrived.isEmpty()) {
+                messages.clear();
+                messages.addAll(fetched);
+                selected = null;
+                refreshView();
+            }
+        } catch (MailBackendException | RuntimeException e) {
+            // A failed background poll is not user-visible; the next Inbox
+            // press reports the real error through the normal async path.
+        }
     }
 
     // ------------------------------------------------------------------

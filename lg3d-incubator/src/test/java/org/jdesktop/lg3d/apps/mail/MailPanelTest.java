@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.prefs.Preferences;
@@ -232,5 +233,65 @@ class MailPanelTest {
         List<MailMessage> msgs = panel.getMessages();
         assertEquals(1, msgs.size());
         assertEquals("Archived", msgs.get(0).getSubject());
+    }
+
+    @Test
+    void reloadAfterTheBaselineToastsNewInboxMail() {
+        List<String> titles = new ArrayList<String>();
+        List<String> bodies = new ArrayList<String>();
+        MailPanel panel = newPanel();
+        panel.setNewMailNotifier(new NewMailNotifier(
+                (title, message, kind) -> {
+                    titles.add(title);
+                    bodies.add(message);
+                }));
+        // The baseline was taken by newPanel()'s refresh: a plain reload of
+        // the same listing must not toast.
+        panel.selectFolder("a1", MailMessage.FOLDER_INBOX);
+        assertTrue(titles.isEmpty(), "a repeat of the baseline is silent");
+
+        fake.seed(MailMessage.FOLDER_INBOX,
+                message("3", "Carol <carol@example.com>", "Party time"));
+        panel.selectFolder("a1", MailMessage.FOLDER_INBOX);
+
+        assertEquals(1, titles.size());
+        assertEquals("New Mail", titles.get(0));
+        assertTrue(bodies.get(0).contains("Party time"), bodies.get(0));
+    }
+
+    @Test
+    void autoCheckTickReloadsAndToastsInline() {
+        List<String> titles = new ArrayList<String>();
+        MailPanel panel = newPanel();
+        panel.setNewMailNotifier(new NewMailNotifier(
+                (title, message, kind) -> titles.add(title)));
+        // The injected detector starts without a baseline: its first poll only
+        // records what is already there, it must not toast history.
+        panel.autoCheckTick();
+        assertTrue(titles.isEmpty(), "the baseline poll is silent");
+
+        fake.seed(MailMessage.FOLDER_INBOX,
+                message("4", "Dan <dan@example.com>", "Scheduler ping"));
+        // What the auto-check scheduler fires every N minutes; synchronous
+        // mode keeps it on the test thread.
+        panel.autoCheckTick();
+
+        assertEquals(1, titles.size(), "the poll detected the arrival");
+        assertEquals(3, panel.getMessages().size());
+    }
+
+    @Test
+    void notifyOffTheSettingSuppressesTheToast() {
+        List<String> titles = new ArrayList<String>();
+        MailPanel panel = newPanel();
+        panel.getSettings().setNotifyOnNewMail(false);
+        panel.setNewMailNotifier(new NewMailNotifier(
+                (title, message, kind) -> titles.add(title)));
+        fake.seed(MailMessage.FOLDER_INBOX,
+                message("5", "Eve <eve@example.com>", "Quiet arrival"));
+        panel.selectFolder("a1", MailMessage.FOLDER_INBOX);
+
+        assertTrue(titles.isEmpty(), "the user's switch wins over detection");
+        assertEquals(3, panel.getMessages().size(), "the mail still loads");
     }
 }

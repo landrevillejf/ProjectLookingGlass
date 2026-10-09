@@ -55,6 +55,7 @@ class MailSettingsTest {
         assertFalse(s.isRenderHtml(), "HTML rendering must default off");
         assertTrue(s.isConfirmOnDelete());
         assertTrue(s.isSortDescending());
+        assertTrue(s.isNotifyOnNewMail(), "new-mail toasts default on");
         assertEquals(MailSettings.Theme.LIGHT, s.getTheme());
         assertEquals(MailSettings.ReadingPanePosition.RIGHT,
                 s.getReadingPanePosition());
@@ -99,6 +100,7 @@ class MailSettingsTest {
         s.setCheckIntervalMinutes(30);
         s.setConfirmOnDelete(false);
         s.setRenderHtml(true);
+        s.setNotifyOnNewMail(false);
         s.save();
 
         MailSettings r = MailSettings.load();
@@ -116,5 +118,6 @@ class MailSettingsTest {
         assertEquals(30, r.getCheckIntervalMinutes());
         assertFalse(r.isConfirmOnDelete());
         assertTrue(r.isRenderHtml());
+        assertFalse(r.isNotifyOnNewMail());
     }
 }
