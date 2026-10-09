@@ -64,13 +64,14 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 37 toolbar actions")
+    @DisplayName("the bundled extensions install their 44 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
         // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
-        // + Base64 Tools 2 + Markdown Tools 4
-        assertEquals(37, panel.extensionActionCount());
+        // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
+        // + Spring Boot Tools 2 + Hash Tools 3
+        assertEquals(44, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -78,11 +79,14 @@ class AdvancedTextEditorPanelTest {
     @DisplayName("extension accelerators bind to the editor input map")
     void extensionAcceleratorsBound() {
         AdvancedTextEditorPanel panel = newPanel();
-        // Declared by BuiltinTextTools sort-az and CodeTools indent, respectively.
+        // Declared by BuiltinTextTools sort-az, CodeTools indent, JsonTools
+        // prettify and SpringBootTools properties-to-yaml, respectively.
         assertTrue(panel.isAcceleratorBound("control alt A"));
         assertTrue(panel.isAcceleratorBound("control alt R"));
-        // Actions that declared no accelerator bind nothing (O is unused).
-        assertFalse(panel.isAcceleratorBound("control alt O"));
+        assertTrue(panel.isAcceleratorBound("control alt O"));
+        assertTrue(panel.isAcceleratorBound("control alt S"));
+        // No bundled action claims Ctrl+Alt+8, so it stays unbound.
+        assertFalse(panel.isAcceleratorBound("control alt 8"));
         panel.dispose();
     }
 
@@ -91,10 +95,10 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(9, infos.size());
+        assertEquals(12, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
-        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.markdown-tools")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
         panel.dispose();
     }
 

@@ -102,8 +102,8 @@ public class AdvancedTextEditorPanel extends JPanel
      * appear after these.
      */
     private static final List<String> PREFERRED_CATEGORIES = List.of(
-            "Text", "Code", "Java/Kotlin", "Web", "Encoding", "Markdown",
-            "Analysis", "General");
+            "Text", "Code", "Java/Kotlin", "Web", "Spring", "Data",
+            "Encoding", "Markdown", "Analysis", "General");
 
     /**
      * One action contributed by one extension, tagged with its category, the
