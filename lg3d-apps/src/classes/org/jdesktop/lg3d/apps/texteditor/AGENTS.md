@@ -28,7 +28,13 @@
 - **AdvancedTextEditorPanel** — the one Swing UI both desktops host (plain
   `JPanel`, no Java 3D, constructs headless): a `JTabbedPane` of `EditorTab`s, a
   toolbar, a `FindReplaceBar`, and a `CardLayout` centre that flips between the
-  editor, the `RecentCard`, the `ExtensionsCard` and the `SettingsCard`. A
+  editor, the `RecentCard`, the `ExtensionsCard` and the `SettingsCard`. The
+  editor card sits inside a west/east `JSplitPane` with the `ProjectTreePanel`
+  (a lazily-loaded file tree re-rooted on the project of the document being
+  edited — `.git`/`pom.xml`/`build.gradle`/… walk-up — double-click opens a
+  file) and inside a north/south `JSplitPane` with the `OutputConsole` (read-only
+  monospaced transcript where extension tool actions land their output, drop-
+  oldest capped, `Clear` button). A
   package-private `AdvancedTextEditorPanel(false)` constructor disables prefs
   writes so tests never touch the user preference store.
 - **EditorTab** — one document: a `DefaultStyledDocument` (JTextPane requires a
@@ -56,8 +62,10 @@
   (compile/run/debug the document with the real toolchain: `javac` + the JDK 11+
   single-file source launcher staged into a temp dir, a `-ea` crash-analysis run
   that reports `Debug: <exception> at Foo.java:<line>`, `kotlinc`/`kotlin` when
-  installed, and a trailing `// ---- <tool> output ----` comment block that
-  replaces itself per run; processes run on a virtual thread with EDT delivery,
+  installed; every run's output goes to the south `OutputConsole` through the
+  FILE_IO-gated `EditorContext.showOutput` capability — never into the document —
+  and `Clean Output` clears the console; processes run on a virtual thread with
+  EDT delivery,
   never on the UI, never on the user's file), `WebTools`
   (escape/unescape HTML entities, URL encode/decode), `SpringBootTools`
   (application.properties↔application.yml, sequences to `key[n]`; plus kebab-case
@@ -109,9 +117,9 @@
   the `TextEditorExtension` SPI + `META-INF/services` entry — add capabilities
   there, not by editing the panel. Jogamp packages only; obey the core UI/UX
   rulebook.
-- **QA** — 24 headless JUnit 5 suites under
+- **QA** — 26 headless JUnit 5 suites under
   `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` cover every
-  engine class, all thirteen bundled extensions and all panel/widget surfaces (220
+  engine class, all thirteen bundled extensions and all panel/widget surfaces (232
   tests): tokenisation, search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
   smart-indent, bracket matching, the merging-undo clock seam, settings
@@ -119,9 +127,12 @@
   (category grouping, effective-accelerator binding via `isAcceleratorBound`,
   user rebound via `Host.setAccelerator`, the `ExtensionsCard` Enable/Disable and
   permission-grant `Host.setPermission` paths with the broker TOOLBAR gate), the
-  JVM build tools (command builders, stack/exception parsing and output blocks
-  are pure; actions drive a synchronous `Runner` seam so no test ever spawns a
-  real process), the live-text refresh before
+  JVM build tools (command builders, stack/exception parsing are pure; actions
+  drive a synchronous `Runner` seam so no test ever spawns a real process, and a
+  fake `showOutput` delegate proves output lands in the console, never in the
+  document), the south console's block grammar/line cap and the west project tree
+  (project-root walk-up, lazy child loading, double-click-to-open), the
+  live-text refresh before
   `runExtensionAction`, tab lifecycle, and the find bar / status bar /
   recents / extensions cards. Build panels through
   `new AdvancedTextEditorPanel(false)`; file-chooser and `JOptionPane` paths are
