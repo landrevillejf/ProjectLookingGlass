@@ -18,12 +18,20 @@ work to make it build and run on a current toolchain.
   `propertiesToYaml` builds a nested `LinkedHashMap` tree and renders it with
   two-space indent (comments/blank lines kept as a header), `yamlToProperties`
   walks an indent stack and indexes block sequences as `key[n]` (Spring's relaxed
-  binding form); **JSON Tools** (`lg3d.json-tools`, category `Data`) minifies and
+  binding form) — plus two Spring-config workflow helpers on the same provider:
+  `normalizeKeys` rewrites each property key to canonical kebab-case (folding
+  camelCase humps like `contextPath`, acronym humps like `HTTPServer`, and
+  `_`/uppercase like `SERVER_PORT`, values and comments preserved) and
+  `listPlaceholders` scans every value for `${...}` tokens and appends a
+  `# Referenced placeholders:` summary block (deduped, first-occurrence order,
+  `:default` suffixes stripped, nested `${a-${b}}` handled with a depth counter,
+  and idempotent — the marker comment short-circuits a second run); **JSON Tools**
+  (`lg3d.json-tools`, category `Data`) minifies and
   pretty-prints (4-space indent) with a scanner that honours string literals and
   backslash escapes, so it never corrupts quoted content and needs no JSON parse;
   **Hash Tools** (`lg3d.hash-tools`, category `Encoding`) emits MD5 / SHA-1 /
   SHA-256 hex of the selection via `MessageDigest` (UTF-8). The curated order
-  gains Spring and Data, and the toolbar now carries **44 actions across twelve
+  gains Spring and Data, and the toolbar now carries **46 actions across twelve
   providers**. **User-editable shortcuts**: `EditorSettings` gains an
   `acceleratorOverrides` map (contribution id → `KeyStroke` spec; a blank value
   deliberately unbinds, an absent key keeps the declared default) round-tripped
