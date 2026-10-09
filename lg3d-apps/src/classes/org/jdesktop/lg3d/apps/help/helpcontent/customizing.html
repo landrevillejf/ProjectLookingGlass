@@ -8,40 +8,109 @@
   <h1>Customizing the Desktop</h1>
 
   <p>
-    Most day-to-day customization is done through the <strong>Control Center</strong>
-    (Start Menu &rarr; <em>System</em>). It gathers appearance, display and
-    desktop settings in one place.
+    Almost all customization is done through the <strong>Control Center</strong>
+    (Start Menu &rarr; <em>System</em>). It gathers every appearance, display,
+    input, network and system setting into one window: a list of categories on the
+    left, and the chosen category's panel on the right. It runs in the 3D desktop
+    and in the <a href="desktop-2d.html">2D and Swing desktops</a>, and its changes
+    apply live &mdash; you do not need to restart.
   </p>
 
-  <h2>Control Center panels</h2>
+  <h2>The Control Center categories</h2>
+  <table>
+    <tr><th>Category</th><th>What it configures</th></tr>
+    <tr><td>Appearance</td>
+        <td>Window-glass style, rounded corners, the 3D corner logo, the wallpaper
+            and slideshow, and fonts.</td></tr>
+    <tr><td>Customization</td>
+        <td>Themes (system look), the accent colour and icon packs.</td></tr>
+    <tr><td>Desktop</td><td>Wallpaper and desktop behaviour.</td></tr>
+    <tr><td>Display</td>
+        <td>Monitors, resolution, the primary display and their arrangement.</td></tr>
+    <tr><td>Sound</td><td>Output volume and sound devices.</td></tr>
+    <tr><td>Power</td><td>Power and battery behaviour.</td></tr>
+    <tr><td>Mouse &amp; Keyboard</td><td>Pointer and keyboard settings.</td></tr>
+    <tr><td>Shortcuts</td><td>Keyboard shortcuts.</td></tr>
+    <tr><td>Notifications</td><td>Notification and Do Not Disturb behaviour.</td></tr>
+    <tr><td>Workspaces</td><td>The number of virtual desktops.</td></tr>
+    <tr><td>Quick Launch</td><td>Pinned launchers on the taskbar.</td></tr>
+    <tr><td>Default Applications</td>
+        <td>Which app opens each file type (file associations).</td></tr>
+    <tr><td>Network</td><td>Wired and Wi-Fi connections.</td></tr>
+    <tr><td>Bluetooth</td><td>Bluetooth adapters and devices.</td></tr>
+    <tr><td>Printing</td><td>Printers and print queues.</td></tr>
+    <tr><td>Date &amp; Time</td><td>The clock, time zone and time source.</td></tr>
+    <tr><td>Language &amp; Region</td><td>Locale, language and regional formats.</td></tr>
+    <tr><td>Users</td><td>User account information.</td></tr>
+    <tr><td>System</td><td>Details about the running host.</td></tr>
+    <tr><td>Services</td><td>System services.</td></tr>
+    <tr><td>System Update</td><td>Desktop and system updates.</td></tr>
+    <tr><td>Storage</td><td>Disks and their usage.</td></tr>
+    <tr><td>Schedule</td><td>Recurring jobs.</td></tr>
+    <tr><td>Task Scheduler</td><td>Scheduled tasks.</td></tr>
+  </table>
+
+  <div class="note">
+    <strong>Note:</strong> Several categories read or change real host state through
+    the matching system tool &mdash; Network (<code>nmcli</code>), Bluetooth
+    (<code>bluetoothctl</code> / <code>rfkill</code>), Printing
+    (<code>lpstat</code>), Date &amp; Time (<code>timedatectl</code>), Language
+    &amp; Region (<code>localectl</code>) and Mouse &amp; Keyboard
+    (<code>xset</code>). Where a tool is not installed, that category degrades
+    gracefully rather than failing.
+  </div>
+
+  <h2>Appearance</h2>
+  <p>The Appearance panel carries the look of the desktop itself:</p>
   <ul>
-    <li><strong>Appearance</strong> &mdash; fonts and the look of the desktop.</li>
-    <li><strong>Display</strong> &mdash; display-related settings.</li>
-    <li><strong>Desktop</strong> &mdash; wallpaper and desktop behaviour.</li>
-    <li><strong>Users</strong> &mdash; user account information.</li>
-    <li><strong>System Info</strong> &mdash; details about the running system.</li>
+    <li><strong>Window Glass</strong> &mdash; choose the <em>Glassy</em> or
+        <em>Frosted</em> window style, and turn <em>Rounded corners</em> on or off.
+        The choice applies to the desktop's window decoration.</li>
+    <li><strong>Corner Logo</strong> &mdash; pick the decorative 3D model that
+        floats in the corner of the image background: the classic
+        <em>Java</em> logo or the <em>Looking Glass mascot</em>. This is a 3D-only
+        setting; it swaps live, without restarting.</li>
+    <li><strong>Wallpaper</strong> &mdash; choose a bundled backdrop or a
+        <em>Custom Image&hellip;</em> of your own, with a preview.</li>
+    <li><strong>Wallpaper Slideshow</strong> &mdash; turn the slideshow on, set how
+        often the picture changes (10&nbsp;seconds to an hour), and point it at a
+        folder of your own images or leave it on <em>Use Bundled</em>. Your choices
+        are remembered between sessions.</li>
+    <li><strong>Fonts</strong> &mdash; the Swing font family and size applied to
+        hosted application panels, so changing it re-skins the text across the
+        desktop's Swing windows, including this Help Center.</li>
+  </ul>
+  <div class="note">
+    <strong>Note:</strong> The slideshow and the wallpaper chooser take effect on
+    the 2D and Swing desktops; on the 3D desktop the backdrop is driven by the scene
+    manager, so those particular Appearance controls are inert there (the Corner
+    Logo, by contrast, is 3D-only).
+  </div>
+
+  <h2>Customization: themes, accent and icon packs</h2>
+  <ul>
+    <li><strong>System Look</strong> &mdash; choose a theme, create a
+        <em>New&hellip;</em> one, or <em>Delete</em> a theme you added.</li>
+    <li><strong>Accent</strong> &mdash; pick the desktop accent colour used by the
+        theme.</li>
+    <li><strong>Icon packs</strong> &mdash; <em>Create Pack&hellip;</em>,
+        <em>Import Pack&hellip;</em>, <em>Delete Pack</em> or <em>Use Default</em>.
+        The active pack reskins the application and category icons across the
+        desktop.</li>
   </ul>
 
-  <h2>Wallpapers and backgrounds</h2>
+  <h2>Wallpapers and the 3D background</h2>
   <p>
     The desktop background can be one of the bundled wallpaper images, or a 3D
     model. Launch with <code>-b</code> (or the Gradle property
     <code>-Pbackground3d</code>) to use the 3D model background
-    (<code>pinguin.j3f</code>) instead of a flat image. The taskbar and windows
-    sit in front of whichever background is active.
-  </p>
-
-  <h2>Fonts</h2>
-  <p>
-    The configured Swing font (family and size) is applied to hosted application
-    panels, so changing it in the Control Center re-skins the text across the
-    desktop's Swing windows &mdash; including this Help Center. Resetting to the
-    default restores the active look and feel's own fonts.
+    (<code>pinguin.j3f</code>) instead of a flat image. The taskbar and windows sit
+    in front of whichever background is active.
   </p>
 
   <div class="tip">
-    <strong>Tip:</strong> Changes made in the Control Center apply live; you do
-    not need to restart the desktop to see them.
+    <strong>Tip:</strong> Changes made in the Control Center apply live; you do not
+    need to restart the desktop to see them.
   </div>
 
   <div class="nav">

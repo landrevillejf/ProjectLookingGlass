@@ -10,6 +10,28 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Help Center: four new topics and a full content refresh** (`lg3d-apps`) — the
+  built-in JavaHelp user guide (Help Center, in the *Utilities* group) grows from
+  14 to 18 HTML topics to document the applications and Control Center panels added
+  since it was last written. Four new deep-dive topics join the reference set:
+  **Internet and the Web** (web-browser tabs and shortcuts, the eight search
+  engines, the inline find bar, reader mode, the address-bar security indicator and
+  site-info popup, bookmarks/history/downloads, extensions and the Private (Tor)
+  enforcement, plus Mail, Instant Messenger, Video Conference, FTP, SSH and Remote
+  Viewer), **Security and Privacy** (the Security Center grade, hardening advisor
+  and activity log, Private (Tor) mode and its taskbar shield, the VPN client's
+  auto-reconnect / kill switch / tunnel verification, Firewall, Password Manager and
+  Backup), **Music, Photos and Video**, and **Office and Productivity**. The stale
+  **Built-in Applications** index is rewritten as a categorised master table with a
+  3D/2D availability column (~50 apps, derived from the authoritative
+  `Desktop2DAppRegistry`); **Customizing the Desktop** now covers all 24 Control
+  Center panels plus the Appearance (window glass / rounded corners / corner logo /
+  wallpaper and slideshow / fonts) and Customization (themes / accent / icon packs)
+  options; **The Start Menu** group table is corrected (adds *Education*, drops the
+  unlinked Demos/Tests); and **About** carries the current version. `toc.xml`,
+  `map.jhm`, `index.xml` and `HelpContentTest`'s guarded target/resource arrays are
+  wired for the new topics; the full-text `JavaSearch` index regenerates at build
+  time (the indexer auto-discovers every `*.html`), so search needs no manual step.
 - **3D desktop: a choice of corner-logo model** (`lg3d-core`, `lg3d-apps`) — the
   decorative 3D model that floats in the corner of the image backgrounds is now
   selectable. The fixed `JavaLogo` (the four `Java-logo-*.png` panels that tilt

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Security and Privacy</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Security and Privacy</h1>
+
+  <p>
+    lg3d gathers its defenses into a small set of applications that work together.
+    The <strong>Security Center</strong> is the hub: it grades your posture,
+    advises how to harden it, and ties together the two anonymity layers &mdash;
+    <strong>Private (Tor) mode</strong> and the <strong>VPN</strong> client.
+    Alongside them sit the <strong>Firewall</strong>, the
+    <strong>Password Manager</strong> and <strong>Backup</strong>. All run in the
+    3D desktop and in the <a href="desktop-2d.html">2D and Swing desktops</a>.
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> The desktop ships no virus engine, Tor binary or tunnel
+    stack of its own. These tools <em>delegate honestly</em> to real, installed
+    software (ClamAV, tor, <code>nmcli</code> / <code>openvpn</code> /
+    <code>wg-quick</code>) and report truthfully when a tool is missing or a
+    privilege is lacking &mdash; they never fake a &ldquo;connected&rdquo; or
+    &ldquo;clean&rdquo; result.
+  </div>
+
+  <h2>The Security Center</h2>
+  <p>
+    Open <strong>Security Center</strong> from the <em>System</em> group of the
+    <a href="start-menu.html">Start Menu</a>. It has several tabs:
+  </p>
+  <ul>
+    <li><strong>Overview</strong> &mdash; a headline <em>security grade</em> from A
+        to F (coloured green / amber / red), computed from six defense-in-depth
+        checks: SELinux enforcing, the firewall running, an antivirus scanner
+        installed, its definitions current, Private (Tor) mode on, and a VPN tunnel
+        up with its kill switch armed. A posture grid below lists each check, now
+        including <em>Private (Tor) mode</em> and <em>VPN tunnel</em> rows.</li>
+    <li><strong>Antivirus</strong> &mdash; scan files or folders with the installed
+        ClamAV, and update its definitions (<code>freshclam</code>).</li>
+    <li><strong>Privacy</strong> &mdash; the Private (Tor) mode controls, described
+        below.</li>
+    <li><strong>Activity</strong> &mdash; an append-only audit trail recording every
+        scan, definition update, posture read, private-mode transition, network cut
+        and VPN tunnel change (capped at the most recent 500 entries).</li>
+  </ul>
+
+  <h3>The hardening advisor</h3>
+  <p>
+    The Overview lists <em>recommendations</em>, worst-first, each with a severity
+    and an action. Select one and press <strong>Remediate</strong> to act on it:
+    jump to the relevant tab, run <code>freshclam</code>, re-probe the posture, or
+    &mdash; where the fix lives outside the app &mdash; show honest guidance for
+    what to do.
+  </p>
+
+  <h2>Private (Tor) mode</h2>
+  <p>
+    Private mode is a desktop-wide anonymity switch, in the Security Center's
+    <em>Privacy</em> tab. Turning it on routes <em>all</em> desktop traffic through
+    Tor and, crucially, <strong>fails closed</strong>:
+  </p>
+  <ul>
+    <li><strong>Enable</strong> probes the Tor service, starts it (through polkit)
+        if it is not running, then forces JVM and child-process traffic through the
+        local SOCKS proxy.</li>
+    <li>A background monitor watches Tor. The moment Tor stops while the mode is on,
+        the desktop <em>cuts</em> the network: because the proxy endpoint is now
+        dead, every connection is refused rather than silently falling back to the
+        clearnet, so a leak is impossible by construction.</li>
+    <li><strong>Verify no leak</strong> checks your exit address through the proxy
+        only and reports whether you are really on Tor.</li>
+  </ul>
+  <p>
+    External programs you launch inherit the proxy while the mode is on, and the
+    <a href="internet.html">Web Browser</a> refuses remote navigation and shows an
+    honest &ldquo;connection cut&rdquo; page while the network is cut.
+  </p>
+
+  <h3>The taskbar privacy indicator</h3>
+  <p>
+    On the <a href="desktop-2d.html">2D and Swing desktops</a> the taskbar shows a
+    shield glyph for the private-mode state &mdash; steady when on, dimmed while
+    enabling, and red when the network is cut. Clicking it opens the Security
+    Center; a cut also raises a warning toast. Its tooltip doubles as the aggregate
+    security grade, tinting cautionary on a poor (D/F) grade.
+  </p>
+
+  <h2>The VPN client</h2>
+  <p>
+    The <strong>VPN</strong> app (in the <em>Internet</em> group) connects to a
+    private network through NetworkManager (<code>nmcli</code>), OpenVPN or
+    WireGuard. It is a production-grade tunnel client:
+  </p>
+  <ul>
+    <li><strong>Profiles</strong> &mdash; create, edit, import and remove profiles
+        (name, type, gateway, auto-connect and kill switch).</li>
+    <li><strong>Live status</strong> &mdash; while the panel is open it polls the
+        tunnel state every few seconds, so you see connect / disconnect without
+        refreshing by hand.</li>
+    <li><strong>Auto-reconnect</strong> &mdash; a profile marked
+        <em>auto-connect</em> that drops unexpectedly is retried with exponential
+        backoff (2&nbsp;s up to a 60&nbsp;s ceiling, capped at five attempts).</li>
+    <li><strong>Kill switch</strong> &mdash; arm it per profile and an unexpected
+        drop cuts the desktop's network clients (the same fails-closed seam Private
+        mode uses), so traffic cannot leak to the clearnet. The cut lifts
+        automatically on reconnect.</li>
+    <li><strong>Verify tunnel</strong> &mdash; records your public egress address
+        just before the tunnel comes up and re-checks it on demand, classifying the
+        result as <em>tunneled</em>, <em>leak</em> or <em>unreachable</em>. An
+        unchanged address is reported as a leak, never a false pass.</li>
+  </ul>
+
+  <h2>Firewall</h2>
+  <p>
+    <strong>Firewall</strong> (in the <em>System</em> group) shows the firewall
+    status and active rules and lets you enable or disable it. It manages the
+    host's packet-filtering rules and network security.
+  </p>
+
+  <h2>Password Manager</h2>
+  <p>
+    <strong>Password Manager</strong> stores passwords and secrets in an encrypted
+    vault sealed with your own master password (PBKDF2 key derivation plus AES-GCM
+    encryption). Only the ciphertext is written to disk; the derived key and the
+    decrypted entries live in memory while the vault is unlocked and are cleared on
+    lock or auto-lock.
+  </p>
+
+  <h2>Backup</h2>
+  <p>
+    <strong>Backup</strong> archives the folders and files you choose to standard
+    ZIP backups and restores them. It keeps profiles of sources and a destination,
+    supports glob excludes, writes archives atomically, and hardens restore against
+    path-traversal (&ldquo;Zip-Slip&rdquo;) attacks.
+  </p>
+
+  <div class="tip">
+    <strong>Tip:</strong> The Security Center grade is a quick at-a-glance summary,
+    not a guarantee. Read the recommendations and the activity log to understand
+    what is protecting you &mdash; and what is not installed.
+  </div>
+
+  <div class="nav">
+    Next: <a href="media.html">Music, Photos and Video</a>
+  </div>
+</body>
+</html>

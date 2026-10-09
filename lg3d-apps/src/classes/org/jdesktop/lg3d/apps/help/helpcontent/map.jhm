@@ -15,6 +15,10 @@
   <mapID target="gestures" url="gestures.html"/>
   <mapID target="desktop-2d" url="desktop-2d.html"/>
   <mapID target="apps" url="apps.html"/>
+  <mapID target="internet" url="internet.html"/>
+  <mapID target="security-privacy" url="security-privacy.html"/>
+  <mapID target="media" url="media.html"/>
+  <mapID target="productivity" url="productivity.html"/>
   <mapID target="customizing" url="customizing.html"/>
   <mapID target="package-management" url="package-management.html"/>
   <mapID target="troubleshooting" url="troubleshooting.html"/>

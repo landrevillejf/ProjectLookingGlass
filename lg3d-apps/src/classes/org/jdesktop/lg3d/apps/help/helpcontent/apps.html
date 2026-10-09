@@ -8,56 +8,142 @@
   <h1>Built-in Applications</h1>
 
   <p>
-    lg3d ships a set of sample and utility applications. Those whose interface is
-    a plain Swing panel run in both the 3D desktop and the
-    <a href="desktop-2d.html">2D desktop</a>; the table notes where each one
-    appears.
+    lg3d ships around fifty applications, grouped in the
+    <a href="start-menu.html">Start Menu</a> by category. This page is the master
+    index; the four categories with the most to say have their own topic:
+    <a href="internet.html">Internet and the Web</a>,
+    <a href="security-privacy.html">Security and Privacy</a>,
+    <a href="media.html">Music, Photos and Video</a> and
+    <a href="productivity.html">Office and Productivity</a>.
   </p>
 
+  <p>
+    The <strong>3D</strong> and <strong>2D</strong> columns say where each app runs.
+    Almost every app is a plain Swing panel that works in the 3D desktop <em>and</em>
+    as an internal frame in the <a href="desktop-2d.html">2D and Swing desktops</a>.
+    <em>Beside</em> means the app shows its own conventional window next to the 2D
+    desktop rather than inside it; <em>No</em> means it needs the 3D desktop.
+  </p>
+
+  <h2>Internet</h2>
+  <p>See <a href="internet.html">Internet and the Web</a> for the full guide.</p>
   <table>
     <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
-    <tr><td>Help Center</td>
-        <td>This JavaHelp-based user guide.</td><td>Yes</td><td>Yes</td></tr>
-    <tr><td>About</td>
-        <td>Product identity, build version and host runtime details.</td>
-        <td>Yes</td><td>Yes</td></tr>
-    <tr><td>Calculator</td>
-        <td>Scientific calculator with expression history and a memory
-            register.</td><td>Yes</td><td>Yes</td></tr>
-    <tr><td>File Manager</td>
-        <td>Browse and manage files and folders.</td><td>Yes</td><td>Yes</td></tr>
-    <tr><td>Task Manager</td>
-        <td>Inspect running processes.</td><td>Yes</td><td>Yes</td></tr>
-    <tr><td>Control Center</td>
-        <td>Appearance, display, desktop and system settings.</td>
-        <td>Yes</td><td>Yes</td></tr>
-    <tr><td>Media Writer</td>
-        <td>Write images to removable media.</td><td>Yes</td><td>Yes</td></tr>
-    <tr><td>Widget Gallery</td>
-        <td>Browse and place <a href="widgets.html">desktop widgets</a>.</td>
-        <td>Yes</td><td>Yes</td></tr>
-    <tr><td>LPM Console</td>
-        <td>Graphical front end for package management.</td>
-        <td>Yes</td><td>Yes</td></tr>
-    <tr><td>Paint</td>
-        <td>Simple drawing application.</td><td>Yes</td><td>Beside</td></tr>
+    <tr><td>Web Browser</td><td>Tabbed browsing (JavaFX WebKit).</td><td>Preview</td><td>Yes</td></tr>
+    <tr><td>Mail</td><td>IMAP / SMTP mail client.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Instant Messenger</td><td>Multi-protocol chat (native IRC plus bridges).</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Video Conference</td><td>Jitsi Meet calls.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>FTP Client</td><td>File transfer over FTP / FTPS / SFTP.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>SSH Client</td><td>Terminal sessions over SSH.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Remote Viewer</td><td>Remote desktops, clipboard sync and file transfer.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>VPN</td><td>Private network tunnel (NetworkManager / OpenVPN / WireGuard).</td><td>Yes</td><td>Yes</td></tr>
   </table>
 
+  <h2>Office</h2>
+  <p>See <a href="productivity.html">Office and Productivity</a> for the full guide.</p>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Mail</td><td>IMAP / SMTP mail client.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Agenda</td><td>Week planner, shared with Contacts.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Contacts</td><td>Shared address book.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>PDF Viewer</td><td>Read and navigate PDF documents.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Chart</td><td>Organisation chart.</td><td>Yes</td><td>Yes</td></tr>
+  </table>
+
+  <h2>Media</h2>
+  <p>See <a href="media.html">Music, Photos and Video</a> for the full guide.</p>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Audio Player</td><td>Music, radio, podcasts; rip audio CDs.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Video Player</td><td>Movies, streams and discs via an external player.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Photo Viewer</td><td>Browse and tag your photo gallery.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Image Editor</td><td>Layers, tools and filters (Java 2D).</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Recorder</td><td>Record audio and capture the screen.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Tuner</td><td>Tune a guitar or bass from the microphone.</td><td>Yes</td><td>Yes</td></tr>
+  </table>
+
+  <h2>Games</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Chess</td><td>3D chess against a search engine.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Solitaire</td><td>3D Klondike solitaire.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Sudoku</td><td>3D sudoku, three difficulty levels.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Tic-Tac-Toe</td><td>3D tic-tac-toe against an unbeatable AI.</td><td>Yes</td><td>Yes</td></tr>
+  </table>
+
+  <h2>System</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Control Center</td><td>Appearance, display, desktop and system settings.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>File Manager</td><td>Browse and manage files and folders.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Task Manager</td><td>View and control running processes.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Security Center</td><td>Antivirus scan and security posture hub.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Firewall</td><td>Manage firewall rules and network security.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Password Manager</td><td>Encrypted, master-password-sealed vault.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Backup</td><td>Back up and restore files and folders.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>LPM Console</td><td>Install, remove, upgrade and verify LPM packages.</td><td>Yes</td><td>Yes</td></tr>
+  </table>
   <p>
-    "Beside" means the app shows its own conventional window next to the 2D
-    desktop rather than as an internal frame inside it.
+    Package management is covered in
+    <a href="package-management.html">Managing Packages</a>; the Security Center,
+    Firewall, Password Manager and Backup in
+    <a href="security-privacy.html">Security and Privacy</a>.
   </p>
 
-  <h2>The legacy sample help</h2>
+  <h2>Utilities</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Help Center</td><td>This JavaHelp-based user guide.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>About</td><td>Version, credits and system information.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Calculator</td><td>Scientific calculator with expression history.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Archive</td><td>Browse, extract and create archives of every format.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Search</td><td>Find files and text (<code>Ctrl+Shift+F</code>).</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Weather</td><td>Conditions and forecast from Open-Meteo.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Software Update</td><td>Check for and install desktop updates.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Media Writer</td><td>Burn CD/DVD; write or clone USB keys.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Widget Gallery</td><td>Add or remove <a href="widgets.html">desktop widgets</a>.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Paint</td><td>Simple drawing application.</td><td>Yes</td><td>Beside</td></tr>
+    <tr><td>Screen Snapshot</td><td>Capture the screen to an image.</td><td>Yes</td><td>Beside</td></tr>
+    <tr><td>Image Studio</td><td>JAI image editor.</td><td>Yes</td><td>No</td></tr>
+  </table>
+
+  <h2>Developers</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>IDE</td><td>Modular Java Swing IDE: editor, build, Git, debugger, plugins.</td><td>Yes</td><td>Beside</td></tr>
+    <tr><td>Git GUI</td><td>Graphical Git client: commit, branch, diff and sync.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Database Manager</td><td>Manage and query SQL databases.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Docker Manager</td><td>Manage Docker containers, images and compose files.</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>OpenAPI Contract Editor</td><td>OpenAPI/Swagger editing, validation, code generation.</td><td>Yes</td><td>Beside</td></tr>
+    <tr><td>PayloadMan</td><td>API testing: requests, collections, environments, auth.</td><td>Yes</td><td>Beside</td></tr>
+  </table>
+  <div class="note">
+    <strong>Note:</strong> The IDE, OpenAPI Contract Editor and PayloadMan are
+    external fat-jar tools: the desktop spawns them as a separate child process, so
+    in the 2D desktop their window appears <em>beside</em> the shell rather than as
+    an internal frame.
+  </div>
+
+  <h2>Education</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Periodic Table</td><td>Reference table of the 118 elements.</td><td>Yes</td><td>Yes</td></tr>
+  </table>
+
+  <h2>Samples and early prototypes</h2>
   <p>
-    A small demonstration app called <em>Simple Sample Help</em> also ships in the
-    Start Menu. It predates this Help Center and shows a single static usage
-    image in a custom-decorated 3D window; it is kept as a scene-graph example.
-    For real documentation, use the <strong>Help Center</strong>.
+    A set of 3D-only samples, tutorials and early prototypes also ship in the Start
+    Menu (for example a 3D clock, a game-of-life grid, an image viewer and various
+    scene-graph demonstrations). They are kept as programming examples rather than
+    daily-driver tools, and they need the 3D desktop. The legacy
+    <em>Simple Sample Help</em> &mdash; a single static usage image in a
+    custom-decorated 3D window &mdash; predates this Help Center and is kept only as
+    a scene-graph example; for real documentation, use the
+    <strong>Help Center</strong>.
   </p>
 
   <div class="nav">
-    Next: <a href="customizing.html">Customizing the Desktop</a>
+    Next: <a href="internet.html">Internet and the Web</a>
   </div>
 </body>
 </html>
