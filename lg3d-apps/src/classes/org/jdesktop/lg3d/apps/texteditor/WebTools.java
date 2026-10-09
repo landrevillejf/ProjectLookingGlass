@@ -71,14 +71,14 @@ public final class WebTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("web-escape-html", "Escape HTML Entities",
-                        "Turn reserved characters into HTML/XML entities",
-                        () -> applyToSelection(WebTools::escapeHtml)),
+                        "Turn reserved characters into HTML/XML entities (Ctrl+Alt+E)",
+                        () -> applyToSelection(WebTools::escapeHtml), "control alt E"),
                 new ToolbarContribution("web-unescape-html", "Unescape HTML Entities",
                         "Expand HTML/XML entities into their characters",
                         () -> applyToSelection(WebTools::unescapeHtml)),
                 new ToolbarContribution("web-url-encode", "URL Encode",
-                        "Percent-encode the selection as a URL component",
-                        () -> applyToSelection(WebTools::urlEncode)),
+                        "Percent-encode the selection as a URL component (Ctrl+Alt+P)",
+                        () -> applyToSelection(WebTools::urlEncode), "control alt P"),
                 new ToolbarContribution("web-url-decode", "URL Decode",
                         "Percent-decode the selection (leaves malformed input as-is)",
                         () -> applyToSelection(WebTools::urlDecode))

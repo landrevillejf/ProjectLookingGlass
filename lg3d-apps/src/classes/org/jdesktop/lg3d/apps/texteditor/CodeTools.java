@@ -75,23 +75,23 @@ public final class CodeTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("code-indent", "Indent Lines",
-                        "Add one level of indentation to every non-blank line",
-                        this::indent),
+                        "Add one level of indentation to every non-blank line (Ctrl+Alt+R)",
+                        this::indent, "control alt R"),
                 new ToolbarContribution("code-outdent", "Outdent Lines",
-                        "Remove one level of indentation from every line",
-                        this::outdent),
+                        "Remove one level of indentation from every line (Ctrl+Alt+B)",
+                        this::outdent, "control alt B"),
                 new ToolbarContribution("code-drop-blank", "Remove Blank Lines",
                         "Delete every empty or whitespace-only line",
                         this::removeBlankLines),
                 new ToolbarContribution("code-unique", "Unique Lines",
-                        "Delete duplicate lines, keeping the first occurrence",
-                        this::uniqueLines),
+                        "Delete duplicate lines, keeping the first occurrence (Ctrl+Alt+D)",
+                        this::uniqueLines, "control alt D"),
                 new ToolbarContribution("code-reverse", "Reverse Lines",
                         "Reverse the order of the lines",
                         this::reverseLines),
                 new ToolbarContribution("code-number", "Number Lines",
-                        "Prefix each line with its 1-based line number",
-                        this::numberLines)
+                        "Prefix each line with its 1-based line number (Ctrl+Alt+W)",
+                        this::numberLines, "control alt W")
         );
     }
 

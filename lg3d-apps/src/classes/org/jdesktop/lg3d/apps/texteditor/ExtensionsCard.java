@@ -17,6 +17,7 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
@@ -30,13 +31,16 @@ import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 
 /**
- * The Extensions card: every action contributed by the installed
- * {@link TextEditorExtension}s, grouped under bold, non-selectable category
- * headers. Each action row is labelled {@code <extension>: <action>} and is
- * bound to its index in the host's flat action list, so selecting an entry and
- * pressing Run (or double-clicking) invokes exactly that action against the
+ * The Extensions card. The left half lists every installed
+ * {@link TextEditorExtension} with its enable / disable state and offers
+ * Enable / Disable buttons (a third-party extension only contributes actions
+ * once the user enables it here); the right half lists every action those
+ * extensions contribute, grouped under bold, non-selectable category headers.
+ * Each action row is labelled {@code <extension>: <action> (accelerator)} and
+ * is bound to its index in the host's flat action list, so selecting an entry
+ * and pressing Run (or double-clicking) invokes exactly that action against the
  * current tab. Headers are inert: Run stays disabled while one is selected.
- * The card is a plain {@link JList} view, so it works inside the 3D desktop's
+ * The card uses plain {@link JList}s, so it works inside the 3D desktop's
  * offscreen capture like every other in-panel surface.
  */
 public final class ExtensionsCard extends JPanel {
@@ -49,12 +53,37 @@ public final class ExtensionsCard extends JPanel {
 
         /** Returns to the editor card. */
         void closeCard();
+
+        /** @return one row per installed extension, for the management list. */
+        default List<ExtensionInfo> extensionInfos() {
+            return List.of();
+        }
+
+        /** Enables or disables an extension; the host refreshes the card. */
+        default void setExtensionEnabled(String id, boolean enabled) {
+            // no-op default keeps third-party hosts source-compatible
+        }
     }
 
     /**
-     * One row in the list: either a non-selectable category {@code header} or a
-     * runnable action bound to {@code actionIndex} in the host's flat action
-     * list (headers carry {@code -1}).
+     * One installed extension shown in the management list. {@code enabled}
+     * drives the bold / greyed rendering and the Enable vs Disable button.
+     */
+    public record ExtensionInfo(String id, String name, String version,
+                                String category, boolean enabled) {
+
+        @Override
+        public String toString() {
+            String v = (version == null || version.isBlank()) ? "" : " v" + version;
+            String cat = (category == null || category.isBlank()) ? "" : " \u2014 " + category;
+            return name + v + cat + "  [" + (enabled ? "Enabled" : "Disabled") + "]";
+        }
+    }
+
+    /**
+     * One row in the actions list: either a non-selectable category
+     * {@code header} or a runnable action bound to {@code actionIndex} in the
+     * host's flat action list (headers carry {@code -1}).
      */
     public record Row(String text, int actionIndex, boolean header) {
 
@@ -78,6 +107,11 @@ public final class ExtensionsCard extends JPanel {
     private final DefaultListModel<Row> model = new DefaultListModel<>();
     private final JList<Row> list = new JList<>(model);
     private final JButton runButton = new JButton("Run");
+
+    private final DefaultListModel<ExtensionInfo> extModel = new DefaultListModel<>();
+    private final JList<ExtensionInfo> extList = new JList<>(extModel);
+    private final JButton enableButton = new JButton("Enable");
+    private final JButton disableButton = new JButton("Disable");
 
     public ExtensionsCard(Host host) {
         this.host = host;
@@ -111,15 +145,43 @@ public final class ExtensionsCard extends JPanel {
         JButton back = new JButton("Back to Editor");
         back.addActionListener(e -> host.closeCard());
 
+        extList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        extList.setVisibleRowCount(16);
+        extList.setCellRenderer(new ExtensionRenderer());
+        extList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                refreshToggleButtons();
+            }
+        });
+        enableButton.addActionListener(e -> applyEnabled(true));
+        disableButton.addActionListener(e -> applyEnabled(false));
+
+        JPanel extButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        extButtons.add(enableButton);
+        extButtons.add(disableButton);
+        JPanel extensions = new JPanel(new BorderLayout(4, 4));
+        extensions.add(new JLabel("Installed Extensions"), BorderLayout.NORTH);
+        extensions.add(new JScrollPane(extList), BorderLayout.CENTER);
+        extensions.add(extButtons, BorderLayout.SOUTH);
+
+        JPanel actions = new JPanel(new BorderLayout(4, 4));
+        actions.add(new JLabel("Extension Actions, grouped by category "
+                + "(double-click to run)"), BorderLayout.NORTH);
+        actions.add(new JScrollPane(list), BorderLayout.CENTER);
+
+        JPanel columns = new JPanel(new GridLayout(1, 2, 8, 0));
+        columns.add(extensions);
+        columns.add(actions);
+
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         buttons.add(runButton);
         buttons.add(back);
 
-        add(new JLabel("Installed Extension Actions, grouped by category "
-                + "(double-click to run)"), BorderLayout.NORTH);
-        add(new JScrollPane(list), BorderLayout.CENTER);
+        add(columns, BorderLayout.CENTER);
         add(buttons, BorderLayout.SOUTH);
         runButton.setEnabled(false);
+        enableButton.setEnabled(false);
+        disableButton.setEnabled(false);
     }
 
     /** @return true when the row at {@code modelIndex} is a runnable action. */
@@ -130,7 +192,8 @@ public final class ExtensionsCard extends JPanel {
 
     /**
      * Replaces the shown entries with a flat, sequentially-indexed action list
-     * (no category headers); index order matches {@code labels}.
+     * (no category headers); index order matches {@code labels}. The management
+     * list is left untouched.
      */
     public void load(List<String> labels) {
         List<Row> rows = new ArrayList<>();
@@ -143,7 +206,7 @@ public final class ExtensionsCard extends JPanel {
         loadRows(rows);
     }
 
-    /** Replaces the shown entries with grouped rows (headers + actions). */
+    /** Replaces the shown action entries with grouped rows (headers + actions). */
     public void loadRows(List<Row> rows) {
         model.clear();
         if (rows != null) {
@@ -154,7 +217,21 @@ public final class ExtensionsCard extends JPanel {
         runButton.setEnabled(false);
     }
 
-    /** The number of runnable (non-header) entries shown (test seam). */
+    /** Replaces both views: the grouped action rows and the extension list. */
+    public void show(List<Row> rows, List<ExtensionInfo> infos) {
+        loadRows(rows);
+        extModel.clear();
+        if (infos != null) {
+            for (ExtensionInfo info : infos) {
+                extModel.addElement(info);
+            }
+        }
+        extList.clearSelection();
+        enableButton.setEnabled(false);
+        disableButton.setEnabled(false);
+    }
+
+    /** The number of runnable (non-header) action entries shown (test seam). */
     public int entryCount() {
         int n = 0;
         for (int i = 0; i < model.size(); i++) {
@@ -165,7 +242,12 @@ public final class ExtensionsCard extends JPanel {
         return n;
     }
 
-    /** Selects a list row programmatically (test seam); headers clear Run. */
+    /** The number of installed extensions shown in the management list. */
+    public int extensionCount() {
+        return extModel.size();
+    }
+
+    /** Selects an action row programmatically (test seam); headers clear Run. */
     public void select(int index) {
         if (index >= 0 && index < model.size()) {
             list.setSelectedIndex(index);
@@ -174,6 +256,39 @@ public final class ExtensionsCard extends JPanel {
             list.clearSelection();
             runButton.setEnabled(false);
         }
+    }
+
+    /** Selects an extension row programmatically (test seam). */
+    public void selectExtension(int index) {
+        if (index >= 0 && index < extModel.size()) {
+            extList.setSelectedIndex(index);
+        } else {
+            extList.clearSelection();
+        }
+        refreshToggleButtons();
+    }
+
+    /** Enables the selected extension (test seam mirroring the Enable button). */
+    final void enableSelectedExtension() {
+        applyEnabled(true);
+    }
+
+    /** Disables the selected extension (test seam mirroring the Disable button). */
+    final void disableSelectedExtension() {
+        applyEnabled(false);
+    }
+
+    private void applyEnabled(boolean enabled) {
+        ExtensionInfo selected = extList.getSelectedValue();
+        if (selected != null) {
+            host.setExtensionEnabled(selected.id(), enabled);
+        }
+    }
+
+    private void refreshToggleButtons() {
+        boolean hasSelection = extList.getSelectedIndex() >= 0;
+        enableButton.setEnabled(hasSelection);
+        disableButton.setEnabled(hasSelection);
     }
 
     /** Renders category headers bold and greyed, actions as normal rows. */
@@ -192,6 +307,22 @@ public final class ExtensionsCard extends JPanel {
                 label.setFont(label.getFont().deriveFont(Font.PLAIN));
                 label.setEnabled(true);
             }
+            return label;
+        }
+    }
+
+    /** Renders enabled extensions bold, disabled ones greyed. */
+    private static final class ExtensionRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> l, Object value,
+                int index, boolean selected, boolean focus) {
+            JLabel label = (JLabel) super.getListCellRendererComponent(
+                    l, value, index, selected, focus);
+            ExtensionInfo info = (ExtensionInfo) value;
+            label.setText(info.toString());
+            label.setEnabled(info.enabled());
+            label.setFont(label.getFont().deriveFont(
+                    info.enabled() ? Font.BOLD : Font.PLAIN));
             return label;
         }
     }

@@ -72,11 +72,13 @@ public final class FormatTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("fmt-tabs-to-spaces", "Tabs to Spaces",
-                        "Expand every tab into " + TAB_WIDTH + " spaces",
-                        () -> applyWhole(tabsToSpaces(currentText(), TAB_WIDTH), "Tabs expanded")),
+                        "Expand every tab into " + TAB_WIDTH + " spaces (Ctrl+Alt+M)",
+                        () -> applyWhole(tabsToSpaces(currentText(), TAB_WIDTH), "Tabs expanded"),
+                        "control alt M"),
                 new ToolbarContribution("fmt-spaces-to-tabs", "Spaces to Tabs",
-                        "Collapse leading spaces into tabs (groups of " + TAB_WIDTH + ")",
-                        () -> applyWhole(spacesToTabs(currentText(), TAB_WIDTH), "Indentation tabbed")),
+                        "Collapse leading spaces into tabs (groups of " + TAB_WIDTH + ") (Ctrl+Alt+N)",
+                        () -> applyWhole(spacesToTabs(currentText(), TAB_WIDTH), "Indentation tabbed"),
+                        "control alt N"),
                 new ToolbarContribution("fmt-lf", "Normalize Line Endings (LF)",
                         "Convert CRLF/CR endings to Unix LF",
                         () -> applyWhole(normalizeToLf(currentText()), "Line endings set to LF")),

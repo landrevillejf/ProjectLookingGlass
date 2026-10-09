@@ -72,8 +72,8 @@ public final class JavaDevTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("java-sort-imports", "Sort Imports",
-                        "Sort the import statements in place, keeping other lines fixed",
-                        this::sortImports),
+                        "Sort the import statements in place, keeping other lines fixed (Ctrl+Alt+C)",
+                        this::sortImports, "control alt C"),
                 new ToolbarContribution("java-escape", "Escape String Literal",
                         "Escape the selection for use inside a Java/Kotlin string literal",
                         () -> applyToSelection(JavaDevTools::escapeStringLiteral)),
@@ -81,11 +81,11 @@ public final class JavaDevTools implements TextEditorExtension {
                         "Expand Java/Kotlin escape sequences in the selection",
                         () -> applyToSelection(JavaDevTools::unescapeStringLiteral)),
                 new ToolbarContribution("java-comment", "Comment Out Lines",
-                        "Prefix every selected line with // (indentation preserved)",
-                        () -> applyToSelection(JavaDevTools::commentOut)),
+                        "Prefix every selected line with // (indentation preserved) (Ctrl+Alt+J)",
+                        () -> applyToSelection(JavaDevTools::commentOut), "control alt J"),
                 new ToolbarContribution("java-uncomment", "Uncomment Lines",
-                        "Remove one leading // from every selected line",
-                        () -> applyToSelection(JavaDevTools::uncomment))
+                        "Remove one leading // from every selected line (Ctrl+Alt+K)",
+                        () -> applyToSelection(JavaDevTools::uncomment), "control alt K")
         );
     }
 

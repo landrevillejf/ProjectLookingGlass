@@ -42,6 +42,7 @@ import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
 
 /**
  * The Advanced Text Editor: a production plain-text and source-code editor
@@ -101,10 +102,15 @@ public class AdvancedTextEditorPanel extends JPanel
      * appear after these.
      */
     private static final List<String> PREFERRED_CATEGORIES = List.of(
-            "Text", "Code", "Java/Kotlin", "Web", "Analysis", "General");
+            "Text", "Code", "Java/Kotlin", "Web", "Encoding", "Markdown",
+            "Analysis", "General");
 
-    /** One action contributed by one extension, tagged with its category. */
-    record ExtensionAction(String category, String extension, String label, Runnable run) {
+    /**
+     * One action contributed by one extension, tagged with its category, the
+     * owning contribution id and its (optional) keyboard accelerator.
+     */
+    record ExtensionAction(String category, String extension, String id, String label,
+                           String accelerator, Runnable run) {
     }
 
     private final boolean persistEnabled;
@@ -119,6 +125,10 @@ public class AdvancedTextEditorPanel extends JPanel
     private final ExtensionsCard extensionsCard;
     private final EditorStatusBar statusBar = new EditorStatusBar();
     private final List<ExtensionAction> extensionActions = new ArrayList<>();
+    /** Accelerator KeyStrokes bound by the last {@link #bindAccelerators()} pass. */
+    private final List<KeyStroke> boundAccelerators = new ArrayList<>();
+    /** ActionMap names bound by the last {@link #bindAccelerators()} pass. */
+    private final List<String> boundAcceleratorNames = new ArrayList<>();
     private final ExtensionRegistry extensionRegistry;
     private final ExtensionBroker extensionBroker;
     private final Timer messageTimer;
@@ -917,7 +927,7 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     private void showExtensions() {
-        extensionsCard.loadRows(buildExtensionRows());
+        extensionsCard.show(buildExtensionRows(), extensionInfos());
         cards.show(center, CARD_EXTENSIONS);
     }
 
@@ -951,8 +961,12 @@ public class AdvancedTextEditorPanel extends JPanel
         for (int i = 0; i < extensionActions.size(); i++) {
             ExtensionAction action = extensionActions.get(i);
             if (action.category().equals(category)) {
-                body.add(ExtensionsCard.Row.action(
-                        action.extension() + ": " + action.label(), i));
+                String text = action.extension() + ": " + action.label();
+                String accel = formatAccelerator(action.accelerator());
+                if (!accel.isEmpty()) {
+                    text += "  (" + accel + ")";
+                }
+                body.add(ExtensionsCard.Row.action(text, i));
             }
         }
         if (body.isEmpty()) {
@@ -1014,6 +1028,53 @@ public class AdvancedTextEditorPanel extends JPanel
         refreshStatus();
     }
 
+    @Override
+    public List<ExtensionsCard.ExtensionInfo> extensionInfos() {
+        List<ExtensionsCard.ExtensionInfo> out = new ArrayList<>();
+        for (ExtensionRegistry.LoadedExtension le : extensionRegistry.extensions()) {
+            TextEditorManifest m = le.getManifest();
+            out.add(new ExtensionsCard.ExtensionInfo(m.getId(), m.getName(),
+                    m.getVersion(), normalizeCategory(le.getExtension().category()),
+                    le.isEnabled()));
+        }
+        return out;
+    }
+
+    @Override
+    public void setExtensionEnabled(String id, boolean enabled) {
+        extensionRegistry.setEnabled(id, enabled);
+        refreshExtensionBindings();
+    }
+
+    /** Test seam: is the given accelerator spec currently bound to an extension action? */
+    final boolean isAcceleratorBound(String spec) {
+        KeyStroke ks = KeyStroke.getKeyStroke(spec);
+        return ks != null && boundAccelerators.contains(ks);
+    }
+
+    private static String normalizeCategory(String category) {
+        return (category == null || category.isBlank()) ? "General" : category.trim();
+    }
+
+    /** Renders a KeyStroke spec such as {@code "control alt S"} as {@code "Ctrl+Alt+S"}. */
+    static String formatAccelerator(String spec) {
+        if (spec == null || spec.isBlank()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (String token : spec.trim().split("\\s+")) {
+            switch (token.toLowerCase()) {
+                case "control" -> parts.add("Ctrl");
+                case "alt" -> parts.add("Alt");
+                case "shift" -> parts.add("Shift");
+                case "meta" -> parts.add("Meta");
+                default -> parts.add(Character.toUpperCase(token.charAt(0))
+                        + token.substring(1));
+            }
+        }
+        return String.join("+", parts);
+    }
+
     // ------------------------------------------------------------------
     // Extensions
     // ------------------------------------------------------------------
@@ -1021,11 +1082,80 @@ public class AdvancedTextEditorPanel extends JPanel
     private void installExtensions() {
         extensionRegistry.scan();
         extensionBroker.notifyStarted();
+        loadExtensionActions();
+        bindAccelerators();
+    }
+
+    /**
+     * Rebuilds the flat {@link #extensionActions} list from the broker's
+     * currently-enabled contributions. Called at startup and again whenever an
+     * extension is enabled or disabled, so the list stays in step with the
+     * registry. The list order is the broker (services-file) order, which keeps
+     * {@link #runExtensionAction(int)} indices stable.
+     */
+    private void loadExtensionActions() {
+        extensionActions.clear();
         for (ExtensionBroker.ContributedAction ca
                 : extensionBroker.categorizedActions()) {
             extensionActions.add(new ExtensionAction(ca.category(), ca.extension(),
-                    ca.contribution().getLabel(), ca.contribution().getAction()));
+                    ca.contribution().getId(), ca.contribution().getLabel(),
+                    ca.contribution().getAccelerator(), ca.contribution().getAction()));
         }
+    }
+
+    /**
+     * Binds every declared extension accelerator as a keyboard shortcut on the
+     * shared {@code center} input map (the same map as {@link #bindPanelKeys()}).
+     * Pressing a shortcut runs the action directly from the editor &mdash; no
+     * need to open the Extensions card. Old bindings are cleared first so that
+     * toggling an extension re-binds cleanly; the first action claiming a given
+     * KeyStroke wins (later duplicates are skipped, never silently overriding).
+     */
+    private void bindAccelerators() {
+        InputMap input = center.getInputMap(
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        ActionMap actions = center.getActionMap();
+        for (KeyStroke ks : boundAccelerators) {
+            input.remove(ks);
+        }
+        for (String name : boundAcceleratorNames) {
+            actions.remove(name);
+        }
+        boundAccelerators.clear();
+        boundAcceleratorNames.clear();
+        java.util.Set<KeyStroke> used = new java.util.HashSet<>();
+        for (int i = 0; i < extensionActions.size(); i++) {
+            ExtensionAction action = extensionActions.get(i);
+            String spec = action.accelerator();
+            if (spec == null || spec.isBlank()) {
+                continue;
+            }
+            KeyStroke ks = KeyStroke.getKeyStroke(spec);
+            if (ks == null || !used.add(ks)) {
+                continue; // invalid spec, or already claimed by an earlier action
+            }
+            String name = "ext-accel:" + action.id();
+            final int index = i;
+            input.put(ks, name);
+            actions.put(name, new AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    runExtensionAction(index);
+                }
+            });
+            boundAccelerators.add(ks);
+            boundAcceleratorNames.add(name);
+        }
+    }
+
+    /**
+     * Re-runs the action list and accelerator bindings after an enable/disable
+     * toggle, then refreshes the Extensions card so both views agree.
+     */
+    private void refreshExtensionBindings() {
+        loadExtensionActions();
+        bindAccelerators();
+        showExtensions();
     }
 
     /** How many extension actions were registered (test seam). */

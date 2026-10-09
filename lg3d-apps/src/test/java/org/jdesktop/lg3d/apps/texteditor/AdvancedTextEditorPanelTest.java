@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import javax.swing.text.BadLocationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,12 +64,37 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 31 toolbar actions")
+    @DisplayName("the bundled extensions install their 37 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
         // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
-        assertEquals(31, panel.extensionActionCount());
+        // + Base64 Tools 2 + Markdown Tools 4
+        assertEquals(37, panel.extensionActionCount());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extension accelerators bind to the editor input map")
+    void extensionAcceleratorsBound() {
+        AdvancedTextEditorPanel panel = newPanel();
+        // Declared by BuiltinTextTools sort-az and CodeTools indent, respectively.
+        assertTrue(panel.isAcceleratorBound("control alt A"));
+        assertTrue(panel.isAcceleratorBound("control alt R"));
+        // Actions that declared no accelerator bind nothing (O is unused).
+        assertFalse(panel.isAcceleratorBound("control alt O"));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extensionInfos lists every installed extension as enabled")
+    void extensionInfosListed() {
+        AdvancedTextEditorPanel panel = newPanel();
+        List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
+        assertEquals(9, infos.size());
+        assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
+                "built-in extensions start enabled");
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.markdown-tools")));
         panel.dispose();
     }
 

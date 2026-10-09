@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Advanced Text Editor: extension accelerators, an enable/disable manager and
+  two more dev extensions** (`lg3d-apps`) — purely additive follow-up to the
+  category grouping below. A `ToolbarContribution` can now carry an optional
+  `accelerator` (a `KeyStroke` spec such as `"control alt A"`); the panel binds
+  every declared accelerator on the editor's own input map, so an action runs
+  with a quick keystroke straight from the text area without flipping to the
+  Extensions card (the chosen `Ctrl+Alt+<key>` range never collides with the
+  editor's `Ctrl+…` bindings; the first action to claim a KeyStroke wins and
+  later duplicates are skipped). Bundled actions gain mnemonic defaults across
+  every category. The `ExtensionsCard` shows the accelerator next to each action
+  and grows a left-hand list of installed extensions with **Enable/Disable**
+  buttons — a new `Host.extensionInfos()` / `setExtensionEnabled(id, boolean)`
+  pair (default methods, so third-party hosts stay source-compatible); toggling
+  re-scans the enabled set, rebuilds the flat action list and re-binds the
+  accelerators, so `runExtensionAction(0)` stays "Sort Lines (A-Z)". Two more
+  bundled providers join the seven: **Base64 Tools** (`lg3d.base64-tools`,
+  category `Encoding`) encodes/decodes the selection as Base64 (malformed input
+  is returned unchanged, never thrown); **Markdown Tools** (`lg3d.markdown-tools`,
+  category `Markdown`) toggles `**bold**`, `*italic*`, `` `inline code` `` and
+  `- ` bullet lists on the selection, each an idempotent two-way switch. The
+  curated category order gains Encoding and Markdown, and the toolbar now
+  carries **37 actions across nine providers**. Covered by two new headless
+  suites (`Base64ToolsTest`, `MarkdownToolsTest`) plus panel accelerator /
+  `extensionInfos` tests and a card Enable/Disable test; the whole module build
+  stays green.
 - **Advanced Text Editor: extensions grouped by category + Java/Kotlin & Web
   dev extensions** (`lg3d-apps`) — the extension manager (`ExtensionsCard`) now
   files every contributed action under a bold, inert category header instead of
@@ -28,8 +53,8 @@ work to make it build and run on a current toolchain.
   `Code`) converts tabs↔spaces and normalises line endings to LF or CRLF. Every
   new transform is a pure `String` static covered by three more headless JUnit 5
   suites (`JavaDevToolsTest`, `WebToolsTest`, `FormatToolsTest`) plus a
-  grouped-card test; the existing extensions gained categories, so the toolbar
-  now carries 31 actions across seven providers. All additive — no panel, broker
+  grouped-card test; the existing extensions gained categories, grouping them
+  across the bundled providers. All additive — no panel, broker
   or existing extension behaviour is scrapped.
 - **Advanced Text Editor: three new bundled extensions** (`lg3d-apps`) — the
   editor's `TextEditorExtension` plug-in surface (discovered via `ServiceLoader`

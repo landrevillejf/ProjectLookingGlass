@@ -5,3 +5,5 @@ org.jdesktop.lg3d.apps.texteditor.TextStatsTool
 org.jdesktop.lg3d.apps.texteditor.JavaDevTools
 org.jdesktop.lg3d.apps.texteditor.WebTools
 org.jdesktop.lg3d.apps.texteditor.FormatTools
+org.jdesktop.lg3d.apps.texteditor.Base64Tools
+org.jdesktop.lg3d.apps.texteditor.MarkdownTools

@@ -83,8 +83,8 @@ public final class TextStatsTool implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("stats-report", "Report Statistics",
-                        "Show line, word and character counts",
-                        this::reportCurrent)
+                        "Show line, word and character counts (Ctrl+Alt+I)",
+                        this::reportCurrent, "control alt I")
         );
     }
 

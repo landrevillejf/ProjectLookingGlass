@@ -71,20 +71,20 @@ public final class CaseTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("case-title", "Title Case",
-                        "Capitalize The First Letter Of Every Word",
-                        this::title),
+                        "Capitalize The First Letter Of Every Word (Ctrl+Alt+1)",
+                        this::title, "control alt 1"),
                 new ToolbarContribution("case-sentence", "Sentence case",
                         "Capitalize The First Letter Only",
                         this::sentence),
                 new ToolbarContribution("case-camel", "camelCase",
-                        "Join The Words As camelCase",
-                        this::camel),
+                        "Join The Words As camelCase (Ctrl+Alt+2)",
+                        this::camel, "control alt 2"),
                 new ToolbarContribution("case-snake", "snake_case",
-                        "Join The Words As snake_case",
-                        this::snake),
+                        "Join The Words As snake_case (Ctrl+Alt+3)",
+                        this::snake, "control alt 3"),
                 new ToolbarContribution("case-kebab", "kebab-case",
-                        "Join The Words As kebab-case",
-                        this::kebab)
+                        "Join The Words As kebab-case (Ctrl+Alt+4)",
+                        this::kebab, "control alt 4")
         );
     }
 

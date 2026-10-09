@@ -77,17 +77,21 @@ public final class BuiltinTextTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("sort-az", "Sort Lines (A-Z)",
-                        "Sort all lines alphabetically A-Z", this::sortAZ),
+                        "Sort all lines alphabetically A-Z (Ctrl+Alt+A)",
+                        this::sortAZ, "control alt A"),
                 new ToolbarContribution("sort-za", "Sort Lines (Z-A)",
                         "Sort all lines alphabetically Z-A", this::sortZA),
                 new ToolbarContribution("strip-trailing", "Remove Trailing Whitespace",
-                        "Remove spaces and tabs at end of each line", this::stripTrailing),
+                        "Remove spaces and tabs at end of each line (Ctrl+Alt+T)",
+                        this::stripTrailing, "control alt T"),
                 new ToolbarContribution("timestamp", "Insert Timestamp",
                         "Insert current date and time", this::insertTimestamp),
                 new ToolbarContribution("upper", "UPPERCASE Selection",
-                        "Convert selection to uppercase", this::toUpper),
+                        "Convert selection to uppercase (Ctrl+Alt+U)",
+                        this::toUpper, "control alt U"),
                 new ToolbarContribution("lower", "lowercase Selection",
-                        "Convert selection to lowercase", this::toLower)
+                        "Convert selection to lowercase (Ctrl+Alt+L)",
+                        this::toLower, "control alt L")
         );
     }
 

@@ -238,4 +238,47 @@ class EditorWidgetsTest {
         card.select(1); // an action row
         assertTrue(runs.isEmpty(), "selecting must not run anything");
     }
+
+    @Test
+    @DisplayName("the extensions card toggles enable state for the selected extension")
+    void extensionsCardManagement() {
+        final List<String> changes = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public void setExtensionEnabled(String id, boolean enabled) {
+                changes.add(id + "=" + enabled);
+            }
+        });
+        card.show(
+                List.of(ExtensionsCard.Row.action("Base64 Tools: Encode Base64", 0)),
+                List.of(
+                        new ExtensionsCard.ExtensionInfo("lg3d.base64-tools",
+                                "Base64 Tools", "1.0.0", "Encoding", true),
+                        new ExtensionsCard.ExtensionInfo("lg3d.markdown-tools",
+                                "Markdown Tools", "1.0.0", "Markdown", false)));
+        assertEquals(1, card.entryCount());
+        assertEquals(2, card.extensionCount());
+
+        // No selection: the toggle buttons do nothing.
+        card.selectExtension(-1);
+        card.enableSelectedExtension();
+        assertTrue(changes.isEmpty());
+
+        card.selectExtension(0);
+        card.disableSelectedExtension();
+        assertEquals(List.of("lg3d.base64-tools=false"), changes);
+
+        card.selectExtension(1);
+        card.enableSelectedExtension();
+        assertEquals(List.of("lg3d.base64-tools=false", "lg3d.markdown-tools=true"),
+                changes);
+    }
 }
