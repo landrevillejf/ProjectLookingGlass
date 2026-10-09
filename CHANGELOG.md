@@ -10,6 +10,14 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
+  user-facing name: the Start Menu shows **Espresso** under Office, the 3D
+  window title (and the 2D MDI frame title, which follows the menu item) is
+  **Espresso**, and the descriptor tooltip reads "Espresso: edit text and
+  source files…". Internal identifiers are unchanged on purpose
+  (`org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditor[Panel]`, the
+  `texteditor.lgcfg` descriptor and the `text-editor.png` icon), so file
+  associations, launcher commands and existing preferences keep working.
 - **Advanced Text Editor: west project tree and south output console**
   (`lg3d-apps`) — the editor window is now two `JSplitPane`s around the tabs:
   a south **`OutputConsole`** (read-only monospaced transcript, `---- title ----`

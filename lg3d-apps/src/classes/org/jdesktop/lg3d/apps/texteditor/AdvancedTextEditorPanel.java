@@ -49,8 +49,8 @@ import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 
 /**
- * The Advanced Text Editor: a production plain-text and source-code editor
- * for the lg3d desktop, built as one plain-Swing panel that serves both
+ * Espresso, the Advanced Text Editor: a production plain-text and source-code
+ * editor for the lg3d desktop, built as one plain-Swing panel that serves both
  * desktops. In the 3D desktop the {@link AdvancedTextEditor} wrapper hosts it
  * on a {@code SwingNode} inside a {@code Frame3D} through
  * {@code TitledSwingWindow}; in the 2D/Swing desktop
