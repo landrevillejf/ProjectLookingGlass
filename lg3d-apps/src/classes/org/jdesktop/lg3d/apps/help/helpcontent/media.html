@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Music, Photos and Video</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Music, Photos and Video</h1>
+
+  <p>
+    The <strong>Media</strong> group of the
+    <a href="start-menu.html">Start Menu</a> covers everything from playing a song
+    or a film to editing a photo, recording a screencast, tuning a guitar and
+    burning a disc. Most of these are plain Swing applications that run in the 3D
+    desktop and in the <a href="desktop-2d.html">2D and Swing desktops</a>.
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> The JDK has no MP3, video or screen-recording codec of
+    its own. Where a format needs one, these applications play or capture it in
+    process only for the JDK-native cases and otherwise <em>delegate</em> to a real
+    external tool you already have (for example <code>mpv</code>,
+    <code>vlc</code>, <code>ffplay</code>, <code>ffmpeg</code>). If the tool is not
+    installed the app says so rather than failing silently.
+  </div>
+
+  <h2>Audio Player</h2>
+  <p>
+    <strong>Audio Player</strong> plays music, internet radio and podcasts, rips
+    audio CDs, and browses your albums by cover. It plays the JDK-native formats
+    (WAV, AU, AIFF) in process and hands MP3, other codecs and every network stream
+    to an external player.
+  </p>
+
+  <h2>Video Player</h2>
+  <p>
+    <strong>Video Player</strong> is a VLC-style front end for movies, streams and
+    discs. It manages a library and hands each file, stream or disc to a real
+    external player (<code>vlc</code>, <code>mpv</code>, <code>mplayer</code>,
+    <code>totem</code> or <code>ffplay</code>).
+  </p>
+
+  <h2>Photo Viewer</h2>
+  <p>
+    <strong>Photo Viewer</strong> is a tagged gallery built on plain Java 2D /
+    ImageIO. It shows a thumbnail grid and a preview, and lets you tag and rate
+    your photos; the library is stored as JSON.
+  </p>
+
+  <h2>Image Editor</h2>
+  <p>
+    <strong>Image Editor</strong> is a GIMP-style workspace built entirely on Java
+    2D: a canvas, a layers panel, drawing tools, filters and an undo stack. It
+    needs no codec and no external tool.
+  </p>
+
+  <h2>Recorder</h2>
+  <p>
+    <strong>Recorder</strong> captures audio and the screen. Microphone audio is
+    recorded natively to WAV; screen capture is handed to an external
+    <code>ffmpeg</code> / <code>avconv</code>. Recordings and their settings are
+    kept as JSON.
+  </p>
+
+  <h2>Tuner</h2>
+  <p>
+    <strong>Tuner</strong> tunes a guitar or bass from the microphone. Pitch
+    detection (the YIN algorithm) runs genuinely in process: it opens the default
+    capture line and streams audio into the detector, so there is nothing to
+    install. No capture device is opened until you press <em>Start</em>.
+  </p>
+
+  <h2>Media Writer</h2>
+  <p>
+    <strong>Media Writer</strong> burns CD / DVD images and writes or clones USB
+    keys &mdash; the tool you would use to make a bootable drive.
+  </p>
+
+  <h2>Paint and Image Studio</h2>
+  <p>
+    <strong>Paint</strong> is a simple drawing application; because it shows its
+    own conventional window it runs <em>beside</em> the 2D desktop rather than
+    inside it. <strong>Image Studio</strong> is a Java Advanced Imaging (JAI) editor
+    that runs only in the 3D desktop.
+  </p>
+
+  <h2>At a glance</h2>
+  <table>
+    <tr><th>Application</th><th>What it does</th><th>3D</th><th>2D</th></tr>
+    <tr><td>Audio Player</td><td>Music, radio, podcasts; rip audio CDs.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Video Player</td><td>Movies, streams and discs via an external player.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Photo Viewer</td><td>Browse and tag your photo gallery.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Image Editor</td><td>Layers, tools and filters (Java 2D).</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Recorder</td><td>Record audio and capture the screen.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Tuner</td><td>Tune a guitar or bass from the microphone.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Media Writer</td><td>Burn CD/DVD; write or clone USB keys.</td>
+        <td>Yes</td><td>Yes</td></tr>
+    <tr><td>Paint</td><td>Simple drawing application.</td>
+        <td>Yes</td><td>Beside</td></tr>
+    <tr><td>Image Studio</td><td>JAI image editor.</td>
+        <td>Yes</td><td>No</td></tr>
+  </table>
+  <p>
+    &ldquo;Beside&rdquo; means the app shows its own conventional window next to the
+    2D desktop rather than as an internal frame inside it; &ldquo;No&rdquo; means it
+    needs the 3D desktop.
+  </p>
+
+  <div class="nav">
+    Next: <a href="productivity.html">Office and Productivity</a>
+  </div>
+</body>
+</html>

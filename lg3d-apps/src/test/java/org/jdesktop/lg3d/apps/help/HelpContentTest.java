@@ -46,7 +46,8 @@ class HelpContentTest {
     /** Every target declared in map.jhm and referenced by toc.xml / index.xml. */
     private static final String[] TARGETS = {
         "overview", "getting-started", "desktop-tour", "windows", "start-menu",
-        "taskbar", "widgets", "gestures", "desktop-2d", "apps", "customizing",
+        "taskbar", "widgets", "gestures", "desktop-2d", "apps", "internet",
+        "security-privacy", "media", "productivity", "customizing",
         "package-management", "troubleshooting", "about",
     };
 
@@ -55,8 +56,10 @@ class HelpContentTest {
         "lg3d-help.hs", "map.jhm", "toc.xml", "index.xml", "lg3d-help.css",
         "overview.html", "getting-started.html", "desktop-tour.html",
         "windows.html", "start-menu.html", "taskbar.html", "widgets.html",
-        "gestures.html", "desktop-2d.html", "apps.html", "customizing.html",
-        "package-management.html", "troubleshooting.html", "about.html",
+        "gestures.html", "desktop-2d.html", "apps.html", "internet.html",
+        "security-privacy.html", "media.html", "productivity.html",
+        "customizing.html", "package-management.html", "troubleshooting.html",
+        "about.html",
     };
 
     private static final String CONTENT_PREFIX =

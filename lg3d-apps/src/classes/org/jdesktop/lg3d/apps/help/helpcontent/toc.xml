@@ -16,6 +16,10 @@
     <tocitem text="Mouse Gestures and Navigation" target="gestures"/>
     <tocitem text="The 2D and Swing Desktops" target="desktop-2d"/>
     <tocitem text="Built-in Applications" target="apps"/>
+    <tocitem text="Internet and the Web" target="internet"/>
+    <tocitem text="Security and Privacy" target="security-privacy"/>
+    <tocitem text="Music, Photos and Video" target="media"/>
+    <tocitem text="Office and Productivity" target="productivity"/>
     <tocitem text="Customizing the Desktop" target="customizing"/>
     <tocitem text="Managing Packages" target="package-management"/>
     <tocitem text="Troubleshooting and FAQ" target="troubleshooting"/>

@@ -7,33 +7,55 @@
 <index version="2.0">
   <indexitem text="2D desktop" target="desktop-2d"/>
   <indexitem text="About (application)" target="apps"/>
+  <indexitem text="address book" target="productivity"/>
+  <indexitem text="Agenda" target="productivity"/>
   <indexitem text="Alt+F2 (run command)" target="desktop-2d"/>
+  <indexitem text="antivirus" target="security-privacy"/>
   <indexitem text="applications">
     <indexitem text="built-in apps, overview" target="apps"/>
     <indexitem text="launching, from the start menu" target="start-menu"/>
   </indexitem>
+  <indexitem text="Audio Player" target="media"/>
   <indexitem text="background, 3D model" target="customizing"/>
+  <indexitem text="backup" target="security-privacy"/>
   <indexitem text="battery indicator" target="desktop-2d"/>
+  <indexitem text="bookmarks" target="internet"/>
   <indexitem text="bookshelf, parking windows" target="windows"/>
+  <indexitem text="browser, web" target="internet"/>
   <indexitem text="calculator" target="apps"/>
   <indexitem text="calendar, taskbar clock" target="desktop-2d"/>
   <indexitem text="close a window" target="windows"/>
+  <indexitem text="Contacts" target="productivity"/>
   <indexitem text="control center" target="customizing"/>
+  <indexitem text="corner logo" target="customizing"/>
   <indexitem text="desktop tour" target="desktop-tour"/>
   <indexitem text="dock, see taskbar" target="taskbar"/>
+  <indexitem text="downloads, browser" target="internet"/>
+  <indexitem text="extensions, browser" target="internet"/>
+  <indexitem text="file associations" target="customizing"/>
   <indexitem text="file manager" target="apps"/>
+  <indexitem text="find in page" target="internet"/>
+  <indexitem text="firewall" target="security-privacy"/>
   <indexitem text="flip a window" target="windows"/>
+  <indexitem text="frosted glass" target="customizing"/>
+  <indexitem text="FTP client" target="internet"/>
   <indexitem text="full-screen mode" target="getting-started"/>
   <indexitem text="gestures, mouse" target="gestures"/>
   <indexitem text="getting started" target="getting-started"/>
   <indexitem text="help center" target="overview"/>
+  <indexitem text="icon packs" target="customizing"/>
+  <indexitem text="image editor" target="media"/>
   <indexitem text="index (this navigator)" target="overview"/>
+  <indexitem text="Instant Messenger" target="internet"/>
   <indexitem text="internal frames (2D desktop)" target="desktop-2d"/>
   <indexitem text="keyboard shortcuts" target="desktop-2d"/>
+  <indexitem text="kill switch" target="security-privacy"/>
   <indexitem text="launching applications" target="start-menu"/>
   <indexitem text="license" target="about"/>
   <indexitem text="LPM Console" target="package-management"/>
+  <indexitem text="Mail" target="internet"/>
   <indexitem text="maximize a window" target="windows"/>
+  <indexitem text="media players" target="media"/>
   <indexitem text="menu groups" target="start-menu"/>
   <indexitem text="minimize a window" target="windows"/>
   <indexitem text="move a window" target="windows"/>
@@ -43,21 +65,39 @@
   <indexitem text="overview" target="overview"/>
   <indexitem text="package management" target="package-management"/>
   <indexitem text="park a window" target="windows"/>
+  <indexitem text="password manager" target="security-privacy"/>
+  <indexitem text="PDF viewer" target="productivity"/>
+  <indexitem text="photo viewer" target="media"/>
+  <indexitem text="Private (Tor) mode" target="security-privacy"/>
+  <indexitem text="reader mode" target="internet"/>
+  <indexitem text="recorder" target="media"/>
+  <indexitem text="remote desktop" target="internet"/>
   <indexitem text="rotate a window" target="windows"/>
+  <indexitem text="rounded corners" target="customizing"/>
   <indexitem text="run command dialog" target="desktop-2d"/>
   <indexitem text="search (navigator)" target="overview"/>
+  <indexitem text="search engines" target="internet"/>
+  <indexitem text="Security Center" target="security-privacy"/>
   <indexitem text="session restore" target="desktop-2d"/>
   <indexitem text="snapping windows to edges" target="desktop-2d"/>
+  <indexitem text="SSH client" target="internet"/>
   <indexitem text="start menu" target="start-menu"/>
   <indexitem text="start menu search" target="desktop-2d"/>
   <indexitem text="swing desktop" target="desktop-2d"/>
   <indexitem text="system indicators" target="desktop-2d"/>
   <indexitem text="task manager" target="apps"/>
   <indexitem text="taskbar" target="taskbar"/>
+  <indexitem text="themes" target="customizing"/>
   <indexitem text="thumbnails" target="taskbar"/>
+  <indexitem text="Tor" target="security-privacy"/>
   <indexitem text="troubleshooting" target="troubleshooting"/>
+  <indexitem text="tuner" target="media"/>
+  <indexitem text="video conference" target="internet"/>
+  <indexitem text="video player" target="media"/>
   <indexitem text="volume indicator" target="desktop-2d"/>
+  <indexitem text="VPN" target="security-privacy"/>
   <indexitem text="wallpapers" target="customizing"/>
+  <indexitem text="web browser" target="internet"/>
   <indexitem text="widgets, desktop" target="widgets"/>
   <indexitem text="window decoration" target="windows"/>
   <indexitem text="window switcher" target="desktop-2d"/>

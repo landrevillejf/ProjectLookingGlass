@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html lang="en">
+<head>
+  <title>Internet and the Web</title>
+  <link rel="stylesheet" type="text/css" href="lg3d-help.css">
+</head>
+<body>
+  <h1>Internet and the Web</h1>
+
+  <p>
+    The <strong>Internet</strong> group of the
+    <a href="start-menu.html">Start Menu</a> holds the desktop's networked
+    applications: a full-featured web browser, a real mail client, chat, video
+    conferencing, file transfer, secure shell, remote desktops and a VPN tunnel.
+    Every one of them is a plain Swing application, so each runs both in the 3D
+    desktop and as an internal frame in the
+    <a href="desktop-2d.html">2D and Swing desktops</a>.
+  </p>
+
+  <table>
+    <tr><th>Application</th><th>What it does</th></tr>
+    <tr><td>Web Browser</td><td>Tabbed browsing over the JavaFX WebKit engine.</td></tr>
+    <tr><td>Mail</td><td>A real IMAP / SMTP mail client.</td></tr>
+    <tr><td>Instant Messenger</td><td>Multi-protocol chat (a native IRC client plus bridges).</td></tr>
+    <tr><td>Video Conference</td><td>Join and host Jitsi Meet calls.</td></tr>
+    <tr><td>FTP Client</td><td>Transfer files over FTP, FTPS and SFTP.</td></tr>
+    <tr><td>SSH Client</td><td>Terminal sessions over SSH.</td></tr>
+    <tr><td>Remote Viewer</td><td>Share and view remote desktops, with clipboard sync and file transfer.</td></tr>
+    <tr><td>VPN</td><td>Connect to a private network (see <a href="security-privacy.html">Security and Privacy</a>).</td></tr>
+  </table>
+
+  <h2>The Web Browser</h2>
+  <p>
+    The Web Browser is a daily-driver, tabbed browser built on the JavaFX
+    <em>WebView</em> (WebKit) engine. It resolves what you type in the address bar
+    intelligently: a web address is opened directly, host-like text is prefixed
+    with <code>https://</code>, and anything else is handed to your chosen search
+    engine.
+  </p>
+
+  <div class="note">
+    <strong>Note:</strong> The browser looks different in each desktop, on
+    purpose. In the <a href="desktop-2d.html">2D and Swing desktops</a> the Start
+    Menu entry opens the <em>full interactive browser</em> inside an internal
+    frame. In the 3D desktop it opens a branded <em>preview</em> card whose
+    <strong>Open Full Browser</strong> button launches the real browser in its own
+    window &mdash; because a WebKit surface cannot be painted into a 3D texture.
+    Either way you end up with the same browser.
+  </div>
+
+  <h3>Tabs and navigation</h3>
+  <p>
+    The toolbar carries <em>back</em>, <em>forward</em>, <em>reload</em>,
+    <em>stop</em> and <em>home</em>, and the tab strip gives each tab its own
+    close button. Common actions have keyboard shortcuts:
+  </p>
+  <table>
+    <tr><th>Keys</th><th>Action</th></tr>
+    <tr><td><code>Ctrl+T</code></td><td>Open a new tab.</td></tr>
+    <tr><td><code>Ctrl+W</code></td><td>Close the current tab.</td></tr>
+    <tr><td><code>Ctrl+L</code></td><td>Jump to the address bar.</td></tr>
+    <tr><td><code>Ctrl+R</code></td><td>Reload the page.</td></tr>
+    <tr><td><code>Ctrl+F</code></td><td>Open the find bar.</td></tr>
+    <tr><td><code>Ctrl+Tab</code> / <code>Ctrl+Shift+Tab</code></td>
+        <td>Next / previous tab.</td></tr>
+  </table>
+
+  <h3>Search engines</h3>
+  <p>
+    Eight search engines are built in and selectable from the browser settings:
+    <strong>DuckDuckGo</strong> (the default), <strong>Google</strong>,
+    <strong>Bing</strong>, <strong>Startpage</strong>, <strong>Brave
+    Search</strong>, <strong>Ecosia</strong>, <strong>Mojeek</strong> and
+    <strong>Wikipedia</strong>.
+  </p>
+
+  <h3>Find in page</h3>
+  <p>
+    Press <code>Ctrl+F</code> (or click <em>Find</em>) to dock an inline find bar.
+    Every match is highlighted and the bar shows a live &ldquo;n of m&rdquo;
+    count; <code>Enter</code> jumps to the next match, <code>Shift+Enter</code> to
+    the previous, and <code>Esc</code> closes the bar and clears the highlights.
+  </p>
+
+  <h3>Reader mode</h3>
+  <p>
+    Click <strong>Reader</strong> to extract the main article from the current page
+    and reopen it, clean and ad-free, in a new tab &mdash; handy for long-form
+    reading and for printing.
+  </p>
+
+  <h3>The address-bar security indicator</h3>
+  <p>
+    A clickable indicator beside the address bar classifies the current site as
+    <em>secure</em> (HTTPS), <em>not secure</em>, <em>local</em> or
+    <em>internal</em>. Click it to open a site-information popup showing the
+    connection security, host and scheme, the JavaScript and cookie state, and how
+    many navigations and pop-ups the browser blocked for that site.
+  </p>
+
+  <h3>Bookmarks, history and downloads</h3>
+  <ul>
+    <li><strong>Bookmarks</strong> &mdash; star a page to bookmark it; the
+        bookmarks menu reopens it. Bookmarks are stored by address, so starring the
+        same page twice does not duplicate it.</li>
+    <li><strong>History</strong> &mdash; recently visited pages are recorded
+        (de-duplicated and capped). Clear it from the browser settings.</li>
+    <li><strong>Downloads</strong> &mdash; non-renderable content downloads with a
+        progress bar and a per-row <em>Cancel</em> button. Stalled downloads time
+        out rather than hanging forever.</li>
+  </ul>
+
+  <h3>Settings, privacy and extensions</h3>
+  <p>
+    The settings dialog controls JavaScript, cookies, the user agent, page and
+    download timeouts, and offers <strong>Clear history</strong> and
+    <strong>Clear cookies</strong>. A <em>private browsing</em> option keeps
+    cookies only for the session.
+  </p>
+  <p>
+    An <strong>Extensions</strong> button opens the extension manager. A few
+    reference extensions ship built in &mdash; a pop-up blocker, a tracker blocker
+    and an HTTPS-upgrade helper. Third-party extensions start disabled with no
+    permissions until you approve them.
+  </p>
+  <div class="note">
+    <strong>Note:</strong> Extension permissions are a consent prompt, not a
+    sandbox: an extension runs with your own privileges once loaded, so install
+    only extensions you trust.
+  </div>
+
+  <p>
+    When the desktop-wide <a href="security-privacy.html">Private (Tor) mode</a>
+    is on, the browser forces a non-persisting cookie session; if the Tor tunnel
+    is cut, it refuses remote navigation and shows an honest &ldquo;connection
+    cut&rdquo; page rather than silently leaking to the clearnet.
+  </p>
+
+  <h2>Mail</h2>
+  <p>
+    <strong>Mail</strong> is a real IMAP / SMTP client: it connects to your mail
+    server, lists folders, reads and composes messages, and sends them over SMTP.
+    It shares the desktop's <a href="productivity.html">Contacts</a> address book.
+  </p>
+
+  <h2>Instant Messenger</h2>
+  <p>
+    <strong>Instant Messenger</strong> is a multi-protocol chat client. It
+    includes a fully native IRC client and bridges to other networks, with an
+    accounts list, a conversation view and a scrolling transcript.
+  </p>
+
+  <h2>Video Conference</h2>
+  <p>
+    <strong>Video Conference</strong> joins and hosts Jitsi Meet calls. It provides
+    a lobby and an address book, builds the meeting link, and hands the live
+    audio/video session to the system browser (or an external meeting command).
+  </p>
+
+  <h2>FTP Client</h2>
+  <p>
+    <strong>FTP Client</strong> transfers files over FTP, FTPS and SFTP, with a
+    two-pane local/remote view and a transfer queue.
+  </p>
+
+  <h2>SSH Client</h2>
+  <p>
+    <strong>SSH Client</strong> opens interactive terminal sessions over SSH to a
+    remote host.
+  </p>
+
+  <h2>Remote Viewer</h2>
+  <p>
+    <strong>Remote Viewer</strong> shares and views remote desktops, with clipboard
+    synchronisation and file transfer. It can act as the server (start/stop and
+    status) or connect out to a remote session as the viewer.
+  </p>
+
+  <div class="tip">
+    <strong>Tip:</strong> The VPN client and the desktop's anonymity features are
+    covered together in <a href="security-privacy.html">Security and Privacy</a>.
+  </div>
+
+  <div class="nav">
+    Next: <a href="security-privacy.html">Security and Privacy</a>
+  </div>
+</body>
+</html>

@@ -16,7 +16,7 @@
 | Descriptors | `src/config/helpcenter.lgcfg` (production) + `src/config/help.lgcfg` (legacy sample) → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` (search index: `:lg3d-apps:generateHelpSearchIndex`) |
 
-**Components:** `HelpCenterPanel` (JavaHelp `javax.help:javahelp:2.0.05`, 14 HTML
+**Components:** `HelpCenterPanel` (JavaHelp `javax.help:javahelp:2.0.05`, 18 HTML
 topics) + the generated search index; `HelpContentTest` guards topic content.
 
 ## Roles
@@ -37,7 +37,7 @@ topics) + the generated search index; `HelpContentTest` guards topic content.
 - **Business Analyst** — Help Center is the shipped desktop user guide (complete,
   discoverable under Utilities). Production standards apply; the legacy sample has no
   user value and exists only for reference.
-- **Functional Analyst** — Spec user-visible function (browse/search 14 topics,
+- **Functional Analyst** — Spec user-visible function (browse/search 18 topics,
   navigate links) plus the contract with core (SwingNode surface, PANEL_APPS reuse,
   descriptor fields). Clearly separate `HelpCenter` (product) from `Lg3dHelp` (sample).
 - **Project Manager** — Commit scope `lg3d-apps`. Done = build (+ regenerated
@@ -91,7 +91,7 @@ The rest of this file documents the legacy `Lg3dHelp` sample.
   `org.jdesktop.lg3d.apps.help.HelpCenterPanel`, so the *same* panel is hosted as
   an MDI internal frame; the 3D wrapper is never loaded there.
 - **Content** lives under `helpcontent/`: `lg3d-help.hs`, `map.jhm`, `toc.xml`,
-  `index.xml`, `lg3d-help.css` and fourteen HTML topics. Non-`.java` files under
+  `index.xml`, `lg3d-help.css` and eighteen HTML topics. Non-`.java` files under
   `org/**` are bundled by the module's resources source set, so they ship inside
   `lg3d-apps.jar`.
 - **Full-text search** - the Search navigator needs a generated `JavaSearch`
