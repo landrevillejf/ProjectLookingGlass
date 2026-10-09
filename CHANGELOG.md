@@ -10,6 +10,17 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Looking Glass wordmark wallpaper** (`lg3d-art`) — the logo wallpaper's
+  sibling: `resources/images/background/LookingGlass-Wordmark.jpg` (2560x1440),
+  the same slate-blue glass backdrop and the same `PROJECT LOOKING GLASS` caption
+  in the same place, with the mascot left out for desktops where the mark would
+  compete with the icons. It is deliberately not a second image recipe — it is
+  [`lg3d-art/tools/make_logo_wallpaper.py`](lg3d-art/tools/make_logo_wallpaper.py)
+  run with the new `--no-mark`, which drops the mark, its blurred ghost and its
+  drop shadow as one decision rather than three, so the pair stays in step
+  whenever the palette or the light bands are retuned. The existing
+  `LookingGlass-Logo.jpg` is untouched, byte for byte. No registration is needed
+  for either file; the wallpaper choosers enumerate the directory.
 - **Looking Glass logo wallpaper** (`lg3d-art`) — a new brand wallpaper,
   `resources/images/background/LookingGlass-Logo.jpg` (2560x1440), built from the
   desktop's own brand icon — `resources/images/icon/lg3d-logo.png`, the

@@ -36,7 +36,14 @@ Usage:
     python3 make_logo_wallpaper.py [--out <file>] [--width 2560] [--height 1440]
                                    [--quality 92] [--logo <file>]
                                    [--no-ghost] [--reflection] [--no-wordmark]
-                                   [--preview <file>]
+                                   [--no-mark] [--preview <file>]
+
+Two files in the wallpaper collection come from this one recipe: the brand
+wallpaper (the default) and its wordmark-only sibling, which keeps the same
+backdrop and the same caption position so the pair reads as a family::
+
+    python3 make_logo_wallpaper.py --out <...>/LookingGlass-Logo.jpg
+    python3 make_logo_wallpaper.py --no-mark --out <...>/LookingGlass-Wordmark.jpg
 """
 
 from __future__ import annotations
@@ -372,48 +379,57 @@ def draw_wordmark(canvas: Image.Image, w: int, h: int, size_px: int,
 # --- Assembly ----------------------------------------------------------------
 
 def build(width: int, height: int, logo_path: str, with_ghost: bool,
-          with_reflection: bool, with_wordmark: bool) -> Image.Image:
-    with Image.open(logo_path) as src:
-        mark_src = trim_to_content(clean_alpha(src.convert("RGBA")))
-
-    hero_h = max(2, int(round(height * HERO_HEIGHT_FRAC)))
-    hero = upscale_premultiplied(mark_src, hero_h)
-    rgb, alpha = soften_edges(smooth_silhouette(hero))
-    hero = seat_in_scene(rgb, alpha)
-
+          with_reflection: bool, with_wordmark: bool,
+          with_mark: bool = True) -> Image.Image:
     canvas = Image.new("RGBA", (width, height))
     canvas.paste(paint_backdrop(width, height), (0, 0))
 
-    x = (width - hero.size[0]) // 2
-    y = int(height * LOGO_CENTER_Y_FRAC - hero.size[1] / 2)
+    # The mark, the blurred ghost behind it and its drop shadow are one
+    # decision, not three: dropping the mark means dropping the whole stack,
+    # which leaves the backdrop and the caption -- the sibling wallpaper.
+    if with_mark:
+        with Image.open(logo_path) as src:
+            mark_src = trim_to_content(clean_alpha(src.convert("RGBA")))
 
-    # The oversized blurred copy behind the mark: it carries the silhouette
-    # across the frame while hiding that the source is 64px square.
-    if with_ghost:
-        ghost = upscale_premultiplied(mark_src, int(height * GHOST_HEIGHT_FRAC))
-        ghost = tinted_blur(smooth_silhouette(ghost), radius=height * 0.055,
-                            opacity=GHOST_OPACITY, tint=GLOW)
-        gx = (width - ghost.size[0]) // 2
-        gy = int(height * LOGO_CENTER_Y_FRAC - ghost.size[1] / 2)
-        canvas.alpha_composite(ghost, (gx, gy))
+        hero_h = max(2, int(round(height * HERO_HEIGHT_FRAC)))
+        hero = upscale_premultiplied(mark_src, hero_h)
+        rgb, alpha = soften_edges(smooth_silhouette(hero))
+        hero = seat_in_scene(rgb, alpha)
 
-    if with_reflection:
-        gap = int(height * 0.014)
-        if reflection(hero, canvas, x, y, gap) is None:
-            print("  note  : no room below the mark, reflection skipped")
+        x = (width - hero.size[0]) // 2
+        y = int(height * LOGO_CENTER_Y_FRAC - hero.size[1] / 2)
 
-    drop_shadow(canvas, hero.getchannel("A"), x, y,
-                radius=max(3.0, height * 0.006), opacity=0.55)
-    canvas.alpha_composite(hero, (x, y))
+        # The oversized blurred copy behind the mark: it carries the silhouette
+        # across the frame while hiding that the source is 64px square.
+        if with_ghost:
+            ghost = upscale_premultiplied(mark_src,
+                                          int(height * GHOST_HEIGHT_FRAC))
+            ghost = tinted_blur(smooth_silhouette(ghost), radius=height * 0.055,
+                                opacity=GHOST_OPACITY, tint=GLOW)
+            gx = (width - ghost.size[0]) // 2
+            gy = int(height * LOGO_CENTER_Y_FRAC - ghost.size[1] / 2)
+            canvas.alpha_composite(ghost, (gx, gy))
+
+        if with_reflection:
+            gap = int(height * 0.014)
+            if reflection(hero, canvas, x, y, gap) is None:
+                print("  note  : no room below the mark, reflection skipped")
+
+        drop_shadow(canvas, hero.getchannel("A"), x, y,
+                    radius=max(3.0, height * 0.006), opacity=0.55)
+        canvas.alpha_composite(hero, (x, y))
 
     if with_wordmark:
         draw_wordmark(canvas, width, height,
                       size_px=max(14, int(height * 0.040)),
                       center_y=0.905)
 
-    print(f"  mark    : {hero.size}px from a {mark_src.size[0]}px source "
-          f"({hero.size[1] / mark_src.size[1]:.1f}x), ghost "
-          f"{'on' if with_ghost else 'off'}")
+    if with_mark:
+        print(f"  mark    : {hero.size}px from a {mark_src.size[0]}px source "
+              f"({hero.size[1] / mark_src.size[1]:.1f}x), ghost "
+              f"{'on' if with_ghost else 'off'}")
+    else:
+        print("  mark    : none - backdrop and wordmark only")
     return apply_vignette(canvas.convert("RGB"))
 
 
@@ -444,6 +460,9 @@ def main(argv=None) -> int:
     ap.add_argument("--height", type=int, default=1440, help="canvas height px")
     ap.add_argument("--quality", type=int, default=92,
                     help="JPEG quality for a .jpg/.jpeg target (1-95)")
+    ap.add_argument("--mark", action=argparse.BooleanOptionalAction, default=True,
+                    help="the mascot itself, with its ghost and shadow (off "
+                         "leaves the backdrop and wordmark: the sibling file)")
     ap.add_argument("--ghost", action=argparse.BooleanOptionalAction, default=True,
                     help="the oversized blurred copy behind the mark (on)")
     ap.add_argument("--reflection", action=argparse.BooleanOptionalAction,
@@ -470,7 +489,8 @@ def main(argv=None) -> int:
     img = build(args.width, args.height, logo_path,
                 with_ghost=args.ghost,
                 with_reflection=args.reflection,
-                with_wordmark=args.wordmark)
+                with_wordmark=args.wordmark,
+                with_mark=args.mark)
 
     save_image(img, out_path, args.quality)
     print(f"wrote     : {out_path}  {img.size[0]}x{img.size[1]}  "
