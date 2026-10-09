@@ -46,6 +46,9 @@ public class AccountConfig {
     private boolean autoConnect;
     private boolean passwordPrompt;
 
+    // The pinned identity of a P2P peer (nullable); persisted for TOFU verification.
+    private String peerFingerprint;
+
     // In-memory only, never persisted (see the class javadoc).
     private transient String serverPassword = "";
     private transient String nickServPassword = "";
@@ -117,6 +120,18 @@ public class AccountConfig {
     public boolean isPasswordPrompt() { return passwordPrompt; }
     public void setPasswordPrompt(boolean passwordPrompt) { this.passwordPrompt = passwordPrompt; }
 
+    /**
+     * The pinned identity fingerprint of a P2P peer (nullable, and unlike the
+     * passwords it <em>is</em> persisted, since a fingerprint is public). It is
+     * recorded on first contact (TOFU) and used to display and verify the peer's
+     * identity later; a change raises a man-in-the-middle warning.
+     */
+    public String getPeerFingerprint() { return peerFingerprint; }
+    public void setPeerFingerprint(String peerFingerprint) {
+        this.peerFingerprint = (peerFingerprint == null || peerFingerprint.isBlank())
+                ? null : peerFingerprint.trim();
+    }
+
     /** The in-memory server password (never persisted). */
     @JsonIgnore
     public String getServerPassword() {
@@ -157,6 +172,7 @@ public class AccountConfig {
         c.autoJoinChannels = new ArrayList<>(getAutoJoinChannels());
         c.autoConnect = this.autoConnect;
         c.passwordPrompt = this.passwordPrompt;
+        c.peerFingerprint = this.peerFingerprint;
         c.serverPassword = this.serverPassword;
         c.nickServPassword = this.nickServPassword;
         return c;

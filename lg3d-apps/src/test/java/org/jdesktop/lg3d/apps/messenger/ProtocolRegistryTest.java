@@ -29,8 +29,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Headless tests for the protocol seam: {@link ProtocolRegistry} (the backend
  * catalogue/factory) and {@link BridgeProtocol} (the deep-link/external-command
- * hand-off). They assert the shipped set (one native IRC client plus seven
- * bridges), that a fresh stateful instance is built per connection, the
+ * hand-off). They assert the shipped set (two native clients, IRC and P2P, plus
+ * seven bridges), that a fresh stateful instance is built per connection, the
  * extensibility seam (registering a new backend needs no UI change), the
  * placeholder expansion, and that a bridge is inert and honest when headless
  * (it fires listener events and never launches a browser or a command).
@@ -38,27 +38,30 @@ import org.junit.jupiter.api.Test;
 class ProtocolRegistryTest {
 
     @Test
-    @DisplayName("standard() ships IRC plus the seven bridges")
+    @DisplayName("standard() ships IRC and P2P plus the seven bridges")
     void standardRegistry() {
         ProtocolRegistry r = ProtocolRegistry.standard();
         List<String> ids = r.ids();
-        assertEquals(List.of("irc", "xmpp", "matrix", "telegram", "whatsapp",
+        assertEquals(List.of("irc", "p2p", "xmpp", "matrix", "telegram", "whatsapp",
                 "signal", "sms", "sip"), ids);
-        assertEquals(8, r.protocols().size());
+        assertEquals(9, r.protocols().size());
         assertTrue(r.contains("irc"));
+        assertTrue(r.contains("p2p"));
         assertTrue(r.contains("matrix"));
         assertFalse(r.contains("carrier-pigeon"));
         assertFalse(r.contains(null));
     }
 
     @Test
-    @DisplayName("only IRC is a native, in-process backend")
+    @DisplayName("IRC and P2P are the native, in-process backends")
     void nativeFlag() {
         ProtocolRegistry r = ProtocolRegistry.standard();
         assertTrue(r.isNative("irc"));
+        assertTrue(r.isNative("p2p"));
         assertFalse(r.isNative("xmpp"));
         assertFalse(r.isNative("unknown"));
         assertTrue(r.info("irc").isNative());
+        assertTrue(r.info("p2p").isNative());
         assertFalse(r.info("telegram").isNative());
         assertNull(r.info(null));
     }
@@ -68,9 +71,11 @@ class ProtocolRegistryTest {
     void createsBackends() {
         ProtocolRegistry r = ProtocolRegistry.standard();
         assertInstanceOf(IrcProtocol.class, r.create("irc"));
+        assertInstanceOf(P2pProtocol.class, r.create("p2p"));
         assertInstanceOf(BridgeProtocol.class, r.create("xmpp"));
         assertNotSame(r.create("irc"), r.create("irc"),
                 "backends are stateful, so each connection needs its own");
+        assertNotSame(r.create("p2p"), r.create("p2p"));
         assertNull(r.create("unknown"));
         assertNull(r.create(null));
     }
@@ -80,6 +85,7 @@ class ProtocolRegistryTest {
     void displayNames() {
         ProtocolRegistry r = ProtocolRegistry.standard();
         assertEquals("IRC", r.displayName("irc"));
+        assertEquals("P2P (Direct)", r.displayName("p2p"));
         assertEquals("Matrix", r.displayName("matrix"));
         assertEquals("mystery", r.displayName("mystery"));
         assertEquals("", r.displayName(null));

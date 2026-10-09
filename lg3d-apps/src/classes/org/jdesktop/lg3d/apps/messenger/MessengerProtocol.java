@@ -44,7 +44,9 @@ public interface MessengerProtocol {
         /** {@code /me}-style actions. */
         ACTIONS,
         /** Runs entirely in-process (no external client hand-off). */
-        NATIVE
+        NATIVE,
+        /** Peer-to-peer file transfer (offer/accept/progress/cancel). */
+        FILE_TRANSFER
     }
 
     /** The stable, persisted identifier (e.g. {@code "irc"}). */
@@ -97,6 +99,52 @@ public interface MessengerProtocol {
 
     /** Leaves a channel/room; a no-op by default. */
     default void partChannel(String channel, String reason) {
+        // not supported by default
+    }
+
+    /**
+     * Offers a local file to {@code target}. A no-op returning {@code false} for
+     * backends without {@link Capability#FILE_TRANSFER}; a supporting backend
+     * starts the offer and reports progress through
+     * {@link ProtocolListener#onFileTransfer}.
+     *
+     * @param target the conversation target (a peer)
+     * @param file   the local file to send
+     * @return true if the offer was queued
+     */
+    default boolean sendFile(String target, java.nio.file.Path file) {
+        return false;
+    }
+
+    /**
+     * Accepts an offered inbound file. A no-op unless the backend has
+     * {@link Capability#FILE_TRANSFER}.
+     *
+     * @param transferId the offered transfer's id
+     */
+    default void acceptFile(String transferId) {
+        // not supported by default
+    }
+
+    /**
+     * Rejects an offered inbound file. A no-op unless the backend has
+     * {@link Capability#FILE_TRANSFER}.
+     *
+     * @param transferId the offered transfer's id
+     * @param reason     a human-readable reason (may be null)
+     */
+    default void rejectFile(String transferId, String reason) {
+        // not supported by default
+    }
+
+    /**
+     * Cancels an in-flight transfer. A no-op unless the backend has
+     * {@link Capability#FILE_TRANSFER}.
+     *
+     * @param transferId the transfer's id
+     * @param reason     a human-readable reason (may be null)
+     */
+    default void cancelFile(String transferId, String reason) {
         // not supported by default
     }
 }

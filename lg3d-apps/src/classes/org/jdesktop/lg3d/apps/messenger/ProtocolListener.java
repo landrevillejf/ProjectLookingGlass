@@ -49,4 +49,14 @@ public interface ProtocolListener {
     default void onError(AccountConfig account, String error) {
         // optional
     }
+
+    /**
+     * A file transfer changed state or made progress. Fired for both directions
+     * (an inbound offer the user may accept, and outbound/inbound progress,
+     * completion, cancellation or failure). Only backends with
+     * {@link MessengerProtocol.Capability#FILE_TRANSFER} emit this.
+     */
+    default void onFileTransfer(AccountConfig account, FileTransferEvent event) {
+        // optional
+    }
 }
