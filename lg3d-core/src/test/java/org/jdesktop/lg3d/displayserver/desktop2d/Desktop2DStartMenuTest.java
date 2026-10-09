@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.awt.Component;
 import java.util.List;
@@ -89,5 +90,26 @@ class Desktop2DStartMenuTest {
         assertEquals(1, menu.getComponentCount());
         assertEquals(Desktop2DStartMenu.NO_APPS_LABEL,
                 ((javax.swing.JMenuItem) menu.getComponent(0)).getText());
+    }
+
+    @Test
+    @DisplayName("chrome icons load at the requested edge while menu icons stay at 16")
+    void iconEdges() {
+        // On the test classpath the core resources carry no "resources/"
+        // prefix (that tree is assembled by :lg3d-core:runtimeResources);
+        // icon() itself is prefix-agnostic.
+        String logo = "images/icon/lg3d-logo.png";
+        javax.swing.Icon chrome = Desktop2DStartMenu.icon(logo, 22);
+        assertNotNull(chrome,
+                "the Looking Glass logo should resolve on the test classpath");
+        assertEquals(22, chrome.getIconWidth());
+        assertEquals(22, chrome.getIconHeight());
+        javax.swing.Icon menu = Desktop2DStartMenu.icon(logo);
+        assertEquals(16, menu.getIconWidth());
+        assertEquals(16, menu.getIconHeight());
+        assertNull(Desktop2DStartMenu.icon(null, 22));
+        assertNull(Desktop2DStartMenu.icon("   ", 22));
+        assertNull(Desktop2DStartMenu.icon(logo, 0));
+        assertNull(Desktop2DStartMenu.icon("images/icon/no-such-glyph.png", 22));
     }
 }

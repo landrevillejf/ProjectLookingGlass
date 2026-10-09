@@ -42,15 +42,15 @@ class DesktopConfigTaskbarContentsTest {
     }
 
     @Test
-    @DisplayName("every taskbar item is shown and labels are icon-only by default")
+    @DisplayName("every taskbar item is shown and labels show icon plus text by default")
     void defaults() {
         cfg.resetToDefaults();
         for (TaskbarItem item : TaskbarItem.values()) {
             assertTrue(cfg.isTaskbarItemShown(item),
                     item + " should be shown by default");
         }
-        assertEquals(Labels.ICONS_ONLY, cfg.getTaskbarLabels());
-        assertEquals(Labels.ICONS_ONLY, DesktopConfig.DEFAULT_TASKBAR_LABELS);
+        assertEquals(Labels.ICONS_AND_TEXT, cfg.getTaskbarLabels());
+        assertEquals(Labels.ICONS_AND_TEXT, DesktopConfig.DEFAULT_TASKBAR_LABELS);
     }
 
     @Test
@@ -83,7 +83,7 @@ class DesktopConfigTaskbarContentsTest {
     }
 
     @Test
-    @DisplayName("the label style round-trips and null falls back to icon-only")
+    @DisplayName("the label style round-trips and null falls back to icon plus text")
     void labelsRoundTrip() {
         cfg.setTaskbarLabels(Labels.ICONS_AND_TEXT);
         assertEquals(Labels.ICONS_AND_TEXT, cfg.getTaskbarLabels());
@@ -91,17 +91,17 @@ class DesktopConfigTaskbarContentsTest {
         assertEquals(Labels.ICONS_ONLY, cfg.getTaskbarLabels());
         cfg.setTaskbarLabels(Labels.ICONS_AND_TEXT);
         cfg.setTaskbarLabels(null);
-        assertEquals(Labels.ICONS_ONLY, cfg.getTaskbarLabels(),
-                "a null label style falls back to the icon-only default");
+        assertEquals(Labels.ICONS_AND_TEXT, cfg.getTaskbarLabels(),
+                "a null label style falls back to the icon-plus-text default");
     }
 
     @Test
-    @DisplayName("resetToDefaults re-shows every item and restores icon-only")
+    @DisplayName("resetToDefaults re-shows every item and restores icon plus text")
     void resetRestores() {
         cfg.setTaskbarItemShown(TaskbarItem.WORKSPACES, false);
-        cfg.setTaskbarLabels(Labels.ICONS_AND_TEXT);
+        cfg.setTaskbarLabels(Labels.ICONS_ONLY);
         cfg.resetToDefaults();
         assertTrue(cfg.isTaskbarItemShown(TaskbarItem.WORKSPACES));
-        assertEquals(Labels.ICONS_ONLY, cfg.getTaskbarLabels());
+        assertEquals(Labels.ICONS_AND_TEXT, cfg.getTaskbarLabels());
     }
 }

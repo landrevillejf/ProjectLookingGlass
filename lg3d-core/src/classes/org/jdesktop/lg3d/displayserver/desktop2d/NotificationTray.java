@@ -49,6 +49,12 @@ final class NotificationTray {
     /** The unread-count badge colour composited onto the tray glyph. */
     private static final Color BADGE_COLOR = new Color(0xc0392b);
 
+    /**
+     * Tray glyph edge: matches the taskbar's chrome buttons so the tray button
+     * lines up in height with its neighbours.
+     */
+    private static final int TRAY_ICON_EDGE = 22;
+
     private final NotificationModel model;
     private final DoNotDisturb dnd;
     private final JButton button;
@@ -78,7 +84,9 @@ final class NotificationTray {
         this.model = model;
         this.dnd = dnd;
         this.button = new JButton();
-        this.baseIcon = IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About",24,24);
+        Icon glyph = IconManager.loadIcon(IconManager.IconCategory.GENERAL, "About", 24, 24);
+        this.baseIcon = (glyph == null) ? null
+                : IconManager.resizeIcon(glyph, TRAY_ICON_EDGE, TRAY_ICON_EDGE);
         this.button.setIcon(baseIcon);
         this.button.addActionListener(e -> open());
         this.menu = new JPopupMenu();

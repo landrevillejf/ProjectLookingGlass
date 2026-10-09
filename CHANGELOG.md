@@ -286,6 +286,16 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **2D taskbar Start button: Looking Glass logo, "Start" label and full button
+  height restored** (`lg3d-core`) — the start button drew a 16 px star glyph
+  while the quick-launch buttons draw 22 px, so it sat visibly shorter than its
+  neighbours, and the icon-only label default silently dropped the "Start"
+  text. The fixed chrome buttons (start, documents, downloads, exit,
+  notification tray) now all draw at the same icon edge as the quick-launch
+  glyphs, Start carries the `lg3d-logo.png` Looking Glass logo, and the default
+  taskbar label style is back to icon-plus-text; icon-only remains selectable
+  in the Control Center Desktop panel, and a style persisted there still wins
+  over the new default.
 - **P2P transport: a peer whose link dies during registration no longer leaks**
   (`lg3d-apps`) — when the remote socket closed between the Noise handshake and
   the peer-map registration, `onClosed` fired before `byChannel.put` and reaped

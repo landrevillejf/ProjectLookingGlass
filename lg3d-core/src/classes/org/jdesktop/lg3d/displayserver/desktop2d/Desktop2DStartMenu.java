@@ -188,21 +188,32 @@ public final class Desktop2DStartMenu {
 
     /** Loads and caches a classpath icon, scaled to the menu icon size. */
     static Icon icon(String resource) {
-        if (resource == null || resource.isBlank()) {
+        return icon(resource, ICON_SIZE);
+    }
+
+    /**
+     * Loads and caches a classpath icon at an arbitrary edge: sources larger
+     * than {@code size} are smoothed down to it, smaller ones are kept
+     * verbatim. The taskbar chrome buttons use this to draw at the same edge
+     * as the quick-launch glyphs so every button in the bar shares one height.
+     */
+    static Icon icon(String resource, int size) {
+        if (resource == null || resource.isBlank() || size <= 0) {
             return null;
         }
-        Icon cached = ICON_CACHE.get(resource);
+        String key = resource + "@" + size;
+        Icon cached = ICON_CACHE.get(key);
         if (cached != null) {
             return cached;
         }
-        Icon loaded = loadIcon(resource);
+        Icon loaded = loadIcon(resource, size);
         if (loaded != null) {
-            ICON_CACHE.put(resource, loaded);
+            ICON_CACHE.put(key, loaded);
         }
         return loaded;
     }
 
-    private static Icon loadIcon(String resource) {
+    private static Icon loadIcon(String resource, int size) {
         try {
             URL url = Desktop2DStartMenu.class.getClassLoader().getResource(resource);
             if (url == null) {
@@ -212,11 +223,11 @@ public final class Desktop2DStartMenu {
             if (full.getIconWidth() <= 0 || full.getIconHeight() <= 0) {
                 return null;
             }
-            if (full.getIconWidth() <= ICON_SIZE && full.getIconHeight() <= ICON_SIZE) {
+            if (full.getIconWidth() <= size && full.getIconHeight() <= size) {
                 return full;
             }
             return new ImageIcon(full.getImage().getScaledInstance(
-                    ICON_SIZE, ICON_SIZE, Image.SCALE_SMOOTH));
+                    size, size, Image.SCALE_SMOOTH));
         } catch (Exception e) {
             logger.log(Level.FINE, "Could not load menu icon " + resource, e);
             return null;

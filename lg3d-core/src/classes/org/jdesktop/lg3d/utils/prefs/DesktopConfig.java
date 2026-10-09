@@ -270,10 +270,12 @@ public final class DesktopConfig {
     }
 
     /**
-     * Default taskbar button label style: icon-only, so the tray reads as a row
-     * of glyphs and the descriptive text is a hover tooltip.
+     * Default taskbar button label style: icon plus text, the classic desktop
+     * look (the start button reads as "Start" beside its logo); icon-only
+     * remains available so the tray can be configured to read as a row of
+     * glyphs with the descriptive text in the tooltips.
      */
-    public static final Labels DEFAULT_TASKBAR_LABELS = Labels.ICONS_ONLY;
+    public static final Labels DEFAULT_TASKBAR_LABELS = Labels.ICONS_AND_TEXT;
     private static final Labels DEF_TASKBAR_LABELS = DEFAULT_TASKBAR_LABELS;
 
     /**
