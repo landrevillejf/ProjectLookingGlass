@@ -31,7 +31,7 @@ public enum TextEditorPermission {
     /** Write document text and selection via {@link EditorContext#setDocumentText(String)} and {@link EditorContext#replaceSelection(String)}. */
     WRITE,
 
-    /** Open and save files via {@link EditorContext#openFile()} and {@link EditorContext#saveFile()}. */
+    /** Open and save files via {@link EditorContext#openFile()} and {@link EditorContext#saveFile()}; also drives the output console via {@link EditorContext#showOutput} and {@link EditorContext#clearOutput}. */
     FILE_IO,
 
     /** Read or change editor settings. */

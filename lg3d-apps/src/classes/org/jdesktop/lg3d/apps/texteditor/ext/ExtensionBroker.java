@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry.LoadedExtension;
 import org.slf4j.Logger;
@@ -41,19 +42,26 @@ public final class ExtensionBroker {
     private final Consumer<String> showMessage;
     private final Runnable openFile;
     private final Runnable saveFile;
+    private final BiConsumer<String, String> showOutput;
+    private final Runnable clearOutput;
 
     /**
-     * @param registry the enabled/grant source
+     * @param registry    the enabled/grant source
      * @param showMessage delegate for {@link EditorContext#showMessage}
-     * @param openFile  delegate for {@link EditorContext#openFile}
-     * @param saveFile  delegate for {@link EditorContext#saveFile}
+     * @param openFile    delegate for {@link EditorContext#openFile}
+     * @param saveFile    delegate for {@link EditorContext#saveFile}
+     * @param showOutput  delegate for {@link EditorContext#showOutput} (title, body)
+     * @param clearOutput delegate for {@link EditorContext#clearOutput}
      */
     public ExtensionBroker(ExtensionRegistry registry, Consumer<String> showMessage,
-                          Runnable openFile, Runnable saveFile) {
+                          Runnable openFile, Runnable saveFile,
+                          BiConsumer<String, String> showOutput, Runnable clearOutput) {
         this.registry = registry;
         this.showMessage = showMessage;
         this.openFile = openFile;
         this.saveFile = saveFile;
+        this.showOutput = showOutput;
+        this.clearOutput = clearOutput;
     }
 
     /** Fires {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onEditorStarted} for enabled extensions. */
@@ -154,6 +162,34 @@ public final class ExtensionBroker {
      */
     public List<ToolbarContribution> toolbarContributions() {
         List<ToolbarContribution> out = new ArrayList<>();
+        for (ContributedAction ca : categorizedActions()) {
+            out.add(ca.contribution());
+        }
+        return out;
+    }
+
+    /**
+     * One toolbar contribution paired with the category and display name of the
+     * extension that contributed it, so the manager can group actions.
+     *
+     * @param category     the owning extension's {@code category()} (never blank)
+     * @param extension    the owning extension's display name
+     * @param contribution the contribution itself
+     */
+    public record ContributedAction(String category, String extension,
+                                    ToolbarContribution contribution) { }
+
+    /**
+     * Collects toolbar buttons from enabled {@link TextEditorPermission#TOOLBAR}
+     * extensions in registration order, de-duplicated by contribution id, each
+     * tagged with the owning extension's {@code category()} and display name so
+     * the editor can group them. A null/blank category normalises to
+     * {@code "General"}.
+     *
+     * @return the categorized contributions to render, possibly empty
+     */
+    public List<ContributedAction> categorizedActions() {
+        List<ContributedAction> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (LoadedExtension le : registry.enabled()) {
             if (!le.has(TextEditorPermission.TOOLBAR)) {
@@ -164,9 +200,11 @@ public final class ExtensionBroker {
                 if (contributions == null) {
                     continue;
                 }
+                String category = normalizeCategory(le.getExtension().category());
+                String name = le.getManifest().getName();
                 for (ToolbarContribution c : contributions) {
                     if (c != null && seen.add(c.getId())) {
-                        out.add(c);
+                        out.add(new ContributedAction(category, name, c));
                     }
                 }
             } catch (RuntimeException e) {
@@ -177,7 +215,12 @@ public final class ExtensionBroker {
         return out;
     }
 
+    private static String normalizeCategory(String category) {
+        return (category == null || category.isBlank()) ? "General" : category.trim();
+    }
+
     private EditorContext contextFor(LoadedExtension le) {
-        return new EditorContext(le.getGranted(), showMessage, openFile, saveFile);
+        return new EditorContext(le.getGranted(), showMessage, openFile, saveFile,
+                showOutput, clearOutput);
     }
 }

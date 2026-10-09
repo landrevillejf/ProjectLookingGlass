@@ -56,6 +56,12 @@ public final class EditorSettings {
     private boolean highlight = true;
     private String themeName = EditorTheme.LIGHT.getName();
     private final List<String> recentFiles = new ArrayList<>();
+    /**
+     * User rebound of extension toolbar accelerators, keyed by contribution id.
+     * A blank value means the action was deliberately unbound; an absent key
+     * means "use the extension's declared default".
+     */
+    private final Map<String, String> acceleratorOverrides = new LinkedHashMap<>();
 
     /** A fresh instance carrying the built-in defaults. */
     public static EditorSettings defaults() {
@@ -111,6 +117,16 @@ public final class EditorSettings {
         map.put("autoIndent", Boolean.toString(autoIndent));
         map.put("highlight", Boolean.toString(highlight));
         map.put("theme", themeName);
+        if (!acceleratorOverrides.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : acceleratorOverrides.entrySet()) {
+                if (sb.length() > 0) {
+                    sb.append(';');
+                }
+                sb.append(entry.getKey()).append('=').append(entry.getValue());
+            }
+            map.put("acceleratorOverrides", sb.toString());
+        }
         return map;
     }
 
@@ -129,6 +145,16 @@ public final class EditorSettings {
         s.setAutoIndent(boolOr(map.get("autoIndent"), true));
         s.setHighlight(boolOr(map.get("highlight"), true));
         s.setThemeName(map.get("theme"));
+        String overrides = map.get("acceleratorOverrides");
+        if (overrides != null && !overrides.isEmpty()) {
+            for (String pair : overrides.split(";")) {
+                int eq = pair.indexOf('=');
+                if (eq >= 0) {
+                    s.acceleratorOverrides.put(pair.substring(0, eq),
+                            pair.substring(eq + 1));
+                }
+            }
+        }
         return s;
     }
 
@@ -251,6 +277,31 @@ public final class EditorSettings {
     /** The selected theme object; never null. */
     public EditorTheme getTheme() {
         return EditorTheme.byName(themeName);
+    }
+
+    /**
+     * The user's accelerator rebounds, keyed by contribution id (unmodifiable
+     * view). A blank value is a deliberate unbind; a missing key defers to the
+     * extension's declared default.
+     */
+    public Map<String, String> getAcceleratorOverrides() {
+        return Collections.unmodifiableMap(acceleratorOverrides);
+    }
+
+    /**
+     * Rebinds one extension accelerator. {@code spec} is a KeyStroke string
+     * such as {@code "control alt X"}; a blank value unbinds the action.
+     */
+    public void setAcceleratorOverride(String id, String spec) {
+        if (id == null || id.isBlank()) {
+            return;
+        }
+        acceleratorOverrides.put(id, (spec == null) ? "" : spec.trim());
+    }
+
+    /** Restores an action to its declared default accelerator. */
+    public void clearAcceleratorOverride(String id) {
+        acceleratorOverrides.remove(id);
     }
 
     /** The editing font described by these settings. */

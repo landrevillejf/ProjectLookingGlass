@@ -212,4 +212,176 @@ class EditorWidgetsTest {
         assertEquals(0, card.entryCount());
         assertTrue(runs.isEmpty(), "selecting must not run anything");
     }
+
+    @Test
+    @DisplayName("the extensions card groups rows under inert category headers")
+    void extensionsCardGrouped() {
+        final List<Integer> runs = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+                runs.add(index);
+            }
+
+            @Override
+            public void closeCard() {
+            }
+        });
+        card.loadRows(List.of(
+                ExtensionsCard.Row.header("Text"),
+                ExtensionsCard.Row.action("Text Tools: Sort Lines (A-Z)", 0),
+                ExtensionsCard.Row.header("Code"),
+                ExtensionsCard.Row.action("Code Tools: Indent Lines", 7)));
+        // headers are not counted as runnable entries
+        assertEquals(2, card.entryCount());
+        card.select(0); // header - Run must stay disabled
+        card.select(1); // an action row
+        assertTrue(runs.isEmpty(), "selecting must not run anything");
+    }
+
+    @Test
+    @DisplayName("the extensions card toggles enable state for the selected extension")
+    void extensionsCardManagement() {
+        final List<String> changes = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public void setExtensionEnabled(String id, boolean enabled) {
+                changes.add(id + "=" + enabled);
+            }
+        });
+        card.show(
+                List.of(ExtensionsCard.Row.action("Base64 Tools: Encode Base64", 0)),
+                List.of(
+                        new ExtensionsCard.ExtensionInfo("lg3d.base64-tools",
+                                "Base64 Tools", "1.0.0", "Encoding", true),
+                        new ExtensionsCard.ExtensionInfo("lg3d.markdown-tools",
+                                "Markdown Tools", "1.0.0", "Markdown", false)));
+        assertEquals(1, card.entryCount());
+        assertEquals(2, card.extensionCount());
+
+        // No selection: the toggle buttons do nothing.
+        card.selectExtension(-1);
+        card.enableSelectedExtension();
+        assertTrue(changes.isEmpty());
+
+        card.selectExtension(0);
+        card.disableSelectedExtension();
+        assertEquals(List.of("lg3d.base64-tools=false"), changes);
+
+        card.selectExtension(1);
+        card.enableSelectedExtension();
+        assertEquals(List.of("lg3d.base64-tools=false", "lg3d.markdown-tools=true"),
+                changes);
+    }
+
+    @Test
+    @DisplayName("the extensions card rebinds and clears the selected action's shortcut")
+    void extensionsCardRebind() {
+        final List<String> set = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public void setAccelerator(int actionIndex, String spec) {
+                set.add(actionIndex + "=" + spec);
+            }
+        });
+        card.show(List.of(
+                ExtensionsCard.Row.header("Encoding"),
+                ExtensionsCard.Row.action("Base64 Tools: Encode Base64", 3)), null);
+
+        // A header row cannot be rebound.
+        card.select(0);
+        card.rebindSelectedAccelerator("control alt 9");
+        assertTrue(set.isEmpty());
+
+        // An action row forwards its host index and the new spec.
+        card.select(1);
+        card.rebindSelectedAccelerator("control alt 9");
+        assertEquals(List.of("3=control alt 9"), set);
+        card.clearSelectedAccelerator();
+        assertEquals(List.of("3=control alt 9", "3="), set);
+    }
+
+    @Test
+    @DisplayName("keySpec builds only assignable KeyStroke specs")
+    void keySpecBuilds() {
+        assertEquals("control alt A", ExtensionsCard.keySpec(
+                java.awt.event.KeyEvent.VK_A,
+                java.awt.event.InputEvent.CTRL_DOWN_MASK
+                        | java.awt.event.InputEvent.ALT_DOWN_MASK));
+        assertEquals("shift 1", ExtensionsCard.keySpec(
+                java.awt.event.KeyEvent.VK_1,
+                java.awt.event.InputEvent.SHIFT_DOWN_MASK));
+        // Function keys and modifiers-only keys are not assignable.
+        assertEquals("", ExtensionsCard.keySpec(java.awt.event.KeyEvent.VK_F5,
+                java.awt.event.InputEvent.CTRL_DOWN_MASK));
+        assertEquals("A", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_A));
+        assertEquals("", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_ESCAPE));
+    }
+
+    @Test
+    @DisplayName("the extensions card lists and grants permissions for the selected extension")
+    void extensionsCardPermissions() {
+        final List<String> grants = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public List<ExtensionsCard.PermissionInfo> permissionsFor(String id) {
+                if ("lg3d.base64-tools".equals(id)) {
+                    return List.of(new ExtensionsCard.PermissionInfo("READ", true),
+                            new ExtensionsCard.PermissionInfo("WRITE", true),
+                            new ExtensionsCard.PermissionInfo("TOOLBAR", false));
+                }
+                return List.of();
+            }
+
+            @Override
+            public void setPermission(String id, String name, boolean granted) {
+                grants.add(id + "/" + name + "=" + granted);
+            }
+        });
+        card.show(List.of(ExtensionsCard.Row.action("Base64 Tools: Encode", 0)),
+                List.of(
+                        new ExtensionsCard.ExtensionInfo("lg3d.base64-tools",
+                                "Base64 Tools", "1.0.0", "Encoding", true),
+                        new ExtensionsCard.ExtensionInfo("lg3d.other",
+                                "Other", "1.0.0", "General", true)));
+
+        // Nothing selected: no permissions surface and toggling is a no-op.
+        card.selectExtension(-1);
+        assertTrue(card.selectedPermissions().isEmpty());
+        card.setPermissionOnSelected("TOOLBAR", true);
+        assertTrue(grants.isEmpty());
+
+        card.selectExtension(0);
+        assertEquals(3, card.selectedPermissions().size());
+        card.setPermissionOnSelected("TOOLBAR", true);
+        assertEquals(List.of("lg3d.base64-tools/TOOLBAR=true"), grants);
+
+        // An extension that declares nothing surfaces an empty list.
+        card.selectExtension(1);
+        assertTrue(card.selectedPermissions().isEmpty());
+    }
 }

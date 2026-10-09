@@ -9,7 +9,174 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
+### Fixed
+- **JVM Build Tools: a successful rebuild now refreshes the Output panel**
+  (`lg3d-apps`) — every run, success included, writes a block to the south
+  console (`javac output` / `kotlinc output` with an `OK — <class> compiled,
+  no errors` body on green builds), so fixing an error and recompiling always
+  visibly updates the editor. The stale `// ---- <tool> output ----` comment
+  block left in documents by the pre-console builds is now migrated out
+  automatically: the next build action (or **Clean Output**) strips the trailing
+  block from the document. WRITE is therefore kept on the provider's manifest —
+  used only for this one-time migration strip.
+
 ### Added
+- **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
+  user-facing name: the Start Menu shows **Espresso** under Office, the 3D
+  window title (and the 2D MDI frame title, which follows the menu item) is
+  **Espresso**, and the descriptor tooltip reads "Espresso: edit text and
+  source files…". Internal identifiers are unchanged on purpose
+  (`org.jdesktop.lg3d.apps.texteditor.AdvancedTextEditor[Panel]`, the
+  `texteditor.lgcfg` descriptor and the `text-editor.png` icon), so file
+  associations, launcher commands and existing preferences keep working.
+- **Advanced Text Editor: west project tree and south output console**
+  (`lg3d-apps`) — the editor window is now two `JSplitPane`s around the tabs:
+  a south **`OutputConsole`** (read-only monospaced transcript, `---- title ----`
+  block grammar, drop-oldest cap at 2 000 lines, `Clear` button) where extension
+  tool actions land their output — the document is never polluted again — and a
+  west **`ProjectTreePanel`**, a lazily-loaded file tree re-rooted on the
+  *project* of the document being edited (walk-up to `.git`/`pom.xml`/
+  `build.gradle`/`package.json`/… markers, 10 levels deep, directories before
+  files, hidden entries skipped); double-clicking a file opens it in a tab.
+  `EditorContext` gains two FILE_IO-gated capabilities, `showOutput(title, body)`
+  and `clearOutput()`, wired through the `ExtensionBroker`, so third-party
+  extensions get the same console. The JVM Build Tools write every
+  compile/run/debug output there instead of appending a
+  `// ---- <tool> output ----` comment block, and its **Clean Output** action
+  now clears the console. 26 headless suites / 234 tests in the texteditor
+  package.
+- **Advanced Text Editor: compile, run and debug Java/Kotlin from the editor**
+  (`lg3d-apps`) — a thirteenth bundled provider, **JVM Build Tools**
+  (`lg3d.jvm-build-tools`, category `Java/Kotlin`), takes the extension surface
+  beyond text rewriting into the real toolchain with six toolbar actions (none
+  claims a Ctrl+Alt slot, so the accelerator map is unchanged). **Compile Java**
+  stages the document's *current* text into a fresh temp directory (the user's
+  file is never touched, unsaved drafts work) and runs the running JDK's own
+  `javac`; success and failure both land a block in the output console (see
+  the entry above). **Run Java** uses the JDK 11+
+  single-file source launcher and captures stdout+stderr into the console.
+  **Debug Java** is an honest crash-analysis run: assertions enabled (`-ea`),
+  the output scanned for the exception heading and the first stack frame in
+  this file, reported as `Debug: java.lang.IllegalStateException: boom at
+  Foo.java:42` with the full trace kept in the console (interactive breakpoint debugging
+  is deliberately out of scope here). **Compile Kotlin** / **Run Kotlin** drive
+  `kotlinc` + the `kotlin` launcher from `PATH` and degrade to a clear status
+  message — spawning nothing — when no Kotlin install is found; **Clean
+  Output** clears the console. Processes run on a virtual thread and results are
+  delivered on the EDT, so the editor never freezes, and a package-private
+  `Runner` seam keeps every action headless-testable with a synchronous fake
+  (`Toolchain` itself is pure command builders, class-name derivation,
+  `Foo.kt`→`FooKt` mapping and stack/exception parsing). The
+  panel now also refreshes the extensions' document snapshot immediately before
+  each action dispatch, so *every* action — not just the build ones — operates
+  on the live text rather than the file-as-opened. New `JvmBuildToolsTest` (18
+  tests) plus panel count/live-text assertions bring the text-editor surface to
+  **52 actions across 13 providers**; the whole module build stays green.
+- **Advanced Text Editor: Spring Boot / JSON / Hash extensions, user-editable
+  shortcuts and a permission grant UI** (`lg3d-apps`) — three purely additive
+  follow-ups on the extension surface, all in one train. **Three more bundled
+  providers** join the nine: **Spring Boot Tools** (`lg3d.spring-boot-tools`,
+  category `Spring`) converts `application.properties`↔`application.yml` —
+  `propertiesToYaml` builds a nested `LinkedHashMap` tree and renders it with
+  two-space indent (comments/blank lines kept as a header), `yamlToProperties`
+  walks an indent stack and indexes block sequences as `key[n]` (Spring's relaxed
+  binding form) — plus two Spring-config workflow helpers on the same provider:
+  `normalizeKeys` rewrites each property key to canonical kebab-case (folding
+  camelCase humps like `contextPath`, acronym humps like `HTTPServer`, and
+  `_`/uppercase like `SERVER_PORT`, values and comments preserved) and
+  `listPlaceholders` scans every value for `${...}` tokens and appends a
+  `# Referenced placeholders:` summary block (deduped, first-occurrence order,
+  `:default` suffixes stripped, nested `${a-${b}}` handled with a depth counter,
+  and idempotent — the marker comment short-circuits a second run); **JSON Tools**
+  (`lg3d.json-tools`, category `Data`) minifies and
+  pretty-prints (4-space indent) with a scanner that honours string literals and
+  backslash escapes, so it never corrupts quoted content and needs no JSON parse;
+  **Hash Tools** (`lg3d.hash-tools`, category `Encoding`) emits MD5 / SHA-1 /
+  SHA-256 hex of the selection via `MessageDigest` (UTF-8). The curated order
+  gains Spring and Data, and the toolbar now carries **46 actions across twelve
+  providers**. **User-editable shortcuts**: `EditorSettings` gains an
+  `acceleratorOverrides` map (contribution id → `KeyStroke` spec; a blank value
+  deliberately unbinds, an absent key keeps the declared default) round-tripped
+  through `toMap`/`fromMap` and persisted with the other settings; the panel
+  binds and shows the *effective* accelerator (override wins) and exposes
+  `Host.getAccelerator` / `setAccelerator(index, spec)`, and the `ExtensionsCard`
+  grows a shortcut bar (current shortcut + **Rebind** + **Clear**) where Rebind
+  arms a one-shot key grab on the actions list (only A–Z / 0–9 with
+  Ctrl/Alt/Shift/Meta are assignable). **Extension permission grant UI**: the
+  card's management column now lists each selected extension's declared
+  `TextEditorPermission`s as checkboxes, fed by `Host.permissionsFor(id)` and
+  driven through `Host.setPermission(id, name, boolean)` into the existing
+  `ExtensionRegistry.grant` (which persists); toggling TOOLBAR immediately adds
+  or drops that extension's actions, and `show()` preserves the selection across
+  a rebuild. All new `Host` methods are default no-ops, so third-party hosts stay
+  source-compatible, and nothing existing is scrapped. Covered by three new
+  headless suites (`SpringBootToolsTest`, `JsonToolsTest`, `HashToolsTest`) plus
+  accelerator-rebind / override-persistence / permission-grant panel tests and
+  card rebind / permission wiring tests; `AdvancedTextEditorPanelTest` now
+  isolates the extension store via the `lg3d.texteditor.dir` property so
+  enable/permission writes never touch `~/.lg3d`. The whole module build stays
+  green.
+- **Advanced Text Editor: extension accelerators, an enable/disable manager and
+  two more dev extensions** (`lg3d-apps`) — purely additive follow-up to the
+  category grouping below. A `ToolbarContribution` can now carry an optional
+  `accelerator` (a `KeyStroke` spec such as `"control alt A"`); the panel binds
+  every declared accelerator on the editor's own input map, so an action runs
+  with a quick keystroke straight from the text area without flipping to the
+  Extensions card (the chosen `Ctrl+Alt+<key>` range never collides with the
+  editor's `Ctrl+…` bindings; the first action to claim a KeyStroke wins and
+  later duplicates are skipped). Bundled actions gain mnemonic defaults across
+  every category. The `ExtensionsCard` shows the accelerator next to each action
+  and grows a left-hand list of installed extensions with **Enable/Disable**
+  buttons — a new `Host.extensionInfos()` / `setExtensionEnabled(id, boolean)`
+  pair (default methods, so third-party hosts stay source-compatible); toggling
+  re-scans the enabled set, rebuilds the flat action list and re-binds the
+  accelerators, so `runExtensionAction(0)` stays "Sort Lines (A-Z)". Two more
+  bundled providers join the seven: **Base64 Tools** (`lg3d.base64-tools`,
+  category `Encoding`) encodes/decodes the selection as Base64 (malformed input
+  is returned unchanged, never thrown); **Markdown Tools** (`lg3d.markdown-tools`,
+  category `Markdown`) toggles `**bold**`, `*italic*`, `` `inline code` `` and
+  `- ` bullet lists on the selection, each an idempotent two-way switch. The
+  curated category order gains Encoding and Markdown, and the toolbar now
+  carries **37 actions across nine providers**. Covered by two new headless
+  suites (`Base64ToolsTest`, `MarkdownToolsTest`) plus panel accelerator /
+  `extensionInfos` tests and a card Enable/Disable test; the whole module build
+  stays green.
+- **Advanced Text Editor: extensions grouped by category + Java/Kotlin & Web
+  dev extensions** (`lg3d-apps`) — the extension manager (`ExtensionsCard`) now
+  files every contributed action under a bold, inert category header instead of
+  a flat list: each `TextEditorExtension` declares a free-form `category()`
+  (a new SPI default, `"General"`), the `ExtensionBroker` pairs it with each
+  contribution, and the card groups them in a curated order (Text, Code,
+  Java/Kotlin, Web, Analysis, General). Grouping reorders the display only, so
+  running an action by index is unchanged. Three more bundled, purely additive
+  providers join the existing four: **Java/Kotlin Tools** (`lg3d.java-tools`,
+  category `Java/Kotlin`) sorts import statements in place, escapes/unescapes
+  Java/Kotlin string-literal control characters and quotes, and toggles `//`
+  line comments on a selection; **Web Tools** (`lg3d.web-tools`, category `Web`)
+  escapes/unescapes HTML/XML entities (single-pass, so `&amp;lt;` never
+  double-decodes) and percent-encodes/decodes URLs (malformed escapes are left
+  as-is, never thrown); **Formatting Tools** (`lg3d.format-tools`, category
+  `Code`) converts tabs↔spaces and normalises line endings to LF or CRLF. Every
+  new transform is a pure `String` static covered by three more headless JUnit 5
+  suites (`JavaDevToolsTest`, `WebToolsTest`, `FormatToolsTest`) plus a
+  grouped-card test; the existing extensions gained categories, grouping them
+  across the bundled providers. All additive — no panel, broker
+  or existing extension behaviour is scrapped.
+- **Advanced Text Editor: three new bundled extensions** (`lg3d-apps`) — the
+  editor's `TextEditorExtension` plug-in surface (discovered via `ServiceLoader`
+  and `META-INF/services`) ships three more built-in providers beside the
+  existing "Text Tools", all additive — no panel, broker or existing extension
+  is changed. **Code Tools** (`lg3d.code-tools`, READ/WRITE/TOOLBAR) adds six
+  whole-document line operations: Indent Lines, Outdent Lines, Remove Blank
+  Lines, Remove Duplicate Lines, Reverse Lines and Number Lines. **Case Tools**
+  (`lg3d.case-tools`, READ/WRITE/TOOLBAR) adds five selection-only conversions —
+  Title, Sentence, camelCase, snake_case and kebab-case — that no-op on an empty
+  selection and never dirty an unchanged document. **Document Stats**
+  (`lg3d.text-stats`, READ/TOOLBAR, deliberately write-less) reports
+  `N lines, M words, K characters` to the status line on demand and echoes a
+  summary on save, exercising the `onEditorStarted`/`onDocumentSaved` hooks.
+  Every transform is a pure `String` static covered by three new headless JUnit 5
+  suites (`CodeToolsTest`, `CaseToolsTest`, `TextStatsToolTest`).
 - **Apps now raise desktop notifications** (`lg3d-core`, `lg3d-apps`,
   `lg3d-incubator`) — the notification pipeline that already served the 2D
   desktop internally (toast layer, taskbar tray log, Do-Not-Disturb gate) and the

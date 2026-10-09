@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
@@ -33,6 +35,7 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
@@ -42,11 +45,12 @@ import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
-import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 
 /**
- * The Advanced Text Editor: a production plain-text and source-code editor
- * for the lg3d desktop, built as one plain-Swing panel that serves both
+ * Espresso, the Advanced Text Editor: a production plain-text and source-code
+ * editor for the lg3d desktop, built as one plain-Swing panel that serves both
  * desktops. In the 3D desktop the {@link AdvancedTextEditor} wrapper hosts it
  * on a {@code SwingNode} inside a {@code Frame3D} through
  * {@code TitledSwingWindow}; in the 2D/Swing desktop
@@ -65,7 +69,10 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
  * gutter with current-line and bracket-match highlighting; smart
  * auto-indent; soft or hard tabs; word wrap; zoom; light and dark themes;
  * persisted settings and recent files; merge-on-type undo (a typed burst is
- * one undo step); and a {@link TextEditorExtension} SPI loaded through
+ * one undo step); a west {@link ProjectTreePanel} project file tree (re-rooted
+ * on the project of the document being edited, double-click opens a file) and
+ * a south {@link OutputConsole} where extension tool actions land their
+ * output; and a {@link TextEditorExtension} SPI loaded through
  * {@code META-INF/services}, shipped with a bundled "Text Tools" extension
  * (sort lines, strip trailing whitespace, timestamp, case transforms).</p>
  *
@@ -96,8 +103,21 @@ public class AdvancedTextEditorPanel extends JPanel
     private static final Logger logger =
             Logger.getLogger(AdvancedTextEditorPanel.class.getName());
 
-    /** One action contributed by one extension. */
-    record ExtensionAction(String extension, String label, Runnable run) {
+    /**
+     * The curated display order for extension categories; development-oriented
+     * groups lead. Categories not listed here keep their registration order and
+     * appear after these.
+     */
+    private static final List<String> PREFERRED_CATEGORIES = List.of(
+            "Text", "Code", "Java/Kotlin", "Web", "Spring", "Data",
+            "Encoding", "Markdown", "Analysis", "General");
+
+    /**
+     * One action contributed by one extension, tagged with its category, the
+     * owning contribution id and its (optional) keyboard accelerator.
+     */
+    record ExtensionAction(String category, String extension, String id, String label,
+                           String accelerator, Runnable run) {
     }
 
     private final boolean persistEnabled;
@@ -111,7 +131,15 @@ public class AdvancedTextEditorPanel extends JPanel
     private final RecentCard recentCard;
     private final ExtensionsCard extensionsCard;
     private final EditorStatusBar statusBar = new EditorStatusBar();
+    /** South console receiving compile/run tool output (never the document). */
+    private final OutputConsole outputConsole = new OutputConsole();
+    /** West lazily-loaded project file tree. */
+    private final ProjectTreePanel projectTree = new ProjectTreePanel();
     private final List<ExtensionAction> extensionActions = new ArrayList<>();
+    /** Accelerator KeyStrokes bound by the last {@link #bindAccelerators()} pass. */
+    private final List<KeyStroke> boundAccelerators = new ArrayList<>();
+    /** ActionMap names bound by the last {@link #bindAccelerators()} pass. */
+    private final List<String> boundAcceleratorNames = new ArrayList<>();
     private final ExtensionRegistry extensionRegistry;
     private final ExtensionBroker extensionBroker;
     private final Timer messageTimer;
@@ -150,7 +178,9 @@ public class AdvancedTextEditorPanel extends JPanel
                 extensionRegistry,
                 this::message,
                 this::openFileForExtension,
-                this::saveCurrentTab
+                this::saveCurrentTab,
+                this::showOutputForExtension,
+                this::clearOutputConsole
         );
 
         setLayout(new BorderLayout());
@@ -162,19 +192,32 @@ public class AdvancedTextEditorPanel extends JPanel
         recentCard = new RecentCard(this);
         extensionsCard = new ExtensionsCard(this);
 
+        projectTree.setOnFileChosen(this::openPath);
+
+        // Editor over output console (south), inside the editor card only.
+        JSplitPane editorVSPLIT = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                tabs, outputConsole);
+        editorVSPLIT.setResizeWeight(0.78);
+        editorVSPLIT.setOneTouchExpandable(true);
         editorCard.add(findBar, BorderLayout.NORTH);
-        editorCard.add(tabs, BorderLayout.CENTER);
+        editorCard.add(editorVSPLIT, BorderLayout.CENTER);
 
         center.add(editorCard, CARD_EDITOR);
         center.add(settingsCard, CARD_SETTINGS);
         center.add(recentCard, CARD_RECENT);
         center.add(extensionsCard, CARD_EXTENSIONS);
 
+        // Project tree (west) beside the card area.
+        JSplitPane mainHSPLIT = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                projectTree, center);
+        mainHSPLIT.setResizeWeight(0.0);
+        mainHSPLIT.setOneTouchExpandable(true);
+
         messageTimer = new Timer(MESSAGE_MS, e -> statusBar.setMessage(""));
         messageTimer.setRepeats(false);
 
         add(buildToolbar(), BorderLayout.NORTH);
-        add(center, BorderLayout.CENTER);
+        add(mainHSPLIT, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
         tabs.addChangeListener(e -> {
@@ -495,6 +538,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         message(result.warning() != null ? result.warning()
                 : "Opened " + tab.getDisplayName());
+        refreshProjectTree(path);
         notifyDocumentOpened(tab);
         return true;
     }
@@ -560,6 +604,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         refreshTabTitles();
         message("Saved " + target.getFileName());
+        refreshProjectTree(target);
         notifyDocumentSaved(tab);
         return true;
     }
@@ -910,12 +955,54 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     private void showExtensions() {
-        List<String> labels = new ArrayList<>();
-        for (ExtensionAction action : extensionActions) {
-            labels.add(action.label());
-        }
-        extensionsCard.load(labels);
+        extensionsCard.show(buildExtensionRows(), extensionInfos());
         cards.show(center, CARD_EXTENSIONS);
+    }
+
+    /**
+     * Groups the flat {@link #extensionActions} list under category headers in
+     * the curated {@link #PREFERRED_CATEGORIES} order (then any remaining
+     * categories in registration order). Only the display is reordered: each
+     * action row carries its original index, so {@link #runExtensionAction(int)}
+     * stays stable regardless of grouping.
+     */
+    private List<ExtensionsCard.Row> buildExtensionRows() {
+        List<ExtensionsCard.Row> rows = new ArrayList<>();
+        java.util.Set<String> emitted = new java.util.LinkedHashSet<>();
+        for (String category : PREFERRED_CATEGORIES) {
+            if (emitCategoryRows(rows, category)) {
+                emitted.add(category);
+            }
+        }
+        for (ExtensionAction action : extensionActions) {
+            if (!emitted.contains(action.category())
+                    && emitCategoryRows(rows, action.category())) {
+                emitted.add(action.category());
+            }
+        }
+        return rows;
+    }
+
+    /** Adds a header plus its action rows for {@code category}; false if empty. */
+    private boolean emitCategoryRows(List<ExtensionsCard.Row> rows, String category) {
+        List<ExtensionsCard.Row> body = new ArrayList<>();
+        for (int i = 0; i < extensionActions.size(); i++) {
+            ExtensionAction action = extensionActions.get(i);
+            if (action.category().equals(category)) {
+                String text = action.extension() + ": " + action.label();
+                String accel = formatAccelerator(effectiveAccelerator(action));
+                if (!accel.isEmpty()) {
+                    text += "  (" + accel + ")";
+                }
+                body.add(ExtensionsCard.Row.action(text, i));
+            }
+        }
+        if (body.isEmpty()) {
+            return false;
+        }
+        rows.add(ExtensionsCard.Row.header(category));
+        rows.addAll(body);
+        return true;
     }
 
     @Override
@@ -959,6 +1046,10 @@ public class AdvancedTextEditorPanel extends JPanel
             return;
         }
         cards.show(center, CARD_EDITOR);
+        // Extensions hold the document snapshot taken at open time; refresh it
+        // so every action runs against the live text (a build action must
+        // compile what the user currently sees, not the file as opened).
+        notifyDocumentOpened(currentTab());
         try {
             extensionActions.get(index).run().run();
         } catch (Throwable t) {
@@ -969,6 +1060,139 @@ public class AdvancedTextEditorPanel extends JPanel
         refreshStatus();
     }
 
+    @Override
+    public List<ExtensionsCard.ExtensionInfo> extensionInfos() {
+        List<ExtensionsCard.ExtensionInfo> out = new ArrayList<>();
+        for (ExtensionRegistry.LoadedExtension le : extensionRegistry.extensions()) {
+            TextEditorManifest m = le.getManifest();
+            out.add(new ExtensionsCard.ExtensionInfo(m.getId(), m.getName(),
+                    m.getVersion(), normalizeCategory(le.getExtension().category()),
+                    le.isEnabled()));
+        }
+        return out;
+    }
+
+    @Override
+    public void setExtensionEnabled(String id, boolean enabled) {
+        extensionRegistry.setEnabled(id, enabled);
+        refreshExtensionBindings();
+    }
+
+    /**
+     * The accelerator that actually governs an action right now: the user's
+     * stored override when one exists (an override of {@code ""} means
+     * deliberately unbound), otherwise the extension's declared default.
+     */
+    private String effectiveAccelerator(ExtensionAction action) {
+        String override = settings.getAcceleratorOverrides().get(action.id());
+        return (override != null) ? override : action.accelerator();
+    }
+
+    @Override
+    public String getAccelerator(int actionIndex) {
+        if (actionIndex < 0 || actionIndex >= extensionActions.size()) {
+            return "";
+        }
+        return effectiveAccelerator(extensionActions.get(actionIndex));
+    }
+
+    @Override
+    public void setAccelerator(int actionIndex, String spec) {
+        if (actionIndex < 0 || actionIndex >= extensionActions.size()) {
+            return;
+        }
+        ExtensionAction action = extensionActions.get(actionIndex);
+        String requested = (spec == null) ? "" : spec.trim();
+        String declared = (action.accelerator() == null) ? "" : action.accelerator();
+        if (requested.equals(declared)) {
+            // Back to the built-in default: drop the override entirely.
+            settings.clearAcceleratorOverride(action.id());
+        } else {
+            settings.setAcceleratorOverride(action.id(), requested);
+        }
+        persistSettings();
+        refreshExtensionBindings();
+    }
+
+    @Override
+    public List<ExtensionsCard.PermissionInfo> permissionsFor(String id) {
+        List<ExtensionsCard.PermissionInfo> out = new ArrayList<>();
+        ExtensionRegistry.LoadedExtension le = findExtension(id);
+        if (le == null) {
+            return out;
+        }
+        Set<TextEditorPermission> granted = le.getGranted();
+        for (TextEditorPermission p : le.getManifest().getPermissions()) {
+            out.add(new ExtensionsCard.PermissionInfo(p.name(), granted.contains(p)));
+        }
+        return out;
+    }
+
+    @Override
+    public void setPermission(String id, String name, boolean granted) {
+        ExtensionRegistry.LoadedExtension le = findExtension(id);
+        if (le == null) {
+            return;
+        }
+        TextEditorPermission permission;
+        try {
+            permission = TextEditorPermission.valueOf(name);
+        } catch (RuntimeException rte) {
+            return; // unknown permission name
+        }
+        Set<TextEditorPermission> next = EnumSet.noneOf(TextEditorPermission.class);
+        next.addAll(le.getGranted());
+        if (granted) {
+            next.add(permission);
+        } else {
+            next.remove(permission);
+        }
+        extensionRegistry.grant(id, next);
+        // A TOOLBAR change alters the contributed actions, so re-load and re-bind.
+        refreshExtensionBindings();
+    }
+
+    private ExtensionRegistry.LoadedExtension findExtension(String id) {
+        if (id == null) {
+            return null;
+        }
+        for (ExtensionRegistry.LoadedExtension le : extensionRegistry.extensions()) {
+            if (le.getManifest().getId().equals(id)) {
+                return le;
+            }
+        }
+        return null;
+    }
+
+    /** Test seam: is the given accelerator spec currently bound to an extension action? */
+    final boolean isAcceleratorBound(String spec) {
+        KeyStroke ks = KeyStroke.getKeyStroke(spec);
+        return ks != null && boundAccelerators.contains(ks);
+    }
+
+    private static String normalizeCategory(String category) {
+        return (category == null || category.isBlank()) ? "General" : category.trim();
+    }
+
+    /** Renders a KeyStroke spec such as {@code "control alt S"} as {@code "Ctrl+Alt+S"}. */
+    static String formatAccelerator(String spec) {
+        if (spec == null || spec.isBlank()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (String token : spec.trim().split("\\s+")) {
+            switch (token.toLowerCase()) {
+                case "control" -> parts.add("Ctrl");
+                case "alt" -> parts.add("Alt");
+                case "shift" -> parts.add("Shift");
+                case "meta" -> parts.add("Meta");
+                default -> parts.add(Character.toUpperCase(token.charAt(0))
+                        + token.substring(1));
+            }
+        }
+        return String.join("+", parts);
+    }
+
     // ------------------------------------------------------------------
     // Extensions
     // ------------------------------------------------------------------
@@ -976,10 +1200,80 @@ public class AdvancedTextEditorPanel extends JPanel
     private void installExtensions() {
         extensionRegistry.scan();
         extensionBroker.notifyStarted();
-        for (ToolbarContribution contrib : extensionBroker.toolbarContributions()) {
-            extensionActions.add(
-                    new ExtensionAction("Extension", contrib.getLabel(), contrib.getAction()));
+        loadExtensionActions();
+        bindAccelerators();
+    }
+
+    /**
+     * Rebuilds the flat {@link #extensionActions} list from the broker's
+     * currently-enabled contributions. Called at startup and again whenever an
+     * extension is enabled or disabled, so the list stays in step with the
+     * registry. The list order is the broker (services-file) order, which keeps
+     * {@link #runExtensionAction(int)} indices stable.
+     */
+    private void loadExtensionActions() {
+        extensionActions.clear();
+        for (ExtensionBroker.ContributedAction ca
+                : extensionBroker.categorizedActions()) {
+            extensionActions.add(new ExtensionAction(ca.category(), ca.extension(),
+                    ca.contribution().getId(), ca.contribution().getLabel(),
+                    ca.contribution().getAccelerator(), ca.contribution().getAction()));
         }
+    }
+
+    /**
+     * Binds every declared extension accelerator as a keyboard shortcut on the
+     * shared {@code center} input map (the same map as {@link #bindPanelKeys()}).
+     * Pressing a shortcut runs the action directly from the editor &mdash; no
+     * need to open the Extensions card. Old bindings are cleared first so that
+     * toggling an extension re-binds cleanly; the first action claiming a given
+     * KeyStroke wins (later duplicates are skipped, never silently overriding).
+     */
+    private void bindAccelerators() {
+        InputMap input = center.getInputMap(
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        ActionMap actions = center.getActionMap();
+        for (KeyStroke ks : boundAccelerators) {
+            input.remove(ks);
+        }
+        for (String name : boundAcceleratorNames) {
+            actions.remove(name);
+        }
+        boundAccelerators.clear();
+        boundAcceleratorNames.clear();
+        java.util.Set<KeyStroke> used = new java.util.HashSet<>();
+        for (int i = 0; i < extensionActions.size(); i++) {
+            ExtensionAction action = extensionActions.get(i);
+            String spec = effectiveAccelerator(action);
+            if (spec == null || spec.isBlank()) {
+                continue;
+            }
+            KeyStroke ks = KeyStroke.getKeyStroke(spec);
+            if (ks == null || !used.add(ks)) {
+                continue; // invalid spec, or already claimed by an earlier action
+            }
+            String name = "ext-accel:" + action.id();
+            final int index = i;
+            input.put(ks, name);
+            actions.put(name, new AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    runExtensionAction(index);
+                }
+            });
+            boundAccelerators.add(ks);
+            boundAcceleratorNames.add(name);
+        }
+    }
+
+    /**
+     * Re-runs the action list and accelerator bindings after an enable/disable
+     * toggle, then refreshes the Extensions card so both views agree.
+     */
+    private void refreshExtensionBindings() {
+        loadExtensionActions();
+        bindAccelerators();
+        showExtensions();
     }
 
     /** How many extension actions were registered (test seam). */
@@ -1031,6 +1325,47 @@ public class AdvancedTextEditorPanel extends JPanel
     /** Opens a file for extension use. */
     private void openFileForExtension() {
         openWithChooser();
+    }
+
+    // ------------------------------------------------------------------
+    // Output console and project tree (west/south chrome)
+    // ------------------------------------------------------------------
+
+    /**
+     * Appends a titled tool-output block to the south console and makes sure
+     * the editor card (not a settings-style card) is showing. Delegate for
+     * {@code EditorContext.showOutput}; called on the EDT.
+     */
+    void showOutputForExtension(String title, String body) {
+        cards.show(center, CARD_EDITOR);
+        outputConsole.appendOutput(title, body);
+    }
+
+    /** Empties the south console. Delegate for {@code EditorContext.clearOutput}. */
+    void clearOutputConsole() {
+        outputConsole.clear();
+    }
+
+    /** Re-roots the west tree on the project directory enclosing {@code file}. */
+    void refreshProjectTree(Path file) {
+        if (file != null) {
+            projectTree.setRootPath(ProjectTreePanel.projectRootFor(file));
+        }
+    }
+
+    /** The console transcript (test seam). */
+    final String outputConsoleText() {
+        return outputConsole.consoleText();
+    }
+
+    /** The console itself (test seam). */
+    final OutputConsole outputConsole() {
+        return outputConsole;
+    }
+
+    /** The project tree itself (test seam). */
+    final ProjectTreePanel projectTree() {
+        return projectTree;
     }
 
     // ------------------------------------------------------------------

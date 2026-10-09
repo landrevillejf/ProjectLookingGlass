@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import javax.swing.text.BadLocationException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +39,20 @@ import org.junit.jupiter.api.io.TempDir;
  * recents, extensions, status line) is driven through the real widget.
  */
 class AdvancedTextEditorPanelTest {
+
+    /** A throwaway config dir so enable/permission writes never touch ~/.lg3d. */
+    @TempDir
+    Path storeDir;
+
+    @BeforeEach
+    void isolateExtensionStore() {
+        System.setProperty(EditorStore.DIR_PROPERTY, storeDir.toString());
+    }
+
+    @AfterEach
+    void restoreExtensionStore() {
+        System.clearProperty(EditorStore.DIR_PROPERTY);
+    }
 
     private static AdvancedTextEditorPanel newPanel() {
         return new AdvancedTextEditorPanel(false);
@@ -63,10 +80,106 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled Text Tools extension installs its six actions")
+    @DisplayName("the bundled extensions install their 52 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
-        assertEquals(6, panel.extensionActionCount());
+        // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
+        // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
+        // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
+        // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
+        assertEquals(52, panel.extensionActionCount());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extension accelerators bind to the editor input map")
+    void extensionAcceleratorsBound() {
+        AdvancedTextEditorPanel panel = newPanel();
+        // Declared by BuiltinTextTools sort-az, CodeTools indent, JsonTools
+        // prettify, SpringBootTools props-to-yaml, SpringBootTools normalize-keys
+        // and SpringBootTools list-placeholders, respectively.
+        assertTrue(panel.isAcceleratorBound("control alt A"));
+        assertTrue(panel.isAcceleratorBound("control alt R"));
+        assertTrue(panel.isAcceleratorBound("control alt O"));
+        assertTrue(panel.isAcceleratorBound("control alt S"));
+        assertTrue(panel.isAcceleratorBound("control alt 8"));
+        assertTrue(panel.isAcceleratorBound("control alt 9"));
+        // No bundled action claims Ctrl+Alt+0, so it stays unbound.
+        assertFalse(panel.isAcceleratorBound("control alt 0"));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extensionInfos lists every installed extension as enabled")
+    void extensionInfosListed() {
+        AdvancedTextEditorPanel panel = newPanel();
+        List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
+        assertEquals(13, infos.size());
+        assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
+                "built-in extensions start enabled");
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.jvm-build-tools")));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("extension actions run against the live text, not the open-time snapshot")
+    void extensionActionSeesLiveText() throws Exception {
+        AdvancedTextEditorPanel panel = newPanel();
+        EditorTab tab = panel.currentTab();
+        // The tab was opened empty; the snapshot an extension holds would
+        // otherwise stay empty and every action would silently no-op.
+        type(tab, "b\na");
+        panel.runExtensionAction(0); // BuiltinTextTools sort-az, whole document
+        assertEquals("a\nb", tab.getText());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a rebound accelerator follows the override and frees the old key")
+    void acceleratorRebind() {
+        AdvancedTextEditorPanel panel = newPanel();
+        // Index 0 is BuiltinTextTools sort-az, declared on Ctrl+Alt+A.
+        assertEquals("control alt A", panel.getAccelerator(0));
+
+        panel.setAccelerator(0, "control alt 0");
+        assertTrue(panel.isAcceleratorBound("control alt 0"));
+        assertFalse(panel.isAcceleratorBound("control alt A"));
+        assertEquals("control alt 0", panel.getAccelerator(0));
+        assertEquals("control alt 0",
+                panel.settings().getAcceleratorOverrides().get("sort-az"));
+
+        // Setting the declared default back clears the override.
+        panel.setAccelerator(0, "control alt A");
+        assertTrue(panel.isAcceleratorBound("control alt A"));
+        assertFalse(panel.isAcceleratorBound("control alt 0"));
+        assertFalse(panel.settings().getAcceleratorOverrides().containsKey("sort-az"));
+
+        // An empty spec unbinds the action entirely.
+        panel.setAccelerator(0, "");
+        assertFalse(panel.isAcceleratorBound("control alt A"));
+        assertEquals("", panel.getAccelerator(0));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("revoking TOOLBAR hides an extension's actions; regranting restores them")
+    void permissionGrantControlsToolbar() {
+        AdvancedTextEditorPanel panel = newPanel();
+        int before = panel.extensionActionCount();
+        var perms = panel.permissionsFor("lg3d.base64-tools");
+        assertEquals(3, perms.size(), "READ, WRITE, TOOLBAR");
+        assertTrue(perms.stream().anyMatch(p -> p.name().equals("TOOLBAR") && p.granted()));
+
+        panel.setPermission("lg3d.base64-tools", "TOOLBAR", false);
+        assertEquals(before - 2, panel.extensionActionCount());
+        assertFalse(panel.isAcceleratorBound("control alt Q"));
+        assertTrue(panel.permissionsFor("lg3d.base64-tools").stream()
+                .anyMatch(p -> p.name().equals("TOOLBAR") && !p.granted()));
+
+        panel.setPermission("lg3d.base64-tools", "TOOLBAR", true);
+        assertEquals(before, panel.extensionActionCount());
+        assertTrue(panel.isAcceleratorBound("control alt Q"));
         panel.dispose();
     }
 
@@ -278,6 +391,54 @@ class AdvancedTextEditorPanelTest {
         tab.textPane().setCaretPosition(5);
         // The caret listener refreshes the status line on every caret move.
         assertEquals("Ln 2, Col 2", panel.statusPosition());
+        panel.dispose();
+    }
+
+    // -- south output console and west project tree --------------------------
+
+    @Test
+    @DisplayName("extension tool output lands in the south console, not the document")
+    void outputConsoleReceivesToolOutput() {
+        AdvancedTextEditorPanel panel = newPanel();
+        panel.showOutputForExtension("javac output", "Foo.java:1: error: ';'");
+        assertTrue(panel.outputConsoleText().contains("---- javac output ----\n"
+                + "Foo.java:1: error: ';'"), panel.outputConsoleText());
+        assertEquals("", panel.currentTab().getText(),
+                "the console never writes into the document");
+        panel.clearOutputConsole();
+        assertEquals("", panel.outputConsoleText());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("opening a file re-roots the west project tree on its project")
+    void projectTreeFollowsOpenedDocument(@TempDir Path project)
+            throws IOException {
+        Files.createDirectory(project.resolve(".git"));
+        Path src = Files.createDirectories(project.resolve("src/main"));
+        Path file = src.resolve("Foo.java");
+        Files.writeString(file, "public class Foo { }\n");
+        AdvancedTextEditorPanel panel = newPanel();
+        assertTrue(panel.openPath(file));
+        assertEquals(project, panel.projectTree().rootPath(),
+                "the tree walked up from src/main to the .git project root");
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a tree file selection opens the file in a new tab")
+    void projectTreeOpensFiles(@TempDir Path project) throws IOException {
+        Path first = project.resolve("a.txt");
+        Files.writeString(first, "a\n");
+        Path second = project.resolve("b.txt");
+        Files.writeString(second, "b\n");
+        AdvancedTextEditorPanel panel = newPanel();
+        assertTrue(panel.openPath(first));       // roots the tree on the project
+        assertEquals(2, panel.tabCount());
+        assertTrue(panel.projectTree().revealAndOpen(second),
+                "the file is visible under the current root");
+        assertEquals(3, panel.tabCount());
+        assertEquals("b", panel.currentTab().getText().strip());
         panel.dispose();
     }
 }

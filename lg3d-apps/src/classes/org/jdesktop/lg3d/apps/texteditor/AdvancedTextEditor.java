@@ -16,14 +16,15 @@ package org.jdesktop.lg3d.apps.texteditor;
 import org.jdesktop.lg3d.apps.TitledSwingWindow;
 
 /**
- * The Advanced Text Editor application: the {@link AdvancedTextEditorPanel}
+ * <b>Espresso</b>, the Advanced Text Editor application: the
+ * {@link AdvancedTextEditorPanel}
  * editing surface presented as an integrated 3D desktop window (title bar
  * plus minimize / maximize / close) via {@link TitledSwingWindow}, which
  * hosts the panel on a {@code SwingNode} quad below a draggable glassy title
  * bar.
  *
- * <p>This is the 3D-desktop entry point (Start Menu &rarr; Office &rarr; Text
- * Editor). In the 2D/Swing desktop the very same
+ * <p>This is the 3D-desktop entry point (Start Menu &rarr; Office &rarr;
+ * Espresso). In the 2D/Swing desktop the very same
  * {@link AdvancedTextEditorPanel} is hosted as an MDI internal frame by
  * {@code Desktop2DAppRegistry}, so this wrapper is never loaded there &mdash;
  * only the panel is.</p>
@@ -39,7 +40,7 @@ public class AdvancedTextEditor {
         // paints them offscreen. Must run before the panel is constructed.
         TitledSwingWindow.installHostedLookAndFeel();
         TitledSwingWindow.show(
-                "Text Editor",
+                "Espresso",
                 new AdvancedTextEditorPanel(),
                 AdvancedTextEditorPanel.WIDTH_PX,
                 AdvancedTextEditorPanel.HEIGHT_PX);
