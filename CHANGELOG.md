@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Advanced Text Editor: compile, run and debug Java/Kotlin from the editor**
+  (`lg3d-apps`) — a thirteenth bundled provider, **JVM Build Tools**
+  (`lg3d.jvm-build-tools`, category `Java/Kotlin`), takes the extension surface
+  beyond text rewriting into the real toolchain with six toolbar actions (none
+  claims a Ctrl+Alt slot, so the accelerator map is unchanged). **Compile Java**
+  stages the document's *current* text into a fresh temp directory (the user's
+  file is never touched, unsaved drafts work) and runs the running JDK's own
+  `javac`; success is a status line, failure appends the errors to a trailing
+  `// ---- javac output ----` comment block. **Run Java** uses the JDK 11+
+  single-file source launcher and captures stdout+stderr into the block.
+  **Debug Java** is an honest crash-analysis run: assertions enabled (`-ea`),
+  the output scanned for the exception heading and the first stack frame in
+  this file, reported as `Debug: java.lang.IllegalStateException: boom at
+  Foo.java:42` with the full trace kept below (interactive breakpoint debugging
+  is deliberately out of scope here). **Compile Kotlin** / **Run Kotlin** drive
+  `kotlinc` + the `kotlin` launcher from `PATH` and degrade to a clear status
+  message — spawning nothing — when no Kotlin install is found; **Clean
+  Output** strips the block. Processes run on a virtual thread and results are
+  delivered on the EDT, so the editor never freezes, and a package-private
+  `Runner` seam keeps every action headless-testable with a synchronous fake
+  (`Toolchain` itself is pure command builders, class-name derivation,
+  `Foo.kt`→`FooKt` mapping, stack/exception parsing and block editing). The
+  panel now also refreshes the extensions' document snapshot immediately before
+  each action dispatch, so *every* action — not just the build ones — operates
+  on the live text rather than the file-as-opened. New `JvmBuildToolsTest` (17
+  tests) plus panel count/live-text assertions bring the text-editor surface to
+  **52 actions across 13 providers** and 24 suites / 220 headless tests; the
+  whole module build stays green.
 - **Advanced Text Editor: Spring Boot / JSON / Hash extensions, user-editable
   shortcuts and a permission grant UI** (`lg3d-apps`) — three purely additive
   follow-ups on the extension surface, all in one train. **Three more bundled
