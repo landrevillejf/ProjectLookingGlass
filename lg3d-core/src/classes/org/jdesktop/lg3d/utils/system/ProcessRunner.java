@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -210,6 +211,26 @@ public final class ProcessRunner {
      * @return the captured {@link Result}; never null
      */
     public static Result run(List<String> command, String stdin, long timeout, TimeUnit unit, File workingDir) {
+        return run(command, stdin, timeout, unit, workingDir, null);
+    }
+
+    /**
+     * Runs a command, optionally writing {@code stdin} to the child's standard
+     * input, capturing stdout and stderr and enforcing a timeout. While the
+     * child runs, every stdout line is also handed to {@code lineSink} as soon
+     * as it arrives (on the gobbler thread), so callers can render live
+     * progress instead of waiting for the buffered result.
+     *
+     * @param command    the command and arguments
+     * @param stdin      text to write to the child's stdin, or null for none
+     * @param timeout    how long to wait for the process to exit
+     * @param unit       the timeout unit
+     * @param workingDir optional working directory (null = inherit)
+     * @param lineSink   optional per-stdout-line callback (null = buffer only)
+     * @return the captured {@link Result}; never null
+     */
+    public static Result run(List<String> command, String stdin, long timeout, TimeUnit unit,
+                             File workingDir, Consumer<String> lineSink) {
         if (command == null || command.isEmpty()) {
             return new Result(false, -1, "", "empty command");
         }
@@ -248,8 +269,8 @@ public final class ProcessRunner {
             logger.log(Level.FINE, "Could not write stdin for " + command.get(0), e);
         }
 
-        StreamGobbler out = new StreamGobbler(process.getInputStream());
-        StreamGobbler err = new StreamGobbler(process.getErrorStream());
+        StreamGobbler out = new StreamGobbler(process.getInputStream(), lineSink);
+        StreamGobbler err = new StreamGobbler(process.getErrorStream(), null);
         out.start();
         err.start();
 
@@ -278,13 +299,16 @@ public final class ProcessRunner {
         return run(Arrays.asList("/bin/sh", "-c", script), timeout, unit, null);
     }
 
-    /** Reads all bytes from a stream on its own thread. */
+    /** Reads all bytes from a stream on its own thread, optionally forwarding
+     *  each line to a sink as it arrives. */
     private static final class StreamGobbler extends Thread {
         private final InputStream in;
+        private final Consumer<String> sink;
         private final StringBuilder sb = new StringBuilder();
 
-        StreamGobbler(InputStream in) {
+        StreamGobbler(InputStream in, Consumer<String> sink) {
             this.in = in;
+            this.sink = sink;
             setDaemon(true);
             setName("ProcessRunner-gobbler");
         }
@@ -296,6 +320,9 @@ public final class ProcessRunner {
                 String line;
                 while ((line = r.readLine()) != null) {
                     sb.append(line).append('\n');
+                    if (sink != null) {
+                        sink.accept(line);
+                    }
                 }
             } catch (IOException e) {
                 // Stream closed when the process exits; nothing to do.

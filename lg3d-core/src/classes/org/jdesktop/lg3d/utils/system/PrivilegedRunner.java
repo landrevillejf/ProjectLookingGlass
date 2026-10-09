@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /**
@@ -113,7 +114,7 @@ public final class PrivilegedRunner {
      * @return a structured {@link PrivilegedResult}; never null
      */
     public static PrivilegedResult run(List<String> command) {
-        return run(command, null);
+        return run(command, (String) null);
     }
 
     /**
@@ -125,6 +126,21 @@ public final class PrivilegedRunner {
      * @return a structured {@link PrivilegedResult}; never null
      */
     public static PrivilegedResult run(List<String> command, String stdin) {
+        return run(command, stdin, null);
+    }
+
+    /**
+     * Runs the given command with elevated privileges via {@code pkexec},
+     * forwarding every stdout line to {@code lineSink} as it arrives (on the
+     * gobbler thread) so callers can render live progress while the polkit
+     * prompt and the command run.
+     *
+     * @param command  the command and arguments (without a leading pkexec)
+     * @param stdin    text to feed to the command's stdin, or null for none
+     * @param lineSink optional per-stdout-line callback (null = buffer only)
+     * @return a structured {@link PrivilegedResult}; never null
+     */
+    public static PrivilegedResult run(List<String> command, String stdin, Consumer<String> lineSink) {
         if (command == null || command.isEmpty()) {
             return new PrivilegedResult(Status.ERROR, "empty command", -1, "");
         }
@@ -138,7 +154,7 @@ public final class PrivilegedRunner {
         full.add("pkexec");
         full.addAll(command);
 
-        ProcessRunner.Result r = ProcessRunner.run(full, stdin, TIMEOUT_SECONDS, TimeUnit.SECONDS, null);
+        ProcessRunner.Result r = ProcessRunner.run(full, stdin, TIMEOUT_SECONDS, TimeUnit.SECONDS, null, lineSink);
         if (!r.isStarted()) {
             return new PrivilegedResult(Status.ERROR, r.getMessage(), -1, r.getStdout());
         }
@@ -163,5 +179,10 @@ public final class PrivilegedRunner {
     /** Convenience varargs overload of {@link #run(List)}. */
     public static PrivilegedResult run(String... command) {
         return run(Arrays.asList(command));
+    }
+
+    /** Convenience overload of {@link #run(List, String, Consumer)} without stdin. */
+    public static PrivilegedResult run(List<String> command, Consumer<String> lineSink) {
+        return run(command, null, lineSink);
     }
 }
