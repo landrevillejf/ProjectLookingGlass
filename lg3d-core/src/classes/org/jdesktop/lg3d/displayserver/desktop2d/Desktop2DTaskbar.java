@@ -58,6 +58,7 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import com.protonmail.landrevillejf.IconManager;
+import com.protonmail.landrevillejf.MissingIcon;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
@@ -80,10 +81,17 @@ public class Desktop2DTaskbar extends JPanel {
             DateTimeFormatter.ofPattern("HH:mm");
 
     /** Taskbar chrome icon resources (rescaled by the configured icon scale). */
-    private static final String STAR_ICON = "resources/images/icon/star.png";
+    private static final String START_ICON = "resources/images/icon/lg3d-logo.png";
 
     /** Natural edge of a quick-launch shortcut icon, before the config scale. */
     private static final int QUICKLAUNCH_ICON_BASE_PX = 22;
+
+    /**
+     * Natural edge of the fixed chrome buttons' icons (start, documents,
+     * downloads, exit, notification tray): the same edge as the quick-launch
+     * glyphs so every button in the bar shares one height.
+     */
+    private static final int CHROME_ICON_BASE_PX = QUICKLAUNCH_ICON_BASE_PX;
 
     /** Highlight painted on the quick-launch strip while a launcher hovers. */
     private static final Color QUICKLAUNCH_DROP_HIGHLIGHT = new Color(0x3d6da8);
@@ -165,7 +173,7 @@ public class Desktop2DTaskbar extends JPanel {
         // that reads as a second row.
         JPanel leftRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
         leftRow.setOpaque(false);
-        startIconBase = Desktop2DStartMenu.icon(STAR_ICON);
+        startIconBase = Desktop2DStartMenu.icon(START_ICON, CHROME_ICON_BASE_PX);
         startButton = new JButton(startIconBase);
         startButton.setToolTipText("Start - Applications");
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
@@ -193,10 +201,10 @@ public class Desktop2DTaskbar extends JPanel {
 
         JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
         rightRow.setOpaque(false);
-        documentsIconBase = Desktop2DStartMenu.icon(DOCUMENTS_ICON);
+        documentsIconBase = Desktop2DStartMenu.icon(DOCUMENTS_ICON, CHROME_ICON_BASE_PX);
         documentsButton = folderButton("documents", documentsIconBase,
                 desktop.getDocumentsMenu());
-        downloadsIconBase = Desktop2DStartMenu.icon(DOWNLOADS_ICON);
+        downloadsIconBase = Desktop2DStartMenu.icon(DOWNLOADS_ICON, CHROME_ICON_BASE_PX);
         downloadsButton = folderButton("downloads", downloadsIconBase,
                 desktop.getDownloadsMenu());
         rightRow.add(documentsButton);
@@ -222,7 +230,8 @@ public class Desktop2DTaskbar extends JPanel {
         // Double-clicking a day in that calendar opens the Agenda at that date.
         calendar.setOnOpenDate(desktop::openAgendaAt);
         exitButton = new JButton("");
-        exitButton.setIcon(IconManager.loadIcon(IconManager.IconCategory.GENERAL,"Stop",24,24));
+        exitButton.setIcon(chromeGlyph(IconManager.loadIcon(
+                IconManager.IconCategory.GENERAL, "Stop", 24, 24)));
         exitButton.setToolTipText("Leave the desktop");
         exitButton.addActionListener(e -> desktop.confirmExit());
         rightRow.add(exitButton);
@@ -745,6 +754,18 @@ public class Desktop2DTaskbar extends JPanel {
                 captureOriginalFonts((Container) comp);
             }
         }
+    }
+
+    /**
+     * Resizes a bundled IconManager glyph to the chrome icon edge so its
+     * button matches the height of its neighbours; a missing glyph is passed
+     * through unchanged rather than replaced by a placeholder.
+     */
+    private static Icon chromeGlyph(Icon glyph) {
+        if (glyph == null || glyph instanceof MissingIcon) {
+            return glyph;
+        }
+        return IconManager.resizeIcon(glyph, CHROME_ICON_BASE_PX, CHROME_ICON_BASE_PX);
     }
 
     private static Icon scaledIcon(Icon base, float scale) {
