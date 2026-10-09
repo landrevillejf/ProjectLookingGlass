@@ -25,13 +25,13 @@ import java.util.function.Supplier;
  * builds a fresh instance per connection (backends such as {@link IrcProtocol}
  * are stateful, so each account gets its own).
  *
- * <p>{@link #standard()} registers the shipped set: the <b>native IRC</b> client
- * plus <b>bridge</b> backends for XMPP, Matrix, Telegram, WhatsApp, Signal, SMS
- * and SIP (which hand off to the network's official client/web app). Adding a
- * new protocol &mdash; native or bridge &mdash; is a single {@link #register}
- * call here; nothing in the UI changes. That is how "every known protocol" is
- * approached honestly: one real, tested native client and an extensible seam for
- * the rest.</p>
+ * <p>{@link #standard()} registers the shipped set: the <b>native IRC</b> client,
+ * the <b>native P2P</b> direct/encrypted backend, plus <b>bridge</b> backends for
+ * XMPP, Matrix, Telegram, WhatsApp, Signal, SMS and SIP (which hand off to the
+ * network's official client/web app). Adding a new protocol &mdash; native or
+ * bridge &mdash; is a single {@link #register} call here; nothing in the UI
+ * changes. That is how "every known protocol" is approached honestly: real,
+ * tested native clients and an extensible seam for the rest.</p>
  */
 public final class ProtocolRegistry {
 
@@ -53,6 +53,11 @@ public final class ProtocolRegistry {
         r.register(new ProtocolInfo("irc", "IRC",
                 "Native IRC client (RFC 2812) over a plain or TLS socket.",
                 true, IrcProtocol::new));
+        // A second native backend: encrypted peer-to-peer, no server in between.
+        r.register(new ProtocolInfo("p2p", "P2P (Direct)",
+                "Encrypted peer-to-peer chat and file transfer (X25519 + AES-256-GCM), "
+                        + "direct or LAN-discovered; no server.",
+                true, P2pProtocol::new));
         // Bridges: real networks reached through their official client/web app.
         r.register(new ProtocolInfo("xmpp", "XMPP / Jabber",
                 "Opens your XMPP client (Dino, Gajim, Conversations) for the JID.",

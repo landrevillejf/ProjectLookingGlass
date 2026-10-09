@@ -137,6 +137,43 @@
     path-traversal (&ldquo;Zip-Slip&rdquo;) attacks.
   </p>
 
+  <h2>Encrypted peer-to-peer (P2P) transport</h2>
+  <p>
+    The <a href="internet.html">Instant Messenger</a> and
+    <a href="internet.html">Video Conference</a> can talk to a peer directly over
+    an encrypted, dependency-free P2P transport built on the JDK's own
+    <code>javax.crypto</code> &mdash; no third-party or native library is added. The
+    stack mirrors the Password Manager's honesty about what protects you:
+  </p>
+  <ul>
+    <li><strong>Key agreement</strong> &mdash; X25519 elliptic-curve Diffie-Hellman
+        establishes a shared secret between the two nodes.</li>
+    <li><strong>Handshake</strong> &mdash; a Noise-XX-style exchange
+        <em>mutually authenticates</em> both nodes and derives separate send and
+        receive keys through HKDF-SHA256, binding the whole transcript so a
+        man-in-the-middle cannot silently splice the session.</li>
+    <li><strong>Confidentiality and integrity</strong> &mdash; every frame is sealed
+        with AES-256-GCM using a per-direction counter nonce (never reused under a
+        long-lived key); a tampered frame fails its authentication tag and is
+        rejected.</li>
+    <li><strong>Forward secrecy</strong> &mdash; the session keys come from
+        ephemeral handshake keypairs, so recording the traffic and later compromising
+        a node does not retroactively decrypt past conversations.</li>
+    <li><strong>Trust on first use (TOFU)</strong> &mdash; a node's identity is the
+        SHA-256 fingerprint of its static X25519 public key. The first contact pins
+        that fingerprint; a later mismatch raises a loud MITM warning that needs an
+        explicit override. Compare fingerprints with your peer out of band to defeat
+        an impostor on the first connection.</li>
+  </ul>
+  <div class="note">
+    <strong>Note:</strong> To give a stable fingerprint, the node's <em>private</em>
+    identity key is stored at rest under <code>~/.lg3d/p2p</code> with
+    <code>0600</code> permissions (like an SSH host key) &mdash; treat that file as
+    sensitive material. LAN auto-discovery is scoped to the local network; reaching
+    a peer across the internet needs a reachable host or a forwarded port, and the
+    UI says so rather than pretending to traverse NAT.
+  </div>
+
   <div class="tip">
     <strong>Tip:</strong> The Security Center grade is a quick at-a-glance summary,
     not a guarantee. Read the recommendations and the activity log to understand

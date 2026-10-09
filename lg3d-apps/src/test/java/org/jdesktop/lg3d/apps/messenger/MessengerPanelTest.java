@@ -21,8 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jdesktop.lg3d.contacts.Contact;
 import org.jdesktop.lg3d.contacts.ContactStore;
@@ -277,6 +279,160 @@ class MessengerPanelTest {
             assertEquals(1, new ContactStore(contactsDir).size());
         } finally {
             panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("Send File is enabled only for a connected FILE_TRANSFER peer")
+    void sendFileGatedOnCapability(@TempDir Path dir) throws Exception {
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir));
+        try {
+            AccountConfig a = new AccountConfig("P2P", "p2p", "", "me");
+            panel.addAccountForTest(a);
+            MessengerPanel.Conversation peer =
+                    new MessengerPanel.Conversation(a.getId(), "bob", "Bob");
+            MessengerPanel.Conversation console =
+                    new MessengerPanel.Conversation(a.getId(), "", "console");
+
+            // No backend yet: nothing is enabled, and Find Peers needs a real P2P node.
+            panel.selectConversationForTest(peer);
+            assertFalse(panel.sendFileButton().isEnabled());
+            assertFalse(panel.cancelFileButton().isEnabled());
+            assertFalse(panel.findPeersButton().isEnabled());
+
+            // A connected backend WITHOUT file transfer still cannot send.
+            panel.putProtocolForTest(a.getId(), new FakeProtocol(false));
+            panel.selectConversationForTest(peer);
+            assertFalse(panel.sendFileButton().isEnabled());
+
+            // A connected backend WITH file transfer enables Send File for a peer...
+            FakeProtocol ft = new FakeProtocol(true);
+            panel.putProtocolForTest(a.getId(), ft);
+            panel.selectConversationForTest(peer);
+            assertTrue(panel.sendFileButton().isEnabled());
+            // ...but never for the account console.
+            panel.selectConversationForTest(console);
+            assertFalse(panel.sendFileButton().isEnabled());
+
+            // A disconnected backend disables it again.
+            ft.connected = false;
+            panel.selectConversationForTest(peer);
+            assertFalse(panel.sendFileButton().isEnabled());
+
+            // Offering a file routes through the backend to the current peer.
+            ft.connected = true;
+            panel.selectConversationForTest(peer);
+            Path payload = dir.resolve("hello.txt");
+            Files.writeString(payload, "hi");
+            assertTrue(panel.offerFileForTest(payload));
+            assertEquals("bob", ft.lastSendTarget);
+            assertEquals(payload, ft.lastSendFile);
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("a file event renders in the conversation and tracks the transfer")
+    void handleFileEventTracksAndRenders(@TempDir Path dir) {
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir));
+        try {
+            AccountConfig a = new AccountConfig("P2P", "p2p", "", "me");
+            panel.addAccountForTest(a);
+            FakeProtocol ft = new FakeProtocol(true);
+            panel.putProtocolForTest(a.getId(), ft);
+            panel.selectConversationForTest(
+                    new MessengerPanel.Conversation(a.getId(), "bob", "Bob"));
+
+            FileTransferEvent offer = new FileTransferEvent("t1", "bob", "report.bin",
+                    2048, 0, FileTransferEvent.Direction.RECEIVE,
+                    FileTransferEvent.State.OFFERED, null, null, false);
+            panel.handleFileEventForTest(a, offer);
+
+            // The offer renders, is tracked, and is auto-declined in the headless JVM.
+            assertTrue(panel.transcriptText().contains("report.bin"), panel.transcriptText());
+            assertTrue(panel.hasActiveTransfer("t1"));
+            assertEquals("t1", ft.lastRejectId);
+
+            // A terminal event clears the tracking and renders the verified outcome.
+            FileTransferEvent done = new FileTransferEvent("t1", "bob", "report.bin",
+                    2048, 2048, FileTransferEvent.Direction.RECEIVE,
+                    FileTransferEvent.State.COMPLETED, "/tmp/report.bin", null, true);
+            panel.handleFileEventForTest(a, done);
+            assertFalse(panel.hasActiveTransfer("t1"));
+            assertTrue(panel.transcriptText().contains("verified"), panel.transcriptText());
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("the file-event description and size helpers are pure and null-safe")
+    void describeHelpers() {
+        assertNull(MessengerPanel.describeFileEvent(null));
+        assertEquals("", MessengerPanel.describeDiscovered(null));
+
+        FileTransferEvent progress = new FileTransferEvent("t", "bob", "f.bin",
+                100, 50, FileTransferEvent.Direction.SEND,
+                FileTransferEvent.State.IN_PROGRESS, null, null, false);
+        assertNull(MessengerPanel.describeFileEvent(progress), "progress renders no line");
+
+        FileTransferEvent offer = new FileTransferEvent("t", "bob", "f.bin",
+                100, 0, FileTransferEvent.Direction.RECEIVE,
+                FileTransferEvent.State.OFFERED, null, null, false);
+        assertTrue(MessengerPanel.describeFileEvent(offer).contains("offers"));
+
+        FileTransferEvent failed = new FileTransferEvent("t", "bob", "f.bin",
+                100, 0, FileTransferEvent.Direction.SEND,
+                FileTransferEvent.State.FAILED, null, "boom", false);
+        assertTrue(MessengerPanel.describeFileEvent(failed).contains("boom"));
+
+        assertEquals("512 B", MessengerPanel.humanSize(512));
+        assertEquals("1.0 KiB", MessengerPanel.humanSize(1024));
+        assertEquals("2.0 KiB", MessengerPanel.humanSize(2048));
+        assertEquals("5.0 MiB", MessengerPanel.humanSize(5L * 1024 * 1024));
+        assertEquals("1.0 GiB", MessengerPanel.humanSize(1024L * 1024 * 1024));
+    }
+
+    /** A minimal, connected backend that records its file-transfer calls. */
+    private static final class FakeProtocol implements MessengerProtocol {
+        boolean connected = true;
+        private final boolean fileTransfer;
+        String lastSendTarget;
+        Path lastSendFile;
+        String lastAcceptId;
+        String lastRejectId;
+        String lastCancelId;
+
+        FakeProtocol(boolean fileTransfer) {
+            this.fileTransfer = fileTransfer;
+        }
+
+        @Override public String id() { return "fake"; }
+        @Override public String displayName() { return "Fake"; }
+        @Override public String description() { return "test backend"; }
+        @Override public boolean isNative() { return true; }
+        @Override public Set<MessengerProtocol.Capability> capabilities() {
+            return fileTransfer
+                    ? Set.of(MessengerProtocol.Capability.CHAT,
+                            MessengerProtocol.Capability.FILE_TRANSFER)
+                    : Set.of(MessengerProtocol.Capability.CHAT);
+        }
+        @Override public void connect(AccountConfig account, ProtocolListener listener) { }
+        @Override public void disconnect() { connected = false; }
+        @Override public boolean isConnected() { return connected; }
+        @Override public void sendMessage(String target, String text) { }
+        @Override public boolean sendFile(String target, Path file) {
+            lastSendTarget = target;
+            lastSendFile = file;
+            return true;
+        }
+        @Override public void acceptFile(String transferId) { lastAcceptId = transferId; }
+        @Override public void rejectFile(String transferId, String reason) {
+            lastRejectId = transferId;
+        }
+        @Override public void cancelFile(String transferId, String reason) {
+            lastCancelId = transferId;
         }
     }
 }

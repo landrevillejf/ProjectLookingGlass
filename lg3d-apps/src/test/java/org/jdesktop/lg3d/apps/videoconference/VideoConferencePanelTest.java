@@ -16,11 +16,13 @@ package org.jdesktop.lg3d.apps.videoconference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.JTabbedPane;
 import org.jdesktop.lg3d.contacts.Contact;
 import org.jdesktop.lg3d.contacts.ContactStore;
 import org.junit.jupiter.api.DisplayName;
@@ -164,5 +166,78 @@ class VideoConferencePanelTest {
         assertEquals("", VideoConferencePanel.formatTimestamp(0));
         assertEquals("", VideoConferencePanel.formatTimestamp(-1));
         assertFalse(VideoConferencePanel.formatTimestamp(System.currentTimeMillis()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("the sidebar gains a Direct (P2P) tab and starts no socket headless")
+    void p2pTabIsPresentAndInert(@TempDir Path dir) {
+        VideoConferencePanel panel = new VideoConferencePanel(new VideoConferenceStore(dir));
+        try {
+            JTabbedPane tabs = panel.sidebarTabs();
+            assertEquals(4, tabs.getTabCount());
+            assertEquals("Direct (P2P)", tabs.getTitleAt(3));
+
+            // A headless-constructed panel spawns no side-channel, socket or thread.
+            assertNull(panel.p2p());
+            assertTrue(panel.p2pPeerModel().isEmpty());
+
+            // Starting is refused headless rather than binding a socket.
+            panel.startP2p();
+            assertNull(panel.p2p());
+            assertTrue(panel.statusLbl().getText().toLowerCase().contains("headless"),
+                    panel.statusLbl().getText());
+
+            // Inviting/chatting without a running channel only sets a guiding status.
+            panel.sendInviteToSelectedPeer();
+            assertTrue(panel.statusLbl().getText().contains("Start the P2P"),
+                    panel.statusLbl().getText());
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("an invite URL is built from the room and applied on receipt")
+    void inviteUrlBuildAndApply(@TempDir Path dir) {
+        VideoConferencePanel panel = new VideoConferencePanel(new VideoConferenceStore(dir));
+        try {
+            panel.roomField().setText("Board Meeting");
+            panel.domainField().setText("meet.jit.si");
+            String url = panel.buildInviteUrl();
+            assertNotNull(url);
+            assertTrue(url.contains("meet.jit.si"), url);
+            assertTrue(url.contains("BoardMeeting"), "the room is sanitized: " + url);
+
+            // Receiving an invite fills the room/domain and runs the existing join flow.
+            panel.applyInvite("Invited Room", "https://chat.example.org/InvitedRoom");
+            assertEquals("Invited Room", panel.roomField().getText());
+            assertEquals("chat.example.org", panel.domainField().getText());
+            assertNotNull(panel.lastJoinUrl());
+            assertTrue(panel.lastJoinUrl().startsWith("https://chat.example.org/"),
+                    panel.lastJoinUrl());
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("the P2P chat log and the pure label helpers are headless-safe")
+    void p2pChatAndHelpers(@TempDir Path dir) {
+        VideoConferencePanel panel = new VideoConferencePanel(new VideoConferenceStore(dir));
+        try {
+            panel.appendP2pChatForTest("alice: hello");
+            assertTrue(panel.p2pChatText().contains("alice: hello"));
+
+            panel.p2pChatInput().setText("ignored without a channel");
+            panel.sendP2pChat(); // no channel: only a status line, never a throw
+            assertTrue(panel.statusLbl().getText().contains("Start the P2P"),
+                    panel.statusLbl().getText());
+        } finally {
+            panel.shutdown();
+        }
+
+        assertEquals("", VideoConferencePanel.shortFp(null));
+        assertEquals("aabbccdd", VideoConferencePanel.shortFp("aa:bb:cc:dd:ee:ff:00:11"));
+        assertEquals("", VideoConferencePanel.describeDiscovered(null));
     }
 }

@@ -23,10 +23,12 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +40,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -55,6 +58,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import org.jdesktop.lg3d.apps.p2p.LanDiscovery;
 import org.jdesktop.lg3d.contacts.Contact;
 import org.jdesktop.lg3d.contacts.ContactStore;
 
@@ -126,6 +130,8 @@ public class MessengerPanel extends JPanel {
     private final Map<String, MessengerProtocol> protocols = new HashMap<>();
     /** conversationKey -> last-known channel members (for the header count). */
     private final Map<String, List<String>> rosters = new HashMap<>();
+    /** transferId -> the latest event for an in-flight transfer (for Cancel/accept). */
+    private final Map<String, ActiveTransfer> activeTransfers = new LinkedHashMap<>();
 
     private final DefaultListModel<AccountConfig> accountModel = new DefaultListModel<>();
     private final DefaultListModel<Conversation> conversationModel = new DefaultListModel<>();
@@ -136,6 +142,9 @@ public class MessengerPanel extends JPanel {
     private final StyledDocument doc = transcriptPane.getStyledDocument();
     private final JTextField inputField = new JTextField();
     private final JButton sendButton = new JButton("Send");
+    private final JButton sendFileButton = new JButton("Send File");
+    private final JButton cancelFileButton = new JButton("Cancel");
+    private final JButton findPeersButton = new JButton("Find Peers");
     private final JLabel headerLabel = new JLabel(" ");
     private final JLabel statusLabel = new JLabel(" ");
     private final JLabel connectionLabel = new JLabel(" ");
@@ -246,11 +255,16 @@ public class MessengerPanel extends JPanel {
         addAccount.addActionListener(e -> showAccountDialog(null));
         JButton settingsBtn = new JButton("Settings");
         settingsBtn.addActionListener(e -> showSettingsDialog());
+        findPeersButton.setToolTipText("List peers discovered on the LAN (P2P accounts)");
+        findPeersButton.addActionListener(e -> showLanPeersDialog());
+        findPeersButton.setEnabled(false);
 
         bar.add(connect);
         bar.add(disconnect);
         bar.addSeparator();
         bar.add(addAccount);
+        bar.addSeparator();
+        bar.add(findPeersButton);
         bar.addSeparator();
         bar.add(settingsBtn);
 
@@ -304,7 +318,7 @@ public class MessengerPanel extends JPanel {
         convPanel.setOpaque(false);
         convPanel.setBorder(BorderFactory.createTitledBorder("Conversations"));
         convPanel.add(new JScrollPane(conversationList), BorderLayout.CENTER);
-        JPanel convButtons = new JPanel(new GridLayout(1, 3, 4, 0));
+        JPanel convButtons = new JPanel(new GridLayout(2, 3, 4, 4));
         convButtons.setOpaque(false);
         convButtons.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         JButton closeConv = new JButton("Close");
@@ -314,9 +328,18 @@ public class MessengerPanel extends JPanel {
         JButton saveConv = new JButton("Save");
         saveConv.setToolTipText("Save the private-chat peer to the address book");
         saveConv.addActionListener(e -> saveSelectedPeerToAddressBook());
+        sendFileButton.setToolTipText(
+                "Send a file to this peer (P2P accounts with file transfer)");
+        sendFileButton.addActionListener(e -> sendFileToCurrentPeer());
+        sendFileButton.setEnabled(false);
+        cancelFileButton.setToolTipText("Cancel the in-flight file transfer for this conversation");
+        cancelFileButton.addActionListener(e -> cancelCurrentTransfer());
+        cancelFileButton.setEnabled(false);
         convButtons.add(closeConv);
         convButtons.add(clearConv);
         convButtons.add(saveConv);
+        convButtons.add(sendFileButton);
+        convButtons.add(cancelFileButton);
         convPanel.add(convButtons, BorderLayout.SOUTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, accountsPanel, convPanel);
@@ -405,11 +428,15 @@ public class MessengerPanel extends JPanel {
         AccountConfig a = accountList.getSelectedValue();
         if (a == null) {
             connectionLabel.setText(" ");
+            findPeersButton.setEnabled(false);
+            updateFileActions();
             return;
         }
         boolean up = isConnected(a.getId());
         connectionLabel.setForeground(up ? CONNECTED : TEXT_DIM);
         connectionLabel.setText(up ? "\u25cf connected" : "\u25cb offline");
+        findPeersButton.setEnabled(activeP2pProtocol() != null);
+        updateFileActions();
     }
 
     private void updateHeader() {
@@ -544,6 +571,10 @@ public class MessengerPanel extends JPanel {
         JTextField nick = new JTextField(a.getNickname());
         JTextField realName = new JTextField(a.getRealName());
         JTextField channels = new JTextField(String.join(" ", a.getAutoJoinChannels()));
+        JTextField peerFp = new JTextField(
+                a.getPeerFingerprint() == null ? "" : a.getPeerFingerprint());
+        peerFp.setToolTipText("P2P only: pin the peer's SHA-256 fingerprint (trust on first use)."
+                + " Leave blank to trust on first contact.");
         JCheckBox tls = new JCheckBox("Use TLS", a.isUseTls());
         JCheckBox autoConnect = new JCheckBox("Connect at startup", a.isAutoConnect());
         JCheckBox prompt = new JCheckBox("Ask for password", a.isPasswordPrompt());
@@ -560,6 +591,7 @@ public class MessengerPanel extends JPanel {
         addFormRow(form, c, row++, "Nickname", nick);
         addFormRow(form, c, row++, "Real name", realName);
         addFormRow(form, c, row++, "Auto-join channels", channels);
+        addFormRow(form, c, row++, "Peer fingerprint", peerFp);
         c.gridx = 1; c.gridy = row++; form.add(tls, c);
         c.gridx = 1; c.gridy = row++; form.add(autoConnect, c);
         c.gridx = 1; c.gridy = row; form.add(prompt, c);
@@ -591,6 +623,7 @@ public class MessengerPanel extends JPanel {
             }
         }
         a.setAutoJoinChannels(chList);
+        a.setPeerFingerprint(peerFp.getText());
         a.setUseTls(tls.isSelected());
         a.setAutoConnect(autoConnect.isSelected());
         a.setPasswordPrompt(prompt.isSelected());
@@ -649,6 +682,7 @@ public class MessengerPanel extends JPanel {
     private void selectConversation(Conversation c) {
         current = c;
         updateHeader();
+        updateFileActions();
         renderTranscript();
         inputField.requestFocusInWindow();
     }
@@ -980,6 +1014,281 @@ public class MessengerPanel extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // File transfer + LAN peers (P2P)
+    // ------------------------------------------------------------------
+
+    /**
+     * True when the selected conversation is a real peer (not the console), its
+     * backend is connected, and that backend advertises {@code FILE_TRANSFER}.
+     * Purely capability-driven: it never inspects the protocol id.
+     */
+    private boolean sendFileEnabled() {
+        if (current == null || current.isConsole()) {
+            return false;
+        }
+        MessengerProtocol p = protocols.get(current.accountId);
+        return p != null && p.isConnected()
+                && p.capabilities().contains(MessengerProtocol.Capability.FILE_TRANSFER);
+    }
+
+    /** The transferId of an in-flight transfer for the current conversation, if any. */
+    private String activeTransferForCurrent() {
+        if (current == null) {
+            return null;
+        }
+        for (Map.Entry<String, ActiveTransfer> e : activeTransfers.entrySet()) {
+            ActiveTransfer at = e.getValue();
+            if (at.accountId().equals(current.accountId)
+                    && at.event().getPeer().equals(current.target)
+                    && at.event().isActive()) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
+    /** Refreshes the Send File / Cancel buttons for the current selection. */
+    private void updateFileActions() {
+        sendFileButton.setEnabled(sendFileEnabled());
+        cancelFileButton.setEnabled(activeTransferForCurrent() != null);
+    }
+
+    /** Opens a file chooser and offers the chosen file to the current peer. */
+    private void sendFileToCurrentPeer() {
+        if (!sendFileEnabled()) {
+            setStatus("Select a connected P2P peer to send a file");
+            return;
+        }
+        if (GraphicsEnvironment.isHeadless()) {
+            setStatus("File chooser is unavailable in headless mode");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Send file to " + current.displayName());
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        offerFileToCurrent(chooser.getSelectedFile().toPath());
+    }
+
+    /** Offers {@code file} to the current peer through its backend. */
+    private boolean offerFileToCurrent(Path file) {
+        if (current == null || file == null) {
+            return false;
+        }
+        MessengerProtocol p = protocols.get(current.accountId);
+        if (p == null || !p.capabilities().contains(MessengerProtocol.Capability.FILE_TRANSFER)) {
+            setStatus("This account cannot transfer files");
+            return false;
+        }
+        boolean queued = p.sendFile(current.target, file);
+        setStatus(queued
+                ? "Offering " + file.getFileName() + " to " + current.displayName()
+                : "Could not offer " + file.getFileName());
+        updateFileActions();
+        return queued;
+    }
+
+    /** Cancels the in-flight transfer for the current conversation, if any. */
+    private void cancelCurrentTransfer() {
+        String id = activeTransferForCurrent();
+        if (id == null) {
+            setStatus("No active transfer for this conversation");
+            return;
+        }
+        MessengerProtocol p = protocols.get(current.accountId);
+        if (p != null) {
+            p.cancelFile(id, "Cancelled by user");
+        }
+        setStatus("Cancelling transfer " + id);
+    }
+
+    /** Accepts or declines an inbound file offer. */
+    private void respondToOffer(String transferId, boolean accept) {
+        if (transferId == null) {
+            return;
+        }
+        ActiveTransfer at = activeTransfers.get(transferId);
+        MessengerProtocol p = (at == null) ? null : protocols.get(at.accountId());
+        if (p == null) {
+            return;
+        }
+        if (accept) {
+            p.acceptFile(transferId);
+            setStatus("Accepting " + at.event().getFileName());
+        } else {
+            p.rejectFile(transferId, "Declined");
+            setStatus("Declined " + at.event().getFileName());
+        }
+        updateFileActions();
+    }
+
+    /**
+     * Handles a file-transfer event on the EDT: tracks the in-flight transfer,
+     * renders a line in the conversation, updates the status bar for progress,
+     * and prompts to accept an inbound offer.
+     */
+    private void handleFileEvent(AccountConfig account, FileTransferEvent event) {
+        if (event == null) {
+            return;
+        }
+        String id = event.getTransferId();
+        if (event.isActive()) {
+            activeTransfers.put(id, new ActiveTransfer(account.getId(), event));
+        } else {
+            activeTransfers.remove(id);
+        }
+
+        Conversation conv = conversationFor(account, event.getPeer());
+        String line = describeFileEvent(event);
+        if (line != null) {
+            StoredMessage sm = new StoredMessage(account.getId(), conv.target, conv.channel,
+                    "", line, ChatMessage.Kind.NOTICE, event.getEpochMs());
+            transcript.add(sm);
+            trimTranscript();
+            if (conv.equals(current)) {
+                renderMessage(sm);
+                scrollToEnd();
+            }
+        }
+
+        if (event.getState() == FileTransferEvent.State.IN_PROGRESS) {
+            setStatus(String.format(Locale.ROOT, "%s %s \u2014 %d%%",
+                    event.getDirection() == FileTransferEvent.Direction.SEND
+                            ? "Sending" : "Receiving",
+                    event.getFileName(), Math.round(event.getProgress() * 100)));
+        } else if (line != null) {
+            setStatus(line);
+        }
+
+        if (event.getDirection() == FileTransferEvent.Direction.RECEIVE
+                && event.getState() == FileTransferEvent.State.OFFERED) {
+            promptAcceptFile(account, event);
+        }
+        updateFileActions();
+    }
+
+    /** Asks the user to accept an inbound file offer (headless: auto-decline). */
+    private void promptAcceptFile(AccountConfig account, FileTransferEvent event) {
+        String summary = event.getPeer() + " offers " + event.getFileName()
+                + " (" + humanSize(event.getFileSize()) + ")";
+        if (GraphicsEnvironment.isHeadless()) {
+            setStatus("Incoming file: " + summary + " \u2014 auto-declined (headless)");
+            respondToOffer(event.getTransferId(), false);
+            return;
+        }
+        int opt = JOptionPane.showConfirmDialog(this, summary, "Incoming file",
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        respondToOffer(event.getTransferId(), opt == JOptionPane.YES_OPTION);
+    }
+
+    /** The connected P2P backend for the current account, or any connected one. */
+    private P2pProtocol activeP2pProtocol() {
+        AccountConfig a = accountList.getSelectedValue();
+        if (a != null) {
+            MessengerProtocol p = protocols.get(a.getId());
+            if (p instanceof P2pProtocol p2p && p2p.isConnected()) {
+                return p2p;
+            }
+        }
+        for (MessengerProtocol p : protocols.values()) {
+            if (p instanceof P2pProtocol p2p && p2p.isConnected()) {
+                return p2p;
+            }
+        }
+        return null;
+    }
+
+    /** Shows the peers discovered on the LAN and offers a one-click connect. */
+    private void showLanPeersDialog() {
+        P2pProtocol p2p = activeP2pProtocol();
+        if (p2p == null) {
+            setStatus("Connect a P2P account to discover LAN peers");
+            return;
+        }
+        List<LanDiscovery.DiscoveredPeer> peers = p2p.getDiscoveredPeers();
+        if (GraphicsEnvironment.isHeadless()) {
+            setStatus(peers.size() + " peer(s) discovered on the LAN");
+            return;
+        }
+        DefaultListModel<String> model = new DefaultListModel<>();
+        for (LanDiscovery.DiscoveredPeer dp : peers) {
+            model.addElement(describeDiscovered(dp));
+        }
+        JList<String> list = new JList<>(model);
+        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setPreferredSize(new Dimension(360, 200));
+        int opt = JOptionPane.showConfirmDialog(this, scroll, "Discovered peers (LAN)",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (opt != JOptionPane.OK_OPTION) {
+            return;
+        }
+        int idx = list.getSelectedIndex();
+        if (idx < 0 || idx >= peers.size()) {
+            return;
+        }
+        LanDiscovery.DiscoveredPeer dp = peers.get(idx);
+        p2p.connectToPeer(dp.getHostAddress(), dp.getPort());
+        setStatus("Connecting to " + describeDiscovered(dp));
+    }
+
+    /** A one-line human description of a file-transfer event, or null for progress. */
+    static String describeFileEvent(FileTransferEvent event) {
+        if (event == null || event.getState() == FileTransferEvent.State.IN_PROGRESS) {
+            return null;
+        }
+        String who = event.getPeer();
+        String name = event.getFileName();
+        String size = humanSize(event.getFileSize());
+        boolean send = event.getDirection() == FileTransferEvent.Direction.SEND;
+        return switch (event.getState()) {
+            case OFFERED -> send
+                    ? "Offering " + name + " (" + size + ") to " + who
+                    : who + " offers " + name + " (" + size + ")";
+            case ACCEPTED -> (send ? "Sending " : "Receiving ") + name + " to/from " + who;
+            case COMPLETED -> {
+                String where = event.getLocalPath() == null ? "" : " \u2192 " + event.getLocalPath();
+                yield (send ? "Sent " : "Received ") + name + " (" + size + ")"
+                        + (event.isVerified() ? " \u2713 verified" : "") + where;
+            }
+            case REJECTED -> name + " was declined"
+                    + (event.getMessage() == null ? "" : ": " + event.getMessage());
+            case CANCELLED -> name + " was cancelled"
+                    + (event.getMessage() == null ? "" : ": " + event.getMessage());
+            case FAILED -> name + " failed"
+                    + (event.getMessage() == null ? "" : ": " + event.getMessage());
+            case IN_PROGRESS -> null;
+        };
+    }
+
+    /** Formats a byte count as B/KiB/MiB/GiB/TiB. */
+    static String humanSize(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        double v = bytes;
+        String[] units = {"KiB", "MiB", "GiB", "TiB"};
+        int u = -1;
+        while (v >= 1024 && u < units.length - 1) {
+            v /= 1024;
+            u++;
+        }
+        return String.format(Locale.ROOT, "%.1f %s", v, units[u]);
+    }
+
+    /** A one-line human description of a discovered LAN peer. */
+    static String describeDiscovered(LanDiscovery.DiscoveredPeer dp) {
+        if (dp == null) {
+            return "";
+        }
+        String nick = (dp.getNickname() == null || dp.getNickname().isBlank())
+                ? "peer" : dp.getNickname();
+        return nick + " \u2014 " + dp.getHostAddress() + ":" + dp.getPort()
+                + "  [" + dp.getFingerprint() + "]";
+    }
+
+    // ------------------------------------------------------------------
     // Ingest + rendering
     // ------------------------------------------------------------------
 
@@ -1206,6 +1515,11 @@ public class MessengerPanel extends JPanel {
                 updateHeader();
             });
         }
+
+        @Override
+        public void onFileTransfer(AccountConfig account, FileTransferEvent event) {
+            edt(() -> handleFileEvent(account, event));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1214,6 +1528,10 @@ public class MessengerPanel extends JPanel {
 
     /** A parsed {@code /slash} command: lower-cased verb, tokens, raw remainder. */
     record ParsedCommand(String verb, List<String> args, String rest) {
+    }
+
+    /** An in-flight file transfer bound to the account that owns it. */
+    private record ActiveTransfer(String accountId, FileTransferEvent event) {
     }
 
     /**
@@ -1415,6 +1733,27 @@ public class MessengerPanel extends JPanel {
     DefaultListModel<Conversation> conversationModel() { return conversationModel; }
 
     void selectConversationForTest(Conversation c) { selectConversation(c); }
+
+    /** Injects a live backend for an account (used by tests; bypasses connect()). */
+    void putProtocolForTest(String accountId, MessengerProtocol p) {
+        protocols.put(accountId, p);
+        updateConnectionLabel();
+    }
+
+    JButton sendFileButton() { return sendFileButton; }
+    JButton cancelFileButton() { return cancelFileButton; }
+    JButton findPeersButton() { return findPeersButton; }
+    boolean hasActiveTransfer(String transferId) { return activeTransfers.containsKey(transferId); }
+
+    /** Drives a file-transfer event through the panel exactly as the listener would. */
+    void handleFileEventForTest(AccountConfig account, FileTransferEvent event) {
+        handleFileEvent(account, event);
+    }
+
+    /** Offers a file to the current conversation's peer (bypasses the chooser). */
+    boolean offerFileForTest(Path file) {
+        return offerFileToCurrent(file);
+    }
 
     /** Adds an account programmatically (used by tests; bypasses the dialog). */
     void addAccountForTest(AccountConfig a) {

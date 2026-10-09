@@ -63,6 +63,10 @@ public class VideoConferenceSettings {
     private String preferredCamera = "";
     /** Preferred microphone device id passed to the meeting (empty = default). */
     private String preferredMicrophone = "";
+    /** TCP port the encrypted P2P side-channel listens on (0 = ephemeral). */
+    private int p2pListenPort = 0;
+    /** Whether the P2P side-channel announces and listens on the LAN. */
+    private boolean p2pDiscoveryEnabled = true;
 
     public String getDefaultDomain() {
         return (defaultDomain == null || defaultDomain.isBlank()) ? DEFAULT_DOMAIN : defaultDomain.trim();
@@ -112,6 +116,16 @@ public class VideoConferenceSettings {
         this.preferredMicrophone = (preferredMicrophone == null) ? "" : preferredMicrophone;
     }
 
+    public int getP2pListenPort() { return p2pListenPort; }
+    public void setP2pListenPort(int p2pListenPort) {
+        this.p2pListenPort = Math.max(0, p2pListenPort);
+    }
+
+    public boolean isP2pDiscoveryEnabled() { return p2pDiscoveryEnabled; }
+    public void setP2pDiscoveryEnabled(boolean p2pDiscoveryEnabled) {
+        this.p2pDiscoveryEnabled = p2pDiscoveryEnabled;
+    }
+
     /** @return an independent copy of these settings. */
     public VideoConferenceSettings copy() {
         VideoConferenceSettings c = new VideoConferenceSettings();
@@ -127,6 +141,8 @@ public class VideoConferenceSettings {
         c.historyLimit = this.historyLimit;
         c.preferredCamera = this.preferredCamera;
         c.preferredMicrophone = this.preferredMicrophone;
+        c.p2pListenPort = this.p2pListenPort;
+        c.p2pDiscoveryEnabled = this.p2pDiscoveryEnabled;
         return c;
     }
 }

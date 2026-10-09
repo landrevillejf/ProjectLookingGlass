@@ -10,6 +10,40 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Encrypted peer-to-peer (P2P) transport for the Instant Messenger and Video
+  Conference** (`lg3d-apps`) — a new reusable, dependency-free, pure-JDK encrypted
+  P2P transport (`org.jdesktop.lg3d.apps.p2p`) lets both apps talk to a peer
+  *directly*, with no server in the middle. The crypto mirrors the project's
+  `VaultCrypto` precedent (pure statics, AWT-free, headless-testable, injectable
+  randomness): **X25519** key agreement, **HKDF-SHA256**, a **Noise-XX**-style
+  mutually-authenticated handshake that yields forward-secret send/receive keys,
+  and **AES-256-GCM** framing with a per-direction counter nonce (never reused
+  under a long-lived key). Identity is the SHA-256 **fingerprint** of a node's
+  static X25519 public key, with **TOFU** pinning (`IdentityStore` / `TrustDecision`)
+  that raises a loud MITM warning on a later mismatch; the private key is stored at
+  rest under `~/.lg3d/p2p` with `0600` (like an SSH host key). A `P2pNode` runs a
+  `ServerSocket` plus outbound client over length-prefixed `SecureFrame`s (max-frame
+  guard, CONTROL JSON and DATA binary types), with `LanDiscovery` announcing and
+  listening over UDP multicast (TTL expiry) and manual host:port for reachability.
+  `FileTransfer` / `FileTransferManager` stream 64 KiB chunks with an incremental
+  SHA-256 digest, offer/accept/reject/progress/cancel and an atomic temp→final
+  rename hardened against path-traversal ("Zip-Slip"). The **Instant Messenger**
+  gains a native `P2pProtocol` (id `p2p`, "P2P (Direct)") registered in
+  `ProtocolRegistry.standard()` — so it appears in the Add-Account dialog with no
+  panel change — plus a capability-driven `MessengerProtocol.Capability.FILE_TRANSFER`
+  and `AccountConfig.peerFingerprint`; `MessengerPanel` adds a *Send File* action
+  gated on the capability, an incoming-file accept prompt and progress row, a
+  *Find Peers* LAN list and a fingerprint pin field. The **Video Conference** gains
+  a **Direct (P2P)** tab (`P2pSideChannel`) carrying encrypted meeting **signaling,
+  chat and file transfer** — the audio/video itself is unchanged and still runs
+  through Jitsi Meet in the browser. Both panels are headless-safe (inert
+  construction, guarded starts, no socket or thread until the user acts). The scope
+  is honest: LAN discovery is LAN-scoped, internet peers need a reachable host or a
+  forwarded port (no fake NAT hole-punching), and the mesh suits 1:1 and small
+  groups. The transport core, `P2pProtocol`, `P2pSideChannel` and both panels are
+  covered by headless unit and loopback end-to-end tests; the Help Center
+  (*Internet and the Web*, *Security and Privacy*) and both per-app `AGENTS.md`
+  guides document the feature.
 - **Help Center: four new topics and a full content refresh** (`lg3d-apps`) — the
   built-in JavaHelp user guide (Help Center, in the *Utilities* group) grows from
   14 to 18 HTML topics to document the applications and Control Center panels added
