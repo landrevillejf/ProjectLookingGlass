@@ -184,4 +184,22 @@ class EditorSettingsTest {
         assertEquals(List.of("/tmp/two.txt", "/tmp/one.txt"),
                 copy.getRecentFiles());
     }
+
+    @Test
+    @DisplayName("accelerator overrides survive the serialisation round-trip")
+    void acceleratorOverrideRoundTrip() {
+        EditorSettings settings = EditorSettings.defaults();
+        assertTrue(settings.getAcceleratorOverrides().isEmpty());
+        settings.setAcceleratorOverride("sort-az", "control alt 8");
+        settings.setAcceleratorOverride("md-bold", ""); // deliberate unbind
+
+        EditorSettings copy = EditorSettings.fromMap(settings.toMap());
+        assertEquals("control alt 8", copy.getAcceleratorOverrides().get("sort-az"));
+        assertEquals("", copy.getAcceleratorOverrides().get("md-bold"));
+
+        copy.clearAcceleratorOverride("sort-az");
+        assertFalse(copy.getAcceleratorOverrides().containsKey("sort-az"));
+        // A blank id is ignored.
+        settings.setAcceleratorOverride("  ", "control alt A");
+    }
 }

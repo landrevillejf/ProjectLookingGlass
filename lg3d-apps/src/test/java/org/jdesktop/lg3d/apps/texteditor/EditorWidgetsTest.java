@@ -281,4 +281,56 @@ class EditorWidgetsTest {
         assertEquals(List.of("lg3d.base64-tools=false", "lg3d.markdown-tools=true"),
                 changes);
     }
+
+    @Test
+    @DisplayName("the extensions card rebinds and clears the selected action's shortcut")
+    void extensionsCardRebind() {
+        final List<String> set = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public void setAccelerator(int actionIndex, String spec) {
+                set.add(actionIndex + "=" + spec);
+            }
+        });
+        card.show(List.of(
+                ExtensionsCard.Row.header("Encoding"),
+                ExtensionsCard.Row.action("Base64 Tools: Encode Base64", 3)), null);
+
+        // A header row cannot be rebound.
+        card.select(0);
+        card.rebindSelectedAccelerator("control alt 9");
+        assertTrue(set.isEmpty());
+
+        // An action row forwards its host index and the new spec.
+        card.select(1);
+        card.rebindSelectedAccelerator("control alt 9");
+        assertEquals(List.of("3=control alt 9"), set);
+        card.clearSelectedAccelerator();
+        assertEquals(List.of("3=control alt 9", "3="), set);
+    }
+
+    @Test
+    @DisplayName("keySpec builds only assignable KeyStroke specs")
+    void keySpecBuilds() {
+        assertEquals("control alt A", ExtensionsCard.keySpec(
+                java.awt.event.KeyEvent.VK_A,
+                java.awt.event.InputEvent.CTRL_DOWN_MASK
+                        | java.awt.event.InputEvent.ALT_DOWN_MASK));
+        assertEquals("shift 1", ExtensionsCard.keySpec(
+                java.awt.event.KeyEvent.VK_1,
+                java.awt.event.InputEvent.SHIFT_DOWN_MASK));
+        // Function keys and modifiers-only keys are not assignable.
+        assertEquals("", ExtensionsCard.keySpec(java.awt.event.KeyEvent.VK_F5,
+                java.awt.event.InputEvent.CTRL_DOWN_MASK));
+        assertEquals("A", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_A));
+        assertEquals("", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_ESCAPE));
+    }
 }

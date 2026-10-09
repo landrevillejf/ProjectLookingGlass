@@ -962,7 +962,7 @@ public class AdvancedTextEditorPanel extends JPanel
             ExtensionAction action = extensionActions.get(i);
             if (action.category().equals(category)) {
                 String text = action.extension() + ": " + action.label();
-                String accel = formatAccelerator(action.accelerator());
+                String accel = formatAccelerator(effectiveAccelerator(action));
                 if (!accel.isEmpty()) {
                     text += "  (" + accel + ")";
                 }
@@ -1046,6 +1046,42 @@ public class AdvancedTextEditorPanel extends JPanel
         refreshExtensionBindings();
     }
 
+    /**
+     * The accelerator that actually governs an action right now: the user's
+     * stored override when one exists (an override of {@code ""} means
+     * deliberately unbound), otherwise the extension's declared default.
+     */
+    private String effectiveAccelerator(ExtensionAction action) {
+        String override = settings.getAcceleratorOverrides().get(action.id());
+        return (override != null) ? override : action.accelerator();
+    }
+
+    @Override
+    public String getAccelerator(int actionIndex) {
+        if (actionIndex < 0 || actionIndex >= extensionActions.size()) {
+            return "";
+        }
+        return effectiveAccelerator(extensionActions.get(actionIndex));
+    }
+
+    @Override
+    public void setAccelerator(int actionIndex, String spec) {
+        if (actionIndex < 0 || actionIndex >= extensionActions.size()) {
+            return;
+        }
+        ExtensionAction action = extensionActions.get(actionIndex);
+        String requested = (spec == null) ? "" : spec.trim();
+        String declared = (action.accelerator() == null) ? "" : action.accelerator();
+        if (requested.equals(declared)) {
+            // Back to the built-in default: drop the override entirely.
+            settings.clearAcceleratorOverride(action.id());
+        } else {
+            settings.setAcceleratorOverride(action.id(), requested);
+        }
+        persistSettings();
+        refreshExtensionBindings();
+    }
+
     /** Test seam: is the given accelerator spec currently bound to an extension action? */
     final boolean isAcceleratorBound(String spec) {
         KeyStroke ks = KeyStroke.getKeyStroke(spec);
@@ -1126,7 +1162,7 @@ public class AdvancedTextEditorPanel extends JPanel
         java.util.Set<KeyStroke> used = new java.util.HashSet<>();
         for (int i = 0; i < extensionActions.size(); i++) {
             ExtensionAction action = extensionActions.get(i);
-            String spec = action.accelerator();
+            String spec = effectiveAccelerator(action);
             if (spec == null || spec.isBlank()) {
                 continue;
             }

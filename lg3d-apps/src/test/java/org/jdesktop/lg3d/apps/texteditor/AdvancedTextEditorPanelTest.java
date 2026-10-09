@@ -103,6 +103,33 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
+    @DisplayName("a rebound accelerator follows the override and frees the old key")
+    void acceleratorRebind() {
+        AdvancedTextEditorPanel panel = newPanel();
+        // Index 0 is BuiltinTextTools sort-az, declared on Ctrl+Alt+A.
+        assertEquals("control alt A", panel.getAccelerator(0));
+
+        panel.setAccelerator(0, "control alt 8");
+        assertTrue(panel.isAcceleratorBound("control alt 8"));
+        assertFalse(panel.isAcceleratorBound("control alt A"));
+        assertEquals("control alt 8", panel.getAccelerator(0));
+        assertEquals("control alt 8",
+                panel.settings().getAcceleratorOverrides().get("sort-az"));
+
+        // Setting the declared default back clears the override.
+        panel.setAccelerator(0, "control alt A");
+        assertTrue(panel.isAcceleratorBound("control alt A"));
+        assertFalse(panel.isAcceleratorBound("control alt 8"));
+        assertFalse(panel.settings().getAcceleratorOverrides().containsKey("sort-az"));
+
+        // An empty spec unbinds the action entirely.
+        panel.setAccelerator(0, "");
+        assertFalse(panel.isAcceleratorBound("control alt A"));
+        assertEquals("", panel.getAccelerator(0));
+        panel.dispose();
+    }
+
+    @Test
     @DisplayName("openPath loads a file into a new tab and records it")
     void openFile(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("notes.txt");

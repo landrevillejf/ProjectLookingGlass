@@ -18,6 +18,9 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
@@ -61,6 +64,24 @@ public final class ExtensionsCard extends JPanel {
 
         /** Enables or disables an extension; the host refreshes the card. */
         default void setExtensionEnabled(String id, boolean enabled) {
+            // no-op default keeps third-party hosts source-compatible
+        }
+
+        /**
+         * @param actionIndex the host's flat action-list index
+         * @return the currently-effective accelerator spec for that action
+         *         (a user rebound, else the declared default), or "" when unbound
+         */
+        default String getAccelerator(int actionIndex) {
+            return "";
+        }
+
+        /**
+         * Rebinds the action at {@code actionIndex} to {@code spec} (a KeyStroke
+         * string such as {@code "control alt X"}); a blank {@code spec} unbinds
+         * it. The host persists the override and refreshes the card.
+         */
+        default void setAccelerator(int actionIndex, String spec) {
             // no-op default keeps third-party hosts source-compatible
         }
     }
@@ -113,6 +134,12 @@ public final class ExtensionsCard extends JPanel {
     private final JButton enableButton = new JButton("Enable");
     private final JButton disableButton = new JButton("Disable");
 
+    private final JLabel shortcutLabel = new JLabel("Shortcut: \u2014");
+    private final JButton rebindButton = new JButton("Rebind\u2026");
+    private final JButton clearShortcutButton = new JButton("Clear");
+    /** True while the actions list is grabbing the next key for a rebound. */
+    private boolean capturing;
+
     public ExtensionsCard(Host host) {
         this.host = host;
         setLayout(new BorderLayout(6, 6));
@@ -124,6 +151,21 @@ public final class ExtensionsCard extends JPanel {
         list.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 runButton.setEnabled(isAction(list.getSelectedIndex()));
+                updateShortcutLabel();
+            }
+        });
+        list.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (!capturing) {
+                    return;
+                }
+                e.consume();
+                String spec = keySpec(e.getKeyCode(), e.getModifiersEx());
+                stopCapturing();
+                if (!spec.isEmpty()) {
+                    rebindSelectedAccelerator(spec);
+                }
             }
         });
         list.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -142,6 +184,8 @@ public final class ExtensionsCard extends JPanel {
                 host.runExtensionAction(model.get(index).actionIndex());
             }
         });
+        rebindButton.addActionListener(e -> startCapturing());
+        clearShortcutButton.addActionListener(e -> clearSelectedAccelerator());
         JButton back = new JButton("Back to Editor");
         back.addActionListener(e -> host.closeCard());
 
@@ -169,6 +213,12 @@ public final class ExtensionsCard extends JPanel {
                 + "(double-click to run)"), BorderLayout.NORTH);
         actions.add(new JScrollPane(list), BorderLayout.CENTER);
 
+        JPanel shortcutBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        shortcutBar.add(shortcutLabel);
+        shortcutBar.add(rebindButton);
+        shortcutBar.add(clearShortcutButton);
+        actions.add(shortcutBar, BorderLayout.SOUTH);
+
         JPanel columns = new JPanel(new GridLayout(1, 2, 8, 0));
         columns.add(extensions);
         columns.add(actions);
@@ -182,6 +232,8 @@ public final class ExtensionsCard extends JPanel {
         runButton.setEnabled(false);
         enableButton.setEnabled(false);
         disableButton.setEnabled(false);
+        rebindButton.setEnabled(false);
+        clearShortcutButton.setEnabled(false);
     }
 
     /** @return true when the row at {@code modelIndex} is a runnable action. */
@@ -214,7 +266,11 @@ public final class ExtensionsCard extends JPanel {
                 model.addElement(row);
             }
         }
+        stopCapturing();
         runButton.setEnabled(false);
+        rebindButton.setEnabled(false);
+        clearShortcutButton.setEnabled(false);
+        updateShortcutLabel();
     }
 
     /** Replaces both views: the grouped action rows and the extension list. */
@@ -289,6 +345,90 @@ public final class ExtensionsCard extends JPanel {
         boolean hasSelection = extList.getSelectedIndex() >= 0;
         enableButton.setEnabled(hasSelection);
         disableButton.setEnabled(hasSelection);
+    }
+
+    /** Refreshes the shortcut label and the Rebind / Clear buttons. */
+    private void updateShortcutLabel() {
+        int idx = currentActionIndex();
+        boolean hasAction = idx >= 0;
+        rebindButton.setEnabled(hasAction);
+        clearShortcutButton.setEnabled(hasAction);
+        if (!hasAction) {
+            shortcutLabel.setText("Shortcut: \u2014");
+            return;
+        }
+        String shown = AdvancedTextEditorPanel.formatAccelerator(host.getAccelerator(idx));
+        shortcutLabel.setText("Shortcut: " + (shown.isEmpty() ? "(none)" : shown));
+    }
+
+    /** @return the host action index of the selected action row, or -1. */
+    private int currentActionIndex() {
+        int sel = list.getSelectedIndex();
+        return isAction(sel) ? model.get(sel).actionIndex() : -1;
+    }
+
+    private void startCapturing() {
+        if (currentActionIndex() < 0) {
+            return;
+        }
+        capturing = true;
+        shortcutLabel.setText("Press a shortcut\u2026");
+        list.requestFocusInWindow();
+    }
+
+    private void stopCapturing() {
+        capturing = false;
+    }
+
+    /** Rebinds the selected action's accelerator (test seam for key capture). */
+    final void rebindSelectedAccelerator(String spec) {
+        int idx = currentActionIndex();
+        if (idx >= 0) {
+            host.setAccelerator(idx, spec);
+        }
+    }
+
+    /** Unbinds the selected action's accelerator (test seam for the Clear button). */
+    final void clearSelectedAccelerator() {
+        rebindSelectedAccelerator("");
+    }
+
+    /**
+     * Builds a KeyStroke spec (such as {@code "control alt X"}) from a captured
+     * key, or the empty string when the key is not assignable (only A-Z and
+     * 0-9 can carry an extension shortcut). Pure.
+     */
+    static String keySpec(int keyCode, int modifiers) {
+        String key = keyName(keyCode);
+        if (key.isEmpty()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        if ((modifiers & InputEvent.CTRL_DOWN_MASK) != 0) {
+            parts.add("control");
+        }
+        if ((modifiers & InputEvent.ALT_DOWN_MASK) != 0) {
+            parts.add("alt");
+        }
+        if ((modifiers & InputEvent.SHIFT_DOWN_MASK) != 0) {
+            parts.add("shift");
+        }
+        if ((modifiers & InputEvent.META_DOWN_MASK) != 0) {
+            parts.add("meta");
+        }
+        parts.add(key);
+        return String.join(" ", parts);
+    }
+
+    /** @return the assignable token (A-Z, 0-9) for {@code keyCode}, else "". Pure. */
+    static String keyName(int keyCode) {
+        if (keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z) {
+            return String.valueOf((char) ('A' + (keyCode - KeyEvent.VK_A)));
+        }
+        if (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9) {
+            return String.valueOf((char) ('0' + (keyCode - KeyEvent.VK_0)));
+        }
+        return "";
     }
 
     /** Renders category headers bold and greyed, actions as normal rows. */
