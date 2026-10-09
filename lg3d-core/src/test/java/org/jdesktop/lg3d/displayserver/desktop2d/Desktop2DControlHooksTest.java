@@ -83,6 +83,10 @@ class Desktop2DControlHooksTest {
         assertEquals(0, snap.unread());
         assertDoesNotThrow(Desktop2D::markNotificationsRead);
         assertDoesNotThrow(Desktop2D::clearNotifications);
+        // The app-facing post hook is public API and must stay a safe no-op
+        // with no desktop shell (this same JVM runs headless).
+        assertDoesNotThrow(() -> Desktop2D.postNotification(
+                "Mail", "New message", Notification.Kind.INFO));
     }
 
     @Test

@@ -316,6 +316,21 @@ Add a `*.lgcfg` (`StartMenuItemConfig`) descriptor under
 in-JVM launch, `menuGroup`, `name`, `desc`, and a
 `displayResourceUrlName = resource:///resources/images/icon/....png` icon.
 
+## Raising a desktop notification (app-facing API)
+
+Apps that receive events worth interrupting the user for (new mail, an incoming
+chat message, a completed download) post them through
+`org.jdesktop.lg3d.scenemanager.utils.hud.NotificationService#notify(String title,
+String message, Notification.Kind)` — one call, both desktops: on the 2D desktop
+it routes to `Desktop2D.postNotification` (transient toast plus the taskbar tray
+log; Do-Not-Disturb is honoured there), on the 3D desktop to the HUD toast
+overlay. It is safe from any thread, and harmless when no desktop is running
+(the headless test JVM simply logs onto the inert service singleton). Do not popup
+`JOptionPane`/`TrayIcon`/`notify-send` for routine incoming events — use the
+notification so the tray badge and the user's DND choice keep working. Severity
+is `Notification.Kind` `INFO`/`WARNING`/`ERROR`; `ERROR` always surfaces, so
+reserve it for genuine failures.
+
 ---
 
 ## Verifying UI changes

@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.scenemanager.utils.hud;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.displayserver.desktop2d.DoNotDisturb;
 import org.jdesktop.lg3d.displayserver.desktop2d.Notification;
 import org.jdesktop.lg3d.displayserver.desktop2d.NotificationModel;
@@ -39,6 +40,12 @@ import org.jdesktop.lg3d.displayserver.desktop2d.ToastQueue;
  * {@link Notification.Kind}; {@link Notification.Kind#ERROR} always surfaces. All
  * time is read through an injectable {@link LongSupplier} clock, so the whole
  * service is deterministic and unit-testable headless.</p>
+ *
+ * <p>{@link #notify(String, String, Notification.Kind)} is the unified
+ * app-facing entry point: it routes to the running desktop shell — the 2D
+ * desktop's taskbar tray and toast layer ({@link Desktop2D#postNotification})
+ * when one is up, this service otherwise — so one call site (Mail's new-mail
+ * toast, the messenger's incoming-chat toast) works on both desktops.</p>
  */
 public final class NotificationService {
 
@@ -80,6 +87,23 @@ public final class NotificationService {
             }
         }
         return s;
+    }
+
+    /**
+     * Raises a desktop notification on whichever shell is running, the one
+     * entry point desktop apps use for their incoming-event toasts. Routes to
+     * the 2D desktop ({@link Desktop2D#postNotification}: toast layer plus
+     * taskbar tray log, Do-Not-Disturb gated there) when a 2D shell is up in
+     * this JVM, and to the process-wide 3D HUD service otherwise. Safe to call
+     * from any thread; the surfaces marshal to their own threads.
+     */
+    public static void notify(String title, String message,
+                              Notification.Kind kind) {
+        if (Desktop2D.isRunning()) {
+            Desktop2D.postNotification(title, message, kind);
+        } else {
+            get().post(title, message, kind);
+        }
     }
 
     private long now() {

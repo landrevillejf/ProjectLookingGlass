@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.displayserver.desktop2d.Notification;
 import org.jdesktop.lg3d.displayserver.desktop2d.ToastQueue;
 import org.junit.jupiter.api.BeforeEach;
@@ -184,5 +185,20 @@ class NotificationServiceTest {
     @Test
     void singletonIsStable() {
         assertTrue(NotificationService.get() == NotificationService.get());
+    }
+
+    @Test
+    void notifyRoutesToTheServiceWhenNoShellIsUp() {
+        // The headless test JVM runs no 2D desktop, so the unified app entry
+        // point must fall back to this (3D HUD) service singleton.
+        assertFalse(Desktop2D.isRunning(), "no 2D shell in the test JVM");
+        NotificationService shared = NotificationService.get();
+        int before = shared.notifications().size();
+
+        NotificationService.notify("Mail", "New message",
+                Notification.Kind.INFO);
+
+        assertEquals(before + 1, shared.notifications().size(),
+                "the facade logged on the fallback service");
     }
 }

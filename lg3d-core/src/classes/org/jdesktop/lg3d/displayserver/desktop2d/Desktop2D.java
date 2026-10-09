@@ -1767,12 +1767,26 @@ public class Desktop2D {
     }
 
     /**
-     * Raises a notification on the running 2D desktop, the notification
-     * counterpart of {@link #applyDesktopConfig()}. A no-op when the 2D desktop
-     * is not running. Safe to call from any thread; the work is done on the EDT.
+     * Whether a 2D desktop shell is running in this JVM. The counterpart check
+     * for {@link #postNotification} and the notification routing in
+     * {@code NotificationService.notify}: apps on the Swing desktop post toasts
+     * here, everything else falls back to the 3D HUD service.
      */
-    static void postNotification(final String title, final String message,
-                                 final Notification.Kind kind) {
+    public static boolean isRunning() {
+        return instance != null;
+    }
+
+    /**
+     * Raises a notification on the running 2D desktop, the notification
+     * counterpart of {@link #applyDesktopConfig()}. This is the application-facing
+     * hook: desktop apps (Mail, Instant Messenger, ...) post their incoming-event
+     * toasts here, in the same spirit as {@link #setWallpaper(URL)} and the other
+     * static control hooks. A no-op when the 2D desktop is not running (e.g. the
+     * standalone 3D desktop or a headless test JVM). Safe to call from any thread;
+     * the work is done on the EDT.
+     */
+    public static void postNotification(final String title, final String message,
+                                        final Notification.Kind kind) {
         final Desktop2D d = instance;
         if (d == null) {
             return;
