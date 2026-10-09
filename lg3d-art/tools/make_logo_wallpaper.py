@@ -7,7 +7,7 @@ Looking-Glass mascot that the start menu, the taskbar, the 2D splash and the
 About window all reflect -- set on a generated slate-blue glass backdrop.
 
 The icon ships at 64x64 and there is no larger original anywhere in the tree,
-so the upscale is the whole problem. Five things keep it honest:
+so the upscale is the whole problem. Four things keep it honest:
 
   * the mark is resampled in *premultiplied* space, because the RGB under a
     transparent pixel is black and would otherwise bleed a dark fringe into the
@@ -16,9 +16,6 @@ so the upscale is the whole problem. Five things keep it honest:
     blur, re-threshold) so the 64px staircase becomes a smooth vector-like
     outline, and a median + minimum filter pair evens out the magnified RGB and
     stitches the mascot's one-pixel black outline back into one stroke;
-  * the grey halo the icon bakes into its own outline is defringed away -- that
-    halo was authored for a white desktop, and against a dark backdrop it reads
-    as a glow hugging the silhouette;
   * a much larger, heavily blurred copy of the mark glows behind the crisp one,
     which carries the icon's shape across the frame without pretending there is
     detail that the source does not have;
@@ -39,7 +36,7 @@ Usage:
     python3 make_logo_wallpaper.py [--out <file>] [--width 2560] [--height 1440]
                                    [--quality 92] [--logo <file>]
                                    [--no-ghost] [--reflection] [--no-wordmark]
-                                   [--no-defringe] [--preview <file>]
+                                   [--preview <file>]
 """
 
 from __future__ import annotations
@@ -50,7 +47,7 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from scipy.ndimage import binary_dilation, label
+from scipy.ndimage import label
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ART_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,23 +84,11 @@ HERO_HEIGHT_FRAC = 0.34    # the crisp mark: 490px on a 1440p frame, 7.6x the
                            # 64px source -- beyond that the upscale stops
                            # reading as artwork
 GHOST_HEIGHT_FRAC = 0.66   # the blurred copy behind it
-GHOST_OPACITY = 0.28
+GHOST_OPACITY = 0.42
 REFLECTION_FRAC = 0.34     # how much of the mark the mirror image may span
 LOGO_CENTER_Y_FRAC = 0.42  # mark centre, a touch above the frame centre so the
                            # platform sits on the lit shelf and clears the
                            # wordmark
-
-# Fringe removal. The 64px icon was authored to sit on white, so every dark
-# stroke carries a baked-in *opaque* grey anti-alias halo (it reads as a soft
-# shadow on a light desktop). On a dark backdrop the same halo reads as a glow
-# hugging the silhouette, which is what makes the mark look like a bad cutout.
-# The fringe is neutral grey in a narrow luminance band, so it can be targeted
-# without touching the white body or the coloured eye.
-FRINGE_BAND_FRAC = 0.025   # how far from a dark stroke counts as "hugging" it
-FRINGE_LO = 60             # below this the pixel is the stroke itself, keep it
-FRINGE_HI = 185            # above this it is the white body, keep it
-FRINGE_SPREAD = 30         # max channel spread of a "neutral" fringe pixel
-FRINGE_GAIN = 0.28         # how far the fringe is pulled toward the stroke
 
 DUST = 12   # px, specks in the icon's alpha smaller than this are dropped
 
@@ -227,26 +212,6 @@ def soften_edges(img: Image.Image, blur: float = 0.5, sharpen: float = 1.25):
     rgb = rgb.filter(ImageFilter.UnsharpMask(radius=blur * 2.0, percent=int(
         (sharpen - 1.0) * 200), threshold=1))
     return rgb, img.getchannel("A")
-
-
-def defringe(img: Image.Image, band: int) -> Image.Image:
-    """Collapse the icon's baked-in grey outline halo into the stroke.
-
-    Only pixels that are neutral, mid-luminance *and* adjacent to a dark stroke
-    are touched, so the white body, the pale platform and the red eye all pass
-    through untouched. ``band`` is in final-resolution pixels.
-    """
-    if band < 1:
-        return img
-    arr = np.asarray(img, dtype=np.float32)
-    lum = arr.mean(axis=2)
-    spread = arr.max(axis=2) - arr.min(axis=2)
-    dark = lum < 55
-    hugging = binary_dilation(dark, iterations=band) & ~dark
-    fringe = hugging & (spread < FRINGE_SPREAD) & (lum > FRINGE_LO) & (lum < FRINGE_HI)
-    out = arr.copy()
-    out[fringe] = arr[fringe] * FRINGE_GAIN
-    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGB")
 
 
 def tinted_blur(img: Image.Image, radius: float, opacity: float,
@@ -407,15 +372,13 @@ def draw_wordmark(canvas: Image.Image, w: int, h: int, size_px: int,
 # --- Assembly ----------------------------------------------------------------
 
 def build(width: int, height: int, logo_path: str, with_ghost: bool,
-          with_reflection: bool, with_wordmark: bool, with_defringe: bool = True):
+          with_reflection: bool, with_wordmark: bool) -> Image.Image:
     with Image.open(logo_path) as src:
         mark_src = trim_to_content(clean_alpha(src.convert("RGBA")))
 
     hero_h = max(2, int(round(height * HERO_HEIGHT_FRAC)))
     hero = upscale_premultiplied(mark_src, hero_h)
     rgb, alpha = soften_edges(smooth_silhouette(hero))
-    if with_defringe:
-        rgb = defringe(rgb, max(1, int(round(hero_h * FRINGE_BAND_FRAC))))
     hero = seat_in_scene(rgb, alpha)
 
     canvas = Image.new("RGBA", (width, height))
@@ -489,9 +452,6 @@ def main(argv=None) -> int:
                          "stands on its own glass platform)")
     ap.add_argument("--wordmark", action=argparse.BooleanOptionalAction, default=True,
                     help="the PROJECT LOOKING GLASS caption (on)")
-    ap.add_argument("--defringe", action=argparse.BooleanOptionalAction, default=True,
-                    help="collapse the icon's white-ground grey outline halo "
-                         "(on: it glows against a dark backdrop)")
     ap.add_argument("--preview", default=None,
                     help="also write a downscaled preview PNG to this path")
     args = ap.parse_args(argv)
@@ -510,8 +470,7 @@ def main(argv=None) -> int:
     img = build(args.width, args.height, logo_path,
                 with_ghost=args.ghost,
                 with_reflection=args.reflection,
-                with_wordmark=args.wordmark,
-                with_defringe=args.defringe)
+                with_wordmark=args.wordmark)
 
     save_image(img, out_path, args.quality)
     print(f"wrote     : {out_path}  {img.size[0]}x{img.size[1]}  "

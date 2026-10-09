@@ -21,27 +21,19 @@ work to make it build and run on a current toolchain.
   black RGB hiding under a transparent pixel would otherwise fringe the
   silhouette), its alpha is re-cut with a melt-and-refreeze pass so the pixel
   staircase becomes a smooth outline, and a median + minimum filter pair stitches
-  the mascot's one-pixel black stroke back into one continuous line. The grey
-  halo the icon bakes into its own outline is then defringed away: the 2006 icon
-  was authored for a white desktop, so that halo reads as a soft shadow there and
-  as a glowing cutout edge here. The mark sits on a generated slate-blue glass
-  backdrop sampled from the brand palette (#666699 / #d32b30) with diagonal light
-  bands, an oversized blurred ghost behind it and a letter-spaced
-  "PROJECT LOOKING GLASS" wordmark — but no mirror reflection, since the mascot
-  is drawn standing on its own glass platform.
+  the mascot's one-pixel black stroke back into one continuous line. It sits on a
+  generated slate-blue glass backdrop sampled from the brand palette (#666699 /
+  #d32b30) with diagonal light bands, an oversized blurred ghost of the mark
+  behind it and a letter-spaced "PROJECT LOOKING GLASS" wordmark — but no mirror
+  reflection, since the mascot is drawn standing on its own glass platform.
   Keeping the recipe in code (the same reason
   `GenerateAppIcons.java` exists) means the wallpaper re-cuts at any resolution
   (`--width` / `--height`), re-tints from the two brand colours, picks its
   encoder from the output extension, and has `--reflection` / `--no-ghost` /
-  `--no-wordmark` / `--no-defringe` variants. JPEG is the default, and measured
-  rather than assumed: the gradient's smoothness rests on a deliberate noise
-  dither, and an A/B of the same frame in both containers shows q92 4:4:4 leaves
-  it statistically unchanged (same 16 luminance steps across the sampled strip,
-  0.55 max row-to-row jump either way) while the lossless PNG of that dither
-  costs ~10x the payload — 3.26 MB against 320 KB. 16:9 is the common case rather
-  than a guarantee: `SimpleImageBackground` and the 2D `WallpaperDesktopPane`
-  stretch the image to whatever the screen is (a 1920x1048 desktop pulls it 3%
-  wide), so a square source would distort the mark far worse than a near-16:9 one.
+  `--no-wordmark` variants; JPEG is the default because the lossless PNG of the
+  same dithered gradient costs 9x the payload of the rest of the collection.
+  16:9 is deliberate: `SimpleImageBackground` and the 2D `WallpaperDesktopPane`
+  both stretch the image to the screen, so a square source distorts the mark.
   No registration is needed — every wallpaper chooser enumerates the directory
   at runtime — and `:lg3d-core:runtimeResources` assembles the new file into the
   classpath tree. `.gitignore` gains `__pycache__/` / `*.pyc` for the Python
