@@ -141,8 +141,12 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
   follow the live-texture and click-driven-input rules above. Full rules:
   [`../lg3d-core/AGENTS.md`](../lg3d-core/AGENTS.md) and
   [`../docs/lg3d-native-apps.md`](../docs/lg3d-native-apps.md).
-- **2D (Swing) UI** appears only where an app needs real Swing widgets (e.g. the
-  native file dialogs Image Studio uses). If you host a Swing panel, use a
+- **2D (Swing) UI** appears where an app needs real Swing widgets (e.g. the
+  native file dialogs Image Studio uses) and as the plain Swing panels several
+  apps ship for the 2D/Swing desktop (the Games, Periodic Table and Image
+  Studio's `ImageStudioPanel`), hosted as MDI frames through
+  `Desktop2DAppRegistry.PANEL_APPS` and reusing each app's AWT-free engine
+  without loading Java 3D. If you host a Swing panel in the 3D scene, use a
   `SwingNode` per [`../docs/swingnode.md`](../docs/swingnode.md) — but remember
   this module cannot reuse demo-apps' `TitledSwingWindow`.
 - Transparency/overlay ordering and the eye-distance sort apply exactly as in the

@@ -119,8 +119,6 @@ class Desktop2DAppRegistryTest {
     @DisplayName("pure-3D apps (and unknown java classes) are unavailable")
     void pure3dAppsAreUnavailable() {
         assertEquals(Kind.UNAVAILABLE, Desktop2DAppRegistry.classify(
-                "java org.jdesktop.lg3d.apps.imagestudio.ImageStudio"));
-        assertEquals(Kind.UNAVAILABLE, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.demos.some.Demo"));
         assertEquals(Kind.UNAVAILABLE, Desktop2DAppRegistry.classify(
                 "swingapp org.jdesktop.lg3d.apps.unknown.Thing"));
@@ -288,6 +286,19 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.periodictable.PeriodicTablePanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D"));
+    }
+
+    @Test
+    @DisplayName("Image Studio maps to its 2D Swing panel")
+    void imageStudioIsHostedPanel() {
+        // Image Studio is native-3D in the 3D desktop but ships a plain Swing
+        // editing panel (in lg3d-incubator) reusing the same JAI engine, keyed
+        // on the 3D entry class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp"));
+        assertEquals("org.jdesktop.lg3d.apps.imagestudio.ImageStudioPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.imagestudio.ImageStudioApp"));
     }
 
     @Test

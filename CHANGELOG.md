@@ -10,6 +10,16 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Image Studio on the 2D desktop** (`lg3d-incubator`, `lg3d-core`) — the JAI
+  image editor now ships a plain Swing `ImageStudioPanel` (category tabs +
+  operation grid, armed parameter slider with the same continuous-edit/single-
+  undo semantics, fit-to-view canvas, RGB histogram, `~/Pictures` filmstrip and
+  Open/Save/Save As), so the shared start-menu descriptor hosts it as an MDI
+  frame in the 2D/Swing desktop while the 3D desktop keeps building the native
+  `Frame3D`. The operation catalog moved into a shared `OpCatalog` rendered by
+  both surfaces, and its parameter formatter fixes a latent
+  `IllegalFormatConversionException` that silently blanked the 3D slider's
+  value label for every int-formatted op.
 - **Security Center: live scan / definition-update progress** (`lg3d-apps`) — the
   Antivirus tab now shows a real progress bar and live monitoring instead of a
   static "Scanning…" label. Scans stream ClamAV's output line by line (a new
