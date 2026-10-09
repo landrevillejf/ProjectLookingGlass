@@ -10,6 +10,22 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Advanced Text Editor: three new bundled extensions** (`lg3d-apps`) — the
+  editor's `TextEditorExtension` plug-in surface (discovered via `ServiceLoader`
+  and `META-INF/services`) ships three more built-in providers beside the
+  existing "Text Tools", all additive — no panel, broker or existing extension
+  is changed. **Code Tools** (`lg3d.code-tools`, READ/WRITE/TOOLBAR) adds six
+  whole-document line operations: Indent Lines, Outdent Lines, Remove Blank
+  Lines, Remove Duplicate Lines, Reverse Lines and Number Lines. **Case Tools**
+  (`lg3d.case-tools`, READ/WRITE/TOOLBAR) adds five selection-only conversions —
+  Title, Sentence, camelCase, snake_case and kebab-case — that no-op on an empty
+  selection and never dirty an unchanged document. **Document Stats**
+  (`lg3d.text-stats`, READ/TOOLBAR, deliberately write-less) reports
+  `N lines, M words, K characters` to the status line on demand and echoes a
+  summary on save, exercising the `onEditorStarted`/`onDocumentSaved` hooks.
+  Every transform is a pure `String` static covered by three new headless JUnit 5
+  suites (`CodeToolsTest`, `CaseToolsTest`, `TextStatsToolTest`); the installed
+  toolbar now carries 18 actions (was 6), which the panel test asserts.
 - **Apps now raise desktop notifications** (`lg3d-core`, `lg3d-apps`,
   `lg3d-incubator`) — the notification pipeline that already served the 2D
   desktop internally (toast layer, taskbar tray log, Do-Not-Disturb gate) and the

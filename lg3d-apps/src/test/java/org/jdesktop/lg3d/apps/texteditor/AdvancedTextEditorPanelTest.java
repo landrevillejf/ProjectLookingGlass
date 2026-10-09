@@ -63,10 +63,11 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled Text Tools extension installs its six actions")
+    @DisplayName("the bundled extensions install their 18 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
-        assertEquals(6, panel.extensionActionCount());
+        // Text Tools (6) + Code Tools (6) + Case Tools (5) + Document Stats (1)
+        assertEquals(18, panel.extensionActionCount());
         panel.dispose();
     }
 
