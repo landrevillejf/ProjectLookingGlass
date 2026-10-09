@@ -17,6 +17,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.Dimension;
+import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
@@ -26,28 +27,38 @@ import java.awt.Insets;
 import java.awt.datatransfer.StringSelection;
 import java.awt.Toolkit;
 import java.net.URI;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.ListCellRenderer;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.apps.p2p.FileTransfer;
+import org.jdesktop.lg3d.apps.p2p.IdentityStore;
+import org.jdesktop.lg3d.apps.p2p.LanDiscovery;
+import org.jdesktop.lg3d.apps.p2p.P2pNode;
 import org.jdesktop.lg3d.contacts.Contact;
 import org.jdesktop.lg3d.contacts.ContactStore;
 
@@ -118,6 +129,19 @@ public class VideoConferencePanel extends JPanel {
     private final CameraCapture capture;
 
     private final JLabel statusLabel = new JLabel(" ");
+
+    // P2P side-channel: encrypted signaling/chat/files; the A/V stays in Jitsi.
+    private final JTabbedPane sidebarTabs = new JTabbedPane();
+    private final DefaultListModel<String> p2pPeerModel = new DefaultListModel<>();
+    private final JList<String> p2pPeerList = new JList<>(p2pPeerModel);
+    /** Index-aligned with {@link #p2pPeerModel}: a {@code P2pNode.Peer} or a
+     *  {@code LanDiscovery.DiscoveredPeer}. */
+    private final List<Object> p2pPeerEntries = new ArrayList<>();
+    private final JLabel p2pIdentityLabel = new JLabel(" ");
+    private final JButton p2pStartButton = new JButton("Start P2P");
+    private final JTextArea p2pChatLog = new JTextArea(6, 18);
+    private final JTextField p2pChatInput = new JTextField();
+    private volatile P2pSideChannel p2p;
 
     private Runnable onClose;
     private String lastJoinUrl;
@@ -202,7 +226,7 @@ public class VideoConferencePanel extends JPanel {
     }
 
     private JComponent buildSidebar() {
-        JTabbedPane tabs = new JTabbedPane();
+        JTabbedPane tabs = sidebarTabs;
         tabs.setPreferredSize(new Dimension(210, 0));
 
         roomList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -248,6 +272,7 @@ public class VideoConferencePanel extends JPanel {
         tabs.addTab("Rooms", roomsPanel);
         tabs.addTab("Contacts", contactsPanel);
         tabs.addTab("History", historyPanel);
+        tabs.addTab("Direct (P2P)", buildP2pPanel());
 
         JPanel west = new JPanel(new BorderLayout());
         west.setOpaque(false);
@@ -721,6 +746,11 @@ public class VideoConferencePanel extends JPanel {
         JCheckBox prejoin = new JCheckBox("Skip the pre-join device screen",
                 settings.isDisablePrejoinPage());
         JTextField histLimit = new JTextField(String.valueOf(settings.getHistoryLimit()));
+        JTextField p2pPort = new JTextField(String.valueOf(settings.getP2pListenPort()));
+        p2pPort.setToolTipText("TCP port the encrypted P2P side-channel listens on (0 = ephemeral)."
+                + " Set a fixed, port-forwarded port to be reachable from the internet.");
+        JCheckBox p2pDiscovery = new JCheckBox("Discover P2P peers on the LAN",
+                settings.isP2pDiscoveryEnabled());
 
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -735,7 +765,9 @@ public class VideoConferencePanel extends JPanel {
         c.gridx = 1; c.gridy = row++; form.add(audioMuted, c);
         c.gridx = 1; c.gridy = row++; form.add(videoMuted, c);
         c.gridx = 1; c.gridy = row++; form.add(prejoin, c);
-        addFormRow(form, c, row, "History entries", histLimit);
+        addFormRow(form, c, row++, "History entries", histLimit);
+        addFormRow(form, c, row++, "P2P listen port", p2pPort);
+        c.gridx = 1; c.gridy = row; form.add(p2pDiscovery, c);
 
         int opt = JOptionPane.showConfirmDialog(this, form, "Video Conference Settings",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -756,6 +788,12 @@ public class VideoConferencePanel extends JPanel {
         } catch (NumberFormatException ex) {
             // keep the previous limit
         }
+        try {
+            settings.setP2pListenPort(Integer.parseInt(p2pPort.getText().trim()));
+        } catch (NumberFormatException ex) {
+            // keep the previous port
+        }
+        settings.setP2pDiscoveryEnabled(p2pDiscovery.isSelected());
         saveSettings();
 
         domainField.setText(settings.getDefaultDomain());
@@ -764,6 +802,422 @@ public class VideoConferencePanel extends JPanel {
         preview.setVideoEnabled(!settings.isStartWithVideoMuted());
         updateIdentityLabel();
         setStatus("Settings saved");
+    }
+
+    // ------------------------------------------------------------------
+    // Direct (P2P) side-channel: encrypted signaling, chat and files
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds the "Direct (P2P)" tab: our identity, the peer list (connected and
+     * LAN-discovered) with connect/invite/file actions, and a small encrypted
+     * chat log. The audio/video path is unchanged &mdash; this is only the secure
+     * signaling/chat/file layer, as the note at the foot of the tab states.
+     */
+    private JComponent buildP2pPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 6));
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+
+        JPanel north = new JPanel(new BorderLayout(0, 4));
+        north.setOpaque(false);
+        p2pIdentityLabel.setForeground(TEXT_DIM);
+        p2pIdentityLabel.setText("P2P off \u2014 press Start to listen for peers");
+        north.add(p2pIdentityLabel, BorderLayout.CENTER);
+        JPanel northBtns = new JPanel(new GridLayout(1, 2, 4, 0));
+        northBtns.setOpaque(false);
+        p2pStartButton.addActionListener(e -> toggleP2p());
+        JButton refresh = new JButton("Refresh");
+        refresh.addActionListener(e -> refreshP2pPeers());
+        northBtns.add(p2pStartButton);
+        northBtns.add(refresh);
+        north.add(northBtns, BorderLayout.SOUTH);
+        panel.add(north, BorderLayout.NORTH);
+
+        p2pPeerList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JPanel peerWrap = new JPanel(new BorderLayout());
+        peerWrap.setOpaque(false);
+        peerWrap.setBorder(BorderFactory.createTitledBorder("Peers"));
+        peerWrap.add(new JScrollPane(p2pPeerList), BorderLayout.CENTER);
+        JPanel peerBtns = new JPanel(new GridLayout(1, 3, 4, 0));
+        peerBtns.setOpaque(false);
+        peerBtns.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        JButton connect = new JButton("Connect");
+        connect.setToolTipText("Connect to the selected LAN-discovered peer");
+        connect.addActionListener(e -> connectSelectedPeer());
+        JButton invite = new JButton("Invite");
+        invite.setToolTipText("Send a meeting invite to the selected peer (or all connected)");
+        invite.addActionListener(e -> sendInviteToSelectedPeer());
+        JButton file = new JButton("File");
+        file.setToolTipText("Send a file to the selected connected peer");
+        file.addActionListener(e -> sendFileToSelectedPeer());
+        peerBtns.add(connect);
+        peerBtns.add(invite);
+        peerBtns.add(file);
+        peerWrap.add(peerBtns, BorderLayout.SOUTH);
+
+        p2pChatLog.setEditable(false);
+        p2pChatLog.setLineWrap(true);
+        p2pChatLog.setWrapStyleWord(true);
+        p2pChatLog.setBackground(CARD);
+        p2pChatLog.setForeground(TEXT);
+        p2pChatLog.setCaretColor(TEXT);
+        JPanel chatWrap = new JPanel(new BorderLayout(0, 4));
+        chatWrap.setOpaque(false);
+        chatWrap.setBorder(BorderFactory.createTitledBorder("Secure chat"));
+        chatWrap.add(new JScrollPane(p2pChatLog), BorderLayout.CENTER);
+        JPanel chatInput = new JPanel(new BorderLayout(4, 0));
+        chatInput.setOpaque(false);
+        JButton send = new JButton("Send");
+        send.addActionListener(e -> sendP2pChat());
+        p2pChatInput.addActionListener(e -> sendP2pChat());
+        chatInput.add(p2pChatInput, BorderLayout.CENTER);
+        chatInput.add(send, BorderLayout.EAST);
+        chatWrap.add(chatInput, BorderLayout.SOUTH);
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, peerWrap, chatWrap);
+        split.setResizeWeight(0.5);
+        split.setContinuousLayout(true);
+        split.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        panel.add(split, BorderLayout.CENTER);
+
+        JLabel hint = new JLabel("<html><i>Encrypted signaling, chat and files \u2014 "
+                + "audio/video still runs through Jitsi in your browser.</i></html>");
+        hint.setForeground(TEXT_DIM);
+        panel.add(hint, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    /** Creates the side-channel on demand; construction is inert (no socket). */
+    private synchronized P2pSideChannel ensureP2p() {
+        if (p2p == null) {
+            Path dir = store.getConfigDir().resolve("p2p-files");
+            p2p = new P2pSideChannel(new IdentityStore(), dir, new PanelP2pListener());
+        }
+        return p2p;
+    }
+
+    /** Starts the side-channel if stopped, stops it if running. */
+    void toggleP2p() {
+        P2pSideChannel ch = p2p;
+        if (ch != null && ch.isRunning()) {
+            stopP2p();
+        } else {
+            startP2p();
+        }
+    }
+
+    /** Binds the listen socket and begins LAN discovery (never in headless). */
+    void startP2p() {
+        if (GraphicsEnvironment.isHeadless()) {
+            setStatus("The P2P side-channel is unavailable in headless mode");
+            return;
+        }
+        P2pSideChannel ch = ensureP2p();
+        ch.setDiscoveryEnabled(settings.isP2pDiscoveryEnabled());
+        if (ch.start(settings.getDisplayName(), settings.getP2pListenPort())) {
+            p2pStartButton.setText("Stop P2P");
+            updateP2pIdentity();
+            refreshP2pPeers();
+        }
+    }
+
+    /** Closes the side-channel and releases its socket and threads. */
+    void stopP2p() {
+        P2pSideChannel ch = p2p;
+        if (ch != null) {
+            ch.close();
+        }
+        p2p = null;
+        p2pStartButton.setText("Start P2P");
+        updateP2pIdentity();
+        refreshP2pPeers();
+        setStatus("P2P side-channel stopped");
+    }
+
+    private void updateP2pIdentity() {
+        P2pSideChannel ch = p2p;
+        if (ch == null || !ch.isRunning()) {
+            p2pIdentityLabel.setText("P2P off \u2014 press Start to listen for peers");
+            return;
+        }
+        p2pIdentityLabel.setText("<html>Our fingerprint: " + ch.getOurFingerprint()
+                + "<br>Listening on port " + ch.getPort() + "</html>");
+    }
+
+    /** Rebuilds the peer list from the connected peers then the discovered ones. */
+    void refreshP2pPeers() {
+        int selected = p2pPeerList.getSelectedIndex();
+        p2pPeerModel.clear();
+        p2pPeerEntries.clear();
+        P2pSideChannel ch = p2p;
+        if (ch != null) {
+            for (P2pNode.Peer peer : ch.getPeers()) {
+                p2pPeerEntries.add(peer);
+                p2pPeerModel.addElement("\u25cf " + P2pSideChannel.displayName(peer)
+                        + "  [" + shortFp(peer.getFingerprint()) + "]");
+            }
+            for (LanDiscovery.DiscoveredPeer dp : ch.getDiscoveredPeers()) {
+                p2pPeerEntries.add(dp);
+                p2pPeerModel.addElement("\u25cb " + describeDiscovered(dp));
+            }
+        }
+        if (selected >= 0 && selected < p2pPeerModel.getSize()) {
+            p2pPeerList.setSelectedIndex(selected);
+        }
+    }
+
+    /** Dials the selected LAN-discovered peer. */
+    void connectSelectedPeer() {
+        P2pSideChannel ch = p2p;
+        if (ch == null || !ch.isRunning()) {
+            setStatus("Start the P2P side-channel first");
+            return;
+        }
+        int idx = p2pPeerList.getSelectedIndex();
+        if (idx < 0 || !(p2pPeerEntries.get(idx) instanceof LanDiscovery.DiscoveredPeer dp)) {
+            setStatus("Select a discovered peer to connect");
+            return;
+        }
+        ch.connectToPeer(dp.getHostAddress(), dp.getPort());
+        setStatus("Connecting to " + dp.getHostAddress() + ":" + dp.getPort());
+    }
+
+    /** @return the Jitsi share URL for the current room/domain fields, or null. */
+    String buildInviteUrl() {
+        return JitsiUrlBuilder.buildShareUrl(currentRoomFromInput(), settings);
+    }
+
+    /**
+     * Invites the selected connected peer (or, with no selection, every connected
+     * peer) to the current room over the encrypted side-channel. A discovered but
+     * not-yet-connected peer is dialled first.
+     */
+    void sendInviteToSelectedPeer() {
+        P2pSideChannel ch = p2p;
+        if (ch == null || !ch.isRunning()) {
+            setStatus("Start the P2P side-channel first");
+            return;
+        }
+        String url = buildInviteUrl();
+        if (url == null) {
+            setStatus("Enter a room name to invite");
+            return;
+        }
+        ConferenceRoom room = currentRoomFromInput();
+        int idx = p2pPeerList.getSelectedIndex();
+        if (idx < 0) {
+            int n = ch.broadcastInvite(room.getName(), url);
+            setStatus(n > 0
+                    ? "Invited " + n + " peer(s) to " + room.getName()
+                    : "No connected peers to invite");
+            return;
+        }
+        Object entry = p2pPeerEntries.get(idx);
+        if (entry instanceof P2pNode.Peer peer) {
+            boolean ok = ch.sendInvite(peer.getFingerprint(), room.getName(), url);
+            setStatus(ok
+                    ? "Invite sent to " + P2pSideChannel.displayName(peer)
+                    : "Could not send the invite");
+        } else if (entry instanceof LanDiscovery.DiscoveredPeer dp) {
+            ch.connectToPeer(dp.getHostAddress(), dp.getPort());
+            setStatus("Connecting to " + describeDiscovered(dp) + " before inviting");
+        }
+    }
+
+    /** Offers a file to the selected connected peer (headless: status only). */
+    void sendFileToSelectedPeer() {
+        P2pSideChannel ch = p2p;
+        if (ch == null || !ch.isRunning()) {
+            setStatus("Start the P2P side-channel first");
+            return;
+        }
+        int idx = p2pPeerList.getSelectedIndex();
+        if (idx < 0 || !(p2pPeerEntries.get(idx) instanceof P2pNode.Peer peer)) {
+            setStatus("Select a connected peer to send a file");
+            return;
+        }
+        if (GraphicsEnvironment.isHeadless()) {
+            setStatus("The file chooser is unavailable in headless mode");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Send file to " + P2pSideChannel.displayName(peer));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path file = chooser.getSelectedFile().toPath();
+        boolean ok = ch.offerFile(peer.getFingerprint(), file);
+        setStatus(ok
+                ? "Offering " + chooser.getSelectedFile().getName()
+                        + " to " + P2pSideChannel.displayName(peer)
+                : "Could not offer the file");
+    }
+
+    /** Sends the chat input to the selected peer, or broadcasts to all. */
+    void sendP2pChat() {
+        String text = p2pChatInput.getText().trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        P2pSideChannel ch = p2p;
+        if (ch == null || !ch.isRunning()) {
+            setStatus("Start the P2P side-channel first");
+            return;
+        }
+        int idx = p2pPeerList.getSelectedIndex();
+        if (idx >= 0 && p2pPeerEntries.get(idx) instanceof P2pNode.Peer peer) {
+            ch.sendChat(peer.getFingerprint(), text);
+            appendP2pChat("you \u2192 " + P2pSideChannel.displayName(peer) + ": " + text);
+        } else {
+            int n = ch.broadcastChat(text);
+            appendP2pChat("you \u2192 " + n + " peer(s): " + text);
+        }
+        p2pChatInput.setText("");
+    }
+
+    /**
+     * Applies a received invite: fills the room (and the domain, when the share
+     * URL carries one) and runs the existing {@link #join()} flow.
+     *
+     * @param room the invited room name
+     * @param url  the peer's Jitsi share URL (may be null)
+     */
+    void applyInvite(String room, String url) {
+        if (room != null && !room.isBlank()) {
+            roomField.setText(room.trim());
+        }
+        if (url != null && !url.isBlank()) {
+            try {
+                URI u = URI.create(url);
+                if (u.getHost() != null && !u.getHost().isBlank()) {
+                    domainField.setText(u.getHost());
+                }
+            } catch (RuntimeException ignored) {
+                // keep the current domain if the URL cannot be parsed
+            }
+        }
+        join();
+    }
+
+    private void promptJoinInvite(String peer, String room, String url) {
+        appendP2pChat(peer + " invites you to \"" + room + "\"");
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        int opt = JOptionPane.showConfirmDialog(this,
+                peer + " invites you to join \"" + room + "\".",
+                "P2P meeting invite", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (opt == JOptionPane.YES_OPTION) {
+            applyInvite(room, url);
+        }
+    }
+
+    private void promptAcceptP2pFile(String peer, FileTransfer transfer) {
+        appendP2pChat(peer + " offers \"" + transfer.getFileName() + "\"");
+        P2pSideChannel ch = p2p;
+        if (ch == null) {
+            return;
+        }
+        boolean accept;
+        if (GraphicsEnvironment.isHeadless()) {
+            accept = false;
+        } else {
+            accept = JOptionPane.showConfirmDialog(this,
+                    peer + " offers \"" + transfer.getFileName() + "\". Accept?",
+                    "Incoming file", JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE) == JOptionPane.YES_OPTION;
+        }
+        if (accept) {
+            ch.acceptFile(transfer.getId());
+        } else {
+            ch.rejectFile(transfer.getId(), "Declined");
+        }
+    }
+
+    private void appendP2pChat(String line) {
+        p2pChatLog.append(line + "\n");
+        p2pChatLog.setCaretPosition(p2pChatLog.getDocument().getLength());
+    }
+
+    /** A one-line description of a discovered LAN peer. */
+    static String describeDiscovered(LanDiscovery.DiscoveredPeer dp) {
+        if (dp == null) {
+            return "";
+        }
+        String nick = (dp.getNickname() == null || dp.getNickname().isBlank())
+                ? "peer" : dp.getNickname();
+        return nick + "  " + dp.getHostAddress() + ":" + dp.getPort();
+    }
+
+    /** The first eight hex digits of a fingerprint, for a compact list label. */
+    static String shortFp(String fingerprint) {
+        if (fingerprint == null) {
+            return "";
+        }
+        String tag = fingerprint.replace(":", "");
+        return tag.substring(0, Math.min(8, tag.length()));
+    }
+
+    /** Runs {@code r} on the EDT (immediately if already there). */
+    private static void edt(Runnable r) {
+        if (EventQueue.isDispatchThread()) {
+            r.run();
+        } else {
+            SwingUtilities.invokeLater(r);
+        }
+    }
+
+    /** Marshals side-channel events onto the EDT before touching a widget. */
+    private final class PanelP2pListener implements P2pSideChannel.Listener {
+        @Override
+        public void onPeersChanged() {
+            edt(() -> refreshP2pPeers());
+        }
+
+        @Override
+        public void onChat(String peerName, String text, boolean action) {
+            edt(() -> appendP2pChat(action ? "* " + peerName + " " + text : peerName + ": " + text));
+        }
+
+        @Override
+        public void onInvite(String peerName, String room, String url) {
+            edt(() -> promptJoinInvite(peerName, room, url));
+        }
+
+        @Override
+        public void onFileOffer(String peerName, FileTransfer transfer) {
+            edt(() -> promptAcceptP2pFile(peerName, transfer));
+        }
+
+        @Override
+        public void onFileProgress(String peerName, FileTransfer transfer) {
+            edt(() -> setStatus(String.format(Locale.ROOT, "P2P %s %s \u2014 %d%%",
+                    transfer.getDirection() == FileTransfer.Direction.SEND
+                            ? "sending" : "receiving",
+                    transfer.getFileName(), Math.round(transfer.getProgress() * 100))));
+        }
+
+        @Override
+        public void onFileComplete(String peerName, FileTransfer transfer) {
+            edt(() -> appendP2pChat("File " + transfer.getFileName() + " completed"
+                    + (transfer.isVerified() ? " (verified)" : "")));
+        }
+
+        @Override
+        public void onFileClosed(String peerName, FileTransfer transfer) {
+            edt(() -> appendP2pChat("File " + transfer.getFileName() + " " + transfer.getState()));
+        }
+
+        @Override
+        public void onStatus(String status) {
+            edt(() -> setStatus(status));
+        }
+
+        @Override
+        public void onError(String error) {
+            edt(() -> setStatus("P2P: " + error));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -820,8 +1274,13 @@ public class VideoConferencePanel extends JPanel {
         this.onClose = onClose;
     }
 
-    /** Stops the camera preview, persists state and runs the close hook. */
+    /** Stops the camera preview, closes the P2P side-channel, persists state and runs the close hook. */
     public void shutdown() {
+        P2pSideChannel ch = p2p;
+        if (ch != null) {
+            ch.close();
+            p2p = null;
+        }
         preview.dispose();
         saveSettings();
         if (onClose != null) {
@@ -845,6 +1304,19 @@ public class VideoConferencePanel extends JPanel {
     DefaultListModel<ConferenceRoom> roomModel() { return roomModel; }
     String lastJoinUrl() { return lastJoinUrl; }
     CallHistoryEntry.Outcome lastOutcome() { return lastOutcome; }
+
+    JTabbedPane sidebarTabs() { return sidebarTabs; }
+    P2pSideChannel p2p() { return p2p; }
+    DefaultListModel<String> p2pPeerModel() { return p2pPeerModel; }
+    JList<String> p2pPeerList() { return p2pPeerList; }
+    JTextField p2pChatInput() { return p2pChatInput; }
+    String p2pChatText() { return p2pChatLog.getText(); }
+
+    /** Injects a side-channel (used by tests; bypasses the lazy create). */
+    void setP2pForTest(P2pSideChannel channel) { this.p2p = channel; }
+
+    /** Appends a line to the P2P chat log exactly as an inbound event would. */
+    void appendP2pChatForTest(String line) { appendP2pChat(line); }
 
     /** Package-private accessor for the timestamp formatter used by list cells. */
     static String formatTimestamp(long epochMs) {
