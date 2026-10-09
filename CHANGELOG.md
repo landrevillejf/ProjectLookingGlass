@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Looking Glass logo wallpaper** (`lg3d-art`) — a new brand wallpaper,
+  `resources/images/background/LookingGlass-Logo.jpg` (2560x1440), built from the
+  desktop's own brand icon — `resources/images/icon/lg3d-logo.png`, the
+  Looking-Glass mascot the start menu, taskbar, 2D splash and About window all
+  reflect — by the new
+  [`lg3d-art/tools/make_logo_wallpaper.py`](lg3d-art/tools/make_logo_wallpaper.py).
+  That icon ships at 64x64 and has no larger original anywhere in the tree, so the
+  upscale is the whole problem: the mark is resampled in *premultiplied* space (the
+  black RGB hiding under a transparent pixel would otherwise fringe the
+  silhouette), its alpha is re-cut with a melt-and-refreeze pass so the pixel
+  staircase becomes a smooth outline, and a median + minimum filter pair stitches
+  the mascot's one-pixel black stroke back into one continuous line. It sits on a
+  generated slate-blue glass backdrop sampled from the brand palette (#666699 /
+  #d32b30) with diagonal light bands, an oversized blurred ghost of the mark
+  behind it and a letter-spaced "PROJECT LOOKING GLASS" wordmark — but no mirror
+  reflection, since the mascot is drawn standing on its own glass platform.
+  Keeping the recipe in code (the same reason
+  `GenerateAppIcons.java` exists) means the wallpaper re-cuts at any resolution
+  (`--width` / `--height`), re-tints from the two brand colours, picks its
+  encoder from the output extension, and has `--reflection` / `--no-ghost` /
+  `--no-wordmark` variants; JPEG is the default because the lossless PNG of the
+  same dithered gradient costs 9x the payload of the rest of the collection.
+  16:9 is deliberate: `SimpleImageBackground` and the 2D `WallpaperDesktopPane`
+  both stretch the image to the screen, so a square source distorts the mark.
+  No registration is needed — every wallpaper chooser enumerates the directory
+  at runtime — and `:lg3d-core:runtimeResources` assembles the new file into the
+  classpath tree. `.gitignore` gains `__pycache__/` / `*.pyc` for the Python
+  asset tools.
 - **Advanced Text Editor** (`lg3d-apps`, `lg3d-core`, `lg3d-art`) — a new
   production plain-text and source-code editor (`org.jdesktop.lg3d.apps.texteditor`)
   in the start-menu **Office** group, served by one Swing `AdvancedTextEditorPanel`

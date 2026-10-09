@@ -14,6 +14,12 @@ build-gradle/
 *.class
 *.jar.tmp
 
+# ---- Python tooling ----
+# The asset tools under lg3d-art/tools/ are plain Python; importing them leaves
+# a bytecode cache behind that must never be committed.
+__pycache__/
+*.pyc
+
 # ---- Large vendored artifacts (fetched, not committed) ----
 # The swing-ide fat jar (~138 MB) exceeds GitHub's 100 MB per-file limit, so it
 # is built by the swing-ide project and fetched into libs/ on demand (see the

@@ -77,4 +77,13 @@ resources under a very open policy.
 - YellowDahlia.jpg 
   Provided for free by Nathan Roarty of Sun Microsystems.
 
+Generated artwork (no third-party contribution involved):
+
+- background/LookingGlass-Logo.jpg
+  Composed from this repository's own brand icon
+  (lg3d-core/src/resources/images/icon/lg3d-logo.png, the Looking-Glass
+  mascot) by tools/make_logo_wallpaper.py. It is a generated file: re-run
+  that script to change its size or re-tint it rather than editing the
+  pixels by hand.
+
 Thanks for your contributions!
