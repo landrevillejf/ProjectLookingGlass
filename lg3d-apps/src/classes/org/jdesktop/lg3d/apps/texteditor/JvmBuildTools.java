@@ -41,7 +41,7 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
  * the output is scanned for the exception heading and the first stack frame
  * that lands in this file, and the status line reports
  * {@code "Debug: <exception> at Foo.java:<line>"} with the full trace kept in
- * a trailing comment block. (An interactive breakpoint debugger is a separate
+ * the output console. (An interactive breakpoint debugger is a separate
  * future feature; this is the honest in-editor subset.)</p>
  *
  * <p><b>Kotlin</b> actions drive {@code kotlinc}/{@code kotlin} from
@@ -51,9 +51,10 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
  * <p>Processes run on a virtual thread and the result is delivered back on
  * the EDT, so the editor never blocks; a package-private {@link Runner} seam
  * keeps every action headless-testable with a synchronous fake. Tool output
- * is written into a single trailing block (previous blocks are replaced, so
- * runs stay idempotent) gated on the extension's {@code WRITE} permission,
- * and progress/errors always land on the status line.</p>
+ * lands in the editor's south {@link OutputConsole} (through the
+ * FILE_IO-gated {@code EditorContext.showOutput} capability) &mdash; the
+ * document itself is never modified &mdash; while progress and exit codes
+ * always land on the status line.</p>
  */
 public final class JvmBuildTools implements TextEditorExtension {
 
@@ -72,7 +73,6 @@ public final class JvmBuildTools implements TextEditorExtension {
 
     private static final long COMPILE_TIMEOUT_MS = 60_000;
     private static final long RUN_TIMEOUT_MS = 30_000;
-    private static final int MAX_BLOCK_LINES = 200;
 
     private DocumentContext currentDoc;
     private EditorContext editor;
@@ -97,7 +97,6 @@ public final class JvmBuildTools implements TextEditorExtension {
     public TextEditorManifest manifest() {
         Set<TextEditorPermission> perms = EnumSet.of(
                 TextEditorPermission.READ,
-                TextEditorPermission.WRITE,
                 TextEditorPermission.FILE_IO,
                 TextEditorPermission.TOOLBAR
         );
@@ -130,13 +129,13 @@ public final class JvmBuildTools implements TextEditorExtension {
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("jvm-compile-java", "Compile Java",
-                        "javac the current document into a temp dir; errors land in a trailing block",
+                        "javac the current document into a temp dir; errors land in the Output panel",
                         this::compileJava),
                 new ToolbarContribution("jvm-run-java", "Run Java",
-                        "Run the document with the single-file source launcher and capture its output",
+                        "Run the document with the single-file source launcher; output lands in the Output panel",
                         this::runJava),
                 new ToolbarContribution("jvm-debug-java", "Debug Java",
-                        "Run with assertions on; report the exception and its line, keep the trace",
+                        "Run with assertions on; report the exception and its line, trace in the Output panel",
                         this::debugJava),
                 new ToolbarContribution("jvm-compile-kotlin", "Compile Kotlin",
                         "kotlinc the current document (needs the Kotlin compiler on PATH)",
@@ -145,7 +144,7 @@ public final class JvmBuildTools implements TextEditorExtension {
                         "kotlinc, then run the compiled MainKt (needs the Kotlin compiler on PATH)",
                         this::runKotlin),
                 new ToolbarContribution("jvm-clean-output", "Clean Output",
-                        "Remove the trailing build-output block from the document",
+                        "Clear the editor's Output panel",
                         this::cleanOutput)
         );
     }
@@ -177,8 +176,8 @@ public final class JvmBuildTools implements TextEditorExtension {
             if (res.success()) {
                 msg(cls + " compiled \u2014 OK");
             } else {
-                appendBlock("javac", res.output());
-                msg(cls + " failed (exit " + res.exitCode() + ") \u2014 see output block");
+                output("javac", res.output());
+                msg(cls + " failed (exit " + res.exitCode() + ") \u2014 see the Output panel");
             }
         });
     }
@@ -205,7 +204,7 @@ public final class JvmBuildTools implements TextEditorExtension {
         msg("Running " + cls + "\u2026");
         runner.run(Toolchain.sourceRunCommand(java.get(), work.resolve(cls + ".java"), false),
                 work, RUN_TIMEOUT_MS, res -> {
-            appendBlock("java", res.output());
+            output("java", res.output());
             msg(cls + " exited " + res.exitCode() + " \u2014 output captured");
         });
     }
@@ -234,13 +233,13 @@ public final class JvmBuildTools implements TextEditorExtension {
                 work, RUN_TIMEOUT_MS, res -> {
             OptionalInt line = Toolchain.firstFrameLine(cls + ".java", res.output());
             if (line.isPresent()) {
-                appendBlock("java debug", res.output());
+                output("java debug", res.output());
                 String ex = Toolchain.firstExceptionMessage(res.output());
                 msg("Debug: " + (ex.isEmpty() ? "stopped" : ex)
                         + " at " + cls + ".java:" + line.getAsInt());
             } else if (!res.success()) {
-                appendBlock("java debug", res.output());
-                msg("Debug: exit " + res.exitCode() + " \u2014 see output block");
+                output("java debug", res.output());
+                msg("Debug: exit " + res.exitCode() + " \u2014 see the Output panel");
             } else {
                 msg("Debug run clean (" + cls + " exited 0, assertions enabled)");
             }
@@ -267,8 +266,8 @@ public final class JvmBuildTools implements TextEditorExtension {
             if (res.success()) {
                 msg(fileName + " compiled \u2014 OK");
             } else {
-                appendBlock("kotlinc", res.output());
-                msg("Kotlin compile failed (exit " + res.exitCode() + ") \u2014 see output block");
+                output("kotlinc", res.output());
+                msg("Kotlin compile failed (exit " + res.exitCode() + ") \u2014 see the Output panel");
             }
         });
     }
@@ -293,30 +292,24 @@ public final class JvmBuildTools implements TextEditorExtension {
         runner.run(Toolchain.kotlincCommand(kotlinc.get(), work.resolve(fileName), classes),
                 work, COMPILE_TIMEOUT_MS, cres -> {
             if (!cres.success()) {
-                appendBlock("kotlinc", cres.output());
-                msg("Kotlin compile failed (exit " + cres.exitCode() + ") \u2014 see output block");
+                output("kotlinc", cres.output());
+                msg("Kotlin compile failed (exit " + cres.exitCode() + ") \u2014 see the Output panel");
                 return;
             }
             runner.run(Toolchain.kotlinRunCommand(Toolchain.kotlinLauncher(kotlinc.get()),
                             classes, mainClass), work, RUN_TIMEOUT_MS, rres -> {
-                appendBlock("kotlin", rres.output());
+                output("kotlin", rres.output());
                 msg(mainClass + " exited " + rres.exitCode() + " \u2014 output captured");
             });
         });
     }
 
     private void cleanOutput() {
-        if (currentDoc == null) {
+        if (editor == null) {
             return;
         }
-        String text = currentDoc.getFullText();
-        String stripped = Toolchain.removeTrailingBlock(text);
-        if (stripped.equals(text)) {
-            msg("Clean Output: no output block in this document");
-            return;
-        }
-        currentDoc.setFullText(stripped);
-        msg("Clean Output: removed the output block");
+        editor.clearOutput();
+        msg("Clean Output: the Output panel was cleared");
     }
 
     // -- helpers -------------------------------------------------------------
@@ -370,12 +363,12 @@ public final class JvmBuildTools implements TextEditorExtension {
         }
     }
 
-    private void appendBlock(String tool, String body) {
-        if (currentDoc == null) {
-            return;
+    /** Sends one tool run's output to the editor's south Output console. */
+    private void output(String tool, String body) {
+        EditorContext ctx = editor;
+        if (ctx != null) {
+            ctx.showOutput(tool + " output", body);
         }
-        currentDoc.setFullText(Toolchain.withTrailingBlock(
-                currentDoc.getFullText(), tool, body, MAX_BLOCK_LINES));
     }
 
     private void msg(String text) {

@@ -36,9 +36,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless tests for {@link JvmBuildTools} and its {@link Toolchain} helper:
- * the pure command builders, source inspection, stack-trace parsing and
- * output-block editing, plus every toolbar action driven through a
- * synchronous fake {@code Runner} so no real process is ever spawned.
+ * the pure command builders, source inspection and stack-trace parsing, plus
+ * every toolbar action driven through a synchronous fake {@code Runner} so no
+ * real process is ever spawned. Tool output is asserted against a fake output
+ * console (the {@code EditorContext.showOutput}/{@code clearOutput}
+ * delegates); the document is never modified.
  */
 class JvmBuildToolsTest {
 
@@ -102,23 +104,7 @@ class JvmBuildToolsTest {
         assertEquals("", Toolchain.firstExceptionMessage("just output"));
     }
 
-    // -- Toolchain: output blocks ------------------------------------------
-
-    @Test
-    @DisplayName("withTrailingBlock appends, replaces and truncates; remove strips")
-    void outputBlocks() {
-        String src = "b\na\n";
-        String once = Toolchain.withTrailingBlock(src, "javac", "error: ; expected", 200);
-        assertEquals("b\na\n\n// ---- javac output ----\n//   error: ; expected\n", once);
-        String twice = Toolchain.withTrailingBlock(once, "java", "hi\nthere", 200);
-        assertEquals("b\na\n\n// ---- java output ----\n//   hi\n//   there\n", twice);
-        assertEquals("b\na\n", Toolchain.removeTrailingBlock(twice));
-        assertEquals(src, Toolchain.removeTrailingBlock(src)); // no block -> unchanged
-        String capped = Toolchain.withTrailingBlock(src, "java", "1\n2\n3\n4\n5", 3);
-        assertTrue(capped.contains("//   1\n"), capped);
-        assertFalse(capped.contains("//   4\n"), capped);
-        assertTrue(capped.contains("... 2 more line(s)"), capped);
-    }
+    // -- Toolchain: tool discovery -----------------------------------------
 
     @Test
     @DisplayName("findOnPath locates an executable and skips misses")
@@ -165,13 +151,25 @@ class JvmBuildToolsTest {
     private List<String> msgs;
     private String[] doc;
     private FakeRunner runner;
+    /** Fake south console: every (title, body) shown, plus a clear flag. */
+    private List<String> consoleTitles;
+    private List<String> consoleBodies;
+    private int consoleClears;
 
     private JvmBuildTools wire(String initialText) {
         JvmBuildTools tools = new JvmBuildTools();
         msgs = new ArrayList<>();
         doc = new String[] {initialText};
+        consoleTitles = new ArrayList<>();
+        consoleBodies = new ArrayList<>();
+        consoleClears = 0;
         tools.onEditorStarted(new EditorContext(
-                EnumSet.allOf(TextEditorPermission.class), msgs::add, () -> { }, () -> { }));
+                EnumSet.allOf(TextEditorPermission.class), msgs::add, () -> { }, () -> { },
+                (title, body) -> {
+                    consoleTitles.add(title);
+                    consoleBodies.add(body);
+                },
+                () -> consoleClears++));
         tools.onDocumentOpened(new DocumentContext(null, null, doc[0], "",
                 s -> doc[0] = s, s -> { }));
         runner = new FakeRunner();
@@ -184,39 +182,43 @@ class JvmBuildToolsTest {
     }
 
     @Test
-    @DisplayName("compile failure reports status and appends the error block")
+    @DisplayName("compile failure lands the tool output in the console, not the document")
     void compileJavaFailure() {
         JvmBuildTools tools = wire("public class Foo { int x = ; }\n");
         runner.fallback = new Toolchain.Result(1, "Foo.java:1: error: ';' expected");
         act(tools, 0);
         assertEquals(1, runner.commands.size());
         assertTrue(runner.commands.get(0).get(0).endsWith("javac"));
-        assertTrue(doc[0].contains("// ---- javac output ----"), doc[0]);
-        assertTrue(doc[0].contains("//   Foo.java:1: error: ';' expected"), doc[0]);
+        assertEquals(List.of("javac output"), consoleTitles);
+        assertEquals(List.of("Foo.java:1: error: ';' expected"), consoleBodies);
+        assertEquals("public class Foo { int x = ; }\n", doc[0],
+                "the document itself is never touched");
         assertTrue(msgs.stream().anyMatch(m -> m.contains("failed (exit 1)")), msgs.toString());
     }
 
     @Test
-    @DisplayName("compile success is status-only and never touches the document")
+    @DisplayName("compile success is status-only: no console write, no document touch")
     void compileJavaSuccess() {
         JvmBuildTools tools = wire("public class Foo { }\n");
         act(tools, 0);
         assertEquals("public class Foo { }\n", doc[0]);
+        assertTrue(consoleTitles.isEmpty(), consoleTitles.toString());
         assertTrue(msgs.contains("Foo compiled — OK"), msgs.toString());
     }
 
     @Test
-    @DisplayName("run java captures program output into the block")
+    @DisplayName("run java captures program output into the console")
     void runJava() {
         JvmBuildTools tools = wire("public class Foo { public static void main(String[] a) { } }\n");
         runner.fallback = new Toolchain.Result(0, "hello from main");
         act(tools, 1);
-        assertTrue(doc[0].contains("// ---- java output ----\n//   hello from main\n"), doc[0]);
+        assertEquals(List.of("java output"), consoleTitles);
+        assertEquals(List.of("hello from main"), consoleBodies);
         assertTrue(msgs.stream().anyMatch(m -> m.contains("exited 0")), msgs.toString());
     }
 
     @Test
-    @DisplayName("debug java reports the exception and the user line")
+    @DisplayName("debug java reports the exception and keeps the trace in the console")
     void debugJavaException() {
         JvmBuildTools tools = wire("public class Foo { }\n");
         runner.fallback = new Toolchain.Result(1,
@@ -225,15 +227,17 @@ class JvmBuildToolsTest {
         act(tools, 2);
         assertTrue(msgs.stream().anyMatch(m -> m.contains("java.lang.IllegalStateException: boom")
                 && m.contains("Foo.java:42")), msgs.toString());
-        assertTrue(doc[0].contains("// ---- java debug output ----"), doc[0]);
+        assertEquals(List.of("java debug output"), consoleTitles);
+        assertTrue(consoleBodies.get(0).contains("Foo.java:42"), consoleBodies.toString());
     }
 
     @Test
-    @DisplayName("a clean debug run says so and leaves the document alone")
+    @DisplayName("a clean debug run says so and writes nothing to the console")
     void debugJavaClean() {
         JvmBuildTools tools = wire("public class Foo { public static void main(String[] a) { } }\n");
         act(tools, 2);
         assertEquals("public class Foo { public static void main(String[] a) { } }\n", doc[0]);
+        assertTrue(consoleTitles.isEmpty(), consoleTitles.toString());
         assertTrue(msgs.stream().anyMatch(m -> m.contains("Debug run clean")), msgs.toString());
     }
 
@@ -281,28 +285,18 @@ class JvmBuildToolsTest {
         assertEquals(kotlinc.toString(), runner.commands.get(1).get(0),
                 "falls back to the kotlinc path when no kotlin launcher sits beside it");
         assertEquals("MainKt", runner.commands.get(1).get(runner.commands.get(1).size() - 1));
-        assertTrue(doc[0].contains("// ---- kotlin output ----\n//   kotlin ran\n"), doc[0]);
+        assertEquals(List.of("kotlin output"), consoleTitles);
+        assertEquals(List.of("kotlin ran"), consoleBodies);
     }
 
     @Test
-    @DisplayName("clean output removes the trailing block only when one exists")
+    @DisplayName("clean output clears the console, never the document")
     void cleanOutput() {
-        JvmBuildTools tools = wire("x\n\n// ---- java output ----\n//   hi\n");
+        JvmBuildTools tools = wire("x\n");
         act(tools, 5);
+        assertEquals(1, consoleClears);
+        assertTrue(msgs.stream().anyMatch(m -> m.contains("cleared")), msgs.toString());
         assertEquals("x\n", doc[0]);
-        assertTrue(msgs.stream().anyMatch(m -> m.contains("removed the output block")),
-                msgs.toString());
-
-        JvmBuildTools tools2 = wire("x\n");
-        List<String> msgs2 = new ArrayList<>();
-        tools2.onEditorStarted(new EditorContext(
-                EnumSet.allOf(TextEditorPermission.class), msgs2::add, () -> { }, () -> { }));
-        String[] doc2 = {"x\n"};
-        tools2.onDocumentOpened(new DocumentContext(null, null, doc2[0], "",
-                s -> doc2[0] = s, s -> { }));
-        act(tools2, 5);
-        assertEquals("x\n", doc2[0]);
-        assertTrue(msgs2.stream().anyMatch(m -> m.contains("no output block")), msgs2.toString());
     }
 
     // -- SPI -----------------------------------------------------------------
@@ -316,6 +310,8 @@ class JvmBuildToolsTest {
         assertEquals("JVM Build Tools", m.getName());
         assertEquals("Java/Kotlin", tools.category());
         assertTrue(m.getPermissions().contains(TextEditorPermission.FILE_IO));
+        assertFalse(m.getPermissions().contains(TextEditorPermission.WRITE),
+                "the console replaced the in-document output block");
         var c = tools.toolbarContributions();
         assertEquals(6, c.size());
         assertTrue(c.stream().allMatch(a -> a.getAccelerator().isEmpty()),

@@ -43,10 +43,6 @@ final class Toolchain {
         }
     }
 
-    /** Marker line that opens a trailing output block; tool is lowercase. */
-    private static final Pattern BLOCK_START =
-            Pattern.compile("^// ---- [a-z0-9-]+ output ----$");
-
     /** First Java type declaration in a source file (class/record/enum/interface). */
     private static final Pattern JAVA_TYPE =
             Pattern.compile("\\b(?:class|record|enum|interface)\\s+([A-Za-z_$][A-Za-z0-9_$]*)");
@@ -168,78 +164,6 @@ final class Toolchain {
             }
         }
         return "";
-    }
-
-    // ------------------------------------------------------------------
-    // Output blocks (pure)
-    // ------------------------------------------------------------------
-
-    /** The marker line that opens the trailing block for {@code tool}. */
-    static String blockMarker(String tool) {
-        return "// ---- " + tool + " output ----";
-    }
-
-    /**
-     * Replaces (or appends) the trailing output block of {@code source} with
-     * {@code body} rendered as {@code //   }-prefixed comment lines, capped at
-     * {@code maxLines} with an honest "more line(s)" note. Any previous block
-     * is stripped first, so the document accumulates at most one block and
-     * repeated runs stay idempotent. Always returns text ending with a newline.
-     */
-    static String withTrailingBlock(String source, String tool, String body, int maxLines) {
-        String base = removeTrailingBlock(source == null ? "" : source);
-        StringBuilder sb = new StringBuilder(base);
-        if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '\n') {
-            sb.append('\n');
-        }
-        if (sb.length() >= 2 && sb.charAt(sb.length() - 2) != '\n') {
-            sb.append('\n'); // one blank separator line before the block
-        }
-        sb.append(blockMarker(tool)).append('\n');
-        String text = (body == null || body.isEmpty()) ? "(no output)" : body.stripTrailing();
-        String[] bodyLines = text.split("\n");
-        int shown = Math.min(bodyLines.length, Math.max(1, maxLines));
-        for (int i = 0; i < shown; i++) {
-            sb.append("//   ").append(bodyLines[i].stripTrailing()).append('\n');
-        }
-        if (bodyLines.length > shown) {
-            sb.append("//   ... ").append(bodyLines.length - shown).append(" more line(s)\n");
-        }
-        return sb.toString();
-    }
-
-    /**
-     * @param source the document text
-     * @return the text with any trailing {@code // ---- <tool> output ----}
-     *         block (that marker line through end of document) removed; the
-     *         input is returned unchanged when no block is present
-     */
-    static String removeTrailingBlock(String source) {
-        if (source == null || source.isEmpty()) {
-            return "";
-        }
-        String[] lines = source.split("\n", -1);
-        int start = -1;
-        for (int i = lines.length - 1; i >= 0; i--) {
-            if (BLOCK_START.matcher(lines[i]).matches()) {
-                start = i;
-                break;
-            }
-        }
-        if (start < 0) {
-            return source;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < start; i++) {
-            sb.append(lines[i]).append('\n');
-        }
-        while (sb.length() > 0 && sb.charAt(sb.length() - 1) == '\n') {
-            sb.setLength(sb.length() - 1); // drop the blank separator with the block
-        }
-        if (sb.length() > 0) {
-            sb.append('\n');
-        }
-        return sb.toString();
     }
 
     // ------------------------------------------------------------------

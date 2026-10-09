@@ -35,6 +35,7 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
@@ -68,7 +69,10 @@ import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
  * gutter with current-line and bracket-match highlighting; smart
  * auto-indent; soft or hard tabs; word wrap; zoom; light and dark themes;
  * persisted settings and recent files; merge-on-type undo (a typed burst is
- * one undo step); and a {@link TextEditorExtension} SPI loaded through
+ * one undo step); a west {@link ProjectTreePanel} project file tree (re-rooted
+ * on the project of the document being edited, double-click opens a file) and
+ * a south {@link OutputConsole} where extension tool actions land their
+ * output; and a {@link TextEditorExtension} SPI loaded through
  * {@code META-INF/services}, shipped with a bundled "Text Tools" extension
  * (sort lines, strip trailing whitespace, timestamp, case transforms).</p>
  *
@@ -127,6 +131,10 @@ public class AdvancedTextEditorPanel extends JPanel
     private final RecentCard recentCard;
     private final ExtensionsCard extensionsCard;
     private final EditorStatusBar statusBar = new EditorStatusBar();
+    /** South console receiving compile/run tool output (never the document). */
+    private final OutputConsole outputConsole = new OutputConsole();
+    /** West lazily-loaded project file tree. */
+    private final ProjectTreePanel projectTree = new ProjectTreePanel();
     private final List<ExtensionAction> extensionActions = new ArrayList<>();
     /** Accelerator KeyStrokes bound by the last {@link #bindAccelerators()} pass. */
     private final List<KeyStroke> boundAccelerators = new ArrayList<>();
@@ -170,7 +178,9 @@ public class AdvancedTextEditorPanel extends JPanel
                 extensionRegistry,
                 this::message,
                 this::openFileForExtension,
-                this::saveCurrentTab
+                this::saveCurrentTab,
+                this::showOutputForExtension,
+                this::clearOutputConsole
         );
 
         setLayout(new BorderLayout());
@@ -182,19 +192,32 @@ public class AdvancedTextEditorPanel extends JPanel
         recentCard = new RecentCard(this);
         extensionsCard = new ExtensionsCard(this);
 
+        projectTree.setOnFileChosen(this::openPath);
+
+        // Editor over output console (south), inside the editor card only.
+        JSplitPane editorVSPLIT = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                tabs, outputConsole);
+        editorVSPLIT.setResizeWeight(0.78);
+        editorVSPLIT.setOneTouchExpandable(true);
         editorCard.add(findBar, BorderLayout.NORTH);
-        editorCard.add(tabs, BorderLayout.CENTER);
+        editorCard.add(editorVSPLIT, BorderLayout.CENTER);
 
         center.add(editorCard, CARD_EDITOR);
         center.add(settingsCard, CARD_SETTINGS);
         center.add(recentCard, CARD_RECENT);
         center.add(extensionsCard, CARD_EXTENSIONS);
 
+        // Project tree (west) beside the card area.
+        JSplitPane mainHSPLIT = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                projectTree, center);
+        mainHSPLIT.setResizeWeight(0.0);
+        mainHSPLIT.setOneTouchExpandable(true);
+
         messageTimer = new Timer(MESSAGE_MS, e -> statusBar.setMessage(""));
         messageTimer.setRepeats(false);
 
         add(buildToolbar(), BorderLayout.NORTH);
-        add(center, BorderLayout.CENTER);
+        add(mainHSPLIT, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
         tabs.addChangeListener(e -> {
@@ -515,6 +538,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         message(result.warning() != null ? result.warning()
                 : "Opened " + tab.getDisplayName());
+        refreshProjectTree(path);
         notifyDocumentOpened(tab);
         return true;
     }
@@ -580,6 +604,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         refreshTabTitles();
         message("Saved " + target.getFileName());
+        refreshProjectTree(target);
         notifyDocumentSaved(tab);
         return true;
     }
@@ -1300,6 +1325,47 @@ public class AdvancedTextEditorPanel extends JPanel
     /** Opens a file for extension use. */
     private void openFileForExtension() {
         openWithChooser();
+    }
+
+    // ------------------------------------------------------------------
+    // Output console and project tree (west/south chrome)
+    // ------------------------------------------------------------------
+
+    /**
+     * Appends a titled tool-output block to the south console and makes sure
+     * the editor card (not a settings-style card) is showing. Delegate for
+     * {@code EditorContext.showOutput}; called on the EDT.
+     */
+    void showOutputForExtension(String title, String body) {
+        cards.show(center, CARD_EDITOR);
+        outputConsole.appendOutput(title, body);
+    }
+
+    /** Empties the south console. Delegate for {@code EditorContext.clearOutput}. */
+    void clearOutputConsole() {
+        outputConsole.clear();
+    }
+
+    /** Re-roots the west tree on the project directory enclosing {@code file}. */
+    void refreshProjectTree(Path file) {
+        if (file != null) {
+            projectTree.setRootPath(ProjectTreePanel.projectRootFor(file));
+        }
+    }
+
+    /** The console transcript (test seam). */
+    final String outputConsoleText() {
+        return outputConsole.consoleText();
+    }
+
+    /** The console itself (test seam). */
+    final OutputConsole outputConsole() {
+        return outputConsole;
+    }
+
+    /** The project tree itself (test seam). */
+    final ProjectTreePanel projectTree() {
+        return projectTree;
     }
 
     // ------------------------------------------------------------------

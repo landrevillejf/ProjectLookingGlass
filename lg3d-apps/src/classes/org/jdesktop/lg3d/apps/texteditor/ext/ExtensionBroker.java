@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry.LoadedExtension;
 import org.slf4j.Logger;
@@ -41,19 +42,26 @@ public final class ExtensionBroker {
     private final Consumer<String> showMessage;
     private final Runnable openFile;
     private final Runnable saveFile;
+    private final BiConsumer<String, String> showOutput;
+    private final Runnable clearOutput;
 
     /**
-     * @param registry the enabled/grant source
+     * @param registry    the enabled/grant source
      * @param showMessage delegate for {@link EditorContext#showMessage}
-     * @param openFile  delegate for {@link EditorContext#openFile}
-     * @param saveFile  delegate for {@link EditorContext#saveFile}
+     * @param openFile    delegate for {@link EditorContext#openFile}
+     * @param saveFile    delegate for {@link EditorContext#saveFile}
+     * @param showOutput  delegate for {@link EditorContext#showOutput} (title, body)
+     * @param clearOutput delegate for {@link EditorContext#clearOutput}
      */
     public ExtensionBroker(ExtensionRegistry registry, Consumer<String> showMessage,
-                          Runnable openFile, Runnable saveFile) {
+                          Runnable openFile, Runnable saveFile,
+                          BiConsumer<String, String> showOutput, Runnable clearOutput) {
         this.registry = registry;
         this.showMessage = showMessage;
         this.openFile = openFile;
         this.saveFile = saveFile;
+        this.showOutput = showOutput;
+        this.clearOutput = clearOutput;
     }
 
     /** Fires {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onEditorStarted} for enabled extensions. */
@@ -212,6 +220,7 @@ public final class ExtensionBroker {
     }
 
     private EditorContext contextFor(LoadedExtension le) {
-        return new EditorContext(le.getGranted(), showMessage, openFile, saveFile);
+        return new EditorContext(le.getGranted(), showMessage, openFile, saveFile,
+                showOutput, clearOutput);
     }
 }

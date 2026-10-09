@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.texteditor.ext;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -34,8 +35,12 @@ public final class EditorContext {
     private final Consumer<String> showMessage;
     private final Runnable openFile;
     private final Runnable saveFile;
+    private final BiConsumer<String, String> showOutput;
+    private final Runnable clearOutput;
 
     /**
+     * Back-compatible form without the output-console capabilities.
+     *
      * @param granted    the permissions the user granted this extension
      * @param showMessage writes a line to the editor status line (always allowed)
      * @param openFile   opens a file dialog (gated on {@link TextEditorPermission#FILE_IO})
@@ -43,12 +48,29 @@ public final class EditorContext {
      */
     public EditorContext(Set<TextEditorPermission> granted, Consumer<String> showMessage,
                          Runnable openFile, Runnable saveFile) {
+        this(granted, showMessage, openFile, saveFile, null, null);
+    }
+
+    /**
+     * @param granted     the permissions the user granted this extension
+     * @param showMessage writes a line to the editor status line (always allowed)
+     * @param openFile    opens a file dialog (gated on {@link TextEditorPermission#FILE_IO})
+     * @param saveFile    saves the current document (gated on FILE_IO)
+     * @param showOutput  appends a titled block to the editor's south output
+     *                    console (gated on FILE_IO; title, body)
+     * @param clearOutput empties the output console (gated on FILE_IO)
+     */
+    public EditorContext(Set<TextEditorPermission> granted, Consumer<String> showMessage,
+                         Runnable openFile, Runnable saveFile,
+                         BiConsumer<String, String> showOutput, Runnable clearOutput) {
         this.granted = (granted == null || granted.isEmpty())
                 ? Collections.emptySet()
                 : Collections.unmodifiableSet(EnumSet.copyOf(granted));
         this.showMessage = showMessage;
         this.openFile = openFile;
         this.saveFile = saveFile;
+        this.showOutput = showOutput;
+        this.clearOutput = clearOutput;
     }
 
     /** @return true when the extension was granted {@code p}. */
@@ -74,6 +96,24 @@ public final class EditorContext {
     public void saveFile() {
         if (has(TextEditorPermission.FILE_IO) && saveFile != null) {
             saveFile.run();
+        }
+    }
+
+    /**
+     * Appends a titled block ({@code title} + {@code body}) to the editor's
+     * output console below the editor; no-op without
+     * {@link TextEditorPermission#FILE_IO}.
+     */
+    public void showOutput(String title, String body) {
+        if (has(TextEditorPermission.FILE_IO) && showOutput != null) {
+            showOutput.accept(title, body);
+        }
+    }
+
+    /** Empties the output console; no-op without FILE_IO. */
+    public void clearOutput() {
+        if (has(TextEditorPermission.FILE_IO) && clearOutput != null) {
+            clearOutput.run();
         }
     }
 }

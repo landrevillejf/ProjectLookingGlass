@@ -393,4 +393,52 @@ class AdvancedTextEditorPanelTest {
         assertEquals("Ln 2, Col 2", panel.statusPosition());
         panel.dispose();
     }
+
+    // -- south output console and west project tree --------------------------
+
+    @Test
+    @DisplayName("extension tool output lands in the south console, not the document")
+    void outputConsoleReceivesToolOutput() {
+        AdvancedTextEditorPanel panel = newPanel();
+        panel.showOutputForExtension("javac output", "Foo.java:1: error: ';'");
+        assertTrue(panel.outputConsoleText().contains("---- javac output ----\n"
+                + "Foo.java:1: error: ';'"), panel.outputConsoleText());
+        assertEquals("", panel.currentTab().getText(),
+                "the console never writes into the document");
+        panel.clearOutputConsole();
+        assertEquals("", panel.outputConsoleText());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("opening a file re-roots the west project tree on its project")
+    void projectTreeFollowsOpenedDocument(@TempDir Path project)
+            throws IOException {
+        Files.createDirectory(project.resolve(".git"));
+        Path src = Files.createDirectories(project.resolve("src/main"));
+        Path file = src.resolve("Foo.java");
+        Files.writeString(file, "public class Foo { }\n");
+        AdvancedTextEditorPanel panel = newPanel();
+        assertTrue(panel.openPath(file));
+        assertEquals(project, panel.projectTree().rootPath(),
+                "the tree walked up from src/main to the .git project root");
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a tree file selection opens the file in a new tab")
+    void projectTreeOpensFiles(@TempDir Path project) throws IOException {
+        Path first = project.resolve("a.txt");
+        Files.writeString(first, "a\n");
+        Path second = project.resolve("b.txt");
+        Files.writeString(second, "b\n");
+        AdvancedTextEditorPanel panel = newPanel();
+        assertTrue(panel.openPath(first));       // roots the tree on the project
+        assertEquals(2, panel.tabCount());
+        assertTrue(panel.projectTree().revealAndOpen(second),
+                "the file is visible under the current root");
+        assertEquals(3, panel.tabCount());
+        assertEquals("b", panel.currentTab().getText().strip());
+        panel.dispose();
+    }
 }
