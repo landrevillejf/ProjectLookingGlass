@@ -51,6 +51,7 @@ import javax.swing.table.TableRowSorter;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import org.jdesktop.lg3d.scenemanager.utils.hud.NotificationService;
 
 /**
  * The 2D/Swing mail client: a real, configurable IMAP/SMTP front end built on the
@@ -71,6 +72,15 @@ import javax.swing.tree.TreePath;
  * flip {@link #setSynchronous(boolean)} so the same code path executes inline and
  * deterministically. With no account configured the panel shows an empty state
  * rather than failing, so it never crashes offline.</p>
+ *
+ * <p><b>New-mail notifications:</b> the inbox keeps a seen-set of message ids, so
+ * every reload after the first can tell which messages actually arrived and raise
+ * one desktop notification for them; the state machine lives in the shared
+ * {@link NewMailNotifier} (same behaviour as the 3D {@link Mail3D}), the toast
+ * goes through {@link NotificationService#notify} on the running desktop shell,
+ * and {@link MailSettings#isNotifyOnNewMail()} gates it. The periodic inbox check
+ * runs on the {@link MailSessionManager} auto-check scheduler; both the notifier
+ * and the scheduler are seams the headless tests replace.</p>
  */
 public class MailPanel extends JPanel {
 
@@ -86,6 +96,12 @@ public class MailPanel extends JPanel {
 
     /** Runs backend calls inline instead of on a worker (headless tests). */
     private boolean synchronous;
+
+    /**
+     * Detects newly arrived inbox mail on every folder reload and raises the
+     * desktop toast; swappable through {@link #setNewMailNotifier} for tests.
+     */
+    private NewMailNotifier newMailNotifier = new NewMailNotifier(null);
 
     // Model / state.
     private final List<MailAccount> accounts = new ArrayList<MailAccount>();
@@ -125,6 +141,9 @@ public class MailPanel extends JPanel {
     public MailPanel() {
         this(new MailSessionManager(), MailSettings.load());
         refresh();
+        // Periodic inbox poll on the manager's daemon scheduler: this is what
+        // surfaces "you got mail" while the panel sits open. Interval 0 disables.
+        startAutoCheck();
     }
 
     /**
@@ -153,6 +172,12 @@ public class MailPanel extends JPanel {
     /** Optional registry hook; invoked by {@link #close()} to close the host frame. */
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
+    }
+
+    /** (Re)starts the periodic auto-check from the current settings. */
+    private void startAutoCheck() {
+        manager.startAutoCheck(settings.getCheckIntervalMinutes(),
+                this::autoCheckTick);
     }
 
     private JToolBar buildToolbar() {
@@ -249,9 +274,15 @@ public class MailPanel extends JPanel {
     // Settings
     // ------------------------------------------------------------------
 
-    /** Runs on a worker unless {@link #setSynchronous(boolean)} is set. */
+    /** Runs backend calls inline instead of on a worker (headless tests). */
     void setSynchronous(boolean synchronous) {
         this.synchronous = synchronous;
+    }
+
+    /** Replaces the new-mail detector (headless tests capture the posts). */
+    void setNewMailNotifier(NewMailNotifier notifier) {
+        this.newMailNotifier = (notifier == null)
+                ? new NewMailNotifier(null) : notifier;
     }
 
     void applySettings() {
@@ -428,6 +459,8 @@ public class MailPanel extends JPanel {
             }
             setStatus(connectedText() + "  \u2014  " + folder + ": "
                     + messages.size() + " message(s), " + unread + " unread");
+            newMailNotifier.onFolderLoaded(accountId, folder, result,
+                    settings.isNotifyOnNewMail());
         });
     }
 
@@ -636,8 +669,7 @@ public class MailPanel extends JPanel {
         if (applied) {
             settings = MailSettings.load();
             applySettings();
-            manager.startAutoCheck(settings.getCheckIntervalMinutes(),
-                    () -> autoCheck());
+            startAutoCheck();
             refresh();
         }
     }
@@ -648,6 +680,22 @@ public class MailPanel extends JPanel {
                 loadFolder();
             }
         });
+    }
+
+    /**
+     * The tick the auto-check scheduler fires (from its daemon thread). Runs
+     * the inbox reload inline when {@link #setSynchronous(boolean)} is set, so
+     * a headless test can drive one poll deterministically; otherwise it
+     * marshals onto the EDT.
+     */
+    void autoCheckTick() {
+        if (synchronous) {
+            if (currentAccount != null) {
+                loadFolder();
+            }
+            return;
+        }
+        autoCheck();
     }
 
     private void saveAttachment(MailAttachment att) {

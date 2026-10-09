@@ -69,6 +69,7 @@ public final class MailSettings {
     private int checkIntervalMinutes = 10;    // 0 disables auto-check
     private boolean confirmOnDelete = true;
     private boolean renderHtml = false;       // security: plain text by default
+    private boolean notifyOnNewMail = true;   // desktop toast on new inbox mail
 
     private MailSettings() {
     }
@@ -94,6 +95,7 @@ public final class MailSettings {
                     s.checkIntervalMinutes);
             s.confirmOnDelete = p.getBoolean("confirmOnDelete", s.confirmOnDelete);
             s.renderHtml = p.getBoolean("renderHtml", s.renderHtml);
+            s.notifyOnNewMail = p.getBoolean("notifyOnNewMail", s.notifyOnNewMail);
         } catch (Exception e) {
             logger.log(Level.WARNING, "Error reading mail settings; using defaults", e);
         }
@@ -117,6 +119,7 @@ public final class MailSettings {
             p.putInt("checkIntervalMinutes", checkIntervalMinutes);
             p.putBoolean("confirmOnDelete", confirmOnDelete);
             p.putBoolean("renderHtml", renderHtml);
+            p.putBoolean("notifyOnNewMail", notifyOnNewMail);
             p.flush();
         } catch (Exception e) {
             logger.log(Level.WARNING, "Error saving mail settings", e);
@@ -242,6 +245,15 @@ public final class MailSettings {
 
     public void setRenderHtml(boolean renderHtml) {
         this.renderHtml = renderHtml;
+    }
+
+    /** Whether a desktop notification is raised when new mail lands in an inbox. */
+    public boolean isNotifyOnNewMail() {
+        return notifyOnNewMail;
+    }
+
+    public void setNotifyOnNewMail(boolean notifyOnNewMail) {
+        this.notifyOnNewMail = notifyOnNewMail;
     }
 
     /** Row height in pixels implied by the density setting. */

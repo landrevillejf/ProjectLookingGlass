@@ -33,7 +33,12 @@
 - **MailAccountStore** — CRUD over `/mail/accounts`, single-default invariant.
 - **MailSettings** — appearance/behaviour prefs under `/mail/settings` (fonts, theme,
   density, reading-pane position, sort, auto-check interval, confirm-on-delete,
-  HTML-render toggle). Secure defaults: HTML rendering **off**.
+  HTML-render toggle, notify-on-new-mail toggle). Secure defaults: HTML rendering
+  **off**.
+- **NewMailNotifier** — the shared new-mail state machine (seen-set of message keys,
+  baseline on first listing, one toast per arrival batch, inbox-only + unread-only).
+  Pure state behind a `Notifier` seam; both UI surfaces post through
+  `NotificationService.notify` so the toast lands on whichever desktop shell runs.
 - **MailRule / MailRuleStore** — filter rules under `/mail/rules`
   (from/subject/to · contains/equals/regex → move/mark-read/flag/delete), applied on fetch.
 - **CredentialVault** — AES-GCM obfuscation of SAVED passwords under a per-install
@@ -59,7 +64,9 @@
 - **MailPanel** — three-pane client (account/folder `JTree` · sortable `JTable` ·
   reading pane), toolbar, status bar, empty state. **No-arg constructor** for reflective
   registry instantiation; a `(manager, settings)` test-seam constructor + `setSynchronous(true)`
-  make it headless-testable. Never loads a Java 3D class.
+  make it headless-testable. Runs the periodic auto-check (`MailSessionManager.startAutoCheck`,
+  interval from settings, 0 = off) and raises the new-mail toast through `NewMailNotifier`.
+  Never loads a Java 3D class.
 - **MailTableModel / MessageReader / ComposePanel** — list model, reading pane
   (plain-text preferred; HTML only if enabled, remote content blocked), and the
   To/Cc/Bcc/Subject/body + signature + attachments editor.
@@ -72,7 +79,8 @@
 
 - **Mail3D** — `Frame3D` entry point driving the same `MailSessionManager`/`MailService`;
   browse/triage (read/flag/delete/move) plus preset quick-reply (3D has no keyboard).
-  Full compose/attachments stays a 2D capability.
+  Full compose/attachments stays a 2D capability. Runs the same auto-check poll and the
+  same `NewMailNotifier` toast as the 2D panel, via the 3D HUD `NotificationService`.
 - **MailView** — the live-texture `Component3D` rendering the list + reading pane.
 
 ## Roles

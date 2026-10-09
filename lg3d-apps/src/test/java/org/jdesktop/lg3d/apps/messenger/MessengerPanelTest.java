@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.Color;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -361,6 +362,100 @@ class MessengerPanelTest {
             panel.handleFileEventForTest(a, done);
             assertFalse(panel.hasActiveTransfer("t1"));
             assertTrue(panel.transcriptText().contains("verified"), panel.transcriptText());
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("an incoming chat line from a peer raises a desktop toast")
+    void incomingChatToasts(@TempDir Path dir) {
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir));
+        List<String> titles = new ArrayList<>();
+        List<String> bodies = new ArrayList<>();
+        try {
+            panel.setNotifierForTest((title, message, kind) -> {
+                titles.add(title);
+                bodies.add(message);
+            });
+            AccountConfig a = new AccountConfig("P2P", "p2p", "", "me");
+            panel.addAccountForTest(a);
+
+            panel.ingestForTest(a, new ChatMessage("bob", "bob",
+                    "are you there?", ChatMessage.Kind.PRIVMSG));
+
+            assertEquals(1, titles.size());
+            assertTrue(titles.get(0).contains("bob"), titles.get(0));
+            assertEquals("bob: are you there?", bodies.get(0));
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("self-echoes, presence traffic and the off setting never toast")
+    void toastGatesAreRespected(@TempDir Path dir) {
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir));
+        List<String> titles = new ArrayList<>();
+        try {
+            panel.setNotifierForTest((title, message, kind) -> titles.add(title));
+            AccountConfig a = new AccountConfig("P2P", "p2p", "", "me");
+            panel.addAccountForTest(a);
+
+            // Our own outgoing line echoed back by the backend.
+            panel.ingestForTest(a, new ChatMessage("me", "bob",
+                    "I wrote this", ChatMessage.Kind.PRIVMSG));
+            assertTrue(titles.isEmpty(), "self-echo never toasts");
+
+            // Presence traffic is not a chat line.
+            panel.ingestForTest(a, new ChatMessage("bob", "bob",
+                    "joined", ChatMessage.Kind.JOIN));
+            assertTrue(titles.isEmpty(), "presence never toasts");
+
+            // Long bodies are ellipsized in the preview.
+            StringBuilder longText = new StringBuilder();
+            for (int i = 0; i < 40; i++) {
+                longText.append("0123456789");
+            }
+            panel.ingestForTest(a, new ChatMessage("bob", "bob",
+                    longText.toString(), ChatMessage.Kind.PRIVMSG));
+            assertEquals(1, titles.size(), "the long message still toasts");
+
+            // The user's switch wins over everything.
+            titles.clear();
+            panel.settings().setNotifyOnMessage(false);
+            panel.ingestForTest(a, new ChatMessage("bob", "bob",
+                    "quiet", ChatMessage.Kind.PRIVMSG));
+            assertTrue(titles.isEmpty(), "notify-off is respected");
+        } finally {
+            panel.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("an inbound file offer raises a desktop toast beside the prompt")
+    void fileOfferToasts(@TempDir Path dir) {
+        MessengerPanel panel = new MessengerPanel(new MessengerStore(dir));
+        List<String> titles = new ArrayList<>();
+        List<String> bodies = new ArrayList<>();
+        try {
+            panel.setNotifierForTest((title, message, kind) -> {
+                titles.add(title);
+                bodies.add(message);
+            });
+            AccountConfig a = new AccountConfig("P2P", "p2p", "", "me");
+            panel.addAccountForTest(a);
+            panel.putProtocolForTest(a.getId(), new FakeProtocol(true));
+
+            FileTransferEvent offer = new FileTransferEvent("t9", "bob", "slides.pdf",
+                    4096, 0, FileTransferEvent.Direction.RECEIVE,
+                    FileTransferEvent.State.OFFERED, null, null, false);
+            panel.handleFileEventForTest(a, offer);
+
+            assertEquals(1, titles.size());
+            assertEquals("Messenger \u2014 Incoming file", titles.get(0));
+            assertTrue(bodies.get(0).contains("slides.pdf"), bodies.get(0));
+            assertTrue(bodies.get(0).contains("4.0 KiB"), bodies.get(0));
         } finally {
             panel.shutdown();
         }

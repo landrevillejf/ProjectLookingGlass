@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Apps now raise desktop notifications** (`lg3d-core`, `lg3d-apps`,
+  `lg3d-incubator`) — the notification pipeline that already served the 2D
+  desktop internally (toast layer, taskbar tray log, Do-Not-Disturb gate) and the
+  3D HUD (`NotificationService`) gains one public, shell-agnostic entry point:
+  `NotificationService.notify(title, message, kind)` routes to the running
+  desktop (`Desktop2D.postNotification`, now public, on the 2D shell, the HUD
+  service otherwise), so any in-JVM app can toast where the user will see it.
+  **Mail** wires it up on both surfaces: a new `NewMailNotifier` state machine
+  keeps a seen-set of inbox message keys — the first listing only takes a
+  baseline, afterwards each batch of unseen *unread* inbox arrivals raises one
+  "New Mail" toast naming the newest sender and subject — and the periodic
+  auto-check (`MailSettings` interval, previously only restartable from the
+  settings dialog) now starts when the panel opens, so "you got mail" arrives
+  while Mail sits in the background; a new *Notify on new mail* toggle in the
+  Behaviour tab gates it (on by default). **Instant Messenger** raises a
+  "Messenger — <conversation>" toast for every incoming chat line from another
+  peer (self-echoes and presence traffic never toast) and a toast on inbound
+  file offers, beside the existing status line, honouring its *Notify on new
+  message* setting and the desktop's Do-Not-Disturb. Covered by new headless
+  suites (`NewMailNotifierTest`, Mail panel reload/poll tests, messenger
+  toast-gating tests) and the facade routing test in `lg3d-core`.
 - **Looking Glass wordmark wallpaper** (`lg3d-art`) — the logo wallpaper's
   sibling: `resources/images/background/LookingGlass-Wordmark.jpg` (2560x1440),
   the same slate-blue glass backdrop and the same `PROJECT LOOKING GLASS` caption
