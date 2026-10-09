@@ -43,6 +43,19 @@ public interface TextEditorExtension {
     TextEditorManifest manifest();
 
     /**
+     * The human-readable group this extension's toolbar actions are filed under
+     * in the extension manager (for example {@code "Text"}, {@code "Code"},
+     * {@code "Java/Kotlin"}, {@code "Web"}). The editor uses it only to group the
+     * contributed actions; it never gates behaviour. Blank or {@code null}
+     * values are normalised to {@code "General"}.
+     *
+     * @return the category label; {@code "General"} by default
+     */
+    default String category() {
+        return "General";
+    }
+
+    /**
      * Called once on the EDT after the editor is up and this extension is
      * enabled, with a capability facade scoped to the granted permissions.
      *

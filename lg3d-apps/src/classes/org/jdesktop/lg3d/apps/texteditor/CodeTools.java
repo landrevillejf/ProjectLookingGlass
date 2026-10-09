@@ -67,6 +67,11 @@ public final class CodeTools implements TextEditorExtension {
     }
 
     @Override
+    public String category() {
+        return "Code";
+    }
+
+    @Override
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("code-indent", "Indent Lines",

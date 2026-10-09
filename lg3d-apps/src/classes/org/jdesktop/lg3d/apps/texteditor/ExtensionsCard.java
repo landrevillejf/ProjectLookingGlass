@@ -14,9 +14,13 @@
 package org.jdesktop.lg3d.apps.texteditor;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -26,28 +30,53 @@ import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 
 /**
- * The Extensions card: the flat list of every action contributed by the
- * installed {@link TextEditorExtension}s, labelled
- * {@code <extension>: <action>}. Selecting an entry and pressing Run (or
- * double-clicking) invokes it against the current tab. The card is a plain
- * {@link JList} view, so it works inside the 3D desktop's offscreen capture
- * like every other in-panel surface.
+ * The Extensions card: every action contributed by the installed
+ * {@link TextEditorExtension}s, grouped under bold, non-selectable category
+ * headers. Each action row is labelled {@code <extension>: <action>} and is
+ * bound to its index in the host's flat action list, so selecting an entry and
+ * pressing Run (or double-clicking) invokes exactly that action against the
+ * current tab. Headers are inert: Run stays disabled while one is selected.
+ * The card is a plain {@link JList} view, so it works inside the 3D desktop's
+ * offscreen capture like every other in-panel surface.
  */
 public final class ExtensionsCard extends JPanel {
 
     /** The panel-side callbacks for the extensions card. */
     public interface Host {
 
-        /** Runs the action with the given index into the loaded list. */
+        /** Runs the action with the given index into the host's action list. */
         void runExtensionAction(int index);
 
         /** Returns to the editor card. */
         void closeCard();
     }
 
+    /**
+     * One row in the list: either a non-selectable category {@code header} or a
+     * runnable action bound to {@code actionIndex} in the host's flat action
+     * list (headers carry {@code -1}).
+     */
+    public record Row(String text, int actionIndex, boolean header) {
+
+        /** A bold, inert category heading row. */
+        public static Row header(String category) {
+            return new Row(category, -1, true);
+        }
+
+        /** A runnable action row wired to the given host action index. */
+        public static Row action(String text, int actionIndex) {
+            return new Row(text, actionIndex, false);
+        }
+
+        @Override
+        public String toString() {
+            return text;
+        }
+    }
+
     private final Host host;
-    private final DefaultListModel<String> model = new DefaultListModel<>();
-    private final JList<String> list = new JList<>(model);
+    private final DefaultListModel<Row> model = new DefaultListModel<>();
+    private final JList<Row> list = new JList<>(model);
     private final JButton runButton = new JButton("Run");
 
     public ExtensionsCard(Host host) {
@@ -56,25 +85,27 @@ public final class ExtensionsCard extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
 
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setVisibleRowCount(12);
+        list.setVisibleRowCount(16);
+        list.setCellRenderer(new RowRenderer());
         list.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                runButton.setEnabled(list.getSelectedIndex() >= 0);
+                runButton.setEnabled(isAction(list.getSelectedIndex()));
             }
         });
         list.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 2 && list.getSelectedIndex() >= 0) {
-                    host.runExtensionAction(list.getSelectedIndex());
+                int index = list.getSelectedIndex();
+                if (e.getClickCount() == 2 && isAction(index)) {
+                    host.runExtensionAction(model.get(index).actionIndex());
                 }
             }
         });
 
         runButton.addActionListener(e -> {
             int index = list.getSelectedIndex();
-            if (index >= 0) {
-                host.runExtensionAction(index);
+            if (isAction(index)) {
+                host.runExtensionAction(model.get(index).actionIndex());
             }
         });
         JButton back = new JButton("Back to Editor");
@@ -84,32 +115,84 @@ public final class ExtensionsCard extends JPanel {
         buttons.add(runButton);
         buttons.add(back);
 
-        add(new JLabel("Installed Extension Actions (double-click to run)"),
-                BorderLayout.NORTH);
+        add(new JLabel("Installed Extension Actions, grouped by category "
+                + "(double-click to run)"), BorderLayout.NORTH);
         add(new JScrollPane(list), BorderLayout.CENTER);
         add(buttons, BorderLayout.SOUTH);
         runButton.setEnabled(false);
     }
 
-    /** Replaces the shown entries; index order matches {@code labels}. */
+    /** @return true when the row at {@code modelIndex} is a runnable action. */
+    private boolean isAction(int modelIndex) {
+        return modelIndex >= 0 && modelIndex < model.size()
+                && !model.get(modelIndex).header();
+    }
+
+    /**
+     * Replaces the shown entries with a flat, sequentially-indexed action list
+     * (no category headers); index order matches {@code labels}.
+     */
     public void load(List<String> labels) {
-        model.clear();
+        List<Row> rows = new ArrayList<>();
         if (labels != null) {
+            int i = 0;
             for (String label : labels) {
-                model.addElement(label);
+                rows.add(Row.action(label, i++));
+            }
+        }
+        loadRows(rows);
+    }
+
+    /** Replaces the shown entries with grouped rows (headers + actions). */
+    public void loadRows(List<Row> rows) {
+        model.clear();
+        if (rows != null) {
+            for (Row row : rows) {
+                model.addElement(row);
             }
         }
         runButton.setEnabled(false);
     }
 
-    /** The number of actions shown (test seam). */
+    /** The number of runnable (non-header) entries shown (test seam). */
     public int entryCount() {
-        return model.size();
+        int n = 0;
+        for (int i = 0; i < model.size(); i++) {
+            if (!model.get(i).header()) {
+                n++;
+            }
+        }
+        return n;
     }
 
-    /** Selects an entry programmatically (test seam). */
+    /** Selects a list row programmatically (test seam); headers clear Run. */
     public void select(int index) {
-        list.setSelectedIndex(index);
-        runButton.setEnabled(index >= 0 && index < model.size());
+        if (index >= 0 && index < model.size()) {
+            list.setSelectedIndex(index);
+            runButton.setEnabled(!model.get(index).header());
+        } else {
+            list.clearSelection();
+            runButton.setEnabled(false);
+        }
+    }
+
+    /** Renders category headers bold and greyed, actions as normal rows. */
+    private static final class RowRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> l, Object value,
+                int index, boolean selected, boolean focus) {
+            JLabel label = (JLabel) super.getListCellRendererComponent(
+                    l, value, index, selected, focus);
+            Row row = (Row) value;
+            label.setText(row.text());
+            if (row.header()) {
+                label.setFont(label.getFont().deriveFont(Font.BOLD));
+                label.setEnabled(false);
+            } else {
+                label.setFont(label.getFont().deriveFont(Font.PLAIN));
+                label.setEnabled(true);
+            }
+            return label;
+        }
     }
 }

@@ -69,6 +69,11 @@ public final class BuiltinTextTools implements TextEditorExtension {
     }
 
     @Override
+    public String category() {
+        return "Text";
+    }
+
+    @Override
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("sort-az", "Sort Lines (A-Z)",

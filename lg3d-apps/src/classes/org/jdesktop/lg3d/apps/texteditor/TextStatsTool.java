@@ -75,6 +75,11 @@ public final class TextStatsTool implements TextEditorExtension {
     }
 
     @Override
+    public String category() {
+        return "Analysis";
+    }
+
+    @Override
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("stats-report", "Report Statistics",

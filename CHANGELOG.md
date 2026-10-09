@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Advanced Text Editor: extensions grouped by category + Java/Kotlin & Web
+  dev extensions** (`lg3d-apps`) — the extension manager (`ExtensionsCard`) now
+  files every contributed action under a bold, inert category header instead of
+  a flat list: each `TextEditorExtension` declares a free-form `category()`
+  (a new SPI default, `"General"`), the `ExtensionBroker` pairs it with each
+  contribution, and the card groups them in a curated order (Text, Code,
+  Java/Kotlin, Web, Analysis, General). Grouping reorders the display only, so
+  running an action by index is unchanged. Three more bundled, purely additive
+  providers join the existing four: **Java/Kotlin Tools** (`lg3d.java-tools`,
+  category `Java/Kotlin`) sorts import statements in place, escapes/unescapes
+  Java/Kotlin string-literal control characters and quotes, and toggles `//`
+  line comments on a selection; **Web Tools** (`lg3d.web-tools`, category `Web`)
+  escapes/unescapes HTML/XML entities (single-pass, so `&amp;lt;` never
+  double-decodes) and percent-encodes/decodes URLs (malformed escapes are left
+  as-is, never thrown); **Formatting Tools** (`lg3d.format-tools`, category
+  `Code`) converts tabs↔spaces and normalises line endings to LF or CRLF. Every
+  new transform is a pure `String` static covered by three more headless JUnit 5
+  suites (`JavaDevToolsTest`, `WebToolsTest`, `FormatToolsTest`) plus a
+  grouped-card test; the existing extensions gained categories, so the toolbar
+  now carries 31 actions across seven providers. All additive — no panel, broker
+  or existing extension behaviour is scrapped.
 - **Advanced Text Editor: three new bundled extensions** (`lg3d-apps`) — the
   editor's `TextEditorExtension` plug-in surface (discovered via `ServiceLoader`
   and `META-INF/services`) ships three more built-in providers beside the
@@ -24,8 +45,7 @@ work to make it build and run on a current toolchain.
   `N lines, M words, K characters` to the status line on demand and echoes a
   summary on save, exercising the `onEditorStarted`/`onDocumentSaved` hooks.
   Every transform is a pure `String` static covered by three new headless JUnit 5
-  suites (`CodeToolsTest`, `CaseToolsTest`, `TextStatsToolTest`); the installed
-  toolbar now carries 18 actions (was 6), which the panel test asserts.
+  suites (`CodeToolsTest`, `CaseToolsTest`, `TextStatsToolTest`).
 - **Apps now raise desktop notifications** (`lg3d-core`, `lg3d-apps`,
   `lg3d-incubator`) — the notification pipeline that already served the 2D
   desktop internally (toast layer, taskbar tray log, Do-Not-Disturb gate) and the

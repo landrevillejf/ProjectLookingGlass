@@ -212,4 +212,30 @@ class EditorWidgetsTest {
         assertEquals(0, card.entryCount());
         assertTrue(runs.isEmpty(), "selecting must not run anything");
     }
+
+    @Test
+    @DisplayName("the extensions card groups rows under inert category headers")
+    void extensionsCardGrouped() {
+        final List<Integer> runs = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+                runs.add(index);
+            }
+
+            @Override
+            public void closeCard() {
+            }
+        });
+        card.loadRows(List.of(
+                ExtensionsCard.Row.header("Text"),
+                ExtensionsCard.Row.action("Text Tools: Sort Lines (A-Z)", 0),
+                ExtensionsCard.Row.header("Code"),
+                ExtensionsCard.Row.action("Code Tools: Indent Lines", 7)));
+        // headers are not counted as runnable entries
+        assertEquals(2, card.entryCount());
+        card.select(0); // header - Run must stay disabled
+        card.select(1); // an action row
+        assertTrue(runs.isEmpty(), "selecting must not run anything");
+    }
 }

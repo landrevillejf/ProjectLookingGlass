@@ -2,3 +2,6 @@ org.jdesktop.lg3d.apps.texteditor.BuiltinTextTools
 org.jdesktop.lg3d.apps.texteditor.CodeTools
 org.jdesktop.lg3d.apps.texteditor.CaseTools
 org.jdesktop.lg3d.apps.texteditor.TextStatsTool
+org.jdesktop.lg3d.apps.texteditor.JavaDevTools
+org.jdesktop.lg3d.apps.texteditor.WebTools
+org.jdesktop.lg3d.apps.texteditor.FormatTools

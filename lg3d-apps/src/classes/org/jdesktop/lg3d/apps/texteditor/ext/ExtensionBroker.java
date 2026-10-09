@@ -154,6 +154,34 @@ public final class ExtensionBroker {
      */
     public List<ToolbarContribution> toolbarContributions() {
         List<ToolbarContribution> out = new ArrayList<>();
+        for (ContributedAction ca : categorizedActions()) {
+            out.add(ca.contribution());
+        }
+        return out;
+    }
+
+    /**
+     * One toolbar contribution paired with the category and display name of the
+     * extension that contributed it, so the manager can group actions.
+     *
+     * @param category     the owning extension's {@code category()} (never blank)
+     * @param extension    the owning extension's display name
+     * @param contribution the contribution itself
+     */
+    public record ContributedAction(String category, String extension,
+                                    ToolbarContribution contribution) { }
+
+    /**
+     * Collects toolbar buttons from enabled {@link TextEditorPermission#TOOLBAR}
+     * extensions in registration order, de-duplicated by contribution id, each
+     * tagged with the owning extension's {@code category()} and display name so
+     * the editor can group them. A null/blank category normalises to
+     * {@code "General"}.
+     *
+     * @return the categorized contributions to render, possibly empty
+     */
+    public List<ContributedAction> categorizedActions() {
+        List<ContributedAction> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (LoadedExtension le : registry.enabled()) {
             if (!le.has(TextEditorPermission.TOOLBAR)) {
@@ -164,9 +192,11 @@ public final class ExtensionBroker {
                 if (contributions == null) {
                     continue;
                 }
+                String category = normalizeCategory(le.getExtension().category());
+                String name = le.getManifest().getName();
                 for (ToolbarContribution c : contributions) {
                     if (c != null && seen.add(c.getId())) {
-                        out.add(c);
+                        out.add(new ContributedAction(category, name, c));
                     }
                 }
             } catch (RuntimeException e) {
@@ -175,6 +205,10 @@ public final class ExtensionBroker {
             }
         }
         return out;
+    }
+
+    private static String normalizeCategory(String category) {
+        return (category == null || category.isBlank()) ? "General" : category.trim();
     }
 
     private EditorContext contextFor(LoadedExtension le) {

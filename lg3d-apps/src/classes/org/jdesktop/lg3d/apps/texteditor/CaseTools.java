@@ -63,6 +63,11 @@ public final class CaseTools implements TextEditorExtension {
     }
 
     @Override
+    public String category() {
+        return "Text";
+    }
+
+    @Override
     public List<ToolbarContribution> toolbarContributions() {
         return List.of(
                 new ToolbarContribution("case-title", "Title Case",

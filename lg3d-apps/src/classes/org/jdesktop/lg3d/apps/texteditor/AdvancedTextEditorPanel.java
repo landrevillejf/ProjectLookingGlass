@@ -42,7 +42,6 @@ import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
-import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 
 /**
  * The Advanced Text Editor: a production plain-text and source-code editor
@@ -96,8 +95,16 @@ public class AdvancedTextEditorPanel extends JPanel
     private static final Logger logger =
             Logger.getLogger(AdvancedTextEditorPanel.class.getName());
 
-    /** One action contributed by one extension. */
-    record ExtensionAction(String extension, String label, Runnable run) {
+    /**
+     * The curated display order for extension categories; development-oriented
+     * groups lead. Categories not listed here keep their registration order and
+     * appear after these.
+     */
+    private static final List<String> PREFERRED_CATEGORIES = List.of(
+            "Text", "Code", "Java/Kotlin", "Web", "Analysis", "General");
+
+    /** One action contributed by one extension, tagged with its category. */
+    record ExtensionAction(String category, String extension, String label, Runnable run) {
     }
 
     private final boolean persistEnabled;
@@ -910,12 +917,50 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     private void showExtensions() {
-        List<String> labels = new ArrayList<>();
-        for (ExtensionAction action : extensionActions) {
-            labels.add(action.label());
-        }
-        extensionsCard.load(labels);
+        extensionsCard.loadRows(buildExtensionRows());
         cards.show(center, CARD_EXTENSIONS);
+    }
+
+    /**
+     * Groups the flat {@link #extensionActions} list under category headers in
+     * the curated {@link #PREFERRED_CATEGORIES} order (then any remaining
+     * categories in registration order). Only the display is reordered: each
+     * action row carries its original index, so {@link #runExtensionAction(int)}
+     * stays stable regardless of grouping.
+     */
+    private List<ExtensionsCard.Row> buildExtensionRows() {
+        List<ExtensionsCard.Row> rows = new ArrayList<>();
+        java.util.Set<String> emitted = new java.util.LinkedHashSet<>();
+        for (String category : PREFERRED_CATEGORIES) {
+            if (emitCategoryRows(rows, category)) {
+                emitted.add(category);
+            }
+        }
+        for (ExtensionAction action : extensionActions) {
+            if (!emitted.contains(action.category())
+                    && emitCategoryRows(rows, action.category())) {
+                emitted.add(action.category());
+            }
+        }
+        return rows;
+    }
+
+    /** Adds a header plus its action rows for {@code category}; false if empty. */
+    private boolean emitCategoryRows(List<ExtensionsCard.Row> rows, String category) {
+        List<ExtensionsCard.Row> body = new ArrayList<>();
+        for (int i = 0; i < extensionActions.size(); i++) {
+            ExtensionAction action = extensionActions.get(i);
+            if (action.category().equals(category)) {
+                body.add(ExtensionsCard.Row.action(
+                        action.extension() + ": " + action.label(), i));
+            }
+        }
+        if (body.isEmpty()) {
+            return false;
+        }
+        rows.add(ExtensionsCard.Row.header(category));
+        rows.addAll(body);
+        return true;
     }
 
     @Override
@@ -976,9 +1021,10 @@ public class AdvancedTextEditorPanel extends JPanel
     private void installExtensions() {
         extensionRegistry.scan();
         extensionBroker.notifyStarted();
-        for (ToolbarContribution contrib : extensionBroker.toolbarContributions()) {
-            extensionActions.add(
-                    new ExtensionAction("Extension", contrib.getLabel(), contrib.getAction()));
+        for (ExtensionBroker.ContributedAction ca
+                : extensionBroker.categorizedActions()) {
+            extensionActions.add(new ExtensionAction(ca.category(), ca.extension(),
+                    ca.contribution().getLabel(), ca.contribution().getAction()));
         }
     }
 
