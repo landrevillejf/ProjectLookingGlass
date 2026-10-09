@@ -17,8 +17,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
+import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 
 /**
  * The bundled "Text Tools" extension: five whole-document / selection
@@ -35,58 +41,110 @@ import java.util.Locale;
  */
 public final class BuiltinTextTools implements TextEditorExtension {
 
-    /** The extension name shown in the Extensions view. */
-    public static final String NAME = "Text Tools";
-
     private static final DateTimeFormatter TIMESTAMP =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    private DocumentContext currentDoc;
+
     @Override
-    public String name() {
-        return NAME;
+    public TextEditorManifest manifest() {
+        Set<TextEditorPermission> perms = EnumSet.of(
+                TextEditorPermission.READ,
+                TextEditorPermission.WRITE,
+                TextEditorPermission.TOOLBAR
+        );
+        return new TextEditorManifest(
+                "lg3d.text-tools",
+                "Text Tools",
+                "1.0.0",
+                "Built-in text transformation utilities",
+                "Project Looking Glass",
+                perms
+        );
     }
 
     @Override
-    public void install(EditorContext context) {
-        context.addAction("Sort Lines (A-Z)", () -> {
-            String sorted = sortLines(context.documentText(), false);
-            applyWhole(context, sorted, "Lines sorted A-Z");
-        });
-        context.addAction("Sort Lines (Z-A)", () -> {
-            String sorted = sortLines(context.documentText(), true);
-            applyWhole(context, sorted, "Lines sorted Z-A");
-        });
-        context.addAction("Remove Trailing Whitespace", () -> {
-            String stripped = stripTrailingWhitespace(context.documentText());
-            applyWhole(context, stripped, "Trailing whitespace removed");
-        });
-        context.addAction("Insert Timestamp",
-                () -> context.replaceSelection(timestamp()));
-        context.addAction("UPPERCASE Selection", () -> {
-            String selection = context.selectedText();
-            if (!selection.isEmpty()) {
-                context.replaceSelection(
-                        selection.toUpperCase(Locale.ROOT));
-                context.showMessage("Selection upper-cased");
-            }
-        });
-        context.addAction("lowercase Selection", () -> {
-            String selection = context.selectedText();
-            if (!selection.isEmpty()) {
-                context.replaceSelection(
-                        selection.toLowerCase(Locale.ROOT));
-                context.showMessage("Selection lower-cased");
-            }
-        });
+    public void onDocumentOpened(DocumentContext doc) {
+        this.currentDoc = doc;
     }
 
-    private static void applyWhole(EditorContext context, String result,
-            String message) {
-        if (result.equals(context.documentText())) {
-            context.showMessage(message + " (no change)");
+    @Override
+    public List<ToolbarContribution> toolbarContributions() {
+        return List.of(
+                new ToolbarContribution("sort-az", "Sort Lines (A-Z)",
+                        "Sort all lines alphabetically A-Z", this::sortAZ),
+                new ToolbarContribution("sort-za", "Sort Lines (Z-A)",
+                        "Sort all lines alphabetically Z-A", this::sortZA),
+                new ToolbarContribution("strip-trailing", "Remove Trailing Whitespace",
+                        "Remove spaces and tabs at end of each line", this::stripTrailing),
+                new ToolbarContribution("timestamp", "Insert Timestamp",
+                        "Insert current date and time", this::insertTimestamp),
+                new ToolbarContribution("upper", "UPPERCASE Selection",
+                        "Convert selection to uppercase", this::toUpper),
+                new ToolbarContribution("lower", "lowercase Selection",
+                        "Convert selection to lowercase", this::toLower)
+        );
+    }
+
+    private void sortAZ() {
+        if (currentDoc == null) {
+            return;
+        }
+        String sorted = sortLines(currentDoc.getFullText(), false);
+        applyWhole(sorted, "Lines sorted A-Z");
+    }
+
+    private void sortZA() {
+        if (currentDoc == null) {
+            return;
+        }
+        String sorted = sortLines(currentDoc.getFullText(), true);
+        applyWhole(sorted, "Lines sorted Z-A");
+    }
+
+    private void stripTrailing() {
+        if (currentDoc == null) {
+            return;
+        }
+        String stripped = stripTrailingWhitespace(currentDoc.getFullText());
+        applyWhole(stripped, "Trailing whitespace removed");
+    }
+
+    private void insertTimestamp() {
+        if (currentDoc == null) {
+            return;
+        }
+        currentDoc.replaceSelection(timestamp());
+    }
+
+    private void toUpper() {
+        if (currentDoc == null) {
+            return;
+        }
+        String selection = currentDoc.getSelectedText();
+        if (!selection.isEmpty()) {
+            currentDoc.replaceSelection(selection.toUpperCase(Locale.ROOT));
+        }
+    }
+
+    private void toLower() {
+        if (currentDoc == null) {
+            return;
+        }
+        String selection = currentDoc.getSelectedText();
+        if (!selection.isEmpty()) {
+            currentDoc.replaceSelection(selection.toLowerCase(Locale.ROOT));
+        }
+    }
+
+    private void applyWhole(String result, String message) {
+        if (currentDoc == null) {
+            return;
+        }
+        if (result.equals(currentDoc.getFullText())) {
+            // No change - don't dirty the document
         } else {
-            context.setDocumentText(result);
-            context.showMessage(message);
+            currentDoc.setFullText(result);
         }
     }
 

@@ -40,6 +40,9 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
+import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
+import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
+import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 
 /**
  * The Advanced Text Editor: a production plain-text and source-code editor
@@ -70,7 +73,7 @@ import javax.swing.text.JTextComponent;
  * binaries and over-sized files, writes through temp-file-plus-atomic-move so
  * a crash can't truncate the original, copies the target's permissions onto
  * the replacement, and isolates misbehaving extensions behind a
- * {@code Throwable} containment boundary in {@link ExtensionLoader}.</p>
+ * {@code Throwable} containment boundary in {@link ExtensionBroker}.</p>
  */
 public class AdvancedTextEditorPanel extends JPanel
         implements FindReplaceBar.Host, SettingsCard.Host,
@@ -109,8 +112,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private final ExtensionsCard extensionsCard;
     private final EditorStatusBar statusBar = new EditorStatusBar();
     private final List<ExtensionAction> extensionActions = new ArrayList<>();
-    private final PanelEditorContext extensionContext =
-            new PanelEditorContext();
+    private final ExtensionRegistry extensionRegistry;
+    private final ExtensionBroker extensionBroker;
     private final Timer messageTimer;
 
     private final JButton saveButton = new JButton("Save");
@@ -140,6 +143,15 @@ public class AdvancedTextEditorPanel extends JPanel
         this.persistEnabled = persistEnabled;
         this.settings = persistEnabled ? safeLoadSettings()
                 : EditorSettings.defaults();
+
+        EditorStore store = new EditorStore();
+        this.extensionRegistry = new ExtensionRegistry(store);
+        this.extensionBroker = new ExtensionBroker(
+                extensionRegistry,
+                this::message,
+                this::openFileForExtension,
+                this::saveCurrentTab
+        );
 
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
@@ -483,6 +495,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         message(result.warning() != null ? result.warning()
                 : "Opened " + tab.getDisplayName());
+        notifyDocumentOpened(tab);
         return true;
     }
 
@@ -547,6 +560,7 @@ public class AdvancedTextEditorPanel extends JPanel
         persistSettings();
         refreshTabTitles();
         message("Saved " + target.getFileName());
+        notifyDocumentSaved(tab);
         return true;
     }
 
@@ -960,15 +974,11 @@ public class AdvancedTextEditorPanel extends JPanel
     // ------------------------------------------------------------------
 
     private void installExtensions() {
-        for (TextEditorExtension extension : ExtensionLoader.discover()) {
-            String name;
-            try {
-                name = String.valueOf(extension.name());
-            } catch (Throwable t) {
-                name = extension.getClass().getSimpleName();
-            }
-            extensionContext.extensionName = name;
-            ExtensionLoader.installAll(List.of(extension), extensionContext);
+        extensionRegistry.scan();
+        extensionBroker.notifyStarted();
+        for (ToolbarContribution contrib : extensionBroker.toolbarContributions()) {
+            extensionActions.add(
+                    new ExtensionAction("Extension", contrib.getLabel(), contrib.getAction()));
         }
     }
 
@@ -977,69 +987,50 @@ public class AdvancedTextEditorPanel extends JPanel
         return extensionActions.size();
     }
 
-    /** The facade every installed extension talks through. */
-    private final class PanelEditorContext implements EditorContext {
-
-        private String extensionName = "Extension";
-
-        @Override
-        public String documentText() {
-            EditorTab tab = currentTab();
-            return (tab != null) ? tab.getText() : "";
+    /** Notifies extensions when a document is opened (test seam). */
+    void notifyDocumentOpened(EditorTab tab) {
+        if (tab == null) {
+            return;
         }
+        String filePath = tab.getPath() != null ? tab.getPath().toString() : null;
+        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
+        String selectedText = tab.textPane().getSelectedText();
+        extensionBroker.notifyDocumentOpened(
+                filePath,
+                fileName,
+                tab.getText(),
+                selectedText != null ? selectedText : "",
+                text -> tab.replaceWholeText(text),
+                text -> tab.textPane().replaceSelection(text)
+        );
+    }
 
-        @Override
-        public void setDocumentText(String text) {
-            EditorTab tab = currentTab();
-            if (tab != null) {
-                tab.replaceWholeText(text);
-            }
+    /** Notifies extensions when a document is saved. */
+    private void notifyDocumentSaved(EditorTab tab) {
+        if (tab == null) {
+            return;
         }
+        String filePath = tab.getPath() != null ? tab.getPath().toString() : null;
+        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
+        String selectedText = tab.textPane().getSelectedText();
+        extensionBroker.notifyDocumentSaved(
+                filePath,
+                fileName,
+                tab.getText(),
+                selectedText != null ? selectedText : "",
+                text -> tab.replaceWholeText(text),
+                text -> tab.textPane().replaceSelection(text)
+        );
+    }
 
-        @Override
-        public String selectedText() {
-            EditorTab tab = currentTab();
-            if (tab == null) {
-                return "";
-            }
-            String selected = tab.textPane().getSelectedText();
-            return (selected != null) ? selected : "";
-        }
+    /** Saves the current tab for extension use. */
+    private void saveCurrentTab() {
+        saveCurrent();
+    }
 
-        @Override
-        public void replaceSelection(String text) {
-            EditorTab tab = currentTab();
-            if (tab != null) {
-                tab.textPane().replaceSelection(text);
-            }
-        }
-
-        @Override
-        public String currentFileName() {
-            EditorTab tab = currentTab();
-            return (tab != null && tab.getPath() != null)
-                    ? tab.getPath().toString() : null;
-        }
-
-        @Override
-        public void showMessage(String text) {
-            message(text);
-        }
-
-        @Override
-        public void addAction(String label, Runnable action) {
-            if (label == null || label.isBlank() || action == null) {
-                return;
-            }
-            String full = extensionName + ": " + label;
-            for (ExtensionAction existing : extensionActions) {
-                if (existing.label().equals(full)) {
-                    return;
-                }
-            }
-            extensionActions.add(
-                    new ExtensionAction(extensionName, full, action));
-        }
+    /** Opens a file for extension use. */
+    private void openFileForExtension() {
+        openWithChooser();
     }
 
     // ------------------------------------------------------------------
@@ -1111,6 +1102,7 @@ public class AdvancedTextEditorPanel extends JPanel
 
     /** Flushes preferences and stops the panel's timers on window close. */
     public void dispose() {
+        extensionBroker.notifyStopping();
         persistSettings();
         messageTimer.stop();
     }

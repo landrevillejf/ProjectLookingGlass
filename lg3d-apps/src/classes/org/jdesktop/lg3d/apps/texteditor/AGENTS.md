@@ -42,9 +42,10 @@
   (indent + line/column + bracket pairing), `MergingUndoManager` (folds a typing
   burst into one undo step), `EditorSettings`/`EditorTheme` (persisted prefs +
   light/dark themes).
-- **Extensions** — `TextEditorExtension` SPI discovered by `ExtensionLoader`
-  through `ServiceLoader`; each extension registers labelled actions onto an
-  `EditorContext`. `BuiltinTextTools` is the bundled "Text Tools" provider.
+- **Extensions** — `TextEditorExtension` SPI discovered by `ExtensionRegistry`
+  through `ServiceLoader`; built-ins via `META-INF/services`, third-party jars in
+  `~/.lg3d/texteditor/extensions`; manager = `ExtensionBroker` (similar to web
+  browser). `BuiltinTextTools` is the bundled "Text Tools" provider.
 
 ## Roles
 

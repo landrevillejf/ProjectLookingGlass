@@ -13,29 +13,75 @@
  */
 package org.jdesktop.lg3d.apps.texteditor;
 
+import java.util.List;
+import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
+import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
+import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
+
 /**
- * The Advanced Text Editor's extension point: any jar on the desktop
- * classpath that registers an implementation of this interface through
- * {@code META-INF/services} is discovered at startup by
- * {@link ExtensionLoader} and installed once against the live
- * {@link EditorContext}.
+ * The Text Editor extension SPI. Developers implement this interface and
+ * register the implementation with {@code META-INF/services} (either on the
+ * application classpath for a built-in, or inside a jar dropped into
+ * {@code ~/.lg3d/texteditor/extensions} for a third-party extension); the
+ * editor discovers it with {@link java.util.ServiceLoader}.
  *
- * <p>An extension typically registers one or more toolbar actions (for
- * example "Sort Lines", "Insert Timestamp", "Strip Trailing Whitespace").
- * It runs in the desktop JVM with the editor's own privileges &mdash; this
- * is a developer-facing SPI and a consent boundary, not a sandbox: only
- * install extensions you trust, exactly as with any classpath jar.</p>
+ * <p>Every hook except {@link #manifest()} has a sensible default, so an
+ * extension implements only the behaviour it needs. Hooks are invoked by the
+ * {@code ExtensionBroker} on the EDT and are individually guarded: an extension
+ * that throws is logged and skipped without disturbing the editor or the other
+ * extensions.</p>
+ *
+ * <p>Capabilities are gated on the {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission
+ * permissions} the user granted in the extension manager; see {@link EditorContext}.</p>
  */
 public interface TextEditorExtension {
 
-    /** The human-readable extension name shown in the Extensions view. */
-    String name();
+    /**
+     * @return this extension's identity, blurb and required permissions; never null
+     */
+    TextEditorManifest manifest();
 
     /**
-     * Called once when the editor starts, on the Swing event dispatch
-     * thread. Implementations register their contributions through the
-     * context and must not block; any exception they throw is caught and
-     * logged by the loader, and the editor continues without them.
+     * Called once on the EDT after the editor is up and this extension is
+     * enabled, with a capability facade scoped to the granted permissions.
+     *
+     * @param ctx the editor capability facade
      */
-    void install(EditorContext context);
+    default void onEditorStarted(EditorContext ctx) { }
+
+    /**
+     * Called on the EDT when the editor is shutting down, so the extension can
+     * release resources.
+     *
+     * @param ctx the editor capability facade
+     */
+    default void onEditorStopping(EditorContext ctx) { }
+
+    /**
+     * Called after a document is opened or a new tab is created. Requires
+     * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#READ}; write operations
+     * through {@link DocumentContext} require {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#WRITE}.
+     *
+     * @param doc the loaded document
+     */
+    default void onDocumentOpened(DocumentContext doc) { }
+
+    /**
+     * Called after a document is saved. Requires
+     * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#READ}.
+     *
+     * @param doc the saved document
+     */
+    default void onDocumentSaved(DocumentContext doc) { }
+
+    /**
+     * Toolbar buttons this extension contributes. Requires
+     * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#TOOLBAR}; rendered on the EDT.
+     *
+     * @return the contributions, empty by default
+     */
+    default List<ToolbarContribution> toolbarContributions() {
+        return List.of();
+    }
 }
