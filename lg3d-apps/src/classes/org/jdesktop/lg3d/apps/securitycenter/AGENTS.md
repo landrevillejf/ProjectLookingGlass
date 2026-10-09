@@ -28,7 +28,9 @@
   the panel outside the desktop; never calls `System.exit`.
 - **SecurityCenterPanel** — the one Swing UI (no-arg constructor, no Java 3D): an
   **Antivirus** tab (target + Browse, recursive / quarantine / update-first
-  options, scanner picker, Update / Scan / Stop, a summary line and a findings
+  options, scanner picker, Update / Scan / Stop, a **live progress bar** with a
+  monitoring status line (files scanned / total, current file, threats so far,
+  elapsed), a summary line and a findings
   list), a **Security Overview** tab (rating + letter-grade header, SELinux /
   Firewall / AppArmor / SSH daemon / Antivirus / Private (Tor) mode / VPN tunnel
   posture cards, a worst-first recommendations list with a **Remediate** button,
@@ -62,8 +64,15 @@
   overloads; a cut still wins (alarm red) and an unassessed host is never an alarm.
 - **AntivirusBackend** — the AWT-free ClamAV seam: resolves the installed scanner,
   builds the exact `clamdscan`/`clamscan`/`freshclam` command lines and **parses**
-  their output into a `ScanReport` / `VersionInfo`. Pure and side-effect free, so
-  the whole contract is unit-testable headless against recorded ClamAV output.
+  their output into a `ScanReport` / `VersionInfo`. It also carries the streaming
+  progress seam: `ScanOutputParser` is the incremental, one-line-at-a-time twin of
+  `parseScanOutput` (it exposes live `filesSeen` / `infectedSoFar` / `currentFile`
+  then produces the identical report via `toReport`), and `parseLoadProgress` /
+  `parseFreshclamProgress` turn the clamscan database-load ratio and the freshclam
+  download percentage into bar values. `scanCommand(..., infectedOnly)` drops
+  `--infected` when streaming so a line per file is available for progress. Pure
+  and side-effect free, so the whole contract is unit-testable headless against
+  recorded ClamAV output.
 - **SecurityProbe** — the AWT-free posture seam: builds the `getenforce` /
   `firewall-cmd --state` commands and parses them into `SelinuxMode` /
   `FirewallState` (an authorization failure is `UNKNOWN`, not "not running").
@@ -133,7 +142,12 @@
 - **Engineer / Developer** — Keep the ClamAV command-building and output parsing in
   `AntivirusBackend` and the posture parsing in `SecurityProbe`; the panel only
   launches the guarded `ProcessBuilder` on a user action, on a daemon thread, and
-  hops back to the EDT to render. Prefer `clamdscan`, but detect the daemon-down
+  hops back to the EDT to render. For live progress the scan/update stream through
+  `execStreaming` (no output buffering) feeding a `ScanOutputParser`; pre-count the
+  target with `countFiles` for a determinate bar and fall back to a pulsing one when
+  the total is unknown. Throttle EDT repaints (~10/s) but always push a newly-found
+  threat immediately, and mirror the bar state in plain volatile fields so headless
+  tests read it deterministically. Prefer `clamdscan`, but detect the daemon-down
   case (`ScanReport.ranSuccessfully()` is false with total errors and nothing
   scanned) and fall back to `clamscan`, remembering it for the session. Quarantine
   with `--move`, never delete. Guard every process/`JFileChooser` path so it is
@@ -141,11 +155,14 @@
   build the panel. Never call `System.exit`. Obey the core UI/UX rulebook.
 - **QA** — `AntivirusBackendTest`, `SecurityProbeTest`, `SecurityCenterStoreTest`,
   `SecurityCenterPanelTest`, `SecurityScoreTest`, `HardeningRulesTest`,
-  `AuditEventTest` and `PrivacyPanelTest` run headless (79 tests): the
+  `AuditEventTest` and `PrivacyPanelTest` run headless (87 tests): the
   backend suite asserts
-  scanner resolution, the command builders and the parse of recorded ClamAV output
+  scanner resolution, the command builders (quiet vs streaming `--infected`) and
+  the parse of recorded ClamAV output
   (clean, infected, per-file error, daemon-down, empty) plus version/update
-  parsing; the probe suite asserts SELinux/firewall parsing (including the
+  parsing, the incremental `ScanOutputParser` (matching the batch parse and its
+  live counters) and the load / freshclam progress parsers; the probe suite asserts
+  SELinux/firewall parsing (including the
   authorization-failure → `UNKNOWN` path), the VPN label and the snapshot
   concerns/rating; `SecurityScoreTest` asserts the weighted total, the A-F grade
   bands (including the "patched but no tunnel = B" case) and the per-item gaps;
@@ -157,7 +174,9 @@
   drives `applyReport` / `applySnapshot` / `addRecord` / `renderHostServices` /
   `remediate` with synthetic values — never spawning a scanner — and asserts the
   four tabs (Antivirus / Security Overview / Privacy / Activity), the grade header,
-  the recommendations and the audit trail (including its reload from disk);
+  the recommendations and the audit trail (including its reload from disk), plus
+  the progress seam (`updateScanProgress` determinate vs pulsing and `countFiles`
+  against a temp tree);
   `PrivacyPanelTest` asserts headless construction, the
   tor / init / polkit / file button gating and the private (Tor) mode section
   (state line, hidden CUT banner while off, and Enable/Disable/Verify gating). The

@@ -10,6 +10,21 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Security Center: live scan / definition-update progress** (`lg3d-apps`) — the
+  Antivirus tab now shows a real progress bar and live monitoring instead of a
+  static "Scanning…" label. Scans stream ClamAV's output line by line (a new
+  incremental `AntivirusBackend.ScanOutputParser`, the streaming twin of
+  `parseScanOutput`) through a non-buffering `execStreaming`, so the panel can
+  pre-count the target's files (`countFiles`) and drive a **determinate** bar
+  (`files scanned / total (%)`) plus a live status line (current file, threats
+  found so far, elapsed time); the `clamscan` database-load phase
+  (`Loading:`/`Compiling:` ratios) and any target whose file count is unknown
+  degrade honestly to a pulsing bar. **Update Definitions** streams `freshclam`
+  and tracks its download percentage. EDT repaints are throttled to ~10/s (a
+  newly-found threat always pushes immediately). The scan now runs ClamAV without
+  `--infected` so a line per file is available for progress; the findings list
+  still shows only detections, and the pure parsers/command builders are
+  headless-tested.
 - **Encrypted peer-to-peer (P2P) transport for the Instant Messenger and Video
   Conference** (`lg3d-apps`) — a new reusable, dependency-free, pure-JDK encrypted
   P2P transport (`org.jdesktop.lg3d.apps.p2p`) lets both apps talk to a peer
