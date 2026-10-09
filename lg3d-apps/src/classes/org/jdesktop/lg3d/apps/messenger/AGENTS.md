@@ -14,9 +14,9 @@
 | Start-menu name / group | Instant Messenger / **Internet** |
 | Command | `java org.jdesktop.lg3d.apps.messenger.Messenger` |
 | Descriptor | `src/config/messenger.lgcfg` → `config/demo` |
-| Protocols | **Native IRC** (RFC 2812, plain or TLS, in-process, unit-tested) plus **bridge** backends for XMPP, Matrix, Telegram, WhatsApp, Signal, SMS and SIP that hand off to the network's official client/web app; all behind the `MessengerProtocol` SPI and the `ProtocolRegistry` catalogue |
+| Protocols | **Two native, in-process clients** — **IRC** (RFC 2812, plain or TLS, unit-tested) and **P2P (Direct)** (encrypted peer-to-peer chat + file transfer over the shared `apps.p2p` transport, LAN-discovered or manual host:port) — plus **bridge** backends for XMPP, Matrix, Telegram, WhatsApp, Signal, SMS and SIP that hand off to the network's official client/web app; all behind the `MessengerProtocol` SPI and the `ProtocolRegistry` catalogue |
 | Persistence | Jackson JSON under `~/.lg3d/messenger` (accounts, transcript, settings) via `MessengerStore`; override dir with `-Dlg3d.messenger.dir`. Private-chat peers are saved into the desktop-wide address book (`org.jdesktop.lg3d.contacts.ContactStore`, `~/.lg3d/contacts`) — the same store the Contacts app edits |
-| Security | **No secret is ever written to disk**: `AccountConfig`'s password fields are `@JsonIgnore`; a password lives in memory for the session and is re-entered at connect time. IRC supports TLS (`SSLSocket`) and NickServ `IDENTIFY` |
+| Security | **No secret is ever written to disk**: `AccountConfig`'s password fields are `@JsonIgnore`; a password lives in memory for the session and is re-entered at connect time. IRC supports TLS (`SSLSocket`) and NickServ `IDENTIFY`. P2P is end-to-end encrypted (X25519 + Noise-XX mutual auth + AES-256-GCM, forward-secret) with **TOFU** fingerprint pinning via `AccountConfig.peerFingerprint`; the long-term identity key is stored `0600` under `~/.lg3d/p2p` (at-rest material, documented honestly) |
 | Build | `./gradlew :lg3d-apps:build` |
 
 ## Key components
@@ -39,13 +39,29 @@
   capability set) and its callback surface; the single seam every protocol
   implements, so the UI never knows the wire format.
 - **ProtocolRegistry** — the backend catalogue + factory. `standard()` registers
-  the native IRC client and the seven bridges; adding a protocol (native or
-  bridge) is one `register(...)` call with **no UI change**.
+  the two native clients (IRC and P2P) and the seven bridges; adding a protocol
+  (native or bridge) is one `register(...)` call with **no UI change**.
 - **IrcProtocol / IrcMessage / IrcCodec** — the fully native IRC client: `IrcMessage`
   is the pure RFC 2812 line parser/formatter, `IrcCodec` handles CTCP, mIRC
   formatting and 512-octet line splitting, and `IrcProtocol` owns the socket,
   registration, keep-alive PING, auto-reconnect, channels and roster. The
   headless unit-test seam (an embedded mock IRC server drives it end to end).
+- **P2pProtocol / FileTransferEvent** — the fully native peer-to-peer client
+  (id `p2p`, capabilities `CHAT, PRESENCE, ACTIONS, TLS, NATIVE, FILE_TRANSFER`).
+  It wraps a `P2pNode` from the shared `org.jdesktop.lg3d.apps.p2p` transport,
+  maps encrypted CHAT frames to `ChatMessage`, presence to the roster, and file
+  offer/accept/progress/cancel to the protocol-neutral `FileTransferEvent`. Trust
+  is TOFU: a pinned `peerFingerprint` admits only that identity (a mismatch raises
+  a loud man-in-the-middle warning); an unpinned account records first contact.
+  `connect()` starts the node + LAN discovery and/or dials the account's host:port
+  on a daemon thread — never in the constructor (headless-safe).
+- **org.jdesktop.lg3d.apps.p2p** — the reusable, dependency-free encrypted P2P
+  transport shared with the Video Conference app: `P2pCrypto` (X25519/HKDF-SHA256/
+  AES-256-GCM/fingerprint), `NoiseXXHandshake`, `SecureFrame`/`FrameCodec`,
+  `SecureChannel`, `P2pMessage`, `FileTransfer`/`FileTransferManager`,
+  `P2pNode`/`P2pServer`, `LanDiscovery`/`DiscoveryPacket` and
+  `IdentityStore`/`TrustDecision`. Pure, AWT-free and headless-testable, mirroring
+  the `VaultCrypto` precedent; a candidate to promote to `lg3d-core` later.
 - **BridgeProtocol** — the deep-link/external-command hand-off backend for the
   networks that need an external or native stack; headless-guarded.
 - **AccountConfig / ChatMessage / StoredMessage / MessengerSettings** — model
@@ -83,19 +99,28 @@
   touched (none here); obey the core UI/UX rulebook.
 - **QA** — `IrcCodecTest`, `IrcMessageTest`, `IrcProtocolTest` (an embedded mock
   IRC `ServerSocket` drives registration, PRIVMSG/CTCP, JOIN/roster and reconnect
-  end to end), `MessengerStoreTest`, `MessengerModelTest` and `MessengerPanelTest`
-  run headless: they assert line parsing/formatting, CTCP + formatting + 512-octet
-  splitting, JSON round-trips to a temp dir (and that no password is written),
-  model bean invariants, `/slash`-command parsing, nickname colouring determinism,
-  transcript routing/rendering and that sending without a live backend only sets a
-  status (no socket, no browser). For the 3D host use the in-JVM probe + internal
-  screencapture (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not
-  a defect.
-- **Business Analyst** — A daily-driver communication utility: chat on IRC and
-  reach XMPP/Matrix/Telegram/WhatsApp/Signal/SMS/SIP from one desktop app, with
-  saved accounts, persistent history and per-user display preferences, in both
-  desktops. Value = one integrated messenger instead of a dozen separate clients,
-  with a native, fully-offline-testable IRC core and honest bridges for the rest.
+  end to end), `P2pProtocolTest` (two backends over `localhost` perform a real
+  handshake and exchange encrypted chat + a verified file; a matching pin is
+  admitted and a mismatch refused with a MITM warning), the `apps.p2p` transport
+  suite (`P2pCryptoTest`, `NoiseXXHandshakeTest`, `FrameCodecTest`,
+  `SecureChannelTest`, `FileTransferTest`/`FileTransferManagerTest`,
+  `P2pNodeTest`/`P2pServerTest`, `DiscoveryPacketTest`/`LanDiscoveryTest`,
+  `IdentityStoreTest`/`TrustDecisionTest`), `MessengerStoreTest`,
+  `MessengerModelTest` and `MessengerPanelTest` run headless: they assert line
+  parsing/formatting, CTCP + formatting + 512-octet splitting, JSON round-trips to
+  a temp dir (and that no password is written), model bean invariants,
+  `/slash`-command parsing, nickname colouring determinism, transcript
+  routing/rendering, capability-gated **Send File**, file-event tracking/rendering
+  and that sending without a live backend only sets a status (no socket, no
+  browser). For the 3D host use the in-JVM probe + internal screencapture
+  (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
+- **Business Analyst** — A daily-driver communication utility: chat on IRC, reach
+  XMPP/Matrix/Telegram/WhatsApp/Signal/SMS/SIP from one desktop app, and exchange
+  encrypted **direct P2P** chat and files with a peer on the LAN (or a reachable
+  host) with no server in between — with saved accounts, persistent history and
+  per-user display preferences, in both desktops. Value = one integrated messenger
+  instead of a dozen separate clients, with two real, tested native clients (IRC
+  and P2P) and honest bridges for the rest.
 - **Functional Analyst** — Spec this app as the *chat-client contract*: connect an
   account over a registered protocol, join/leave channels, exchange messages and
   actions, track presence/roster, and persist accounts/history/settings — with the

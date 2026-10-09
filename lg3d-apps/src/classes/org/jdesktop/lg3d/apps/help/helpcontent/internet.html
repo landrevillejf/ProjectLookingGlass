@@ -21,8 +21,8 @@
     <tr><th>Application</th><th>What it does</th></tr>
     <tr><td>Web Browser</td><td>Tabbed browsing over the JavaFX WebKit engine.</td></tr>
     <tr><td>Mail</td><td>A real IMAP / SMTP mail client.</td></tr>
-    <tr><td>Instant Messenger</td><td>Multi-protocol chat (a native IRC client plus bridges).</td></tr>
-    <tr><td>Video Conference</td><td>Join and host Jitsi Meet calls.</td></tr>
+    <tr><td>Instant Messenger</td><td>Multi-protocol chat (a native IRC client, encrypted P2P direct chat and bridges).</td></tr>
+    <tr><td>Video Conference</td><td>Join and host Jitsi Meet calls, with an encrypted P2P side-channel for signaling, chat and files.</td></tr>
     <tr><td>FTP Client</td><td>Transfer files over FTP, FTPS and SFTP.</td></tr>
     <tr><td>SSH Client</td><td>Terminal sessions over SSH.</td></tr>
     <tr><td>Remote Viewer</td><td>Share and view remote desktops, with clipboard sync and file transfer.</td></tr>
@@ -146,16 +146,53 @@
   <h2>Instant Messenger</h2>
   <p>
     <strong>Instant Messenger</strong> is a multi-protocol chat client. It
-    includes a fully native IRC client and bridges to other networks, with an
-    accounts list, a conversation view and a scrolling transcript.
+    includes a fully native IRC client, a native <strong>P2P (Direct)</strong>
+    backend and bridges to other networks, with an accounts list, a conversation
+    view and a scrolling transcript.
   </p>
 
   <h2>Video Conference</h2>
   <p>
     <strong>Video Conference</strong> joins and hosts Jitsi Meet calls. It provides
     a lobby and an address book, builds the meeting link, and hands the live
-    audio/video session to the system browser (or an external meeting command).
+    audio/video session to the system browser (or an external meeting command). A
+    <strong>Direct (P2P)</strong> tab adds an encrypted side-channel for meeting
+    invites, chat and file transfer &mdash; the audio and video themselves still
+    run through Jitsi in your browser.
   </p>
+
+  <h2>Direct P2P chat and file transfer</h2>
+  <p>
+    Both the Instant Messenger and the Video Conference can talk to a peer
+    <em>directly</em>, without any server in the middle, over an encrypted
+    peer-to-peer (P2P) transport built into the desktop. Add a
+    <strong>P2P (Direct)</strong> account in the Messenger (or start the
+    side-channel in the Video Conference) and you can exchange chat, actions and
+    files with another node.
+  </p>
+  <ul>
+    <li><strong>Finding peers</strong> &mdash; nodes on the same local network are
+        discovered automatically over UDP multicast and listed for a one-click
+        connect. To reach a peer elsewhere, enter its <em>host and port</em>
+        directly.</li>
+    <li><strong>Sending a file</strong> &mdash; the <em>Send File</em> button is
+        enabled only for a connected P2P peer. The receiver sees an accept prompt,
+        a progress row appears in the conversation, and the finished file is
+        verified with a SHA-256 digest and written safely into the download
+        folder.</li>
+    <li><strong>Identity</strong> &mdash; every node has a stable public-key
+        <em>fingerprint</em>. The first time you connect, it is recorded (pinning);
+        you can compare fingerprints with your peer out of band to be sure of who
+        you are talking to.</li>
+  </ul>
+  <div class="note">
+    <strong>Note:</strong> P2P is honest about reachability. Automatic discovery is
+    scoped to your <em>local network</em>; connecting to a peer across the internet
+    needs a reachable host or a forwarded port &mdash; the transport does not
+    silently punch through NAT. The mesh suits one-to-one and small-group use, not
+    large networks. For the cryptographic details see
+    <a href="security-privacy.html">Security and Privacy</a>.
+  </div>
 
   <h2>FTP Client</h2>
   <p>

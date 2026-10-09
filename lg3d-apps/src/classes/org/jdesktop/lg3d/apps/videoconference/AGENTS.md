@@ -15,6 +15,7 @@
 | Command | `java org.jdesktop.lg3d.apps.videoconference.VideoConference` |
 | Descriptor | `src/config/videoconference.lgcfg` → `config/demo` |
 | Conferencing backend | **Jitsi Meet** deep links built by `JitsiUrlBuilder`; the real WebRTC audio/video runs in the system browser (`java.awt.Desktop.browse`) or an external meeting command |
+| P2P side-channel | **Native, encrypted peer-to-peer** signaling/chat/file transfer via `P2pSideChannel` over the shared `org.jdesktop.lg3d.apps.p2p` transport (X25519 + Noise-XX + AES-256-GCM, TOFU-pinned). The **Direct (P2P)** sidebar tab lists LAN-discovered + connected peers, sends a Jitsi invite as an encrypted INVITE, chats and swaps files. **It never carries audio/video** — that stays in Jitsi in the browser |
 | Persistence | Jackson JSON under `~/.lg3d/videoconference` (rooms, history, settings) via `VideoConferenceStore`; override dir with `-Dlg3d.videoconference.dir`. The invitee **address book is shared** — `org.jdesktop.lg3d.contacts.ContactStore` (lg3d-core) under `~/.lg3d/contacts`, edited by the Contacts app |
 | Camera preview | `CameraCapture` seam + `CameraPreview`; **no native capture library ships**, so it degrades to an honest animated placeholder (backend pluggable via `-Dlg3d.videoconference.camera.backend`) |
 | Build | `./gradlew :lg3d-apps:build` |
@@ -28,10 +29,18 @@
   the panel outside the desktop; never calls `System.exit`.
 - **VideoConferencePanel** — the one Swing UI (no-arg constructor, no Java 3D):
   toolbar (New Room / Random name / Add Contact / Settings), a Rooms/Contacts/
-  History sidebar — the Contacts tab is a **live view of the shared address
-  book** (add/edit/delete go straight to `ContactStore`), a lobby with the camera
-  preview, room + server fields, mic/camera mute toggles, Join and
-  Copy-invite-link, and a status line.
+  History/**Direct (P2P)** sidebar — the Contacts tab is a **live view of the
+  shared address book** (add/edit/delete go straight to `ContactStore`), and the
+  P2P tab lists discovered + connected peers with Connect/Invite/File actions and
+  a small encrypted chat log — a lobby with the camera preview, room + server
+  fields, mic/camera mute toggles, Join and Copy-invite-link, and a status line.
+- **P2pSideChannel** — the encrypted peer-to-peer controller over the shared
+  `org.jdesktop.lg3d.apps.p2p` transport (`P2pNode` + `LanDiscovery` +
+  `IdentityStore`): it carries meeting **invites** (a Jitsi share URL pushed as an
+  INVITE frame), **chat** and **file transfer** between peers. Construction is
+  inert; `start(nickname, port)` binds the socket and begins LAN discovery, so a
+  headless-constructed panel spawns no socket or thread. The audio/video path is
+  untouched — this is only the secure signaling/chat/file layer.
 - **JitsiUrlBuilder** — the pure, AWT-free protocol logic: room-name
   sanitisation, domain normalisation/resolution, friendly room-name generation,
   share vs join URL construction (`#config.*` / `#userInfo.*` fragment, RFC 3986
@@ -49,15 +58,18 @@
 
 - **Architect** — Everything lives in this package: model beans, `JitsiUrlBuilder`
   (pure logic), `VideoConferenceStore` (Jackson I/O), `CameraCapture`/`CameraPreview`
-  (media seam), `VideoConferencePanel` (the one Swing UI) and the two thin entry
-  points. The invitee list is **not** app-private state: it reads/writes the
-  desktop-wide `org.jdesktop.lg3d.contacts.ContactStore`, the same book the
-  Contacts app edits and the Messenger saves peers into (one address book, many
-  readers). The same panel drives both desktops: 3D via `TitledSwingWindow`, 2D via
+  (media seam), `P2pSideChannel` (the encrypted signaling/chat/file controller over
+  the shared `org.jdesktop.lg3d.apps.p2p` transport, reused with the Messenger),
+  `VideoConferencePanel` (the one Swing UI) and the two thin entry points. The
+  invitee list is **not** app-private state: it reads/writes the desktop-wide
+  `org.jdesktop.lg3d.contacts.ContactStore`, the same book the Contacts app edits
+  and the Messenger saves peers into (one address book, many readers). The same
+  panel drives both desktops: 3D via `TitledSwingWindow`, 2D via
   `Desktop2DAppRegistry.PANEL_APPS` keyed on `VideoConference`. Jackson + SLF4J are
   already `lg3d-apps` compile deps (added for the SSH client) and are on the
   hand-assembled `:lg3d-core:run` / `releaseBundle` classpath, so the in-JVM launch
-  resolves. **No new third-party dependency and no native media stack are added.**
+  resolves. **No new third-party dependency and no native media stack are added** —
+  the P2P transport is pure JDK `javax.crypto` + sockets.
 - **Engineer / Developer** — Keep all URL/encoding logic in `JitsiUrlBuilder`
   (pure, unit-tested); the panel only calls it. Guard every browser/clipboard/
   modal path on `!GraphicsEnvironment.isHeadless()` so headless tests never open a
@@ -68,10 +80,14 @@
   without a design decision. Jogamp packages only where 3D is touched (none here);
   obey the core UI/UX rulebook.
 - **QA** — `JitsiUrlBuilderTest`, `VideoConferenceStoreTest`,
-  `VideoConferenceModelTest` and `VideoConferencePanelTest` run headless: they
-  assert URL sanitisation/encoding/config fragments, JSON round-trips to a temp
-  dir, model bean invariants, and that `join()` builds the expected URL and records
-  history without launching a browser (headless returns `URL_SHOWN`). For the 3D
+  `VideoConferenceModelTest`, `P2pSideChannelTest` (two channels over `localhost`
+  perform a real handshake and exchange an invite, a chat line and a verified file;
+  discovery is disabled so it stays hermetic) and `VideoConferencePanelTest` run
+  headless: they assert URL sanitisation/encoding/config fragments, JSON
+  round-trips to a temp dir, model bean invariants, that `join()` builds the
+  expected URL and records history without launching a browser (headless returns
+  `URL_SHOWN`), that the **Direct (P2P)** tab exists and a headless panel starts no
+  socket, and that a received invite fills the room/domain and re-joins. For the 3D
   host use the in-JVM probe + internal screencapture (`lg3d-core/lgscreen-*.png`);
   a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver communication utility: create/join/invite
@@ -82,8 +98,12 @@
   resolve a room on a domain, build the correct join and share deep links with the
   user's identity and mute state, launch the meeting, persist rooms/history/
   settings, and read/write invitees through the shared address book. The
-  transport (Jitsi/WebRTC in the browser) is an implementation detail behind
-  `JitsiUrlBuilder` + the launcher.
+  **transport boundary is two-fold**: Jitsi/WebRTC in the browser carries the
+  audio/video, while the native P2P side-channel carries encrypted signaling
+  (invites), chat and files — the former behind `JitsiUrlBuilder` + the launcher,
+  the latter behind `P2pSideChannel`. LAN discovery is LAN-scoped; reaching an
+  internet peer needs a port-forwarded/reachable host, stated honestly (no fake
+  NAT traversal).
 - **Project Manager** — Commit scope `lg3d-apps`; the registration also touches
   `lg3d-core` (`Desktop2DAppRegistry` panel mapping + test) and the icon in
   `lg3d-core` resources — call that out. Done = build + headless tests +
@@ -101,7 +121,8 @@
 Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
 root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR.
 Every PR states the surface (SwingNode host + 2D MDI), the `JitsiUrlBuilder` seam,
-the Jitsi/browser transport boundary, and the evidence.
+the transport boundary (Jitsi for A/V + native P2P for signaling/chat/files), and
+the evidence.
 
 ## Commit / PR
 
