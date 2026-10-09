@@ -54,6 +54,7 @@ import org.jdesktop.lg3d.apps.vpn.VpnProfile;
 import org.jdesktop.lg3d.apps.vpn.VpnStatus;
 import org.jdesktop.lg3d.apps.vpn.VpnStore;
 import org.jdesktop.lg3d.utils.system.NetworkCut;
+import org.jdesktop.lg3d.utils.system.PrivilegedRunner;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
 import org.jdesktop.lg3d.utils.system.SecurityPosture;
 import org.jdesktop.lg3d.utils.system.SecurityService;
@@ -709,7 +710,7 @@ public class SecurityCenterPanel extends JPanel {
         }
         updating = true;
         updateButtons();
-        setStatus("Updating virus definitions (freshclam)...");
+        setStatus("Updating virus definitions (administrator confirmation may be required)...");
         setProgressIndeterminate("Updating definitions...");
         Thread thread = new Thread(() -> {
             String message = runDefinitionUpdate();
@@ -731,18 +732,38 @@ public class SecurityCenterPanel extends JPanel {
      * honest one-line outcome from {@link AntivirusBackend#describeUpdate}. Shared
      * by the Update Definitions button and the scan's "update first" option.
      *
+     * <p>Refreshing the system virus database reads the root-only
+     * {@code /etc/freshclam.conf} and writes {@code /var/lib/clamav}, so it is an
+     * administrative operation: when polkit is installed the command is elevated
+     * through {@link PrivilegedRunner} (the authentication prompt is part of the
+     * honest flow), and only systems without {@code pkexec} fall back to a plain
+     * unprivileged run. A dismissed prompt is reported as a cancellation, never
+     * as a silent failure.</p>
+     *
      * @return a short human-readable result, never null
      */
     private String runDefinitionUpdate() {
         List<String> lines = new ArrayList<>();
-        ProcessOutcome outcome = execStreaming(AntivirusBackend.updateCommand(), false, line -> {
+        Consumer<String> sink = line -> {
             lines.add(line);
             OptionalInt pct = AntivirusBackend.parseFreshclamProgress(line);
             if (pct.isPresent()) {
                 setProgressValue(pct.getAsInt(), 100,
                         "Updating definitions... " + pct.getAsInt() + "%");
             }
-        });
+        };
+        if (PrivilegedRunner.isAvailable()) {
+            PrivilegedRunner.PrivilegedResult r =
+                    PrivilegedRunner.run(AntivirusBackend.updateCommand(), sink);
+            if (r.getStatus() == PrivilegedRunner.Status.CANCELLED) {
+                return "Definition update cancelled (authorization dismissed).";
+            }
+            if (r.getStatus() != PrivilegedRunner.Status.UNAVAILABLE) {
+                return AntivirusBackend.describeUpdate(lines, r.getExitCode());
+            }
+            // No pkexec after all: fall through to the unprivileged attempt.
+        }
+        ProcessOutcome outcome = execStreaming(AntivirusBackend.updateCommand(), false, sink);
         return AntivirusBackend.describeUpdate(lines, outcome.exitCode);
     }
 

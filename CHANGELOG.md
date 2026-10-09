@@ -19,8 +19,14 @@ work to make it build and run on a current toolchain.
   (`files scanned / total (%)`) plus a live status line (current file, threats
   found so far, elapsed time); the `clamscan` database-load phase
   (`Loading:`/`Compiling:` ratios) and any target whose file count is unknown
-  degrade honestly to a pulsing bar. **Update Definitions** streams `freshclam`
-  and tracks its download percentage. EDT repaints are throttled to ~10/s (a
+  degrade honestly to a pulsing bar. **Update Definitions** elevates `freshclam`
+  through polkit (`pkexec` via `PrivilegedRunner`) - `/etc/freshclam.conf` and the
+  virus database are root-owned, so an unprivileged update could never succeed -
+  streams its output and tracks its download percentage; a dismissed
+  authorization prompt is reported as a cancellation, and hosts without polkit
+  fall back to a plain run. `ProcessRunner`/`PrivilegedRunner` (`lg3d-core`)
+  gained an optional per-stdout-line sink so the bar stays live under `pkexec`.
+  EDT repaints are throttled to ~10/s (a
   newly-found threat always pushes immediately). The scan now runs ClamAV without
   `--infected` so a line per file is available for progress; the findings list
   still shows only detections, and the pure parsers/command builders are

@@ -41,6 +41,10 @@
   first opens the Overview tab); each external command runs on a daemon thread.
   The live tor / network-cut listeners are registered in `addNotify` and dropped
   in `removeNotify`, so a headless-built panel leaves no global listener behind.
+  Definition update is an administrative operation (`/etc/freshclam.conf` and the
+  virus database are root-owned), so it elevates `freshclam` through
+  `PrivilegedRunner` (polkit) and only falls back to a plain run when `pkexec` is
+  absent; a dismissed authorization prompt is reported as a cancellation.
 - **SecurityScore** — the pure, weighted checklist behind the Overview grade:
   scores six defense-in-depth items (SELinux enforcing, firewall running, scanner
   installed, definitions known, private (Tor) mode on, VPN tunnel up with kill
@@ -147,7 +151,11 @@
   target with `countFiles` for a determinate bar and fall back to a pulsing one when
   the total is unknown. Throttle EDT repaints (~10/s) but always push a newly-found
   threat immediately, and mirror the bar state in plain volatile fields so headless
-  tests read it deterministically. Prefer `clamdscan`, but detect the daemon-down
+  tests read it deterministically. Definition update mutates the system virus
+  database, so elevate it through `PrivilegedRunner` (the streaming line-sink
+  overload keeps the bar live under `pkexec`), map `Status.CANCELLED` to an
+  honest "authorization dismissed" message and fall back to unprivileged
+  `execStreaming` only when polkit is unavailable. Prefer `clamdscan`, but detect the daemon-down
   case (`ScanReport.ranSuccessfully()` is false with total errors and nothing
   scanned) and fall back to `clamscan`, remembering it for the session. Quarantine
   with `--move`, never delete. Guard every process/`JFileChooser` path so it is
@@ -186,7 +194,9 @@
   The AppArmor / SSH vectors and parsers
   behind `renderHostServices` are covered by `SecurityServiceTest`, and the tor
   lifecycle vectors, `parseTorState` and bounded file reads behind `PrivacyPanel`
-  by `PrivacyServiceTest`, all in lg3d-core.
+  by `PrivacyServiceTest`, all in lg3d-core, where `ProcessRunnerTest` /
+  `PrivilegedRunnerTest` also cover the per-stdout-line sink overloads the
+  elevated definition update streams through.
   For the 3D host use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver security utility: scan a folder for viruses
