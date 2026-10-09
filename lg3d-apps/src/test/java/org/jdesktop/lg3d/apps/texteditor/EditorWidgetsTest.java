@@ -333,4 +333,55 @@ class EditorWidgetsTest {
         assertEquals("A", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_A));
         assertEquals("", ExtensionsCard.keyName(java.awt.event.KeyEvent.VK_ESCAPE));
     }
+
+    @Test
+    @DisplayName("the extensions card lists and grants permissions for the selected extension")
+    void extensionsCardPermissions() {
+        final List<String> grants = new ArrayList<>();
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+
+            @Override
+            public List<ExtensionsCard.PermissionInfo> permissionsFor(String id) {
+                if ("lg3d.base64-tools".equals(id)) {
+                    return List.of(new ExtensionsCard.PermissionInfo("READ", true),
+                            new ExtensionsCard.PermissionInfo("WRITE", true),
+                            new ExtensionsCard.PermissionInfo("TOOLBAR", false));
+                }
+                return List.of();
+            }
+
+            @Override
+            public void setPermission(String id, String name, boolean granted) {
+                grants.add(id + "/" + name + "=" + granted);
+            }
+        });
+        card.show(List.of(ExtensionsCard.Row.action("Base64 Tools: Encode", 0)),
+                List.of(
+                        new ExtensionsCard.ExtensionInfo("lg3d.base64-tools",
+                                "Base64 Tools", "1.0.0", "Encoding", true),
+                        new ExtensionsCard.ExtensionInfo("lg3d.other",
+                                "Other", "1.0.0", "General", true)));
+
+        // Nothing selected: no permissions surface and toggling is a no-op.
+        card.selectExtension(-1);
+        assertTrue(card.selectedPermissions().isEmpty());
+        card.setPermissionOnSelected("TOOLBAR", true);
+        assertTrue(grants.isEmpty());
+
+        card.selectExtension(0);
+        assertEquals(3, card.selectedPermissions().size());
+        card.setPermissionOnSelected("TOOLBAR", true);
+        assertEquals(List.of("lg3d.base64-tools/TOOLBAR=true"), grants);
+
+        // An extension that declares nothing surfaces an empty list.
+        card.selectExtension(1);
+        assertTrue(card.selectedPermissions().isEmpty());
+    }
 }

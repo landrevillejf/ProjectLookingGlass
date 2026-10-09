@@ -27,6 +27,7 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -84,7 +85,31 @@ public final class ExtensionsCard extends JPanel {
         default void setAccelerator(int actionIndex, String spec) {
             // no-op default keeps third-party hosts source-compatible
         }
+
+        /**
+         * @param id an extension id
+         * @return the permissions that extension declares, each with whether the
+         *         user has granted it (empty when the id is unknown)
+         */
+        default List<PermissionInfo> permissionsFor(String id) {
+            return List.of();
+        }
+
+        /**
+         * Grants or revokes one permission on an extension; the host persists the
+         * change and refreshes the card. {@code name} is a
+         * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission} name.
+         */
+        default void setPermission(String id, String name, boolean granted) {
+            // no-op default keeps third-party hosts source-compatible
+        }
     }
+
+    /**
+     * One permission an extension declares, with the user's grant state, shown
+     * as a checkbox in the management column.
+     */
+    public record PermissionInfo(String name, boolean granted) { }
 
     /**
      * One installed extension shown in the management list. {@code enabled}
@@ -137,6 +162,7 @@ public final class ExtensionsCard extends JPanel {
     private final JLabel shortcutLabel = new JLabel("Shortcut: \u2014");
     private final JButton rebindButton = new JButton("Rebind\u2026");
     private final JButton clearShortcutButton = new JButton("Clear");
+    private final JPanel permissionPanel = new JPanel(new GridLayout(0, 1, 2, 2));
     /** True while the actions list is grabbing the next key for a rebound. */
     private boolean capturing;
 
@@ -195,6 +221,7 @@ public final class ExtensionsCard extends JPanel {
         extList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 refreshToggleButtons();
+                refreshPermissions();
             }
         });
         enableButton.addActionListener(e -> applyEnabled(true));
@@ -203,10 +230,17 @@ public final class ExtensionsCard extends JPanel {
         JPanel extButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         extButtons.add(enableButton);
         extButtons.add(disableButton);
+        JPanel south = new JPanel(new BorderLayout(0, 4));
+        south.add(extButtons, BorderLayout.NORTH);
+        JPanel permBox = new JPanel(new BorderLayout(0, 2));
+        permBox.add(new JLabel("Permissions (grant to enable a capability)"),
+                BorderLayout.NORTH);
+        permBox.add(new JScrollPane(permissionPanel), BorderLayout.CENTER);
+        south.add(permBox, BorderLayout.CENTER);
         JPanel extensions = new JPanel(new BorderLayout(4, 4));
         extensions.add(new JLabel("Installed Extensions"), BorderLayout.NORTH);
         extensions.add(new JScrollPane(extList), BorderLayout.CENTER);
-        extensions.add(extButtons, BorderLayout.SOUTH);
+        extensions.add(south, BorderLayout.SOUTH);
 
         JPanel actions = new JPanel(new BorderLayout(4, 4));
         actions.add(new JLabel("Extension Actions, grouped by category "
@@ -275,6 +309,10 @@ public final class ExtensionsCard extends JPanel {
 
     /** Replaces both views: the grouped action rows and the extension list. */
     public void show(List<Row> rows, List<ExtensionInfo> infos) {
+        // Preserve the current management selection across the rebuild so an
+        // enable/disable or permission toggle does not drop the user's place.
+        String keepId = (extList.getSelectedValue() != null)
+                ? extList.getSelectedValue().id() : null;
         loadRows(rows);
         extModel.clear();
         if (infos != null) {
@@ -282,9 +320,28 @@ public final class ExtensionsCard extends JPanel {
                 extModel.addElement(info);
             }
         }
-        extList.clearSelection();
-        enableButton.setEnabled(false);
-        disableButton.setEnabled(false);
+        int index = (keepId == null) ? -1 : indexOfExtension(infos, keepId);
+        if (index >= 0) {
+            extList.setSelectedIndex(index);
+        } else {
+            extList.clearSelection();
+            enableButton.setEnabled(false);
+            disableButton.setEnabled(false);
+        }
+        // Re-read the checkboxes even when the selection index is unchanged,
+        // so a permission/enable toggle is reflected immediately.
+        refreshPermissions();
+    }
+
+    private static int indexOfExtension(List<ExtensionInfo> infos, String id) {
+        if (infos != null) {
+            for (int i = 0; i < infos.size(); i++) {
+                if (infos.get(i).id().equals(id)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /** The number of runnable (non-header) action entries shown (test seam). */
@@ -322,6 +379,7 @@ public final class ExtensionsCard extends JPanel {
             extList.clearSelection();
         }
         refreshToggleButtons();
+        refreshPermissions();
     }
 
     /** Enables the selected extension (test seam mirroring the Enable button). */
@@ -339,6 +397,44 @@ public final class ExtensionsCard extends JPanel {
         if (selected != null) {
             host.setExtensionEnabled(selected.id(), enabled);
         }
+    }
+
+    /** Rebuilds the permission checkboxes for the selected extension. */
+    private void refreshPermissions() {
+        permissionPanel.removeAll();
+        ExtensionInfo sel = extList.getSelectedValue();
+        if (sel == null) {
+            permissionPanel.add(new JLabel("Select an extension"));
+        } else {
+            List<PermissionInfo> perms = host.permissionsFor(sel.id());
+            if (perms.isEmpty()) {
+                permissionPanel.add(new JLabel("No permissions declared"));
+            } else {
+                for (PermissionInfo p : perms) {
+                    JCheckBox box = new JCheckBox(p.name(), p.granted());
+                    final String id = sel.id();
+                    final String name = p.name();
+                    box.addActionListener(e -> host.setPermission(id, name, box.isSelected()));
+                    permissionPanel.add(box);
+                }
+            }
+        }
+        permissionPanel.revalidate();
+        permissionPanel.repaint();
+    }
+
+    /** Grants or revokes a permission on the selected extension (test seam). */
+    final void setPermissionOnSelected(String name, boolean granted) {
+        ExtensionInfo sel = extList.getSelectedValue();
+        if (sel != null) {
+            host.setPermission(sel.id(), name, granted);
+        }
+    }
+
+    /** The selected extension's declared permissions from the host (test seam). */
+    final List<PermissionInfo> selectedPermissions() {
+        ExtensionInfo sel = extList.getSelectedValue();
+        return (sel == null) ? List.of() : host.permissionsFor(sel.id());
     }
 
     private void refreshToggleButtons() {

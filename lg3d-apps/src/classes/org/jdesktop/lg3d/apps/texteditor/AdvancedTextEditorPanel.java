@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
@@ -43,6 +45,7 @@ import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
+import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 
 /**
  * The Advanced Text Editor: a production plain-text and source-code editor
@@ -1080,6 +1083,56 @@ public class AdvancedTextEditorPanel extends JPanel
         }
         persistSettings();
         refreshExtensionBindings();
+    }
+
+    @Override
+    public List<ExtensionsCard.PermissionInfo> permissionsFor(String id) {
+        List<ExtensionsCard.PermissionInfo> out = new ArrayList<>();
+        ExtensionRegistry.LoadedExtension le = findExtension(id);
+        if (le == null) {
+            return out;
+        }
+        Set<TextEditorPermission> granted = le.getGranted();
+        for (TextEditorPermission p : le.getManifest().getPermissions()) {
+            out.add(new ExtensionsCard.PermissionInfo(p.name(), granted.contains(p)));
+        }
+        return out;
+    }
+
+    @Override
+    public void setPermission(String id, String name, boolean granted) {
+        ExtensionRegistry.LoadedExtension le = findExtension(id);
+        if (le == null) {
+            return;
+        }
+        TextEditorPermission permission;
+        try {
+            permission = TextEditorPermission.valueOf(name);
+        } catch (RuntimeException rte) {
+            return; // unknown permission name
+        }
+        Set<TextEditorPermission> next = EnumSet.noneOf(TextEditorPermission.class);
+        next.addAll(le.getGranted());
+        if (granted) {
+            next.add(permission);
+        } else {
+            next.remove(permission);
+        }
+        extensionRegistry.grant(id, next);
+        // A TOOLBAR change alters the contributed actions, so re-load and re-bind.
+        refreshExtensionBindings();
+    }
+
+    private ExtensionRegistry.LoadedExtension findExtension(String id) {
+        if (id == null) {
+            return null;
+        }
+        for (ExtensionRegistry.LoadedExtension le : extensionRegistry.extensions()) {
+            if (le.getManifest().getId().equals(id)) {
+                return le;
+            }
+        }
+        return null;
     }
 
     /** Test seam: is the given accelerator spec currently bound to an extension action? */

@@ -24,6 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import javax.swing.text.BadLocationException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -37,6 +39,20 @@ import org.junit.jupiter.api.io.TempDir;
  * recents, extensions, status line) is driven through the real widget.
  */
 class AdvancedTextEditorPanelTest {
+
+    /** A throwaway config dir so enable/permission writes never touch ~/.lg3d. */
+    @TempDir
+    Path storeDir;
+
+    @BeforeEach
+    void isolateExtensionStore() {
+        System.setProperty(EditorStore.DIR_PROPERTY, storeDir.toString());
+    }
+
+    @AfterEach
+    void restoreExtensionStore() {
+        System.clearProperty(EditorStore.DIR_PROPERTY);
+    }
 
     private static AdvancedTextEditorPanel newPanel() {
         return new AdvancedTextEditorPanel(false);
@@ -126,6 +142,27 @@ class AdvancedTextEditorPanelTest {
         panel.setAccelerator(0, "");
         assertFalse(panel.isAcceleratorBound("control alt A"));
         assertEquals("", panel.getAccelerator(0));
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("revoking TOOLBAR hides an extension's actions; regranting restores them")
+    void permissionGrantControlsToolbar() {
+        AdvancedTextEditorPanel panel = newPanel();
+        int before = panel.extensionActionCount();
+        var perms = panel.permissionsFor("lg3d.base64-tools");
+        assertEquals(3, perms.size(), "READ, WRITE, TOOLBAR");
+        assertTrue(perms.stream().anyMatch(p -> p.name().equals("TOOLBAR") && p.granted()));
+
+        panel.setPermission("lg3d.base64-tools", "TOOLBAR", false);
+        assertEquals(before - 2, panel.extensionActionCount());
+        assertFalse(panel.isAcceleratorBound("control alt Q"));
+        assertTrue(panel.permissionsFor("lg3d.base64-tools").stream()
+                .anyMatch(p -> p.name().equals("TOOLBAR") && !p.granted()));
+
+        panel.setPermission("lg3d.base64-tools", "TOOLBAR", true);
+        assertEquals(before, panel.extensionActionCount());
+        assertTrue(panel.isAcceleratorBound("control alt Q"));
         panel.dispose();
     }
 
