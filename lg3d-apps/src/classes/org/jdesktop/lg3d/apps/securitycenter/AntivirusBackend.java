@@ -16,7 +16,10 @@ package org.jdesktop.lg3d.apps.securitycenter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The AWT-free antivirus seam. The desktop ships no virus engine of its own, so
@@ -121,13 +124,40 @@ public final class AntivirusBackend {
     public static List<String> scanCommand(String scanner, String target,
                                            boolean recursive, boolean quarantine,
                                            String quarantineDir) {
+        return scanCommand(scanner, target, recursive, quarantine, quarantineDir, true);
+    }
+
+    /**
+     * Builds the scan command line, choosing between a quiet and a streaming
+     * output mode. With {@code infectedOnly} set the {@code --infected} flag
+     * keeps the output to just the threats (the SCAN SUMMARY counters are still
+     * printed), so a large tree does not flood the caller with one {@code OK}
+     * line per file. Clearing it makes ClamAV print a line per file, which is
+     * what lets {@link SecurityCenterPanel} drive a determinate progress bar and
+     * a live "current file" read-out as it streams the output; the caller
+     * discards the {@code OK} lines rather than buffering them.
+     *
+     * @param scanner       the executable ({@code clamscan} or {@code clamdscan})
+     * @param target        the file or folder to scan
+     * @param recursive     true to walk directories ({@code --recursive})
+     * @param quarantine    true to move infected files aside
+     * @param quarantineDir the destination folder for {@code --move}
+     * @param infectedOnly  true to add {@code --infected} (quiet), false to emit
+     *                      a line per file (streaming progress)
+     * @return the argument list, never null; empty when a required input is blank
+     */
+    public static List<String> scanCommand(String scanner, String target,
+                                           boolean recursive, boolean quarantine,
+                                           String quarantineDir, boolean infectedOnly) {
         if (scanner == null || scanner.isBlank()
                 || target == null || target.isBlank()) {
             return List.of();
         }
         List<String> cmd = new ArrayList<>();
         cmd.add(scanner.trim());
-        cmd.add("--infected");
+        if (infectedOnly) {
+            cmd.add("--infected");
+        }
         if (recursive) {
             cmd.add("--recursive");
         }
@@ -179,90 +209,13 @@ public final class AntivirusBackend {
      * @return the parsed report, never null
      */
     public static ScanReport parseScanOutput(List<String> lines, int exitCode) {
-        List<Detection> detections = new ArrayList<>();
-        int scannedFiles = 0;
-        int scannedDirs = 0;
-        int infectedFiles = 0;
-        int summaryTotalErrors = 0;
-        int perFileErrors = 0;
-        int generalErrors = 0;
-        int okLines = 0;
-        long knownViruses = 0L;
-        String engineVersion = "";
-        String timeSummary = "";
-        String errorMessage = "";
-        boolean sawSummary = false;
-
+        ScanOutputParser parser = new ScanOutputParser();
         if (lines != null) {
-            for (String raw : lines) {
-                if (raw == null) {
-                    continue;
-                }
-                String line = raw.trim();
-                if (line.isEmpty()) {
-                    continue;
-                }
-                if (line.startsWith("LibClamAV")
-                        || line.startsWith("Loading:")
-                        || line.startsWith("Compiling:")) {
-                    continue;
-                }
-                if (line.contains(SCAN_SUMMARY_MARKER)) {
-                    sawSummary = true;
-                    continue;
-                }
-                if (line.startsWith("Start Date:") || line.startsWith("End Date:")) {
-                    continue;
-                }
-                if (line.startsWith("ERROR:")) {
-                    generalErrors++;
-                    if (errorMessage.isEmpty()) {
-                        errorMessage = line;
-                    }
-                    continue;
-                }
-                String summaryValue = summaryValue(line);
-                if (summaryValue != null) {
-                    String key = line.substring(0, line.indexOf(':')).trim();
-                    switch (key) {
-                        case "Scanned files" -> scannedFiles = parseInt(summaryValue, scannedFiles);
-                        case "Scanned directories" -> scannedDirs = parseInt(summaryValue, scannedDirs);
-                        case "Infected files" -> infectedFiles = parseInt(summaryValue, infectedFiles);
-                        case "Total errors" -> summaryTotalErrors = parseInt(summaryValue, summaryTotalErrors);
-                        case "Known viruses" -> knownViruses = parseLong(summaryValue, knownViruses);
-                        case "Engine version" -> engineVersion = summaryValue;
-                        case "Time" -> timeSummary = summaryValue;
-                        default -> {
-                            // Data scanned / Data read: informational, not tracked.
-                        }
-                    }
-                    continue;
-                }
-                // Per-file status line.
-                if (line.endsWith(" FOUND")) {
-                    String body = line.substring(0, line.length() - " FOUND".length());
-                    int idx = body.lastIndexOf(": ");
-                    String path = (idx >= 0) ? body.substring(0, idx) : body;
-                    String threat = (idx >= 0) ? body.substring(idx + 2) : "";
-                    detections.add(Detection.infected(path, threat));
-                } else if (line.endsWith(" ERROR")) {
-                    String body = line.substring(0, line.length() - " ERROR".length());
-                    int idx = body.lastIndexOf(": ");
-                    String path = (idx >= 0) ? body.substring(0, idx) : body;
-                    String reason = (idx >= 0) ? body.substring(idx + 2) : "";
-                    detections.add(Detection.error(path, reason));
-                    perFileErrors++;
-                } else if (line.endsWith(" OK")) {
-                    okLines++;
-                }
+            for (String line : lines) {
+                parser.feed(line);
             }
         }
-
-        int fileLinesSeen = okLines + perFileErrors + countInfected(detections);
-        int totalErrors = Math.max(summaryTotalErrors, perFileErrors + generalErrors);
-        return new ScanReport(detections, scannedFiles, scannedDirs, infectedFiles,
-                totalErrors, knownViruses, engineVersion, timeSummary, sawSummary,
-                fileLinesSeen, exitCode, errorMessage);
+        return parser.toReport(exitCode);
     }
 
     /**
@@ -406,5 +359,220 @@ public final class AntivirusBackend {
             }
         }
         return sb.toString();
+    }
+
+    // ------------------------------------------------------------------
+    // Progress parsers (pure)
+    // ------------------------------------------------------------------
+
+    /** Matches an {@code a/b} count pair, each side optionally K/M/G-suffixed. */
+    private static final Pattern RATIO = Pattern.compile(
+            "(\\d+(?:\\.\\d+)?)\\s*([KMG]?)\\s*/\\s*(\\d+(?:\\.\\d+)?)\\s*([KMG]?)");
+
+    /**
+     * Parses a whole-file download percentage out of a {@code freshclam} line
+     * such as {@code Downloading daily.cvd [ 45%]}. Returns empty when the line
+     * carries no {@code NN%} token, so the caller can leave the bar
+     * indeterminate rather than inventing progress.
+     *
+     * @param line one freshclam output line (may be null)
+     * @return the percentage clamped to 0..100, or empty when there is none
+     */
+    public static OptionalInt parseFreshclamProgress(String line) {
+        if (line == null) {
+            return OptionalInt.empty();
+        }
+        int pct = line.indexOf('%');
+        if (pct <= 0) {
+            return OptionalInt.empty();
+        }
+        int i = pct - 1;
+        while (i >= 0 && Character.isDigit(line.charAt(i))) {
+            i--;
+        }
+        String digits = line.substring(i + 1, pct);
+        if (digits.isEmpty()) {
+            return OptionalInt.empty();
+        }
+        try {
+            return OptionalInt.of(Math.max(0, Math.min(100, Integer.parseInt(digits))));
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
+    }
+
+    /**
+     * Parses a percentage out of a {@code clamscan} database-load line such as
+     * {@code Loading: 3s, ETA: 0s [===>  ] 4.10M/8.68M sigs} (or the matching
+     * {@code Compiling:} line), computed from the {@code a/b} count ratio. Only
+     * the load/compile phase is recognised; anything else yields empty so the
+     * caller keeps the bar indeterminate.
+     *
+     * @param line one clamscan output line (may be null)
+     * @return the percentage clamped to 0..100, or empty when not a load line
+     */
+    public static OptionalInt parseLoadProgress(String line) {
+        if (line == null
+                || !(line.startsWith("Loading:") || line.startsWith("Compiling:"))) {
+            return OptionalInt.empty();
+        }
+        Matcher m = RATIO.matcher(line);
+        if (!m.find()) {
+            return OptionalInt.empty();
+        }
+        double a = scaled(m.group(1), m.group(2));
+        double b = scaled(m.group(3), m.group(4));
+        if (b <= 0) {
+            return OptionalInt.empty();
+        }
+        int pct = (int) Math.round(a / b * 100.0);
+        return OptionalInt.of(Math.max(0, Math.min(100, pct)));
+    }
+
+    /** Applies a K/M/G scale {@code suffix} to a parsed {@code number}. */
+    private static double scaled(String number, String suffix) {
+        double v;
+        try {
+            v = Double.parseDouble(number);
+        } catch (NumberFormatException e) {
+            return 0d;
+        }
+        switch (suffix == null ? "" : suffix) {
+            case "K" -> v *= 1_000d;
+            case "M" -> v *= 1_000_000d;
+            case "G" -> v *= 1_000_000_000d;
+            default -> {
+                // no scale
+            }
+        }
+        return v;
+    }
+
+    /**
+     * An incremental, one-line-at-a-time ClamAV output parser: the streaming
+     * twin of {@link AntivirusBackend#parseScanOutput}. {@link SecurityCenterPanel}
+     * feeds it each line as the scanner prints it, so it can drive a live
+     * progress bar (files seen, threats so far, the current file) without
+     * buffering the whole run, then calls {@link #toReport(int)} once the
+     * process exits to get exactly the {@link ScanReport} the batch parser would
+     * have produced from the same lines.
+     */
+    public static final class ScanOutputParser {
+
+        private final List<Detection> detections = new ArrayList<>();
+        private int scannedFiles;
+        private int scannedDirs;
+        private int infectedFiles;
+        private int summaryTotalErrors;
+        private int perFileErrors;
+        private int generalErrors;
+        private int okLines;
+        private long knownViruses;
+        private String engineVersion = "";
+        private String timeSummary = "";
+        private String errorMessage = "";
+        private boolean sawSummary;
+        private String currentFile = "";
+
+        /**
+         * Feeds one raw output line. Null / blank lines, the {@code LibClamAV}
+         * banner and the {@code Loading:}/{@code Compiling:} progress lines are
+         * ignored, exactly as the batch parser ignores them.
+         *
+         * @param raw one line of merged scanner output (may be null)
+         */
+        public void feed(String raw) {
+            if (raw == null) {
+                return;
+            }
+            String line = raw.trim();
+            if (line.isEmpty()
+                    || line.startsWith("LibClamAV")
+                    || line.startsWith("Loading:")
+                    || line.startsWith("Compiling:")) {
+                return;
+            }
+            if (line.contains(SCAN_SUMMARY_MARKER)) {
+                sawSummary = true;
+                return;
+            }
+            if (line.startsWith("Start Date:") || line.startsWith("End Date:")) {
+                return;
+            }
+            if (line.startsWith("ERROR:")) {
+                generalErrors++;
+                if (errorMessage.isEmpty()) {
+                    errorMessage = line;
+                }
+                return;
+            }
+            String summaryValue = summaryValue(line);
+            if (summaryValue != null) {
+                String key = line.substring(0, line.indexOf(':')).trim();
+                switch (key) {
+                    case "Scanned files" -> scannedFiles = parseInt(summaryValue, scannedFiles);
+                    case "Scanned directories" -> scannedDirs = parseInt(summaryValue, scannedDirs);
+                    case "Infected files" -> infectedFiles = parseInt(summaryValue, infectedFiles);
+                    case "Total errors" -> summaryTotalErrors = parseInt(summaryValue, summaryTotalErrors);
+                    case "Known viruses" -> knownViruses = parseLong(summaryValue, knownViruses);
+                    case "Engine version" -> engineVersion = summaryValue;
+                    case "Time" -> timeSummary = summaryValue;
+                    default -> {
+                        // Data scanned / Data read: informational, not tracked.
+                    }
+                }
+                return;
+            }
+            // Per-file status line.
+            if (line.endsWith(" FOUND")) {
+                String body = line.substring(0, line.length() - " FOUND".length());
+                int idx = body.lastIndexOf(": ");
+                String path = (idx >= 0) ? body.substring(0, idx) : body;
+                String threat = (idx >= 0) ? body.substring(idx + 2) : "";
+                detections.add(Detection.infected(path, threat));
+                currentFile = path;
+            } else if (line.endsWith(" ERROR")) {
+                String body = line.substring(0, line.length() - " ERROR".length());
+                int idx = body.lastIndexOf(": ");
+                String path = (idx >= 0) ? body.substring(0, idx) : body;
+                String reason = (idx >= 0) ? body.substring(idx + 2) : "";
+                detections.add(Detection.error(path, reason));
+                perFileErrors++;
+                currentFile = path;
+            } else if (line.endsWith(" OK")) {
+                okLines++;
+                int idx = line.lastIndexOf(": OK");
+                currentFile = (idx >= 0) ? line.substring(0, idx) : line;
+            }
+        }
+
+        /**
+         * Builds the report from everything fed so far.
+         *
+         * @param exitCode the scanner process exit code
+         * @return the parsed report, never null
+         */
+        public ScanReport toReport(int exitCode) {
+            int fileLinesSeen = okLines + perFileErrors + countInfected(detections);
+            int totalErrors = Math.max(summaryTotalErrors, perFileErrors + generalErrors);
+            return new ScanReport(detections, scannedFiles, scannedDirs, infectedFiles,
+                    totalErrors, knownViruses, engineVersion, timeSummary, sawSummary,
+                    fileLinesSeen, exitCode, errorMessage);
+        }
+
+        /** Per-file status lines seen so far (OK + FOUND + ERROR). */
+        public int filesSeen() {
+            return okLines + perFileErrors + countInfected(detections);
+        }
+
+        /** Infected detections seen so far - the live threat counter. */
+        public int infectedSoFar() {
+            return countInfected(detections);
+        }
+
+        /** The most recent file the scanner reported on ("" before the first). */
+        public String currentFile() {
+            return currentFile;
+        }
     }
 }

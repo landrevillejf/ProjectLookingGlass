@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Security Center: live scan / definition-update progress** (`lg3d-apps`) — the
+  Antivirus tab now shows a real progress bar and live monitoring instead of a
+  static "Scanning…" label. Scans stream ClamAV's output line by line (a new
+  incremental `AntivirusBackend.ScanOutputParser`, the streaming twin of
+  `parseScanOutput`) through a non-buffering `execStreaming`, so the panel can
+  pre-count the target's files (`countFiles`) and drive a **determinate** bar
+  (`files scanned / total (%)`) plus a live status line (current file, threats
+  found so far, elapsed time); the `clamscan` database-load phase
+  (`Loading:`/`Compiling:` ratios) and any target whose file count is unknown
+  degrade honestly to a pulsing bar. **Update Definitions** elevates `freshclam`
+  through polkit (`pkexec` via `PrivilegedRunner`) - `/etc/freshclam.conf` and the
+  virus database are root-owned, so an unprivileged update could never succeed -
+  streams its output and tracks its download percentage; a dismissed
+  authorization prompt is reported as a cancellation, and hosts without polkit
+  fall back to a plain run. `ProcessRunner`/`PrivilegedRunner` (`lg3d-core`)
+  gained an optional per-stdout-line sink so the bar stays live under `pkexec`.
+  EDT repaints are throttled to ~10/s (a
+  newly-found threat always pushes immediately). The scan now runs ClamAV without
+  `--infected` so a line per file is available for progress; the findings list
+  still shows only detections, and the pure parsers/command builders are
+  headless-tested.
 - **Encrypted peer-to-peer (P2P) transport for the Instant Messenger and Video
   Conference** (`lg3d-apps`) — a new reusable, dependency-free, pure-JDK encrypted
   P2P transport (`org.jdesktop.lg3d.apps.p2p`) lets both apps talk to a peer
@@ -265,6 +286,14 @@ work to make it build and run on a current toolchain.
   Swing-frame app in `Desktop2DAppRegistry` — only the menu entries are removed.
 
 ### Fixed
+- **P2P transport: a peer whose link dies during registration no longer leaks**
+  (`lg3d-apps`) — when the remote socket closed between the Noise handshake and
+  the peer-map registration, `onClosed` fired before `byChannel.put` and reaped
+  nothing, so the dead peer stayed in the mesh forever (surfaced in CI as a
+  flaky failure of `P2pNodeTest`'s trust-rejection test). `registerChannel` now
+  re-checks `isOpen()` after registering and reaps the channel there; a
+  deterministic regression test stalls the adoption inside the peer verifier so
+  the teardown lands in exactly that window.
 - **Maximized hosted Swing windows: the 3D cursor clicked the wrong control**
   (`lg3d-core`) — maximizing a `SwingNode`-hosted window (Control Center, Task
   Manager, …) resizes the panel natively via `SwingNode.setHostedSize` but left

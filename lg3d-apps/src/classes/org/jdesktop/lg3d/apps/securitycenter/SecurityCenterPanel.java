@@ -24,9 +24,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListModel;
@@ -37,6 +43,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
@@ -47,6 +54,7 @@ import org.jdesktop.lg3d.apps.vpn.VpnProfile;
 import org.jdesktop.lg3d.apps.vpn.VpnStatus;
 import org.jdesktop.lg3d.apps.vpn.VpnStore;
 import org.jdesktop.lg3d.utils.system.NetworkCut;
+import org.jdesktop.lg3d.utils.system.PrivilegedRunner;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
 import org.jdesktop.lg3d.utils.system.SecurityPosture;
 import org.jdesktop.lg3d.utils.system.SecurityService;
@@ -110,6 +118,9 @@ public class SecurityCenterPanel extends JPanel {
     private final JButton updateBtn = new JButton("Update Definitions");
     private final JLabel summaryLabel = new JLabel("No scan run yet.");
 
+    /** Live scan / definition-update progress bar (determinate or pulsing). */
+    private final JProgressBar progress = new JProgressBar();
+
     // Overview tab
     private final JLabel ratingLabel = new JLabel("Security status: not checked yet");
     private final JLabel scoreLabel = new JLabel("Security score: not checked yet");
@@ -135,6 +146,17 @@ public class SecurityCenterPanel extends JPanel {
     private volatile boolean clamdFailed;
     private volatile Process scanProcess;
     private volatile String statusMessage = "Ready";
+
+    // Progress-bar state. Mirrored in plain volatile fields (set synchronously)
+    // so a headless test can read them back deterministically even though the
+    // JProgressBar itself is only ever repainted on the EDT.
+    private volatile int progressValue;
+    private volatile int progressMax = 100;
+    private volatile boolean progressIndeterminate;
+    private volatile String progressText = "";
+    private volatile long lastProgressPush;
+    private int lastThreatCount;
+
     private long scanStartMillis;
     private SecuritySnapshot snapshot;
     private SecurityScore.Result lastScore;
@@ -260,6 +282,13 @@ public class SecurityCenterPanel extends JPanel {
         actions.add(scanBtn);
         actions.add(stopBtn);
         panel.add(actions);
+
+        progress.setStringPainted(true);
+        progress.setBorder(BorderFactory.createEmptyBorder(4, 6, 2, 6));
+        progress.setPreferredSize(new Dimension(100, 22));
+        progress.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+        progress.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(progress);
 
         summaryLabel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
         summaryLabel.setFont(summaryLabel.getFont().deriveFont(java.awt.Font.BOLD, 14f));
@@ -471,7 +500,7 @@ public class SecurityCenterPanel extends JPanel {
         String quarantineDir = quarantine
                 ? store.resolveQuarantineDir(settings).toString() : "";
         List<String> command = AntivirusBackend.scanCommand(
-                scanner.get(), target, recursive, quarantine, quarantineDir);
+                scanner.get(), target, recursive, quarantine, quarantineDir, false);
         if (command.isEmpty()) {
             setStatus("Nothing to scan - choose a valid target.");
             return;
@@ -479,10 +508,12 @@ public class SecurityCenterPanel extends JPanel {
         cancelled = false;
         scanning = true;
         scanStartMillis = System.currentTimeMillis();
+        lastThreatCount = 0;
         findingsModel.clear();
         summaryLabel.setText("Scanning...");
         updateButtons();
         setStatus("Scanning " + ScanRecord.shorten(target) + " with " + scanner.get() + " ...");
+        setProgressIndeterminate("Preparing scan...");
 
         final String scannerName = scanner.get();
         final boolean updateFirst = settings.isUpdateBeforeScan();
@@ -497,12 +528,16 @@ public class SecurityCenterPanel extends JPanel {
                          boolean updateFirst) {
         String usedScanner = scannerName;
         if (updateFirst) {
-            ProcessResult update = exec(AntivirusBackend.updateCommand(), false);
-            final String message = AntivirusBackend.describeUpdate(update.lines, update.exitCode);
+            final String message = runDefinitionUpdate();
             SwingUtilities.invokeLater(() -> setStatus(message));
         }
-        ProcessResult result = exec(command, true);
-        ScanReport report = AntivirusBackend.parseScanOutput(result.lines, result.exitCode);
+        // Pre-count the files so the scan bar can be determinate; -1 means the
+        // count is unknown (missing target / I/O error) and the bar pulses.
+        final long total = countFiles(Paths.get(target), recursive);
+        AntivirusBackend.ScanOutputParser parser = new AntivirusBackend.ScanOutputParser();
+        lastProgressPush = 0L;
+        ProcessOutcome outcome = execStreaming(command, true, scanSink(parser, total));
+        ScanReport report = parser.toReport(outcome.exitCode);
 
         // clamdscan talks to the clamd daemon; if that daemon is stopped the scan
         // never really runs, so fall back to the always-available standalone
@@ -511,15 +546,17 @@ public class SecurityCenterPanel extends JPanel {
                 && "clamdscan".equals(usedScanner) && onPath("clamscan")) {
             clamdFailed = true;
             List<String> fallback = AntivirusBackend.scanCommand(
-                    "clamscan", target, recursive, quarantine, quarantineDir);
-            ProcessResult retry = exec(fallback, true);
-            report = AntivirusBackend.parseScanOutput(retry.lines, retry.exitCode);
+                    "clamscan", target, recursive, quarantine, quarantineDir, false);
+            AntivirusBackend.ScanOutputParser retry = new AntivirusBackend.ScanOutputParser();
+            ProcessOutcome retryOutcome = execStreaming(fallback, true, scanSink(retry, total));
+            report = retry.toReport(retryOutcome.exitCode);
             usedScanner = "clamscan";
         }
 
         if (cancelled) {
             SwingUtilities.invokeLater(() -> {
                 scanning = false;
+                clearProgress();
                 updateButtons();
                 setStatus("Scan stopped.");
             });
@@ -530,6 +567,70 @@ public class SecurityCenterPanel extends JPanel {
         final String finalScanner = usedScanner;
         SwingUtilities.invokeLater(
                 () -> applyReport(finalReport, duration, target, finalScanner));
+    }
+
+    /**
+     * Builds the per-line sink for one streaming scan: it feeds the incremental
+     * parser and, while the database is still loading (no file lines yet), turns
+     * the {@code Loading:}/{@code Compiling:} ratio into a determinate bar; once
+     * files start it drives the file-count progress instead.
+     */
+    private Consumer<String> scanSink(AntivirusBackend.ScanOutputParser parser, long total) {
+        return line -> {
+            OptionalInt load = AntivirusBackend.parseLoadProgress(line);
+            if (load.isPresent() && parser.filesSeen() == 0) {
+                int pct = load.getAsInt();
+                setProgressValue(pct, 100, "Loading virus database... " + pct + "%");
+                return;
+            }
+            parser.feed(line);
+            pushScanProgress(parser, total);
+        };
+    }
+
+    /**
+     * Pushes one throttled progress tick for a streaming scan. ClamAV can emit
+     * thousands of lines a second, so the EDT is updated at most ~10x/s - but a
+     * newly-found threat is always pushed immediately so the user sees it.
+     */
+    private void pushScanProgress(AntivirusBackend.ScanOutputParser parser, long total) {
+        int threats = parser.infectedSoFar();
+        long now = System.currentTimeMillis();
+        if (threats == lastThreatCount && now - lastProgressPush < 100L) {
+            return;
+        }
+        lastProgressPush = now;
+        lastThreatCount = threats;
+        updateScanProgress(parser.filesSeen(), total, threats, parser.currentFile());
+    }
+
+    /**
+     * Renders one scan-progress tick: a determinate bar when the total file count
+     * is known, a pulsing one otherwise, plus a live status line (files scanned,
+     * threats, elapsed time and the current file). Package-visible so a headless
+     * test can drive both bar modes without spawning a scanner.
+     *
+     * @param seen        files scanned so far
+     * @param total       total files to scan, or {@code <= 0} when unknown
+     * @param threats     infected files found so far
+     * @param currentFile the file the scanner is on (may be null/blank)
+     */
+    void updateScanProgress(long seen, long total, int threats, String currentFile) {
+        String elapsed = describe(System.currentTimeMillis() - scanStartMillis);
+        String detail = (currentFile == null || currentFile.isBlank())
+                ? "" : ScanRecord.shorten(currentFile);
+        String suffix = (threats > 0 ? "  -  " + threats + " threat(s)" : "")
+                + "  -  " + elapsed
+                + (detail.isBlank() ? "" : "  -  " + detail);
+        if (total > 0) {
+            int pct = (int) Math.min(100L, Math.round(seen * 100.0 / total));
+            String bar = String.format("Scanning %,d/%,d (%d%%)", seen, total, pct);
+            setProgressValue(seen, total, bar);
+            setStatus(bar + suffix);
+        } else {
+            setProgressIndeterminate("Scanning...");
+            setStatus(String.format("Scanning %,d file(s)", seen) + suffix);
+        }
     }
 
     /**
@@ -545,6 +646,7 @@ public class SecurityCenterPanel extends JPanel {
     void applyReport(ScanReport report, long durationMillis, String target, String scanner) {
         scanning = false;
         updateButtons();
+        clearProgress();
         findingsModel.clear();
         if (report != null) {
             for (Detection d : report.detections()) {
@@ -608,12 +710,13 @@ public class SecurityCenterPanel extends JPanel {
         }
         updating = true;
         updateButtons();
-        setStatus("Updating virus definitions (freshclam)...");
+        setStatus("Updating virus definitions (administrator confirmation may be required)...");
+        setProgressIndeterminate("Updating definitions...");
         Thread thread = new Thread(() -> {
-            ProcessResult result = exec(AntivirusBackend.updateCommand(), true);
-            String message = AntivirusBackend.describeUpdate(result.lines, result.exitCode);
+            String message = runDefinitionUpdate();
             SwingUtilities.invokeLater(() -> {
                 updating = false;
+                clearProgress();
                 updateButtons();
                 setStatus(message);
                 logEvent(AuditEvent.CATEGORY_DEFINITIONS, "Definition update: " + message);
@@ -621,6 +724,47 @@ public class SecurityCenterPanel extends JPanel {
         }, "lg3d-av-update");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Runs {@code freshclam} on a worker thread, streaming its output so the
+     * progress bar tracks the download percentage as it arrives, and returns the
+     * honest one-line outcome from {@link AntivirusBackend#describeUpdate}. Shared
+     * by the Update Definitions button and the scan's "update first" option.
+     *
+     * <p>Refreshing the system virus database reads the root-only
+     * {@code /etc/freshclam.conf} and writes {@code /var/lib/clamav}, so it is an
+     * administrative operation: when polkit is installed the command is elevated
+     * through {@link PrivilegedRunner} (the authentication prompt is part of the
+     * honest flow), and only systems without {@code pkexec} fall back to a plain
+     * unprivileged run. A dismissed prompt is reported as a cancellation, never
+     * as a silent failure.</p>
+     *
+     * @return a short human-readable result, never null
+     */
+    private String runDefinitionUpdate() {
+        List<String> lines = new ArrayList<>();
+        Consumer<String> sink = line -> {
+            lines.add(line);
+            OptionalInt pct = AntivirusBackend.parseFreshclamProgress(line);
+            if (pct.isPresent()) {
+                setProgressValue(pct.getAsInt(), 100,
+                        "Updating definitions... " + pct.getAsInt() + "%");
+            }
+        };
+        if (PrivilegedRunner.isAvailable()) {
+            PrivilegedRunner.PrivilegedResult r =
+                    PrivilegedRunner.run(AntivirusBackend.updateCommand(), sink);
+            if (r.getStatus() == PrivilegedRunner.Status.CANCELLED) {
+                return "Definition update cancelled (authorization dismissed).";
+            }
+            if (r.getStatus() != PrivilegedRunner.Status.UNAVAILABLE) {
+                return AntivirusBackend.describeUpdate(lines, r.getExitCode());
+            }
+            // No pkexec after all: fall through to the unprivileged attempt.
+        }
+        ProcessOutcome outcome = execStreaming(AntivirusBackend.updateCommand(), false, sink);
+        return AntivirusBackend.describeUpdate(lines, outcome.exitCode);
     }
 
     // ------------------------------------------------------------------
@@ -987,6 +1131,72 @@ public class SecurityCenterPanel extends JPanel {
         String ioMessage = "";
     }
 
+    /**
+     * Runs a command, handing each output line to {@code sink} as it arrives (on
+     * the calling worker thread) instead of buffering the whole run. This is what
+     * lets the scan and the definition update show live progress; the sink owns
+     * any EDT hop. A missing executable surfaces as {@link ProcessOutcome#ioError}
+     * and it never throws.
+     *
+     * @param command      the argument list (null / empty is an ioError)
+     * @param trackForStop true to expose the process to {@link #stopScan()}
+     * @param sink         receives each line as it is read (may be null)
+     * @return the exit status, never null
+     */
+    private ProcessOutcome execStreaming(List<String> command, boolean trackForStop,
+                                         Consumer<String> sink) {
+        ProcessOutcome result = new ProcessOutcome();
+        if (command == null || command.isEmpty()) {
+            result.ioError = true;
+            result.ioMessage = "empty command";
+            return result;
+        }
+        Process process = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+            process = pb.start();
+            if (trackForStop) {
+                scanProcess = process;
+            }
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (sink != null) {
+                        sink.accept(line);
+                    }
+                }
+            }
+            result.exitCode = process.waitFor();
+        } catch (IOException e) {
+            result.ioError = true;
+            result.ioMessage = (e.getMessage() == null) ? e.toString() : e.getMessage();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            result.ioError = true;
+            result.ioMessage = "interrupted";
+            if (process != null) {
+                process.destroy();
+            }
+        } catch (RuntimeException e) {
+            result.ioError = true;
+            result.ioMessage = (e.getMessage() == null) ? e.toString() : e.getMessage();
+        } finally {
+            if (trackForStop) {
+                scanProcess = null;
+            }
+        }
+        return result;
+    }
+
+    /** The exit status of a streamed command (its output is not buffered). */
+    private static final class ProcessOutcome {
+        int exitCode;
+        boolean ioError;
+        String ioMessage = "";
+    }
+
     /** True when {@code exe} is found on the PATH. */
     private static boolean onPath(String exe) {
         String path = System.getenv("PATH");
@@ -999,6 +1209,39 @@ public class SecurityCenterPanel extends JPanel {
             }
         }
         return false;
+    }
+
+    /**
+     * Counts the regular files under {@code target} so the scan bar can be
+     * determinate: a single file counts as one, a folder is walked recursively or
+     * one level deep to match the scan. Returns {@code -1} when the count is
+     * unknown (missing target, I/O error or a security denial), so the caller
+     * falls back to a pulsing bar rather than a wrong percentage. Package-visible
+     * for headless tests.
+     *
+     * @param target    the scan target (may be null)
+     * @param recursive true to walk subfolders
+     * @return the file count, or {@code -1} when it cannot be determined
+     */
+    static long countFiles(Path target, boolean recursive) {
+        if (target == null) {
+            return -1L;
+        }
+        try {
+            if (Files.isRegularFile(target)) {
+                return 1L;
+            }
+            if (!Files.isDirectory(target)) {
+                return -1L;
+            }
+            try (Stream<Path> walk = recursive
+                    ? Files.walk(target)
+                    : Files.list(target)) {
+                return walk.filter(Files::isRegularFile).count();
+            }
+        } catch (IOException | RuntimeException e) {
+            return -1L;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1084,6 +1327,70 @@ public class SecurityCenterPanel extends JPanel {
         } else {
             SwingUtilities.invokeLater(() -> statusLabel.setText(message));
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Progress bar
+    // ------------------------------------------------------------------
+
+    /**
+     * Shows a pulsing (indeterminate) bar with a short stage label, used while
+     * the file total is still unknown or a stage has no measurable percentage.
+     */
+    private void setProgressIndeterminate(String text) {
+        progressIndeterminate = true;
+        progressValue = 0;
+        progressText = (text == null) ? "" : text;
+        applyProgress();
+    }
+
+    /**
+     * Shows a determinate bar at {@code done}/{@code total} with a short label.
+     * A non-positive {@code total} degrades to a 0/100 bar so the widget never
+     * divides by zero.
+     */
+    private void setProgressValue(long done, long total, String text) {
+        progressIndeterminate = false;
+        progressMax = (total <= 0) ? 100 : (int) Math.min(total, Integer.MAX_VALUE);
+        progressValue = (total <= 0) ? 0
+                : (int) Math.min(Math.max(done, 0L), progressMax);
+        progressText = (text == null) ? "" : text;
+        applyProgress();
+    }
+
+    /** Returns the bar to its idle state (empty, determinate, zero). */
+    private void clearProgress() {
+        progressIndeterminate = false;
+        progressMax = 100;
+        progressValue = 0;
+        progressText = "";
+        applyProgress();
+    }
+
+    /**
+     * Mirrors the volatile progress fields onto the widgets. The fields are set
+     * synchronously by the callers above (so a headless test reads them back
+     * deterministically); the JProgressBar repaint still hops to the EDT.
+     */
+    private void applyProgress() {
+        final boolean indet = progressIndeterminate;
+        final int max = progressMax;
+        final int value = progressValue;
+        final String text = progressText;
+        if (SwingUtilities.isEventDispatchThread()) {
+            paintProgress(indet, max, value, text);
+        } else {
+            SwingUtilities.invokeLater(() -> paintProgress(indet, max, value, text));
+        }
+    }
+
+    private void paintProgress(boolean indet, int max, int value, String text) {
+        progress.setIndeterminate(indet);
+        if (!indet) {
+            progress.setMaximum(max);
+            progress.setValue(value);
+        }
+        progress.setString(text);
     }
 
     /** Wires the panel's Close button (used by both desktop hosts). */
@@ -1203,5 +1510,25 @@ public class SecurityCenterPanel extends JPanel {
     /** An unmodifiable view of the activity trail, oldest first. */
     List<AuditEvent> audit() {
         return List.copyOf(audit);
+    }
+
+    /** The progress bar's current value (0 while idle or indeterminate). */
+    int progressValue() {
+        return progressValue;
+    }
+
+    /** The progress bar's maximum (100 while idle or indeterminate). */
+    int progressMax() {
+        return progressMax;
+    }
+
+    /** True while the progress bar is indeterminate (pulsing). */
+    boolean progressIndeterminate() {
+        return progressIndeterminate;
+    }
+
+    /** The progress bar's painted text (empty while idle). */
+    String progressText() {
+        return progressText;
     }
 }

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -228,5 +229,77 @@ class AntivirusBackendTest {
                 "ERROR: Can't create new /var/lib/clamav/daily.cvd"), 1);
         assertTrue(failed.contains("Could not update"), failed);
         assertTrue(failed.contains("administrator"), failed);
+    }
+
+    @Test
+    @DisplayName("scanCommand drops --infected only in the streaming mode")
+    void scanCommandStreaming() {
+        assertTrue(AntivirusBackend.scanCommand("clamscan", "/home/me", true, false, "", true)
+                .contains("--infected"));
+        List<String> streaming =
+                AntivirusBackend.scanCommand("clamscan", "/home/me", true, false, "", false);
+        assertFalse(streaming.contains("--infected"),
+                "streaming mode emits a line per file so progress can be tracked");
+        assertTrue(streaming.contains("--recursive"));
+        assertEquals("clamscan", streaming.get(0));
+        assertEquals("/home/me", streaming.get(streaming.size() - 1));
+        assertTrue(AntivirusBackend.scanCommand("clamscan", "  ", true, false, "", false).isEmpty());
+        assertEquals(AntivirusBackend.scanCommand("clamscan", "/x", true, false, ""),
+                AntivirusBackend.scanCommand("clamscan", "/x", true, false, "", true),
+                "the 5-arg form stays the quiet, --infected default");
+    }
+
+    @Test
+    @DisplayName("ScanOutputParser fed line-by-line matches the batch parse and tracks progress")
+    void streamingParser() {
+        AntivirusBackend.ScanOutputParser p = new AntivirusBackend.ScanOutputParser();
+        assertEquals(0, p.filesSeen());
+        assertEquals(0, p.infectedSoFar());
+        assertEquals("", p.currentFile());
+        for (String line : CLEAN) {
+            p.feed(line);
+        }
+        assertEquals(1, p.filesSeen(), "the single OK line is counted live");
+        assertEquals(0, p.infectedSoFar());
+        assertEquals("/tmp/sc-clean/a.txt", p.currentFile());
+        assertEquals(AntivirusBackend.parseScanOutput(CLEAN, 0), p.toReport(0),
+                "streaming and batch parses agree");
+
+        // Null / blank lines are ignored; a threat moves the live counters.
+        AntivirusBackend.ScanOutputParser q = new AntivirusBackend.ScanOutputParser();
+        q.feed(null);
+        q.feed("   ");
+        q.feed("/tmp/eicar.txt: Win.Test.EICAR_HDB-1 FOUND");
+        assertEquals(1, q.filesSeen());
+        assertEquals(1, q.infectedSoFar());
+        assertEquals("/tmp/eicar.txt", q.currentFile());
+        assertTrue(q.toReport(1).hasThreats());
+    }
+
+    @Test
+    @DisplayName("parseFreshclamProgress reads a download percentage, else empty")
+    void freshclamProgress() {
+        assertEquals(45,
+                AntivirusBackend.parseFreshclamProgress("Downloading daily.cvd [ 45%]").getAsInt());
+        assertEquals(100,
+                AntivirusBackend.parseFreshclamProgress("Downloading main.cvd [100%]").getAsInt());
+        assertEquals(0, AntivirusBackend.parseFreshclamProgress("[  0%]").getAsInt());
+        assertTrue(AntivirusBackend.parseFreshclamProgress("daily.cvd database is up-to-date").isEmpty());
+        assertTrue(AntivirusBackend.parseFreshclamProgress("no digits %").isEmpty());
+        assertTrue(AntivirusBackend.parseFreshclamProgress(null).isEmpty());
+        assertEquals(OptionalInt.empty(), AntivirusBackend.parseFreshclamProgress(""));
+    }
+
+    @Test
+    @DisplayName("parseLoadProgress reads the clamscan database-load ratio, else empty")
+    void loadProgress() {
+        assertEquals(47, AntivirusBackend.parseLoadProgress(
+                "Loading:   3s, ETA:   8s [========>       ]    4.10M/8.68M sigs").getAsInt());
+        assertEquals(100, AntivirusBackend.parseLoadProgress(
+                "Compiling:   3s, ETA:   0s [========================>]       41/41 tasks").getAsInt());
+        assertTrue(AntivirusBackend.parseLoadProgress("/tmp/a.txt: OK").isEmpty(),
+                "a per-file line is not a load line");
+        assertTrue(AntivirusBackend.parseLoadProgress("Loading: waiting").isEmpty());
+        assertTrue(AntivirusBackend.parseLoadProgress(null).isEmpty());
     }
 }

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.jdesktop.lg3d.utils.system.SecurityPosture;
@@ -279,6 +280,64 @@ class SecurityCenterPanelTest {
         assertEquals(logged, second.auditSize(), "the trail is reloaded from disk");
         assertEquals(AuditEvent.CATEGORY_POSTURE,
                 second.audit().get(second.audit().size() - 1).getCategory());
+    }
+
+    @Test
+    @DisplayName("the progress bar starts idle, determinate and empty")
+    void progressIdleByDefault(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        assertFalse(panel.progressIndeterminate());
+        assertEquals(0, panel.progressValue());
+        assertEquals(100, panel.progressMax());
+        assertEquals("", panel.progressText());
+    }
+
+    @Test
+    @DisplayName("updateScanProgress drives a determinate bar when the total is known")
+    void scanProgressDeterminate(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        panel.updateScanProgress(25, 100, 0, "/home/me/Downloads/a.txt");
+        assertFalse(panel.progressIndeterminate());
+        assertEquals(100, panel.progressMax());
+        assertEquals(25, panel.progressValue());
+        assertTrue(panel.progressText().contains("25/100"), panel.progressText());
+        assertTrue(panel.progressText().contains("25%"), panel.progressText());
+        assertTrue(panel.statusText().contains("a.txt"), panel.statusText());
+
+        // A threat count is surfaced live in the status line.
+        panel.updateScanProgress(50, 100, 2, "/home/me/x");
+        assertEquals(50, panel.progressValue());
+        assertTrue(panel.statusText().contains("2 threat(s)"), panel.statusText());
+
+        // Progress never exceeds the bar maximum.
+        panel.updateScanProgress(500, 100, 0, "/home/me/y");
+        assertEquals(100, panel.progressValue());
+    }
+
+    @Test
+    @DisplayName("updateScanProgress pulses when the file total is unknown")
+    void scanProgressIndeterminate(@TempDir Path dir) {
+        SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
+        panel.updateScanProgress(7, -1, 0, "/tmp/y");
+        assertTrue(panel.progressIndeterminate());
+        assertEquals("Scanning...", panel.progressText());
+        assertTrue(panel.statusText().contains("7 file(s)"), panel.statusText());
+    }
+
+    @Test
+    @DisplayName("countFiles matches the scan scope and degrades to -1 when unknown")
+    void countFiles(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("a.txt"), "x");
+        Files.writeString(dir.resolve("b.txt"), "y");
+        Path sub = Files.createDirectory(dir.resolve("sub"));
+        Files.writeString(sub.resolve("c.txt"), "z");
+
+        assertEquals(1L, SecurityCenterPanel.countFiles(dir.resolve("a.txt"), true),
+                "a single file counts as one");
+        assertEquals(2L, SecurityCenterPanel.countFiles(dir, false), "one level: a.txt + b.txt");
+        assertEquals(3L, SecurityCenterPanel.countFiles(dir, true), "recursive adds sub/c.txt");
+        assertEquals(-1L, SecurityCenterPanel.countFiles(dir.resolve("missing"), true));
+        assertEquals(-1L, SecurityCenterPanel.countFiles(null, true));
     }
 
     private static int indexOfAction(SecurityCenterPanel panel, HardeningRules.Action action) {
