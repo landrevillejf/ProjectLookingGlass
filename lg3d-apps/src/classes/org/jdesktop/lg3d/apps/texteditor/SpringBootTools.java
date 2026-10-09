@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.texteditor;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,10 +26,12 @@ import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 
 /**
- * The bundled "Spring Boot Tools" extension: converts between the two
- * {@code application} configuration formats a Spring Boot project uses &mdash;
- * the flat, dot-notation {@code application.properties} and the nested
- * {@code application.yml} &mdash; registered through the public
+ * The bundled "Spring Boot Tools" extension: helpers for the configuration
+ * idioms a Spring Boot project lives on &mdash; converting between the flat,
+ * dot-notation {@code application.properties} and the nested
+ * {@code application.yml}, normalising property keys to Spring Boot's canonical
+ * kebab-case (relaxed binding), and listing every {@code ${...}} placeholder a
+ * document references &mdash; registered through the public
  * {@link TextEditorExtension} SPI under the {@code Spring} category.
  *
  * <p>Both directions are pure {@code String -> String} statics for headless
@@ -57,7 +60,8 @@ public final class SpringBootTools implements TextEditorExtension {
                 "lg3d.spring-boot-tools",
                 "Spring Boot Tools",
                 "1.0.0",
-                "Convert application.properties to application.yml and back",
+                "Convert application.properties to application.yml and back,"
+                        + " normalise keys to kebab-case, list ${...} placeholders",
                 "Project Looking Glass",
                 perms
         );
@@ -81,7 +85,13 @@ public final class SpringBootTools implements TextEditorExtension {
                         () -> applyWhole(SpringBootTools::propertiesToYaml), "control alt S"),
                 new ToolbarContribution("spring-yaml-to-props", "YAML to Properties",
                         "Flatten this application.yml into dot-notation properties (Ctrl+Alt+V)",
-                        () -> applyWhole(SpringBootTools::yamlToProperties), "control alt V")
+                        () -> applyWhole(SpringBootTools::yamlToProperties), "control alt V"),
+                new ToolbarContribution("spring-normalize-keys", "Normalize Keys (Kebab)",
+                        "Rewrite every property key in Spring Boot 2+ kebab-case (Ctrl+Alt+8)",
+                        () -> applyWhole(SpringBootTools::normalizeKeys), "control alt 8"),
+                new ToolbarContribution("spring-list-placeholders", "List ${} Placeholders",
+                        "Append a comment block listing every ${...} name referenced (Ctrl+Alt+9)",
+                        () -> applyWhole(SpringBootTools::listPlaceholders), "control alt 9")
         );
     }
 
@@ -215,6 +225,148 @@ public final class SpringBootTools implements TextEditorExtension {
 
         // Drop an empty document's stray blank entries only when nothing was parsed.
         return joinLines(out, trailingNewline);
+    }
+
+    /**
+     * Normalises every Spring Boot {@code key=value} property to the canonical
+     * kebab-case form used by Spring Boot 2+ relaxed binding. Underscores,
+     * camelCase humps ({@code contextPath} → {@code context-path}) and
+     * acronym boundaries ({@code HTTPServer} → {@code http-server}) each become
+     * a single hyphen; uppercase folds to lowercase. Values, comments, blank
+     * lines and lines with no {@code =} separator are preserved byte-for-byte.
+     * Idempotent: normalising an already-normalised document is a no-op. Pure.
+     */
+    public static String normalizeKeys(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        List<String> lines = splitLines(text);
+        boolean trailingNewline = text.endsWith("\n");
+        List<String> out = new ArrayList<>(lines.size());
+        for (String raw : lines) {
+            int eq = raw.indexOf('=');
+            if (eq <= 0) {
+                out.add(raw);
+                continue;
+            }
+            String head = raw.substring(0, eq);
+            // Skip indented lines and comment-marker keys so we only touch
+            // canonical `key=...` property lines.
+            if (Character.isWhitespace(head.charAt(0))) {
+                out.add(raw);
+                continue;
+            }
+            String key = head.strip();
+            if (key.startsWith("#") || key.startsWith("!")) {
+                out.add(raw);
+                continue;
+            }
+            out.add(normalizeKey(key) + raw.substring(eq));
+        }
+        return joinLines(out, trailingNewline);
+    }
+
+    private static String normalizeKey(String key) {
+        String[] segs = key.split("\\.", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segs.length; i++) {
+            if (i > 0) {
+                sb.append('.');
+            }
+            sb.append(normalizeSegment(segs[i]));
+        }
+        return sb.toString();
+    }
+
+    private static String normalizeSegment(String segment) {
+        // Split `HTTPServer` -> `HTTP-Server` first so the acronym hump is not
+        // treated as one letter, then split `contextPath` -> `context-Path`.
+        String s = segment.replaceAll("([A-Z])([A-Z][a-z])", "$1-$2");
+        s = s.replaceAll("(?<=[a-z0-9])([A-Z])", "-$1");
+        s = s.replace('_', '-');
+        s = s.toLowerCase();
+        s = s.replaceAll("-+", "-");
+        return s.replaceAll("^-+|-+$", "");
+    }
+
+    /**
+     * Scans every property value for {@code ${...}} placeholder tokens and
+     * appends a {@code # Referenced placeholders:} comment block at the end of
+     * the document listing them in first-occurrence order (deduplicated;
+     * {@code :default} suffixes stripped). If no value uses a placeholder, the
+     * document is returned unchanged. The action is idempotent: running it
+     * twice is a no-op because the marker comment is detected on re-entry.
+     * Nested {@code ${a-${b}}} is followed with a depth counter so the inner
+     * token does not close the outer one. Pure.
+     */
+    public static String listPlaceholders(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        List<String> lines = splitLines(text);
+        boolean trailingNewline = text.endsWith("\n");
+        for (String raw : lines) {
+            if (raw.startsWith("# Referenced placeholders:")) {
+                return text;
+            }
+        }
+        Set<String> placeholders = new LinkedHashSet<>();
+        for (String raw : lines) {
+            int eq = raw.indexOf('=');
+            if (eq < 0) {
+                continue;
+            }
+            collectPlaceholders(raw.substring(eq + 1), placeholders);
+        }
+        if (placeholders.isEmpty()) {
+            return text;
+        }
+        List<String> out = new ArrayList<>(lines);
+        if (!out.isEmpty() && !out.get(out.size() - 1).isEmpty()) {
+            out.add("");
+        }
+        out.add("# Referenced placeholders:");
+        for (String p : placeholders) {
+            out.add("#   " + p);
+        }
+        return joinLines(out, trailingNewline);
+    }
+
+    private static void collectPlaceholders(String value, Set<String> sink) {
+        int i = 0;
+        while (i < value.length()) {
+            int open = value.indexOf("${", i);
+            if (open < 0) {
+                return;
+            }
+            int depth = 1;
+            int j = open + 2;
+            while (j < value.length() && depth > 0) {
+                if (j + 1 < value.length()
+                        && value.charAt(j) == '$' && value.charAt(j + 1) == '{') {
+                    depth++;
+                    j += 2;
+                    continue;
+                }
+                if (value.charAt(j) == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        break;
+                    }
+                }
+                j++;
+            }
+            if (depth > 0) {
+                return; // unterminated `${` — stop cleanly
+            }
+            String inner = value.substring(open + 2, j);
+            int colon = inner.indexOf(':');
+            String name = (colon >= 0 ? inner.substring(0, colon) : inner).trim();
+            if (!name.isEmpty()) {
+                sink.add(name);
+            }
+            i = j + 1;
+        }
     }
 
     // -- tree helpers ----------------------------------------------------

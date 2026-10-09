@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Headless tests for the bundled {@link SpringBootTools} extension: the pure
  * properties &harr; YAML conversions (nesting, sequences, comments, round-trip),
+ * the Spring Boot 2+ kebab-case normaliser, the ${...} placeholder scanner,
  * the SPI contract and the whole-document action through a {@link DocumentContext}.
  */
 class SpringBootToolsTest {
@@ -79,13 +80,87 @@ class SpringBootToolsTest {
     }
 
     @Test
-    @DisplayName("toolbarContributions list two actions with accelerators")
+    @DisplayName("toolbarContributions list four actions with accelerators")
     void toolbarContributions() {
         var c = new SpringBootTools().toolbarContributions();
-        assertEquals(2, c.size());
+        assertEquals(4, c.size());
         assertEquals("Properties to YAML", c.get(0).getLabel());
         assertEquals("control alt S", c.get(0).getAccelerator());
         assertEquals("control alt V", c.get(1).getAccelerator());
+        assertEquals("control alt 8", c.get(2).getAccelerator());
+        assertEquals("control alt 9", c.get(3).getAccelerator());
+    }
+
+    @Test
+    @DisplayName("normalizeKeys rewrites camelCase and acronym humps")
+    void normalizeKeysCamelAndAcronym() {
+        assertEquals("server.servlet.context-path=/api\n",
+                SpringBootTools.normalizeKeys("server.servlet.contextPath=/api\n"));
+        assertEquals("http-server=on\n",
+                SpringBootTools.normalizeKeys("HTTPServer=on\n"));
+    }
+
+    @Test
+    @DisplayName("normalizeKeys folds underscores and uppercase; values untouched")
+    void normalizeKeysUnderscoreAndValue() {
+        assertEquals("server-port=8080\n",
+                SpringBootTools.normalizeKeys("SERVER_PORT=8080\n"));
+        // Value side is preserved byte-for-byte; the key side folds both the
+        // camelCase hump and the two `_` separators to single hyphens.
+        assertEquals("my-prop-keep-me=KEEP_ME\n",
+                SpringBootTools.normalizeKeys("myProp_KEEP_ME=KEEP_ME\n"));
+        // Idempotent: already-normalised input round-trips unchanged.
+        assertEquals("a.b.c-d=1\n",
+                SpringBootTools.normalizeKeys("a.b.c-d=1\n"));
+    }
+
+    @Test
+    @DisplayName("normalizeKeys leaves comments, blanks and non-property lines alone")
+    void normalizeKeysGuards() {
+        assertEquals(null, SpringBootTools.normalizeKeys(null));
+        assertEquals("", SpringBootTools.normalizeKeys(""));
+        assertEquals("# HEADER\n\nnot-a-pair\nserver.port=1\n",
+                SpringBootTools.normalizeKeys("# HEADER\n\nnot-a-pair\nserver.port=1\n"));
+    }
+
+    @Test
+    @DisplayName("listPlaceholders appends a deduplicated summary block")
+    void listPlaceholdersAppend() {
+        String src = "url=jdbc:${host}:${port}/${db}\n"
+                + "alias=${host}\n";
+        String out = SpringBootTools.listPlaceholders(src);
+        assertTrue(out.startsWith(src), "original text preserved");
+        assertTrue(out.contains("\n# Referenced placeholders:\n"), out);
+        assertTrue(out.contains("#   host\n"), out);
+        assertTrue(out.contains("#   port\n"), out);
+        assertTrue(out.contains("#   db\n"), out);
+        // `host` appears twice in the source but once in the summary.
+        int hostCount = out.split("#   host", -1).length - 1;
+        assertEquals(1, hostCount, "deduplicated: " + out);
+    }
+
+    @Test
+    @DisplayName("listPlaceholders strips :default suffix and handles nesting")
+    void listPlaceholdersDefaultAndNest() {
+        String out = SpringBootTools.listPlaceholders("p=${DEFAULT_PORT:8080}\n");
+        assertTrue(out.contains("#   DEFAULT_PORT\n"), out);
+        // Nested ${a-${b}}: outer name is `a`, inner is not surfaced separately.
+        out = SpringBootTools.listPlaceholders("q=${a-${b}}\n");
+        assertTrue(out.contains("#   a-${b}\n"), out);
+    }
+
+    @Test
+    @DisplayName("listPlaceholders is idempotent and safe with no placeholders")
+    void listPlaceholdersIdempotent() {
+        String src = "foo=bar\nbaz=${qux}\n";
+        String once = SpringBootTools.listPlaceholders(src);
+        String twice = SpringBootTools.listPlaceholders(once);
+        assertEquals(once, twice, "second run is a no-op (marker detected)");
+        // No placeholders -> unchanged.
+        assertEquals("x=1\ny=2\n", SpringBootTools.listPlaceholders("x=1\ny=2\n"));
+        // Null / empty pass through.
+        assertEquals(null, SpringBootTools.listPlaceholders(null));
+        assertEquals("", SpringBootTools.listPlaceholders(""));
     }
 
     @Test

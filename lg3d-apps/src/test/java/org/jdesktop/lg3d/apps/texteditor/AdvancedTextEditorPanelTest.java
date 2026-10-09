@@ -80,14 +80,14 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 44 toolbar actions")
+    @DisplayName("the bundled extensions install their 46 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
         // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
         // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
-        // + Spring Boot Tools 2 + Hash Tools 3
-        assertEquals(44, panel.extensionActionCount());
+        // + Spring Boot Tools 4 + Hash Tools 3
+        assertEquals(46, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -96,13 +96,16 @@ class AdvancedTextEditorPanelTest {
     void extensionAcceleratorsBound() {
         AdvancedTextEditorPanel panel = newPanel();
         // Declared by BuiltinTextTools sort-az, CodeTools indent, JsonTools
-        // prettify and SpringBootTools properties-to-yaml, respectively.
+        // prettify, SpringBootTools props-to-yaml, SpringBootTools normalize-keys
+        // and SpringBootTools list-placeholders, respectively.
         assertTrue(panel.isAcceleratorBound("control alt A"));
         assertTrue(panel.isAcceleratorBound("control alt R"));
         assertTrue(panel.isAcceleratorBound("control alt O"));
         assertTrue(panel.isAcceleratorBound("control alt S"));
-        // No bundled action claims Ctrl+Alt+8, so it stays unbound.
-        assertFalse(panel.isAcceleratorBound("control alt 8"));
+        assertTrue(panel.isAcceleratorBound("control alt 8"));
+        assertTrue(panel.isAcceleratorBound("control alt 9"));
+        // No bundled action claims Ctrl+Alt+0, so it stays unbound.
+        assertFalse(panel.isAcceleratorBound("control alt 0"));
         panel.dispose();
     }
 
@@ -125,17 +128,17 @@ class AdvancedTextEditorPanelTest {
         // Index 0 is BuiltinTextTools sort-az, declared on Ctrl+Alt+A.
         assertEquals("control alt A", panel.getAccelerator(0));
 
-        panel.setAccelerator(0, "control alt 8");
-        assertTrue(panel.isAcceleratorBound("control alt 8"));
+        panel.setAccelerator(0, "control alt 0");
+        assertTrue(panel.isAcceleratorBound("control alt 0"));
         assertFalse(panel.isAcceleratorBound("control alt A"));
-        assertEquals("control alt 8", panel.getAccelerator(0));
-        assertEquals("control alt 8",
+        assertEquals("control alt 0", panel.getAccelerator(0));
+        assertEquals("control alt 0",
                 panel.settings().getAcceleratorOverrides().get("sort-az"));
 
         // Setting the declared default back clears the override.
         panel.setAccelerator(0, "control alt A");
         assertTrue(panel.isAcceleratorBound("control alt A"));
-        assertFalse(panel.isAcceleratorBound("control alt 8"));
+        assertFalse(panel.isAcceleratorBound("control alt 0"));
         assertFalse(panel.settings().getAcceleratorOverrides().containsKey("sort-az"));
 
         // An empty spec unbinds the action entirely.
