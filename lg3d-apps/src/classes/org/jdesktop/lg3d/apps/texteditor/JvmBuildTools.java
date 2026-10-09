@@ -50,11 +50,14 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
  *
  * <p>Processes run on a virtual thread and the result is delivered back on
  * the EDT, so the editor never blocks; a package-private {@link Runner} seam
- * keeps every action headless-testable with a synchronous fake. Tool output
- * lands in the editor's south {@link OutputConsole} (through the
- * FILE_IO-gated {@code EditorContext.showOutput} capability) &mdash; the
- * document itself is never modified &mdash; while progress and exit codes
- * always land on the status line.</p>
+ * keeps every action headless-testable with a synchronous fake. Every run,
+ * success included, writes a block to the editor's south {@link OutputConsole}
+ * (through the FILE_IO-gated {@code EditorContext.showOutput} capability) so
+ * the console always reflects the latest build &mdash; the document itself is
+ * never written to, and a legacy {@code // ---- <tool> output ----} comment
+ * block left in a document by earlier builds is stripped automatically (WRITE)
+ * on the next action. Progress and exit codes always land on the status
+ * line.</p>
  */
 public final class JvmBuildTools implements TextEditorExtension {
 
@@ -97,6 +100,7 @@ public final class JvmBuildTools implements TextEditorExtension {
     public TextEditorManifest manifest() {
         Set<TextEditorPermission> perms = EnumSet.of(
                 TextEditorPermission.READ,
+                TextEditorPermission.WRITE,
                 TextEditorPermission.FILE_IO,
                 TextEditorPermission.TOOLBAR
         );
@@ -166,6 +170,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Compile Java: javac not found in this JDK");
             return;
         }
+        stripLegacyBlock();
         Path work = stage(text, cls + ".java");
         if (work == null) {
             return;
@@ -174,6 +179,7 @@ public final class JvmBuildTools implements TextEditorExtension {
         runner.run(Toolchain.javacCommand(javac.get(), work.resolve(cls + ".java"),
                         work.resolve("classes")), work, COMPILE_TIMEOUT_MS, res -> {
             if (res.success()) {
+                output("javac", "OK \u2014 " + cls + " compiled, no errors");
                 msg(cls + " compiled \u2014 OK");
             } else {
                 output("javac", res.output());
@@ -197,6 +203,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Run Java: the java launcher not found in this JDK");
             return;
         }
+        stripLegacyBlock();
         Path work = stage(text, cls + ".java");
         if (work == null) {
             return;
@@ -224,6 +231,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Debug Java: the java launcher not found in this JDK");
             return;
         }
+        stripLegacyBlock();
         Path work = stage(text, cls + ".java");
         if (work == null) {
             return;
@@ -241,6 +249,8 @@ public final class JvmBuildTools implements TextEditorExtension {
                 output("java debug", res.output());
                 msg("Debug: exit " + res.exitCode() + " \u2014 see the Output panel");
             } else {
+                output("java debug", "clean \u2014 " + cls
+                        + " exited 0, assertions enabled");
                 msg("Debug run clean (" + cls + " exited 0, assertions enabled)");
             }
         });
@@ -256,6 +266,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             return;
         }
         String fileName = kotlinFileName();
+        stripLegacyBlock();
         Path work = stage(text, fileName);
         if (work == null) {
             return;
@@ -264,6 +275,7 @@ public final class JvmBuildTools implements TextEditorExtension {
         runner.run(Toolchain.kotlincCommand(kotlinc.get(), work.resolve(fileName),
                         work.resolve("classes")), work, COMPILE_TIMEOUT_MS, res -> {
             if (res.success()) {
+                output("kotlinc", "OK \u2014 " + fileName + " compiled, no errors");
                 msg(fileName + " compiled \u2014 OK");
             } else {
                 output("kotlinc", res.output());
@@ -283,6 +295,7 @@ public final class JvmBuildTools implements TextEditorExtension {
         }
         String fileName = kotlinFileName();
         String mainClass = Toolchain.kotlinMainClass(fileName);
+        stripLegacyBlock();
         Path work = stage(text, fileName);
         if (work == null) {
             return;
@@ -305,11 +318,13 @@ public final class JvmBuildTools implements TextEditorExtension {
     }
 
     private void cleanOutput() {
-        if (editor == null) {
-            return;
+        boolean stripped = stripLegacyBlock();
+        if (editor != null) {
+            editor.clearOutput();
         }
-        editor.clearOutput();
-        msg("Clean Output: the Output panel was cleared");
+        msg(stripped
+                ? "Clean Output: console cleared and the legacy output block removed"
+                : "Clean Output: the Output panel was cleared");
     }
 
     // -- helpers -------------------------------------------------------------
@@ -361,6 +376,28 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Could not stage the document: " + ioe.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Migration: strips a legacy trailing {@code // ---- <tool> output ----}
+     * comment block (written into the document by earlier builds of this
+     * extension) so the console is the single output surface. WRITE-gated:
+     * a silent no-op when the user revoked it.
+     *
+     * @return true when a legacy block was removed
+     */
+    private boolean stripLegacyBlock() {
+        DocumentContext doc = currentDoc;
+        if (doc == null) {
+            return false;
+        }
+        String text = doc.getFullText();
+        String stripped = Toolchain.removeTrailingBlock(text);
+        if (stripped.equals(text)) {
+            return false;
+        }
+        doc.setFullText(stripped);
+        return true;
     }
 
     /** Sends one tool run's output to the editor's south Output console. */

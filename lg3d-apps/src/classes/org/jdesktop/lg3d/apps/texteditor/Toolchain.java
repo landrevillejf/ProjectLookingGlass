@@ -43,6 +43,10 @@ final class Toolchain {
         }
     }
 
+    /** Marker line that opens a LEGACY trailing output block; tool is lowercase. */
+    private static final Pattern BLOCK_START =
+            Pattern.compile("^// ---- [a-z0-9-]+ output ----$");
+
     /** First Java type declaration in a source file (class/record/enum/interface). */
     private static final Pattern JAVA_TYPE =
             Pattern.compile("\\b(?:class|record|enum|interface)\\s+([A-Za-z_$][A-Za-z0-9_$]*)");
@@ -164,6 +168,49 @@ final class Toolchain {
             }
         }
         return "";
+    }
+
+    // ------------------------------------------------------------------
+    // Legacy output-block migration (pure)
+    // ------------------------------------------------------------------
+
+    /**
+     * Migration helper: the first JVM Build Tools releases wrote tool output
+     * into a trailing {@code // ---- <tool> output ----} comment block before
+     * the south {@link OutputConsole} existed. Documents still carrying such a
+     * block get it stripped on the next build action.
+     *
+     * @param source the document text
+     * @return the text with any trailing output block (marker line through end
+     *         of document) removed; the input is returned unchanged when no
+     *         block is present
+     */
+    static String removeTrailingBlock(String source) {
+        if (source == null || source.isEmpty()) {
+            return "";
+        }
+        String[] lines = source.split("\n", -1);
+        int start = -1;
+        for (int i = lines.length - 1; i >= 0; i--) {
+            if (BLOCK_START.matcher(lines[i]).matches()) {
+                start = i;
+                break;
+            }
+        }
+        if (start < 0) {
+            return source;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < start; i++) {
+            sb.append(lines[i]).append('\n');
+        }
+        while (sb.length() > 0 && sb.charAt(sb.length() - 1) == '\n') {
+            sb.setLength(sb.length() - 1); // drop the blank separator with the block
+        }
+        if (sb.length() > 0) {
+            sb.append('\n');
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------

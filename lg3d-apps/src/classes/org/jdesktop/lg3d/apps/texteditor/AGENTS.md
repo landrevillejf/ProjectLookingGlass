@@ -62,9 +62,11 @@
   (compile/run/debug the document with the real toolchain: `javac` + the JDK 11+
   single-file source launcher staged into a temp dir, a `-ea` crash-analysis run
   that reports `Debug: <exception> at Foo.java:<line>`, `kotlinc`/`kotlin` when
-  installed; every run's output goes to the south `OutputConsole` through the
-  FILE_IO-gated `EditorContext.showOutput` capability — never into the document —
-  and `Clean Output` clears the console; processes run on a virtual thread with
+  installed; every run's output — success included — goes to the south
+  `OutputConsole` through the FILE_IO-gated `EditorContext.showOutput`
+  capability, and a legacy `// ---- <tool> output ----` comment block left in a
+  document by earlier builds is stripped (WRITE) on the next action;
+  `Clean Output` clears the console; processes run on a virtual thread with
   EDT delivery,
   never on the UI, never on the user's file), `WebTools`
   (escape/unescape HTML entities, URL encode/decode), `SpringBootTools`
@@ -119,7 +121,7 @@
   rulebook.
 - **QA** — 26 headless JUnit 5 suites under
   `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` cover every
-  engine class, all thirteen bundled extensions and all panel/widget surfaces (232
+  engine class, all thirteen bundled extensions and all panel/widget surfaces (234
   tests): tokenisation, search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
   smart-indent, bracket matching, the merging-undo clock seam, settings

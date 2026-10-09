@@ -9,6 +9,17 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased] — 1.67.0-dev — Gradle / JDK 21 modernization
 
+### Fixed
+- **JVM Build Tools: a successful rebuild now refreshes the Output panel**
+  (`lg3d-apps`) — every run, success included, writes a block to the south
+  console (`javac output` / `kotlinc output` with an `OK — <class> compiled,
+  no errors` body on green builds), so fixing an error and recompiling always
+  visibly updates the editor. The stale `// ---- <tool> output ----` comment
+  block left in documents by the pre-console builds is now migrated out
+  automatically: the next build action (or **Clean Output**) strips the trailing
+  block from the document. WRITE is therefore kept on the provider's manifest —
+  used only for this one-time migration strip.
+
 ### Added
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
@@ -31,9 +42,9 @@ work to make it build and run on a current toolchain.
   and `clearOutput()`, wired through the `ExtensionBroker`, so third-party
   extensions get the same console. The JVM Build Tools write every
   compile/run/debug output there instead of appending a
-  `// ---- <tool> output ----` comment block (dropped along with the provider's
-  WRITE permission), and its **Clean Output** action now clears the console.
-  26 headless suites / 232 tests in the texteditor package.
+  `// ---- <tool> output ----` comment block, and its **Clean Output** action
+  now clears the console. 26 headless suites / 234 tests in the texteditor
+  package.
 - **Advanced Text Editor: compile, run and debug Java/Kotlin from the editor**
   (`lg3d-apps`) — a thirteenth bundled provider, **JVM Build Tools**
   (`lg3d.jvm-build-tools`, category `Java/Kotlin`), takes the extension surface
@@ -41,8 +52,8 @@ work to make it build and run on a current toolchain.
   claims a Ctrl+Alt slot, so the accelerator map is unchanged). **Compile Java**
   stages the document's *current* text into a fresh temp directory (the user's
   file is never touched, unsaved drafts work) and runs the running JDK's own
-  `javac`; success is a status line, failure sends the errors to the output
-  console (see the entry above). **Run Java** uses the JDK 11+
+  `javac`; success and failure both land a block in the output console (see
+  the entry above). **Run Java** uses the JDK 11+
   single-file source launcher and captures stdout+stderr into the console.
   **Debug Java** is an honest crash-analysis run: assertions enabled (`-ea`),
   the output scanned for the exception heading and the first stack frame in
@@ -58,7 +69,7 @@ work to make it build and run on a current toolchain.
   `Foo.kt`→`FooKt` mapping and stack/exception parsing). The
   panel now also refreshes the extensions' document snapshot immediately before
   each action dispatch, so *every* action — not just the build ones — operates
-  on the live text rather than the file-as-opened. New `JvmBuildToolsTest` (16
+  on the live text rather than the file-as-opened. New `JvmBuildToolsTest` (18
   tests) plus panel count/live-text assertions bring the text-editor surface to
   **52 actions across 13 providers**; the whole module build stays green.
 - **Advanced Text Editor: Spring Boot / JSON / Hash extensions, user-editable
