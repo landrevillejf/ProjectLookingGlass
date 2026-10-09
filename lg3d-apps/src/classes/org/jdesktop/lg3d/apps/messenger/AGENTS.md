@@ -34,7 +34,10 @@
   /connect /disconnect /clear /help`), and a status line. The conversation rail's
   **Save** button writes the selected private-chat peer into the shared address
   book (deduped on nickname/display name). Protocol callbacks are
-  marshalled onto the EDT before touching a widget.
+  marshalled onto the EDT before touching a widget. Incoming chat lines from
+  other peers and inbound file offers raise a desktop toast
+  (`NotificationService.notify`, gated by the *Notify on new message* setting)
+  so messages are noticed outside the window; the notifier is a test seam.
 - **MessengerProtocol / ProtocolListener** — the backend SPI (async connect,
   capability set) and its callback surface; the single seam every protocol
   implements, so the UI never knows the wire format.
@@ -112,7 +115,9 @@
   `/slash`-command parsing, nickname colouring determinism, transcript
   routing/rendering, capability-gated **Send File**, file-event tracking/rendering
   and that sending without a live backend only sets a status (no socket, no
-  browser). For the 3D host use the in-JVM probe + internal screencapture
+  browser), plus the desktop-toast gating (self-echo / presence / notify-off
+  never post; file offers toast once) driven through the `setNotifierForTest`
+  seam. For the 3D host use the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver communication utility: chat on IRC, reach
   XMPP/Matrix/Telegram/WhatsApp/Signal/SMS/SIP from one desktop app, and exchange

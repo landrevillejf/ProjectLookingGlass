@@ -61,6 +61,8 @@ import javax.swing.text.StyledDocument;
 import org.jdesktop.lg3d.apps.p2p.LanDiscovery;
 import org.jdesktop.lg3d.contacts.Contact;
 import org.jdesktop.lg3d.contacts.ContactStore;
+import org.jdesktop.lg3d.displayserver.desktop2d.Notification;
+import org.jdesktop.lg3d.scenemanager.utils.hud.NotificationService;
 
 /**
  * The Instant Messenger's Swing face: a multi-protocol chat client.
@@ -91,6 +93,14 @@ import org.jdesktop.lg3d.contacts.ContactStore;
  * notification path is guarded on {@link GraphicsEnvironment#isHeadless()}, and
  * the constructor performs no network I/O, so the panel can be built and its
  * pure logic exercised in the headless test JVM.</p>
+ *
+ * <p><b>Desktop notifications:</b> when <em>Notify on new message</em> is on,
+ * an incoming chat line from somebody else and an inbound file offer raise a
+ * desktop toast through {@link NotificationService#notify} — the tray badge
+ * plus toast on the 2D desktop, the HUD overlay on the 3D one — beside the
+ * status-line echo, so the user notices messages arriving in a background
+ * conversation or a minimized window. The notifier is a seam
+ * ({@link #setNotifierForTest}) the headless tests replace.</p>
  */
 public class MessengerPanel extends JPanel {
 
@@ -117,11 +127,23 @@ public class MessengerPanel extends JPanel {
 
     private static final SimpleDateFormat TS = new SimpleDateFormat("HH:mm:ss");
 
+    /**
+     * Seam for the desktop toast raised on incoming events; the headless tests
+     * capture posts through {@link #setNotifierForTest}.
+     */
+    interface Notifier {
+        void notify(String title, String message, Notification.Kind kind);
+    }
+
     private final MessengerStore store;
     private final ProtocolRegistry registry;
     private final ContactStore addressBook;
     private final PanelListener listener = new PanelListener();
     private MessengerSettings settings;
+
+    /** Raises the desktop toasts; defaults to the running shell's service. */
+    private Notifier notifier = (title, message, kind)
+            -> NotificationService.notify(title, message, kind);
 
     private final List<AccountConfig> accounts = new ArrayList<>();
     private final List<Conversation> conversations = new ArrayList<>();
@@ -1163,6 +1185,10 @@ public class MessengerPanel extends JPanel {
 
         if (event.getDirection() == FileTransferEvent.Direction.RECEIVE
                 && event.getState() == FileTransferEvent.State.OFFERED) {
+            notifier.notify("Messenger \u2014 Incoming file",
+                    event.getPeer() + " offers " + event.getFileName()
+                            + " (" + humanSize(event.getFileSize()) + ")",
+                    Notification.Kind.INFO);
             promptAcceptFile(account, event);
         }
         updateFileActions();
@@ -1308,7 +1334,33 @@ public class MessengerPanel extends JPanel {
                 && !conv.equals(current) && !msg.getFrom().equals(ourNick(account))) {
             setStatus("New message in " + conv.displayName() + " from " + msg.getFrom());
         }
+        notifyIncomingMessage(account, conv, msg);
     }
+
+    /**
+     * Raises the desktop toast for an incoming chat line: every real message
+     * from somebody else when <em>Notify on new message</em> is on, self-echoes
+     * and presence traffic excluded. The toast fires even while the conversation
+     * is on screen (window minimized on the 2D desktop, flipped away in 3D);
+     * Do-Not-Disturb is honoured by the shells themselves.
+     */
+    private void notifyIncomingMessage(AccountConfig account, Conversation conv,
+            ChatMessage msg) {
+        if (!settings.isNotifyOnMessage() || !msg.isChat()
+                || msg.getFrom() == null || msg.getFrom().isEmpty()
+                || msg.getFrom().equals(ourNick(account))) {
+            return;
+        }
+        String preview = msg.getText() == null ? "" : msg.getText().trim();
+        if (preview.length() > PREVIEW_MAX) {
+            preview = preview.substring(0, PREVIEW_MAX) + "\u2026";
+        }
+        notifier.notify("Messenger \u2014 " + conv.displayName(),
+                msg.getFrom() + ": " + preview, Notification.Kind.INFO);
+    }
+
+    /** Body length above which the toast preview gets ellipsized. */
+    static final int PREVIEW_MAX = 120;
 
     private Conversation routeConversation(AccountConfig account, ChatMessage msg) {
         String target = msg.getTarget();
@@ -1748,6 +1800,19 @@ public class MessengerPanel extends JPanel {
     /** Drives a file-transfer event through the panel exactly as the listener would. */
     void handleFileEventForTest(AccountConfig account, FileTransferEvent event) {
         handleFileEvent(account, event);
+    }
+
+    /** Drives an incoming chat message through the panel exactly as the listener would. */
+    void ingestForTest(AccountConfig account, ChatMessage msg) {
+        ingest(account, msg);
+    }
+
+    /** Replaces the desktop notifier (headless tests capture the posts). */
+    void setNotifierForTest(Notifier notifier) {
+        this.notifier = (notifier == null)
+                ? (title, message, kind)
+                        -> NotificationService.notify(title, message, kind)
+                : notifier;
     }
 
     /** Offers a file to the current conversation's peer (bypasses the chooser). */
