@@ -90,7 +90,7 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 73 toolbar actions")
+    @DisplayName("the bundled extensions install their 77 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
@@ -99,7 +99,8 @@ class AdvancedTextEditorPanelTest {
         // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
         // + Java Structure Tools 4 + Java Debugger 6 + Java Completion 1
         // + Insert & Snippets 5 + TODO Scan 2 + Comment Toggle 3
-        assertEquals(73, panel.extensionActionCount());
+        // + Mandela Tools 4 (run / check / bytecode / starter template)
+        assertEquals(77, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -120,6 +121,11 @@ class AdvancedTextEditorPanelTest {
         assertTrue(panel.isAcceleratorBound("control alt shift J"));
         assertTrue(panel.isAcceleratorBound("control alt shift R"));
         assertTrue(panel.isAcceleratorBound("control alt shift X"));
+        // Mandela Tools claim the free letters of that same family: M run, A
+        // check, B bytecode. The fourth action (template) has no accelerator.
+        assertTrue(panel.isAcceleratorBound("control alt shift M"));
+        assertTrue(panel.isAcceleratorBound("control alt shift A"));
+        assertTrue(panel.isAcceleratorBound("control alt shift B"));
         // No bundled action claims Ctrl+Alt+0, so it stays unbound.
         assertFalse(panel.isAcceleratorBound("control alt 0"));
         panel.dispose();
@@ -130,7 +136,7 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(20, infos.size());
+        assertEquals(21, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
@@ -142,6 +148,7 @@ class AdvancedTextEditorPanelTest {
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.snippets")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.todo")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.comment")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.mandela")));
         panel.dispose();
     }
 
