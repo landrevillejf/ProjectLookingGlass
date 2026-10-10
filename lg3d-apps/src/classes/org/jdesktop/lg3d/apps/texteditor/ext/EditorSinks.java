@@ -45,6 +45,7 @@ public final class EditorSinks {
     final Consumer<List<String>> showStack;
     final Consumer<List<String>> showLocals;
     final Consumer<List<String>> setBreakpoints;
+    final BiConsumer<String, List<String>> showCompletions;
 
     private EditorSinks(Builder b) {
         this.showMessage = b.showMessage;
@@ -62,6 +63,7 @@ public final class EditorSinks {
         this.showStack = b.showStack;
         this.showLocals = b.showLocals;
         this.setBreakpoints = b.setBreakpoints;
+        this.showCompletions = b.showCompletions;
     }
 
     /** @return a fresh builder with every sink unset. */
@@ -102,6 +104,7 @@ public final class EditorSinks {
         private Consumer<List<String>> showStack;
         private Consumer<List<String>> showLocals;
         private Consumer<List<String>> setBreakpoints;
+        private BiConsumer<String, List<String>> showCompletions;
 
         public Builder showMessage(Consumer<String> v) { this.showMessage = v; return this; }
         public Builder openFile(Runnable v) { this.openFile = v; return this; }
@@ -137,6 +140,11 @@ public final class EditorSinks {
         }
         public Builder setBreakpoints(Consumer<List<String>> v) {
             this.setBreakpoints = v; return this;
+        }
+
+        /** IDE chrome: publish completion candidates for the given document path. */
+        public Builder showCompletions(BiConsumer<String, List<String>> v) {
+            this.showCompletions = v; return this;
         }
 
         public EditorSinks build() {

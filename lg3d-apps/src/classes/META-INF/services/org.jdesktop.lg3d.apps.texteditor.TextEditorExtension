@@ -14,3 +14,4 @@ org.jdesktop.lg3d.apps.texteditor.JvmBuildTools
 org.jdesktop.lg3d.apps.texteditor.JavaDiagnosticsTools
 org.jdesktop.lg3d.apps.texteditor.JavaStructureTools
 org.jdesktop.lg3d.apps.texteditor.JavaDebugTools
+org.jdesktop.lg3d.apps.texteditor.JavaCompletionTools

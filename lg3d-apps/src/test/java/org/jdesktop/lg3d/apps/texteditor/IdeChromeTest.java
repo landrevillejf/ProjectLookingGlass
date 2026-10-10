@@ -451,7 +451,7 @@ class IdeChromeTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the editor exposes Output/Problems/Structure/Debug tabs")
+    @DisplayName("the editor exposes Output/Problems/Structure/Debug/Completions tabs")
     void bottomTabsWired() {
         Set<String> titles = new java.util.HashSet<>();
         AdvancedTextEditorPanel panel = new AdvancedTextEditorPanel(false);
@@ -461,8 +461,8 @@ class IdeChromeTest {
                 titles.add(tabs.getTitleAt(i));
             }
             assertTrue(titles.containsAll(
-                    List.of("Output", "Problems", "Structure", "Debug")),
-                    "expected all four IDE tabs, got " + titles);
+                    List.of("Output", "Problems", "Structure", "Debug", "Completions")),
+                    "expected all five IDE tabs, got " + titles);
             assertSame(panel.problemsPanel(), tabs.getComponent(1));
             assertSame(panel.debugPanel(), tabs.getComponent(3));
 

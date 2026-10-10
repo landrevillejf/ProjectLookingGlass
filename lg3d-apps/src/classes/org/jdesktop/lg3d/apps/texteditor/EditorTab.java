@@ -553,6 +553,47 @@ public final class EditorTab extends JPanel {
         }
     }
 
+    /**
+     * Accepts a completion candidate: replaces the identifier run around the
+     * caret (or the current selection, when there is one) with {@code text}
+     * in a single document edit — one undo step — then returns focus to the
+     * editor. EDT-only (Phase 4 completion strip path).
+     */
+    public void insertCompletion(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        int caret = textPane.getCaretPosition();
+        if (textPane.getSelectedText() == null) {
+            // scan a bounded window around the caret for the identifier run
+            int lo = Math.max(0, caret - 512);
+            int hi = Math.min(document.getLength(), caret + 512);
+            try {
+                String win = document.getText(lo, hi - lo);
+                int c = caret - lo;
+                int start = c;
+                int end = c;
+                while (start > 0 && isWordChar(win.charAt(start - 1))) {
+                    start--;
+                }
+                while (end < win.length() && isWordChar(win.charAt(end))) {
+                    end++;
+                }
+                if (end > start) {
+                    textPane.select(lo + start, lo + end);
+                }
+            } catch (BadLocationException ble) {
+                // plain insertion at the caret is still useful
+            }
+        }
+        textPane.replaceSelection(text);
+        textPane.requestFocusInWindow();
+    }
+
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$';
+    }
+
     /** The 1-based line the caret is on. */
     public int getCaretLine() {
         return document.getDefaultRootElement()

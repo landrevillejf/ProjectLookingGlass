@@ -145,7 +145,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private final StructurePanel structurePanel = new StructurePanel();
     /** South Debug tab: the debugger surface (breakpoints/stack/locals/output). */
     private final DebugPanel debugPanel = new DebugPanel();
-    /** South tabbed region holding Output / Problems / Structure / Debug. */
+    private final CompletionPanel completionPanel = new CompletionPanel();
+    /** South tabbed region holding Output / Problems / Structure / Debug / Completions. */
     private final JTabbedPane bottomTabs = new JTabbedPane();
     /** Debounces live analysis after the last keystroke. */
     private final Timer analysisTimer;
@@ -207,6 +208,7 @@ public class AdvancedTextEditorPanel extends JPanel
                         .showStack(debugPanel::setStack)
                         .showLocals(debugPanel::setLocals)
                         .setBreakpoints(debugPanel::setBreakpoints)
+                        .showCompletions(this::showCompletionsForExtension)
                         .build());
         this.analysisTimer = new Timer(ANALYSIS_DELAY_MS,
                 e -> notifyDocumentChanged(currentTab()));
@@ -223,18 +225,26 @@ public class AdvancedTextEditorPanel extends JPanel
 
         projectTree.setOnFileChosen(this::openPath);
 
-        // South tabbed region: Output / Problems / Structure / Debug. The Output
-        // tab keeps the legacy console; the others are the IDE surfaces.
+        // South tabbed region: Output / Problems / Structure / Debug / Completions.
+        // The Output tab keeps the legacy console; the others are the IDE surfaces.
         bottomTabs.setName("bottomTabs");
         bottomTabs.addTab("Output", outputConsole);
         bottomTabs.addTab("Problems", problemsPanel);
         bottomTabs.addTab("Structure", structurePanel);
         bottomTabs.addTab("Debug", debugPanel);
+        bottomTabs.addTab("Completions", completionPanel);
         problemsPanel.setOnActivate(this::gotoDiagnostic);
         structurePanel.setOnActivate(symbol -> {
             EditorTab tab = currentTab();
             if (tab != null) {
                 tab.goToLine(symbol.line());
+            }
+        });
+        // Accepting a completion inserts at the active tab's caret (Phase 4).
+        completionPanel.setOnActivate(text -> {
+            EditorTab tab = currentTab();
+            if (tab != null) {
+                tab.insertCompletion(text);
             }
         });
 
@@ -1464,6 +1474,18 @@ public class AdvancedTextEditorPanel extends JPanel
         structurePanel.setStructure(title, symbols);
     }
 
+    /**
+     * Paints the completion strip. Delegate for
+     * {@code EditorContext.publishCompletions}; an empty list clears it
+     * (Phase 4).
+     */
+    void showCompletionsForExtension(String path, List<String> candidates) {
+        boolean empty = (candidates == null || candidates.isEmpty());
+        String title = (path == null || path.isEmpty() || empty)
+                ? null : baseName(path);
+        completionPanel.setCompletions(title, empty ? List.of() : candidates);
+    }
+
     /** Jumps the caret to a location. Delegate for {@code EditorContext.navigateTo}. */
     void navigateForExtension(String path, int line) {
         EditorTab tab = tabForPath(path);
@@ -1630,5 +1652,10 @@ public class AdvancedTextEditorPanel extends JPanel
     /** The Debug tab (test seam). */
     final DebugPanel debugPanel() {
         return debugPanel;
+    }
+
+    /** The Completions strip (test seam). */
+    final CompletionPanel completionPanel() {
+        return completionPanel;
     }
 }
