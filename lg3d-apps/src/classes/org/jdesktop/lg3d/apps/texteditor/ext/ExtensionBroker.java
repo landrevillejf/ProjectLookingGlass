@@ -258,6 +258,58 @@ public final class ExtensionBroker {
         return (category == null || category.isBlank()) ? "General" : category.trim();
     }
 
+    /**
+     * One toolbar contribution paired with the {@code providerId} of the
+     * extension that contributed it, so the editor can form a globally-stable
+     * toolbar-button key ({@code providerId/contributionId}) that survives two
+     * extensions reusing the same short contribution id. Additive: existing
+     * {@link #categorizedActions()} consumers are untouched.
+     *
+     * @param providerId   the owning extension's manifest id
+     * @param category     the owning extension's {@code category()} (never blank)
+     * @param extension    the owning extension's display name
+     * @param contribution the contribution itself
+     */
+    public record ConfiguredContribution(String providerId, String category,
+                                         String extension, ToolbarContribution contribution) { }
+
+    /**
+     * Collects toolbar buttons from enabled {@link TextEditorPermission#TOOLBAR}
+     * extensions in registration order, de-duplicated by the globally-stable
+     * {@code providerId/contributionId} key (so a short id reused by two
+     * extensions yields two independently-addressable entries), each tagged with
+     * its provider id, owning category and display name.
+     *
+     * @return the configurable contributions, possibly empty
+     */
+    public List<ConfiguredContribution> configuredContributions() {
+        List<ConfiguredContribution> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (LoadedExtension le : registry.enabled()) {
+            if (!le.has(TextEditorPermission.TOOLBAR)) {
+                continue;
+            }
+            try {
+                List<ToolbarContribution> contributions = le.getExtension().toolbarContributions();
+                if (contributions == null) {
+                    continue;
+                }
+                String providerId = le.getManifest().getId();
+                String category = normalizeCategory(le.getExtension().category());
+                String name = le.getManifest().getName();
+                for (ToolbarContribution c : contributions) {
+                    if (c != null && seen.add(providerId + "/" + c.getId())) {
+                        out.add(new ConfiguredContribution(providerId, category, name, c));
+                    }
+                }
+            } catch (RuntimeException e) {
+                LOG.warn("Extension {} configuredContributions failed; ignored",
+                        le.getManifest().getId(), e);
+            }
+        }
+        return out;
+    }
+
     private EditorContext contextFor(LoadedExtension le) {
         return new EditorContext(le.getGranted(), sinks);
     }

@@ -227,4 +227,27 @@ class EditorSettingsTest {
         settings.clearProjects();
         assertTrue(settings.getRecentProjects().isEmpty());
     }
+
+    @Test
+    @DisplayName("the toolbar button selection survives the serialisation round-trip")
+    void toolbarButtonsRoundTrip() {
+        EditorSettings settings = EditorSettings.defaults();
+        assertTrue(settings.getToolbarButtons().isEmpty(), "defaults have no user button");
+
+        ToolbarButtonConfig cfg = ToolbarButtonConfig.defaults();
+        cfg.add("lg3d.snippets/ins-uuid", ToolbarButtonConfig.DisplayMode.ICON);
+        cfg.add("lg3d.todo/scan-todo");
+        settings.setToolbarButtons(cfg);
+
+        EditorSettings copy = EditorSettings.fromMap(settings.toMap());
+        assertEquals(cfg, copy.getToolbarButtons());
+        assertEquals(2, copy.getToolbarButtons().size());
+        assertEquals("lg3d.snippets/ins-uuid", copy.getToolbarButtons().get(0).id());
+        assertEquals(ToolbarButtonConfig.DisplayMode.ICON,
+                copy.getToolbarButtons().get(0).mode());
+
+        // Setting null restores the empty default rather than throwing.
+        copy.setToolbarButtons(null);
+        assertTrue(copy.getToolbarButtons().isEmpty());
+    }
 }

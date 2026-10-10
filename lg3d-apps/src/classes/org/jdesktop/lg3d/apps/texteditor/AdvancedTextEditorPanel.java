@@ -15,8 +15,10 @@ package org.jdesktop.lg3d.apps.texteditor;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
@@ -25,12 +27,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
+import javax.swing.Icon;
 import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -55,6 +60,7 @@ import org.jdesktop.lg3d.apps.texteditor.ext.EditorSinks;
 import org.jdesktop.lg3d.apps.texteditor.ext.StructureSymbol;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
+import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 
 /**
  * Espresso, the Advanced Text Editor: a production plain-text and source-code
@@ -92,7 +98,8 @@ import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
  */
 public class AdvancedTextEditorPanel extends JPanel
         implements FindReplaceBar.Host, SettingsCard.Host,
-        RecentCard.Host, ExtensionsCard.Host, ProjectCard.Host {
+        RecentCard.Host, ExtensionsCard.Host, ProjectCard.Host,
+        ToolbarCustomizeCard.Host {
 
     /** Preferred panel width, read by the 3D wrapper and the MDI host. */
     public static final int WIDTH_PX = 960;
@@ -106,6 +113,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private static final String CARD_EXTENSIONS = "extensions";
     private static final String CARD_PROJECT = "project";
     private static final String CARD_GIT = "git";
+    /** The toolbar-customise card (choose/reorder user toolbar buttons). */
+    static final String CARD_TOOLBAR = "toolbar";
 
     /** How long a transient status message stays up. */
     private static final int MESSAGE_MS = 4000;
@@ -143,6 +152,36 @@ public class AdvancedTextEditorPanel extends JPanel
     private final SettingsCard settingsCard;
     private final RecentCard recentCard;
     private final ExtensionsCard extensionsCard;
+    /**
+     * The toolbar-customise card ("Customize Toolbar\u2026"): a {@code JList}-based,
+     * in-panel editor for the user's ordered toolbar button selection. Hosted in
+     * the same {@link #center} card layout as the other surfaces, so it captures
+     * offscreen like everything else.
+     */
+    private final ToolbarCustomizeCard toolbarCustomizeCard;
+    /**
+     * The user-configured extension-button row; repopulated from
+     * {@code settings.getToolbarButtons()} by {@link #rebuildUserToolbarButtons()}.
+     * A {@code FlowLayout} so the row wraps onto extra lines instead of being
+     * clipped when the user adds more commands than fit the window width.
+     */
+    private final JPanel userButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+    /**
+     * The whole second toolbar row: the user's command buttons plus the
+     * {@code Customize\u2026} entry point and the empty-state hint (see
+     * {@link #buildToolbarNorth()}).
+     */
+    private final JPanel userStrip = new JPanel(new BorderLayout(6, 0));
+    /** Shown on the command row while the user has selected no extension command. */
+    private final JLabel userHint = new JLabel(
+            "No extension commands on the toolbar yet \u2014 use \u201CCustomize\u2026\u201D to add some.");
+    /**
+     * The currently-available contributions indexed by their stable
+     * {@code providerId/actionId} key, rebuilt with the extension actions so the
+     * user toolbar and the customise card resolve config ids to live commands.
+     */
+    private final Map<String, ExtensionBroker.ConfiguredContribution> contributionsByKey =
+            new LinkedHashMap<>();
     /** "Projet" menu card: create / open / manage project folders (Phase 5). */
     private final ProjectCard projectCard;
     /**
@@ -164,6 +203,20 @@ public class AdvancedTextEditorPanel extends JPanel
     /** South Debug tab: the debugger surface (breakpoints/stack/locals/output). */
     private final DebugPanel debugPanel = new DebugPanel();
     private final CompletionPanel completionPanel = new CompletionPanel();
+    /**
+     * The inline at-caret completion popup (Phase 6), fed from the same
+     * {@code publishCompletions} sink as {@link #completionPanel} and layered
+     * inside the current tab's scroll pane (offscreen-safe).
+     */
+    private final CompletionPopup completionPopup = new CompletionPopup();
+    /** The last candidates published, replayed by a Ctrl+Space force-show. */
+    private List<String> lastCompletionCandidates = List.of();
+    /** The path those last candidates belong to (test seam / force routing). */
+    private String lastCompletionPath = "";
+    /** The identifier run the popup is currently completing (caret auto-hide). */
+    private String lastCompletionPrefix = "";
+    /** The 0-based offset where {@link #lastCompletionPrefix} starts. */
+    private int lastCompletionAnchor;
     /** South tabbed region holding Output / Problems / Structure / Debug / Completions. */
     private final JTabbedPane bottomTabs = new JTabbedPane();
     /** Debounces live analysis after the last keystroke. */
@@ -240,6 +293,7 @@ public class AdvancedTextEditorPanel extends JPanel
         settingsCard = new SettingsCard(this);
         recentCard = new RecentCard(this);
         extensionsCard = new ExtensionsCard(this);
+        toolbarCustomizeCard = new ToolbarCustomizeCard(this);
         projectCard = new ProjectCard(this);
 
         projectTree.setOnFileChosen(this::openPath);
@@ -266,6 +320,13 @@ public class AdvancedTextEditorPanel extends JPanel
                 tab.insertCompletion(text);
             }
         });
+        // The inline popup accepts through the identical insert-at-caret path.
+        completionPopup.setOnAccept(text -> {
+            EditorTab tab = currentTab();
+            if (tab != null) {
+                tab.insertCompletion(text);
+            }
+        });
 
         // Editor over the south tab region, inside the editor card only.
         JSplitPane editorVSPLIT = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
@@ -280,6 +341,7 @@ public class AdvancedTextEditorPanel extends JPanel
         center.add(recentCard, CARD_RECENT);
         center.add(extensionsCard, CARD_EXTENSIONS);
         center.add(projectCard, CARD_PROJECT);
+        center.add(toolbarCustomizeCard, CARD_TOOLBAR);
         // The Git GUI wants 1000x680; scroll rather than clip inside the
         // 960x680 card area.
         JScrollPane gitScroll = new JScrollPane(gitGuiPanel,
@@ -297,11 +359,12 @@ public class AdvancedTextEditorPanel extends JPanel
         messageTimer = new Timer(MESSAGE_MS, e -> statusBar.setMessage(""));
         messageTimer.setRepeats(false);
 
-        add(buildToolbar(), BorderLayout.NORTH);
+        add(buildToolbarNorth(), BorderLayout.NORTH);
         add(mainHSPLIT, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
         tabs.addChangeListener(e -> {
+            completionPopup.hide();
             refreshButtons();
             refreshStatus();
             scheduleAnalysis();
@@ -329,6 +392,29 @@ public class AdvancedTextEditorPanel extends JPanel
     // ------------------------------------------------------------------
     // Toolbar
     // ------------------------------------------------------------------
+
+    /**
+     * The NORTH chrome, in two rows: the fixed built-in actions on the first,
+     * the user-configured extension commands (plus the {@code Customize\u2026}
+     * entry point) on the second.
+     *
+     * <p>The two rows are not a cosmetic choice. The built-ins alone already want
+     * more width than the panel's {@value #WIDTH_PX}px preferred size, and a
+     * {@code JToolBar} lays its children out in a single row from the left,
+     * pushing everything past its right edge off-screen. Appending the user's
+     * buttons to that row therefore made them (and the {@code Customize\u2026}
+     * button) unreachable: a configured command existed in the model but was
+     * never visible or clickable. On its own row the command strip gets the full
+     * width, and its {@code FlowLayout} wraps onto extra lines when the user
+     * adds more commands than fit.</p>
+     */
+    private JComponent buildToolbarNorth() {
+        JPanel north = new JPanel(new BorderLayout());
+        north.setName("toolbarNorth");
+        north.add(buildToolbar(), BorderLayout.CENTER);
+        north.add(buildUserCommandStrip(), BorderLayout.SOUTH);
+        return north;
+    }
 
     private JToolBar buildToolbar() {
         JToolBar bar = new JToolBar();
@@ -392,8 +478,38 @@ public class AdvancedTextEditorPanel extends JPanel
                 + "Git client for the current project", e -> showProject()));
         bar.addSeparator();
         bar.add(button("Close", "Close the editor window", e -> requestClose()));
-
         return bar;
+    }
+
+    /**
+     * Builds the second toolbar row: a {@code Commands:} label, the wrapping
+     * section of user-configured extension buttons (with an italic hint while that
+     * section is empty) and the {@code Customize\u2026} button pinned to the right
+     * so it stays reachable however many commands the user adds.
+     */
+    private JComponent buildUserCommandStrip() {
+        userButtons.setName("userToolbarButtons");
+        userStrip.setName("userToolbarStrip");
+        userHint.setName("userToolbarHint");
+        userHint.setFont(userHint.getFont().deriveFont(Font.ITALIC));
+
+        JPanel commands = new JPanel(new BorderLayout());
+        commands.add(userButtons, BorderLayout.NORTH);
+        commands.add(userHint, BorderLayout.SOUTH);
+
+        JButton customize = button("Customize\u2026",
+                "Choose which extension commands appear here, and how "
+                        + "(icon, text, or both)",
+                e -> showToolbarCustomize());
+        customize.setName("customizeToolbarButton");
+        JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+        east.add(customize);
+
+        userStrip.add(new JLabel("Commands:"), BorderLayout.WEST);
+        userStrip.add(commands, BorderLayout.CENTER);
+        userStrip.add(east, BorderLayout.EAST);
+        rebuildUserToolbarButtons();
+        return userStrip;
     }
 
     private static JButton button(String text, String tooltip,
@@ -427,6 +543,7 @@ public class AdvancedTextEditorPanel extends JPanel
             showFindBar();
             findBar.focusLine();
         });
+        bind(input, actions, "ctrl SPACE", "te-complete", this::forceShowCompletion);
         bind(input, actions, "ctrl Z", "te-undo", this::undoCurrent);
         bind(input, actions, "ctrl Y", "te-redo", this::redoCurrent);
         bind(input, actions, "ctrl EQUALS", "te-zoom-in", () -> zoom(+1));
@@ -485,6 +602,8 @@ public class AdvancedTextEditorPanel extends JPanel
         tab.setCaretListener(this::refreshStatus);
         tab.setChangeListener(this::scheduleAnalysis);
         tabs.addTab(tab.getDisplayName(), tab);
+        // Route Up/Down/Enter/Tab/Esc to the inline popup while it is showing.
+        completionPopup.installOn(tab);
         // A custom tab header carries the title plus a close (x) button, so every
         // tab is closable by click (Ctrl+W and middle-click still work).
         tabs.setTabComponentAt(tabs.indexOfComponent(tab), new ClosableTabHeader(tab));
@@ -1100,6 +1219,42 @@ public class AdvancedTextEditorPanel extends JPanel
         cards.show(center, CARD_EXTENSIONS);
     }
 
+    /** Opens the toolbar-customise card with the live available/active commands. */
+    private void showToolbarCustomize() {
+        toolbarCustomizeCard.show(availableCommands(), settings.getToolbarButtons());
+        cards.show(center, CARD_TOOLBAR);
+    }
+
+    @Override
+    public List<ToolbarCustomizeCard.AvailableCommand> availableCommands() {
+        List<ToolbarCustomizeCard.AvailableCommand> out = new ArrayList<>();
+        for (Map.Entry<String, ExtensionBroker.ConfiguredContribution> e
+                : contributionsByKey.entrySet()) {
+            ExtensionBroker.ConfiguredContribution cc = e.getValue();
+            out.add(new ToolbarCustomizeCard.AvailableCommand(e.getKey(),
+                    cc.extension(), cc.category(), cc.contribution().getLabel()));
+        }
+        return out;
+    }
+
+    @Override
+    public List<ToolbarButtonConfig.Entry> currentToolbar() {
+        return settings.getToolbarButtons().entries();
+    }
+
+    @Override
+    public void applyToolbar(List<ToolbarButtonConfig.Entry> entries) {
+        ToolbarButtonConfig config = new ToolbarButtonConfig();
+        if (entries != null) {
+            for (ToolbarButtonConfig.Entry entry : entries) {
+                config.add(entry.id(), entry.mode());
+            }
+        }
+        settings.setToolbarButtons(config);
+        persistSettings();
+        rebuildUserToolbarButtons();
+    }
+
     /**
      * Groups the flat {@link #extensionActions} list under category headers in
      * the curated {@link #PREFERRED_CATEGORIES} order (then any remaining
@@ -1359,12 +1514,126 @@ public class AdvancedTextEditorPanel extends JPanel
      */
     private void loadExtensionActions() {
         extensionActions.clear();
+        contributionsByKey.clear();
         for (ExtensionBroker.ContributedAction ca
                 : extensionBroker.categorizedActions()) {
             extensionActions.add(new ExtensionAction(ca.category(), ca.extension(),
                     ca.contribution().getId(), ca.contribution().getLabel(),
                     ca.contribution().getAccelerator(), ca.contribution().getAction()));
         }
+        for (ExtensionBroker.ConfiguredContribution cc
+                : extensionBroker.configuredContributions()) {
+            contributionsByKey.put(cc.providerId() + "/" + cc.contribution().getId(), cc);
+        }
+        rebuildUserToolbarButtons();
+    }
+
+    /**
+     * Repopulates the command row from {@code settings.getToolbarButtons()},
+     * resolving each stored id against the currently-available contributions.
+     * Stale ids (a disabled/removed extension) render nothing but are left
+     * untouched in the persisted config, so disabling an extension never corrupts
+     * the user's layout. The empty-state hint swaps in when nothing renders.
+     */
+    private void rebuildUserToolbarButtons() {
+        userButtons.removeAll();
+        ToolbarButtonConfig config = settings.getToolbarButtons();
+        for (ToolbarButtonConfig.Entry entry
+                : config.resolve(contributionsByKey.keySet())) {
+            userButtons.add(makeUserButton(entry));
+        }
+        userHint.setVisible(userButtons.getComponentCount() == 0);
+        userStrip.revalidate();
+        userStrip.repaint();
+    }
+
+    /** How many user-configured extension buttons currently render (test seam). */
+    final int userToolbarButtonCount() {
+        return userToolbarButtons().size();
+    }
+
+    /** The rendered user command buttons, left to right (test seam). */
+    final List<JButton> userToolbarButtons() {
+        List<JButton> out = new ArrayList<>();
+        for (Component button : userButtons.getComponents()) {
+            if (button instanceof JButton b) {
+                out.add(b);
+            }
+        }
+        return out;
+    }
+
+    /** The command strip, so a test can lay it out and check its geometry (test seam). */
+    final JComponent userCommandStrip() {
+        return userStrip;
+    }
+
+    /**
+     * Builds one user toolbar button for a resolved entry: icon and/or text per
+     * its display mode, a tooltip naming the command (and its accelerator), and
+     * an action listener that runs the contribution through the same guarded,
+     * live-document path as {@link #runExtensionAction(int)}. Accelerators stay
+     * bound via the existing {@link #bindAccelerators()} pass, so a toolbar
+     * button and its shortcut share one behaviour.
+     */
+    private JButton makeUserButton(ToolbarButtonConfig.Entry entry) {
+        ExtensionBroker.ConfiguredContribution cc = contributionsByKey.get(entry.id());
+        ToolbarContribution c = cc.contribution();
+        JButton b = new JButton();
+        b.setFocusable(false);
+        b.setName("extButton:" + entry.id());
+        String label = c.getLabel();
+        Icon icon = (c.getIcon() != null) ? c.getIcon()
+                : EditorGlyphs.toolbarIcon(
+                        EditorGlyphs.guess(c.getId() + " " + cc.providerId(), label));
+        switch (entry.mode()) {
+            case ICON -> {
+                b.setIcon(icon);
+                b.setText(null);
+            }
+            case TEXT -> {
+                b.setText(label);
+                b.setIcon(null);
+            }
+            case ICON_TEXT -> {
+                b.setText(label);
+                b.setIcon(icon);
+            }
+        }
+        String tip = cc.extension() + ": " + label;
+        if (!c.getTooltip().isBlank()) {
+            tip = c.getTooltip();
+        }
+        String accel = formatAccelerator(effectiveAcceleratorFor(entry.id(), c));
+        if (!accel.isEmpty()) {
+            tip += "  (" + accel + ")";
+        }
+        b.setToolTipText(tip);
+        b.addActionListener(e -> runContribution(c));
+        return b;
+    }
+
+    /**
+     * Runs one toolbar contribution against the live document, mirroring
+     * {@link #runExtensionAction(int)}'s guard and document-snapshot refresh so a
+     * toolbar button and the Extensions card's Run produce identical behaviour.
+     */
+    private void runContribution(ToolbarContribution c) {
+        cards.show(center, CARD_EDITOR);
+        notifyDocumentOpened(currentTab());
+        try {
+            c.getAction().run();
+        } catch (Throwable t) {
+            logger.log(Level.WARNING, "Toolbar extension action failed", t);
+            message("Extension action failed (see log)");
+        }
+        refreshStatus();
+    }
+
+    /** The effective accelerator for a configured contribution id. */
+    private String effectiveAcceleratorFor(String key, ToolbarContribution c) {
+        String override = settings.getAcceleratorOverrides().get(c.getId());
+        return (override != null) ? override : c.getAccelerator();
     }
 
     /**
@@ -1565,15 +1834,59 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     /**
-     * Paints the completion strip. Delegate for
-     * {@code EditorContext.publishCompletions}; an empty list clears it
-     * (Phase 4).
+     * Paints the completion strip and the inline popup. Delegate for
+     * {@code EditorContext.publishCompletions}; an empty list clears both
+     * (Phase 4 strip, Phase 6 popup). The popup is shown only when the caret
+     * sits on an identifier run or after a dot ({@link CompletionTrigger}); the
+     * strip always mirrors the full candidate list.
      */
     void showCompletionsForExtension(String path, List<String> candidates) {
         boolean empty = (candidates == null || candidates.isEmpty());
+        List<String> list = empty ? List.of() : candidates;
         String title = (path == null || path.isEmpty() || empty)
                 ? null : baseName(path);
-        completionPanel.setCompletions(title, empty ? List.of() : candidates);
+        completionPanel.setCompletions(title, list);
+        lastCompletionCandidates = list;
+        lastCompletionPath = (path == null) ? "" : path;
+        updateCompletionPopup(false);
+    }
+
+    /**
+     * Re-evaluates and repaints the inline popup from the last published
+     * candidates for the current tab. A force-show (Ctrl+Space) reveals the
+     * popup even with no identifier prefix; otherwise it appears only on an
+     * identifier run / after a dot and hides whenever those conditions fail.
+     */
+    private void updateCompletionPopup(boolean force) {
+        EditorTab tab = currentTab();
+        if (tab == null || lastCompletionCandidates.isEmpty()) {
+            completionPopup.hide();
+            return;
+        }
+        CompletionTrigger.Decision d = CompletionTrigger.evaluate(
+                tab.getText(), tab.caretOffset(), lastCompletionCandidates, force);
+        if (d.show()) {
+            lastCompletionPrefix = d.prefix();
+            lastCompletionAnchor = d.anchor();
+            completionPopup.show(tab, lastCompletionCandidates);
+        } else {
+            completionPopup.hide();
+        }
+    }
+
+    /** Ctrl+Space: force the inline popup open at the caret. */
+    final void forceShowCompletion() {
+        updateCompletionPopup(true);
+    }
+
+    /** The inline popup (test seam). */
+    final CompletionPopup completionPopup() {
+        return completionPopup;
+    }
+
+    /** The last candidates routed to the completion surfaces (test seam). */
+    final List<String> lastCompletionCandidates() {
+        return lastCompletionCandidates;
     }
 
     /** Jumps the caret to a location. Delegate for {@code EditorContext.navigateTo}. */
@@ -1656,11 +1969,19 @@ public class AdvancedTextEditorPanel extends JPanel
     private void refreshStatus() {
         EditorTab tab = currentTab();
         if (tab == null) {
+            completionPopup.hide();
             statusBar.setPosition(0, 0);
             statusBar.setSelection(0);
             statusBar.setDocumentSize(0, 0);
             statusBar.setFileInfo("-", "-", "-");
             return;
+        }
+        // Auto-hide the inline popup once the caret leaves the run it was
+        // completing (arrow keys, clicks, Home/End), without disturbing the strip.
+        if (completionPopup.isShowing() && CompletionTrigger.caretLeftRun(
+                tab.getText(), tab.caretOffset(), lastCompletionAnchor,
+                lastCompletionPrefix)) {
+            completionPopup.hide();
         }
         statusBar.setPosition(tab.getCaretLine(), tab.getCaretColumn());
         JTextComponent pane = tab.textPane();
@@ -1718,6 +2039,7 @@ public class AdvancedTextEditorPanel extends JPanel
 
     /** Flushes preferences and stops the panel's timers on window close. */
     public void dispose() {
+        completionPopup.hide();
         extensionBroker.notifyStopping();
         persistSettings();
         messageTimer.stop();

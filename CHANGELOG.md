@@ -187,6 +187,44 @@ work to make it build and run on a current toolchain.
   legacy `text-editor.png` stays generated for other consumers). 8 new
   headless tests (`ProjectCardTest` routing + panel project/Git paths).
   Text-editor surface now **33 suites / 327 tests**.
+- **Espresso: configurable toolbar, inline completion and new tools (Phase 6)**
+  (`lg3d-apps`) — three additive capabilities, all third-party-source-compatible.
+  The `ToolbarContribution` SPI grew an optional `javax.swing.Icon` (new
+  delegating constructors + `getIcon()`, so no existing provider breaks), fed by a
+  tiny in-tree `EditorGlyphs` vector-glyph factory so toolbar buttons always have
+  art even where `IconManager` is absent (the test classpath). A **user-configured,
+  persisted toolbar**: `ToolbarButtonConfig` (a plain, headless-testable ordered
+  model of `id[:mode]` entries with `{ICON, TEXT, ICON_TEXT}` display modes) is
+  stored in `EditorSettings` under the `toolbarButtons` key (a `'|'`-joined list,
+  round-tripped like `recentFiles`), rendered on its **own second toolbar row**
+  (`Commands:` + the chosen buttons + `Customize…` pinned right — the built-ins
+  alone already overflow the panel's 960px width, and a `JToolBar` clips
+  everything past its right edge, so buttons appended to that row would never be
+  visible or clickable; the strip's `FlowLayout` wraps instead), with each
+  command's accelerator bound, and edited through a new **Customize
+  Toolbar…** card (`ToolbarCustomizeCard` — a `JList`/`JButton` two-pane
+  add/remove/reorder/mode editor, offscreen-safe, committing only on Apply; stale
+  ids from a disabled extension are dropped at render, never on load).
+  **Completion now paints inline at the caret** as well as in the bottom strip:
+  `publishCompletions` feeds both surfaces, the new `CompletionPopup` is layered
+  inside the editor `JScrollPane`'s `JLayeredPane` (never a `JWindow`/`JPopupMenu`,
+  so it composites into the SwingNode capture), positioned from
+  `modelToView2D(offset)` and clamped to the viewport, driven by the pure
+  `CompletionTrigger` show/hide decision and Up/Down/Enter/Tab/Esc/Ctrl+Space keys;
+  accept reuses the strip's `EditorTab.insertCompletion`. Three new bundled
+  providers exercise both: **Insert & Snippets** (`lg3d.snippets`, category Insert,
+  READ+WRITE+TOOLBAR — UUID/timestamp/date/lorem/hex-colour buttons that insert at
+  the caret and publish `${snippet}` tokens as inline completions), **TODO & Task
+  scan** (`lg3d.todo`, category Project, READ+DIAGNOSE+TOOLBAR — scans
+  TODO/FIXME/NOTE/HACK into info diagnostics with a jump-to-next) and **Comment
+  Toggle** (`lg3d.comment`, category Text, READ+WRITE+TOOLBAR — a language-aware
+  add/remove/toggle line-comment action via the `Languages` catalogue; the plan's
+  fold/unfold half is intentionally dropped as a `JTextPane` has no folding model).
+  New and updated headless JUnit 5 suites — `ToolbarContributionTest`,
+  `ToolbarButtonConfigTest`, `CompletionTriggerTest`, `ToolbarCustomizeCardTest`,
+  `SnippetsToolsTest`, `TodoScanToolsTest`, `CommentToolsTest`, an `EditorSettings`
+  round-trip and panel glue proving both completion surfaces — bring the
+  text-editor surface to **40 suites / 383 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is

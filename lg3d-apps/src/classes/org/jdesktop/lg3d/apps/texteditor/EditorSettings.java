@@ -61,6 +61,13 @@ public final class EditorSettings {
     private final List<String> recentFiles = new ArrayList<>();
     private final List<String> recentProjects = new ArrayList<>();
     /**
+     * The user's ordered, persisted toolbar button selection (extension commands
+     * chosen for the toolbar, each with a display mode). Serialised like the
+     * recent lists, as one '|'-joined {@code id:mode} string under the pref key
+     * {@code toolbarButtons}; empty means the built-in buttons alone.
+     */
+    private ToolbarButtonConfig toolbarButtons = ToolbarButtonConfig.defaults();
+    /**
      * User rebound of extension toolbar accelerators, keyed by contribution id.
      * A blank value means the action was deliberately unbound; an absent key
      * means "use the extension's declared default".
@@ -131,6 +138,7 @@ public final class EditorSettings {
         map.put("autoIndent", Boolean.toString(autoIndent));
         map.put("highlight", Boolean.toString(highlight));
         map.put("theme", themeName);
+        map.put("toolbarButtons", toolbarButtons.toConfigString());
         if (!acceleratorOverrides.isEmpty()) {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, String> entry : acceleratorOverrides.entrySet()) {
@@ -159,6 +167,7 @@ public final class EditorSettings {
         s.setAutoIndent(boolOr(map.get("autoIndent"), true));
         s.setHighlight(boolOr(map.get("highlight"), true));
         s.setThemeName(map.get("theme"));
+        s.toolbarButtons = ToolbarButtonConfig.parse(map.get("toolbarButtons"));
         String overrides = map.get("acceleratorOverrides");
         if (overrides != null && !overrides.isEmpty()) {
             for (String pair : overrides.split(";")) {
@@ -322,6 +331,19 @@ public final class EditorSettings {
     /** The selected theme object; never null. */
     public EditorTheme getTheme() {
         return EditorTheme.byName(themeName);
+    }
+
+    /**
+     * The user's ordered toolbar button selection (live reference; mutate through
+     * the returned config or {@link #setToolbarButtons}). Never null.
+     */
+    public ToolbarButtonConfig getToolbarButtons() {
+        return toolbarButtons;
+    }
+
+    /** Replaces the toolbar button selection wholesale; a null argument resets to empty. */
+    public void setToolbarButtons(ToolbarButtonConfig config) {
+        this.toolbarButtons = (config != null) ? config : ToolbarButtonConfig.defaults();
     }
 
     /**
