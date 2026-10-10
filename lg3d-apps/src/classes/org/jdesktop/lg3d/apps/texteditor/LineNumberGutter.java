@@ -22,11 +22,17 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.JComponent;
+import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Element;
 import javax.swing.text.StyledDocument;
@@ -73,6 +79,43 @@ public class LineNumberGutter extends JComponent {
         this.document = document;
         this.textPane = pane;
         setOpaque(true);
+        installBreakpointClick();
+    }
+
+    /**
+     * A left-click on the gutter toggles a breakpoint on the clicked line —
+     * the debugger's entry point (Phase 3); the extension reads the set back
+     * through {@code EditorContext.getBreakpoints}. Row headers share the
+     * viewport's y coordinate with the text pane, so {@code viewToModel} on
+     * the pane maps a gutter point to the model offset directly.
+     */
+    private void installBreakpointClick() {
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (!SwingUtilities.isLeftMouseButton(e)) {
+                    return;
+                }
+                int line = lineAtPoint(e.getPoint());
+                if (line >= 0) {
+                    toggleBreakpoint(line);
+                }
+            }
+        });
+    }
+
+    /** @return the 0-based line under the gutter point, or -1 when unmapped. */
+    int lineAtPoint(Point p) {
+        try {
+            int offset = textPane.viewToModel(
+                    new Point(0, p.y));
+            if (offset < 0) {
+                return -1;
+            }
+            return document.getDefaultRootElement().getElementIndex(offset);
+        } catch (RuntimeException rte) {
+            return -1; // no view yet (headless / still loading)
+        }
     }
 
     /** Recolours the gutter from a theme; callers repaint afterwards. */
@@ -135,6 +178,13 @@ public class LineNumberGutter extends JComponent {
     /** @return true when a breakpoint is set on the 0-based {@code line}. */
     public boolean hasBreakpoint(int line) {
         return breakpoints.contains(line);
+    }
+
+    /** @return the 0-based lines carrying a breakpoint, ascending. */
+    public List<Integer> breakpointLines() {
+        List<Integer> out = new ArrayList<>(breakpoints);
+        Collections.sort(out);
+        return out;
     }
 
     /** Removes every breakpoint. */

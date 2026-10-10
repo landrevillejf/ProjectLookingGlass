@@ -166,6 +166,20 @@ public final class EditorContext {
         }
     }
 
+    /**
+     * @return the 1-based lines carrying a user-toggled breakpoint in
+     * {@code path} (the gutter's state), ascending; empty without
+     * {@link TextEditorPermission#DEBUG} or when the host has no breakpoint
+     * surface. The debugger installs its requests from this list.
+     */
+    public List<Integer> getBreakpoints(String path) {
+        if (has(TextEditorPermission.DEBUG) && sinks.breakpointsFor != null) {
+            List<Integer> lines = sinks.breakpointsFor.apply(path);
+            return (lines == null) ? List.of() : lines;
+        }
+        return List.of();
+    }
+
     /** Appends a line to the Debug panel's output; no-op without DEBUG. */
     public void appendDebugOutput(String line) {
         if (has(TextEditorPermission.DEBUG) && sinks.appendDebugOutput != null

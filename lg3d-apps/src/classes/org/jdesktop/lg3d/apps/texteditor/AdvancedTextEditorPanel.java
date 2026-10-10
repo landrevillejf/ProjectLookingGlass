@@ -201,6 +201,7 @@ public class AdvancedTextEditorPanel extends JPanel
                         .clearDiagnostics(this::clearDiagnosticsForExtension)
                         .showStructure(this::showStructureForExtension)
                         .navigate(this::navigateForExtension)
+                        .breakpointsFor(this::breakpointsForExtension)
                         .appendDebugOutput(debugPanel::appendOutput)
                         .setDebugState(debugPanel::setState)
                         .showStack(debugPanel::setStack)
@@ -1472,6 +1473,16 @@ public class AdvancedTextEditorPanel extends JPanel
         cards.show(center, CARD_EDITOR);
         tabs.setSelectedComponent(tab);
         tab.goToLine(line);
+    }
+
+    /**
+     * The gutter's 1-based breakpoint lines for the tab owning {@code path}.
+     * Delegate for {@code EditorContext.getBreakpoints}; an unknown path (or
+     * no tab at all) simply has no breakpoints.
+     */
+    List<Integer> breakpointsForExtension(String path) {
+        EditorTab tab = tabForPath(path);
+        return (tab == null) ? List.of() : tab.breakpointLines();
     }
 
     /** Opens the location of a Problems-tab row. */

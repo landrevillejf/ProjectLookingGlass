@@ -416,6 +416,15 @@ public final class EditorTab extends JPanel {
         return gutter.hasBreakpoint(line - 1);
     }
 
+    /** @return the 1-based lines carrying a breakpoint, ascending. */
+    public java.util.List<Integer> breakpointLines() {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        for (int zero : gutter.breakpointLines()) {
+            out.add(zero + 1);
+        }
+        return out;
+    }
+
     /** @return how many diagnostics are currently painted (test seam). */
     public int diagnosticCount() {
         return diagnosticCount;

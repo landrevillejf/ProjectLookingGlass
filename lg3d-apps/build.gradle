@@ -190,6 +190,12 @@ tasks.named('test') {
     // The Help Center's HelpSet-loading test constructs a JHelp but never shows
     // it, so it runs headless on CI (no X display).
     systemProperty 'java.awt.headless', 'true'
+    // Opt-in real JDI debugger integration test (spawns a child JVM): forward
+    // the flag so `./gradlew test -Dlg3d.debug.integration=true` enables it.
+    if (System.getProperty('lg3d.debug.integration') != null) {
+        systemProperty 'lg3d.debug.integration',
+                System.getProperty('lg3d.debug.integration')
+    }
 }
 
 dependencies {
