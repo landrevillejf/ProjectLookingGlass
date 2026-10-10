@@ -200,6 +200,14 @@ tasks.named('test') {
 
 dependencies {
     implementation project(':lg3d-core')
+    // Mandela: the desktop's own scripting language (module :lg3d-mandela).
+    // Espresso's bundled MandelaTools extension and the Web Browser's Mandela
+    // userscript bridge call its public API (org.jdesktop.lg3d.mandela.api.*)
+    // directly, so the language jar is a compile dep here. It is ALSO resolved
+    // onto the lg3d-core desktop run classpath and into the release bundle (see
+    // lg3d-core/build.gradle), otherwise the in-JVM text editor dies with
+    // NoClassDefFoundError: org/jdesktop/lg3d/mandela/api/Mandela.
+    implementation project(':lg3d-mandela')
     // Apache PDFBox (Apache-2.0) powers the PDF Viewer's page rasterisation
     // (org.jdesktop.lg3d.apps.pdfviewer). It is also resolved onto the lg3d-core
     // desktop run classpath (see lg3d-core/build.gradle) so the in-JVM

@@ -36,8 +36,16 @@ class LanguagesTest {
         assertFalse(Languages.all().isEmpty());
         assertSame(Languages.PLAIN, Languages.all().get(0));
         assertEquals("Plain Text", Languages.PLAIN.getName());
-        // The 16 syntax languages plus Plain Text.
-        assertEquals(17, Languages.all().size());
+        // The 17 syntax languages plus Plain Text.
+        assertEquals(18, Languages.all().size());
+        // Mandela is the one entry that does not spell out its own keywords: it
+        // reads them from the language jar, so the painter and the parser cannot
+        // disagree about what a keyword is (the contract this pins).
+        Language mandela = Languages.forExtension("mnd");
+        assertEquals("Mandela", mandela.getName());
+        assertEquals(org.jdesktop.lg3d.mandela.lang.Keywords.ALL, mandela.getKeywords());
+        assertTrue(mandela.getKeywords().contains("fun"),
+                "the language's reserved words reach the colourer");
     }
 
     @Test

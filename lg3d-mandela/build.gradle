@@ -1,0 +1,96 @@
+// lg3d-mandela: "Project Mandela" -- the desktop's own scripting language.
+//
+// The module is the whole tool chain in one jar: lexer, recursive-descent
+// parser, AST, bytecode compiler, stack VM, the capability-gated runtime and
+// standard library, a JSR-223 ScriptEngine, an embedding API for Java and
+// Kotlin hosts, and the `mandela` command line / REPL.
+//
+// It deliberately has NO third-party dependency and NO lg3d-core dependency:
+//  * "light weight" -- the jar is the language, nothing else; it adds no
+//    transitive surface to the desktop classpath (see the root AGENTS.md
+//    dependency notes for the modules that do carry libraries).
+//  * it embeds everywhere -- lg3d-apps' Espresso (text editor) and the Web
+//    Browser both depend on it, and a host that is not the desktop (a plain
+//    JVM tool, a test, a Kotlin script) can drop the jar on its classpath and
+//    use javax.script or the org.jdesktop.lg3d.mandela.api facade directly.
+//
+// The toolchain (JDK 21), UTF-8 encoding, the build-gradle output directory,
+// checkstyle (report-only) and jacoco are inherited from the root build.gradle
+// subprojects block. The Maven-standard source layout (src/main/java,
+// src/test/java, src/main/resources) is kept as-is, so no sourceSet override is
+// needed.
+
+jar {
+    archiveBaseName = 'lg3d-mandela'
+    manifest {
+        attributes 'Main-Class': 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    }
+}
+
+// No `dependencies { implementation ... }` block at all: the language uses only
+// the JDK (java.base + javax.script). JUnit is test-only.
+dependencies {
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The module is AWT/Swing-free, but the hosts that embed it are not: force
+    // headless so the suite stays deterministic and CI-safe.
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// ---------------------------------------------------------------------------
+// mandelaRun: run a script with the freshly built engine, no packaging step
+// ---------------------------------------------------------------------------
+// `./gradlew :lg3d-mandela:mandelaRun -Pscript=hello.mnd` executes a Mandela
+// source file on the module's own classes (not the jar), and
+// `./gradlew :lg3d-mandela:mandelaRepl` starts the interactive REPL. Both are
+// developer conveniences; the desktop uses the packaged jar on its run
+// classpath instead (see lg3d-core/build.gradle).
+tasks.register('mandelaRun', JavaExec) {
+    group = 'application'
+    description = 'Run a Mandela script (pass -Pscript=path/to/file.mnd; extra args after -Pargs=).'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    def script = project.findProperty('script')?.toString()
+    args = (script == null) ? ['--help'] : (['run', script] +
+            (project.findProperty('args')?.toString()?.split(' ')?.findAll { it } ?: []))
+}
+
+tasks.register('mandelaRepl', JavaExec) {
+    group = 'application'
+    description = 'Start the interactive Mandela REPL.'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    args = ['repl']
+    standardInput = System.in
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable on
+// the language core, where a silently wrong operator or comparison is the worst
+// possible defect. NOT part of `build`/`check`: run
+// `./gradlew :lg3d-mandela:pitest` explicitly. mutationThreshold = 0 keeps the
+// report informational (the suite is new; the gate is deferred repo-wide).
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    threads = 4
+    targetClasses = ['org.jdesktop.lg3d.mandela.*']
+    targetTests = ['org.jdesktop.lg3d.mandela.*Test']
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+}

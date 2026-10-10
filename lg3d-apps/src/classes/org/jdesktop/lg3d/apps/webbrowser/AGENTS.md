@@ -133,8 +133,23 @@
   `try/catch` (a throwing extension is logged + skipped, never fatal).
   `FxBrowser.setExtensionBroker` injects the broker (built by `BrowserPanel`),
   which the popup handler, `loadInternal` and the `SUCCEEDED` page-loaded hook
-  consult. Three in-tree reference extensions (`ext.builtin`): `PopupBlocker`,
-  `TrackerBlocker`, `HttpsUpgrade`. Enable/grant state persists as
+  consult. Four in-tree reference extensions (`ext.builtin`): `PopupBlocker`,
+  `TrackerBlocker`, `HttpsUpgrade` and `MandelaUserscriptsExtension` — the last one
+  is the browser's side of the desktop scripting language: every `.mnd` file in
+  `~/.lg3d/webbrowser/userscripts` (relocate with `-Dlg3d.webbrowser.userscripts`,
+  a missing directory is *no scripts*, not an error) is discovered in name order on
+  each committed page, its leading `// @key value` block is read **host-side**
+  (`@match` patterns select the page; no `@match` means every page; the language
+  itself has no browser vocabulary), and it runs in its own engine under
+  `Capabilities.webPage()` — no filesystem, no network, no JVM types, 5 M
+  instructions, depth 256. Its only windows onto the browser are the names the
+  extension binds: `page` (a `{url, title}` map), `inject(js)`, `note(msg)` and its
+  console (`println`/`print`/`eprintln`, re-bound to the browser log because the
+  web-page profile withholds `STDOUT`). Everything it queued before a crash is still
+  injected, its failure is logged by script name, and the other scripts still run.
+  The whole feature sits behind the existing `Permission.CONTENT_SCRIPT` gate — a
+  script that cannot deliver anything is not executed at all — which is why it needs
+  no new consent dialog. Enable/grant state persists as
   `extensions.json` via `BrowserStore`. The SPI doubles as a **published API**:
   `:lg3d-apps:webBrowserApiJar` / `:webBrowserApiSourcesJar` package just the
   developer contract (the `ext` SPI + value types, excluding
@@ -172,7 +187,13 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   `:lg3d-core:run` / `releaseBundle` classpath (the `javafxLibs` detached
   configuration in `lg3d-core/build.gradle`, `linux` classifier) or the in-JVM 2D
   launch and the 3D child-process launch die with `NoClassDefFoundError:
-  javafx/...`. Never construct `WebView`/`JFXPanel` in the 3D desktop JVM.
+  javafx/...`. Never construct `WebView`/`JFXPanel` in the 3D desktop JVM. The
+  Mandela userscript extension is the browser's only reach into
+  `org.jdesktop.lg3d.mandela.api`/`rt`: `lg3d-mandela` is an `lg3d-apps` compile
+  dependency and its jar must be resolved onto the same `:lg3d-core:run` /
+  `releaseBundle` classpath, and the *engine* — not the browser — is what confines a
+  script, so the extension must keep passing `Capabilities.webPage()` rather than
+  relying on the in-process extension gate (which is consent/UX, not a JVM sandbox).
 - **Engineer / Developer** — JavaFX work runs on the FX Application Thread; Swing
   work on the EDT; marshal explicitly in both directions. `BrowserPreviewPanel`
   must stay free of `javafx.*` so the 3D host never loads the toolkit (the
@@ -194,7 +215,12 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   persistence), `ExtensionBrokerTest` (dispatch, exception isolation, permission
   enforcement, block/redirect, content-script gating, toolbar de-dup),
   `BrowserStoreExtensionsTest` and `PopupBlocker`/`TrackerBlocker`/
-  `HttpsUpgradeExtensionTest`. `Desktop2DAppRegistryTest` asserts the
+  `HttpsUpgradeExtensionTest`, plus `MandelaUserscriptsExtensionTest` (header
+  parsing and the first-non-comment-line stop, `@match` glob/`*`/host-suffix
+  matching and the no-`@match` default, discovery order and unreadable-file skips,
+  the CONTENT_SCRIPT gate, and a script's binds/injections asserted against the real
+  engine — including that a throwing script is logged by name, still delivers what
+  it queued before failing, and does not stop the next one). `Desktop2DAppRegistryTest` asserts the
   command classifies as `PANEL` and maps to `BrowserPanel`. `FxBrowser` and
   `BrowserPanel` stay without unit tests (they need a live toolkit), consistent
   with the suite. The GUI itself has no coverage/mutation gate; verify it with the

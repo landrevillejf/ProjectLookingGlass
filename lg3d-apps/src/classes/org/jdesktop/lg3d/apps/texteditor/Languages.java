@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.jdesktop.lg3d.mandela.lang.Keywords;
 
 /**
  * The built-in language catalogue of the Advanced Text Editor: the immutable
@@ -28,6 +29,13 @@ import java.util.Set;
  * pick one when a file is opened. A file with an unknown extension (or no
  * extension at all) falls back to {@link #PLAIN}, which colourises nothing
  * &mdash; the editor never guesses wrong in a damaging way.
+ *
+ * <p>Every other entry spells out its keywords, because those languages are
+ * external and their word lists are data to the editor. <b>Mandela</b> is the
+ * desktop's own language and takes its keywords from the language jar itself
+ * ({@link Keywords}), so the parser and the editor cannot disagree about what a
+ * keyword is: when the grammar gains a word, the colouring follows in the same
+ * build.</p>
  */
 public final class Languages {
 
@@ -60,6 +68,15 @@ public final class Languages {
                                 "String", "Integer", "Long", "Double", "Float",
                                 "Boolean", "Object", "Override", "true",
                                 "false", "null"),
+                        "//", "/*", "*/", "\"'", false, false),
+                // Mandela: the desktop's own scripting language. Its keyword set is
+                // read from the language rather than copied, and both the reserved
+                // and the contextual words are coloured because the parser reads
+                // both as words in some position. No preprocessor flag: the only
+                // `#` the language knows is a shebang, and `#!` is a comment.
+                new Language("Mandela",
+                        setOf("mnd"),
+                        Keywords.ALL,
                         "//", "/*", "*/", "\"'", false, false),
                 new Language("JavaScript",
                         setOf("js", "mjs", "cjs", "jsx"),

@@ -47,6 +47,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 - `lg3d-core` - Scene-graph / windowing / display-server SDK and desktop
 - `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`
 - `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
+- `lg3d-mandela` - **Project Mandela**: the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI and REPL). No third-party and no lg3d dependency, so it embeds anywhere.
 
 ### Excluded from Build
 - `lg3d-awt` - **RETIRED** (not merely excluded): the custom AWT Toolkit/peer implementation. JDK 9+ removed the `awt.toolkit` install hook, 46 of its 79 classes implement the `java.awt.peer.*` SPI and 9 use `sun.awt.*` internals unexported in JDK 21, so it cannot be installed on stock JDK 21 and will not be resurrected. Replacement mapping: 2D-in-3D widgets -> `org.jdesktop.lg3d.wg.SwingNode` (lg3d's pure-Java Swing→offscreen-`BufferedImage`→texture bridge, no JavaFX/AWT peer; see `TitledSwingWindow` in `lg3d-apps`); foreign X11 app compositing -> `org.jdesktop.lg3d.displayserver.nativewindow.x11` (pure-Java Escher compositor). Sources remain in-tree for reference only.
@@ -198,8 +199,9 @@ JUnit 5 test infrastructure exists and runs headless:
 
 ### Internal Dependencies
 - `lg3d-core` depends on `lg3d-escher`
-- `lg3d-apps` depends on `lg3d-core`
+- `lg3d-apps` depends on `lg3d-core` plus `lg3d-mandela` (Espresso's `MandelaTools` and the Web Browser's userscript bridge import `org.jdesktop.lg3d.mandela.api`)
 - `lg3d-incubator` depends on `lg3d-core` plus bundled jars in `ext/`
+- `lg3d-mandela` depends on **nothing** — `java.base` + `javax.script` only. That is what lets the same engine run in a headless test, inside Espresso's JVM and inside a browser page; do not add an AWT/Swing/Java 3D/lg3d-core import to it.
 
 ## Compiler Configuration
 
@@ -214,7 +216,8 @@ JUnit 5 test infrastructure exists and runs headless:
 - Branches: `master`, `main` (CI triggers on both)
 - Concurrency: Newer push supersedes in-flight run
 - **Single repository.** `lg3d-core`, `lg3d-apps`, `lg3d-incubator`,
-  `lg3d-widgets`, `lpm-console`, `CHANGELOG.md` and `README.md` all live in
+  `lg3d-widgets`, `lg3d-mandela`, `lpm-console`, `CHANGELOG.md` and `README.md`
+  all live in
   **one** repo (verified: no `.gitmodules`, no `160000` gitlink entries).
 - **Stage explicitly.** Never `git add -A` / `git add .`: the working tree holds
   untracked runtime artifacts (`lg3d-core/lgscreen-*.png`, stray downloads) that
@@ -378,6 +381,15 @@ do-not-edit `lg3d-docs/`):
 - [`docs/swingnode.md`](docs/swingnode.md) - `SwingNode`: rendering a Swing
   `JPanel` offscreen into a texture, input forwarding, custom renderers,
   lifecycle/`dispose()`, and when to use it vs pure-3D widgets.
+- [`docs/mandela-language.md`](docs/mandela-language.md) - **Project Mandela**
+  the language: lexing, types, control flow, functions and lambdas, data and
+  collections, classes and objects, errors, the standard library and the
+  capability model. Grammar as the parser accepts it, with the rationale for
+  every refusal.
+- [`docs/mandela-embedding-api.md`](docs/mandela-embedding-api.md) - embedding
+  Mandela in a Java or Kotlin host: `api.Mandela` / `rt.Runtime` / `api.Interop`
+  / `rt.Capabilities` / `api.EditorServices` / the JSR-223 engine, plus the two
+  shipped hosts (Espresso and the Web Browser) as recipes.
 
 ## Module AGENTS.md index & shared role model
 
@@ -392,6 +404,7 @@ rulebook**. When a module file and this root file conflict, the root file wins.
 | `lg3d-core` | [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) | **canonical rulebook** (3D `Frame3D` + 2D `SwingNode`) |
 | `lg3d-apps` | [`lg3d-apps/AGENTS.md`](lg3d-apps/AGENTS.md) | 3D + 2D |
 | `lg3d-incubator` | [`lg3d-incubator/AGENTS.md`](lg3d-incubator/AGENTS.md) | 3D (native) + 2D (Swing dialogs) |
+| `lg3d-mandela` | [`lg3d-mandela/AGENTS.md`](lg3d-mandela/AGENTS.md) | none (scripting language; it publishes vocabulary to the editor through `api.EditorServices`) |
 | `lg3d-widgets` | [`lg3d-widgets/AGENTS.md`](lg3d-widgets/AGENTS.md) | 3D layer + 2D Swing cards |
 | `lpm-console` | [`lpm-console/AGENTS.md`](lpm-console/AGENTS.md) | 2D Swing (composited X11 client) |
 | `update-manager` | [`update-manager/AGENTS.md`](update-manager/AGENTS.md) | 2D Swing |
@@ -411,7 +424,8 @@ all roles read each other's guidance coherently:
 7. **Functional Analyst** — the behavioural contract and living rationale.
 8. **Project Manager** — commit scope, PR flow, definition of done.
 9. **UI/UX (3D & 2D)** — present for every module with a user interface; defers
-   to the `lg3d-core` rulebook. Marked *Not applicable* for `lg3d-escher`.
+   to the `lg3d-core` rulebook. Marked *Not applicable* for `lg3d-escher` and
+   `lg3d-mandela`, which render nothing.
 10. **Communication & coherence** and **Commit / PR** — the single-source-of-truth
     rule and the module-scoped Conventional Commit flow.
 

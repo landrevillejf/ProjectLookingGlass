@@ -348,9 +348,15 @@ tasks.register('run', JavaExec) {
     // the reflective 2D lookup and the 3D "java <class>" launch to resolve
     // org.jdesktop.lg3d.ftpclient.*.
     def ftpClientJar = project(':ftp-client').tasks.named('jar')
+    // Mandela: the desktop scripting language module's jar. Espresso's bundled
+    // MandelaTools extension (lg3d-apps) links against its public API and runs
+    // scripts inside this JVM, and the Web Browser's Mandela userscript bridge
+    // does the same, so the jar must be on the desktop run classpath for
+    // org.jdesktop.lg3d.mandela.* to resolve.
+    def mandelaJar = project(':lg3d-mandela').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-            updateManagerJar, dbManagerJar, ftpClientJar, runtimeResources
+            updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -518,7 +524,8 @@ tasks.register('run', JavaExec) {
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-              updateManagerJar, dbManagerJar, ftpClientJar, runtimeResourcesDir, incubatorExtJars,
+              updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar,
+              runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, archiveLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
               javafxLibs, iconManagerLib, mailLibs)
 
@@ -908,12 +915,16 @@ tasks.register('releaseBundle', Zip) {
     def updateManagerJar = project(':update-manager').tasks.named('jar')
     def dbManagerJar = project(':db-manager').tasks.named('jar')
     def ftpClientJar = project(':ftp-client').tasks.named('jar')
+    // Mandela ships inside the bundle for the same reason it is on the run
+    // classpath above: Espresso's MandelaTools and the Web Browser bridge link
+    // against it at runtime, not build time.
+    def mandelaJar = project(':lg3d-mandela').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
     def releaseLauncher = tasks.named('releaseLauncher')
 
     dependsOn coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
-            runtimeResources, releaseLauncher
+            mandelaJar, runtimeResources, releaseLauncher
 
     // lib/ : every module jar + every third-party runtime jar. These go inside
     // an explicit into('lib') { from(...) } child spec rather than
@@ -923,7 +934,8 @@ tasks.register('releaseBundle', Zip) {
     // fails with a circular dependency on this very task.
     into('lib') {
         from(coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
-             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar)
+             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
+             mandelaJar)
         from(releaseRuntime)
         from(incubatorExtJars)
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))

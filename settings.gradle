@@ -33,6 +33,14 @@ include 'db-manager'
 // internal frame in 2D), and the :lg3d-core:run task puts its jar plus its
 // protocol/runtime libraries on the desktop classpath.
 include 'ftp-client'
+// Mandela: the desktop's own scripting language -- lexer, recursive-descent
+// parser, bytecode compiler and stack VM, capability-gated runtime and standard
+// library, a JSR-223 engine and an embedding API for Java and Kotlin hosts.
+// Plain Java 21 with no third-party dependency and no lg3d-core dependency, so
+// it embeds anywhere: Espresso (org.jdesktop.lg3d.apps.texteditor.MandelaTools)
+// and the Web Browser (the Mandela userscript extension) both call into it, and
+// :lg3d-core:run / releaseBundle put its jar on the desktop classpath.
+include 'lg3d-mandela'
 
 // lg3d-awt is RETIRED — it is not, and will not be, part of the Gradle build.
 //
