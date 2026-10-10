@@ -103,6 +103,29 @@ work to make it build and run on a current toolchain.
   and the real attach path is covered by one opt-in integration test
   (`-Dlg3d.debug.integration=true`). Text-editor surface now
   **31 suites / 304 tests**.
+- **Espresso: dependency-free code completion (Phase 4)** (`lg3d-apps`) — a
+  seventeenth bundled provider, **Java Completion** (`lg3d.java-completion`,
+  category `Java/Kotlin`, READ + TOOLBAR), adds one toolbar action **List
+  Completions** and a fifth bottom strip, **Completions** (a plain `JList` —
+  no popups, so the editor stays offscreen-safe when captured). Candidates
+  come from three always-available sources: the current file's own outline
+  symbols (the Phase-2 AST outline), the public members of imported (or
+  `java.lang`) types via plain reflection — cached, and consulted only once
+  the caret prefix carries two characters — and the Java keyword set; they
+  are ranked starts-with-then-contains and capped at 50. Typing publishes
+  through the new `READ`-gated `EditorContext.publishCompletions(path,
+  list)` sink on every debounced document change; after `recv.` the
+  receiver's declared type (capitalized receiver = static access, otherwise
+  the last `Type recv` declaration) lists its members, and unresolved
+  receivers or non-Java files complete to nothing — a deliberately *shallow*
+  engine, deep javac-internal completion was rejected for reliability.
+  Accepting a row (Enter/Tab in the strip, or double-click) replaces the
+  identifier run around the caret in a single undo step
+  (`EditorTab.insertCompletion`) — the editor's own Tab and Enter are never
+  hijacked. 15 new headless `JavaCompletionToolsTest` tests cover the pure
+  engine (prefix, receiver, import/`java.lang` resolution, real reflection,
+  ranking cap) and the publish path through the READ gate. Text-editor
+  surface now **32 suites / 319 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is

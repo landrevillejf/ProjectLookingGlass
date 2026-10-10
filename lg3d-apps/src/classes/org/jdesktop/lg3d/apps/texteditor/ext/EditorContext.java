@@ -180,6 +180,19 @@ public final class EditorContext {
         return List.of();
     }
 
+    /**
+     * Publishes completion candidates for {@code path} to the editor's
+     * completion strip; an empty list clears it. No-op without
+     * {@link TextEditorPermission#READ} or when the host has no strip.
+     * Presentation only — accepting a candidate is the user's action.
+     */
+    public void publishCompletions(String path, List<String> candidates) {
+        if (has(TextEditorPermission.READ) && sinks.showCompletions != null) {
+            sinks.showCompletions.accept(path,
+                    (candidates == null) ? List.of() : List.copyOf(candidates));
+        }
+    }
+
     /** Appends a line to the Debug panel's output; no-op without DEBUG. */
     public void appendDebugOutput(String line) {
         if (has(TextEditorPermission.DEBUG) && sinks.appendDebugOutput != null
