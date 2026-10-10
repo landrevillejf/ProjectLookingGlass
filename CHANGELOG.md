@@ -697,6 +697,69 @@ work to make it build and run on a current toolchain.
   paint a caution colour on a poor (D/F) grade. Every new decision (`SecurityScore`,
   `HardeningRules`, `AuditEvent`, `SecurityPosture`, `SecurityProbe.describeVpn`,
   the `PrivacyStatus` grade overloads) is pure and headless-tested.
+- **Project Mandela: the desktop's own scripting language** (`lg3d-mandela`,
+  `lg3d-apps`, `lg3d-core`) — a tenth Gradle module, `lg3d-mandela`, ships a
+  complete language tool chain in **one dependency-free jar** (`java.base` +
+  `javax.script` only — no AWT, no Swing, no Java 3D, no lg3d-core, no third-party
+  library): lexer, recursive-descent parser and AST, a bytecode compiler and stack
+  VM with a disassembler, the value/object model, a standard library
+  (`std.fs`/`std.json`/`std.math`/`std.time`/`std.env`), a CLI
+  (`mandela run|check|eval|dump|about|repl`, exit codes 0/1/2) and an interactive
+  REPL. The syntax is Java/Kotlin-flavoured and deliberately legible — `fun`,
+  `let`/`var`,
+  `if`/`for`/`while`/`match` expressions, string interpolation, records and classes,
+  `{ x -> … }` lambdas **including the Kotlin trailing-lambda call form**
+  (`prices.map { x -> x * 1.05 }`, where the block must open on the call's line and
+  carry a `->` header, which is what keeps `for x in items() { … }` a loop body and
+  `match f(2) { 1 => … }` a match block) — inheritance reads like Kotlin too (a
+  subclass reaches its base's fields and methods **by bare name**, own members
+  shadowing inherited ones) — with contextual rather than reserved
+  soft keywords, so no script loses a name.
+  **Security is a language property, not a wrapper:** every engine runs under an
+  explicit `Capabilities` profile of named grants (`STDOUT`…`THREAD`) plus an
+  instruction and frame budget, with four shipped profiles — `open()` (the CLI),
+  `console()` (a pasted snippet), `desktop(root)` (a file-confined automation) and
+  `webPage()` (nothing granted, 5 M steps) — and refusals are never silent: a denied
+  side effect raises a catchable `PermissionError` naming the grant, a runaway loop
+  raises `LimitError`. Host values cross only through `api.Interop` (Java
+  collections/maps, `java.util.function` and **Kotlin lambdas** included), and an
+  arbitrary object is *refused* rather than reflected over — that refusal is the
+  sandbox.
+  **The developer API and two shipped hosts:** `api.Mandela` (facade),
+  `rt.Runtime` + `Runtime.Builder` (bind, compile-once/run-many, child-engine
+  `import`), `api.Interop`, `rt.Capabilities`, `api.EditorServices` (keywords,
+  outline, vocabulary, completion, starter templates — the same tables the parser
+  reads, so a host never re-implements a grammar) and a JSR-223
+  `MandelaScriptEngine` registered under `META-INF/services`. **Espresso** now
+  recognises `.mnd` as a first-class language (`Languages` gains a **Mandela**
+  entry whose keyword set is read from `mandela.lang.Keywords`, so painter and
+  parser cannot disagree) and gains the bundled `MandelaTools` extension
+  (`lg3d.mandela`, new `Mandela` toolbar category, READ+WRITE+FILE_IO+TOOLBAR+
+  DIAGNOSE, 4 actions): live diagnostics into the Problems tab and gutter, the
+  Structure outline, Completions, `Ctrl+Alt+Shift+M` to run the buffer **in-JVM**
+  under `Capabilities.console()`, `+A` to check and `+B` to dump bytecode. The **Web
+  Browser** gains `MandelaUserscriptsExtension` (`lg3d.mandela.userscripts`): the
+  `.mnd` files in `~/.lg3d/webbrowser/userscripts` run against each committed page
+  behind the existing `CONTENT_SCRIPT` gate, sandboxed to `webPage()`, with only
+  `page`/`inject`/`note`/the console bound and the `// @match` header parsed
+  host-side — so the feature needs no new consent dialog. The jar is wired onto the
+  `:lg3d-core:run` / `releaseBundle` classpath and into the release bundle.
+  Docs: [`docs/mandela-language.md`](docs/mandela-language.md) (the grammar,
+  library and capability model, with the rationale for every refusal),
+  [`docs/mandela-embedding-api.md`](docs/mandela-embedding-api.md) (the host
+  contract) and `lg3d-mandela/AGENTS.md`. Tests: **366** headless JUnit 5 cases in
+  the new module (`SyntaxTest`, `LanguageTest`, `StandardLibraryTest`,
+  `EmbeddingApiTest`, `InteropTest`, `ScriptEngineTest`, `EditorServicesTest`,
+  `CliTest`, `DocumentationTest`), plus 34 `MandelaToolsTest` and 23
+  `MandelaUserscriptsExtensionTest` cases for the two hosts. The documentation is
+  a tested artifact: the language
+  guide's `mandela` code blocks are extracted and put through the real parser
+  **and** the real compiler in `DocumentationTest` (the only finding a prose
+  fragment is allowed is the `undefined-name` one for a value the surrounding text
+  introduced), so the tutorial cannot drift from the grammar or teach a program
+  that will not run; and a
+  finding carries a stable `rule` id (`"syntax"`, `"undefined-name"`,
+  `"param-order"`) for a host to branch on instead of message text.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure

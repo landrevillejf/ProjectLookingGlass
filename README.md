@@ -20,10 +20,10 @@ JDK 21 install using the Jogamp OpenGL pipeline.
 ## Repository layout
 
 This is a **single repository** (no git submodules): every module is tracked
-directly here. Nine modules are part of the Gradle build (see
+directly here. Ten modules are part of the Gradle build (see
 [`settings.gradle`](settings.gradle)) — the four ported from the original project
-plus five added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
-`db-manager` and `ftp-client`:
+plus six added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
+`db-manager`, `ftp-client` and `lg3d-mandela`:
 
 | Module            | In build | Role |
 | ----------------- | :------: | ---- |
@@ -36,6 +36,7 @@ plus five added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
 | `update-manager`  | ✅ | **New in this port:** self-contained Swing software-update pipeline (check / download / verify / install / rollback). |
 | `db-manager`      | ✅ | **New in this port:** driver-agnostic JDBC database client (DBeaver-style) — connection profiles, metadata navigator, SQL editor, results grid, CSV export. |
 | `ftp-client`      | ✅ | **New in this port:** protocol-neutral FTP/FTPS/SFTP file-transfer client (FileZilla-style) — site profiles, dual local & remote browser, transfer queue with retry/resume/cancel. |
+| `lg3d-mandela`    | ✅ | **New in this port:** *Project Mandela* — the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI/REPL). Zero third-party dependencies; embedded by Espresso and the Web Browser. |
 | `lg3d-art`        | assets | Wallpapers, splash art, 3D models, GDM theme (consumed at runtime). |
 | `lg3d-awt`        | ❌ | Optional custom AWT Toolkit/peer implementation — excluded (see below). |
 | `lg3d-x11`        | ❌ | Native X11 foundation window system scripts/binaries — not a Java module. |
@@ -69,14 +70,19 @@ Jars land in:
 
 ```
 lg3d-escher/build-gradle/libs/escher-0.2.2.jar
-lg3d-core/build-gradle/libs/lg3d-core-1.9.0-dev.jar
-lg3d-apps/build-gradle/libs/lg3d-apps-1.9.0-dev.jar
-lg3d-incubator/build-gradle/libs/lg3d-incubator-1.9.0-dev.jar
-lg3d-widgets/build-gradle/libs/lg3d-widgets-1.9.0-dev.jar
-lpm-console/build-gradle/libs/lpm-console-1.9.0-dev.jar
-update-manager/build-gradle/libs/update-manager-1.9.0-dev.jar
-db-manager/build-gradle/libs/db-manager-1.9.0-dev.jar
+lg3d-core/build-gradle/libs/lg3d-core-<version>.jar
+lg3d-apps/build-gradle/libs/lg3d-apps-<version>.jar
+lg3d-incubator/build-gradle/libs/lg3d-incubator-<version>.jar
+lg3d-widgets/build-gradle/libs/lg3d-widgets-<version>.jar
+lg3d-mandela/build-gradle/libs/lg3d-mandela-<version>.jar
+lpm-console/build-gradle/libs/lpm-console-<version>.jar
+update-manager/build-gradle/libs/update-manager-<version>.jar
+db-manager/build-gradle/libs/db-manager-<version>.jar
+ftp-client/build-gradle/libs/ftp-client-<version>.jar
 ```
+
+(`<version>` is the project version in [`build.gradle`](build.gradle); the jar
+names used to be pinned here and rotted — quote the pattern, not a release.)
 
 ## Running the desktop
 
@@ -267,6 +273,54 @@ System requirements for the shell: `xrandr` (Display panel), `xdg-utils`
 (`xdg-open`), polkit / `pkexec` (privileged operations), and optionally
 `lm-sensors` (a `sensors` fallback for temperatures). Every backend degrades
 gracefully — read-only or "n/a" — when a tool or file is absent.
+
+## Project Mandela (desktop scripting language)
+
+**Mandela** (module `lg3d-mandela`) is the desktop's own scripting language: a
+`.mnd` file you write in a Java/Kotlin-flavoured syntax and run against the
+desktop. The whole tool chain ships in one dependency-free jar — lexer,
+recursive-descent parser, bytecode compiler and stack VM, standard library
+(`std.fs`, `std.json`, `std.math`, `std.time`, `std.env`), a JSR-223 engine, an
+embedding API, a CLI and a REPL. It is Java/Kotlin-compatible at the boundary:
+host collections, maps and functions — including a Kotlin lambda — cross into a
+script through `api.Interop`, and a script function comes back as something a
+host can call.
+
+```bash
+./gradlew :lg3d-mandela:mandelaRun -Pscript=cleanup.mnd   # run a script
+./gradlew :lg3d-mandela:mandelaRepl                       # the interactive REPL
+java -jar lg3d-mandela-<version>.jar run script.mnd        # the jar is standalone
+java -jar lg3d-mandela-<version>.jar check script.mnd      # parse, run nothing
+```
+
+Security is a property of the language rather than a wrapper around it: every
+script runs under an explicit **capability profile**, so one engine is safe in
+three very different hosts. `webPage()` grants nothing and budgets 5 M
+instructions (where browser userscripts run), `console()` grants the console only
+(what Espresso uses to run the current buffer), `desktop(root)` adds file access
+confined to one directory (a desktop automation), and `open()` is the CLI. A
+denied capability raises a catchable `PermissionError` that names the grant the
+host must give, and a runaway loop stops on `LimitError` instead of hanging the
+host. Values never reach the JVM by reflection — a host object appears in a
+script only through a function the host wrote.
+
+Two desktop surfaces ship as Mandela hosts:
+
+- **Espresso** recognises `.mnd` as a first-class language: painting, live
+  diagnostics in the Problems panel, an outline and completion, plus
+  `Ctrl+Alt+Shift+M` / `+A` / `+B` to run, check or dump the bytecode of the
+  current document — contributed by the bundled `Mandela` editor extension
+  (`apps/texteditor/MandelaTools`).
+- **Web Browser** runs the `.mnd` userscripts in
+  `~/.lg3d/webbrowser/userscripts` against every page that commits, through the
+  bundled `Mandela Userscripts` extension — behind the existing content-script
+  permission and sandboxed to `webPage()`, so the feature needs no new consent
+  dialog.
+
+The language is documented in
+[`docs/mandela-language.md`](docs/mandela-language.md) and embedding it in your
+own Java or Kotlin application in
+[`docs/mandela-embedding-api.md`](docs/mandela-embedding-api.md).
 
 ## Image Studio (JAI image editor)
 
