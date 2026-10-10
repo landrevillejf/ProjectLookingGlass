@@ -19,6 +19,7 @@ import java.awt.Dimension;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JToggleButton;
@@ -43,6 +45,7 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
+import org.jdesktop.lg3d.apps.gitgui.GitGuiPanel;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
@@ -87,7 +90,7 @@ import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
  */
 public class AdvancedTextEditorPanel extends JPanel
         implements FindReplaceBar.Host, SettingsCard.Host,
-        RecentCard.Host, ExtensionsCard.Host {
+        RecentCard.Host, ExtensionsCard.Host, ProjectCard.Host {
 
     /** Preferred panel width, read by the 3D wrapper and the MDI host. */
     public static final int WIDTH_PX = 960;
@@ -99,6 +102,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private static final String CARD_SETTINGS = "settings";
     private static final String CARD_RECENT = "recent";
     private static final String CARD_EXTENSIONS = "extensions";
+    private static final String CARD_PROJECT = "project";
+    private static final String CARD_GIT = "git";
 
     /** How long a transient status message stays up. */
     private static final int MESSAGE_MS = 4000;
@@ -136,6 +141,17 @@ public class AdvancedTextEditorPanel extends JPanel
     private final SettingsCard settingsCard;
     private final RecentCard recentCard;
     private final ExtensionsCard extensionsCard;
+    /** "Projet" menu card: create / open / manage project folders (Phase 5). */
+    private final ProjectCard projectCard;
+    /**
+     * Espresso's integration with the desktop Git client: the very
+     * {@link GitGuiPanel} the Git GUI app hosts, embedded as its own card and
+     * re-pointed at the current project root. Constructed empty — it runs no
+     * process until {@link #openGitGui()} opens a repository.
+     */
+    private final GitGuiPanel gitGuiPanel = new GitGuiPanel();
+    /** Last directory handed to the embedded Git GUI (test seam). */
+    private volatile File gitTarget;
     private final EditorStatusBar statusBar = new EditorStatusBar();
     /** South console receiving compile/run tool output (never the document). */
     private final OutputConsole outputConsole = new OutputConsole();
@@ -222,6 +238,7 @@ public class AdvancedTextEditorPanel extends JPanel
         settingsCard = new SettingsCard(this);
         recentCard = new RecentCard(this);
         extensionsCard = new ExtensionsCard(this);
+        projectCard = new ProjectCard(this);
 
         projectTree.setOnFileChosen(this::openPath);
 
@@ -260,6 +277,14 @@ public class AdvancedTextEditorPanel extends JPanel
         center.add(settingsCard, CARD_SETTINGS);
         center.add(recentCard, CARD_RECENT);
         center.add(extensionsCard, CARD_EXTENSIONS);
+        center.add(projectCard, CARD_PROJECT);
+        // The Git GUI wants 1000x680; scroll rather than clip inside the
+        // 960x680 card area.
+        JScrollPane gitScroll = new JScrollPane(gitGuiPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        gitScroll.setName("gitCard");
+        center.add(gitScroll, CARD_GIT);
 
         // Project tree (west) beside the card area.
         JSplitPane mainHSPLIT = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
@@ -361,6 +386,8 @@ public class AdvancedTextEditorPanel extends JPanel
         bar.add(button("Extensions\u2026",
                 "Run actions contributed by installed extensions",
                 e -> showExtensions()));
+        bar.add(button("Project\u2026", "Create and manage projects, open the "
+                + "Git client for the current project", e -> showProject()));
         bar.addSeparator();
         bar.add(button("Close", "Close the editor window", e -> requestClose()));
 
@@ -989,6 +1016,11 @@ public class AdvancedTextEditorPanel extends JPanel
         for (int i = recent.size() - 1; i >= 0; i--) {
             edited.pushRecent(recent.get(i));
         }
+        // ... and the same for the recent-project list, which lives here too.
+        List<String> projects = new ArrayList<>(settings.getRecentProjects());
+        for (int i = projects.size() - 1; i >= 0; i--) {
+            edited.pushProject(projects.get(i));
+        }
         this.settings = edited;
         applySettingsToTabs();
         cards.show(center, CARD_EDITOR);
@@ -1078,6 +1110,11 @@ public class AdvancedTextEditorPanel extends JPanel
         ordered.remove(path);
         for (int i = ordered.size() - 1; i >= 0; i--) {
             copy.pushRecent(ordered.get(i));
+        }
+        // fromMap carries neither list; restore the projects unchanged.
+        List<String> orderedProjects = new ArrayList<>(settings.getRecentProjects());
+        for (int i = orderedProjects.size() - 1; i >= 0; i--) {
+            copy.pushProject(orderedProjects.get(i));
         }
         this.settings = copy;
         persistSettings();
@@ -1657,5 +1694,219 @@ public class AdvancedTextEditorPanel extends JPanel
     /** The Completions strip (test seam). */
     final CompletionPanel completionPanel() {
         return completionPanel;
+    }
+
+    // ------------------------------------------------------------------
+    // Project menu (Phase 5): create / open / manage + Git GUI integration
+    // ------------------------------------------------------------------
+
+    /** Opens the "Projet" card. */
+    private void showProject() {
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+        cards.show(center, CARD_PROJECT);
+    }
+
+    /** The attached project root, or null while the tree is per-file. */
+    String currentProjectRoot() {
+        Path root = projectTree.rootPath();
+        return (root == null) ? null : root.toString();
+    }
+
+    @Override
+    public void newProject(String name) {
+        String clean = sanitizeProjectName(name);
+        if (clean == null) {
+            message("Invalid project name (letters, digits, . - _ only)");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose parent folder for " + clean);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path root = chooser.getSelectedFile().toPath().resolve(clean);
+        try {
+            createProjectSkeleton(root);
+        } catch (IOException | SecurityException e) {
+            message("Could not create project: " + e.getMessage());
+            return;
+        }
+        attachProject(root);
+        openPath(root.resolve("src").resolve("Main.java"));
+        cards.show(center, CARD_EDITOR);
+        message("Project " + clean + " created at " + root);
+    }
+
+    @Override
+    public void openProjectFolder() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Open Project Folder");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        Path current = projectTree.rootPath();
+        if (current != null) {
+            chooser.setCurrentDirectory(current.toFile());
+        }
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            Path root = chooser.getSelectedFile().toPath();
+            attachProject(root);
+            cards.show(center, CARD_EDITOR);
+            message("Project attached: " + root);
+        }
+    }
+
+    /** Points the west tree at {@code root} and remembers it persistently. */
+    void attachProject(Path root) {
+        if (root == null) {
+            return;
+        }
+        projectTree.setRootPath(root);
+        settings.pushProject(root.toString());
+        persistSettings();
+    }
+
+    @Override
+    public void reRootToCurrentFile() {
+        EditorTab tab = currentTab();
+        Path file = (tab == null) ? null : tab.getPath();
+        if (file == null) {
+            message("Save the document first to locate its project");
+            return;
+        }
+        refreshProjectTree(file);
+        cards.show(center, CARD_EDITOR);
+        message("Tree rooted at " + ProjectTreePanel.projectRootFor(file));
+    }
+
+    @Override
+    public void closeProject() {
+        // "Detach": the tree falls back to the current document's directory
+        // (or the home folder for an unsaved buffer), like a fresh session.
+        EditorTab tab = currentTab();
+        Path file = (tab == null) ? null : tab.getPath();
+        Path fallback = (file != null && file.getParent() != null)
+                ? file.getParent()
+                : Path.of(System.getProperty("user.home"));
+        projectTree.setRootPath(fallback);
+        cards.show(center, CARD_EDITOR);
+        message("Project detached");
+    }
+
+    @Override
+    public void openGitGui() {
+        Path root = projectTree.rootPath();
+        if (root == null) {
+            EditorTab tab = currentTab();
+            Path file = (tab == null) ? null : tab.getPath();
+            root = (file == null) ? null : ProjectTreePanel.projectRootFor(file);
+        }
+        if (root == null) {
+            message("Open a file or attach a project first");
+            return;
+        }
+        gitTarget = root.toFile();
+        gitGuiPanel.openRepository(gitTarget);
+        cards.show(center, CARD_GIT);
+    }
+
+    @Override
+    public void openRecentProject(String path) {
+        cards.show(center, CARD_EDITOR);
+        if (path == null) {
+            return;
+        }
+        Path root = Path.of(path);
+        if (!Files.isDirectory(root)) {
+            settings.removeProject(path);
+            persistSettings();
+            message("Project folder no longer exists: " + path);
+            return;
+        }
+        attachProject(root);
+        message("Project attached: " + root);
+    }
+
+    @Override
+    public void removeRecentProject(String path) {
+        settings.removeProject(path);
+        persistSettings();
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+    }
+
+    @Override
+    public void clearRecentProjects() {
+        settings.clearProjects();
+        persistSettings();
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+    }
+
+    /** Entry point written into every new project. */
+    private static final String MAIN_TEMPLATE = """
+            /**
+             * New Espresso project.
+             */
+            public class Main {
+                public static void main(String[] args) {
+                    System.out.println("Hello, Espresso!");
+                }
+            }
+            """;
+
+    /**
+     * Creates a minimal Java project skeleton: {@code src/Main.java} and a
+     * {@code README.md}. Refuses a non-empty existing directory so an attach
+     * mistake can never clobber work. Pure, headless-testable.
+     */
+    static Path createProjectSkeleton(Path root) throws IOException {
+        if (Files.exists(root)) {
+            try (java.util.stream.Stream<Path> entries = Files.list(root)) {
+                if (entries.findAny().isPresent()) {
+                    throw new IOException(root + " already exists and is not empty");
+                }
+            }
+        }
+        Path src = root.resolve("src");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("Main.java"), MAIN_TEMPLATE,
+                StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("README.md"),
+                "# " + root.getFileName()
+                        + "\n\nCreated by Espresso, the Project Looking Glass editor.\n",
+                StandardCharsets.UTF_8);
+        return root;
+    }
+
+    /**
+     * Validates a new-project name: letters, digits, dot, dash and underscore
+     * only; never {@code .} / {@code ..}; no path separators (so the name can
+     * never escape the chosen parent folder).
+     *
+     * @return the trimmed name, or null when unusable
+     */
+    static String sanitizeProjectName(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String name = raw.trim();
+        if (name.isEmpty() || name.equals(".") || name.equals("..")
+                || !name.matches("[A-Za-z0-9._-]+")) {
+            return null;
+        }
+        return name;
+    }
+
+    /** The Project card (test seam). */
+    final ProjectCard projectCard() {
+        return projectCard;
+    }
+
+    /** The embedded desktop Git client panel (test seam). */
+    final GitGuiPanel gitGuiPanel() {
+        return gitGuiPanel;
+    }
+
+    /** The directory the embedded Git GUI was last pointed at (test seam). */
+    final File gitTarget() {
+        return gitTarget;
     }
 }
