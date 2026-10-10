@@ -112,4 +112,28 @@ class Desktop2DStartMenuTest {
         assertNull(Desktop2DStartMenu.icon(logo, 0));
         assertNull(Desktop2DStartMenu.icon("images/icon/no-such-glyph.png", 22));
     }
+
+    @Test
+    @DisplayName("prefixed descriptor icons resolve via the packaged unprefixed copy")
+    void resourcesPrefixedDescriptorResolvesOnPlainClasspath() {
+        // Descriptors name artwork under the legacy "resources/" prefix (e.g.
+        // Espresso's branded cup), but that tree is assembled only on the Gradle
+        // run classpath (:lg3d-core:runtimeResources). On a jar or IDE module
+        // classpath the same PNG is packaged at the root WITHOUT the prefix, so
+        // the raw prefixed lookup misses and the icon would silently degrade to a
+        // generated initials tile. resolveResource must fall back to the
+        // unprefixed copy so branded artwork renders in every launch topology.
+        String prefixed = "resources/images/icon/espresso.png";
+        assertNotNull(Desktop2DStartMenu.resolveResource(prefixed),
+                "the prefixed Espresso cup must resolve via the unprefixed fallback");
+        assertEquals(
+                Desktop2DStartMenu.class.getClassLoader()
+                        .getResource("images/icon/espresso.png"),
+                Desktop2DStartMenu.resolveResource(prefixed),
+                "the fallback must locate the packaged unprefixed copy");
+        assertNotNull(Desktop2DStartMenu.icon(prefixed),
+                "the cup must load as a menu icon straight from the descriptor path");
+        // A resource shipped under neither layout still resolves to null.
+        assertNull(Desktop2DStartMenu.resolveResource("resources/images/icon/no-such.png"));
+    }
 }
