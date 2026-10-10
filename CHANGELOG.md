@@ -80,6 +80,29 @@ work to make it build and run on a current toolchain.
   the masked occurrence scan and all four actions driven through capturing
   `EditorSinks` with the permission gates. Text-editor surface now
   **30 suites / 288 tests**.
+- **Espresso: a real JVM debugger (Phase 3)** (`lg3d-apps`) — a sixteenth
+  bundled provider, **Java Debugger** (`lg3d.java-debug`, category
+  `Java/Kotlin`, READ + FILE_IO + DEBUG + TOOLBAR), adds six toolbar actions
+  to the Phase-0 Debug tab: **Start Debugging**, **Resume**, **Step Over**,
+  **Step Into**, **Step Out** and **Stop Debugging**. The line-number gutter
+  becomes click-to-toggle breakpoints and a `DEBUG`-gated read-back
+  (`EditorContext.getBreakpoints(path)`) lets the extension see them. The
+  debugger compiles the document's *current* text with the JDK's own `javac`,
+  launches it as a **child** JVM with the JDWP agent bound to **loopback only**
+  (`transport=dt_socket,server=y,suspend=y,address=127.0.0.1:<ephemeral>`),
+  attaches with `com.sun.jdi`, installs breakpoint requests on the gutter
+  lines at class-prepare, and paints the call stack and locals
+  (`visibleVariables()`) at every suspension while the program's stdout
+  streams into the Output tab. Every `com.sun.jdi` call lives behind the
+  `Backend`/`Session` seams in `JdiDebugBackend`, and every session end
+  detaches and `destroyForcibly()`s the child — no debuggee can outlive the
+  session. Kotlin debugging is refused politely (no supported line-table
+  story without the compiler daemon). 16 new headless `JavaDebugToolsTest`
+  tests drive the whole compile → launch → suspend → step → stop state
+  machine through fake seams with inline delivery — no test spawns a JVM —
+  and the real attach path is covered by one opt-in integration test
+  (`-Dlg3d.debug.integration=true`). Text-editor surface now
+  **31 suites / 304 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is

@@ -80,15 +80,15 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 56 toolbar actions")
+    @DisplayName("the bundled extensions install their 62 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
         // + Java/Kotlin Tools 5 + Web Tools 4 + Formatting Tools 4
         // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
         // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
-        // + Java Structure Tools 4
-        assertEquals(56, panel.extensionActionCount());
+        // + Java Structure Tools 4 + Java Debugger 6
+        assertEquals(62, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -115,13 +115,14 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(15, infos.size());
+        assertEquals(16, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.jvm-build-tools")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-diagnostics")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-structure")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-debug")));
         panel.dispose();
     }
 

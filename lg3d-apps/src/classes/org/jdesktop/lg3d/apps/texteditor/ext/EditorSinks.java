@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.texteditor.ext;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * The optional, permission-gated capability delegates the editor panel wires
@@ -38,6 +39,7 @@ public final class EditorSinks {
     final Consumer<String> clearDiagnostics;
     final BiConsumer<String, List<StructureSymbol>> showStructure;
     final BiConsumer<String, Integer> navigate;
+    final Function<String, List<Integer>> breakpointsFor;
     final Consumer<String> appendDebugOutput;
     final Consumer<String> setDebugState;
     final Consumer<List<String>> showStack;
@@ -54,6 +56,7 @@ public final class EditorSinks {
         this.clearDiagnostics = b.clearDiagnostics;
         this.showStructure = b.showStructure;
         this.navigate = b.navigate;
+        this.breakpointsFor = b.breakpointsFor;
         this.appendDebugOutput = b.appendDebugOutput;
         this.setDebugState = b.setDebugState;
         this.showStack = b.showStack;
@@ -93,6 +96,7 @@ public final class EditorSinks {
         private Consumer<String> clearDiagnostics;
         private BiConsumer<String, List<StructureSymbol>> showStructure;
         private BiConsumer<String, Integer> navigate;
+        private Function<String, List<Integer>> breakpointsFor;
         private Consumer<String> appendDebugOutput;
         private Consumer<String> setDebugState;
         private Consumer<List<String>> showStack;
@@ -115,6 +119,9 @@ public final class EditorSinks {
         }
         public Builder navigate(BiConsumer<String, Integer> v) {
             this.navigate = v; return this;
+        }
+        public Builder breakpointsFor(Function<String, List<Integer>> v) {
+            this.breakpointsFor = v; return this;
         }
         public Builder appendDebugOutput(Consumer<String> v) {
             this.appendDebugOutput = v; return this;
