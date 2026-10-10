@@ -107,6 +107,10 @@ class AdvancedTextEditorPanelTest {
         assertTrue(panel.isAcceleratorBound("control alt S"));
         assertTrue(panel.isAcceleratorBound("control alt 8"));
         assertTrue(panel.isAcceleratorBound("control alt 9"));
+        // JVM Build Tools claim a distinct Ctrl+Alt+Shift family.
+        assertTrue(panel.isAcceleratorBound("control alt shift J"));
+        assertTrue(panel.isAcceleratorBound("control alt shift R"));
+        assertTrue(panel.isAcceleratorBound("control alt shift X"));
         // No bundled action claims Ctrl+Alt+0, so it stays unbound.
         assertFalse(panel.isAcceleratorBound("control alt 0"));
         panel.dispose();

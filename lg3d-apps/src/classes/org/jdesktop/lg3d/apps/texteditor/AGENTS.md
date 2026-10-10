@@ -69,7 +69,11 @@
   browser). Each provider declares a free-form `category()` (default `"General"`);
   the `ExtensionsCard` groups every contributed action under a bold, inert
   category header (curated order: Text, Code, Java/Kotlin, Web, Spring, Data,
-  Encoding, Markdown, Analysis, General). Thirteen bundled providers:
+  Encoding, Markdown, Analysis, General). Selecting an extension in the card's
+  left half **filters** the right half to just that extension's commands (under
+  its category header); clearing the selection restores the full grouped view.
+  The filter only hides rows — each keeps its host flat index, so
+  `runExtensionAction(index)` stays stable. Thirteen bundled providers:
   `BuiltinTextTools` ("Text Tools"), `CaseTools` (title/sentence/camel/snake/kebab
   on the selection), `CodeTools` (indent/outdent, drop-blank, dedup, reverse,
   number-lines), `FormatTools` (tabs↔spaces, LF/CRLF), `JavaDevTools` (sort
@@ -83,7 +87,9 @@
   document by earlier builds is stripped (WRITE) on the next action;
   `Clean Output` clears the console; processes run on a virtual thread with
   EDT delivery,
-  never on the UI, never on the user's file), `WebTools`
+  never on the UI, never on the user's file; the six actions claim a distinct
+  `Ctrl+Alt+Shift` accelerator family (J/R/D/K/L/X) because the plain
+  `Ctrl+Alt` space is exhausted by the other providers), `WebTools`
   (escape/unescape HTML entities, URL encode/decode), `SpringBootTools`
   (application.properties↔application.yml, sequences to `key[n]`; plus kebab-case
   key normalisation for Spring Boot 2+ relaxed binding and a `${...}` placeholder
@@ -234,7 +240,7 @@
 - **QA** — 33 headless JUnit 5 suites under
   `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (and the `ext`-package
   `ExtensionBrokerDispatchTest`) cover every
-  engine class, all seventeen bundled extensions and all panel/widget surfaces (327
+  engine class, all seventeen bundled extensions and all panel/widget surfaces (328
   tests): tokenisation, search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
   smart-indent, bracket matching, the merging-undo clock seam, settings

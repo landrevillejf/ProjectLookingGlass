@@ -10,6 +10,21 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.68.0-dev — Gradle / JDK 21 modernization
 
 ### Fixed
+- **Espresso extensions card filters actions by the selected extension**
+  (`lg3d-apps`) — the right-hand "Extension Actions" list used to dump every
+  command from every provider regardless of what was selected on the left.
+  Selecting an extension in the Installed Extensions list now narrows the actions
+  panel to just that extension's commands under its category header; clearing the
+  selection restores the full grouped view. Each action row keeps its host flat
+  index, so Run / double-click still invoke exactly the right action — the filter
+  only hides rows, it never renumbers them.
+- **JVM Build Tools actions now have keyboard accelerators** (`lg3d-apps`) —
+  Compile/Run/Debug Java and Compile/Run Kotlin and Clean Output previously
+  shipped with no shortcut because the plain `Ctrl+Alt+[A-Z0-9]` space is
+  exhausted by the other twelve providers (only `Ctrl+Alt+0` was free). They now
+  claim a distinct `Ctrl+Alt+Shift` family — Compile Java `+J`, Run Java `+R`,
+  Debug Java `+D`, Compile Kotlin `+K`, Run Kotlin `+L`, Clean Output `+X` —
+  collision-free and still user-rebindable like every other accelerator.
 - **JVM Build Tools: a successful rebuild now refreshes the Output panel**
   (`lg3d-apps`) — every run, success included, writes a block to the south
   console (`javac output` / `kotlinc output` with an `OK — <class> compiled,
@@ -163,13 +178,13 @@ work to make it build and run on a current toolchain.
   extensions get the same console. The JVM Build Tools write every
   compile/run/debug output there instead of appending a
   `// ---- <tool> output ----` comment block, and its **Clean Output** action
-  now clears the console. 26 headless suites / 234 tests in the texteditor
+  now clears the console. 26 headless suites / 235 tests in the texteditor
   package.
 - **Advanced Text Editor: compile, run and debug Java/Kotlin from the editor**
   (`lg3d-apps`) — a thirteenth bundled provider, **JVM Build Tools**
   (`lg3d.jvm-build-tools`, category `Java/Kotlin`), takes the extension surface
-  beyond text rewriting into the real toolchain with six toolbar actions (none
-  claims a Ctrl+Alt slot, so the accelerator map is unchanged). **Compile Java**
+  beyond text rewriting into the real toolchain with six toolbar actions (each on
+  a `Ctrl+Alt+Shift` accelerator, see the fix above). **Compile Java**
   stages the document's *current* text into a fresh temp directory (the user's
   file is never touched, unsaved drafts work) and runs the running JDK's own
   `javac`; success and failure both land a block in the output console (see

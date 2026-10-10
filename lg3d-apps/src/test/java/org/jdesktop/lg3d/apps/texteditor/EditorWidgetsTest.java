@@ -283,6 +283,44 @@ class EditorWidgetsTest {
     }
 
     @Test
+    @DisplayName("the extensions card filters the actions to the selected extension")
+    void extensionsCardFiltersActionsBySelection() {
+        ExtensionsCard card = new ExtensionsCard(new ExtensionsCard.Host() {
+            @Override
+            public void runExtensionAction(int index) {
+            }
+
+            @Override
+            public void closeCard() {
+            }
+        });
+        card.show(List.of(
+                ExtensionsCard.Row.header("Encoding"),
+                ExtensionsCard.Row.action("Base64 Tools: Encode Base64", 0, "Base64 Tools"),
+                ExtensionsCard.Row.header("Java/Kotlin"),
+                ExtensionsCard.Row.action("JVM Build Tools: Compile Java", 5, "JVM Build Tools"),
+                ExtensionsCard.Row.action("JVM Build Tools: Run Java", 6, "JVM Build Tools")),
+                List.of(
+                        new ExtensionsCard.ExtensionInfo("lg3d.base64-tools",
+                                "Base64 Tools", "1.0.0", "Encoding", true),
+                        new ExtensionsCard.ExtensionInfo("lg3d.jvm-build-tools",
+                                "JVM Build Tools", "1.0.0", "Java/Kotlin", true)));
+        // No selection: the full grouped view (2 headers + 3 actions).
+        assertEquals(3, card.entryCount());
+
+        // Selecting an extension narrows to just its commands (header + rows).
+        card.selectExtension(1);
+        assertEquals(2, card.entryCount());
+        // The host flat indices survive the filter unchanged.
+        card.select(1); // first JVM action row -> host index 5
+        assertEquals(5, card.selectedActionIndex());
+
+        // Clearing the selection restores the full grouped view.
+        card.selectExtension(-1);
+        assertEquals(3, card.entryCount());
+    }
+
+    @Test
     @DisplayName("the extensions card rebinds and clears the selected action's shortcut")
     void extensionsCardRebind() {
         final List<String> set = new ArrayList<>();
