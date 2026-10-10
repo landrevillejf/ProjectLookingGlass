@@ -17,14 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Component;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.JButton;
+import javax.swing.JTabbedPane;
 import javax.swing.text.BadLocationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -328,6 +332,45 @@ class AdvancedTextEditorPanelTest {
         panel.closeTab(99);
         assertEquals(1, panel.tabCount());
         panel.dispose();
+    }
+
+    @Test
+    @DisplayName("every tab header carries a close button that closes that tab")
+    void closableTabHeaders() {
+        AdvancedTextEditorPanel panel = newPanel();
+        EditorTab second = panel.newTab();
+        JTabbedPane strip = panel.tabStrip();
+        // Both tabs get a custom header component (the close affordance).
+        for (int i = 0; i < strip.getTabCount(); i++) {
+            assertNotNull(strip.getTabComponentAt(i), "header for tab " + i);
+        }
+        assertEquals(2, panel.tabCount());
+
+        // The header of the second tab holds a JButton; firing it closes that
+        // specific tab (index is resolved at click time), leaving the first.
+        Component header = strip.getTabComponentAt(1);
+        JButton close = findCloseButton(header);
+        assertNotNull(close, "the header exposes a close button");
+        close.doClick();
+        assertEquals(1, panel.tabCount());
+        assertNotSame(second, panel.currentTab(), "the closed tab is gone");
+        panel.dispose();
+    }
+
+    /** Depth-first search of a tab header for its single close {@link JButton}. */
+    private static JButton findCloseButton(Component comp) {
+        if (comp instanceof JButton b) {
+            return b;
+        }
+        if (comp instanceof java.awt.Container c) {
+            for (Component child : c.getComponents()) {
+                JButton found = findCloseButton(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     @Test

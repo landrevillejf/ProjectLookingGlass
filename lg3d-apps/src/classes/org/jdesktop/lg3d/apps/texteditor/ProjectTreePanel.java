@@ -15,10 +15,12 @@ package org.jdesktop.lg3d.apps.texteditor;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -58,7 +60,9 @@ final class ProjectTreePanel extends JPanel {
     static final int MAX_WALK_UP = 10;
 
     private final JLabel rootLabel = new JLabel("Project");
-    private final JTree tree = new JTree();
+    // No demo model: JTree's default constructor seeds "colors/sports/food".
+    // Start with an empty model and root on the file system in the constructor.
+    private final JTree tree = new JTree(new DefaultTreeModel(null));
     private Consumer<Path> onFileChosen = p -> { };
     private Path rootPath;
 
@@ -95,6 +99,27 @@ final class ProjectTreePanel extends JPanel {
         scroll.setName("projectTreeScroll");
         add(scroll, BorderLayout.CENTER);
         setPreferredSize(new Dimension(220, 100));
+
+        // Show the real file system from the start (the user home), not the
+        // stock JTree demo nodes; opening a file re-roots on its project.
+        setRootPath(defaultStartRoot());
+    }
+
+    /**
+     * The directory the tree is rooted on before any document is opened: the
+     * user's home when it is readable, otherwise the first file-system root.
+     * Pure, headless-testable.
+     */
+    static Path defaultStartRoot() {
+        Path home = Paths.get(System.getProperty("user.home", "."));
+        if (isDirectory(home)) {
+            return home;
+        }
+        File[] roots = File.listRoots();
+        if (roots != null && roots.length > 0) {
+            return roots[0].toPath();
+        }
+        return home;
     }
 
     /** Receives the path of a file the user double-clicked in the tree. */

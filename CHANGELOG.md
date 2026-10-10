@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.68.0-dev — Gradle / JDK 21 modernization
 
 ### Fixed
+- **Espresso tabs are closable from the tab header** (`lg3d-apps`) — every
+  editor tab now carries a small **×** button on its title strip, so a tab can
+  be closed by click rather than only Ctrl+W / middle-click. The header is a
+  plain `JLabel` + `JButton` (offscreen-safe for the 3D capture), keeps the
+  dirty dot next to the title, and resolves the tab's index at click time so
+  closing one tab never mis-closes its neighbour. The existing unsaved-changes
+  confirmation is unchanged.
+- **Espresso's project tree starts on the file system** (`lg3d-apps`) — before
+  any document was opened the west `ProjectTreePanel` showed Swing's stock
+  `JTree` demo model (`colors` / `sports` / `food`). The tree now boots with an
+  empty model and re-roots on a real directory (`defaultStartRoot()` — the user
+  home when readable, else the first file-system root), so the panel shows the
+  actual file system from the first paint; opening a file still re-roots on its
+  project as before.
+- **Espresso shows its branded cup icon, not an "ES" initials tile**
+  (`lg3d-core`) — the 2D desktop rendered the generic `espresso.png` cup
+  artwork as a generated "ES" glass tile, because `AppIcons` only loads genuine
+  per-app descriptor PNGs for resources in its preferred set and Espresso's name
+  matches no semantic family. `resources/images/icon/espresso.png` joins the
+  launcher rocket in that set, so the window frame, taskbar button and start
+  menu all show the cup the 3D desktop already carries.
 - **Espresso extensions card filters actions by the selected extension**
   (`lg3d-apps`) — the right-hand "Extension Actions" list used to dump every
   command from every provider regardless of what was selected on the left.
