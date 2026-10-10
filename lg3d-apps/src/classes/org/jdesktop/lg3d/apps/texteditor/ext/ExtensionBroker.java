@@ -39,29 +39,25 @@ public final class ExtensionBroker {
     private static final Logger LOG = LoggerFactory.getLogger(ExtensionBroker.class);
 
     private final ExtensionRegistry registry;
-    private final Consumer<String> showMessage;
-    private final Runnable openFile;
-    private final Runnable saveFile;
-    private final BiConsumer<String, String> showOutput;
-    private final Runnable clearOutput;
+    private final EditorSinks sinks;
 
     /**
-     * @param registry    the enabled/grant source
-     * @param showMessage delegate for {@link EditorContext#showMessage}
-     * @param openFile    delegate for {@link EditorContext#openFile}
-     * @param saveFile    delegate for {@link EditorContext#saveFile}
-     * @param showOutput  delegate for {@link EditorContext#showOutput} (title, body)
-     * @param clearOutput delegate for {@link EditorContext#clearOutput}
+     * Back-compatible constructor: the legacy status/open/save/output delegates,
+     * with no diagnostics or debug surface wired.
      */
     public ExtensionBroker(ExtensionRegistry registry, Consumer<String> showMessage,
                           Runnable openFile, Runnable saveFile,
                           BiConsumer<String, String> showOutput, Runnable clearOutput) {
+        this(registry, EditorSinks.legacy(showMessage, openFile, saveFile, showOutput, clearOutput));
+    }
+
+    /**
+     * @param registry the enabled/grant source
+     * @param sinks    the editor's capability delegates (may leave any unset)
+     */
+    public ExtensionBroker(ExtensionRegistry registry, EditorSinks sinks) {
         this.registry = registry;
-        this.showMessage = showMessage;
-        this.openFile = openFile;
-        this.saveFile = saveFile;
-        this.showOutput = showOutput;
-        this.clearOutput = clearOutput;
+        this.sinks = (sinks != null) ? sinks : EditorSinks.builder().build();
     }
 
     /** Fires {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onEditorStarted} for enabled extensions. */
@@ -102,23 +98,22 @@ public final class ExtensionBroker {
     public void notifyDocumentOpened(String filePath, String fileName, String fullText,
                                       String selectedText, Consumer<String> textMutator,
                                       Consumer<String> selectionMutator) {
-        for (LoadedExtension le : registry.enabled()) {
-            if (!le.has(TextEditorPermission.READ)) {
-                continue;
-            }
-            Consumer<String> textRunner = le.has(TextEditorPermission.WRITE)
-                    ? textMutator : s -> { };
-            Consumer<String> selectionRunner = le.has(TextEditorPermission.WRITE)
-                    ? selectionMutator : s -> { };
-            DocumentContext doc = new DocumentContext(filePath, fileName, fullText,
-                    selectedText, textRunner, selectionRunner);
-            try {
-                le.getExtension().onDocumentOpened(doc);
-            } catch (RuntimeException e) {
-                LOG.warn("Extension {} onDocumentOpened failed; ignored",
-                        le.getManifest().getId(), e);
-            }
-        }
+        notifyDocumentOpened(filePath, fileName, fullText, selectedText,
+                0, 0, 0, 0, 0, textMutator, selectionMutator);
+    }
+
+    /**
+     * Like {@link #notifyDocumentOpened(String, String, String, String, Consumer, Consumer)}
+     * but also carries the caret/selection geometry for position-aware extensions.
+     */
+    public void notifyDocumentOpened(String filePath, String fileName, String fullText,
+                                      String selectedText, int caretOffset, int caretLine,
+                                      int caretColumn, int selectionStart, int selectionEnd,
+                                      Consumer<String> textMutator, Consumer<String> selectionMutator) {
+        dispatch("onDocumentOpened", filePath, fileName, fullText, selectedText,
+                caretOffset, caretLine, caretColumn, selectionStart, selectionEnd,
+                textMutator, selectionMutator,
+                (ext, doc) -> ext.onDocumentOpened(doc));
     }
 
     /**
@@ -135,6 +130,49 @@ public final class ExtensionBroker {
     public void notifyDocumentSaved(String filePath, String fileName, String fullText,
                                     String selectedText, Consumer<String> textMutator,
                                     Consumer<String> selectionMutator) {
+        notifyDocumentSaved(filePath, fileName, fullText, selectedText,
+                0, 0, 0, 0, 0, textMutator, selectionMutator);
+    }
+
+    /**
+     * Like {@link #notifyDocumentSaved(String, String, String, String, Consumer, Consumer)}
+     * but also carries the caret/selection geometry.
+     */
+    public void notifyDocumentSaved(String filePath, String fileName, String fullText,
+                                    String selectedText, int caretOffset, int caretLine,
+                                    int caretColumn, int selectionStart, int selectionEnd,
+                                    Consumer<String> textMutator, Consumer<String> selectionMutator) {
+        dispatch("onDocumentSaved", filePath, fileName, fullText, selectedText,
+                caretOffset, caretLine, caretColumn, selectionStart, selectionEnd,
+                textMutator, selectionMutator,
+                (ext, doc) -> ext.onDocumentSaved(doc));
+    }
+
+    /**
+     * Fires {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onDocumentChanged}
+     * for enabled extensions with READ permission, on the debounced edit signal.
+     */
+    public void notifyDocumentChanged(String filePath, String fileName, String fullText,
+                                      String selectedText, int caretOffset, int caretLine,
+                                      int caretColumn, int selectionStart, int selectionEnd,
+                                      Consumer<String> textMutator, Consumer<String> selectionMutator) {
+        dispatch("onDocumentChanged", filePath, fileName, fullText, selectedText,
+                caretOffset, caretLine, caretColumn, selectionStart, selectionEnd,
+                textMutator, selectionMutator,
+                (ext, doc) -> ext.onDocumentChanged(doc));
+    }
+
+    /**
+     * Shared dispatch: for each enabled READ extension, builds a permission-gated
+     * {@link DocumentContext} and invokes {@code hook}, isolating failures so one
+     * throwing extension never disturbs the editor or the other extensions.
+     */
+    private void dispatch(String hookName, String filePath, String fileName, String fullText,
+                          String selectedText, int caretOffset, int caretLine, int caretColumn,
+                          int selectionStart, int selectionEnd,
+                          Consumer<String> textMutator, Consumer<String> selectionMutator,
+                          BiConsumer<org.jdesktop.lg3d.apps.texteditor.TextEditorExtension,
+                                  DocumentContext> hook) {
         for (LoadedExtension le : registry.enabled()) {
             if (!le.has(TextEditorPermission.READ)) {
                 continue;
@@ -144,12 +182,13 @@ public final class ExtensionBroker {
             Consumer<String> selectionRunner = le.has(TextEditorPermission.WRITE)
                     ? selectionMutator : s -> { };
             DocumentContext doc = new DocumentContext(filePath, fileName, fullText,
-                    selectedText, textRunner, selectionRunner);
+                    selectedText, caretOffset, caretLine, caretColumn,
+                    selectionStart, selectionEnd, textRunner, selectionRunner);
             try {
-                le.getExtension().onDocumentSaved(doc);
+                hook.accept(le.getExtension(), doc);
             } catch (RuntimeException e) {
-                LOG.warn("Extension {} onDocumentSaved failed; ignored",
-                        le.getManifest().getId(), e);
+                LOG.warn("Extension {} {} failed; ignored",
+                        le.getManifest().getId(), hookName, e);
             }
         }
     }
@@ -220,7 +259,6 @@ public final class ExtensionBroker {
     }
 
     private EditorContext contextFor(LoadedExtension le) {
-        return new EditorContext(le.getGranted(), showMessage, openFile, saveFile,
-                showOutput, clearOutput);
+        return new EditorContext(le.getGranted(), sinks);
     }
 }

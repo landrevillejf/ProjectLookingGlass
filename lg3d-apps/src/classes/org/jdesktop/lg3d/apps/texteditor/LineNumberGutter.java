@@ -22,10 +22,15 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import javax.swing.JComponent;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Element;
 import javax.swing.text.StyledDocument;
+import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 
 /**
  * The line-number margin, installed as the row header of the editor's scroll
@@ -45,12 +50,23 @@ public class LineNumberGutter extends JComponent {
     /** Horizontal breathing room on both sides of the numbers. */
     private static final int PAD_X = 6;
 
+    /** Reserved left column width for diagnostic / breakpoint glyphs. */
+    private static final int MARKER_W = 12;
+
+    /** Diameter of a diagnostic dot; a breakpoint fills the column edge to edge. */
+    private static final int MARKER_DIAM = 7;
+
     private final StyledDocument document;
     private final javax.swing.JTextPane textPane;
     private Color background = Color.LIGHT_GRAY;
     private Color foreground = Color.DARK_GRAY;
     private Color activeForeground = Color.BLACK;
     private int caretLine = 0;
+
+    /** 0-based line -> highest-severity diagnostic marker to paint on it. */
+    private final Map<Integer, Diagnostic.Kind> markers = new HashMap<>();
+    /** 0-based lines the user has toggled a breakpoint onto. */
+    private final Set<Integer> breakpoints = new HashSet<>();
 
     public LineNumberGutter(StyledDocument document,
             javax.swing.JTextPane pane) {
@@ -75,13 +91,67 @@ public class LineNumberGutter extends JComponent {
         }
     }
 
+    /**
+     * Replaces the diagnostic markers, keyed by 0-based line. A null argument
+     * clears them. When several diagnostics land on one line the caller passes
+     * the highest-severity kind for that line.
+     */
+    public void setMarkers(Map<Integer, Diagnostic.Kind> newMarkers) {
+        markers.clear();
+        if (newMarkers != null) {
+            markers.putAll(newMarkers);
+        }
+        repaint();
+    }
+
+    /** Removes every diagnostic marker from the gutter. */
+    public void clearMarkers() {
+        if (!markers.isEmpty()) {
+            markers.clear();
+            repaint();
+        }
+    }
+
+    /** @return the marker kind painted on the 0-based {@code line}, or null. */
+    public Diagnostic.Kind markerAt(int line) {
+        return markers.get(line);
+    }
+
+    /**
+     * Toggles a breakpoint on the 0-based {@code line}.
+     *
+     * @return true when the line is now broken, false when it was cleared
+     */
+    public boolean toggleBreakpoint(int line) {
+        if (breakpoints.add(line)) {
+            repaint();
+            return true;
+        }
+        breakpoints.remove(line);
+        repaint();
+        return false;
+    }
+
+    /** @return true when a breakpoint is set on the 0-based {@code line}. */
+    public boolean hasBreakpoint(int line) {
+        return breakpoints.contains(line);
+    }
+
+    /** Removes every breakpoint. */
+    public void clearBreakpoints() {
+        if (!breakpoints.isEmpty()) {
+            breakpoints.clear();
+            repaint();
+        }
+    }
+
     /** Recomputes and applies the preferred width for the current font. */
     public void refreshWidth() {
         Font font = editorFont();
         FontMetrics fm = getFontMetrics(font);
         int lines = Math.max(1, document.getDefaultRootElement().getElementCount());
         int digits = Math.max(3, Integer.toString(lines).length());
-        int width = PAD_X * 2 + fm.charWidth('9') * digits;
+        int width = MARKER_W + PAD_X * 2 + fm.charWidth('9') * digits;
         // Row headers take their width from the preferred size; the scroll
         // pane forces their height to the viewport's.
         setPreferredSize(new Dimension(width, 0));
@@ -140,12 +210,46 @@ public class LineNumberGutter extends JComponent {
                     g2.drawString(number, width - PAD_X - textWidth,
                             y + fm.getAscent()
                             + (height - fm.getHeight()) / 2);
+                    paintMarker(g2, line, y, height);
                 }
                 line++;
             }
         } finally {
             g2.dispose();
         }
+    }
+
+    /**
+     * Paints the breakpoint ring and diagnostic dot (if any) for the 0-based
+     * {@code line} into the reserved left column, vertically centred on the
+     * line's view rectangle.
+     */
+    private void paintMarker(Graphics2D g2, int line, int y, int height) {
+        int cx = PAD_X;
+        int cy = y + height / 2;
+        boolean bp = breakpoints.contains(line);
+        if (bp) {
+            int d = MARKER_DIAM + 3;
+            g2.setColor(new Color(0xB0, 0x20, 0x20));
+            g2.fillOval(cx - d / 2, cy - d / 2, d, d);
+            g2.setColor(background);
+            g2.fillOval(cx - d / 2 + 2, cy - d / 2 + 2, d - 4, d - 4);
+        }
+        Diagnostic.Kind kind = markers.get(line);
+        if (kind != null) {
+            g2.setColor(markerColor(kind));
+            g2.fillOval(cx - MARKER_DIAM / 2, cy - MARKER_DIAM / 2,
+                    MARKER_DIAM, MARKER_DIAM);
+        }
+    }
+
+    private static Color markerColor(Diagnostic.Kind kind) {
+        return switch (kind) {
+            case ERROR -> new Color(0xE0, 0x40, 0x40);
+            case WARNING -> new Color(0xE0, 0xA0, 0x20);
+            case INFO -> new Color(0x40, 0x90, 0xE0);
+            case HINT -> new Color(0x90, 0x90, 0x90);
+        };
     }
 
     /**

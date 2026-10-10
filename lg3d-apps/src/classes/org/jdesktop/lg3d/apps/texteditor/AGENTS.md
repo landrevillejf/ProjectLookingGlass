@@ -8,7 +8,7 @@
 
 | Item | Value |
 | --- | --- |
-| Status | **Production** daily-driver utility (plain-text & source-code editor) |
+| Status | **Production** daily-driver utility (plain-text & source-code editor), being grown into a **Java/Kotlin IDE** (see the Espresso IDE program below) |
 | Entry point | `AdvancedTextEditor.main` → `TitledSwingWindow.show(...)` |
 | Surface | **SwingNode-in-Frame3D** (hosts `AdvancedTextEditorPanel` on a `SwingNode` quad); the same panel is reused in the 2D desktop as an MDI internal frame |
 | Start-menu name / group | **Espresso** / **Office** (class names remain `AdvancedTextEditor*`) |
@@ -32,14 +32,25 @@
   editor card sits inside a west/east `JSplitPane` with the `ProjectTreePanel`
   (a lazily-loaded file tree re-rooted on the project of the document being
   edited — `.git`/`pom.xml`/`build.gradle`/… walk-up — double-click opens a
-  file) and inside a north/south `JSplitPane` with the `OutputConsole` (read-only
-  monospaced transcript where extension tool actions land their output, drop-
-  oldest capped, `Clear` button). A
-  package-private `AdvancedTextEditorPanel(false)` constructor disables prefs
-  writes so tests never touch the user preference store.
+  file) and inside a north/south `JSplitPane` whose south half is a bottom
+  **`bottomTabs`** `JTabbedPane` (resize weight 0.78) holding four IDE surfaces:
+  **Output** (the read-only monospaced `OutputConsole` where extension tool
+  actions land their output, drop-oldest capped, `Clear` button), **Problems**
+  (the `ProblemsPanel`, a sortable table of `Diagnostic`s), **Structure** (the
+  `StructurePanel`, a `JTree` outline), and **Debug** (the `DebugPanel`,
+  breakpoints + call stack + locals + a debug transcript). A debounced
+  `analysisTimer` (idle 400 ms, restarted on every content edit and tab switch)
+  fires `onDocumentChanged` for live-analysis extensions. A package-private
+  `AdvancedTextEditorPanel(false)` constructor disables prefs writes so tests
+  never touch the user preference store.
 - **EditorTab** — one document: a `DefaultStyledDocument` (JTextPane requires a
   `StyledDocument`) in an `EditorPane`, dirty tracking, single-step whole-text
-  replace, caret geometry, smart keys, and a debounced re-highlight timer.
+  replace, caret geometry, smart keys, and a debounced re-highlight timer. It
+  also paints per-line diagnostics — a wavy `Highlighter.HighlightPainter`
+  underline over each range plus a highest-severity gutter dot — via
+  `setDiagnostics`/`clearDiagnostics`, and round-trips breakpoints to the
+  gutter (`toggleBreakpoint`). A `setChangeListener` hook lets the panel observe
+  content edits for debounced live analysis.
 - **Engine (AWT-free, pure-String, headless-testable)** — `SyntaxHighlighter`
   (tokeniser + batch painter), `Languages`/`Language` (16 languages + Plain
   Text), `SearchEngine` (literal/regex find + replace, tolerant group expansion),
@@ -97,6 +108,28 @@
   snapshot immediately before every action runs, so an action always sees the
   live text (a build action compiles what the user currently sees, not the file
   as opened).
+- **IDE extension SPI (Phase-0 groundwork)** — the additive capabilities that
+  let live-analysis / debugger extensions plug in without breaking third-party
+  source compatibility. `TextEditorPermission` gained **`DIAGNOSE`** (report
+  per-line `Diagnostic`s; never mutates the document, so gated apart from
+  `WRITE`) and **`DEBUG`** (drive the `DebugPanel` surface). `TextEditorExtension`
+  gained a default **`onDocumentChanged(DocumentContext)`** hook (fired on the
+  debounced edit signal). `DocumentContext` gained caret/selection accessors
+  (`getCaretOffset`/`getCaretLine`/`getCaretColumn`/`getSelectionStart`/
+  `getSelectionEnd`) via a wider constructor; the old constructor delegates with
+  zeros. `EditorContext` gained `DIAGNOSE`-gated `reportDiagnostics`/
+  `clearDiagnostics`/`showStructure` and `DEBUG`-gated `appendDebugOutput`/
+  `setDebugState`/`showStack`/`showLocals`/`setBreakpoints` — each a silent no-op
+  when its permission is not granted. All capability delegates are carried by the
+  package-internal **`EditorSinks`** builder (so `EditorContext`/`ExtensionBroker`
+  constructors stay clean and legacy constructors keep compiling via delegating
+  `EditorSinks.legacy`). New immutable value records: **`Diagnostic`**
+  (`path,line,col,endLine,endCol,Kind{ERROR,WARNING,INFO,HINT},message`) and
+  **`StructureSymbol`** (`name,kind,line`). `ExtensionBroker` funnels
+  opened/changed/saved through one shared permission-gated `dispatch` that
+  isolates throwing extensions. The IDE chrome phases (live diagnostics,
+  structure/navigation, JDI debugger, completion) build on this groundwork and
+  each ships as its own extension provider off `main`.
 
 ## Roles
 
@@ -119,9 +152,10 @@
   the `TextEditorExtension` SPI + `META-INF/services` entry — add capabilities
   there, not by editing the panel. Jogamp packages only; obey the core UI/UX
   rulebook.
-- **QA** — 26 headless JUnit 5 suites under
-  `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` cover every
-  engine class, all thirteen bundled extensions and all panel/widget surfaces (234
+- **QA** — 28 headless JUnit 5 suites under
+  `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (and the `ext`-package
+  `ExtensionBrokerDispatchTest`) cover every
+  engine class, all thirteen bundled extensions and all panel/widget surfaces (260
   tests): tokenisation, search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
   smart-indent, bracket matching, the merging-undo clock seam, settings
@@ -138,7 +172,16 @@
   `runExtensionAction`, tab lifecycle, and the find bar / status bar /
   recents / extensions cards. Build panels through
   `new AdvancedTextEditorPanel(false)`; file-chooser and `JOptionPane` paths are
-  headless-guarded and intentionally unreachable in tests. For the 3D host use
+  headless-guarded and intentionally unreachable in tests. The Phase-0 IDE
+  groundwork is covered by `IdeChromeTest` (the `Diagnostic`/`StructureSymbol`
+  models, the widened `DocumentContext` caret + back-compat, the `DIAGNOSE`/`DEBUG`
+  capability gates driven through `EditorSinks`, the gutter markers/breakpoints,
+  `EditorTab` squiggle painting + breakpoint round-trip, the
+  `ProblemsPanel`/`StructurePanel`/`DebugPanel` models, and the four-tab
+  `bottomTabs` integration) and `ExtensionBrokerDispatchTest` (the
+  `onDocumentChanged` dispatch carrying the caret, the READ gate, the WRITE-gated
+  mutators, and per-extension exception isolation, using the package-private
+  `ExtensionRegistry.seed` seam so no jar or filesystem IO runs). For the 3D host use
   the in-JVM probe + internal screencapture (`lg3d-core/lgscreen-*.png`); a black
   capture under Wayland is not a defect.
 - **Business Analyst** — A daily-driver utility: open, edit, find/replace and

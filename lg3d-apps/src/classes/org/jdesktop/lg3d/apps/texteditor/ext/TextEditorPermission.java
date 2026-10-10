@@ -38,5 +38,21 @@ public enum TextEditorPermission {
     SETTINGS,
 
     /** Contribute toolbar buttons via {@link TextEditorExtension#toolbarContributions()}. */
-    TOOLBAR
+    TOOLBAR,
+
+    /**
+     * Report per-line diagnostics ({@link Diagnostic}) that the editor paints as
+     * gutter markers and underlines and lists in the Problems panel. Reporting a
+     * diagnostic never mutates the document, so it is gated separately from
+     * {@link #WRITE}.
+     */
+    DIAGNOSE,
+
+    /**
+     * Drive the debugger surface of the editor (breakpoints, call stack, local
+     * variables, debug output) through the {@link EditorContext} debug hooks.
+     * Grants the extension control of the Debug panel chrome; the editor itself
+     * never launches or attaches a VM on the extension's behalf.
+     */
+    DEBUG
 }
