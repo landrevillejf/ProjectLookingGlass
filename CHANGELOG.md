@@ -57,6 +57,29 @@ work to make it build and run on a current toolchain.
   runner and scheduler are injectable seams, so the 12 new `JavaDiagnosticsToolsTest`
   tests are headless (no test spawns a real `kotlinc`; the in-memory `javac` does
   run headless). Text-editor surface now **29 suites / 272 tests**.
+- **Espresso: structure, navigation and single-file refactoring (Phase 2)**
+  (`lg3d-apps`) — a fifteenth bundled provider, **Java Structure**
+  (`lg3d.java-structure`, category `Java/Kotlin`, READ + WRITE + DIAGNOSE +
+  TOOLBAR), fills the Phase-0 Structure tab and adds four toolbar actions:
+  **Go to Definition**, **Find Occurrences**, **Rename Symbol** and **Organize
+  Imports**. The outline comes from the JDK's own compiler frontend
+  (`JavacTask.parse()` + `Trees`/`SourcePositions` — exact lines, no string
+  guessing) with a regex fallback for broken sources, and a documented
+  best-effort regex/indent scan for Kotlin (no Kotlin AST exists in the JDK).
+  The caret-word resolution and occurrence scan mask out string/char literals
+  and comments, so a rename never rewrites a literal. Rename applies every
+  whole-word occurrence in a single `setFullText` write (one undo step) and
+  takes the new name behind an injectable prompt seam — headless tests never
+  construct a dialog. Organize-imports drops unused single-type imports,
+  dedupes and sorts the block (statics first, wildcards kept), leaving
+  import-free files untouched. The SPI grew one additive capability, the
+  `READ`-gated `EditorContext.navigateTo(path, line)`, delegated to the panel
+  which selects the owning tab and jumps the caret — the same jump the
+  Problems and Structure tabs' double-click already use. 16 new headless
+  `JavaStructureToolsTest` tests cover the AST outline lines, the fallbacks,
+  the masked occurrence scan and all four actions driven through capturing
+  `EditorSinks` with the permission gates. Text-editor surface now
+  **30 suites / 288 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is

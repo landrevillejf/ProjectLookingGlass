@@ -12,3 +12,4 @@ org.jdesktop.lg3d.apps.texteditor.SpringBootTools
 org.jdesktop.lg3d.apps.texteditor.HashTools
 org.jdesktop.lg3d.apps.texteditor.JvmBuildTools
 org.jdesktop.lg3d.apps.texteditor.JavaDiagnosticsTools
+org.jdesktop.lg3d.apps.texteditor.JavaStructureTools

@@ -154,6 +154,18 @@ public final class EditorContext {
         }
     }
 
+    /**
+     * Asks the editor to move the caret to the 1-based {@code line} of
+     * {@code path} (go-to-definition / find-occurrences jumps); no-op without
+     * {@link TextEditorPermission#READ}, since navigating reads the document.
+     * The out-of-range line is clamped by the host, not here.
+     */
+    public void navigateTo(String path, int line) {
+        if (has(TextEditorPermission.READ) && sinks.navigate != null) {
+            sinks.navigate.accept(path, Math.max(1, line));
+        }
+    }
+
     /** Appends a line to the Debug panel's output; no-op without DEBUG. */
     public void appendDebugOutput(String line) {
         if (has(TextEditorPermission.DEBUG) && sinks.appendDebugOutput != null
