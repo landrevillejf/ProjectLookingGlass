@@ -45,6 +45,9 @@ import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
+import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
+import org.jdesktop.lg3d.apps.texteditor.ext.EditorSinks;
+import org.jdesktop.lg3d.apps.texteditor.ext.StructureSymbol;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
 
@@ -100,6 +103,9 @@ public class AdvancedTextEditorPanel extends JPanel
     /** How long a transient status message stays up. */
     private static final int MESSAGE_MS = 4000;
 
+    /** Idle pause before the debounced {@code onDocumentChanged} fires. */
+    private static final int ANALYSIS_DELAY_MS = 400;
+
     private static final Logger logger =
             Logger.getLogger(AdvancedTextEditorPanel.class.getName());
 
@@ -133,6 +139,16 @@ public class AdvancedTextEditorPanel extends JPanel
     private final EditorStatusBar statusBar = new EditorStatusBar();
     /** South console receiving compile/run tool output (never the document). */
     private final OutputConsole outputConsole = new OutputConsole();
+    /** South Problems tab: the aggregated diagnostic list. */
+    private final ProblemsPanel problemsPanel = new ProblemsPanel();
+    /** South Structure tab: the current document's symbol outline. */
+    private final StructurePanel structurePanel = new StructurePanel();
+    /** South Debug tab: the debugger surface (breakpoints/stack/locals/output). */
+    private final DebugPanel debugPanel = new DebugPanel();
+    /** South tabbed region holding Output / Problems / Structure / Debug. */
+    private final JTabbedPane bottomTabs = new JTabbedPane();
+    /** Debounces live analysis after the last keystroke. */
+    private final Timer analysisTimer;
     /** West lazily-loaded project file tree. */
     private final ProjectTreePanel projectTree = new ProjectTreePanel();
     private final List<ExtensionAction> extensionActions = new ArrayList<>();
@@ -174,14 +190,25 @@ public class AdvancedTextEditorPanel extends JPanel
 
         EditorStore store = new EditorStore();
         this.extensionRegistry = new ExtensionRegistry(store);
-        this.extensionBroker = new ExtensionBroker(
-                extensionRegistry,
-                this::message,
-                this::openFileForExtension,
-                this::saveCurrentTab,
-                this::showOutputForExtension,
-                this::clearOutputConsole
-        );
+        this.extensionBroker = new ExtensionBroker(extensionRegistry,
+                EditorSinks.builder()
+                        .showMessage(this::message)
+                        .openFile(this::openFileForExtension)
+                        .saveFile(this::saveCurrentTab)
+                        .showOutput(this::showOutputForExtension)
+                        .clearOutput(this::clearOutputConsole)
+                        .reportDiagnostics(this::reportDiagnosticsForExtension)
+                        .clearDiagnostics(this::clearDiagnosticsForExtension)
+                        .showStructure(this::showStructureForExtension)
+                        .appendDebugOutput(debugPanel::appendOutput)
+                        .setDebugState(debugPanel::setState)
+                        .showStack(debugPanel::setStack)
+                        .showLocals(debugPanel::setLocals)
+                        .setBreakpoints(debugPanel::setBreakpoints)
+                        .build());
+        this.analysisTimer = new Timer(ANALYSIS_DELAY_MS,
+                e -> notifyDocumentChanged(currentTab()));
+        this.analysisTimer.setRepeats(false);
 
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
@@ -194,9 +221,24 @@ public class AdvancedTextEditorPanel extends JPanel
 
         projectTree.setOnFileChosen(this::openPath);
 
-        // Editor over output console (south), inside the editor card only.
+        // South tabbed region: Output / Problems / Structure / Debug. The Output
+        // tab keeps the legacy console; the others are the IDE surfaces.
+        bottomTabs.setName("bottomTabs");
+        bottomTabs.addTab("Output", outputConsole);
+        bottomTabs.addTab("Problems", problemsPanel);
+        bottomTabs.addTab("Structure", structurePanel);
+        bottomTabs.addTab("Debug", debugPanel);
+        problemsPanel.setOnActivate(this::gotoDiagnostic);
+        structurePanel.setOnActivate(symbol -> {
+            EditorTab tab = currentTab();
+            if (tab != null) {
+                tab.goToLine(symbol.line());
+            }
+        });
+
+        // Editor over the south tab region, inside the editor card only.
         JSplitPane editorVSPLIT = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                tabs, outputConsole);
+                tabs, bottomTabs);
         editorVSPLIT.setResizeWeight(0.78);
         editorVSPLIT.setOneTouchExpandable(true);
         editorCard.add(findBar, BorderLayout.NORTH);
@@ -223,6 +265,7 @@ public class AdvancedTextEditorPanel extends JPanel
         tabs.addChangeListener(e -> {
             refreshButtons();
             refreshStatus();
+            scheduleAnalysis();
         });
         tabs.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -399,6 +442,7 @@ public class AdvancedTextEditorPanel extends JPanel
             refreshButtons();
         });
         tab.setCaretListener(this::refreshStatus);
+        tab.setChangeListener(this::scheduleAnalysis);
         tabs.addTab(tab.getDisplayName(), tab);
         tabs.setSelectedComponent(tab);
         refreshTabTitles();
@@ -1286,17 +1330,45 @@ public class AdvancedTextEditorPanel extends JPanel
         if (tab == null) {
             return;
         }
-        String filePath = tab.getPath() != null ? tab.getPath().toString() : null;
-        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
-        String selectedText = tab.textPane().getSelectedText();
+        JTextComponent pane = tab.textPane();
+        String selectedText = pane.getSelectedText();
         extensionBroker.notifyDocumentOpened(
-                filePath,
-                fileName,
+                tab.getPath() != null ? tab.getPath().toString() : null,
+                tab.getPath() != null ? tab.getPath().getFileName().toString() : null,
                 tab.getText(),
                 selectedText != null ? selectedText : "",
+                pane.getCaretPosition(), tab.getCaretLine(), tab.getCaretColumn(),
+                pane.getSelectionStart(), pane.getSelectionEnd(),
                 text -> tab.replaceWholeText(text),
                 text -> tab.textPane().replaceSelection(text)
         );
+    }
+
+    /**
+     * Notifies extensions of a debounced content change on {@code tab}, carrying
+     * the current caret/selection geometry. Fired by {@link #analysisTimer}.
+     */
+    void notifyDocumentChanged(EditorTab tab) {
+        if (tab == null) {
+            return;
+        }
+        JTextComponent pane = tab.textPane();
+        String selectedText = pane.getSelectedText();
+        extensionBroker.notifyDocumentChanged(
+                tab.getPath() != null ? tab.getPath().toString() : null,
+                tab.getPath() != null ? tab.getPath().getFileName().toString() : null,
+                tab.getText(),
+                selectedText != null ? selectedText : "",
+                pane.getCaretPosition(), tab.getCaretLine(), tab.getCaretColumn(),
+                pane.getSelectionStart(), pane.getSelectionEnd(),
+                text -> tab.replaceWholeText(text),
+                text -> tab.textPane().replaceSelection(text)
+        );
+    }
+
+    /** Restarts the debounced live-analysis timer (called on every edit). */
+    private void scheduleAnalysis() {
+        analysisTimer.restart();
     }
 
     /** Notifies extensions when a document is saved. */
@@ -1304,14 +1376,15 @@ public class AdvancedTextEditorPanel extends JPanel
         if (tab == null) {
             return;
         }
-        String filePath = tab.getPath() != null ? tab.getPath().toString() : null;
-        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
-        String selectedText = tab.textPane().getSelectedText();
+        JTextComponent pane = tab.textPane();
+        String selectedText = pane.getSelectedText();
         extensionBroker.notifyDocumentSaved(
-                filePath,
-                fileName,
+                tab.getPath() != null ? tab.getPath().toString() : null,
+                tab.getPath() != null ? tab.getPath().getFileName().toString() : null,
                 tab.getText(),
                 selectedText != null ? selectedText : "",
+                pane.getCaretPosition(), tab.getCaretLine(), tab.getCaretColumn(),
+                pane.getSelectionStart(), pane.getSelectionEnd(),
                 text -> tab.replaceWholeText(text),
                 text -> tab.textPane().replaceSelection(text)
         );
@@ -1344,6 +1417,79 @@ public class AdvancedTextEditorPanel extends JPanel
     /** Empties the south console. Delegate for {@code EditorContext.clearOutput}. */
     void clearOutputConsole() {
         outputConsole.clear();
+    }
+
+    /**
+     * Paints {@code diagnostics} on the matching tab (falling back to the current
+     * one), lists them in the Problems tab and summarises the counts on the status
+     * line. Delegate for {@code EditorContext.reportDiagnostics}; EDT-only.
+     */
+    void reportDiagnosticsForExtension(String path, List<Diagnostic> diagnostics) {
+        List<Diagnostic> diags = (diagnostics == null) ? List.of() : diagnostics;
+        EditorTab tab = tabForPath(path);
+        if (tab != null) {
+            tab.setDiagnostics(diags);
+        }
+        problemsPanel.setDiagnostics(diags);
+        int errors = 0;
+        int warnings = 0;
+        for (Diagnostic d : diags) {
+            if (d.kind() == Diagnostic.Kind.ERROR) {
+                errors++;
+            } else if (d.kind() == Diagnostic.Kind.WARNING) {
+                warnings++;
+            }
+        }
+        if (errors + warnings > 0) {
+            message(errors + " error(s), " + warnings + " warning(s)");
+        }
+    }
+
+    /** Clears the diagnostics for {@code path}. Delegate for clearDiagnostics. */
+    void clearDiagnosticsForExtension(String path) {
+        EditorTab tab = tabForPath(path);
+        if (tab != null) {
+            tab.clearDiagnostics();
+        }
+        problemsPanel.clear();
+    }
+
+    /** Fills the Structure tab. Delegate for {@code EditorContext.showStructure}. */
+    void showStructureForExtension(String path, List<StructureSymbol> symbols) {
+        cards.show(center, CARD_EDITOR);
+        String title = (path == null || path.isEmpty())
+                ? "Structure" : baseName(path);
+        structurePanel.setStructure(title, symbols);
+    }
+
+    /** Opens the location of a Problems-tab row. */
+    private void gotoDiagnostic(Diagnostic d) {
+        EditorTab tab = tabForPath(d.path());
+        if (tab == null) {
+            return;
+        }
+        cards.show(center, CARD_EDITOR);
+        tabs.setSelectedComponent(tab);
+        tab.goToLine(d.line());
+    }
+
+    /** The tab editing {@code path}, or the current tab when it is blank/unknown. */
+    private EditorTab tabForPath(String path) {
+        if (path != null && !path.isEmpty()) {
+            for (int i = 0; i < tabs.getTabCount(); i++) {
+                EditorTab tab = (EditorTab) tabs.getComponentAt(i);
+                if (tab.getPath() != null && tab.getPath().toString().equals(path)) {
+                    return tab;
+                }
+            }
+        }
+        return currentTab();
+    }
+
+    private static String baseName(String path) {
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return (slash >= 0 && slash < path.length() - 1)
+                ? path.substring(slash + 1) : path;
     }
 
     /** Re-roots the west tree on the project directory enclosing {@code file}. */
@@ -1440,5 +1586,26 @@ public class AdvancedTextEditorPanel extends JPanel
         extensionBroker.notifyStopping();
         persistSettings();
         messageTimer.stop();
+        analysisTimer.stop();
+    }
+
+    /** The south tabbed region (test seam). */
+    final JTabbedPane bottomTabs() {
+        return bottomTabs;
+    }
+
+    /** The Problems tab (test seam). */
+    final ProblemsPanel problemsPanel() {
+        return problemsPanel;
+    }
+
+    /** The Structure tab (test seam). */
+    final StructurePanel structurePanel() {
+        return structurePanel;
+    }
+
+    /** The Debug tab (test seam). */
+    final DebugPanel debugPanel() {
+        return debugPanel;
     }
 }

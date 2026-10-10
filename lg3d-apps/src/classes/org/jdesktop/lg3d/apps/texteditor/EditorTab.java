@@ -14,12 +14,19 @@
 package org.jdesktop.lg3d.apps.texteditor;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Graphics;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
@@ -28,7 +35,9 @@ import javax.swing.Timer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.DefaultStyledDocument;
+import javax.swing.text.Element;
 import javax.swing.text.Highlighter;
+import javax.swing.text.JTextComponent;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.TabSet;
@@ -36,6 +45,7 @@ import javax.swing.text.TabStop;
 import javax.swing.undo.AbstractUndoableEdit;
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
+import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 
 /**
  * One open document: the editor's per-tab bundle of model ({@link
@@ -95,6 +105,13 @@ public final class EditorTab extends JPanel {
     private boolean loading;
     private Runnable dirtyListener = () -> { };
     private Runnable caretListener = () -> { };
+    private Runnable changeListener = () -> { };
+
+    /** Highlighter tags for the current diagnostic squiggles. */
+    private final List<Object> diagnosticTags = new ArrayList<>();
+    /** 0-based line -> highest-severity diagnostic kind painted in the gutter. */
+    private final Map<Integer, Diagnostic.Kind> diagnosticMarkers = new HashMap<>();
+    private int diagnosticCount;
 
     private Object lineHighlightTag;
     private Object bracketTagA;
@@ -322,6 +339,154 @@ public final class EditorTab extends JPanel {
         this.caretListener = (listener != null) ? listener : () -> { };
     }
 
+    /**
+     * Hook the panel uses to observe content edits (it debounces them before
+     * notifying extensions through {@code onDocumentChanged}). Fires on the EDT
+     * for every insert/remove once the tab is no longer loading.
+     */
+    public void setChangeListener(Runnable listener) {
+        this.changeListener = (listener != null) ? listener : () -> { };
+    }
+
+    /**
+     * Paints {@code diagnostics} on this tab: a gutter dot per line (highest
+     * severity wins) and a wavy underline over each offending range. Replaces
+     * any previous set. The document is not mutated.
+     */
+    public void setDiagnostics(List<Diagnostic> diagnostics) {
+        clearDiagnostics();
+        if (diagnostics == null || diagnostics.isEmpty()) {
+            return;
+        }
+        Highlighter highlighter = textPane.getHighlighter();
+        for (Diagnostic d : diagnostics) {
+            if (d == null) {
+                continue;
+            }
+            diagnosticCount++;
+            int lineIdx = d.line() - 1;
+            Diagnostic.Kind prev = diagnosticMarkers.get(lineIdx);
+            if (prev == null || severityRank(d.kind()) > severityRank(prev)) {
+                diagnosticMarkers.put(lineIdx, d.kind());
+            }
+            int p0 = offsetOf(d.line(), d.col());
+            int p1 = offsetOf(d.endLineOrStart(), d.endColOrStart());
+            if (p1 <= p0) {
+                p1 = Math.min(document.getLength(), p0 + 1);
+            }
+            if (p1 > p0) {
+                try {
+                    diagnosticTags.add(highlighter.addHighlight(p0, p1,
+                            new WavePainter(colorFor(d.kind()))));
+                } catch (BadLocationException | RuntimeException ble) {
+                    // Offsets fell outside a still-loading view; the gutter dot
+                    // is painted next layout, so a dropped squiggle is harmless.
+                }
+            }
+        }
+        gutter.setMarkers(new HashMap<>(diagnosticMarkers));
+    }
+
+    /** Removes every diagnostic marker and underline from this tab. */
+    public void clearDiagnostics() {
+        Highlighter highlighter = textPane.getHighlighter();
+        for (Object tag : diagnosticTags) {
+            removeTag(highlighter, tag);
+        }
+        diagnosticTags.clear();
+        diagnosticMarkers.clear();
+        diagnosticCount = 0;
+        gutter.clearMarkers();
+    }
+
+    /**
+     * Toggles a breakpoint on the 1-based {@code line}; forwards to the gutter
+     * so the debugger extension can round-trip breakpoint state.
+     *
+     * @return true when the line is now broken
+     */
+    public boolean toggleBreakpoint(int line) {
+        int count = document.getDefaultRootElement().getElementCount();
+        int target = Math.max(1, Math.min(line, count));
+        return gutter.toggleBreakpoint(target - 1);
+    }
+
+    /** @return true when a breakpoint is set on the 1-based {@code line}. */
+    public boolean hasBreakpoint(int line) {
+        return gutter.hasBreakpoint(line - 1);
+    }
+
+    /** @return how many diagnostics are currently painted (test seam). */
+    public int diagnosticCount() {
+        return diagnosticCount;
+    }
+
+    /** @return the gutter marker kind on the 1-based {@code line}, or null. */
+    public Diagnostic.Kind diagnosticAt(int line) {
+        return diagnosticMarkers.get(line - 1);
+    }
+
+    /** Converts a 1-based line/col to a document offset, clamped to the text. */
+    private int offsetOf(int line, int col) {
+        Element root = document.getDefaultRootElement();
+        int lineIdx = Math.max(0, Math.min(line - 1, root.getElementCount() - 1));
+        int start = root.getElement(lineIdx).getStartOffset();
+        int end = root.getElement(lineIdx).getEndOffset();
+        int offset = start + Math.max(0, col - 1);
+        return Math.min(offset, Math.max(start, end - 1));
+    }
+
+    /** Severity ordering: ERROR &gt; WARNING &gt; INFO &gt; HINT. */
+    private static int severityRank(Diagnostic.Kind kind) {
+        return switch (kind) {
+            case ERROR -> 3;
+            case WARNING -> 2;
+            case INFO -> 1;
+            case HINT -> 0;
+        };
+    }
+
+    private static Color colorFor(Diagnostic.Kind kind) {
+        return switch (kind) {
+            case ERROR -> new Color(0xE0, 0x40, 0x40);
+            case WARNING -> new Color(0xE0, 0xA0, 0x20);
+            case INFO -> new Color(0x40, 0x90, 0xE0);
+            case HINT -> new Color(0x90, 0x90, 0x90);
+        };
+    }
+
+    /** A wavy-underline highlighter painter for a diagnostic range. */
+    private static final class WavePainter implements Highlighter.HighlightPainter {
+        private final Color color;
+
+        WavePainter(Color color) {
+            this.color = color;
+        }
+
+        @Override
+        public void paint(Graphics g, int beginIndex, int endIndex,
+                          Shape bounds, JTextComponent c) {
+            Rectangle area = bounds.getBounds();
+            Graphics g2 = g.create();
+            try {
+                g2.setColor(color);
+                int w = 4;
+                int h = Math.max(2, area.height / 3);
+                int y = area.y + area.height - h;
+                boolean up = true;
+                for (int x = area.x; x < area.x + area.width; x += w) {
+                    int seg = Math.min(w, area.x + area.width - x);
+                    int y0 = up ? y : y - 1;
+                    int y1 = up ? y - 1 : y;
+                    g2.drawLine(x, y0, x + seg, y1);
+                    up = !up;
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
     // Editing
     // ------------------------------------------------------------------
@@ -488,6 +653,7 @@ public final class EditorTab extends JPanel {
         }
         dirty = true;
         dirtyListener.run();
+        changeListener.run();
         gutter.refreshWidth();
         if (settings.isHighlight()
                 && SyntaxHighlighter.shouldHighlight(document.getLength())) {

@@ -81,6 +81,17 @@ public interface TextEditorExtension {
     default void onDocumentOpened(DocumentContext doc) { }
 
     /**
+     * Called on the EDT after the current document's text has changed, debounced
+     * to the editor's idle timer (so it does not fire on every keystroke) and
+     * re-fired once the user switches tabs. Requires
+     * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#READ}. Live
+     * analysis extensions (diagnostics, structure) refresh here.
+     *
+     * @param doc the changed document, with the current caret/selection geometry
+     */
+    default void onDocumentChanged(DocumentContext doc) { }
+
+    /**
      * Called after a document is saved. Requires
      * {@link org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission#READ}.
      *

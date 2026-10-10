@@ -21,6 +21,24 @@ work to make it build and run on a current toolchain.
   used only for this one-time migration strip.
 
 ### Added
+- **Espresso: Java/Kotlin IDE groundwork (Phase 0)** (`lg3d-apps`) — the editor's
+  south split now hosts a four-tab **bottom panel** — **Output** (the existing
+  console), **Problems** (`ProblemsPanel`, a sortable `Diagnostic` table),
+  **Structure** (`StructurePanel`, a `JTree` outline) and **Debug** (`DebugPanel`,
+  breakpoints + call stack + locals + transcript) — with the `EditorTab` gutter
+  painting per-line diagnostic dots, wavy underlines and breakpoint rings. The
+  extension SPI grew additively (third-party source compatibility preserved via
+  delegating constructors and a new internal `EditorSinks` carrier): two
+  permissions (**`DIAGNOSE`**, **`DEBUG`**), two value records (**`Diagnostic`**,
+  **`StructureSymbol`**), a debounced **`onDocumentChanged`** hook, caret/selection
+  accessors on `DocumentContext`, and `DIAGNOSE`/`DEBUG`-gated diagnostics,
+  structure and debugger capabilities on `EditorContext`, all wired to the live
+  chrome through `ExtensionBroker`'s shared permission-gated dispatch. This lays
+  the SPI + chrome foundation the following IDE phases (live javac/kotlinc
+  diagnostics, structure/navigation/refactoring, a `com.sun.jdi` debugger and
+  dependency-free completion) build on; no behaviour of the existing editor
+  changed. 26 new headless JUnit 5 tests across `IdeChromeTest` and
+  `ExtensionBrokerDispatchTest` (28 text-editor suites, 260 tests).
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is
