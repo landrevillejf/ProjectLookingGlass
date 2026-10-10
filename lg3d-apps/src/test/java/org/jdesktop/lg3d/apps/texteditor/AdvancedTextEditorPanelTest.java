@@ -22,13 +22,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
+import java.awt.Container;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JTabbedPane;
+import javax.swing.JToolBar;
 import javax.swing.text.BadLocationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,7 +90,7 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 63 toolbar actions")
+    @DisplayName("the bundled extensions install their 73 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
@@ -94,7 +98,8 @@ class AdvancedTextEditorPanelTest {
         // + Base64 Tools 2 + Markdown Tools 4 + JSON Tools 2
         // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
         // + Java Structure Tools 4 + Java Debugger 6 + Java Completion 1
-        assertEquals(63, panel.extensionActionCount());
+        // + Insert & Snippets 5 + TODO Scan 2 + Comment Toggle 3
+        assertEquals(73, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -125,7 +130,7 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(17, infos.size());
+        assertEquals(20, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
@@ -134,6 +139,9 @@ class AdvancedTextEditorPanelTest {
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-structure")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-debug")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-completion")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.snippets")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.todo")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.comment")));
         panel.dispose();
     }
 
@@ -568,5 +576,141 @@ class AdvancedTextEditorPanelTest {
         assertNotNull(panel.gitGuiPanel());
         assertNotNull(panel.projectCard());
         panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a completion publish feeds both the strip and the inline popup")
+    void completionFeedsBothSurfaces() throws BadLocationException {
+        AdvancedTextEditorPanel panel = newPanel();
+        EditorTab tab = panel.currentTab();
+        type(tab, "cou"); // non-empty document so the trigger can show
+        List<String> cands = List.of("counter", "continue");
+
+        panel.showCompletionsForExtension("/src/Demo.java", cands);
+
+        // The bottom strip always mirrors the full candidate list.
+        assertEquals(2, panel.completionPanel().rowCount());
+        assertEquals(cands, panel.lastCompletionCandidates());
+        // The inline popup is populated when shown at the caret (Ctrl+Space force;
+        // headless it composites without a layered pane, but the model is filled).
+        panel.forceShowCompletion();
+        assertEquals(2, panel.completionPopup().rowCount());
+
+        // An empty publish clears both.
+        panel.showCompletionsForExtension("/src/Demo.java", List.of());
+        assertEquals(0, panel.completionPanel().rowCount());
+        assertTrue(panel.lastCompletionCandidates().isEmpty());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("the toolbar-customise host persists a choice and renders its button")
+    void toolbarCustomizeAppliesAndRenders() {
+        AdvancedTextEditorPanel panel = newPanel();
+        assertTrue(panel.userToolbarButtonCount() == 0, "no user button by default");
+        // Every contributed command is offered under a provider-qualified key.
+        assertTrue(panel.availableCommands().stream()
+                .anyMatch(c -> c.id().equals("lg3d.snippets/ins-uuid")));
+
+        panel.applyToolbar(List.of(new ToolbarButtonConfig.Entry(
+                "lg3d.snippets/ins-uuid", ToolbarButtonConfig.DisplayMode.ICON_TEXT)));
+        assertEquals(1, panel.settings().getToolbarButtons().size());
+        assertEquals(1, panel.userToolbarButtonCount());
+
+        // A stale id (an extension that is not available) never renders a button,
+        // but applyToolbar still records it, so disabling an extension is safe.
+        panel.applyToolbar(List.of(new ToolbarButtonConfig.Entry(
+                "lg3d.gone/nothing", ToolbarButtonConfig.DisplayMode.ICON)));
+        assertEquals(1, panel.settings().getToolbarButtons().size());
+        assertEquals(0, panel.userToolbarButtonCount());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("the command row keeps every user button inside the 960px window")
+    void userToolbarButtonsAreNotClipped() {
+        AdvancedTextEditorPanel panel = newPanel();
+        // Two icon+text commands, so the built-in row alone would already overflow:
+        // appended to it they used to be laid out past the right edge and were
+        // neither visible nor clickable.
+        panel.applyToolbar(List.of(
+                new ToolbarButtonConfig.Entry("lg3d.snippets/ins-uuid",
+                        ToolbarButtonConfig.DisplayMode.ICON_TEXT),
+                new ToolbarButtonConfig.Entry("lg3d.comment/toggle-comment",
+                        ToolbarButtonConfig.DisplayMode.ICON_TEXT)));
+        assertEquals(2, panel.userToolbarButtonCount());
+
+        panel.setSize(AdvancedTextEditorPanel.WIDTH_PX,
+                AdvancedTextEditorPanel.HEIGHT_PX);
+        layoutAll(panel);
+
+        JComponent strip = panel.userCommandStrip();
+        assertNotNull(strip, "the second toolbar row exists");
+        assertEquals("userToolbarStrip", strip.getName());
+        assertFalse(strip.getParent() instanceof JToolBar,
+                "the command row is its own row, not the tail of the built-in bar");
+
+        for (JButton button : panel.userToolbarButtons()) {
+            assertTrue(button.getHeight() > 0, button.getName() + " is laid out");
+            assertTrue(rightIn(strip, button) > 0, button.getName() + " is on-screen");
+            assertTrue(rightIn(strip, button) <= strip.getWidth(),
+                    button.getName() + " fits inside the row");
+        }
+        JButton customize = named(panel, "customizeToolbarButton", JButton.class);
+        assertNotNull(customize);
+        assertTrue(rightIn(strip, customize) <= strip.getWidth(),
+                "Customize stays reachable whatever the user adds");
+        assertFalse(named(panel, "userToolbarHint", JLabel.class).isVisible(),
+                "the empty-state hint steps aside once commands render");
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("the command row shows its hint while no command is configured")
+    void emptyCommandRowShowsHint() {
+        AdvancedTextEditorPanel panel = newPanel();
+        JLabel hint = named(panel, "userToolbarHint", JLabel.class);
+        assertNotNull(hint, "the empty-state hint is present");
+        assertTrue(hint.isVisible(), "and shown while the toolbar has no command");
+        panel.applyToolbar(List.of(new ToolbarButtonConfig.Entry(
+                "lg3d.snippets/ins-uuid", ToolbarButtonConfig.DisplayMode.ICON)));
+        assertFalse(hint.isVisible(), "hidden once a command renders");
+        panel.dispose();
+    }
+
+    /** Runs every container's layout manager at its current bounds, recursively. */
+    private static void layoutAll(Container c) {
+        c.doLayout();
+        for (Component child : c.getComponents()) {
+            if (child instanceof Container inner) {
+                layoutAll(inner);
+            }
+        }
+    }
+
+    /** The right edge of {@code c} expressed in {@code anchor}'s x coordinate. */
+    private static int rightIn(Component anchor, Component c) {
+        int x = c.getX() + c.getWidth();
+        for (Component p = c.getParent(); p != null && p != anchor; p = p.getParent()) {
+            x += p.getX();
+        }
+        return x;
+    }
+
+    /** Finds a component of type {@code type} by {@code getName()} anywhere below {@code root}. */
+    private static <T extends Component> T named(Container root, String name,
+            Class<T> type) {
+        for (Component c : root.getComponents()) {
+            if (name.equals(c.getName()) && type.isInstance(c)) {
+                return type.cast(c);
+            }
+            if (c instanceof Container inner) {
+                T found = named(inner, name, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 }

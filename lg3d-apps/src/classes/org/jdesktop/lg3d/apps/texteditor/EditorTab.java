@@ -179,6 +179,33 @@ public final class EditorTab extends JPanel {
         return textPane;
     }
 
+    /**
+     * The scroll pane hosting the text component; its layered pane is where the
+     * inline completion popup is painted so the popup composites into the editor
+     * bounds (offscreen-safe) rather than a heavyweight window.
+     */
+    public javax.swing.JScrollPane scrollPane() {
+        return scrollPane;
+    }
+
+    /** The 0-based caret offset into the document. */
+    public int caretOffset() {
+        return textPane.getCaretPosition();
+    }
+
+    /**
+     * The caret's on-screen rectangle in the text component's coordinates, or
+     * null before the view is laid out (as offscreen / headless). Used to place
+     * the inline completion popup at the caret.
+     */
+    public java.awt.Rectangle caretVisualRectangle() {
+        try {
+            return textPane.modelToView(textPane.getCaretPosition());
+        } catch (BadLocationException | RuntimeException ble) {
+            return null;
+        }
+    }
+
     /** The full document text ("" for an empty document). */
     public String getText() {
         try {
