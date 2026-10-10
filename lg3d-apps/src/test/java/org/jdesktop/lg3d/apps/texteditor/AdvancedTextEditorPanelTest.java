@@ -114,11 +114,12 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(13, infos.size());
+        assertEquals(14, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.jvm-build-tools")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.java-diagnostics")));
         panel.dispose();
     }
 
