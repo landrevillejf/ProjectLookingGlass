@@ -38,14 +38,18 @@ import javax.swing.ListSelectionModel;
  * The Extensions card. The left half lists every installed
  * {@link TextEditorExtension} with its enable / disable state and offers
  * Enable / Disable buttons (a third-party extension only contributes actions
- * once the user enables it here); the right half lists every action those
+ * once the user enables it here); the right half lists the actions those
  * extensions contribute, grouped under bold, non-selectable category headers.
- * Each action row is labelled {@code <extension>: <action> (accelerator)} and
- * is bound to its index in the host's flat action list, so selecting an entry
- * and pressing Run (or double-clicking) invokes exactly that action against the
- * current tab. Headers are inert: Run stays disabled while one is selected.
- * The card uses plain {@link JList}s, so it works inside the 3D desktop's
- * offscreen capture like every other in-panel surface.
+ * Selecting an extension on the left filters the right half to just that
+ * extension's commands (under its category header); clearing the selection
+ * restores the full grouped view. Each action row is labelled
+ * {@code <extension>: <action> (accelerator)} and is bound to its index in the
+ * host's flat action list, so selecting an entry and pressing Run (or
+ * double-clicking) invokes exactly that action against the current tab — the
+ * filter only hides rows, it never renumbers them. Headers are inert: Run
+ * stays disabled while one is selected. The card uses plain {@link JList}s, so
+ * it works inside the 3D desktop's offscreen capture like every other
+ * in-panel surface.
  */
 public final class ExtensionsCard extends JPanel {
 
@@ -129,18 +133,29 @@ public final class ExtensionsCard extends JPanel {
     /**
      * One row in the actions list: either a non-selectable category
      * {@code header} or a runnable action bound to {@code actionIndex} in the
-     * host's flat action list (headers carry {@code -1}).
+     * host's flat action list (headers carry {@code -1}). An action row also
+     * records its owning {@code owner} extension display name so the card can
+     * filter the view to the selected extension; headers and unowned rows carry
+     * an empty owner.
      */
-    public record Row(String text, int actionIndex, boolean header) {
+    public record Row(String text, int actionIndex, boolean header, String owner) {
 
         /** A bold, inert category heading row. */
         public static Row header(String category) {
-            return new Row(category, -1, true);
+            return new Row(category, -1, true, "");
         }
 
         /** A runnable action row wired to the given host action index. */
         public static Row action(String text, int actionIndex) {
-            return new Row(text, actionIndex, false);
+            return new Row(text, actionIndex, false, "");
+        }
+
+        /**
+         * A runnable action row that also records the owning extension display
+         * {@code name}, so selecting that extension filters the list to it.
+         */
+        public static Row action(String text, int actionIndex, String name) {
+            return new Row(text, actionIndex, false, name == null ? "" : name);
         }
 
         @Override
@@ -153,6 +168,8 @@ public final class ExtensionsCard extends JPanel {
     private final DefaultListModel<Row> model = new DefaultListModel<>();
     private final JList<Row> list = new JList<>(model);
     private final JButton runButton = new JButton("Run");
+    /** The full grouped row list from the host; the shown list may be filtered. */
+    private List<Row> allRows = List.of();
 
     private final DefaultListModel<ExtensionInfo> extModel = new DefaultListModel<>();
     private final JList<ExtensionInfo> extList = new JList<>(extModel);
@@ -222,6 +239,7 @@ public final class ExtensionsCard extends JPanel {
             if (!e.getValueIsAdjusting()) {
                 refreshToggleButtons();
                 refreshPermissions();
+                applyExtensionFilter();
             }
         });
         enableButton.addActionListener(e -> applyEnabled(true));
@@ -309,11 +327,11 @@ public final class ExtensionsCard extends JPanel {
 
     /** Replaces both views: the grouped action rows and the extension list. */
     public void show(List<Row> rows, List<ExtensionInfo> infos) {
+        allRows = (rows == null) ? List.of() : List.copyOf(rows);
         // Preserve the current management selection across the rebuild so an
         // enable/disable or permission toggle does not drop the user's place.
         String keepId = (extList.getSelectedValue() != null)
                 ? extList.getSelectedValue().id() : null;
-        loadRows(rows);
         extModel.clear();
         if (infos != null) {
             for (ExtensionInfo info : infos) {
@@ -328,9 +346,39 @@ public final class ExtensionsCard extends JPanel {
             enableButton.setEnabled(false);
             disableButton.setEnabled(false);
         }
+        // Rebuild the action view for the (possibly restored) selection; the
+        // selection listener also fires this, but call it directly so a
+        // no-selection change still refreshes the list.
+        applyExtensionFilter();
         // Re-read the checkboxes even when the selection index is unchanged,
         // so a permission/enable toggle is reflected immediately.
         refreshPermissions();
+    }
+
+    /**
+     * Repopulates the actions list from {@link #allRows}: the full grouped view
+     * when no extension is selected, otherwise just the selected extension's
+     * action rows under a single category header. Row indices are the host's
+     * flat action indices, so hiding rows never renumbers an action.
+     */
+    private void applyExtensionFilter() {
+        ExtensionInfo sel = extList.getSelectedValue();
+        if (sel == null) {
+            loadRows(allRows);
+            return;
+        }
+        List<Row> body = new ArrayList<>();
+        for (Row row : allRows) {
+            if (!row.header() && sel.name().equals(row.owner())) {
+                body.add(row);
+            }
+        }
+        List<Row> shown = new ArrayList<>();
+        if (!body.isEmpty()) {
+            shown.add(Row.header(sel.category()));
+            shown.addAll(body);
+        }
+        loadRows(shown);
     }
 
     private static int indexOfExtension(List<ExtensionInfo> infos, String id) {
@@ -461,6 +509,11 @@ public final class ExtensionsCard extends JPanel {
     private int currentActionIndex() {
         int sel = list.getSelectedIndex();
         return isAction(sel) ? model.get(sel).actionIndex() : -1;
+    }
+
+    /** The selected action row's host flat index, or -1 (test seam). */
+    final int selectedActionIndex() {
+        return currentActionIndex();
     }
 
     private void startCapturing() {

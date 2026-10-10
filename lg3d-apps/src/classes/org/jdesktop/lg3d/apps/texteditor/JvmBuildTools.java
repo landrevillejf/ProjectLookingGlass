@@ -131,25 +131,28 @@ public final class JvmBuildTools implements TextEditorExtension {
 
     @Override
     public List<ToolbarContribution> toolbarContributions() {
+        // The plain Ctrl+Alt+[A-Z0-9] space is exhausted by the other twelve
+        // providers (only Ctrl+Alt+0 was left), so the build actions claim a
+        // distinct Ctrl+Alt+Shift family — collision-free and still rebindable.
         return List.of(
                 new ToolbarContribution("jvm-compile-java", "Compile Java",
                         "javac the current document into a temp dir; errors land in the Output panel",
-                        this::compileJava),
+                        this::compileJava, "control alt shift J"),
                 new ToolbarContribution("jvm-run-java", "Run Java",
                         "Run the document with the single-file source launcher; output lands in the Output panel",
-                        this::runJava),
+                        this::runJava, "control alt shift R"),
                 new ToolbarContribution("jvm-debug-java", "Debug Java",
                         "Run with assertions on; report the exception and its line, trace in the Output panel",
-                        this::debugJava),
+                        this::debugJava, "control alt shift D"),
                 new ToolbarContribution("jvm-compile-kotlin", "Compile Kotlin",
                         "kotlinc the current document (needs the Kotlin compiler on PATH)",
-                        this::compileKotlin),
+                        this::compileKotlin, "control alt shift K"),
                 new ToolbarContribution("jvm-run-kotlin", "Run Kotlin",
                         "kotlinc, then run the compiled MainKt (needs the Kotlin compiler on PATH)",
-                        this::runKotlin),
+                        this::runKotlin, "control alt shift L"),
                 new ToolbarContribution("jvm-clean-output", "Clean Output",
                         "Clear the editor's Output panel",
-                        this::cleanOutput)
+                        this::cleanOutput, "control alt shift X")
         );
     }
 

@@ -30,6 +30,7 @@ import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorManifest;
 import org.jdesktop.lg3d.apps.texteditor.ext.TextEditorPermission;
+import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -351,9 +352,13 @@ class JvmBuildToolsTest {
                 "WRITE is kept only to strip legacy output blocks");
         var c = tools.toolbarContributions();
         assertEquals(6, c.size());
-        assertTrue(c.stream().allMatch(a -> a.getAccelerator().isEmpty()),
-                "build actions claim no Ctrl+Alt slot");
         assertEquals("Compile Java", c.get(0).getLabel());
         assertEquals("Clean Output", c.get(5).getLabel());
+        // The build actions claim a distinct Ctrl+Alt+Shift family so they
+        // never collide with the exhausted plain Ctrl+Alt space.
+        assertEquals(List.of("control alt shift J", "control alt shift R",
+                "control alt shift D", "control alt shift K",
+                "control alt shift L", "control alt shift X"),
+                c.stream().map(ToolbarContribution::getAccelerator).toList());
     }
 }

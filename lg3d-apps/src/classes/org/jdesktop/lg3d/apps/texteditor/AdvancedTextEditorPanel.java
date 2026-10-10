@@ -1082,7 +1082,7 @@ public class AdvancedTextEditorPanel extends JPanel
                 if (!accel.isEmpty()) {
                     text += "  (" + accel + ")";
                 }
-                body.add(ExtensionsCard.Row.action(text, i));
+                body.add(ExtensionsCard.Row.action(text, i, action.extension()));
             }
         }
         if (body.isEmpty()) {
