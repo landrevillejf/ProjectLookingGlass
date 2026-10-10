@@ -54,7 +54,12 @@
   PDFBox). The AWT-free seam (`GitCommands` + `GitParsers` + `GitRepository`'s
   `Runner`) is kept free of Swing so it is unit-testable headless. The same panel
   drives both desktops: 3D via `TitledSwingWindow`, 2D via
-  `Desktop2DAppRegistry.PANEL_APPS` keyed on `GitGui` → `GitGuiPanel`.
+  `Desktop2DAppRegistry.PANEL_APPS` keyed on `GitGui` → `GitGuiPanel`. Espresso
+  (the Advanced Text Editor) also embeds this very panel as one of its
+  `CardLayout` cards — its Project card's *Git GUI…* action calls
+  `GitGuiPanel.openRepository(projectRoot)` — so `GitGuiPanel`'s public
+  no-arg constructor and `openRepository` are cross-package API consumed by
+  `org.jdesktop.lg3d.apps.texteditor`; keep them stable.
 - **Engineer / Developer** — Keep command construction in `GitCommands` and
   output interpretation in `GitParsers`; `GitRepository` only wires them to the
   `Runner` and never builds argv inline. Always drive `git` with machine-readable

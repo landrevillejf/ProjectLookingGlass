@@ -126,6 +126,21 @@ work to make it build and run on a current toolchain.
   engine (prefix, receiver, import/`java.lang` resolution, real reflection,
   ranking cap) and the publish path through the READ gate. Text-editor
   surface now **32 suites / 319 tests**.
+- **Espresso: project menu and Git GUI integration (Phase 5)** (`lg3d-apps`,
+  `lg3d-art`) — a seventh toolbar button **Project…** opens the new
+  `ProjectCard`, Espresso's in-panel project menu (no popups, offscreen-safe):
+  *New Project…* scaffolds `src/Main.java` + `README.md` (validated name, a
+  non-empty directory is never clobbered), *Open Project Folder…* and a
+  persisted recent-projects list (`EditorSettings.pushProject`, capped at 10)
+  attach the west `ProjectTreePanel` root, *Re-root to Current File* and
+  *Close Project* keep the tree honest. *Git GUI…* integrates the desktop Git
+  client directly: the very `gitgui.GitGuiPanel` is embedded as its own card
+  and opened on the current project root — stage/commit/branch/history without
+  leaving the editor. The start-menu icon becomes the branded **espresso cup**
+  (`espresso.png`, drawn in-tool by `GenerateAppIcons` on a brown tile; the
+  legacy `text-editor.png` stays generated for other consumers). 8 new
+  headless tests (`ProjectCardTest` routing + panel project/Git paths).
+  Text-editor surface now **33 suites / 327 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is

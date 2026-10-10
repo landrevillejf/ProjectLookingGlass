@@ -129,6 +129,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector text page with a pencil (advanced text editor) instead of a bundled glyph. */
     private static final String TEXT_EDITOR_GLYPH = "TextEditorPage";
 
+    /** Glyph name that draws a built-in vector espresso cup on a saucer (Espresso editor) instead of a bundled glyph. */
+    private static final String ESPRESSO_GLYPH = "EspressoCup";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -262,6 +265,10 @@ public class GenerateAppIcons {
         // editor shaped, so a page of text with a pencil is drawn in-tool like
         // the document page and the marks above.
         {"text-editor.png", IconColor.BLUE, IconCategory.TEXT, TEXT_EDITOR_GLYPH},
+        // Espresso, the Advanced Text Editor's branded start-menu icon: a white
+        // espresso cup with handle and rising steam on a saucer, over the
+        // coffee-brown tile. Drawn in-tool like the text-editor page above.
+        {"espresso.png", IconColor.BROWN, IconCategory.TEXT, ESPRESSO_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -328,6 +335,8 @@ public class GenerateAppIcons {
                 glyph = drawWallGlyph(GLYPH);
             } else if (TEXT_EDITOR_GLYPH.equals(glyphName)) {
                 glyph = drawTextEditorGlyph(GLYPH);
+            } else if (ESPRESSO_GLYPH.equals(glyphName)) {
+                glyph = drawEspressoCupGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -1164,6 +1173,59 @@ public class GenerateAppIcons {
         tip.lineTo(22, 32);
         tip.closePath();
         g.fill(tip);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the Espresso glyph: a white espresso cup (body, rim band and ring
+     * handle) resting on an oval saucer, with two punched-out curls of steam
+     * rising above. The bundled {@code toolbarButtonGraphics} set carries no
+     * cup shape, so it is drawn in-tool like the text editor page above.
+     * Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawEspressoCupGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Steam: two S-curves punched clear so the tile gradient reads as vapour.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        GeneralPath steam1 = new GeneralPath();
+        steam1.moveTo(11, 10);
+        steam1.curveTo(8, 7, 14, 5, 11, 2);
+        g.draw(steam1);
+        GeneralPath steam2 = new GeneralPath();
+        steam2.moveTo(17, 10);
+        steam2.curveTo(14, 7, 20, 5, 17, 2);
+        g.draw(steam2);
+        g.setComposite(AlphaComposite.SrcOver);
+        // Cup body: a tapered bowl under a straight rim.
+        g.setColor(Color.WHITE);
+        GeneralPath cup = new GeneralPath();
+        cup.moveTo(6, 13);
+        cup.lineTo(21, 13);
+        cup.lineTo(19.5f, 22);
+        cup.quadTo(19, 24, 17, 24);
+        cup.lineTo(10, 24);
+        cup.quadTo(8, 24, 7.5f, 22);
+        cup.closePath();
+        g.fill(cup);
+        // Crema line punched out of the upper body.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.3f));
+        g.drawLine(8, 16, 19, 16);
+        g.setComposite(AlphaComposite.SrcOver);
+        // Handle: a white ring on the cup's right flank.
+        g.setStroke(new BasicStroke(2.4f));
+        g.drawArc(19, 14, 8, 8, -70, 160);
+        // Saucer: a flattened oval under the cup.
+        g.setColor(Color.WHITE);
+        g.fillOval(3, 24, 23, 5);
+        // Saucer edge shadow line so the oval reads on light tiles too.
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        g.fillOval(3, 26, 23, 3);
         g.dispose();
         return new ImageIcon(image);
     }

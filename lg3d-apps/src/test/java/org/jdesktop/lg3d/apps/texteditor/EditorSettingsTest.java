@@ -202,4 +202,29 @@ class EditorSettingsTest {
         // A blank id is ignored.
         settings.setAcceleratorOverride("  ", "control alt A");
     }
+
+    @Test
+    @DisplayName("recent projects prepend, dedupe, cap and forget like the file list")
+    void recentProjects() {
+        EditorSettings settings = EditorSettings.defaults();
+        assertTrue(settings.getRecentProjects().isEmpty());
+
+        settings.pushProject("/ws/one");
+        settings.pushProject("/ws/two");
+        settings.pushProject("/ws/one"); // re-attaching moves it to the front
+        assertEquals(List.of("/ws/one", "/ws/two"), settings.getRecentProjects());
+
+        for (int i = 0; i < EditorSettings.MAX_RECENT_PROJECTS + 5; i++) {
+            settings.pushProject("/ws/p" + i);
+        }
+        assertEquals(EditorSettings.MAX_RECENT_PROJECTS,
+                settings.getRecentProjects().size());
+
+        settings.removeProject("/ws/p9");
+        assertFalse(settings.getRecentProjects().contains("/ws/p9"));
+        settings.pushProject(null);
+        settings.pushProject("  ");
+        settings.clearProjects();
+        assertTrue(settings.getRecentProjects().isEmpty());
+    }
 }

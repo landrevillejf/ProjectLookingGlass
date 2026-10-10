@@ -42,6 +42,9 @@ public final class EditorSettings {
     /** Most recent files remembered across sessions. */
     public static final int MAX_RECENT = 12;
 
+    /** Most recent project roots remembered across sessions. */
+    public static final int MAX_RECENT_PROJECTS = 10;
+
     public static final int MIN_FONT_SIZE = 8;
     public static final int MAX_FONT_SIZE = 48;
     public static final int DEFAULT_FONT_SIZE = 14;
@@ -56,6 +59,7 @@ public final class EditorSettings {
     private boolean highlight = true;
     private String themeName = EditorTheme.LIGHT.getName();
     private final List<String> recentFiles = new ArrayList<>();
+    private final List<String> recentProjects = new ArrayList<>();
     /**
      * User rebound of extension toolbar accelerators, keyed by contribution id.
      * A blank value means the action was deliberately unbound; an absent key
@@ -89,6 +93,15 @@ public final class EditorSettings {
                     settings.pushRecent(paths[i]);
                 }
             }
+            // Recent project roots use the same '|'-joined, newest-first
+            // encoding as the recent files list (see pushProject).
+            String projects = prefs.get("recentProjects", "");
+            String[] roots = projects.split("\\|");
+            for (int i = roots.length - 1; i >= 0; i--) {
+                if (!roots[i].isBlank()) {
+                    settings.pushProject(roots[i]);
+                }
+            }
             return settings;
         } catch (RuntimeException | java.util.prefs.BackingStoreException bse) {
             return defaults();
@@ -103,6 +116,7 @@ public final class EditorSettings {
             prefs.put(entry.getKey(), entry.getValue());
         }
         prefs.put("recentFiles", String.join("|", recentFiles));
+        prefs.put("recentProjects", String.join("|", recentProjects));
     }
 
     /** Pure serialisation of everything except the recent-files list. */
@@ -193,6 +207,37 @@ public final class EditorSettings {
     /** The recent files, most recent first (unmodifiable view). */
     public List<String> getRecentFiles() {
         return Collections.unmodifiableList(recentFiles);
+    }
+
+    /**
+     * Moves {@code root} to the front of the recent-projects list, dropping a
+     * previous occurrence and the oldest entry past
+     * {@link #MAX_RECENT_PROJECTS}.
+     */
+    public void pushProject(String root) {
+        if (root == null || root.isBlank()) {
+            return;
+        }
+        recentProjects.remove(root);
+        recentProjects.add(0, root);
+        while (recentProjects.size() > MAX_RECENT_PROJECTS) {
+            recentProjects.remove(recentProjects.size() - 1);
+        }
+    }
+
+    /** Forgets one recent project root. */
+    public void removeProject(String root) {
+        recentProjects.remove(root);
+    }
+
+    /** Forgets every recent project root. */
+    public void clearProjects() {
+        recentProjects.clear();
+    }
+
+    /** The recent project roots, most recent first (unmodifiable view). */
+    public List<String> getRecentProjects() {
+        return Collections.unmodifiableList(recentProjects);
     }
 
     public String getFontFamily() {

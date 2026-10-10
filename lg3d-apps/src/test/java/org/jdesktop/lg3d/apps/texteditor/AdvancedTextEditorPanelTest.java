@@ -16,6 +16,8 @@ package org.jdesktop.lg3d.apps.texteditor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -444,6 +446,80 @@ class AdvancedTextEditorPanelTest {
                 "the file is visible under the current root");
         assertEquals(3, panel.tabCount());
         assertEquals("b", panel.currentTab().getText().strip());
+        panel.dispose();
+    }
+
+    // -- Project menu and Git GUI integration (Phase 5) --------------------
+
+    @Test
+    @DisplayName("project names are validated before any folder is touched")
+    void projectNames() {
+        assertEquals("my-app", AdvancedTextEditorPanel.sanitizeProjectName("  my-app "));
+        assertNull(AdvancedTextEditorPanel.sanitizeProjectName(null));
+        assertNull(AdvancedTextEditorPanel.sanitizeProjectName("  "));
+        assertNull(AdvancedTextEditorPanel.sanitizeProjectName(".."));
+        assertNull(AdvancedTextEditorPanel.sanitizeProjectName("a/b"));
+        assertNull(AdvancedTextEditorPanel.sanitizeProjectName("evil;rm"));
+    }
+
+    @Test
+    @DisplayName("a project skeleton carries src/Main.java and a README")
+    void projectSkeleton(@TempDir Path dir) throws IOException {
+        Path root = dir.resolve("demo");
+        AdvancedTextEditorPanel.createProjectSkeleton(root);
+        assertTrue(Files.isRegularFile(root.resolve("src/Main.java")));
+        assertTrue(Files.readString(root.resolve("src/Main.java"))
+                .contains("public class Main"));
+        assertTrue(Files.isRegularFile(root.resolve("README.md")));
+        // A non-empty directory is never clobbered.
+        assertThrows(IOException.class,
+                () -> AdvancedTextEditorPanel.createProjectSkeleton(root));
+    }
+
+    @Test
+    @DisplayName("attaching a project roots the tree and persists the recents")
+    void attachAndRecentProjects(@TempDir Path dir) {
+        AdvancedTextEditorPanel panel = newPanel();
+        Path root = dir.resolve("ws");
+        panel.attachProject(root);
+        assertEquals(root.toString(), panel.currentProjectRoot());
+        assertEquals(List.of(root.toString()), panel.settings().getRecentProjects());
+
+        panel.openRecentProject(root.toString());
+        panel.openRecentProject(dir.resolve("gone").toString());
+        assertTrue(panel.settings().getRecentProjects().stream()
+                .noneMatch(p -> p.endsWith("gone")), "missing folders are forgotten");
+
+        panel.removeRecentProject(root.toString());
+        assertTrue(panel.settings().getRecentProjects().isEmpty());
+        panel.attachProject(root);
+        panel.clearRecentProjects();
+        assertTrue(panel.settings().getRecentProjects().isEmpty());
+        panel.attachProject(null); // no-op
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("re-root, detach and the embedded Git GUI target the right folder")
+    void projectChromeAndGit(@TempDir Path dir) throws IOException {
+        AdvancedTextEditorPanel panel = newPanel();
+        Path file = dir.resolve("Hello.java");
+        Files.writeString(file, "class Hello { }\n");
+        assertTrue(panel.openFile(file.toFile()));
+
+        panel.reRootToCurrentFile();
+        assertEquals(ProjectTreePanel.projectRootFor(file),
+                panel.projectTree().rootPath());
+
+        panel.closeProject();
+        assertNotNull(panel.projectTree().rootPath());
+
+        panel.attachProject(dir);
+        panel.openGitGui();
+        assertEquals(dir.toFile(), panel.gitTarget(),
+                "the desktop Git client is pointed at the project root");
+        assertNotNull(panel.gitGuiPanel());
+        assertNotNull(panel.projectCard());
         panel.dispose();
     }
 }
