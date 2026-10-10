@@ -360,7 +360,7 @@ public final class JavaDiagnosticsTools implements TextEditorExtension {
     }
 
     /** An in-memory {@code .java} compilation unit over the current document text. */
-    private static final class InMemorySource extends SimpleJavaFileObject {
+    static final class InMemorySource extends SimpleJavaFileObject {
         private final String content;
 
         InMemorySource(String fileName, String content) {

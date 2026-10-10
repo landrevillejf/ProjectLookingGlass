@@ -200,6 +200,7 @@ public class AdvancedTextEditorPanel extends JPanel
                         .reportDiagnostics(this::reportDiagnosticsForExtension)
                         .clearDiagnostics(this::clearDiagnosticsForExtension)
                         .showStructure(this::showStructureForExtension)
+                        .navigate(this::navigateForExtension)
                         .appendDebugOutput(debugPanel::appendOutput)
                         .setDebugState(debugPanel::setState)
                         .showStack(debugPanel::setStack)
@@ -1460,6 +1461,17 @@ public class AdvancedTextEditorPanel extends JPanel
         String title = (path == null || path.isEmpty())
                 ? "Structure" : baseName(path);
         structurePanel.setStructure(title, symbols);
+    }
+
+    /** Jumps the caret to a location. Delegate for {@code EditorContext.navigateTo}. */
+    void navigateForExtension(String path, int line) {
+        EditorTab tab = tabForPath(path);
+        if (tab == null) {
+            return;
+        }
+        cards.show(center, CARD_EDITOR);
+        tabs.setSelectedComponent(tab);
+        tab.goToLine(line);
     }
 
     /** Opens the location of a Problems-tab row. */

@@ -37,6 +37,7 @@ public final class EditorSinks {
     final BiConsumer<String, List<Diagnostic>> reportDiagnostics;
     final Consumer<String> clearDiagnostics;
     final BiConsumer<String, List<StructureSymbol>> showStructure;
+    final BiConsumer<String, Integer> navigate;
     final Consumer<String> appendDebugOutput;
     final Consumer<String> setDebugState;
     final Consumer<List<String>> showStack;
@@ -52,6 +53,7 @@ public final class EditorSinks {
         this.reportDiagnostics = b.reportDiagnostics;
         this.clearDiagnostics = b.clearDiagnostics;
         this.showStructure = b.showStructure;
+        this.navigate = b.navigate;
         this.appendDebugOutput = b.appendDebugOutput;
         this.setDebugState = b.setDebugState;
         this.showStack = b.showStack;
@@ -90,6 +92,7 @@ public final class EditorSinks {
         private BiConsumer<String, List<Diagnostic>> reportDiagnostics;
         private Consumer<String> clearDiagnostics;
         private BiConsumer<String, List<StructureSymbol>> showStructure;
+        private BiConsumer<String, Integer> navigate;
         private Consumer<String> appendDebugOutput;
         private Consumer<String> setDebugState;
         private Consumer<List<String>> showStack;
@@ -109,6 +112,9 @@ public final class EditorSinks {
         }
         public Builder showStructure(BiConsumer<String, List<StructureSymbol>> v) {
             this.showStructure = v; return this;
+        }
+        public Builder navigate(BiConsumer<String, Integer> v) {
+            this.navigate = v; return this;
         }
         public Builder appendDebugOutput(Consumer<String> v) {
             this.appendDebugOutput = v; return this;
