@@ -102,7 +102,11 @@ final class AppIcons {
      * already stripped (see {@code Desktop2DMenuConfig.stripResourceScheme}).
      */
     private static final Set<String> DESCRIPTOR_ICON_PREFERRED = Set.of(
-            "resources/images/icon/launcher.png");
+            "resources/images/icon/launcher.png",
+            // Espresso's branded cup: its name matches no semantic family, so
+            // without this the 2D desktop would show a generated "ES" initials
+            // tile instead of the cup the 3D start menu carries.
+            "resources/images/icon/espresso.png");
 
     /** Stable tile palette; the index is a hash of the application name. */
     private static final Color[] PALETTE = {

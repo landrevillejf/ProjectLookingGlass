@@ -138,6 +138,17 @@ class AppIconsTest {
     }
 
     @Test
+    @DisplayName("the Espresso cup is preferred descriptor artwork, not an ES tile")
+    void espressoDescriptorIconIsPreferred() {
+        // "Espresso" matches no semantic family, so the 2D desktop must show the
+        // branded cup PNG (as the 3D start menu does) rather than a generated
+        // "ES" initials tile.
+        assertTrue(AppIcons.prefersDescriptorIcon("resources/images/icon/espresso.png"));
+        assertEquals("ES", AppIcons.initials("Espresso"),
+                "absent the preferred-PNG path the name would have produced ES");
+    }
+
+    @Test
     @DisplayName("the launcher still resolves to a real icon when its PNG is off the classpath")
     void preferredIconDegradesToTileWhenPngMissing() {
         // On the test classpath the runtime-resources "resources/" tree is not
