@@ -26,15 +26,19 @@
   widgets NPE when `SwingNode` paints them offscreen) and shows
   `AdvancedTextEditorPanel` in a `TitledSwingWindow`.
 - **AdvancedTextEditorPanel** — the one Swing UI both desktops host (plain
-  `JPanel`, no Java 3D, constructs headless): a `JTabbedPane` of `EditorTab`s, a
-  toolbar, a `FindReplaceBar`, and a `CardLayout` centre that flips between the
+  `JPanel`, no Java 3D, constructs headless): a `JTabbedPane` of `EditorTab`s
+  (each tab a custom `ClosableTabHeader` — a `JLabel` title with a dirty dot
+  plus a small **×** `JButton` that closes that tab, index resolved at click
+  time; Ctrl+W and middle-click still work), a toolbar, a `FindReplaceBar`, and a `CardLayout` centre that flips between the
   editor, the `RecentCard`, the `ExtensionsCard`, the `SettingsCard`, the
   `ProjectCard` and the embedded Git view (the desktop `GitGuiPanel` in a
   scroll pane). The
   editor card sits inside a west/east `JSplitPane` with the `ProjectTreePanel`
   (a lazily-loaded file tree re-rooted on the project of the document being
   edited — `.git`/`pom.xml`/`build.gradle`/… walk-up — double-click opens a
-  file) and inside a north/south `JSplitPane` whose south half is a bottom
+  file; it boots on the file system via `defaultStartRoot()` — the user home
+  when readable, else the first file-system root — so it never shows Swing's
+  demo `JTree` `colors`/`sports`/`food` model) and inside a north/south `JSplitPane` whose south half is a bottom
   **`bottomTabs`** `JTabbedPane` (resize weight 0.78) holding five IDE surfaces:
   **Output** (the read-only monospaced `OutputConsole` where extension tool
   actions land their output, drop-oldest capped, `Clear` button), **Problems**
@@ -240,7 +244,7 @@
 - **QA** — 33 headless JUnit 5 suites under
   `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (and the `ext`-package
   `ExtensionBrokerDispatchTest`) cover every
-  engine class, all seventeen bundled extensions and all panel/widget surfaces (328
+  engine class, all seventeen bundled extensions and all panel/widget surfaces (331
   tests): tokenisation, search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
   smart-indent, bracket matching, the merging-undo clock seam, settings
@@ -252,9 +256,12 @@
   drive a synchronous `Runner` seam so no test ever spawns a real process, and a
   fake `showOutput` delegate proves output lands in the console, never in the
   document), the south console's block grammar/line cap and the west project tree
-  (project-root walk-up, lazy child loading, double-click-to-open), the
+  (project-root walk-up, lazy child loading, double-click-to-open, and that a
+  freshly-constructed panel is already rooted on the file system — never the
+  demo `JTree` model), the
   live-text refresh before
-  `runExtensionAction`, tab lifecycle, and the find bar / status bar /
+  `runExtensionAction`, tab lifecycle (including that every tab header exposes a
+  close `JButton` that closes exactly that tab), and the find bar / status bar /
   recents / extensions cards. Build panels through
   `new AdvancedTextEditorPanel(false)`; file-chooser and `JOptionPane` paths are
   headless-guarded and intentionally unreachable in tests. The Phase-0 IDE

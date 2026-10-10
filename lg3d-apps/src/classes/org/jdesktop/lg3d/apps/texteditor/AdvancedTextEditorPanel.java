@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.texteditor;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -483,6 +485,9 @@ public class AdvancedTextEditorPanel extends JPanel
         tab.setCaretListener(this::refreshStatus);
         tab.setChangeListener(this::scheduleAnalysis);
         tabs.addTab(tab.getDisplayName(), tab);
+        // A custom tab header carries the title plus a close (x) button, so every
+        // tab is closable by click (Ctrl+W and middle-click still work).
+        tabs.setTabComponentAt(tabs.indexOfComponent(tab), new ClosableTabHeader(tab));
         tabs.setSelectedComponent(tab);
         refreshTabTitles();
         return tab;
@@ -496,6 +501,11 @@ public class AdvancedTextEditorPanel extends JPanel
     /** How many tabs are open (test seam). */
     public final int tabCount() {
         return tabs.getTabCount();
+    }
+
+    /** The editor tab strip (test seam). */
+    final JTabbedPane tabStrip() {
+        return tabs;
     }
 
     /** Closes the selected tab, confirming when it is dirty. */
@@ -546,10 +556,53 @@ public class AdvancedTextEditorPanel extends JPanel
     private void refreshTabTitles() {
         for (int i = 0; i < tabs.getTabCount(); i++) {
             EditorTab tab = (EditorTab) tabs.getComponentAt(i);
-            tabs.setTitleAt(i, tab.getDisplayName()
+            String tip = tab.getPath() != null
+                    ? tab.getPath().toString() : "Unsaved document";
+            java.awt.Component header = tabs.getTabComponentAt(i);
+            if (header instanceof ClosableTabHeader cth) {
+                cth.refresh();
+            } else {
+                // Defensive: a tab added without a header (should not happen) gets
+                // one now, so the close button is never missing.
+                tabs.setTabComponentAt(i, new ClosableTabHeader(tab));
+            }
+            tabs.setToolTipTextAt(i, tip);
+        }
+    }
+
+    /**
+     * A tab header: the document title (with a dirty dot) and a small close (x)
+     * button. The button resolves the tab's current index at click time, because
+     * closing a tab shifts the indices of the tabs after it. Plain {@link JLabel}
+     * and {@link JButton} only, so it renders in the 3D desktop's offscreen
+     * capture like the rest of the panel (no Synth checkbox/radio widgets).
+     */
+    private final class ClosableTabHeader extends JPanel {
+        private final EditorTab tab;
+        private final JLabel titleLabel = new JLabel();
+
+        ClosableTabHeader(EditorTab tab) {
+            super(new FlowLayout(FlowLayout.LEFT, 4, 0));
+            this.tab = tab;
+            setOpaque(false);
+            titleLabel.setFocusable(false);
+            JButton close = new JButton("\u00D7");
+            close.setFocusable(false);
+            close.setContentAreaFilled(false);
+            close.setBorderPainted(false);
+            close.setOpaque(false);
+            close.setMargin(new java.awt.Insets(0, 2, 0, 2));
+            close.setToolTipText("Close tab");
+            close.addActionListener(e -> closeTab(tabs.indexOfComponent(tab)));
+            add(titleLabel);
+            add(close);
+            refresh();
+        }
+
+        /** Re-reads the title and dirty dot from the owning tab. */
+        void refresh() {
+            titleLabel.setText(tab.getDisplayName()
                     + (tab.isDirty() ? " \u2022" : ""));
-            tabs.setToolTipTextAt(i, tab.getPath() != null
-                    ? tab.getPath().toString() : "Unsaved document");
         }
     }
 

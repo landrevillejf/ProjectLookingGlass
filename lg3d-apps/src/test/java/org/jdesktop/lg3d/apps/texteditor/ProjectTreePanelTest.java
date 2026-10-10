@@ -15,6 +15,7 @@ package org.jdesktop.lg3d.apps.texteditor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -134,5 +135,34 @@ class ProjectTreePanelTest {
         Files.writeString(tmp.resolve("in.txt"), "x");
         assertFalse(panel.revealAndOpen(tmp.resolve("in.txt").getParent()
                 .resolve("nope.txt")));
+    }
+
+    // -- starts on the file system, not the JTree demo model -----------------
+
+    @Test
+    @DisplayName("defaultStartRoot is a readable directory")
+    void defaultStartRootIsUsable() {
+        Path root = ProjectTreePanel.defaultStartRoot();
+        assertNotNull(root);
+        assertTrue(Files.isDirectory(root), root + " exists as a directory");
+    }
+
+    @Test
+    @DisplayName("a fresh panel is rooted on the file system, not colors/sports")
+    void freshPanelRootsOnFileSystem() {
+        ProjectTreePanel panel = new ProjectTreePanel();
+        assertNotNull(panel.rootPath(), "rooted before any document opens");
+        Object root = panel.tree().getModel().getRoot();
+        assertTrue(root instanceof DefaultMutableTreeNode node,
+                "root is a file-system node");
+        Object userObject = ((DefaultMutableTreeNode) root).getUserObject();
+        assertTrue(userObject instanceof Path,
+                "the root user object is a directory path, not a demo string");
+        // The stock JTree demo labels must never appear as root nodes.
+        assertEquals(panel.rootPath(), userObject);
+        for (String demo : new String[] {"colors", "sports", "food"}) {
+            assertFalse(demo.equals(String.valueOf(userObject)),
+                    "no " + demo + " demo node");
+        }
     }
 }
