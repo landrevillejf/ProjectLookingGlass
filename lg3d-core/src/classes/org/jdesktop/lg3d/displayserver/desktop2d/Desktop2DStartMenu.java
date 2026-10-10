@@ -58,6 +58,14 @@ public final class Desktop2DStartMenu {
     /** Shown when no descriptor defined any menu group. */
     static final String NO_APPS_LABEL = "(no applications configured)";
 
+    /**
+     * The legacy top-level classpath prefix every descriptor icon resource uses
+     * (e.g. {@code resources/images/icon/espresso.png}). See
+     * {@link #resolveResource(String)} for why a lookup under it can miss and
+     * how the same artwork is otherwise found.
+     */
+    static final String RESOURCES_PREFIX = "resources/";
+
     /** What the desktop does with a clicked entry. */
     public interface Launcher {
         /** Runs {@code item} (panel app, Swing app or external command). */
@@ -215,7 +223,7 @@ public final class Desktop2DStartMenu {
 
     private static Icon loadIcon(String resource, int size) {
         try {
-            URL url = Desktop2DStartMenu.class.getClassLoader().getResource(resource);
+            URL url = resolveResource(resource);
             if (url == null) {
                 return null;
             }
@@ -232,5 +240,33 @@ public final class Desktop2DStartMenu {
             logger.log(Level.FINE, "Could not load menu icon " + resource, e);
             return null;
         }
+    }
+
+    /**
+     * Resolves a classpath icon resource, tolerating the two layouts the desktop
+     * is launched from. Descriptors name artwork under the legacy top-level
+     * {@code resources/} prefix, but that tree is assembled only on the Gradle
+     * run classpath ({@code :lg3d-core:runtimeResources}); the very same assets
+     * are also packaged at the classpath root WITHOUT the prefix (the module /
+     * jar resource layout, e.g. {@code images/icon/espresso.png}). A launch from
+     * a packaged jar or an IDE module classpath therefore misses the prefixed
+     * lookup and would silently degrade a genuine per-app icon to a generated
+     * initials tile. Try the resource as given, then its prefix-stripped form,
+     * so branded artwork resolves in every launch topology and the 2D icon
+     * matches the 3D desktop.
+     *
+     * @param resource the classpath icon resource, scheme already stripped
+     * @return the resolved URL, or null when found under neither layout
+     */
+    static URL resolveResource(String resource) {
+        if (resource == null || resource.isBlank()) {
+            return null;
+        }
+        ClassLoader cl = Desktop2DStartMenu.class.getClassLoader();
+        URL url = cl.getResource(resource);
+        if (url == null && resource.startsWith(RESOURCES_PREFIX)) {
+            url = cl.getResource(resource.substring(RESOURCES_PREFIX.length()));
+        }
+        return url;
     }
 }

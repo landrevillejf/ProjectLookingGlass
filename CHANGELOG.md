@@ -31,6 +31,16 @@ work to make it build and run on a current toolchain.
   matches no semantic family. `resources/images/icon/espresso.png` joins the
   launcher rocket in that set, so the window frame, taskbar button and start
   menu all show the cup the 3D desktop already carries.
+- **2D descriptor icons resolve from a jar / IDE launch** (`lg3d-core`) — the
+  cup (and the launcher rocket) still showed initials when the desktop was
+  started outside the Gradle `:run` task. Descriptors name artwork under the
+  legacy `resources/` classpath prefix, a tree assembled only by
+  `:lg3d-core:runtimeResources`; a packaged jar or an IDE module classpath
+  carries the same PNG at the *unprefixed* root (`images/icon/…`) instead, so
+  `Desktop2DStartMenu.loadIcon`'s prefixed `getResource` lookup missed and
+  `AppIcons` degraded to a generated tile. `loadIcon` now falls back to the
+  prefix-stripped path (`resolveResource`), so genuine per-app artwork renders
+  in every launch topology.
 - **Espresso extensions card filters actions by the selected extension**
   (`lg3d-apps`) — the right-hand "Extension Actions" list used to dump every
   command from every provider regardless of what was selected on the left.
