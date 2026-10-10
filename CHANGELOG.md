@@ -39,6 +39,24 @@ work to make it build and run on a current toolchain.
   dependency-free completion) build on; no behaviour of the existing editor
   changed. 26 new headless JUnit 5 tests across `IdeChromeTest` and
   `ExtensionBrokerDispatchTest` (28 text-editor suites, 260 tests).
+- **Espresso: live Java/Kotlin diagnostics (Phase 1)** (`lg3d-apps`) — a
+  fourteenth bundled provider, **Java Diagnostics** (`lg3d.java-diagnostics`,
+  category `Java/Kotlin`, READ + DIAGNOSE, no toolbar actions), feeds the Phase-0
+  Problems panel, gutter dots and squiggles from the real compiler. It analyses
+  the document's *current* text on open, on save and on the debounced
+  `onDocumentChanged`: **Java** is compiled in memory with
+  `ToolProvider.getSystemJavaCompiler()` + a `DiagnosticCollector` (nothing is
+  ever written to the user's file; class output drops into a throwaway temp
+  dir), and **Kotlin** shells out to `kotlinc` from `PATH` and parses both its
+  classic `file.kt:line:col: severity: msg` and newer `e:/w: file.kt: (line,
+  col): msg` output. Analysis runs on a virtual thread and is delivered on the
+  EDT; a generation counter drops superseded results so typing never blocks and
+  stale markers never paint; a non-JVM or empty document clears stale
+  diagnostics. No new dependency and no popup — the compiler output lands in
+  the already-wired DIAGNOSE-gated context path. The `kotlinc` lookup, process
+  runner and scheduler are injectable seams, so the 12 new `JavaDiagnosticsToolsTest`
+  tests are headless (no test spawns a real `kotlinc`; the in-memory `javac` does
+  run headless). Text-editor surface now **29 suites / 272 tests**.
 - **The Advanced Text Editor is now Espresso** (`lg3d-apps`) — the editor's
   user-facing name: the Start Menu shows **Espresso** under Office, the 3D
   window title (and the 2D MDI frame title, which follows the menu item) is
