@@ -24,6 +24,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.function.BiConsumer;
 import javax.swing.JDesktopPane;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Covers {@link ToastLayer}: the bottom-right upward-stacking geometry, the
  * ellipsize and wrap text helpers, that {@code render} draws (and is a no-op
- * when empty) headless, that a shown toast makes the overlay visible and
+ * when empty) headless, that the notification opacity fades the card while the
+ * text stays at full strength, that a shown toast makes the overlay visible and
  * click-through only over the card, that install/uninstall add and remove it
  * from the desktop pane's popup layer, and that a null toast is ignored.
  */
@@ -183,6 +185,81 @@ class ToastLayerTest {
             g.dispose();
         }
         assertTrue(allTransparent(image));
+    }
+
+    @Test
+    @DisplayName("full notification opacity is pixel-identical to the legacy render")
+    void renderOpaqueOpacityIsTheLegacyLook() {
+        List<Notification> toasts = List.of(
+                new Notification(1L, "Title one", "Body message",
+                        Notification.Kind.INFO, 0L),
+                new Notification(2L, "Warning", "Disk almost full",
+                        Notification.Kind.WARNING, 0L));
+        BufferedImage legacy = canvas(toasts, (g, img) ->
+                ToastLayer.render(g, toasts, 600, 400, FONT));
+        BufferedImage solid = canvas(toasts, (g, img) ->
+                ToastLayer.render(g, toasts, 600, 400, FONT, 1f));
+        for (int y = 0; y < 400; y++) {
+            for (int x = 0; x < 600; x++) {
+                assertEquals(legacy.getRGB(x, y), solid.getRGB(x, y),
+                        "an opacity of 1 must not change a single pixel at ("
+                                + x + "," + y + ")");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("fading a toast fades its card but leaves the text at full strength")
+    void renderFadesCardAndKeepsTextCrisp() {
+        List<Notification> toasts = List.of(new Notification(1L, "T", "body text",
+                Notification.Kind.INFO, 0L));
+        BufferedImage solid = canvas(toasts, (g, img) ->
+                ToastLayer.render(g, toasts, 600, 400, FONT, 1f));
+        BufferedImage faded = canvas(toasts, (g, img) ->
+                ToastLayer.render(g, toasts, 600, 400, FONT, 0.4f));
+        Rectangle card = ToastLayer.toastBounds(600, 400, 0);
+
+        // The card fill really did lose alpha - a plain interior pixel, clear of
+        // the accent band, the border and the glyphs.
+        int interior = card.x + card.width - 20;
+        assertEquals(253, solid.getRGB(interior, card.y + 50) >>> 24,
+                "the solid card paints at its own CARD_ALPHA");
+        assertTrue(faded.getRGB(interior, card.y + 50) >>> 24 < 200,
+                "the card fill must fade");
+
+        // And the title's own ink is untouched: white at full alpha is only ever
+        // produced by the title colour (the card, its accent and its body text are
+        // all darker), so every such pixel must survive the fade unchanged.
+        int whiteSolid = 0;
+        for (int y = card.y; y < card.y + card.height; y++) {
+            for (int x = card.x; x < card.x + card.width; x++) {
+                if (isTitleInk(solid.getRGB(x, y))) {
+                    whiteSolid++;
+                    assertEquals(solid.getRGB(x, y), faded.getRGB(x, y),
+                            "title ink must stay opaque at (" + x + "," + y + ")");
+                }
+            }
+        }
+        assertTrue(whiteSolid > 12, "the title was actually painted, saw " + whiteSolid);
+    }
+
+    /** Whether a pixel is fully-opaque white, i.e. the card's title colour. */
+    private static boolean isTitleInk(int rgb) {
+        return (rgb & 0xFFFFFF) == 0xFFFFFF && (rgb >>> 24) == 0xFF;
+    }
+
+    /** A {@code 600x400} canvas painted once through {@code paint}. */
+    private static BufferedImage canvas(List<Notification> toasts,
+                                        BiConsumer<Graphics2D, BufferedImage> paint) {
+        BufferedImage image = new BufferedImage(600, 400,
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            paint.accept(g, image);
+        } finally {
+            g.dispose();
+        }
+        return image;
     }
 
     @Test

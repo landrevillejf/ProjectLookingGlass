@@ -331,6 +331,38 @@ notification so the tray badge and the user's DND choice keep working. Severity
 is `Notification.Kind` `INFO`/`WARNING`/`ERROR`; `ERROR` always surfaces, so
 reserve it for genuine failures.
 
+## 2D desktop surface transparency
+
+The 2D shell fades four user-settable surfaces — **windows, taskbar, widgets,
+notifications** — through `DesktopTransparency`
+(`org.jdesktop.lg3d.displayserver.desktop2d`), configured live in Control
+Center → Customization → Transparency (sliders persist via `DesktopConfig`
+`set*Opacity`, 25..100, default 100 = solid).
+
+- A fadeable component implements `TranslucentSurface` and declares its
+  `TransparencySurface`; the desktop pane routes faded children in
+  `WallpaperDesktopPane.paintChildren` (Swing paints children from
+  `paintChildren`, **not** the AWT `paintComponents` hook — overriding the
+  latter is dead code) through `DesktopTransparency.paintFaded`, which renders
+  the child into a transparent scratch image and blits it at the surface alpha.
+- **Never fade by lowering a background's alpha.** Hosted panels fill
+  themselves opaque and the shell is the only party that knows what lies
+  behind; compositing is the shell's job. A surface that fades only its
+  backdrop (taskbar) bakes the tint into its own scratch band — colour at
+  `fade(bg, alpha)` over the wallpaper strip — and draws it back 1:1, because a
+  translucent blit would composite against the opaque content pane, not the
+  wallpaper; toasts pass `alphaOf(NOTIFICATION)` into `ToastLayer.render`.
+- **Paint code reads the cache, not the preferences.** Opacities live in
+  memory and are refreshed by `DesktopTransparency.refresh()` on the EDT at
+  shell start-up and from `Desktop2D.applyDesktopConfig()`; a slider apply
+  calls `applyOpacity`, which stores then re-applies. Nothing may read
+  `DesktopConfig` inside a paint pass.
+- **100 must be byte-identical to the legacy path.** Every hook short-circuits
+  on `isSolid`/`allSolid` before compositing; keep that so users who never
+  open the setting pay nothing and no pixel changes. A `WidgetCard` stays
+  `isOpaque()` even while fadeable — the solid background is what makes a
+  `SwingNode` texture capture reliable; only the 2D pane composites it.
+
 ---
 
 ## Verifying UI changes

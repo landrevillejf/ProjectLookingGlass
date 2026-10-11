@@ -21,6 +21,8 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.IllegalComponentStateException;
 import java.awt.Image;
@@ -28,6 +30,7 @@ import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.PointerInfo;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
@@ -266,6 +269,89 @@ public class Desktop2DTaskbar extends JPanel {
         }
         int height = menu.getPreferredSize().height;
         menu.show(anchor, 0, -height);
+    }
+
+    /**
+     * Paints the bar, fading its backdrop to the {@link
+     * TransparencySurface#TASKBAR taskbar} opacity when the user asks for a
+     * translucent bar. The bar is docked in the content pane <em>beside</em> the
+     * desktop pane rather than over it, so it has no wallpaper behind it to show
+     * through: the shell composites the strip of backdrop that would lie under the
+     * bar together with the bar's own colour into one band and blits that at the
+     * configured alpha - the same trick the desktop pane uses on windows, applied
+     * to the shelf alone so the buttons, labels and tray indicators stay fully
+     * opaque and readable.
+     *
+     * <p>At the default solid opacity nothing is composited and the panel paints
+     * exactly as it always did.</p>
+     */
+    @Override
+    protected void paintComponent(Graphics g) {
+        int opacity = DesktopTransparency.opacityOf(TransparencySurface.TASKBAR);
+        if (DesktopTransparency.isSolid(opacity) || !isOpaque()) {
+            super.paintComponent(g);
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        try {
+            float alpha = DesktopTransparency.alphaFor(opacity);
+            // The band is the bar's complete backdrop, fade baked in: the
+            // wallpaper strip that lies behind the shelf with the bar's own
+            // colour laid over it at the user's alpha. It is drawn whole, not
+            // re-composited - the panel underneath the bar is the opaque
+            // content pane, so a translucent blit here would wash the bar
+            // toward that grey instead of revealing the wallpaper.
+            int w = getWidth();
+            int h = getHeight();
+            if (w > 0 && h > 0) {
+                java.awt.image.BufferedImage band = new java.awt.image.BufferedImage(
+                        w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                Graphics2D bg = band.createGraphics();
+                try {
+                    paintBackdropBand(bg, alpha);
+                } finally {
+                    bg.dispose();
+                }
+                g2.drawImage(band, 0, 0, null);
+            }
+            // The band above stands in for the fill super() would have painted.
+            Color saved = getBackground();
+            setBackground(new Color(0, 0, 0, 0));
+            try {
+                super.paintComponent(g2);
+            } finally {
+                setBackground(saved);
+            }
+        } finally {
+            g2.dispose();
+        }
+    }
+
+    /**
+     * Fills one scratch band with the bar's complete faded backdrop: the
+     * wallpaper strip that lies behind the shelf, scaled the way the desktop pane
+     * scales it, with the bar's own colour laid over it at {@code alpha}. A
+     * desktop with no wallpaper (or one whose image has not arrived yet) just
+     * gets the tinted colour, which is what the bar looked like before the
+     * setting existed. The band is drawn back at full strength, so the mix that
+     * reaches the screen is wallpaper and colour in the proportion the user
+     * asked for - and the bar's controls, painted after it, stay at full
+     * strength.
+     */
+    private void paintBackdropBand(Graphics2D band, float alpha) {
+        Image wallpaper = Desktop2D.currentWallpaper();
+        int w = getWidth();
+        int h = getHeight();
+        if (wallpaper != null && wallpaper.getWidth(null) > 0
+                && wallpaper.getHeight(null) > 0) {
+            band.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            // The pane is the region beside the bar, so the wallpaper's own
+            // bottom edge lines up with the bar's bottom edge.
+            band.drawImage(wallpaper, 0, 0, w, h, null);
+        }
+        band.setColor(DesktopTransparency.fade(getBackground(), alpha));
+        band.fillRect(0, 0, w, h);
     }
 
     private void updateClock() {

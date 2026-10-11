@@ -1777,6 +1777,22 @@ public class Desktop2D {
     }
 
     /**
+     * The desktop backdrop currently painted by the pane, or null when the
+     * shell shows its plain background colour. Exposed for the surfaces that sit
+     * <em>beside</em> the desktop pane rather than over it - the taskbar is
+     * docked in the content pane's edge, so to fade against the wallpaper it has
+     * to paint the strip of backdrop that would lie behind it. Null when the 2D
+     * desktop is not running, which leaves those surfaces solid.
+     */
+    public static Image currentWallpaper() {
+        final Desktop2D d = instance;
+        if (d == null) {
+            return null;
+        }
+        return d.desktop.getImage();
+    }
+
+    /**
      * Raises a notification on the running 2D desktop, the notification
      * counterpart of {@link #applyDesktopConfig()}. This is the application-facing
      * hook: desktop apps (Mail, Instant Messenger, ...) post their incoming-event
@@ -1882,10 +1898,11 @@ public class Desktop2D {
     /**
      * Re-applies {@link DesktopConfig} to the running 2D desktop: the Swing UI
      * font defaults, the taskbar docking edge (top/bottom) and the taskbar's own
-     * geometry (thickness, icon scale, font, auto-hide). A no-op when the 2D
-     * desktop is not running. Safe to call from any thread; the work is done on
-     * the EDT. This is the 2D counterpart of the {@code DesktopConfigChangeEvent}
-     * the 3D taskbar listens for.
+     * geometry (thickness, icon scale, font, auto-hide), and the surface
+     * opacities the {@link DesktopTransparency} paint path reads. A no-op when
+     * the 2D desktop is not running. Safe to call from any thread; the work is
+     * done on the EDT. This is the 2D counterpart of the
+     * {@code DesktopConfigChangeEvent} the 3D taskbar listens for.
      */
     public static void applyDesktopConfig() {
         final Desktop2D d = instance;
@@ -2441,6 +2458,11 @@ public class Desktop2D {
     private void reapplyConfig() {
         DesktopConfig cfg = DesktopConfig.get();
         applyFontDefaults(cfg);
+        // Refresh the surface opacities before anything repaints, so the pane and
+        // the taskbar composite the new values rather than the previous ones.
+        // This is also what loads them at start-up; paint code reads the cache
+        // and never the preference store.
+        DesktopTransparency.refresh();
         // Re-skin the shell with the persisted Metal theme, if the user chose
         // one in the control center. A no-op while none is selected, so the
         // native platform look is kept by default.
@@ -2592,6 +2614,12 @@ public class Desktop2D {
             setOpaque(true);
         }
 
+        /** Backdrop accessor for the surfaces that fade against it.
+            See {@link Desktop2D#currentWallpaper()}. */
+        Image getImage() {
+            return image;
+        }
+
         /**
          * Pins the plain basic desktop UI. The Synth (GTK) desktop UI installs
          * its own taskbar strip along the bottom of the pane that re-lists
@@ -2623,6 +2651,57 @@ public class Desktop2D {
                 g2.drawImage(image, 0, 0, getWidth(), getHeight(), this);
             } finally {
                 g2.dispose();
+            }
+        }
+
+        /**
+         * Paints the children in the stock order - {@link javax.swing.JLayeredPane}
+         * keeps its children in layer/position order, and Swing draws them back
+         * to front from {@code paintChildren}, <em>not</em> the AWT
+         * {@code paintComponents} hook - except that a
+         * {@link TranslucentSurface} is composited through
+         * {@link DesktopTransparency} at its configured alpha. This is the one
+         * place the shell can fade a window or a widget card: it is the only
+         * party that has just painted what lies behind them, and the components
+         * themselves host third-party content that fills its own bounds opaque,
+         * so dimming a background colour would show through not at all.
+         *
+         * <p>Nothing is composited while every surface is solid (the default), so
+         * the stock paint path is untouched for users who never open the setting;
+         * the fade is applied per child rather than to the pane so a translucent
+         * window over another translucent window still layers correctly.</p>
+         */
+        @Override
+        protected void paintChildren(Graphics g) {
+            if (DesktopTransparency.allSolid()) {
+                super.paintChildren(g);
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g;
+            for (int i = getComponentCount() - 1; i >= 0; i--) {
+                Component child = getComponent(i);
+                if (!child.isVisible()) {
+                    continue;
+                }
+                if (child instanceof JComponent
+                        && DesktopTransparency.isFaded(child)) {
+                    JComponent jc = (JComponent) child;
+                    TransparencySurface surface =
+                            ((TranslucentSurface) child).transparencySurface();
+                    DesktopTransparency.paintFaded(g2, jc,
+                            DesktopTransparency.alphaOf(surface));
+                } else {
+                    // Identical to JComponent.paintChildren's solid path.
+                    Rectangle cr = child.getBounds();
+                    Graphics cg = g.create(cr.x, cr.y, cr.width, cr.height);
+                    try {
+                        cg.setColor(child.getForeground());
+                        cg.setFont(child.getFont());
+                        child.paint(cg);
+                    } finally {
+                        cg.dispose();
+                    }
+                }
             }
         }
     }

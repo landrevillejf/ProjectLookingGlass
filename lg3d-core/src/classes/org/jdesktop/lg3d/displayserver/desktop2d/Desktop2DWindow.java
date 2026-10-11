@@ -31,8 +31,15 @@ import javax.swing.JMenuItem;
  * <p>The frame is sized to the panel's preferred size, clamped to what the
  * desktop pane can actually show, and cascaded so several windows do not stack
  * exactly on top of each other.</p>
+ *
+ * <p>The frame is a {@link TranslucentSurface}: when the user fades the
+ * {@link TransparencySurface#WINDOW window} surface in the control center, the
+ * desktop pane renders it into a scratch image and blits that at the configured
+ * alpha, so the wallpaper shows through the whole window - title bar, border and
+ * the application's own panel together. Fading only the chrome would show
+ * nothing, because hosted content fills itself opaque.</p>
  */
-public class Desktop2DWindow extends JInternalFrame {
+public class Desktop2DWindow extends JInternalFrame implements TranslucentSurface {
 
     /** Cascade offset between consecutively opened windows. */
     private static final int CASCADE_STEP = 28;
@@ -110,6 +117,12 @@ public class Desktop2DWindow extends JInternalFrame {
     /** The application name (taskbar button label). */
     public String getAppName() {
         return appName;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public TransparencySurface transparencySurface() {
+        return TransparencySurface.WINDOW;
     }
 
     /** The descriptor command this window was launched from, or null. */

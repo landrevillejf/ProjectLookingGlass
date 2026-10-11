@@ -69,6 +69,16 @@ public final class DesktopConfig {
     private static final String KEY_WORKSPACE_COUNT = "workspace.count";
     private static final String KEY_FROSTED_GLASS = "window.frostedGlass";
     private static final String KEY_ROUNDED_CORNERS = "window.roundedCorners";
+    /**
+     * 2D-desktop surface opacity, as a percent (see
+     * {@link #MIN_SURFACE_OPACITY}): one preference per transparent surface, so
+     * fading the windows leaves the taskbar, the widgets and the notifications
+     * untouched.
+     */
+    private static final String KEY_WINDOW_OPACITY = "window.opacity";
+    private static final String KEY_TASKBAR_OPACITY = "taskbar.opacity";
+    private static final String KEY_WIDGET_OPACITY = "widget.opacity";
+    private static final String KEY_NOTIFICATION_OPACITY = "notification.opacity";
     private static final String KEY_METAL_THEME = "metal.theme";
     private static final String KEY_METAL_CUSTOM_THEMES = "metal.customThemes";
     private static final String KEY_THEME_ACCENT = "theme.accent";
@@ -149,6 +159,21 @@ public final class DesktopConfig {
      */
     public static final boolean DEFAULT_ROUNDED_CORNERS = true;
     private static final boolean DEF_ROUNDED_CORNERS = DEFAULT_ROUNDED_CORNERS;
+    /**
+     * Default opacity of every 2D-desktop surface: fully solid, i.e. exactly the
+     * look the shell had before the transparency controls existed.
+     */
+    public static final int DEFAULT_SURFACE_OPACITY = 100;
+    private static final int DEF_SURFACE_OPACITY = DEFAULT_SURFACE_OPACITY;
+    /**
+     * Lowest opacity a surface may be faded to. The floor is deliberately not
+     * zero: a desktop whose windows, bar and widgets are all invisible cannot be
+     * used to raise the Control Center and set it back, so the worst case stays
+     * readable rather than recoverable-only-by-restarting.
+     */
+    public static final int MIN_SURFACE_OPACITY = 25;
+    /** Highest opacity a surface may take: fully solid. */
+    public static final int MAX_SURFACE_OPACITY = 100;
     /**
      * Default Metal theme name for the 2D desktop: the empty string means "no
      * Metal theme chosen", so the shell keeps its native platform look until
@@ -309,6 +334,10 @@ public final class DesktopConfig {
     private int workspaceCount = DEF_WORKSPACE_COUNT;
     private boolean frostedGlass = DEF_FROSTED_GLASS;
     private boolean roundedCorners = DEF_ROUNDED_CORNERS;
+    private int windowOpacity = DEF_SURFACE_OPACITY;
+    private int taskbarOpacity = DEF_SURFACE_OPACITY;
+    private int widgetOpacity = DEF_SURFACE_OPACITY;
+    private int notificationOpacity = DEF_SURFACE_OPACITY;
     private String metalTheme = DEF_METAL_THEME;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     private String accentColor = DEF_THEME_ACCENT;
@@ -391,6 +420,14 @@ public final class DesktopConfig {
             frostedGlass = true;
         }
         roundedCorners = prefs.getBoolean(KEY_ROUNDED_CORNERS, DEF_ROUNDED_CORNERS);
+        windowOpacity = clampOpacity(
+                prefs.getInt(KEY_WINDOW_OPACITY, DEF_SURFACE_OPACITY));
+        taskbarOpacity = clampOpacity(
+                prefs.getInt(KEY_TASKBAR_OPACITY, DEF_SURFACE_OPACITY));
+        widgetOpacity = clampOpacity(
+                prefs.getInt(KEY_WIDGET_OPACITY, DEF_SURFACE_OPACITY));
+        notificationOpacity = clampOpacity(
+                prefs.getInt(KEY_NOTIFICATION_OPACITY, DEF_SURFACE_OPACITY));
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
@@ -490,6 +527,10 @@ public final class DesktopConfig {
         prefs.putInt(KEY_WORKSPACE_COUNT, workspaceCount);
         prefs.putBoolean(KEY_FROSTED_GLASS, frostedGlass);
         prefs.putBoolean(KEY_ROUNDED_CORNERS, roundedCorners);
+        prefs.putInt(KEY_WINDOW_OPACITY, windowOpacity);
+        prefs.putInt(KEY_TASKBAR_OPACITY, taskbarOpacity);
+        prefs.putInt(KEY_WIDGET_OPACITY, widgetOpacity);
+        prefs.putInt(KEY_NOTIFICATION_OPACITY, notificationOpacity);
         prefs.put(KEY_METAL_THEME, metalTheme);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         prefs.put(KEY_THEME_ACCENT, accentColor);
@@ -542,6 +583,10 @@ public final class DesktopConfig {
         workspaceCount = DEF_WORKSPACE_COUNT;
         frostedGlass = DEF_FROSTED_GLASS;
         roundedCorners = DEF_ROUNDED_CORNERS;
+        windowOpacity = DEF_SURFACE_OPACITY;
+        taskbarOpacity = DEF_SURFACE_OPACITY;
+        widgetOpacity = DEF_SURFACE_OPACITY;
+        notificationOpacity = DEF_SURFACE_OPACITY;
         metalTheme = DEF_METAL_THEME;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
         accentColor = DEF_THEME_ACCENT;
@@ -598,6 +643,80 @@ public final class DesktopConfig {
 
     public void setRoundedCorners(boolean roundedCorners) {
         this.roundedCorners = roundedCorners;
+    }
+
+    /**
+     * Opacity of the 2D desktop's application windows, as a percent of solid
+     * ({@code 100} = fully opaque). A window is a container of third-party Swing
+     * content that paints itself opaque, so the whole window - title bar,
+     * border and the application's own panel - fades together; fading only the
+     * chrome would show nothing through an opaque panel. Read at paint time by
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopTransparency},
+     * which repaints every open window on
+     * {@link org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent}
+     * and on {@code Desktop2D.applyDesktopConfig()}, so a change lands without a
+     * restart.
+     */
+    public int getWindowOpacity() {
+        return windowOpacity;
+    }
+
+    public void setWindowOpacity(int percent) {
+        windowOpacity = clampOpacity(percent);
+    }
+
+    /**
+     * Opacity of the 2D desktop's taskbar, as a percent of solid. Only the bar's
+     * own backdrop fades - its buttons, labels and tray indicators stay fully
+     * opaque, because a bar you cannot read is not a bar.
+     */
+    public int getTaskbarOpacity() {
+        return taskbarOpacity;
+    }
+
+    public void setTaskbarOpacity(int percent) {
+        taskbarOpacity = clampOpacity(percent);
+    }
+
+    /**
+     * Opacity of the desktop widgets (the cards the widget layer drops on the
+     * wallpaper), as a percent of solid. The whole card fades, so its text keeps
+     * its contrast against its own background. Applies to the 2D desktop only:
+     * the same cards hosted through a {@code SwingNode} on the 3D desktop stay
+     * solid, because their opaque background is what makes that capture path
+     * reliable.
+     */
+    public int getWidgetOpacity() {
+        return widgetOpacity;
+    }
+
+    public void setWidgetOpacity(int percent) {
+        widgetOpacity = clampOpacity(percent);
+    }
+
+    /**
+     * Opacity of the transient notification cards (toasts), as a percent of
+     * solid. Only the card's fill fades; the title and message paint fully
+     * opaque, so a notification that is meant to be readable stays readable.
+     */
+    public int getNotificationOpacity() {
+        return notificationOpacity;
+    }
+
+    public void setNotificationOpacity(int percent) {
+        notificationOpacity = clampOpacity(percent);
+    }
+
+    /**
+     * Keeps a surface opacity between {@link #MIN_SURFACE_OPACITY} and
+     * {@link #MAX_SURFACE_OPACITY}; an out-of-range or nonsensical stored value
+     * (a hand-edited preference) degrades to the nearer bound rather than to an
+     * invisible or unpainted surface. Public because
+     * {@link org.jdesktop.lg3d.displayserver.desktop2d.DesktopTransparency}
+     * clamps the same way when a caller sets a value programmatically.
+     */
+    public static int clampOpacity(int percent) {
+        return Math.max(MIN_SURFACE_OPACITY, Math.min(MAX_SURFACE_OPACITY, percent));
     }
 
     /**

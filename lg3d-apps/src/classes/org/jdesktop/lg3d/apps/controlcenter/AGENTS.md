@@ -50,7 +50,12 @@ Date & Time, Language & Region, Users, System, Services, System Update, Storage,
   contract with core (SwingNode surface, descriptor fields, PANEL_APPS reuse).
   Note the Appearance/Desktop panels are omitted under `lg.desktop2d`; the
   Customization panel registers in every mode but its 2D-only sections degrade to a
-  "2D desktop only" note on the 3D shell. The Appearance panel's *Corner Logo*
+  "2D desktop only" note on the 3D shell. Its Transparency section is one slider
+  per 2D surface (windows, taskbar, widgets, notifications) that applies on
+  mouse-release through `DesktopTransparency.applyOpacity` and persists via
+  `DesktopConfig`; the sliders are built only on the 2D shell, where the control
+  center is a real window, so no slider ever relies on offscreen `SwingNode`
+  drag forwarding. The Appearance panel's *Corner Logo*
   selector (Java logo vs the Looking-Glass mascot) is likewise 3D-only: it writes
   `DesktopConfig.cornerLogo` and posts a `DesktopConfigChangeEvent` that the
   `lg3d-core` image backgrounds listen for to swap the corner model live.
@@ -100,7 +105,8 @@ Control Center is a system settings application that provides a Swing-based UI f
 - **Seams** - the `lg3d-core` `displayserver.desktop2d` helpers the panels drive
   (`VolumeStatus`, `BatteryStatus`, `BrightnessStatus`, `ThermalService`,
   `NetworkConnections`, `PrinterStatus`, `TimeZoneStatus`, `LocaleStatus`,
-  `InputSettings`, `BluetoothStatus`, `ShortcutMap`) plus the `Desktop2D`
+  `InputSettings`, `BluetoothStatus`, `ShortcutMap`, `DesktopTransparency` /
+  `TransparencySurface`) plus the `Desktop2D`
   control-center hooks. The system-management panels additionally drive the
   `lg3d-core` `utils.system` backends defined by `system-management-contract.md`
   (`InitSystemService` for Services, `LfsUpdateService` for System Update,

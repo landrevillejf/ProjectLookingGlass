@@ -18,10 +18,13 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -35,22 +38,28 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.event.MouseInputAdapter;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
+import org.jdesktop.lg3d.displayserver.desktop2d.DesktopTransparency;
 import org.jdesktop.lg3d.displayserver.desktop2d.IconGlyphLibrary;
 import org.jdesktop.lg3d.displayserver.desktop2d.IconPack;
 import org.jdesktop.lg3d.displayserver.desktop2d.IconPackManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec;
+import org.jdesktop.lg3d.displayserver.desktop2d.TransparencySurface;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
  * Personalisation ("Customization") category for the conventional 2D desktop:
  * the independent look-and-feel sections that go <em>beyond</em> the wallpaper -
- * the colour theme (Metal palette plus a single accent colour), and, in later
- * phases, the icon pack and the window-decoration style. Each section is
- * self-contained: it reads and writes its own {@link DesktopConfig} preference
- * and applies live, so they never have to be changed together.
+ * the colour theme (Metal palette plus a single accent colour), the icon pack,
+ * the surface transparency and, in later phases, the window-decoration style.
+ * Each section is self-contained: it reads and writes its own {@link
+ * DesktopConfig} preference and applies live, so they never have to be changed
+ * together.
  *
  * <p>The colour-theme manager lived in {@link AppearancePanel} before; it is
  * hosted here so every personalisation control sits in one category, while
@@ -77,6 +86,14 @@ public class CustomizationPanel implements ControlPanel {
     private final DefaultListModel<IconPack> packModel = new DefaultListModel<>();
     private final JList<IconPack> packList = new JList<>(packModel);
 
+    /**
+     * Surface-opacity editors, one slider per {@link TransparencySurface}, in
+     * enum order so the panel and the persisted settings always list the same
+     * four surfaces in the same sequence.
+     */
+    private final Map<TransparencySurface, JSlider> opacitySliders =
+            new LinkedHashMap<>();
+
     public CustomizationPanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
@@ -84,6 +101,7 @@ public class CustomizationPanel implements ControlPanel {
             sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
             sections.add(buildThemePanel());
             sections.add(buildIconPackPanel());
+            sections.add(buildTransparencyPanel());
             // Later phases append their independent sections here (window
             // decoration) before the trailing glue.
             sections.add(Box.createVerticalGlue());
@@ -91,11 +109,14 @@ public class CustomizationPanel implements ControlPanel {
             root.add(statusLabel, BorderLayout.SOUTH);
             loadThemeState();
             loadIconPackState();
+            loadTransparencyState();
         } else {
             JLabel note = new JLabel(
-                    "<html><center>Theme, icon pack and window-decoration<br>"
-                            + "personalisation apply to the conventional 2D<br>"
-                            + "desktop only.</center></html>",
+                    "<html><center>Theme, icon pack, transparency and<br>"
+                            + "window-decoration personalisation apply<br>"
+                            + "to the conventional 2D desktop only.<br>"
+                            + "The 3D desktop's surfaces are already<br>"
+                            + "translucent by construction.</center></html>",
                     JLabel.CENTER);
             root.add(note, BorderLayout.CENTER);
         }
@@ -121,6 +142,7 @@ public class CustomizationPanel implements ControlPanel {
         if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
             loadThemeState();
             loadIconPackState();
+            loadTransparencyState();
         }
     }
 
@@ -455,6 +477,120 @@ public class CustomizationPanel implements ControlPanel {
         Desktop2D.applyIconPack("", DesktopConfig.get().getIconPackDir());
         loadIconPackState();
         statusLabel.setText("Icon pack: default (generated icons)");
+    }
+
+    // ------------------------------------------------------------------
+    // Surface transparency
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds the transparency section: one {@link JSlider} per 2D-desktop surface
+     * (windows, taskbar, widgets, notifications) setting how solid that surface
+     * paints, from {@link DesktopConfig#MIN_SURFACE_OPACITY} (maximally faded,
+     * still readable) to 100 percent (fully solid, the default and the historical
+     * look). The four are independent - translucent windows do not fade the bar -
+     * and each takes effect as soon as the slider is released: the value is
+     * persisted and pushed live into the running shell through {@link
+     * DesktopTransparency#applyOpacity}, so there is no Apply button to forget.
+     *
+     * <p>Sliders are used rather than a spin field or a combo because they are
+     * offscreen-safe: the control center keeps working when hosted in a {@code
+     * SwingNode} on the 3D desktop, where popup-heavy controls do not.</p>
+     */
+    private JComponent buildTransparencyPanel() {
+        JPanel rows = new JPanel(new GridLayout(0, 1, 0, 6));
+        for (TransparencySurface surface : TransparencySurface.values()) {
+            rows.add(opacityRow(surface));
+        }
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(rows, BorderLayout.CENTER);
+        panel.setBorder(BorderFactory.createTitledBorder(
+                "Transparency (2D desktop)"));
+        return panel;
+    }
+
+    /**
+     * The label, slider and percentage readout for one surface. Applied on
+     * release rather than on every tick: a full-desktop repaint per drag pixel
+     * would make the control feel sluggish, while the released value lands the
+     * same way with one repaint.
+     */
+    private JComponent opacityRow(TransparencySurface surface) {
+        JSlider slider = new JSlider(DesktopConfig.MIN_SURFACE_OPACITY,
+                DesktopConfig.MAX_SURFACE_OPACITY,
+                DesktopConfig.DEFAULT_SURFACE_OPACITY);
+        slider.setToolTipText(hintFor(surface));
+        JLabel value = new JLabel("100%", SwingConstants.RIGHT);
+        value.setPreferredSize(new Dimension(42, 20));
+        MouseInputAdapter applyOnRelease = new MouseInputAdapter() {
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                applyOpacity(surface, slider, value);
+            }
+        };
+        slider.addMouseListener(applyOnRelease);
+        slider.addMouseMotionListener(applyOnRelease);
+        opacitySliders.put(surface, slider);
+
+        JPanel row = new JPanel(new BorderLayout(6, 0));
+        row.add(new JLabel(nounFor(surface) + ":"), BorderLayout.WEST);
+        row.add(slider, BorderLayout.CENTER);
+        row.add(value, BorderLayout.EAST);
+        return row;
+    }
+
+    /** Re-reads the persisted opacities into the sliders. */
+    private void loadTransparencyState() {
+        DesktopConfig cfg = DesktopConfig.get();
+        for (Map.Entry<TransparencySurface, JSlider> entry
+                : opacitySliders.entrySet()) {
+            entry.getValue().setValue(entry.getKey().opacityOf(cfg));
+        }
+    }
+
+    /**
+     * Persists and applies one surface's opacity, then reports it in the row and
+     * the panel's status line. A live-apply that is a no-op on a 3D session still
+     * stores the value, so the next 2D start-up picks it up.
+     */
+    private void applyOpacity(TransparencySurface surface, JSlider slider,
+                              JLabel value) {
+        int percent = slider.getValue();
+        DesktopTransparency.applyOpacity(surface, percent);
+        value.setText(percent + "%");
+        statusLabel.setText("Faded " + nounFor(surface) + " to " + percent + "%");
+    }
+
+    /** The surface's name in sentence case, for a row label and the status line. */
+    private static String nounFor(TransparencySurface surface) {
+        switch (surface) {
+            case WINDOW: return "windows";
+            case TASKBAR: return "the taskbar";
+            case WIDGET: return "widgets";
+            case NOTIFICATION: return "notifications";
+            default: return surface.name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * What fading each surface actually does, because the four differ: a window
+     * or a widget fades whole, while the bar and a toast fade only their backdrop
+     * and keep their text at full strength. The tooltip states it so a user is not
+     * surprised that a faded taskbar still reads normally.
+     */
+    private static String hintFor(TransparencySurface surface) {
+        switch (surface) {
+            case WINDOW:
+                return "Fade whole windows - title bar and content - over the wallpaper";
+            case TASKBAR:
+                return "Fade the taskbar's backdrop; its buttons and clock stay readable";
+            case WIDGET:
+                return "Fade the desktop widget cards over the wallpaper";
+            case NOTIFICATION:
+                return "Fade a notification's card; its title and text stay readable";
+            default:
+                return null;
+        }
     }
 
     private void warn(String message) {

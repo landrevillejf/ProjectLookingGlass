@@ -22,6 +22,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import javax.swing.JPanel;
+import org.jdesktop.lg3d.displayserver.desktop2d.TranslucentSurface;
+import org.jdesktop.lg3d.displayserver.desktop2d.TransparencySurface;
 
 /**
  * Shared base panel for the built-in widgets: paints a dark, rounded, glassy card
@@ -32,8 +34,16 @@ import javax.swing.JPanel;
  * rounded inner card and border are drawn on top. Subclasses read volatile model
  * fields (updated on the widget's scheduler tick) and paint them here, then call
  * {@code repaint()} - so no Swing-thread handoff is required.</p>
+ *
+ * <p>The card declares itself a {@link TranslucentSurface} for the 2D desktop's
+ * {@link TransparencySurface#WIDGET widget} opacity, but paints nothing of the
+ * sort: the 2D desktop pane composites it at the configured alpha when it draws
+ * its children. That split is what keeps the card solid through a
+ * {@code SwingNode} on the 3D desktop - the same pixels are simply blitted at
+ * full strength there - and keeps this background opaque, which is what makes
+ * the texture capture reliable.</p>
  */
-abstract class WidgetPanel extends JPanel {
+public abstract class WidgetPanel extends JPanel implements TranslucentSurface {
 
     /** Card background. */
     protected static final Color CARD = new Color(26, 32, 44);
@@ -59,6 +69,15 @@ abstract class WidgetPanel extends JPanel {
 
     protected String title() {
         return title;
+    }
+
+    /**
+     * Every widget card is the 2D desktop's widget surface, so the one slider in
+     * the control center fades all of them together. Never null.
+     */
+    @Override
+    public TransparencySurface transparencySurface() {
+        return TransparencySurface.WIDGET;
     }
 
     @Override
