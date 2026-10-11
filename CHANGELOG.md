@@ -163,6 +163,13 @@ work to make it build and run on a current toolchain.
   a class about its constructor, a wrapped host exception, and where a container
   says no) join the suite: **1142** headless cases, `89.3%` line coverage for the
   module, and `org.jdesktop.lg3d.mandela.values` at 809 of 809 lines.
+- **The `lg3d-mandela` coverage floor is raised to `0.890` line / `0.780` branch**
+  (`build.gradle`) — the ratchet was set at the measured `78.58% / 64.38%` when the
+  Cucumber layer landed, and the campaign has since taken `values`, `rt/Json` and
+  `rt/StandardLibrary` to every line covered. The floor follows the measurement
+  (now `89.30% / 78.95%`), so a regression of the equality, hash or range-counting
+  work above — or of any line this tranche covered — fails `check` instead of
+  quietly reopening the gap.
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
   constants** — the load and store switches are now checked for totality by the
   compiler instead of ending in a guard no script could reach, and a field store
