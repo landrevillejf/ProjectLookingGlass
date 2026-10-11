@@ -97,8 +97,72 @@ work to make it build and run on a current toolchain.
   (`lg3d-mandela`, `rt/StandardLibrary`) — the two argument helpers spelled the
   same sentence separately, and the numbered branch read "needs its 2th
   argument". The shared spelling says how many arguments the call needs.
+- **A downward `Range` lost its last value** (`lg3d-mandela`, `values/MandelaRange`) —
+  the count added the inclusive end's unit in the *bounds'* direction instead of the
+  *stride's*, so every range that counts down was one value short: `8..0 step -1`
+  walked 8 to 2, answered `7` for `.length` and `2` for `.last`, and printed eight
+  numbers in a `for` loop while `0 in (8..0 step -1)` said `true` underneath it.
+  `(5..1 step -1).sum()` answered `12` where the closed form the library uses says
+  `15`. The count is now measured along the stride, so `.length`, `.last`,
+  `toList()`, `for` and `in` are one answer in both directions — and the bounds are
+  still never overflowed: a span a `long` cannot name answers `MAX_VALUE` as "more
+  than a count" rather than a negative number. Pinned by `IterationTest`; the two
+  `LanguageTest` expectations that had encoded the old rule, with a comment
+  rationalising it as `ceil(7 / 2)`, are corrected with it.
+- **`==` compared only the top level of a container** (`lg3d-mandela`,
+  `values/MandelaList`, `MandelaMap`, `MandelaInstance`) — each element was asked
+  through Java's `Object.equals`, so `[1] == [1.0]` was false while `1 == 1.0` is
+  true, `json.parse("[1.0]") == [1]` was false for a document read off the wire,
+  `1.0 in [1]` and `[1] in [[1.0]]` were false, `distinct()` kept what the language
+  calls one value twice, and `P(1) == P(1.0)` disagreed with the record's own
+  structural promise. There is now one equality, `Values.equal`, and every
+  container delegates to it per element.
+- **A container's hash disagreed with its equality** (`lg3d-mandela`, `values`), the
+  other half of the same bug: `1` and `1.0` are equal but hashed apart, so a script
+  that used a `List` as a set or a map key got a different bucket for the same
+  value. `Values.hash` is the canonical hash for every value — a number hashes as a
+  `double` whichever side it arrived on, a map ignores its insertion order, a `type`
+  instance hashes its fields — and the three containers delegate to it.
+- **Two `Double`s that are the same number were unequal** (`lg3d-mandela`,
+  `values/Values`) — `-0.0 == 0.0` answered `false` while `-0.0 < 0.0` answered
+  `true`, an equality and an ordering that cannot both be right, and a `NaN` was
+  never told about at all. Numbers compare by value, so `-0.0` and `0.0` are one
+  number, with the one documented exception that `NaN` equals itself: that is what
+  lets `distinct()` answer `[1, 2, NaN]` for `[1, 2, NaN, NaN]` instead of keeping a
+  value the script cannot tell apart.
+- **A big `Int` comparison collapsed two distinct numbers** (`lg3d-mandela`,
+  `values/Values`) — ordering converted both sides to `double`, so
+  `9223372036854775807 > 9223372036854775806` answered `false` and `sorted()` could
+  reorder a list `==` calls equal. Two `Int`s are compared with `Long.compare`, and
+  only a real `Double` in the pair takes the floating path.
+- **A `Double` was printed with placeholder zeros** (`lg3d-mandela`,
+  `values/Values`) — `1e-6` displayed as `0.0000010`, breaking the promise
+  `formatDouble`'s own javadoc makes (the shortest decimal that round-trips) and
+  putting text on the console that a reader cannot paste back as the value it came
+  from. The placeholder digits are stripped; a whole `Double` still keeps its `.0`.
+- **`x as Any` returned the text of the value** (`lg3d-mandela`, `values/Values`) —
+  the `Any` branch of the conversion table shared the `Str` path, so `42 as Any`
+  handed back `"42"`: a conversion that silently changed the type the rest of the
+  program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
+- **The language guide now says what the machine does** (`docs/mandela-language.md`) —
+  three sentences were wrong, and each is the kind an author repeats without
+  checking. *Truthiness*: the guide said only `false` and `null` are false, while the
+  engine also calls `0`, `0.0` and `""` false and an empty `[]`, `{}` and `1..0` true.
+  *Iteration*: the guide listed the pair spellings but never said that a single name
+  binds the **value** — so a map loop hands out values, not keys — nor which six
+  shapes may be walked, that `null` is the empty sequence, or that the loop reads the
+  live container. *Operators*: the guide now states the `==` rules the engine applies
+  (numbers across kinds, contents all the way down for a `List`, a `Map` and a `type`,
+  identity for a `class` and an `enum` constant), the `as Any` identity conversion,
+  and that a downward inclusive range reaches its end.
+- **The `values` package is at every line covered** (`lg3d-mandela`) — `ValuesTest`,
+  `IterationTest` (the `for` cursor and range counting) and `ValueTypesTest` (the
+  Java surface a host and the machine share: what a `Callable` reports about itself,
+  a class about its constructor, a wrapped host exception, and where a container
+  says no) join the suite: **1142** headless cases, `89.3%` line coverage for the
+  module, and `org.jdesktop.lg3d.mandela.values` at 809 of 809 lines.
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
   constants** — the load and store switches are now checked for totality by the
   compiler instead of ending in a guard no script could reach, and a field store
@@ -116,6 +180,15 @@ work to make it build and run on a current toolchain.
   `rt/StandardLibrary` to every line of it covered.
 
 ### Removed
+- **The value surface no receiver can reach** (`lg3d-mandela`, `values`) — a
+  `MandelaIterator` was never asked whether it yields pairs or had started, and its
+  `index()` / `source()` accessors have no caller in the machine or in a script; the
+  cursor is now one field and one constructor argument. `MandelaClass.methods()`,
+  `declaresField()` and `visibleMethodNames()`, `Ref.empty()` and the
+  `MandelaInstance(owner, initial)` constructor are referenced nowhere in the
+  repository — a host builds an instance and assigns its fields, which is what the
+  one-argument constructor already does — and `MandelaRange.span()` went with the
+  count rewrite above.
 - **`Ast.BlockValue`, an expression node no syntax could produce** (`lg3d-mandela`) —
   no parser rule ever built it, so the compiler's lowering case, the tree walker's
   case and the node itself are gone; an expression-bodied function answers through

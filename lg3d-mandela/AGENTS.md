@@ -19,7 +19,7 @@
 | Jar | `build-gradle/libs/lg3d-mandela-<version>.jar`, `Main-Class: …mandela.cli.MandelaCli` |
 | Build | `./gradlew :lg3d-mandela:build` |
 | Run | `./gradlew :lg3d-mandela:mandelaRun -Pscript=hello.mnd` · `:lg3d-mandela:mandelaRepl` |
-| Tests | `./gradlew :lg3d-mandela:test` — 366 headless JUnit 5 tests (`java.awt.headless=true`) |
+| Tests | `./gradlew :lg3d-mandela:test` — 1142 headless JUnit 5 tests (`java.awt.headless=true`) |
 | Mutation | `./gradlew :lg3d-mandela:pitest` (report-only, on-demand, **not** in `check`) |
 | Docs | [`../docs/mandela-language.md`](../docs/mandela-language.md) (the grammar and the library) · [`../docs/mandela-embedding-api.md`](../docs/mandela-embedding-api.md) (the host contract) |
 
@@ -113,8 +113,12 @@ never silently in code.
 - Everything here is headless and fast: `./gradlew :lg3d-mandela:test`.
   Suites by surface — `SyntaxTest` (what parses, and the exact fragment of the
   message a mistake produces), `LanguageTest` (end-to-end semantics),
-  `StandardLibraryTest` (every library member), `EmbeddingApiTest` +
-  `InteropTest` + `ScriptEngineTest` (the host contract),
+  `StandardLibraryTest` (every library member), `ValuesTest` + `ValueTypesTest` +
+  `IterationTest` (value semantics: names, truth, display, equality, order,
+  conversion, the containers, and the cursor a `for` drives), `OperatorRulesTest`
+  and `ArithmeticOverflowTest` (what an operator answers and when it promotes),
+  `ClosureCaptureTest` (the capture chain), `EmbeddingApiTest` +
+  `InteropTest` + `HostBoundaryTest` + `ScriptEngineTest` (the host contract),
   `api/EditorServicesTest` (the editor surface), `CliTest` (the command line),
   `DocumentationTest` (the guide), `ShippedScriptsTest` (the scripts the
   repository ships in `../scripts/mandela`).
@@ -142,8 +146,13 @@ never silently in code.
   change — say so in the PR.
 - Coverage and mutation: the 100% JaCoCo / 0-PIT-mutant targets in the root file
   are **not** enforced (report-only). Do not claim untested success; report what
-  ran. Scene-graph rules do not apply — nothing here needs a live desktop or the
-  in-JVM probe described in [`../lg3d-core/AGENTS.md`](../lg3d-core/AGENTS.md).
+  ran. The campaign is package by package, and `values` is done: **809 of 809
+  lines**, with the module at 89.3%. A package that reaches every line keeps it —
+  retire what no script and no host can reach instead of testing it, and say in
+  the PR what stayed unreachable and why (the `cli` REPL's terminal handling is
+  the current example). Scene-graph rules do not apply — nothing here needs a live
+  desktop or the in-JVM probe described in
+  [`../lg3d-core/AGENTS.md`](../lg3d-core/AGENTS.md).
 - When Gradle is memory-starved locally, `build-gradle/scratch/junit.sh`
   compiles the same sources and runs the suite in one JVM. Its output is build
   scratch and must never be committed.
