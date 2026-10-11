@@ -15,6 +15,7 @@
 java3d = "1.7.2"          # Jogamp-maintained fork of the Sun Java 3D 1.5/1.6 API
 jogampNatives = "2.6.0"   # GlueGen / JOGL / JOAL native libraries
 junit = "5.11.4"          # JUnit 5 BOM (Jupiter + Platform versions follow it)
+cucumber = "7.18.1"       # Cucumber BDD engine (test-only in lg3d-mandela; the language jar stays dependency-free)
 slf4j = "2.0.16"          # SLF4J API + no-op provider (jbusinessday runtime dep)
 javahelp = "2.0.05"       # JavaHelp (javax.help) Swing help framework, latest release
 jackson = "2.18.3"        # Jackson databind (update-manager version.json metadata)
@@ -93,6 +94,16 @@ vecmath = { module = "org.jogamp.java3d:vecmath", version.ref = "java3d" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+# junit-platform-suite backs the @Suite selector that discovers Cucumber features
+# on the JUnit Platform; it carries no explicit version (the junit-bom constrains it).
+junit-platform-suite = { module = "org.junit.platform:junit-platform-suite" }
+
+# Cucumber BDD (test-only, lg3d-mandela). The cucumber-bom tracks the engine and
+# the java glue; the JUnit Platform engine runs .feature files inside the module's
+# existing `test` task, so JaCoCo/PIT see the scenario-driven coverage too.
+cucumber-bom = { module = "io.cucumber:cucumber-bom", version.ref = "cucumber" }
+cucumber-java = { module = "io.cucumber:cucumber-java" }
+cucumber-junit-platform-engine = { module = "io.cucumber:cucumber-junit-platform-engine" }
 
 # SLF4J. jbusinessday (bundled in libs/) logs through SLF4J and touches
 # LoggerFactory in a static initializer, so the API plus a silent no-op provider

@@ -104,9 +104,12 @@ Values are never boxed behind a wrapper the script has to unwrap: `Int` *is* a
 
 ### Truthiness
 
-Only `false` and `null` are false. `0`, `""` and `[]` are **true** — the rule a
-Java author expects, applied consistently. Use `is Empty`-style members
-(`isEmpty`, `length == 0`) when you mean the collection sense.
+Five values are false: `false`, `null`, `0`, `0.0` and `""`. Everything else is
+true, and the list is closed on purpose — an empty `[]`, an empty `{}` and an
+empty `1..0` range are all **true**, because a container is a value and not a
+question about its size. `bool(v)` is the decision spelled out (`bool([])` is
+`true`, `bool("")` is `false`); when the size is what matters, say so —
+`xs.isEmpty`, `length(xs) == 0`.
 
 ---
 
@@ -125,6 +128,10 @@ Java author expects, applied consistently. Use `is Empty`-style members
 | access | `.`, `?.`, `?.[]`, `??`, `as`, indexing `[]` |
 
 - `+` adds numbers, joins strings and concatenates lists (`[1] + [2]`).
+- An `Int` operation that would roll over past the 64-bit range is promoted to a
+  `Double` rather than wrapping: `9223372036854775807 + 1` answers
+  `9.223372036854776E18`, and `2 ** 63` answers the same way instead of raising.
+  Losing the low digits is recoverable; a silent wraparound is not.
 - `/` is true division and answers in the type the arithmetic deserves: an `Int`
   when integers divide exactly (`8 / 2` is `4`), a `Double` when they do not
   (`7 / 2` is `3.5`). There is no integer-only division operator to misread;
@@ -133,10 +140,25 @@ Java author expects, applied consistently. Use `is Empty`-style members
   `s?.length` yields `null` instead of raising when `s` is `null`.
 - `x |> f(y)` reads as `f(x, y)` — the pipeline threads a value through calls.
 - `x as Str` and `x is Int` test and convert; `is` also destructures
-  (`let Pair(x, y) = point()`).
+  (`let Pair(x, y) = point()`). `as Any` is the identity conversion — it changes
+  nothing, because `Any` asks for no shape.
+- `==` is the language's own equality, not Java's. Numbers compare by value
+  across kinds, so `1 == 1.0` and `-0.0 == 0.0`; a `List`, a `Map` and an object
+  of a `type` compare by their contents at every depth, so `[1] == [1.0]` and a
+  parsed `json.parse("[1.0]")` equals the `[1]` written by hand. An object of a
+  `class` and an `enum` constant compare by identity — two windows with the same
+  bounds are two windows. `<`, `<=`, `>`, `>=` order numbers and strings only,
+  and they agree with `==`: equal values never order apart, and the whole
+  64-bit `Int` range is compared exactly, not through a `double`.
 - Assignment operators: `=`, `+=`, `-=`, `*=`, `/=`, `%=`.
-- A range is `a..b` (inclusive of `a`, exclusive of `b`); `8..0 step -1` counts
-  down, and `step` is only a keyword inside a `for` header or a range.
+- A range is `a..b`, and it **includes** `b`: `1..5` is five numbers and
+  `(1..5).length` is `5`. Write `a..<b` when the end belongs to the next range
+  (`1..<5` is four). `step` is only a keyword inside a `for` header or a range.
+  A negative `step` counts down, and the inclusive end is included whichever way
+  the stride points: `8..0 step -1` is the nine numbers 8 to 0, and
+  `(5..1 step -1).sum()` is `15`. A range whose stride points away from its bound
+  produces nothing — `10..1` and `0..1 step -1` are both empty — so a range never
+  means two different things depending on how it is read.
 
 ---
 
@@ -208,6 +230,22 @@ for key, value in map { }
 for (entry in map) { }               // parentheses accepted
 ```
 
+A `for` header is `<pattern> in <expression>`, and one name always binds the
+**value** of the trip — every container hands a loop its values, so a map loop
+gives values, not keys. Read the name beside a value by asking for the pair
+(`for [k, v] in map`, or `for k, v in map`): a list, a range and a string give
+their index, and a map, an object and an enum give the name.
+
+What may be walked is a closed list — a `List` (its elements), a `Range` (its
+numbers), a `Str` (its characters), a `Map` (its entries, in insertion order),
+an object (its assigned fields, in assignment order), an enum **type** (its
+constants) and `null`, which is the empty sequence so a loop over a name that
+may be unset needs no guard. Anything else raises a `TypeError` that names the
+type and lists the ones that do work.
+
+The loop reads the live container: appending to a list from its own loop makes
+the new element trip, and removing one shifts what comes after it.
+
 `break` and `continue` apply to the innermost loop. A runaway loop is not a
 hung desktop: every capability profile carries an instruction budget, and
 crossing it raises rather than spins (see §10).
@@ -260,7 +298,8 @@ Errors are values of the `Error` family (`MandelaError` in the engine) with a
 kind and a message. The kinds the engine raises are `TypeError`, `ValueError`,
 `KeyError`, `IndexError`, `RangeError`, `NullError`, `IOError`, `JsonError`,
 `SyntaxError`, `MatchError`, `AssertError`, `PermissionError` (a refused
-grant), `LimitError` (a step or depth ceiling) and `RuntimeError` (the rest). An
+grant), `LimitError` (a ceiling: the step or depth budget, or the size the
+library will let one value reach) and `RuntimeError` (the rest). An
 uncaught error stops that run and is reported by the host in the host's own
 words; `catch e { … }` sees every one of them, and `e.kind` names it.
 
@@ -305,7 +344,8 @@ Lists and maps are mutable and reference-shared, the way a Java `List` is. The
 sorting family says which side of that line it sits on: `sort` and `sortBy`
 reorder the list you called them on (and answer it back, so they chain), while
 `sorted`, `sortedBy` and `reversed` return a new list and leave the original
-alone; `copy` on a map is the same idea.
+alone; `copy` on a map is the same idea. A `Range` has nothing to reorder, so it
+offers only the copying spellings.
 
 ---
 
@@ -400,7 +440,9 @@ assert keys valuesOf`
 
 `parse encode stringify isValid` — JSON text in, Mandela values out
 (`Map`/`List`/`Str`/`Double`/`Bool`/`Null`), and back. `isValid` tests without
-raising.
+raising. The reader is strict the way RFC 8259 is: one value per document, no
+comments, no trailing commas, no `NaN`, no leading zero on a number. A refusal is
+a `JsonError` that names the line and column it came from.
 
 ### `std.math`
 
@@ -429,7 +471,7 @@ grant; `sleep` does, because it parks a host thread (`THREAD`).
 | `Str` | `length upper lower trim split replace replaceFirst contains startsWith endsWith indexOf charAt substring toInt toDouble repeat padStart padEnd` |
 | `List` | `length size isEmpty first last push add insert removeAt pop clear set get indexOf contains join map filter reduce forEach any all find sort sortBy sorted sortedBy reversed slice take skip sum min max distinct flatten` |
 | `Map` | `length size isEmpty keys values get put set remove has clear merge copy forEach mapValues entries` |
-| `Range` | `length first last step isEmpty toList contains reversed sum map filter forEach any all find join min max distinct slice take skip sorted sortBy` |
+| `Range` | `length first last step isEmpty toList contains reversed sum map filter forEach any all find join min max distinct slice take skip sorted sortedBy` |
 | `Int`/`Double` | `abs sign floor ceil round sqrt cbrt toInt toDouble isWhole` |
 
 Properties (`s.length`) resolve before methods of the same name

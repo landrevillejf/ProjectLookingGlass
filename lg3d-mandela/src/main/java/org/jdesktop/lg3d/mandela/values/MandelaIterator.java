@@ -18,18 +18,24 @@ import java.util.List;
 /**
  * The cursor a {@code for} loop drives.
  *
- * <p>One object covers lists, maps, ranges, strings and enum constants, so the
- * machine needs a single trio of opcodes &mdash; {@code NEW_ITER},
- * {@code ITER_NEXT} and {@code ITER_VALUE} &mdash; instead of a specialised loop
- * shape per container. The cursor is deliberately <em>advance then peek</em>:
+ * <p>One object covers lists, maps, ranges, strings, objects and enum constants,
+ * so the machine needs four opcodes in total &mdash; {@code NEW_ITER},
+ * {@code ITER_NEXT}, and then {@code ITER_VALUE} or {@code ITER_KV} for the pair
+ * spellings &mdash; instead of a specialised loop shape per container. The cursor
+ * is deliberately <em>advance then peek</em>:
  * {@link #advance()} moves to the next element and reports whether there was one,
  * and the element stays available until the next advance, which is what lets a
  * destructuring body read the same element twice without the iterator having to
  * support look-back.</p>
  *
- * <p>A map iterates its keys, so {@code for (k in map)} reads the way a Java
- * {@code keySet()} loop does; {@code for ((k, v) in map)} asks the machine for the
- * key/value pair through {@link #key()} and {@link #value()}.</p>
+ * <p>What one trip produces depends on the container: an element of a list, a
+ * character of a string, a number of a range, a field value of an object, a
+ * constant of an enum and the bound value of a map. A single-name
+ * {@code for (x in …)} reads {@link #value()} for every one of them, so a map
+ * loop hands out values rather than keys; the pair spellings
+ * ({@code for [k, v] in map}) ask the machine for {@link #key()} as well, and
+ * {@code key()} is an index for a list, a range or a string, and a name for a
+ * map, an object or an enum.</p>
  *
  * <p>Not thread-safe, and it reflects the container as it is: mutating a list
  * while looping it moves the cursor over the new contents, exactly as a
@@ -38,37 +44,31 @@ import java.util.List;
 public final class MandelaIterator {
 
     private final Object source;
-    private final boolean pairs;
     private int index;
     private Object key;
     private Object value;
-    private boolean started;
 
-    private MandelaIterator(Object source, boolean pairs) {
+    private MandelaIterator(Object source) {
         this.source = source;
-        this.pairs = pairs;
     }
 
     /**
      * Creates a cursor over any iterable value.
      *
-     * @param value the list, map, range, string, enum or null to walk
+     * @param value the list, map, range, string, enum, object or null to walk
      * @return the cursor
      * @throws MandelaError when the value is not something Mandela can iterate
      */
     public static MandelaIterator of(Object value) {
         if (value instanceof MandelaList || value instanceof MandelaRange
                 || value instanceof String || value instanceof MandelaInstance
-                || value instanceof MandelaClass) {
-            return new MandelaIterator(value, false);
-        }
-        if (value instanceof MandelaMap) {
-            return new MandelaIterator(value, true);
+                || value instanceof MandelaClass || value instanceof MandelaMap) {
+            return new MandelaIterator(value);
         }
         if (value == null) {
             // Iterating null is the empty sequence, which is what keeps a
             // `for (x in maybeMissing)` from needing a guard.
-            return new MandelaIterator(new MandelaList(), false);
+            return new MandelaIterator(new MandelaList());
         }
         throw MandelaError.type(Values.typeName(value)
                 + " cannot be iterated; use a List, Map, Range, Str or an enum");
@@ -87,7 +87,6 @@ public final class MandelaIterator {
             key = (long) index;
             value = list.get(index);
             index++;
-            started = true;
             return true;
         }
         if (source instanceof MandelaMap map) {
@@ -98,7 +97,6 @@ public final class MandelaIterator {
             key = keys.get(index);
             value = map.get((String) key);
             index++;
-            started = true;
             return true;
         }
         if (source instanceof MandelaRange range) {
@@ -110,7 +108,6 @@ public final class MandelaIterator {
             key = (long) index;
             value = range.from() + range.step() * index;
             index++;
-            started = true;
             return true;
         }
         if (source instanceof String text) {
@@ -120,7 +117,6 @@ public final class MandelaIterator {
             key = (long) index;
             value = String.valueOf(text.charAt(index));
             index++;
-            started = true;
             return true;
         }
         if (source instanceof MandelaClass klass) {
@@ -131,24 +127,23 @@ public final class MandelaIterator {
             key = names.get(index);
             value = klass.constants().get((String) key);
             index++;
-            started = true;
             return true;
         }
-        if (source instanceof MandelaInstance instance) {
-            List<String> names = instance.fieldNames();
-            if (index >= names.size()) {
-                return done();
-            }
-            key = names.get(index);
-            value = instance.get((String) key);
-            index++;
-            started = true;
-            return true;
+        // The six shapes above are the whole of what of() accepts, so the last one
+        // is not a test but the exhausted list: a cast, and no unreachable exit
+        // underneath it.
+        MandelaInstance instance = (MandelaInstance) source;
+        List<String> names = instance.fieldNames();
+        if (index >= names.size()) {
+            return done();
         }
-        return done();
+        key = names.get(index);
+        value = instance.get((String) key);
+        index++;
+        return true;
     }
 
-    /** @return the current element, or its key for a map */
+    /** @return the current element; for a map, an object or an enum this is its value */
     public Object value() {
         return value;
     }
@@ -158,31 +153,11 @@ public final class MandelaIterator {
         return key;
     }
 
-    /** @return true when this cursor was built over a map or a pair source */
-    public boolean yieldsPairs() {
-        return pairs;
-    }
-
-    /** @return the container being walked, for {@code size()} and diagnostics */
-    public Object source() {
-        return source;
-    }
-
-    /** @return the number of elements already produced */
-    public int index() {
-        return index;
-    }
-
     /** Ends the walk, clearing the current element so it cannot be read again. */
     private boolean done() {
         key = null;
         value = null;
         return false;
-    }
-
-    /** @return true once the cursor has produced at least one element */
-    public boolean started() {
-        return started;
     }
 
     @Override

@@ -126,8 +126,10 @@ class LanguageTest {
                 + "for i in 0..8 step 2 { out = out + str(i) }\nout"));
         // A stride walks downward too, which is the only way to count down: an
         // inclusive range whose bounds run backward is empty, by the same rule that
-        // made 'for i in 10..1' run zero times before strides existed.
-        assertEquals("8642", Scripts.display("var out = \"\"\n"
+        // made 'for i in 10..1' run zero times before strides existed. A *downward
+        // stride* reaches its end, though -- 8, 6, 4, 2, 0 -- because the inclusive
+        // bound is a value the walk owes whoever pointed at it.
+        assertEquals("86420", Scripts.display("var out = \"\"\n"
                 + "for i in 8..0 step -2 { out = out + str(i) }\nout"));
         assertEquals("", Scripts.display("var out = \"\"\n"
                 + "for i in 10..1 { out = out + str(i) }\nout"));
@@ -149,10 +151,11 @@ class LanguageTest {
     void ranges() {
         assertEquals("0..8 step 2", Scripts.display("0..8 step 2"));
         assertEquals("[0, 2, 4, 6, 8]", Scripts.display("(0..8 step 2).toList()"));
-        // A downward stride stops below its bound the way an upward one stops above
-        // it: 8, 6, 4, 2 -- 0 is never produced because the count is ceil(7 / 2).
-        assertEquals("[8, 6, 4, 2]", Scripts.display("(8..0 step -2).toList()"));
-        assertEquals("[2, 4, 6, 8]", Scripts.display("(8..0 step -2).reversed()"));
+        // A downward stride reaches the inclusive bound the way an upward one does:
+        // 8, 6, 4, 2, 0 -- the count is measured along the stride, so 0 is produced
+        // even though it sits below where a bound-ordered span would have stopped.
+        assertEquals("[8, 6, 4, 2, 0]", Scripts.display("(8..0 step -2).toList()"));
+        assertEquals("[0, 2, 4, 6, 8]", Scripts.display("(8..0 step -2).reversed()"));
         // The count is ceil((to - from + 1) / stride), so an inclusive range that
         // does not land exactly on its bound still yields the last step below it.
         assertEquals("6", Scripts.display("(0..10 step 2).length"));

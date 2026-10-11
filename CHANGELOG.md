@@ -7,6 +7,214 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
+## [Unreleased]
+
+### Fixed
+- **An `Int` operation that overflows promotes to `Double` instead of answering with
+  its left operand** (`lg3d-mandela`, `values/Operators`) — the promotion branch had
+  been written as an expression that cancelled the right-hand side away, so
+  `1 + 9223372036854775807` answered `1.0`; `2 ** 63` let a raw `ArithmeticException`
+  escape the language's error model and print a Java stack trace. The documented rule
+  is now in the guide and pinned by `ArithmeticOverflowTest`.
+- **A closure can capture a variable owned by a grandparent function**
+  (`lg3d-mandela`, `code/Compiler`) — the intermediate leg of the capture chain was
+  never emitted, so a closure built two functions below the one that owns the name
+  read a slot its own frame does not have and the machine died with
+  `ArrayIndexOutOfBoundsException`. Pinned by `ClosureCaptureTest`.
+- **The guide described a range as exclusive of its end** (`docs/mandela-language.md`)
+  — the machine has always answered `5` for `(1..5).length`, as `MandelaRange` and
+  `OperatorRulesTest` agree, while the prose said `a..b` stops before `b`. A reader
+  following the sentence would have written `1..n` for a loop that must not overshoot;
+  the guide now states the inclusive rule and names `a..<b>` as the exclusive form.
+- **A host function's Java answer is converted at the machine, like a bound name is**
+  (`lg3d-mandela`, `vm/VM`) — `HostFunction.of("count", 1, args -> text.length())` is
+  the shape the embedding guide tells a host to write, and `length()` answers a Java
+  `int`. The call pushed it unchanged, so the script held a value the language has no
+  name for: `typeOf(...)` answered `Host`, `count("abc") == 3` was false
+  (`Integer.equals(Long)`), `1 + count("abc")` was a `TypeError`, and a member read off
+  the number fell through to a raw `java.lang.Integer` path that no script could tell
+  was there. The documented conversion table is now applied by `VM.callHost` itself,
+  which also means an object with no Mandela form is refused with its class named
+  instead of handed to the script. Pinned by `HostBoundaryTest`; the two
+  `instanceof Integer` accommodations in `StandardLibrary` are gone with it, one of
+  which (`whole(...)`) answered `0` for any `Integer` it was given.
+- **A bare `## [Unreleased]` header no longer turns `release-check` red**
+  (`scripts/mandela/release-check.mnd`) — the gate read the version out of the
+  CHANGELOG's *first* `## [` header, so the legitimate state between a release cut
+  and the next bump chore — a feature branch opening an unnamed `[Unreleased]`
+  section above the newest release — was reported as a self-contradictory
+  repository (`CHANGELOG.md says Unreleased, build.gradle says 1.68.0`). It now
+  walks the headers and returns the first one that actually carries a version, so
+  `:lg3d-mandela:repositoryChecks` is green in all three states a branch moves
+  through: released, development (`## [Unreleased] — 1.69.0-dev`) and in-between.
+- **`std.json` refuses the numbers RFC 8259 refuses** (`lg3d-mandela`, `rt/Json`) —
+  the reader's own javadoc says it "stays strict on purpose, because a document that
+  two parsers disagree about is a bug nobody can find later", but it read `01` as the
+  `Int` `1`. A hand-written settings file, or an octal-looking literal from a lenient
+  producer, therefore parsed here and failed (or parsed as a different value) at the
+  other end of the wire; `json.isValid` answered `true` for it, which is the worse
+  half, since a script that validates before parsing was told the document was JSON.
+  A second digit after a `0` is now a `JsonError` naming the line and column.
+- **A Java value handed to the writer crosses the table the machine uses**
+  (`lg3d-mandela`, `rt/Json`) — `Json.encode` and `Json.stringify` are public Java
+  entry points, and the writer special-cased exactly one host type, `Integer`. So
+  `Json.encode("abc".length())` answered `3` while `Json.encode(1.5f)`,
+  `Json.encode(List.of(1, 2))` and `Json.stringify(Map.of("k", "v"))` all raised
+  *json cannot encode a Host* — an arbitrary line for a host, and the same leak
+  `VM.callHost` was just fixed for. The writer now runs its input through the
+  documented widening at every node, which is what lets the `Integer` special case go
+  away.
+- **A wide `Double` is written with a signed exponent** (`lg3d-mandela`, `rt/Json`) —
+  the language's own number rendering keeps an exponent for a value too wide for
+  plain digits, and Java spells that form as `1.0E16` while the JSON grammar requires
+  a sign on the exponent. `json.encode(1e16)` therefore produced a document this
+  reader accepts and a stricter one rejects; it now writes `1.0E+16`. All three are
+  pinned by the new `JsonTest` (113 cases), which takes `rt/Json` from no suite at all
+  to every line and branch of it covered.
+- **`abs` of the most negative `Int` promotes instead of wrapping** (`lg3d-mandela`,
+  `rt/StandardLibrary`) — `Math.abs(Long.MIN_VALUE)` is `Long.MIN_VALUE`, so
+  `abs(0 - 9223372036854775807 - 1)` answered the same negative number it was
+  handed, the exact roll-over the guide promises an `Int` never suffers. It now
+  answers `Double`, the way the unary minus already did at that edge.
+- **`padStart`/`padEnd` honour the text ceiling `repeat` already enforced**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — the ceiling was applied to the
+  builder's *capacity*, not to the loop, so `"x".padStart(20000000, "0")` built
+  the 20-million-character string instead of refusing it; a width read off a bad
+  value was a heap eat, not a `LimitError`.
+- **`int(...)` refuses a double with no `Int` instead of saturating**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — `longValue()` answers `MAX_VALUE` for
+  any double past the range, so `int(math.pow(2, 63))` quietly returned a number
+  that was not the one asked for. Outside `-2**63 … 2**63-1` is now a
+  `LimitError`, the same shape the size ceilings answer.
+- **A `Range` offers only the copying sorting spellings** (`lg3d-mandela`,
+  `rt/StandardLibrary`) — the delegating table registered the mutating `sortBy`
+  name but the copying `sortedBy` body, so `range.sortedBy(…)` was an unknown
+  member while `range.sortBy(…)` "worked" by reordering a throwaway materialised
+  copy and answering it — a sort that could never change the range. The
+  delegation now spells `sortedBy`, `sortBy` is not a `Range` member (a `TypeError`
+  like any unknown member), and the guide's table matches.
+- **A call missing its second argument is told it needs two**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — the two argument helpers spelled the
+  same sentence separately, and the numbered branch read "needs its 2th
+  argument". The shared spelling says how many arguments the call needs.
+- **A downward `Range` lost its last value** (`lg3d-mandela`, `values/MandelaRange`) —
+  the count added the inclusive end's unit in the *bounds'* direction instead of the
+  *stride's*, so every range that counts down was one value short: `8..0 step -1`
+  walked 8 to 2, answered `7` for `.length` and `2` for `.last`, and printed eight
+  numbers in a `for` loop while `0 in (8..0 step -1)` said `true` underneath it.
+  `(5..1 step -1).sum()` answered `12` where the closed form the library uses says
+  `15`. The count is now measured along the stride, so `.length`, `.last`,
+  `toList()`, `for` and `in` are one answer in both directions — and the bounds are
+  still never overflowed: a span a `long` cannot name answers `MAX_VALUE` as "more
+  than a count" rather than a negative number. Pinned by `IterationTest`; the two
+  `LanguageTest` expectations that had encoded the old rule, with a comment
+  rationalising it as `ceil(7 / 2)`, are corrected with it.
+- **`==` compared only the top level of a container** (`lg3d-mandela`,
+  `values/MandelaList`, `MandelaMap`, `MandelaInstance`) — each element was asked
+  through Java's `Object.equals`, so `[1] == [1.0]` was false while `1 == 1.0` is
+  true, `json.parse("[1.0]") == [1]` was false for a document read off the wire,
+  `1.0 in [1]` and `[1] in [[1.0]]` were false, `distinct()` kept what the language
+  calls one value twice, and `P(1) == P(1.0)` disagreed with the record's own
+  structural promise. There is now one equality, `Values.equal`, and every
+  container delegates to it per element.
+- **A container's hash disagreed with its equality** (`lg3d-mandela`, `values`), the
+  other half of the same bug: `1` and `1.0` are equal but hashed apart, so a script
+  that used a `List` as a set or a map key got a different bucket for the same
+  value. `Values.hash` is the canonical hash for every value — a number hashes as a
+  `double` whichever side it arrived on, a map ignores its insertion order, a `type`
+  instance hashes its fields — and the three containers delegate to it.
+- **Two `Double`s that are the same number were unequal** (`lg3d-mandela`,
+  `values/Values`) — `-0.0 == 0.0` answered `false` while `-0.0 < 0.0` answered
+  `true`, an equality and an ordering that cannot both be right, and a `NaN` was
+  never told about at all. Numbers compare by value, so `-0.0` and `0.0` are one
+  number, with the one documented exception that `NaN` equals itself: that is what
+  lets `distinct()` answer `[1, 2, NaN]` for `[1, 2, NaN, NaN]` instead of keeping a
+  value the script cannot tell apart.
+- **A big `Int` comparison collapsed two distinct numbers** (`lg3d-mandela`,
+  `values/Values`) — ordering converted both sides to `double`, so
+  `9223372036854775807 > 9223372036854775806` answered `false` and `sorted()` could
+  reorder a list `==` calls equal. Two `Int`s are compared with `Long.compare`, and
+  only a real `Double` in the pair takes the floating path.
+- **A `Double` was printed with placeholder zeros** (`lg3d-mandela`,
+  `values/Values`) — `1e-6` displayed as `0.0000010`, breaking the promise
+  `formatDouble`'s own javadoc makes (the shortest decimal that round-trips) and
+  putting text on the console that a reader cannot paste back as the value it came
+  from. The placeholder digits are stripped; a whole `Double` still keeps its `.0`.
+- **`x as Any` returned the text of the value** (`lg3d-mandela`, `values/Values`) —
+  the `Any` branch of the conversion table shared the `Str` path, so `42 as Any`
+  handed back `"42"`: a conversion that silently changed the type the rest of the
+  program tests with `is`. `Any` asks for no shape, so it is now the identity.
+
+### Changed
+- **The language guide now says what the machine does** (`docs/mandela-language.md`) —
+  three sentences were wrong, and each is the kind an author repeats without
+  checking. *Truthiness*: the guide said only `false` and `null` are false, while the
+  engine also calls `0`, `0.0` and `""` false and an empty `[]`, `{}` and `1..0` true.
+  *Iteration*: the guide listed the pair spellings but never said that a single name
+  binds the **value** — so a map loop hands out values, not keys — nor which six
+  shapes may be walked, that `null` is the empty sequence, or that the loop reads the
+  live container. *Operators*: the guide now states the `==` rules the engine applies
+  (numbers across kinds, contents all the way down for a `List`, a `Map` and a `type`,
+  identity for a `class` and an `enum` constant), the `as Any` identity conversion,
+  and that a downward inclusive range reaches its end.
+- **The `values` package is at every line covered** (`lg3d-mandela`) — `ValuesTest`,
+  `IterationTest` (the `for` cursor and range counting) and `ValueTypesTest` (the
+  Java surface a host and the machine share: what a `Callable` reports about itself,
+  a class about its constructor, a wrapped host exception, and where a container
+  says no) join the suite: **1142** headless cases, `89.3%` line coverage for the
+  module, and `org.jdesktop.lg3d.mandela.values` at 809 of 809 lines.
+- **The `lg3d-mandela` coverage floor is raised to `0.890` line / `0.780` branch**
+  (`build.gradle`) — the ratchet was set at the measured `78.58% / 64.38%` when the
+  Cucumber layer landed, and the campaign has since taken `values`, `rt/Json` and
+  `rt/StandardLibrary` to every line covered. The floor follows the measurement
+  (now `89.30% / 78.95%`), so a regression of the equality, hash or range-counting
+  work above — or of any line this tranche covered — fails `check` instead of
+  quietly reopening the gap.
+- **The root `AGENTS.md` no longer claims that no coverage gate is enforced** — the
+  *Test coverage* status said JaCoCo was report-only with nothing enforced; the
+  root `build.gradle` has since grown a `coverageFloors` map (eight modules) whose
+  `jacocoTestCoverageVerification` task `check` depends on, so a regression below a
+  module's floor does fail the build. The section now separates what is enforced
+  (the per-module floor, raised as coverage improves) from what is not (the 100 % /
+  0-mutant target itself: PIT runs only for `lg3d-mandela`, on demand and
+  report-only; Checkstyle runs with `ignoreFailures`; a module without tests has no
+  floor). The `lg3d-mandela` test count in *Testing* is corrected with it.
+- **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
+  constants** — the load and store switches are now checked for totality by the
+  compiler instead of ending in a guard no script could reach, and a field store
+  lowers itself in `storeSlot` rather than needing a special case in `assign`.
+- **`Operators.div` dropped the two conditions it could never need** — `requireNumbers`
+  has already proved both operands are numbers, and `Values.isInt` *is* `instanceof
+  Long`, so the `isNum(right) ? asLong(right) : 0L` fallback and the second
+  `instanceof Long` test were branches no script could reach and no mutation could
+  kill. The integer path now reads dividend / divisor / exact-or-double.
+- **The language guide's `LimitError` entry covers the library's ceilings too**
+  (`docs/mandela-language.md`) — it named only the step and depth budgets while
+  the standard library had already been raising the kind for `repeat` and
+  `toList` sizes; it now says a ceiling, wherever the library enforces one.
+  `StandardLibraryTest` (270 cases) pins every bullet above and takes
+  `rt/StandardLibrary` to every line of it covered.
+
+### Removed
+- **The value surface no receiver can reach** (`lg3d-mandela`, `values`) — a
+  `MandelaIterator` was never asked whether it yields pairs or had started, and its
+  `index()` / `source()` accessors have no caller in the machine or in a script; the
+  cursor is now one field and one constructor argument. `MandelaClass.methods()`,
+  `declaresField()` and `visibleMethodNames()`, `Ref.empty()` and the
+  `MandelaInstance(owner, initial)` constructor are referenced nowhere in the
+  repository — a host builds an instance and assigns its fields, which is what the
+  one-argument constructor already does — and `MandelaRange.span()` went with the
+  count rewrite above.
+- **`Ast.BlockValue`, an expression node no syntax could produce** (`lg3d-mandela`) —
+  no parser rule ever built it, so the compiler's lowering case, the tree walker's
+  case and the node itself are gone; an expression-bodied function answers through
+  `Ast.Stmt.ExprValue`, as it already did.
+- **`StandardLibrary.needList`, a guard no script could reach** (`lg3d-mandela`) —
+  a member lookup binds the list vocabulary only to a receiver already matched
+  against `MandelaList`, and the `Range` spellings hand over a materialised copy,
+  so the refusal branch was dead code and a mutant no test could kill; the call
+  sites now cast, naming the invariant in the javadoc instead of checking it.
+
 ## [1.68.0] — 2026-10-11 — Gradle / JDK 21 modernization
 
 ### Fixed

@@ -28,10 +28,18 @@ jar {
 }
 
 // No `dependencies { implementation ... }` block at all: the language uses only
-// the JDK (java.base + javax.script). JUnit is test-only.
+// the JDK (java.base + javax.script). JUnit is test-only, and so is Cucumber: the
+// BDD layer runs .feature scenarios against the real api/rt/cli surfaces inside
+// the `test` task, adding scenario coverage without putting anything on the
+// published jar's classpath (the zero-dependency promise is a runtime property,
+// not a test one).
 dependencies {
     testImplementation platform(libs.junit.bom)
+    testImplementation platform(libs.cucumber.bom)
     testImplementation libs.junit.jupiter
+    testImplementation libs.junit.platform.suite
+    testImplementation libs.cucumber.java
+    testImplementation libs.cucumber.junit.platform.engine
     testRuntimeOnly libs.junit.platform.launcher
 }
 

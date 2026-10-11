@@ -13,7 +13,6 @@
  */
 package org.jdesktop.lg3d.mandela.values;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,11 +96,6 @@ public final class MandelaClass implements Callable {
         return fieldNames;
     }
 
-    /** @return the declared methods (never the inherited ones) */
-    public Map<String, Callable> methods() {
-        return methods;
-    }
-
     /** @return the enum constants by name, empty for a class or type */
     public Map<String, MandelaInstance> constants() {
         return constants;
@@ -135,14 +129,6 @@ public final class MandelaClass implements Callable {
         return null;
     }
 
-    /**
-     * @param candidate the name to test
-     * @return true when this class or a base declares a field of that name
-     */
-    public boolean declaresField(String candidate) {
-        return fieldNames.contains(candidate);
-    }
-
     /** @return the number of constructor parameters, including defaulted ones */
     public int declaredArity() {
         return fieldNames.size();
@@ -168,21 +154,6 @@ public final class MandelaClass implements Callable {
             at = at.parent;
         }
         return false;
-    }
-
-    /** @return every method name, inherited ones included, without duplicates */
-    public List<String> visibleMethodNames() {
-        List<String> out = new ArrayList<>();
-        MandelaClass at = this;
-        while (at != null) {
-            for (String key : at.methods.keySet()) {
-                if (!out.contains(key)) {
-                    out.add(key);
-                }
-            }
-            at = at.parent;
-        }
-        return out;
     }
 
     @Override

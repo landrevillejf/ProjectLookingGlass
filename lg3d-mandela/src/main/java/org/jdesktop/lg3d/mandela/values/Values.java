@@ -498,9 +498,15 @@ public final class Values {
         }
         String text = BigDecimal.valueOf(value).toPlainString();
         if (text.indexOf('.') < 0) {
-            text = text + ".0";
+            return text + ".0";
         }
-        return text;
+        // toPlainString spells a small value with every placeholder digit, and a
+        // 1.0E-6 arrives as 0.0000010; the last zero is noise, not precision.
+        while (text.endsWith("0")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        // 100.0 must keep its one decimal, or the text would be an Int again.
+        return text.endsWith(".") ? text + "0" : text;
     }
 
     // -- equality and order ------------------------------------------------
@@ -508,33 +514,115 @@ public final class Values {
     /**
      * Mandela equality: value equality for scalars, ranges, lists, maps and
      * {@code type} instances; identity for objects, classes and functions.
+     *
+     * <p>Containers are walked by their own {@code equals}, which calls back here
+     * for every element &mdash; the rule "an {@code Int} equals the {@code Double}
+     * of the same number" has to hold at the bottom of a nested structure too, or
+     * {@code json.parse("[1.0]") == [1]} would answer by how the producer happened
+     * to spell the number rather than by what it is.</p>
      */
     public static boolean equal(Object left, Object right) {
+        if (left == right) {
+            // The same value is equal to itself, and this is also what lets a
+            // structure that holds itself finish the walk instead of recursing.
+            return true;
+        }
         if (left == null || right == null) {
-            return left == right;
+            return false;
         }
-        if (left instanceof Long && right instanceof Double) {
-            return ((Long) left).doubleValue() == (Double) right;
-        }
-        if (left instanceof Double && right instanceof Long) {
-            return (Double) left == ((Long) right).doubleValue();
-        }
-        if (left instanceof MandelaInstance && right instanceof MandelaInstance) {
+        if (left instanceof Long && right instanceof Long) {
+            // Two Ints are exact: neither is rounded, so a number the double
+            // notation would collapse stays two different values.
             return left.equals(right);
         }
+        if (isNum(left) && isNum(right)) {
+            double l = asDouble(left);
+            double r = asDouble(right);
+            if (Double.isNaN(l) || Double.isNaN(r)) {
+                // A NaN is a host's or a library's answer, never a literal; it
+                // equals a NaN and nothing else, so a host can test for one.
+                return Double.isNaN(l) && Double.isNaN(r);
+            }
+            // 0.0 and -0.0 print alike and are the same number, which is what
+            // Double.equals refuses to admit.
+            return l == r;
+        }
         return left.equals(right);
+    }
+
+    /**
+     * A hash consistent with {@link #equal}: two values the language calls equal
+     * hash alike, so a host can put script values in a {@code HashSet} or use them
+     * as map keys and get the answer the language would have given.
+     *
+     * <p>Numbers hash through their {@code double} form so that {@code 1} and
+     * {@code 1.0} agree; a map hashes without regard to insertion order because
+     * two maps written in a different order are equal. The boxed scalars keep the
+     * hash the JDK gives them &mdash; {@code Long.hashCode} cannot be redefined,
+     * which is why a host that mixes raw values into a Java collection should
+     * route it through this method rather than through {@code Object.hashCode}.</p>
+     *
+     * @param value the value to hash; may be null
+     * @return the hash code
+     */
+    public static int hash(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Long whole) {
+            return Double.hashCode(whole.doubleValue());
+        }
+        if (value instanceof Double part) {
+            return Double.hashCode(part);
+        }
+        if (value instanceof MandelaList list) {
+            int out = 1;
+            for (Object item : list.items()) {
+                out = 31 * out + hash(item);
+            }
+            return out;
+        }
+        if (value instanceof MandelaMap map) {
+            int out = 0;
+            for (String key : map.keys()) {
+                out += key.hashCode() + 31 * hash(map.get(key));
+            }
+            return out;
+        }
+        if (value instanceof MandelaInstance instance) {
+            if (instance.owner().kind() != MandelaClass.Kind.TYPE) {
+                // A class instance is identical to itself and equal to nothing
+                // else, so its hash is its identity.
+                return System.identityHashCode(instance);
+            }
+            return System.identityHashCode(instance.owner()) * 31
+                    + hash(instance.fields());
+        }
+        return value.hashCode();
     }
 
     /**
      * Ordering for {@code < <= > >=}, defined between numbers, between strings,
      * and not at all between anything else.
      *
+     * <p>Two values this reports as unordered never answer {@code ==} either: the
+     * number walk compares as numbers and leaves a negative zero where {@code
+     * Double.compare} would rank it below zero.</p>
+     *
      * @return a negative, zero or positive int
      * @throws MandelaError when the two values cannot be ordered
      */
     public static int compare(Object left, Object right) {
+        if (left instanceof Long l && right instanceof Long r) {
+            return Long.compare(l, r);
+        }
         if (isNum(left) && isNum(right)) {
-            return Double.compare(asDouble(left), asDouble(right));
+            double l = asDouble(left);
+            double r = asDouble(right);
+            if (Double.isNaN(l) || Double.isNaN(r)) {
+                return Double.compare(l, r);
+            }
+            return (l < r) ? -1 : ((l > r) ? 1 : 0);
         }
         if (left instanceof String && right instanceof String) {
             return ((String) left).compareTo((String) right);
@@ -633,6 +721,9 @@ public final class Values {
     public static Object convert(Object value, String name) {
         switch (name) {
             case "Any":
+                // The top type is a check, not a print: a cast to `Any` says "I do
+                // not know what this is yet", and the answer must stay the value.
+                return value;
             case "Str":
             case "String":
                 return display(value);

@@ -14,17 +14,22 @@
 package org.jdesktop.lg3d.mandela;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.jdesktop.lg3d.mandela.api.Mandela;
 import org.jdesktop.lg3d.mandela.rt.Capabilities;
 import org.jdesktop.lg3d.mandela.rt.Runtime;
+import org.jdesktop.lg3d.mandela.rt.StandardLibrary;
 import org.jdesktop.lg3d.mandela.values.MandelaError;
 import org.jdesktop.lg3d.mandela.values.Values;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +79,9 @@ class StandardLibraryTest {
                 Arguments.of("\"hello\".charAt(1)", "e"),
                 Arguments.of("\"hello\".substring(1, 3)", "el"),
                 Arguments.of("\"hello\".substring(2)", "llo"),
+                // An inverted window is empty rather than an error, the way a
+                // slice of a list is; the bounds are clamped, never swapped.
+                Arguments.of("\"hello\".substring(3, 1)", ""),
                 Arguments.of("\"42\".toInt() + 1", "43"),
                 Arguments.of("\"2.5\".toDouble() * 2", "5.0"),
                 Arguments.of("\"ab\".repeat(3)", "ababab"),
@@ -83,7 +91,25 @@ class StandardLibraryTest {
                 Arguments.of("\"x\".repeat(0)", ""),
                 // Splitting empty text is one empty field, not none: a CSV line of
                 // zero columns is not something the language can answer with a list.
-                Arguments.of("\"\".split(\",\").length", "1"));
+                Arguments.of("\"\".split(\",\").length", "1"),
+                // A separator that is not found leaves the text alone, and "" means
+                // the characters, which is what a caller who wrote it is after.
+                Arguments.of("\"abc\".replaceFirst(\"z\", \"-\")", "abc"),
+                Arguments.of("\"abc\".split(\"\").join(\"-\")", "a-b-c"),
+                // A bare split runs on whitespace: a run of it is one separator, and
+                // the text does not start or end with an empty field.
+                Arguments.of("\"a  b \".split().join(\",\")", "a,b"),
+                Arguments.of("\"  a\".split().join(\",\")", "a"),
+                // An omitted argument that has no default reaches the call as the
+                // absent marker, and a bare split is what that has to mean here.
+                Arguments.of("fun f(a = \"x\", b) -> Str { \"p q\".split(b).join(\"-\") }\n"
+                        + "f()", "p-q"),
+                // The fill defaults to a space, an empty fill pads nothing, and a
+                // text already at the width is handed back untouched.
+                Arguments.of("\"7\".padStart(4)", "   7"),
+                Arguments.of("\"abc\".padStart(2, \"x\")", "abc"),
+                Arguments.of("\"\".padStart(3, \"\")", ""),
+                Arguments.of("\"abc\".padEnd(6, \"xy\")", "abcxyx"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -138,7 +164,38 @@ class StandardLibraryTest {
                 Arguments.of("[\"a\", \"b\"].join(\"\")", "ab"),
                 Arguments.of("let l = [1, 2]; l.set(0, 9).join(\",\")", "9,2"),
                 Arguments.of("let l = [2]; l.insert(0, 1).join(\",\")", "1,2"),
-                Arguments.of("let l = [1]; l.clear(); l.length", "0"));
+                Arguments.of("let l = [1]; l.clear(); l.length", "0"),
+                Arguments.of("[1, 2, 3].size", "3"),
+                // add is push with one value; an omitted value is the null the
+                // call site did not write, not a refusal.
+                Arguments.of("let l = [1]; l.add(2).join(\",\")", "1,2"),
+                Arguments.of("let l = [1]; l.add(); l.length", "2"),
+                Arguments.of("let l = []; l.pop()", "null"),
+                Arguments.of("[1, 2].get(-1, 9)", "9"),
+                Arguments.of("[1, 2].indexOf(9)", "-1"),
+                Arguments.of("[1, 2].join()", "12"),
+                // s is written from inside the callback, so it is a var: a let
+                // would refuse the assignment before the list is even walked.
+                Arguments.of("var s = 0; [1, 2, 3].forEach({ x -> s = s + x }); s", "6"),
+                Arguments.of("[1, 2].find({ x -> x > 5 })", "null"),
+                Arguments.of("let l = [\"bb\", \"a\"];"
+                        + " l.sortedBy({ s -> s.length }).join(\",\")", "a,bb"),
+                Arguments.of("[1, [2], 3].flatten().join(\",\")", "1,2,3"),
+                // A fold with no seed and nothing to fold answers null; a range of a
+                // count that cannot be taken is the count that can.
+                Arguments.of("[].reduce({ a, b -> a + b })", "null"),
+                Arguments.of("[1, 2].take(9).join(\",\")", "1,2"),
+                Arguments.of("[1, 2, 3].slice(-10, 2).join(\",\")", "1,2"),
+                // A comparator is the script's own order, negative and positive
+                // both read, so a descending sort is one line.
+                Arguments.of("[1, 2, 3].sort({ a, b -> b - a }).join(\",\")", "3,2,1"),
+                // The callback may take fewer names than the builtin can pass, and
+                // may be variadic, in which case every argument is theirs to read.
+                Arguments.of("fun pick(a, b = 9) -> Int { a * 10 + b }\n"
+                        + "[1, 2].map(pick).join(\",\")", "10,21"),
+                Arguments.of("[1, 2].map(\"a\".upper).join(\",\")", "A,A"),
+                Arguments.of("[5, 5, 1].min()", "1"),
+                Arguments.of("[1, 5, 5].max()", "5"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -172,7 +229,11 @@ class StandardLibraryTest {
                 Arguments.of("let m = {\"a\": 1}; m.copy().put(\"b\", 2).length", "2"),
                 Arguments.of("let m = {\"a\": 1}; var s = 0;"
                         + " m.forEach({ k, v -> s = s + v }); s", "1"),
-                Arguments.of("let m = {\"a\": 1}; m.isEmpty()", "false"));
+                Arguments.of("let m = {\"a\": 1}; m.isEmpty()", "false"),
+                Arguments.of("let m = {\"a\": 1}; m.size", "1"),
+                Arguments.of("let m = {\"a\": 1}; m.get(\"b\")", "null"),
+                Arguments.of("let m = {\"a\": 1}; m.set(\"b\", 2).length", "2"),
+                Arguments.of("let m = {\"a\": 1}; m.clear(); m.length", "0"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -199,7 +260,21 @@ class StandardLibraryTest {
                 Arguments.of("(0..0).isEmpty()", "false"),
                 // A single-value range is not empty, and a stride that cannot reach
                 // the bound stops below it rather than overshooting.
-                Arguments.of("(0..8 step 3).toList().join(\",\")", "0,3,6"));
+                Arguments.of("(0..8 step 3).toList().join(\",\")", "0,3,6"),
+                Arguments.of("(0..2 step 2).sum()", "2"),
+                // An empty range sums to zero, and the closed form is exact while
+                // the terms fit an Int and a Double once they do not.
+                Arguments.of("(0..<0).sum()", "0"),
+                Arguments.of("(0..1000).sum()", "500500"),
+                // 2**40 terms added from both edges do not fit a long, so the
+                // closed form answers a Double rather than a wrapped Int.
+                Arguments.of("typeOf((0..100000000000).sum())", "Double"),
+                // The sequence vocabulary is the list's own over a materialised
+                // copy, so a range reads wherever a list does.
+                Arguments.of("(0..3).join(\"-\")", "0-1-2-3"),
+                Arguments.of("(0..3).min()", "0"),
+                Arguments.of("(0..2).sortedBy({ x -> 0 - x }).join(\",\")", "2,1,0"),
+                Arguments.of("var s = 0; (0..2).forEach({ x -> s = s + x }); s", "3"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -222,7 +297,23 @@ class StandardLibraryTest {
                 Arguments.of("(5).isWhole()", "true"),
                 Arguments.of("(5).sign()", "1"),
                 Arguments.of("(0).sign()", "0"),
-                Arguments.of("(5).toDouble() + 0.5", "5.5"));
+                Arguments.of("(5).toDouble() + 0.5", "5.5"),
+                Arguments.of("(27).cbrt()", "3.0"),
+                Arguments.of("(0 - 8).cbrt()", "-2.0"),
+                Arguments.of("(-2.5).abs()", "2.5"),
+                // A double that is already whole converts; one that is not is a
+                // refusal rather than a rounding nobody asked for.
+                Arguments.of("int(3.0)", "3"),
+                // The most negative Int has no positive partner in the range, so
+                // abs promotes the way the unary minus does instead of wrapping.
+                Arguments.of("abs(0 - 9223372036854775807 - 1)", "9.223372036854776E18"),
+                Arguments.of("(0 - 9223372036854775807 - 1).abs()",
+                        "9.223372036854776E18"),
+                // -2**63 is the one edge of the Int range that is exactly a double,
+                // so it converts; there is no Int above 2**63 - 1 to lose, and the
+                // refusal for one is the refusals case below.
+                Arguments.of("use std.math\nint(0 - math.pow(2, 63))",
+                        "-9223372036854775808"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -248,6 +339,15 @@ class StandardLibraryTest {
                 Arguments.of("keys({\"a\": 1}).join(\",\")", "a"),
                 Arguments.of("valuesOf({\"a\": 1}).join(\",\")", "1"),
                 Arguments.of("assert(1 == 1); 1", "1"),
+                Arguments.of("abs(-2.5)", "2.5"),
+                // min and max keep the type they were handed, and answer the first
+                // of equals rather than reordering a value the script can read.
+                Arguments.of("min(1, 2, 3)", "1"),
+                Arguments.of("max(1, 2, 3)", "3"),
+                Arguments.of("max(\"a\", \"c\", \"b\")", "c"),
+                // A raised kind reaches a catch in the same script that raised it.
+                Arguments.of("var hit = \"\"; try { error(\"boom\", \"MyKind\") }"
+                        + " catch e { hit = e.kind }; hit", "MyKind"),
                 // The host's own binding is visible to a program with no setup.
                 Arguments.of("answer + 0", "42"));
     }
@@ -268,13 +368,56 @@ class StandardLibraryTest {
                 Arguments.of("use std.json\njson.isValid(\"[1,]\")", "false"),
                 Arguments.of("use std.json\njson.stringify(1.5)", "1.5"),
                 Arguments.of("use std.math\nmath.floor(2.9)", "2.0"),
+                Arguments.of("use std.math\nmath.ceil(2.1)", "3.0"),
+                // round is the Java contract, half toward positive, not half away
+                // from zero: -2.5 lands on -2, and a script can read why.
+                Arguments.of("use std.math\nmath.round(2.5)", "3"),
+                Arguments.of("use std.math\nmath.round(-2.5)", "-2"),
+                Arguments.of("use std.math\nmath.sqrt(9)", "3.0"),
+                Arguments.of("use std.math\nmath.cbrt(27)", "3.0"),
+                Arguments.of("use std.math\nmath.exp(0)", "1.0"),
+                Arguments.of("use std.math\nmath.log(1)", "0.0"),
+                Arguments.of("use std.math\nmath.log10(100)", "2.0"),
+                Arguments.of("use std.math\nmath.log2(2)", "1.0"),
+                Arguments.of("use std.math\nmath.sin(0)", "0.0"),
+                Arguments.of("use std.math\nmath.cos(0)", "1.0"),
+                Arguments.of("use std.math\nmath.tan(0)", "0.0"),
+                Arguments.of("use std.math\nmath.asin(0)", "0.0"),
+                Arguments.of("use std.math\nmath.acos(1)", "0.0"),
+                Arguments.of("use std.math\nmath.atan(0)", "0.0"),
+                Arguments.of("use std.math\nmath.atan2(0, 1)", "0.0"),
+                Arguments.of("use std.math\nmath.hypot(3, 4)", "5.0"),
+                // The module's min/max answer with the value, Int staying an Int.
+                Arguments.of("use std.math\nmath.min(3, 1)", "1"),
+                Arguments.of("use std.math\nmath.max(3, 1)", "3"),
+                Arguments.of("use std.math\nmath.sign(-2)", "-1"),
+                Arguments.of("use std.math\nmath.sign(0)", "0"),
+                Arguments.of("use std.math\nmath.abs(-2.5)", "2.5"),
                 Arguments.of("use std.math\nmath.pow(2, 10)", "1024.0"),
+                // random answers the half-open unit interval, which is the whole
+                // promise; the exact value is nobody's to pin.
+                Arguments.of("use std.math\nlet r = math.random(); (r >= 0) && (r < 1)",
+                        "true"),
                 Arguments.of("use std.math\nmath.randomInt(5, 5)", "5"),
                 Arguments.of("use std.math\nmath.abs(-3)", "3"),
                 Arguments.of("use std.math\nmath.PI > 3.14", "true"),
                 Arguments.of("use std.time\ntime.fields(0).length > 6", "true"),
+                // The raw clocks answer Ints - epoch millis and a monotonic tick.
+                Arguments.of("use std.time\ntypeOf(time.now())", "Int"),
+                Arguments.of("use std.time\ntypeOf(time.nanoTime())", "Int"),
                 Arguments.of("use std.time\ntime.parse(\"1970-01-01T00:00:00Z\")", "0"),
                 Arguments.of("use std.time\ntime.iso(0)", "1970-01-01T00:00:00Z"),
+                // Formatting the epoch with an explicit pattern is locale-proof by
+                // contract (ROOT), and the length is timezone-agnostic: only the
+                // day could shift, never the count of characters.
+                Arguments.of("use std.time\ntime.format(0, \"yyyy-MM-dd\").length", "10"),
+                // Bare, it reads the clock and the default pattern - nineteen
+                // characters for 'yyyy-MM-dd HH:mm:ss' whatever the instant.
+                Arguments.of("use std.time\ntime.format().length", "19"),
+                // Sleeping zero seconds answers when the run may park a thread
+                // (THREAD), which is the call itself going through.
+                Arguments.of("use std.time\ntime.sleep(0); 1", "1"),
+                Arguments.of("use std.time\ntime.zone().length > 0", "true"),
                 Arguments.of("use std.fs\nfs.read(\"note.txt\").startsWith(\"alpha\")", "true"),
                 Arguments.of("use std.fs\nfs.lines(\"note.txt\").length", "2"),
                 Arguments.of("use std.fs\nfs.write(\"out.txt\", \"x\"); fs.read(\"out.txt\")", "x"),
@@ -287,11 +430,19 @@ class StandardLibraryTest {
                         + " fs.delete(\"gone.txt\")", "true"),
                 Arguments.of("use std.fs\nfs.write(\"big.txt\", \"abc\");"
                         + " fs.size(\"big.txt\")", "3"),
+                Arguments.of("use std.fs\nfs.write(\"when.txt\", \"x\");"
+                        + " fs.modified(\"when.txt\") > 0", "true"),
                 Arguments.of("use std.fs\nfs.root().length > 0", "true"),
                 Arguments.of("use std.env\nenv.has(\"PATH\")", "true"),
                 Arguments.of("use std.env\nenv.get(\"NO_SUCH_VAR_YET\", \"d\")", "d"),
+                // A variable that is there reads, not just one that is missing.
+                Arguments.of("use std.env\nenv.get(\"PATH\").length > 0", "true"),
                 Arguments.of("use std.env\nenv.separator.length", "1"),
-                Arguments.of("use std.env\nenv.names().length > 0", "true"));
+                Arguments.of("use std.env\nenv.names().length > 0", "true"),
+                // The host's own identity, as Str whatever the machine answers.
+                Arguments.of("use std.env\ntypeOf(env.user())", "Str"),
+                Arguments.of("use std.env\ntypeOf(env.os())", "Str"),
+                Arguments.of("use std.env\nenv.pathRoots().length > 0", "true"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -315,7 +466,59 @@ class StandardLibraryTest {
                 Arguments.of("assert(1 == 2, \"nope\")", "AssertError"),
                 // A module that is not there is a file that cannot be read, which is
                 // the same answer the language gives for any other missing file.
-                Arguments.of("import \"nothing.mnd\"", "IOError"));
+                Arguments.of("import \"nothing.mnd\"", "IOError"),
+                // The padding ceiling is repeat's: a width read off a bad value is
+                // a refusal, not a loop that eats the heap on the way to nothing.
+                Arguments.of("\"x\".padStart(20000000, \"0\")", "LimitError"),
+                Arguments.of("\"x\".padEnd(20000000, \"0\")", "LimitError"),
+                // 2**63 has no long: the conversion says so instead of handing back
+                // the largest Int as if that were the answer.
+                Arguments.of("use std.math\nint(math.pow(2, 63))", "LimitError"),
+                // A Range has nothing to reorder in place, so the mutating spelling
+                // is not one of its members - and an unknown member is the same
+                // TypeError it is for a list, never a crash from inside the engine.
+                Arguments.of("(0..2).sortBy({ x -> x })", "TypeError"),
+                // The ceilings: a repeat and a padding that would eat the heap are
+                // refused by name rather than attempted.
+                Arguments.of("\"x\".repeat(16777217)", "LimitError"),
+                Arguments.of("\"ab\".repeat(-1)", "ValueError"),
+                // Materialising a range past its limit is refused before the walk,
+                // whichever spelling asked for the copy.
+                Arguments.of("(0..100000000000).toList()", "LimitError"),
+                Arguments.of("(0..100000000000).reversed()", "LimitError"),
+                Arguments.of("(0..100000000000).join(\"-\")", "LimitError"),
+                // Strict indices refuse where the clamped spellings answer; a
+                // defaulted get is the exception, a bare one is the rule.
+                Arguments.of("let l = [1]; l.removeAt(5)", "IndexError"),
+                Arguments.of("[1, 2].get(9)", "IndexError"),
+                Arguments.of("let l = [1]; l.set(5, 9)", "IndexError"),
+                // The shape refusals name the shape, so a wrong receiver reads as
+                // a type error rather than a mysterious member failure.
+                Arguments.of("keys([1])", "TypeError"),
+                Arguments.of("valuesOf(\"a\")", "TypeError"),
+                Arguments.of("let m = {\"a\": 1}; m.merge(1)", "TypeError"),
+                Arguments.of("abs(\"x\")", "TypeError"),
+                // Conversions refuse what they cannot answer: a fraction asked to
+                // be an Int, and text that is no number at all.
+                Arguments.of("int(2.7)", "ValueError"),
+                Arguments.of("\"abc\".toInt()", "TypeError"),
+                Arguments.of("double(\"abc\")", "TypeError"),
+                // An argument that has to be text and is not, is a type error.
+                Arguments.of("use std.json\njson.parse(1)", "TypeError"),
+                // The bounds of the random draw: reversed is a refusal, and the
+                // top of the Int range cannot be included in the draw anyway.
+                Arguments.of("use std.math\nmath.randomInt(5, 1)", "ValueError"),
+                Arguments.of("use std.math\nmath.randomInt(0, 9223372036854775807)",
+                        "LimitError"),
+                // The clock's own refusals: a string that is no instant, a pattern
+                // that is no pattern, and a sleep that cannot go backwards.
+                Arguments.of("use std.time\ntime.parse(\"yesterday\")", "ValueError"),
+                Arguments.of("use std.time\ntime.format(0, \"yyyy-'\")", "ValueError"),
+                Arguments.of("use std.time\ntime.sleep(-1)", "ValueError"),
+                // A fold of nothing has no answer to read; the bare call is the
+                // one that has to say so.
+                Arguments.of("min()", "ValueError"),
+                Arguments.of("max()", "ValueError"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -325,6 +528,55 @@ class StandardLibraryTest {
         MandelaError raised = Scripts.failure(source, engineWithFiles());
         assertEquals(kind, raised.kind(), source + " -> " + raised.kind() + ":"
                 + raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a call missing an argument is told how many it needs")
+    void missingArgumentMessage() {
+        // The kind alone would let "2th" through; the sentence is the contract a
+        // script author reads, so it is pinned as its own words.
+        MandelaError second = Scripts.failure("\"ab\".replace(\"a\")", engineWithFiles());
+        assertEquals("ValueError", second.kind());
+        assertEquals("replace needs 2 arguments", second.getMessage());
+        MandelaError first = Scripts.failure("\"hello\".substring()", engineWithFiles());
+        assertEquals("substring needs an argument", first.getMessage());
+    }
+
+    @Test
+    @DisplayName("the editor's member list for a Range is the copying spellings")
+    void rangeMemberNames() {
+        // The completion list is built straight off the library's own tables, so
+        // what the language guide lists and what a script may call are the same
+        // inventory; sortBy - which could only reorder a throwaway copy - is in
+        // neither.
+        List<String> names = new StandardLibrary().valueMemberNames("Range");
+        assertTrue(names.contains("sortedBy"), names.toString());
+        assertTrue(names.contains("sum"), names.toString());
+        assertFalse(names.contains("sortBy"), names.toString());
+    }
+
+    @Test
+    @DisplayName("an interrupted sleep is the Interrupted error the language promises")
+    void sleepInterrupted() throws Exception {
+        // A host that must stop a running script interrupts its thread; the
+        // sleeping library turns that into the error the language promises
+        // instead of letting the raw interrupt eat the run.
+        Runtime sleeper = engineWithFiles().build();
+        AtomicReference<MandelaError> raised = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            try {
+                sleeper.run("use std.time\ntime.sleep(30)", "lib.mnd");
+            } catch (MandelaError error) {
+                raised.set(error);
+            }
+        }, "sleeping-script");
+        thread.start();
+        Thread.sleep(200);
+        thread.interrupt();
+        thread.join(10_000);
+        assertFalse(thread.isAlive(), "the interrupted sleep never returned");
+        assertNotNull(raised.get(), "the interrupt raised nothing");
+        assertEquals("Interrupted", raised.get().kind());
     }
 
     // -- the console belongs to the host ------------------------------------
@@ -353,6 +605,25 @@ class StandardLibraryTest {
         MandelaError env = Scripts.failure(
                 () -> browser.run("use std.env\nenv.get(\"PATH\")", "lib.mnd"));
         assertEquals("PermissionError", env.kind());
+        // A page host cannot import a file, and the capability gate answers
+        // before the host's loader is ever asked - the same PermissionError the
+        // reads get.
+        MandelaError imported = Scripts.failure(
+                () -> browser.run("import \"module.mnd\"", "lib.mnd"));
+        assertEquals("PermissionError", imported.kind());
+    }
+
+    @Test
+    @DisplayName("a host that wires the library with no loader refuses import by name")
+    void importWithoutALoader() {
+        // The Runtime facade always installs its own loader; a host that embeds
+        // the library by hand and offers no import root still gets a script-
+        // visible refusal naming what is missing, not a bare null or a crash.
+        MandelaError refusal = Scripts.failure(
+                () -> new StandardLibrary().importModule(null, "module.mnd"));
+        assertEquals("ValueError", refusal.kind());
+        assertTrue(refusal.getMessage().contains("cannot be imported by this host"),
+                refusal.getMessage());
     }
 
     // -- plumbing ------------------------------------------------------------

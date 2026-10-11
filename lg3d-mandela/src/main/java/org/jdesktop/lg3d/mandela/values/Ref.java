@@ -44,11 +44,6 @@ public final class Ref {
         this.value = initialValue;
     }
 
-    /** Boxes {@code null} (Mandela's {@code null} literal). */
-    public static Ref empty() {
-        return new Ref(null);
-    }
-
     /** @return the value, cast to {@code Long} by the caller when it knows the type */
     public Object get() {
         return value;

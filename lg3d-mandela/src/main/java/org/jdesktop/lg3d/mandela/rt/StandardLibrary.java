@@ -184,7 +184,7 @@ public final class StandardLibrary implements Builtins {
             }
             return bound(rangeMethods.get(name), name, machine, range);
         }
-        if (receiver instanceof Long || receiver instanceof Double || receiver instanceof Integer) {
+        if (receiver instanceof Long || receiver instanceof Double) {
             // Numbers carry methods but no properties, and the receiver is boxed
             // here exactly as the machine holds it.
             return bound(numberMethods.get(name), name, machine, receiver);
@@ -318,7 +318,14 @@ public final class StandardLibrary implements Builtins {
     /** @return the largest absolute value, keeping Int as Int */
     private static Object abs(Object value) {
         if (value instanceof Long whole) {
-            return Math.abs(whole);
+            // The most negative Int has no positive partner inside the range, so
+            // the answer promotes exactly the way the unary minus does; the plain
+            // Math.abs would hand back the same negative number it was given.
+            try {
+                return Math.absExact(whole);
+            } catch (ArithmeticException overflow) {
+                return -(double) whole;
+            }
         }
         if (Values.isNum(value)) {
             return Math.abs(Values.asDouble(value));
@@ -497,7 +504,13 @@ public final class StandardLibrary implements Builtins {
         if (fill.isEmpty() || source.length() >= width) {
             return source;
         }
-        StringBuilder out = new StringBuilder((int) Math.min(width, MAX_TEXT));
+        // The same ceiling repeat() enforces. Without it a width read off a bad
+        // value is an unbounded loop that eats the heap rather than a refusal.
+        if (width > MAX_TEXT) {
+            throw MandelaError.limit("pad(...) would build " + width
+                    + " characters, over the " + MAX_TEXT + " character limit");
+        }
+        StringBuilder out = new StringBuilder((int) width);
         long missing = width - source.length();
         for (long i = 0; i < missing; i++) {
             out.append(fill.charAt((int) (i % fill.length())));
@@ -527,24 +540,24 @@ public final class StandardLibrary implements Builtins {
         });
 
         listMethods.put("push", (m, self, args) -> {
-            MandelaList list = needList(self, "push");
+            MandelaList list = asList(self);
             for (Object value : args) {
                 list.add(value);
             }
             return list;
         });
         listMethods.put("add", (m, self, args) -> {
-            needList(self, "add").add(args.isEmpty() ? null : args.get(0));
+            asList(self).add(args.isEmpty() ? null : args.get(0));
             return self;
         });
         listMethods.put("insert", (m, self, args) -> {
-            MandelaList list = needList(self, "insert");
+            MandelaList list = asList(self);
             list.insert(indexArg(argWhole(args, 0, "insert"), list.size() + 1),
                     arg(args, 1));
             return list;
         });
         listMethods.put("removeAt", (m, self, args) -> {
-            MandelaList list = needList(self, "removeAt");
+            MandelaList list = asList(self);
             int at = (int) argWhole(args, 0, "removeAt");
             if (at < 0 || at >= list.size()) {
                 throw MandelaError.index("the list has " + list.size()
@@ -553,23 +566,23 @@ public final class StandardLibrary implements Builtins {
             return list.removeAt(at);
         });
         listMethods.put("pop", (m, self, args) -> {
-            MandelaList list = needList(self, "pop");
+            MandelaList list = asList(self);
             if (list.isEmpty()) {
                 return null;
             }
             return list.removeAt(list.size() - 1);
         });
         listMethods.put("clear", (m, self, args) -> {
-            needList(self, "clear").clear();
+            asList(self).clear();
             return null;
         });
         listMethods.put("set", (m, self, args) -> {
-            MandelaList list = needList(self, "set");
+            MandelaList list = asList(self);
             list.set(indexArg(argWhole(args, 0, "set"), list.size()), arg(args, 1));
             return list;
         });
         listMethods.put("get", (m, self, args) -> {
-            MandelaList list = needList(self, "get");
+            MandelaList list = asList(self);
             long at = argWhole(args, 0, "get");
             if (at < 0 || at >= list.size()) {
                 if (args.size() > 1) {
@@ -581,7 +594,7 @@ public final class StandardLibrary implements Builtins {
             return list.get((int) at);
         });
         listMethods.put("indexOf", (m, self, args) -> {
-            MandelaList list = needList(self, "indexOf");
+            MandelaList list = asList(self);
             Object wanted = arg(args, 0);
             for (int i = 0; i < list.size(); i++) {
                 if (Values.equal(list.get(i), wanted)) {
@@ -591,7 +604,7 @@ public final class StandardLibrary implements Builtins {
             return -1L;
         });
         listMethods.put("contains", (m, self, args) -> {
-            MandelaList list = needList(self, "contains");
+            MandelaList list = asList(self);
             Object wanted = arg(args, 0);
             for (Object value : list.items()) {
                 if (Values.equal(value, wanted)) {
@@ -601,7 +614,7 @@ public final class StandardLibrary implements Builtins {
             return Boolean.FALSE;
         });
         listMethods.put("join", (m, self, args) -> {
-            MandelaList list = needList(self, "join");
+            MandelaList list = asList(self);
             String sep = (args.isEmpty()) ? "" : text(args.get(0));
             StringBuilder out = new StringBuilder();
             for (int i = 0; i < list.size(); i++) {
@@ -613,7 +626,7 @@ public final class StandardLibrary implements Builtins {
             return out.toString();
         });
         listMethods.put("map", (m, self, args) -> {
-            MandelaList list = needList(self, "map");
+            MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "map");
             MandelaList out = new MandelaList(list.size());
             for (int i = 0; i < list.size(); i++) {
@@ -622,7 +635,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("filter", (m, self, args) -> {
-            MandelaList list = needList(self, "filter");
+            MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "filter");
             MandelaList out = new MandelaList(list.size());
             for (int i = 0; i < list.size(); i++) {
@@ -634,7 +647,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("reduce", (m, self, args) -> {
-            MandelaList list = needList(self, "reduce");
+            MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "reduce");
             Object acc = (args.size() > 1) ? args.get(1) : (list.isEmpty() ? null : list.get(0));
             int from = (args.size() > 1) ? 0 : 1;
@@ -644,7 +657,7 @@ public final class StandardLibrary implements Builtins {
             return acc;
         });
         listMethods.put("forEach", (m, self, args) -> {
-            MandelaList list = needList(self, "forEach");
+            MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "forEach");
             for (int i = 0; i < list.size(); i++) {
                 invoke(m, callback, list.get(i), (long) i);
@@ -654,7 +667,7 @@ public final class StandardLibrary implements Builtins {
         listMethods.put("any", (m, self, args) -> testList(m, self, args, true));
         listMethods.put("all", (m, self, args) -> testList(m, self, args, false));
         listMethods.put("find", (m, self, args) -> {
-            MandelaList list = needList(self, "find");
+            MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "find");
             for (int i = 0; i < list.size(); i++) {
                 Object value = list.get(i);
@@ -668,12 +681,12 @@ public final class StandardLibrary implements Builtins {
                 comparatorFor(m, arg(args, 0))));
         listMethods.put("sortBy", (m, self, args) -> sortInto((MandelaList) self,
                 keyComparator(m, arg(args, 0))));
-        listMethods.put("sorted", (m, self, args) -> sortInto(needList(self, "sorted")
+        listMethods.put("sorted", (m, self, args) -> sortInto(asList(self)
                 .copyOf(), comparatorFor(m, arg(args, 0))));
-        listMethods.put("sortedBy", (m, self, args) -> sortInto(needList(self, "sortedBy")
+        listMethods.put("sortedBy", (m, self, args) -> sortInto(asList(self)
                 .copyOf(), keyComparator(m, arg(args, 0))));
         listMethods.put("reversed", (m, self, args) -> {
-            MandelaList list = needList(self, "reversed");
+            MandelaList list = asList(self);
             MandelaList out = new MandelaList(list.size());
             for (int i = list.size() - 1; i >= 0; i--) {
                 out.add(list.get(i));
@@ -681,7 +694,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("slice", (m, self, args) -> {
-            MandelaList list = needList(self, "slice");
+            MandelaList list = asList(self);
             int from = clampStart(argWhole(args, 0, "slice"), list.size());
             int to = (args.size() > 1)
                     ? clampEnd(argWhole(args, 1, "slice"), list.size()) : list.size();
@@ -692,7 +705,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("take", (m, self, args) -> {
-            MandelaList list = needList(self, "take");
+            MandelaList list = asList(self);
             long count = Math.max(0, argWhole(args, 0, "take"));
             MandelaList out = new MandelaList((int) Math.min(count, list.size()));
             for (int i = 0; i < count && i < list.size(); i++) {
@@ -701,7 +714,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("skip", (m, self, args) -> {
-            MandelaList list = needList(self, "skip");
+            MandelaList list = asList(self);
             long count = Math.max(0, argWhole(args, 0, "skip"));
             MandelaList out = new MandelaList(list.size());
             for (int i = (int) Math.min(count, list.size()); i < list.size(); i++) {
@@ -710,17 +723,17 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("sum", (m, self, args) -> {
-            MandelaList list = needList(self, "sum");
+            MandelaList list = asList(self);
             Object acc = 0L;
             for (Object value : list.items()) {
                 acc = Operators.add(acc, value);
             }
             return acc;
         });
-        listMethods.put("min", (m, self, args) -> pick(needList(self, "min").items(), true));
-        listMethods.put("max", (m, self, args) -> pick(needList(self, "max").items(), false));
+        listMethods.put("min", (m, self, args) -> pick(asList(self).items(), true));
+        listMethods.put("max", (m, self, args) -> pick(asList(self).items(), false));
         listMethods.put("distinct", (m, self, args) -> {
-            MandelaList list = needList(self, "distinct");
+            MandelaList list = asList(self);
             MandelaList out = new MandelaList(list.size());
             for (Object value : list.items()) {
                 boolean seen = false;
@@ -737,7 +750,7 @@ public final class StandardLibrary implements Builtins {
             return out;
         });
         listMethods.put("flatten", (m, self, args) -> {
-            MandelaList list = needList(self, "flatten");
+            MandelaList list = asList(self);
             MandelaList out = new MandelaList(list.size());
             for (Object value : list.items()) {
                 if (value instanceof MandelaList inner) {
@@ -885,7 +898,7 @@ public final class StandardLibrary implements Builtins {
         // stops a script from paying it by accident on 0..1e12.
         for (String fromLists : List.of("map", "filter", "forEach", "any", "all", "find",
                 "join", "min", "max", "distinct", "slice", "take", "skip", "sorted",
-                "sortBy")) {
+                "sortedBy")) {
             rangeMethods.put(fromLists, (m, self, args) -> {
                 Fn body = listMethods.get(fromLists);
                 return body.call(m, materialise((MandelaRange) self, fromLists), args);
@@ -1300,8 +1313,7 @@ public final class StandardLibrary implements Builtins {
     private static String argText(List<Object> args, int index, String what) {
         Object value = arg(args, index);
         if (value == null || Values.isAbsent(value)) {
-            throw MandelaError.value(what + " needs " + (index == 0 ? "an argument"
-                    : "its " + (index + 1) + "th argument"));
+            throw missingArgument(what, index);
         }
         return text(value);
     }
@@ -1309,10 +1321,24 @@ public final class StandardLibrary implements Builtins {
     private static long argWhole(List<Object> args, int index, String what) {
         Object value = arg(args, index);
         if (value == null || Values.isAbsent(value)) {
-            throw MandelaError.value(what + " needs " + (index == 0 ? "an argument"
-                    : "its " + (index + 1) + "th argument"));
+            throw missingArgument(what, index);
         }
         return whole(value, what);
+    }
+
+    /**
+     * The refusal both argument helpers raise when a call site leaves an argument
+     * out. It is spelled once because the two messages were one sentence, and one
+     * shared sentence is worth getting right: a call missing its second argument
+     * needs two arguments, not a "2th" one.
+     *
+     * @param what  the name the call site reads, as the script spells it
+     * @param index the 0-based position that came up empty
+     * @return the error, ready to throw
+     */
+    private static MandelaError missingArgument(String what, int index) {
+        return MandelaError.value(index == 0 ? what + " needs an argument"
+                : what + " needs " + (index + 1) + " arguments");
     }
 
     /** Clamps an index into {@code size}, counting from the end when negative. */
@@ -1357,6 +1383,13 @@ public final class StandardLibrary implements Builtins {
     /** Caps {@code toList}, for the same reason on the other side of the API. */
     private static final int MAX_LIST = 1 << 22;
 
+    /**
+     * The first double an {@code Int} cannot spell: {@code 2**63}. A double at or
+     * above it has no long, and {@code longValue()} would answer {@code MAX_VALUE}
+     * instead of saying so.
+     */
+    private static final double INT_CEILING = 9223372036854775808.0;
+
     private static Object sqrt(Object value) {
         double argument = real(value, "sqrt");
         if (argument < 0) {
@@ -1369,7 +1402,7 @@ public final class StandardLibrary implements Builtins {
     private static Object testList(Machine machine, Object self, List<Object> args,
                                    boolean anyForm) {
         String what = anyForm ? "any" : "all";
-        MandelaList list = needList(self, what);
+        MandelaList list = asList(self);
         Object given = arg(args, 0);
         Callable callback = (given == null) ? null : needCallable(given, what);
         for (int i = 0; i < list.size(); i++) {
@@ -1439,12 +1472,19 @@ public final class StandardLibrary implements Builtins {
     }
 
     private static long whole(Object value, String what) {
-        if (value instanceof Long || value instanceof Integer) {
-            return Values.asLong(value);
+        if (value instanceof Long exact) {
+            return exact;
         }
         if (value instanceof Double real) {
-            if (real != Math.rint(real) || real.isInfinite() || real.isNaN()) {
+            // No value compares equal to a NaN, so the rounding test already
+            // refuses one; only infinity has to be named beside it.
+            if (real != Math.rint(real) || real.isInfinite()) {
                 throw MandelaError.value("'" + what + "' needs a whole number; got " + real);
+            }
+            if (real < -INT_CEILING || real >= INT_CEILING) {
+                throw MandelaError.limit("'" + what + "' wants " + real
+                        + ", outside the -9223372036854775808 to 9223372036854775807"
+                        + " range of an Int");
             }
             return real.longValue();
         }
@@ -1480,11 +1520,16 @@ public final class StandardLibrary implements Builtins {
                 + Values.typeName(value));
     }
 
-    private static MandelaList needList(Object value, String what) {
-        if (value instanceof MandelaList list) {
-            return list;
-        }
-        throw badShape(what, "list", value);
+    /**
+     * The receiver of a list method, as a list. Every call site is reached only
+     * through a member lookup that has already matched the receiver against
+     * {@code MandelaList} (and the Range spellings, which hand over a
+     * materialised copy), so a refusal here could never be seen by a script -
+     * and an unreachable line is a mutant no test can kill. The cast states the
+     * invariant instead of pretending to check it.
+     */
+    private static MandelaList asList(Object value) {
+        return (MandelaList) value;
     }
 
     private static Object pick(List<Object> args, boolean smallest) {

@@ -114,16 +114,37 @@ public final class MandelaMap {
         return copy;
     }
 
-    /** Two maps are equal when they bind the same keys to equal values. */
+    /**
+     * Two maps are equal when they bind the same keys to equal values.
+     *
+     * <p>Insertion order does not belong in the answer, and each value is asked
+     * through {@link Values#equal} so a map parsed from {@code {"a": 1.0}} equals
+     * one written as {@code {"a": 1}} &mdash; the same rule {@code ==} gives
+     * everywhere else in the language.</p>
+     */
     @Override
     public boolean equals(Object other) {
-        return other instanceof MandelaMap map && entries.equals(map.entries);
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof MandelaMap map)
+                || entries.size() != map.entries.size()) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : entries.entrySet()) {
+            String key = entry.getKey();
+            if (!map.entries.containsKey(key)
+                    || !Values.equal(entry.getValue(), map.entries.get(key))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @return a hash consistent with {@link #equals(Object)} */
     @Override
     public int hashCode() {
-        return entries.hashCode();
+        return Values.hash(this);
     }
 
     @Override

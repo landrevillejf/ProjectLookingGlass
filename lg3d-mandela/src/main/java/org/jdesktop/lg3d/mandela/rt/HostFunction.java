@@ -39,9 +39,9 @@ import org.jdesktop.lg3d.mandela.values.Callable;
  *
  * <p>A host function may throw. Anything other than a
  * {@link org.jdesktop.lg3d.mandela.values.MandelaError} is wrapped as a
- * {@code HostError} by the machine, so script code can still catch it with
- * {@code try} / {@code catch} and the interpreter never unwinds past a
- * {@code catch} the author wrote.</p>
+ * {@code RuntimeError} with the Java exception as its cause, so script code can
+ * still catch it with {@code try} / {@code catch} and the interpreter never
+ * unwinds past a {@code catch} the author wrote.</p>
  */
 public interface HostFunction extends Callable {
 
