@@ -119,6 +119,25 @@ work to make it build and run on a current toolchain.
   places that tabulated them stopped at `2`.
 
 ### Added
+- **Screen saver for the 2D desktop** (`lg3d-core`, `lg3d-apps`) — an idle
+  screen saver, configurable in **Control Center → Screen Saver**. The core
+  (`displayserver.desktop2d.screensaver`) hosts a `ScreensaverService` armed at
+  the end of `Desktop2D.show()`: a global `AWTEventListener` plus a one-second
+  pointer poll timestamp user activity, and when the idle timeout expires it
+  covers every screen with an always-on-top `JWindow` running the selected
+  saver's `ScreenSaverView`; any input dismisses it. Engagement is postponed
+  while a maximized window fills the screen so a presentation is never blanked
+  mid-act, and a saver that throws while building its view degrades to the
+  always-available `BlankSaver` failsafe rather than crashing the EDT. Savers
+  are discovered through `ServiceLoader` behind a `ScreenSaver` SPI, so the
+  desktop core depends on the contract only and a third-party jar can add more
+  without an SDK. The Control Center panel edits the persisted
+  `ScreensaverSettings` (enable, timeout, cycle-all, suppress-fullscreen, the
+  saver picker and each saver's option schema rendered generically from
+  `ScreenSaverOption`s — `JList` selectors, no combo boxes, offscreen-safe),
+  shows a live preview and a timed **Test** on the 2D desktop, and still saves
+  for the next start when no service is running (headless or the 3D shell). The
+  whole service is a no-op on a headless JVM, so tests and CI are unaffected.
 - **Documentation site (bilingual prose) on GitHub Pages** (`documentation/`,
   `.github/workflows/deploy-docs.yml`) — the architecture, sequence and class
   diagrams (Mermaid) and the functional analysis ship in English and French under
