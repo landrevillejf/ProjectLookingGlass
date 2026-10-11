@@ -34,6 +34,8 @@ fun valueAfter(text, after, until) {
 // The four canonical places the version is written, as (file, marker, terminator)
 // triples: the marker ends just past the opening quote, the terminator is the
 // closing one. Keeping them in data means adding a fifth is one line, not a block.
+// CHANGELOG.md is listed with its development marker but is read through
+// changelogVersion below, which also understands the release-cut header.
 let REFS = [
     ["build.gradle", "version = '", "'"],
     ["AGENTS.md", "org.jdesktop.lg3d:", "`"],
@@ -41,13 +43,32 @@ let REFS = [
     ["CHANGELOG.md", "## [Unreleased] — ", " "]
 ]
 
+// The CHANGELOG carries the version in one of two header shapes that main
+// toggles between: the development form "## [Unreleased] — <version> — ..."
+// and the release-cut form "## [<version>] — <date> — ..." that make-release.sh
+// writes when it drops the -dev suffix. Read whichever the top header uses, so
+// cutting a release never turns the gate red on a repository that does agree
+// with itself: the version lives in the brackets once the section is released.
+fun changelogVersion(text) {
+    if (text.indexOf("## [Unreleased] — ") >= 0) {
+        return valueAfter(text, "## [Unreleased] — ", " ")
+    }
+    return valueAfter(text, "## [", "]")
+}
+
 var found = {}
 for (ref in REFS) {
     let file = ref[0]
     if (!fs.exists(file)) {
         error("${file} is missing from the repository root", "ViolationError")
     }
-    let version = valueAfter(fs.read(file), ref[1], ref[2])
+    let text = fs.read(file)
+    var version = ""
+    if (file == "CHANGELOG.md") {
+        version = changelogVersion(text)
+    } else {
+        version = valueAfter(text, ref[1], ref[2])
+    }
     if (version.length == 0) {
         error("${file} does not carry the version where the convention says " +
               "(${ref[1]})", "ViolationError")
