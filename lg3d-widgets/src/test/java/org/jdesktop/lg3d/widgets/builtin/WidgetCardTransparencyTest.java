@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.jdesktop.lg3d.displayserver.desktop2d.TranslucentSurface;
 import org.jdesktop.lg3d.displayserver.desktop2d.TransparencySurface;
-import org.jdesktop.lg3d.widgets.api.WidgetCardSpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
