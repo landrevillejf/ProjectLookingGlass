@@ -21,12 +21,22 @@ work to make it build and run on a current toolchain.
   never emitted, so a closure built two functions below the one that owns the name
   read a slot its own frame does not have and the machine died with
   `ArrayIndexOutOfBoundsException`. Pinned by `ClosureCaptureTest`.
+- **The guide described a range as exclusive of its end** (`docs/mandela-language.md`)
+  — the machine has always answered `5` for `(1..5).length`, as `MandelaRange` and
+  `OperatorRulesTest` agree, while the prose said `a..b` stops before `b`. A reader
+  following the sentence would have written `1..n` for a loop that must not overshoot;
+  the guide now states the inclusive rule and names `a..<b>` as the exclusive form.
 
 ### Changed
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
   constants** — the load and store switches are now checked for totality by the
   compiler instead of ending in a guard no script could reach, and a field store
   lowers itself in `storeSlot` rather than needing a special case in `assign`.
+- **`Operators.div` dropped the two conditions it could never need** — `requireNumbers`
+  has already proved both operands are numbers, and `Values.isInt` *is* `instanceof
+  Long`, so the `isNum(right) ? asLong(right) : 0L` fallback and the second
+  `instanceof Long` test were branches no script could reach and no mutation could
+  kill. The integer path now reads dividend / divisor / exact-or-double.
 
 ### Removed
 - **`Ast.BlockValue`, an expression node no syntax could produce** (`lg3d-mandela`) —

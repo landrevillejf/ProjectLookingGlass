@@ -117,8 +117,9 @@ public final class Operators {
     /** {@code a / b}: exact between integers, double otherwise. Never divides by zero. */
     public static Object div(Object left, Object right) {
         requireNumbers(left, right, "/");
-        long divisor = Values.isNum(right) ? Values.asLong(right) : 0L;
         if (Values.isInt(left) && Values.isInt(right)) {
+            long dividend = Values.asLong(left);
+            long divisor = Values.asLong(right);
             if (divisor == 0L) {
                 throw MandelaError.range("division by zero");
             }
@@ -128,10 +129,14 @@ public final class Operators {
             if (divisor == -1L) {
                 return negateInt(left);
             }
-            if (left instanceof Long l && l % divisor == 0L) {
-                return l / divisor;
+            // Exact when it divides, so a script counting in whole units never sees
+            // the integer it asked for turn into a floating one.
+            if (dividend % divisor == 0L) {
+                return dividend / divisor;
             }
-        } else if (Values.asDouble(right) == 0.0d) {
+            return (double) dividend / (double) divisor;
+        }
+        if (Values.asDouble(right) == 0.0d) {
             throw MandelaError.range("division by zero");
         }
         return Values.asDouble(left) / Values.asDouble(right);

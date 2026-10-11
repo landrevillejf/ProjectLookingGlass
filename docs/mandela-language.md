@@ -139,8 +139,10 @@ Java author expects, applied consistently. Use `is Empty`-style members
 - `x as Str` and `x is Int` test and convert; `is` also destructures
   (`let Pair(x, y) = point()`).
 - Assignment operators: `=`, `+=`, `-=`, `*=`, `/=`, `%=`.
-- A range is `a..b` (inclusive of `a`, exclusive of `b`); `8..0 step -1` counts
-  down, and `step` is only a keyword inside a `for` header or a range.
+- A range is `a..b`, and it **includes** `b`: `1..5` is five numbers and
+  `(1..5).length` is `5`. Write `a..<b` when the end belongs to the next range
+  (`1..<5` is four). `8..0 step -1` counts down, and `step` is only a keyword
+  inside a `for` header or a range.
 
 ---
 
