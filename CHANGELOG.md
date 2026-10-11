@@ -93,6 +93,27 @@ work to make it build and run on a current toolchain.
   places that tabulated them stopped at `2`.
 
 ### Added
+- **Desktop 2D surface transparency** (`lg3d-core`, `lg3d-widgets`, `lg3d-apps`) —
+  the conventional desktop's four surfaces each got their own opacity, set in
+  **Control Center → Customization → Transparency (2D desktop)**: one slider per
+  surface for **windows**, **taskbar**, **widgets** and **notifications**, from
+  25% (maximally faded, still readable — the floor is deliberate, so a desktop
+  cannot be faded into unusability) to 100% (fully solid, the default and
+  pixel-identical to the old look). They are independent: translucent windows do
+  not fade the bar. Windows and widget cards fade **whole** — a window hosts
+  third-party Swing panels that fill themselves opaque, so dimming only the chrome
+  would show no wallpaper at all — while the taskbar and a toast fade only their
+  **backdrop** and keep their buttons, titles and text fully opaque. The shell,
+  not the component, does the compositing: `DesktopTransparency` renders a
+  `TranslucentSurface` child into a scratch image and blits it at the configured
+  `AlphaComposite` from the desktop pane, which is the only party that knows what
+  lies behind it, and paints the bar's own translucent band from the wallpaper
+  strip that would sit under it. Because the fade lives in the 2D shell, the same
+  widget card stays solid through a `SwingNode` on the 3D desktop, where an opaque
+  background is what makes the texture capture reliable. Opacities persist as
+  `window/taskbar/widget/notification.opacity` preferences, are read into a paint
+  cache (never from `java.util.prefs` during a paint), and apply live on
+  `Desktop2D.applyDesktopConfig()` — no restart.
 - **Espresso: Gradle and Maven build extensions** (`lg3d-apps`) — two new
   bundled providers, **Gradle Build** (`lg3d.gradle-build`) and **Maven Build**
   (`lg3d.maven-build`), a new **Build** category, take Espresso from compiling

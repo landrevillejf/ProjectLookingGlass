@@ -49,7 +49,10 @@ import javax.swing.Timer;
  * <p>It lives on the desktop pane's {@link JDesktopPane#POPUP_LAYER}, above the
  * application windows, alongside the window-switcher overlay. All the geometry
  * and text layout is in static, clock-free methods so it is unit-testable
- * headless; the live clock is injectable for the same reason.</p>
+ * headless; the live clock is injectable for the same reason. The card's fill
+ * follows the {@link TransparencySurface#NOTIFICATION notification} opacity, but
+ * its text does not - see {@link #render(Graphics2D, List, int, int, Font,
+ * float)}.</p>
  */
 final class ToastLayer extends JComponent {
 
@@ -77,6 +80,12 @@ final class ToastLayer extends JComponent {
     private static final Color CARD_BORDER = new Color(120, 160, 220);
     private static final Color TITLE = Color.WHITE;
     private static final Color BODY = new Color(200, 208, 220);
+    /**
+     * The card's own fill alpha, at full opacity. Kept below 1 so a toast reads
+     * as glass over the wallpaper; the {@link TransparencySurface#NOTIFICATION
+     * notification} setting scales this value rather than replacing it, so the
+     * default is byte-identical to the historical look.
+     */
     private static final float CARD_ALPHA = 0.92f;
 
     private final ToastQueue queue;
@@ -199,7 +208,8 @@ final class ToastLayer extends JComponent {
         }
         Graphics2D g2 = (Graphics2D) g.create();
         try {
-            render(g2, visible, getWidth(), getHeight(), resolveFont());
+            render(g2, visible, getWidth(), getHeight(), resolveFont(),
+                    DesktopTransparency.alphaOf(TransparencySurface.NOTIFICATION));
         } finally {
             g2.dispose();
         }
@@ -224,9 +234,24 @@ final class ToastLayer extends JComponent {
      * Paints {@code toasts} into {@code g2} for a pane of the given size, index
      * 0 (the newest) last so it lands on top. Pure: no field or peer access, so
      * a test can drive it straight into a {@link java.awt.image.BufferedImage}.
+     * The cards keep their own {@link #CARD_ALPHA} fill.
      */
     static void render(Graphics2D g2, List<Notification> toasts, int hostWidth,
                        int hostHeight, Font base) {
+        render(g2, toasts, hostWidth, hostHeight, base, 1f);
+    }
+
+    /**
+     * As {@link #render(Graphics2D, List, int, int, Font)}, with the cards faded
+     * to {@code opacity} - the {@link TransparencySurface#NOTIFICATION
+     * notification} surface's fraction of solid. Only the card's fill is scaled:
+     * the border, title and message paint at full strength, so a translucent toast
+     * is a translucent <em>card</em> and not unreadable text.
+     *
+     * @param opacity card fill as a fraction of solid; {@code 1f} is the default
+     */
+    static void render(Graphics2D g2, List<Notification> toasts, int hostWidth,
+                       int hostHeight, Font base, float opacity) {
         if (toasts == null || toasts.isEmpty()) {
             return;
         }
@@ -236,17 +261,19 @@ final class ToastLayer extends JComponent {
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         Font titleFont = font.deriveFont(Font.BOLD, font.getSize2D() + 1f);
+        float cardAlpha = CARD_ALPHA * Math.max(0f, Math.min(1f, opacity));
         for (int i = toasts.size() - 1; i >= 0; i--) {
             paintToast(g2, toasts.get(i), toastBounds(hostWidth, hostHeight, i),
-                    font, titleFont);
+                    font, titleFont, cardAlpha);
         }
     }
 
     private static void paintToast(Graphics2D g2, Notification n, Rectangle b,
-                                   Font bodyFont, Font titleFont) {
+                                   Font bodyFont, Font titleFont,
+                                   float cardAlpha) {
         Composite saved = g2.getComposite();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                CARD_ALPHA));
+                cardAlpha));
         // Accent-filled card, then the dark body inset from the left so a thin
         // severity band shows along the left edge.
         g2.setColor(NotificationColors.accentFor(n.kind()));
