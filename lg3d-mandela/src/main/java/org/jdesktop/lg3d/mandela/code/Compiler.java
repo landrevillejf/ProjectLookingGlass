@@ -927,7 +927,6 @@ public final class Compiler {
             case Ast.MethodCall c -> methodCall(c.target(), c.name(), c.args(), c.line());
             case Ast.SafeMethodCall c -> safeMethodCall(c);
             case Ast.SuperMethod m -> superMethod(m);
-            case Ast.BlockValue b -> block(b.block(), true);
         }
     }
 

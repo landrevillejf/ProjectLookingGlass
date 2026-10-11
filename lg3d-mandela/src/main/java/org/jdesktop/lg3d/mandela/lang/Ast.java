@@ -88,7 +88,7 @@ public final class Ast {
             permits Literal, Interpolated, Name, ListLit, MapLit, RangeLit, Function,
                     Unary, Binary, Test, Contains, Coerce, Conditional, Match, Index, Member,
                     SafeMember, Call, MethodCall, SafeMethodCall, SuperMethod, ThisRef,
-                    SuperRef, BlockValue { }
+                    SuperRef { }
 
     /**
      * A literal of any primitive kind.
@@ -214,7 +214,7 @@ public final class Ast {
      * @param name  the declared name, or "" for a lambda
      * @param params the parameters, in declaration order
      * @param body  the body block; a {@code = expr} body arrives as a block whose
-     *              single statement is a {@link BlockValue} return marker
+     *              single statement is a {@link Stmt.ExprValue} return marker
      * @param line  the 1-based line
      * @param column the 1-based column
      */
@@ -351,14 +351,6 @@ public final class Ast {
     /** A super-dispatched method call, {@code super.name(args)}. */
     public record SuperMethod(String name, List<Expr> args, int line, int column)
             implements Expr { }
-
-    /**
-     * A block used as an expression value (the tail value of a
-     * {@code fun f() = { ... }} body or a lambda).
-     *
-     * @param block the block whose last expression value is the result
-     */
-    public record BlockValue(Stmt.Block block, int line, int column) implements Expr { }
 
     // -- patterns ------------------------------------------------------------
 
@@ -589,9 +581,12 @@ public final class Ast {
     /**
      * Depth-first traversal that visits every node exactly once.
      *
-     * <p>The walk is total over the node types in this file; when the grammar
-     * grows a node, add its children here so the outline and the linter keep
-     * seeing the whole program.</p>
+     * <p>The two switches below list every permitted subtype of {@link Stmt} and
+     * {@link Expr} and carry no {@code default}: a pattern switch over a sealed type
+     * is checked for exhaustiveness, so when the grammar grows a node the walk stops
+     * compiling until its children are added here. That is the guarantee the outline
+     * and the linter rest on — a runtime guard nobody can reach would let a new node
+     * walk as nothing instead of failing the build.</p>
      */
     public static final class Walk {
 
@@ -709,7 +704,6 @@ public final class Ast {
                     // Segments are names.
                 }
                 case Stmt.Block b -> block(b);
-                default -> throw new IllegalStateException("unwalked statement " + s);
             }
         }
 
@@ -815,8 +809,6 @@ public final class Ast {
                         expr(a);
                     }
                 }
-                case BlockValue b -> block(b.block());
-                default -> throw new IllegalStateException("unwalked expression " + e);
             }
         }
 
