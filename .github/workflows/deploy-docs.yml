@@ -30,6 +30,13 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          # Enable GitHub Pages for this repository on first run if it is not
+          # already enabled (otherwise configure-pages GETs the Pages site and
+          # gets 404 "Not Found", failing the deploy). The Pages build source is
+          # this Actions workflow; only the committed prose under documentation/
+          # is ever published (the Javadoc is git-ignored and guarded above).
+          enablement: true
 
       # The published site is the bilingual prose under documentation/ (en/ and fr/),
       # nothing else. The Javadoc API reference is NOT published: it is generated on
