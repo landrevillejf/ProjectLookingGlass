@@ -27,16 +27,20 @@ documentation/
 │   ├── diagrams/
 │   │   ├── architecture-overview.md    # Architecture diagrams
 │   │   ├── sequence-diagrams.md         # Sequence diagrams
-│   │   └── class-diagrams.md            # Class diagrams
+│   │   ├── class-diagrams.md            # Class diagrams
+│   │   └── desktop-2d.md                # Desktop 2D (fallback) diagrams
 │   └── functional-analysis/
-│       └── functional-analysis.md       # Functional analysis document
+│       ├── functional-analysis.md       # Functional analysis document
+│       └── desktop-2d.md                # Desktop 2D (fallback) functional analysis
 └── fr/                          # French documentation / Documentation en français
     ├── diagrams/
     │   ├── architecture-overview.md    # Diagrammes d'architecture
     │   ├── sequence-diagrams.md         # Diagrammes de séquence
-    │   └── class-diagrams.md            # Diagrammes de classes
+    │   ├── class-diagrams.md            # Diagrammes de classes
+    │   └── desktop-2d.md                # Diagrammes du Bureau 2D (repli)
     └── functional-analysis/
-        └── functional-analysis.md       # Document d'analyse fonctionnelle
+        ├── functional-analysis.md       # Document d'analyse fonctionnelle
+        └── desktop-2d.md                # Analyse fonctionnelle du Bureau 2D (repli)
 ```
 
 The prose published here is bilingual. The Javadoc API reference is **not** part of
@@ -54,10 +58,12 @@ ce site : elle n'est jamais commitée ni publiée. Générez-la localement au be
 - **[Architecture Overview](en/diagrams/architecture-overview.md)** - High-level system architecture, module dependencies, component architecture, data flow, runtime architecture, and package structure.
 - **[Sequence Diagrams](en/diagrams/sequence-diagrams.md)** - Sequence diagrams for application startup, window creation, event handling, SwingNode integration, application launch, scene graph traversal, resource loading, configuration loading, gesture recognition, and extension loading.
 - **[Class Diagrams](en/diagrams/class-diagrams.md)** - Class hierarchies for scene graph, widgets, display server, geometry, appearance, lighting, event adapters, actions, utilities, and configuration.
+- **[Desktop 2D Diagrams](en/diagrams/desktop-2d.md)** - Mermaid diagrams of the conventional-Swing fallback desktop: component architecture, the `openApp` launch flow, the class model, taskbar layout, window snapping, workspaces and surface transparency.
 
 ### Functional Analysis
 
 - **[Functional Analysis Document](en/functional-analysis/functional-analysis.md)** - Comprehensive functional requirements, use cases, functional specifications, module analysis, data flow, user interface, integration points, and non-functional requirements.
+- **[Desktop 2D Functional Analysis](en/functional-analysis/desktop-2d.md)** - The behavioural contract of the 2D shell: application classification and launch, the start menu, taskbar chrome, window management, workspaces, notifications, transparency, theming, session restore and the Run box.
 
 ### API Documentation
 
@@ -71,10 +77,12 @@ See [API Documentation](#api-documentation) below for how to build it locally.
 - **[Vue d'ensemble de l'architecture](fr/diagrams/architecture-overview.md)** - Architecture système de haut niveau, dépendances de modules, architecture des composants, flux de données, architecture d'exécution et structure des paquets.
 - **[Diagrammes de séquence](fr/diagrams/sequence-diagrams.md)** - Diagrammes de séquence pour le démarrage d'application, la création de fenêtre, la gestion des événements, l'intégration SwingNode, le lancement d'application, le parcours du graphe de scène, le chargement de ressources, le chargement de configuration, la reconnaissance de gestes et le chargement d'extensions.
 - **[Diagrammes de classes](fr/diagrams/class-diagrams.md)** - Hiérarchies de classes pour le graphe de scène, les widgets, le serveur d'affichage, la géométrie, l'apparence, l'éclairage, les adaptateurs d'événements, les actions, les utilitaires et la configuration.
+- **[Diagrammes du Bureau 2D](fr/diagrams/desktop-2d.md)** - Diagrammes Mermaid du bureau de repli Swing conventionnel : architecture des composants, flux de lancement `openApp`, modèle de classes, disposition de la barre, ancrage des fenêtres, bureaux virtuels et transparence des surfaces.
 
 ### Analyse Fonctionnelle
 
 - **[Document d'analyse fonctionnelle](fr/functional-analysis/functional-analysis.md)** - Exigences fonctionnelles complètes, cas d'utilisation, spécifications fonctionnelles, analyse des modules, flux de données, interface utilisateur, points d'intégration et exigences non fonctionnelles.
+- **[Analyse fonctionnelle du Bureau 2D](fr/functional-analysis/desktop-2d.md)** - Le contrat comportemental de la coquille 2D : classification et lancement des applications, menu Démarrer, habillage de la barre, gestion des fenêtres, bureaux virtuels, notifications, transparence, thématisation, restauration de session et boîte Exécuter.
 
 ### Documentation API
 

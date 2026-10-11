@@ -135,6 +135,18 @@ work to make it build and run on a current toolchain.
   the Espresso extension SPI (`TextEditorPermission` and friends) now resolve — they
   pointed at `EditorContext` members that live on `DocumentContext`, and at
   `TextEditorExtension`, which sits in the parent package.
+- **Desktop 2D documentation** (`documentation/`) — the conventional-Swing
+  fallback desktop now has its own functional analysis and Mermaid diagram set,
+  in English and French: `documentation/{en,fr}/diagrams/desktop-2d.md`
+  (component architecture, the `Desktop2D.openApp` launch flow, the class model,
+  taskbar layout, `WindowSnap` edge-tiling zones, the `WorkspaceModel` state
+  machine and the transparency pipeline) and
+  `documentation/{en,fr}/functional-analysis/desktop-2d.md` (the `PANEL` /
+  `SWING_FRAME` / `EXTERNAL` / `UNAVAILABLE` classification, the start menu,
+  taskbar chrome, window management, workspaces, notifications, transparency,
+  theming and session restore), all grounded in
+  `org.jdesktop.lg3d.displayserver.desktop2d`. Four new portal cards route the
+  docs through `viewer.html`, so their diagrams render rather than showing code.
 - **Desktop 2D surface transparency** (`lg3d-core`, `lg3d-widgets`, `lg3d-apps`) —
   the conventional desktop's four surfaces each got their own opacity, set in
   **Control Center → Customization → Transparency (2D desktop)**: one slider per
