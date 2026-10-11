@@ -22,6 +22,7 @@ Project Looking Glass (LG3D) est un environnement de bureau 3D moderne, porté d
 ```
 documentation/
 ├── README.md                    # This file / Ce fichier
+├── index.html                   # Documentation portal (bilingual landing page)
 ├── en/                          # English documentation / Documentation en anglais
 │   ├── diagrams/
 │   │   ├── architecture-overview.md    # Architecture diagrams
@@ -29,16 +30,23 @@ documentation/
 │   │   └── class-diagrams.md            # Class diagrams
 │   ├── functional-analysis/
 │   │   └── functional-analysis.md       # Functional analysis document
-│   └── api/                             # API documentation (Javadoc)
+│   └── api/                             # API reference (generated Javadoc, single copy)
 └── fr/                          # French documentation / Documentation en français
     ├── diagrams/
     │   ├── architecture-overview.md    # Diagrammes d'architecture
     │   ├── sequence-diagrams.md         # Diagrammes de séquence
     │   └── class-diagrams.md            # Diagrammes de classes
-    ├── functional-analysis/
-    │   └── functional-analysis.md       # Document d'analyse fonctionnelle
-    └── api/                             # Documentation API (Javadoc)
+    └── functional-analysis/
+        └── functional-analysis.md       # Document d'analyse fonctionnelle
 ```
+
+The prose is bilingual; the API reference under `en/api/` is not. Javadoc is
+generated from English-language sources and is published once - both portals link
+the same tree rather than carrying two copies of it.
+
+La prose est bilingue ; la référence d'API sous `en/api/` ne l'est pas. La Javadoc
+est générée à partir de sources en anglais et publiée une seule fois - les deux
+portails pointent vers la même arborescence au lieu d'en porter deux copies.
 
 ## English Documentation
 
@@ -48,13 +56,13 @@ documentation/
 - **[Sequence Diagrams](en/diagrams/sequence-diagrams.md)** - Sequence diagrams for application startup, window creation, event handling, SwingNode integration, application launch, scene graph traversal, resource loading, configuration loading, gesture recognition, and extension loading.
 - **[Class Diagrams](en/diagrams/class-diagrams.md)** - Class hierarchies for scene graph, widgets, display server, geometry, appearance, lighting, event adapters, actions, utilities, and configuration.
 
-### Functional分析
+### Functional Analysis
 
 - **[Functional Analysis Document](en/functional-analysis/functional-analysis.md)** - Comprehensive functional requirements, use cases, functional specifications, module analysis, data flow, user interface, integration points, and non-functional requirements.
 
 ### API Documentation
 
-API documentation (Javadoc) is generated from the source code. See the [API Documentation](#api-documentation) section below for details.
+The **[API Reference](en/api/index.html)** - Javadoc for all ten built modules, generated from the source.
 
 ## Documentation Française
 
@@ -70,34 +78,36 @@ API documentation (Javadoc) is generated from the source code. See the [API Docu
 
 ### Documentation API
 
-La documentation API (Javadoc) est générée à partir du code source. Voir la section [Documentation API](#api-documentation) ci-dessous pour plus de détails.
+La **[référence d'API](en/api/index.html)** - Javadoc des dix modules construits, générée à partir des sources. Elle n'est pas traduite : les sources sont en anglais.
 
 ## API Documentation
 
-The API documentation is generated using Javadoc. To generate the API documentation:
+The published API reference is the committed tree under [`en/api/`](en/api/index.html):
+one directory per module (`apps`, `core`, `escher`, `ftp-client`, `incubator`,
+`lpm-console`, `mandela`, `update-manager`, `widgets`) plus a landing page. It is a
+build artifact - never edit those files by hand.
 
-La documentation API est générée en utilisant Javadoc. Pour générer la documentation API :
+La référence d'API publiée est l'arborescence commitée sous [`en/api/`](en/api/index.html) :
+un répertoire par module (`apps`, `core`, `escher`, `ftp-client`, `incubator`,
+`lpm-console`, `mandela`, `update-manager`, `widgets`) plus une page d'accueil. C'est un
+artefact de build - ne jamais éditer ces fichiers à la main.
 
 ```bash
-# Generate Javadoc for all modules
-./gradlew javadoc
+# Regenerate the whole published reference (all ten modules) into documentation/en/api/
+./gradlew documentationSite
 
-# Generate Javadoc for a specific module
+# Javadoc for a single module only (output stays under <module>/build-gradle/docs/javadoc/)
 ./gradlew :lg3d-core:javadoc
 ./gradlew :lg3d-apps:javadoc
 ```
 
-The generated Javadoc will be available in:
-- `lg3d-core/build-gradle/docs/javadoc/`
-- `lg3d-apps/build-gradle/docs/javadoc/`
-- And similarly for other modules
+`documentationSite` fails if any module produces an empty tree, so a module cannot
+disappear from the published reference silently.
 
-La Javadoc générée sera disponible dans :
-- `lg3d-core/build-gradle/docs/javadoc/`
-- `lg3d-apps/build-gradle/docs/javadoc/`
-- Et de même pour les autres modules
+`documentationSite` échoue si un module produit une arborescence vide : un module ne
+peut donc pas disparaître silencieusement de la référence publiée.
 
-### Key API Packages
+**Key API packages:**
 
 **Core SDK (lg3d-core):**
 - `org.jdesktop.lg3d.sg` - Scene graph implementation
@@ -135,25 +145,32 @@ Les diagrammes de cette documentation sont écrits au format Mermaid. Pour les v
 
 ### Project Documentation
 
-- [AGENTS.md](../AGENTS.md) - Project guidelines and conventions / Directives et conventions du projet
-- [README.md](../README.md) - Project overview / Aperçu du projet
-- [CHANGELOG.md](../CHANGELOG.md) - Change log / Journal des modifications
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines / Directives de contribution
+Links out of `documentation/` are absolute: GitHub Pages publishes this directory as
+the site root, so a `../` link would 404 on the published site while still working on
+GitHub. / Les liens sortant de `documentation/` sont absolus : GitHub Pages publie ce
+répertoire comme racine du site, donc un lien `../` renverrait une erreur 404 sur le
+site publié tout en fonctionnant sur GitHub.
+
+- [AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/AGENTS.md) - Project guidelines and conventions / Directives et conventions du projet
+- [README.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/README.md) - Project overview / Aperçu du projet
+- [CHANGELOG.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/CHANGELOG.md) - Change log / Journal des modifications
+- [CONTRIBUTING.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/CONTRIBUTING.md) - Contribution guidelines / Directives de contribution
 
 ### Module-Specific Documentation
 
-- [lg3d-core/AGENTS.md](../lg3d-core/AGENTS.md) - Core module guidelines / Directives du module core
-- [lg3d-apps/AGENTS.md](../lg3d-apps/AGENTS.md) - Apps module guidelines / Directives du module apps
-- [lg3d-incubator/AGENTS.md](../lg3d-incubator/AGENTS.md) - Incubator module guidelines / Directives du module incubator
+- [lg3d-core/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-core/AGENTS.md) - Core module guidelines / Directives du module core
+- [lg3d-apps/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-apps/AGENTS.md) - Apps module guidelines / Directives du module apps
+- [lg3d-incubator/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-incubator/AGENTS.md) - Incubator module guidelines / Directives du module incubator
 
 ### Technical Documentation
 
-- [docs/](../docs/) - Additional technical documentation / Documentation technique supplémentaire
-  - [lg3d-native-apps.md](../docs/lg3d-native-apps.md) - Building native 3D apps
-  - [lg3d-native-apps-advanced.md](../docs/lg3d-native-apps-advanced.md) - Advanced native apps
-  - [swingnode.md](../docs/swingnode.md) - SwingNode integration
-  - [mandela-language.md](../docs/mandela-language.md) - Mandela scripting language
-  - [mandela-embedding-api.md](../docs/mandela-embedding-api.md) - Mandela embedding API
+Directory: [`docs/`](https://github.com/landrevillejf/ProjectLookingGlass/tree/main/docs) - Additional technical documentation / Documentation technique supplémentaire
+
+- [lg3d-native-apps.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/lg3d-native-apps.md) - Building native 3D apps
+- [lg3d-native-apps-advanced.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/lg3d-native-apps-advanced.md) - Advanced native apps
+- [swingnode.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/swingnode.md) - SwingNode integration
+- [mandela-language.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/mandela-language.md) - Mandela scripting language
+- [mandela-embedding-api.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/mandela-embedding-api.md) - Mandela embedding API
 
 ## Contributing
 
@@ -175,9 +192,17 @@ Les contributions à la documentation sont les bienvenues ! Veuillez suivre ces 
 
 ## License
 
-This documentation is part of Project Looking Glass and is subject to the same license as the project. See the [LICENSE](../LICENSE) file for details.
+This documentation is part of Project Looking Glass and is subject to the same license
+as the project. There is no repository-root `LICENSE` file: the historic Sun/Java
+Research terms and the port's GNU GPL v2 header live per module, see
+[lg3d-core/LICENSE](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-core/LICENSE)
+and the project [README](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/README.md#license).
 
-Cette documentation fait partie de Project Looking Glass et est soumise à la même licence que le projet. Voir le fichier [LICENSE](../LICENSE) pour plus de détails.
+Cette documentation fait partie de Project Looking Glass et est soumise à la même licence
+que le projet. Il n'y a pas de fichier `LICENSE` à la racine du dépôt : les termes
+historiques Sun/Java Research et l'en-tête GNU GPL v2 de la portabilité sont définis par
+module, voir [lg3d-core/LICENSE](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-core/LICENSE)
+et le [README](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/README.md#license) du projet.
 
 ## Version
 

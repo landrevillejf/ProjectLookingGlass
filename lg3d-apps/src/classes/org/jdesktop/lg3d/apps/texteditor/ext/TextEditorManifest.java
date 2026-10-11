@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * Immutable metadata an extension publishes through
- * {@link TextEditorExtension#manifest()}: its identity, a human-readable blurb and
+ * {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#manifest()}: its identity, a human-readable blurb and
  * the {@link TextEditorPermission permissions} it needs. The manager displays this and
  * gates enabling on the user approving the declared permissions.
  */

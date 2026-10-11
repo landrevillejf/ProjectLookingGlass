@@ -134,14 +134,22 @@ subprojects {
     }
 
     // -------------------------------------------------------------------------
-    // Javadoc configuration
+    // Javadoc -- the source of the published API reference (documentation/en/api)
     // -------------------------------------------------------------------------
-    // Configure Javadoc to be less strict for the legacy codebase. Treat warnings
-    // as non-fatal and suppress certain warning types that are common in the
-    // ported code.
+    // doclint is off: the ported ~200k-line tree carries 2006-era comment
+    // defects (missing @param/@return, raw HTML) by the thousand, and the point
+    // of this task here is the published reference, not a comment audit.
+    // failOnError is deliberately left TRUE. Setting it false (as an earlier
+    // revision did) made `./gradlew javadoc` exit 0 while whole modules emitted
+    // an empty tree, which is exactly how five modules silently vanished from
+    // the published API. A broken @link is fixed at the source, never by
+    // deleting the sentence that carried it.
+    // options.links resolves references to JDK types (javax.swing.Icon,
+    // java.util.regex.Pattern, ...) to docs.oracle.com instead of rendering
+    // them as dead plain text in the published pages.
     tasks.withType(Javadoc).configureEach {
         options.addStringOption('Xdoclint:none', '-quiet')
-        failOnError = false
+        options.links = ['https://docs.oracle.com/en/java/javase/21/docs/api/']
     }
 
     // -------------------------------------------------------------------------
@@ -288,5 +296,103 @@ tasks.register('fetchPayloadManJar') {
         dest.parentFile.mkdirs()
         ant.get(src: url, dest: dest, verbose: false)
         logger.lifecycle("Fetched payloadman jar -> ${dest}")
+    }
+}
+
+// -----------------------------------------------------------------------------
+// documentationSite: assemble the published API reference into documentation/
+// -----------------------------------------------------------------------------
+// The GitHub Pages site (documentation/) ships the Javadoc as a committed tree
+// under documentation/en/api/<module>/, so the reference is browsable offline
+// and on Pages without a build step. That makes the tree an artifact of the
+// build, and like :lg3d-core:runtimeResources for the runtime assets, it must
+// be regenerable from source -- otherwise it silently rots on the next API
+// change (which is how the hand-committed tree lost five modules while gaining
+// a byte-identical second copy under fr/api: the API reference is generated
+// from English sources and is NOT translated, so it exists exactly once).
+//
+//   ./gradlew documentationSite      # regenerate documentation/en/api/
+//
+// Fails loudly if a module produces nothing: an empty module tree is a defect
+// in that module's javadoc task, not a reason to drop the module from the site.
+// Not wired into `build`/`check` -- generating ten modules' Javadoc takes
+// minutes, and the docs site only needs regenerating when the API changes.
+def apiModules = [
+    'lg3d-escher'    : [dir: 'escher',        title: 'lg3d-escher (X11 protocol library)'],
+    'lg3d-core'      : [dir: 'core',          title: 'lg3d-core (scene graph, windowing, display server SDK)'],
+    'lg3d-apps'      : [dir: 'apps',          title: 'lg3d-apps (production desktop applications)'],
+    'lg3d-incubator' : [dir: 'incubator',     title: 'lg3d-incubator (experimental applications)'],
+    'lg3d-widgets'   : [dir: 'widgets',       title: 'lg3d-widgets (widget API and built-in widgets)'],
+    'lg3d-mandela'   : [dir: 'mandela',       title: 'lg3d-mandela (the Mandela scripting language)'],
+    'lpm-console'    : [dir: 'lpm-console',   title: 'lpm-console (package manager console)'],
+    'update-manager' : [dir: 'update-manager', title: 'update-manager (update pipeline)'],
+    'db-manager'     : [dir: 'db-manager',    title: 'db-manager (JDBC database client)'],
+    'ftp-client'     : [dir: 'ftp-client',    title: 'ftp-client (FTP/FTPS/SFTP client)'],
+]
+
+tasks.register('documentationSite') {
+    group = 'documentation'
+    description = 'Generate every module\'s Javadoc and assemble the published API reference under documentation/en/api/.'
+    dependsOn apiModules.keySet().collect { ":${it}:javadoc" }
+
+    doLast {
+        def siteDir = rootProject.file('documentation/en/api')
+        def items = new StringBuilder()
+        apiModules.each { moduleName, spec ->
+            def mod = project(moduleName)
+            def src = mod.layout.buildDirectory.dir('docs/javadoc').get().asFile
+            if (!new File(src, 'index.html').isFile()) {
+                throw new GradleException("Javadoc for ${moduleName} produced no index.html under ${src}: "
+                    + 'that module would be missing from the published API reference. Fix the javadoc task '
+                    + '(see the module console output) rather than dropping the module.')
+            }
+            def dst = new File(siteDir, spec.dir)
+            // Replace, never merge: pages for classes that no longer exist would
+            // otherwise stay published forever.
+            project.delete(dst)
+            project.copy { from src; into dst }
+            items << "        <li><a href=\"${spec.dir}/index.html\">${spec.title}</a></li>\n"
+            logger.lifecycle("API reference: ${moduleName} -> documentation/en/api/${spec.dir}/")
+        }
+
+        new File(siteDir, 'index.html').text = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Looking Glass - API Reference</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       margin: 0; padding: 2rem; background: #f7f8fa; color: #222; }
+main { max-width: 56rem; margin: 0 auto; }
+h1 { font-size: 1.8rem; margin-bottom: .25rem; }
+p.lede { color: #555; margin-top: 0; }
+ul { list-style: none; padding: 0; }
+li { margin: .4rem 0; }
+a { color: #2b5cad; text-decoration: none; }
+a:hover { text-decoration: underline; }
+nav { margin-top: 2rem; font-size: .9rem; }
+footer { margin-top: 2rem; font-size: .85rem; color: #666; }
+</style>
+</head>
+<body>
+<main>
+<h1>API Reference / R&eacute;f&eacute;rence d'API</h1>
+<p class="lede">Javadoc generated from the source of each module. The API reference is
+built from English-language sources and is not translated; both the English and the
+French documentation portal link this single tree.<br>
+Javadoc g&eacute;n&eacute;e &agrave; partir des sources de chaque module. La r&eacute;f&eacute;rence d'API
+est produite &agrave; partir des sources en anglais et n'est pas traduite ; les portails de
+documentation anglais et fran&ccedil;ais pointent tous deux vers cette m&ecirc;me arborescence.</p>
+<ul>
+${items}</ul>
+<nav><a href="../index.html">Documentation portal / Portail de documentation</a>
+&middot; <a href="../../README.md">documentation/README.md</a></nav>
+<footer>Regenerate with <code>./gradlew documentationSite</code>. Do not edit these
+files by hand.</footer>
+</main>
+</body>
+</html>
+"""
     }
 }

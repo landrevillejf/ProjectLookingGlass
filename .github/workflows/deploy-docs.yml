@@ -31,10 +31,40 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
+      # The committed documentation tree is the site: the prose under en/ and fr/
+      # and the generated API reference under en/api/ (one tree, not translated --
+      # regenerating it is ./gradlew documentationSite, see documentation/README.md).
+      # The API completeness gate below exists because a hand-committed Javadoc
+      # tree silently lost five modules once already; a partial site must never
+      # publish again without saying so.
+      - name: Verify the API reference is complete
+        run: |
+          set -eu
+          missing=0
+          test -f documentation/en/api/index.html || { echo "::error::documentation/en/api/index.html (API landing page) is missing"; missing=1; }
+          for m in apps core escher ftp-client incubator lpm-console mandela update-manager widgets; do
+            if [ ! -f "documentation/en/api/$m/index.html" ]; then
+              echo "::error::module API '$m' is missing from documentation/en/api/ - run ./gradlew documentationSite and commit the result"
+              missing=1
+            elif [ -z "$(ls -A "documentation/en/api/$m")" ]; then
+              echo "::error::module API '$m' is an empty directory"
+              missing=1
+            fi
+          done
+          if [ -d documentation/fr/api ]; then
+            echo "::error::documentation/fr/api must not exist: the Javadoc is generated once from English sources and is not translated"
+            exit 1
+          fi
+          exit $missing
+
       - name: Create documentation structure
         run: |
           mkdir -p _site
           cp -r documentation/* _site/
+          # The site is static HTML (Javadoc output included), not a Jekyll project.
+          # Without .nojekyll, GitHub's Pages build pipeline post-processes the tree
+          # and can drop or rewrite generated pages.
+          touch _site/.nojekyll
           echo "Documentation copied to _site"
 
       - name: Upload artifact

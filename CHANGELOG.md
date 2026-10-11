@@ -93,6 +93,23 @@ work to make it build and run on a current toolchain.
   places that tabulated them stopped at `2`.
 
 ### Added
+- **Documentation site with the published API reference** (`documentation/`,
+  `.github/workflows/deploy-docs.yml`) — the architecture, sequence and class
+  diagrams (Mermaid) and the functional analysis ship in English and French under
+  `documentation/{en,fr}/`, and the generated Javadoc of **all ten built modules**
+  is published as `documentation/en/api/<module>/` behind a landing page. The tree
+  is a build artifact: `./gradlew documentationSite` regenerates it from source and
+  **fails when a module emits an empty reference**, so a module can no longer vanish
+  from the published API silently. The API reference is generated from English
+  sources and exists exactly once — the prose is bilingual, the Javadoc is not
+  duplicated per language. The Pages workflow refuses to deploy an incomplete tree
+  and drops a `.nojekyll` marker so the generated pages are served as-is.
+  Two build fixes came with it: `:lg3d-escher:javadoc` no longer aborts on the
+  Big5-encoded comment in `gnu/x11/test/Chinese.java` (its Javadoc now reads sources
+  in ISO-8859-1, exactly like its compiler does), and the broken `{@link}` targets in
+  the Espresso extension SPI (`TextEditorPermission` and friends) now resolve — they
+  pointed at `EditorContext` members that live on `DocumentContext`, and at
+  `TextEditorExtension`, which sits in the parent package.
 - **Desktop 2D surface transparency** (`lg3d-core`, `lg3d-widgets`, `lg3d-apps`) —
   the conventional desktop's four surfaces each got their own opacity, set in
   **Control Center → Customization → Transparency (2D desktop)**: one slider per

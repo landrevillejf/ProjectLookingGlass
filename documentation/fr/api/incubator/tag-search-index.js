@@ -1,1 +1,0 @@
-tagSearchIndex = [{"l":"Constant Field Values","h":"","u":"constant-values.html"},{"l":"Related Documentation","h":"package edu.cmu.sun.controller","d":"Section","u":"edu/cmu/sun/controller/package-summary.html#related-documentation-heading"},{"l":"Serialized Form","h":"","u":"serialized-form.html"}];updateSearchResults();

@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 
 /**
  * The capability facade the editor hands an extension at
- * {@link TextEditorExtension#onEditorStarted}. Every capability is gated on the
+ * {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onEditorStarted}. Every capability is gated on the
  * permissions the user granted: calling a method whose permission was not
  * granted is a silent no-op (and {@link #has(TextEditorPermission)} reports the truth),
  * so an over-reaching extension degrades gracefully instead of misbehaving.
