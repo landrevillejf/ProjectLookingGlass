@@ -266,7 +266,8 @@ Errors are values of the `Error` family (`MandelaError` in the engine) with a
 kind and a message. The kinds the engine raises are `TypeError`, `ValueError`,
 `KeyError`, `IndexError`, `RangeError`, `NullError`, `IOError`, `JsonError`,
 `SyntaxError`, `MatchError`, `AssertError`, `PermissionError` (a refused
-grant), `LimitError` (a step or depth ceiling) and `RuntimeError` (the rest). An
+grant), `LimitError` (a ceiling: the step or depth budget, or the size the
+library will let one value reach) and `RuntimeError` (the rest). An
 uncaught error stops that run and is reported by the host in the host's own
 words; `catch e { … }` sees every one of them, and `e.kind` names it.
 
@@ -311,7 +312,8 @@ Lists and maps are mutable and reference-shared, the way a Java `List` is. The
 sorting family says which side of that line it sits on: `sort` and `sortBy`
 reorder the list you called them on (and answer it back, so they chain), while
 `sorted`, `sortedBy` and `reversed` return a new list and leave the original
-alone; `copy` on a map is the same idea.
+alone; `copy` on a map is the same idea. A `Range` has nothing to reorder, so it
+offers only the copying spellings.
 
 ---
 
@@ -437,7 +439,7 @@ grant; `sleep` does, because it parks a host thread (`THREAD`).
 | `Str` | `length upper lower trim split replace replaceFirst contains startsWith endsWith indexOf charAt substring toInt toDouble repeat padStart padEnd` |
 | `List` | `length size isEmpty first last push add insert removeAt pop clear set get indexOf contains join map filter reduce forEach any all find sort sortBy sorted sortedBy reversed slice take skip sum min max distinct flatten` |
 | `Map` | `length size isEmpty keys values get put set remove has clear merge copy forEach mapValues entries` |
-| `Range` | `length first last step isEmpty toList contains reversed sum map filter forEach any all find join min max distinct slice take skip sorted sortBy` |
+| `Range` | `length first last step isEmpty toList contains reversed sum map filter forEach any all find join min max distinct slice take skip sorted sortedBy` |
 | `Int`/`Double` | `abs sign floor ceil round sqrt cbrt toInt toDouble isWhole` |
 
 Properties (`s.length`) resolve before methods of the same name

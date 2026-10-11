@@ -71,6 +71,32 @@ work to make it build and run on a current toolchain.
   reader accepts and a stricter one rejects; it now writes `1.0E+16`. All three are
   pinned by the new `JsonTest` (113 cases), which takes `rt/Json` from no suite at all
   to every line and branch of it covered.
+- **`abs` of the most negative `Int` promotes instead of wrapping** (`lg3d-mandela`,
+  `rt/StandardLibrary`) — `Math.abs(Long.MIN_VALUE)` is `Long.MIN_VALUE`, so
+  `abs(0 - 9223372036854775807 - 1)` answered the same negative number it was
+  handed, the exact roll-over the guide promises an `Int` never suffers. It now
+  answers `Double`, the way the unary minus already did at that edge.
+- **`padStart`/`padEnd` honour the text ceiling `repeat` already enforced**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — the ceiling was applied to the
+  builder's *capacity*, not to the loop, so `"x".padStart(20000000, "0")` built
+  the 20-million-character string instead of refusing it; a width read off a bad
+  value was a heap eat, not a `LimitError`.
+- **`int(...)` refuses a double with no `Int` instead of saturating**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — `longValue()` answers `MAX_VALUE` for
+  any double past the range, so `int(math.pow(2, 63))` quietly returned a number
+  that was not the one asked for. Outside `-2**63 … 2**63-1` is now a
+  `LimitError`, the same shape the size ceilings answer.
+- **A `Range` offers only the copying sorting spellings** (`lg3d-mandela`,
+  `rt/StandardLibrary`) — the delegating table registered the mutating `sortBy`
+  name but the copying `sortedBy` body, so `range.sortedBy(…)` was an unknown
+  member while `range.sortBy(…)` "worked" by reordering a throwaway materialised
+  copy and answering it — a sort that could never change the range. The
+  delegation now spells `sortedBy`, `sortBy` is not a `Range` member (a `TypeError`
+  like any unknown member), and the guide's table matches.
+- **A call missing its second argument is told it needs two**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — the two argument helpers spelled the
+  same sentence separately, and the numbered branch read "needs its 2th
+  argument". The shared spelling says how many arguments the call needs.
 
 ### Changed
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
@@ -82,12 +108,23 @@ work to make it build and run on a current toolchain.
   Long`, so the `isNum(right) ? asLong(right) : 0L` fallback and the second
   `instanceof Long` test were branches no script could reach and no mutation could
   kill. The integer path now reads dividend / divisor / exact-or-double.
+- **The language guide's `LimitError` entry covers the library's ceilings too**
+  (`docs/mandela-language.md`) — it named only the step and depth budgets while
+  the standard library had already been raising the kind for `repeat` and
+  `toList` sizes; it now says a ceiling, wherever the library enforces one.
+  `StandardLibraryTest` (270 cases) pins every bullet above and takes
+  `rt/StandardLibrary` to every line of it covered.
 
 ### Removed
 - **`Ast.BlockValue`, an expression node no syntax could produce** (`lg3d-mandela`) —
   no parser rule ever built it, so the compiler's lowering case, the tree walker's
   case and the node itself are gone; an expression-bodied function answers through
   `Ast.Stmt.ExprValue`, as it already did.
+- **`StandardLibrary.needList`, a guard no script could reach** (`lg3d-mandela`) —
+  a member lookup binds the list vocabulary only to a receiver already matched
+  against `MandelaList`, and the `Range` spellings hand over a materialised copy,
+  so the refusal branch was dead code and a mutant no test could kill; the call
+  sites now cast, naming the invariant in the javadoc instead of checking it.
 
 ## [1.68.0] — 2026-10-11 — Gradle / JDK 21 modernization
 
