@@ -300,23 +300,22 @@ tasks.register('fetchPayloadManJar') {
 }
 
 // -----------------------------------------------------------------------------
-// documentationSite: assemble the published API reference into documentation/
+// documentationSite: generate a LOCAL, git-ignored preview of the API reference
 // -----------------------------------------------------------------------------
-// The GitHub Pages site (documentation/) ships the Javadoc as a committed tree
-// under documentation/en/api/<module>/, so the reference is browsable offline
-// and on Pages without a build step. That makes the tree an artifact of the
-// build, and like :lg3d-core:runtimeResources for the runtime assets, it must
-// be regenerable from source -- otherwise it silently rots on the next API
-// change (which is how the hand-committed tree lost five modules while gaining
-// a byte-identical second copy under fr/api: the API reference is generated
-// from English sources and is NOT translated, so it exists exactly once).
+// The GitHub Pages site (documentation/) does NOT publish the Javadoc. This task
+// assembles every module's Javadoc into documentation/en/api/<module>/ purely as a
+// local, browsable preview. That directory is git-ignored (see .gitignore) and must
+// NEVER be committed: the reference is generated on demand from source, a committed
+// copy would silently rot on the next API change, and shipping it would leak the
+// full API onto the internet through Pages -- which this project explicitly does
+// not do. Do not re-add documentation/en/api/ to the repository.
 //
-//   ./gradlew documentationSite      # regenerate documentation/en/api/
+//   ./gradlew documentationSite      # (re)generate the local preview under documentation/en/api/
 //
-// Fails loudly if a module produces nothing: an empty module tree is a defect
-// in that module's javadoc task, not a reason to drop the module from the site.
-// Not wired into `build`/`check` -- generating ten modules' Javadoc takes
-// minutes, and the docs site only needs regenerating when the API changes.
+// Fails loudly if a module produces nothing: an empty module tree is a defect in
+// that module's javadoc task, not a reason to silently drop the module from the
+// preview. Not wired into `build`/`check` -- generating ten modules' Javadoc takes
+// minutes, and the local preview only needs regenerating when you want to read it.
 def apiModules = [
     'lg3d-escher'    : [dir: 'escher',        title: 'lg3d-escher (X11 protocol library)'],
     'lg3d-core'      : [dir: 'core',          title: 'lg3d-core (scene graph, windowing, display server SDK)'],
@@ -332,7 +331,7 @@ def apiModules = [
 
 tasks.register('documentationSite') {
     group = 'documentation'
-    description = 'Generate every module\'s Javadoc and assemble the published API reference under documentation/en/api/.'
+    description = 'Generate every module\'s Javadoc into a LOCAL, git-ignored API preview under documentation/en/api/ (never committed, never published).'
     dependsOn apiModules.keySet().collect { ":${it}:javadoc" }
 
     doLast {
@@ -343,12 +342,12 @@ tasks.register('documentationSite') {
             def src = mod.layout.buildDirectory.dir('docs/javadoc').get().asFile
             if (!new File(src, 'index.html').isFile()) {
                 throw new GradleException("Javadoc for ${moduleName} produced no index.html under ${src}: "
-                    + 'that module would be missing from the published API reference. Fix the javadoc task '
+                    + 'that module would be missing from the generated API preview. Fix the javadoc task '
                     + '(see the module console output) rather than dropping the module.')
             }
             def dst = new File(siteDir, spec.dir)
             // Replace, never merge: pages for classes that no longer exist would
-            // otherwise stay published forever.
+            // otherwise linger in the local preview forever.
             project.delete(dst)
             project.copy { from src; into dst }
             items << "        <li><a href=\"${spec.dir}/index.html\">${spec.title}</a></li>\n"
@@ -378,12 +377,12 @@ footer { margin-top: 2rem; font-size: .85rem; color: #666; }
 <body>
 <main>
 <h1>API Reference / R&eacute;f&eacute;rence d'API</h1>
-<p class="lede">Javadoc generated from the source of each module. The API reference is
-built from English-language sources and is not translated; both the English and the
-French documentation portal link this single tree.<br>
-Javadoc g&eacute;n&eacute;e &agrave; partir des sources de chaque module. La r&eacute;f&eacute;rence d'API
-est produite &agrave; partir des sources en anglais et n'est pas traduite ; les portails de
-documentation anglais et fran&ccedil;ais pointent tous deux vers cette m&ecirc;me arborescence.</p>
+<p class="lede">Javadoc generated from the source of each module. This is a LOCAL
+preview only - it is git-ignored, never committed, and never published; the
+documentation portals do not link it. Build it with <code>./gradlew documentationSite</code>.<br>
+Javadoc g&eacute;n&eacute;e &agrave; partir des sources de chaque module. Ceci n'est qu'un aper&ccedil;u LOCAL -
+ignor&eacute; par git, jamais commit&eacute; ni publi&eacute; ; les portails de documentation ne le lient
+pas. Construisez-le avec <code>./gradlew documentationSite</code>.</p>
 <ul>
 ${items}</ul>
 <nav><a href="../index.html">Documentation portal / Portail de documentation</a>

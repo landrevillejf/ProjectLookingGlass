@@ -28,9 +28,8 @@ documentation/
 │   │   ├── architecture-overview.md    # Architecture diagrams
 │   │   ├── sequence-diagrams.md         # Sequence diagrams
 │   │   └── class-diagrams.md            # Class diagrams
-│   ├── functional-analysis/
-│   │   └── functional-analysis.md       # Functional analysis document
-│   └── api/                             # API reference (generated Javadoc, single copy)
+│   └── functional-analysis/
+│       └── functional-analysis.md       # Functional analysis document
 └── fr/                          # French documentation / Documentation en français
     ├── diagrams/
     │   ├── architecture-overview.md    # Diagrammes d'architecture
@@ -40,13 +39,13 @@ documentation/
         └── functional-analysis.md       # Document d'analyse fonctionnelle
 ```
 
-The prose is bilingual; the API reference under `en/api/` is not. Javadoc is
-generated from English-language sources and is published once - both portals link
-the same tree rather than carrying two copies of it.
+The prose published here is bilingual. The Javadoc API reference is **not** part of
+this site: it is never committed or published. Generate it locally when you need it
+(see [API Documentation](#api-documentation) below).
 
-La prose est bilingue ; la référence d'API sous `en/api/` ne l'est pas. La Javadoc
-est générée à partir de sources en anglais et publiée une seule fois - les deux
-portails pointent vers la même arborescence au lieu d'en porter deux copies.
+La prose publiée ici est bilingue. La référence d'API Javadoc ne fait **pas** partie de
+ce site : elle n'est jamais commitée ni publiée. Générez-la localement au besoin (voir
+[Documentation API](#documentation-api) plus bas).
 
 ## English Documentation
 
@@ -62,7 +61,8 @@ portails pointent vers la même arborescence au lieu d'en porter deux copies.
 
 ### API Documentation
 
-The **[API Reference](en/api/index.html)** - Javadoc for all ten built modules, generated from the source.
+Javadoc for the built modules is generated on demand and is **not** published here.
+See [API Documentation](#api-documentation) below for how to build it locally.
 
 ## Documentation Française
 
@@ -78,22 +78,24 @@ The **[API Reference](en/api/index.html)** - Javadoc for all ten built modules, 
 
 ### Documentation API
 
-La **[référence d'API](en/api/index.html)** - Javadoc des dix modules construits, générée à partir des sources. Elle n'est pas traduite : les sources sont en anglais.
+La Javadoc des modules construits est générée à la demande et n'est **pas** publiée ici.
+Voir [Documentation API](#documentation-api) plus bas pour la construire localement.
 
 ## API Documentation
 
-The published API reference is the committed tree under [`en/api/`](en/api/index.html):
-one directory per module (`apps`, `core`, `escher`, `ftp-client`, `incubator`,
-`lpm-console`, `mandela`, `update-manager`, `widgets`) plus a landing page. It is a
-build artifact - never edit those files by hand.
+The API reference is **not committed and not published**. It is generated on demand,
+locally, from the sources of each module into `documentation/en/api/` (one directory
+per module plus a landing page). That directory is git-ignored, so it never enters the
+repository or the Pages site. It is a build artifact - never edit those files by hand.
 
-La référence d'API publiée est l'arborescence commitée sous [`en/api/`](en/api/index.html) :
-un répertoire par module (`apps`, `core`, `escher`, `ftp-client`, `incubator`,
-`lpm-console`, `mandela`, `update-manager`, `widgets`) plus une page d'accueil. C'est un
-artefact de build - ne jamais éditer ces fichiers à la main.
+La référence d'API n'est **ni commitée ni publiée**. Elle est générée à la demande, en
+local, à partir des sources de chaque module dans `documentation/en/api/` (un
+répertoire par module plus une page d'accueil). Ce répertoire est ignoré par git : il
+n'entre donc jamais dans le dépôt ni sur le site Pages. C'est un artefact de build -
+ne jamais éditer ces fichiers à la main.
 
 ```bash
-# Regenerate the whole published reference (all ten modules) into documentation/en/api/
+# Generate the whole reference (all ten modules) locally into documentation/en/api/ (git-ignored, never committed)
 ./gradlew documentationSite
 
 # Javadoc for a single module only (output stays under <module>/build-gradle/docs/javadoc/)
@@ -102,10 +104,10 @@ artefact de build - ne jamais éditer ces fichiers à la main.
 ```
 
 `documentationSite` fails if any module produces an empty tree, so a module cannot
-disappear from the published reference silently.
+silently vanish from the generated reference.
 
 `documentationSite` échoue si un module produit une arborescence vide : un module ne
-peut donc pas disparaître silencieusement de la référence publiée.
+peut donc pas disparaître silencieusement de la référence générée.
 
 **Key API packages:**
 
