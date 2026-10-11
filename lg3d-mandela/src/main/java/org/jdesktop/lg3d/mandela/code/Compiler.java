@@ -119,24 +119,36 @@ public final class Compiler {
     }
 
     /**
-     * Where a name lives. {@link #FIELD} is the in-class case: the value is a
+     * Where a name lives. {@link Ref#FIELD} is the in-class case: the value is a
      * member of {@code this} rather than a variable.
+     *
+     * <p>An enum rather than the {@code int} tags a compiler of 2006 would have
+     * used, so that {@link #loadSlot} and {@link #storeSlot} are switches javac
+     * checks for totality: adding a sixth place a name can live in fails the build
+     * instead of reaching a runtime guard no script can trigger.</p>
      */
-    private static final int R_LOCAL = 0;
-    private static final int R_BOX = 1;
-    private static final int R_UPVALUE = 2;
-    private static final int R_GLOBAL = 3;
-    private static final int R_FIELD = 4;
+    private enum Ref {
+        /** A slot of the current frame. */
+        LOCAL,
+        /** A slot of the current frame that a nested function captured, so it lives in a box. */
+        BOX,
+        /** A value captured from an enclosing function. */
+        UPVALUE,
+        /** A top-level name, reached by string through the global table. */
+        GLOBAL,
+        /** A field of the enclosing class's {@code this}. */
+        FIELD
+    }
 
     /**
      * A resolved read or write target.
      *
-     * @param kind      one of the {@code R_} constants
+     * @param kind      where the name lives
      * @param index     the frame slot or upvalue index, -1 for name-kinded targets
      * @param name      the source name
      * @param immutable false for {@code var} and for parameters
      */
-    private record Slot(int kind, int index, String name, boolean immutable) { }
+    private record Slot(Ref kind, int index, String name, boolean immutable) { }
 
     private final String sourceName;
     private final List<Diagnostic> diagnostics = new ArrayList<>();
@@ -1273,11 +1285,6 @@ public final class Compiler {
         switch (target) {
             case Ast.Name n -> {
                 Slot slot = resolveForStore(n.name(), line, n.column());
-                if (slot.kind() == R_FIELD) {
-                    assignMember(() -> loadThis(line), slot.name(), value, op,
-                            compound, keepValue, line);
-                    return;
-                }
                 if (compound) {
                     loadSlot(slot, line);
                     expr(value);
@@ -1285,10 +1292,7 @@ public final class Compiler {
                 } else {
                     expr(value);
                 }
-                if (keepValue) {
-                    emit(Op.DUP, line);
-                }
-                storeSlot(slot, line);
+                storeSlot(slot, line, keepValue);
             }
             case Ast.Member m -> assignMember(() -> expr(m.target()), m.name(), value,
                     op, compound, keepValue, line);
@@ -1355,26 +1359,66 @@ public final class Compiler {
 
     private void loadSlot(Slot slot, int line) {
         switch (slot.kind()) {
-            case R_LOCAL -> emit(Op.GET_LOCAL, slot.index(), line);
-            case R_BOX -> emit(Op.GET_LOCAL_BOX, slot.index(), line);
-            case R_UPVALUE -> emit(Op.GET_UPVALUE, slot.index(), line);
-            case R_GLOBAL -> emit(Op.GET_GLOBAL, constant(slot.name()), line);
-            case R_FIELD -> {
+            case LOCAL -> emit(Op.GET_LOCAL, slot.index(), line);
+            case BOX -> emit(Op.GET_LOCAL_BOX, slot.index(), line);
+            case UPVALUE -> emit(Op.GET_UPVALUE, slot.index(), line);
+            case GLOBAL -> emit(Op.GET_GLOBAL, constant(slot.name()), line);
+            case FIELD -> {
                 loadThis(line);
                 emit(Op.GET_MEMBER, constant(slot.name()), line);
             }
-            default -> throw new IllegalStateException("unhandled reference kind");
         }
     }
 
-    private void storeSlot(Slot slot, int line) {
+    /**
+     * Stores the value on top of the stack into its resolved target.
+     *
+     * <p>{@code keepValue} decides whether the stored value also stays on the stack,
+     * which is what makes an assignment usable as an expression. A field is the one
+     * target whose lowering needs the receiver below the value, so it parks the value
+     * in a temporary slot, loads {@code this} and puts the value back &mdash; the same
+     * dance an evaluated member target does in {@link #assignMember}, which is why a
+     * name that resolves to a field needs no special case in {@link #assign}.</p>
+     */
+    private void storeSlot(Slot slot, int line, boolean keepValue) {
         switch (slot.kind()) {
-            case R_LOCAL -> emit(Op.SET_LOCAL, slot.index(), line);
-            case R_BOX -> emit(Op.SET_LOCAL_BOX, slot.index(), line);
-            case R_UPVALUE -> emit(Op.SET_UPVALUE, slot.index(), line);
-            case R_GLOBAL -> emit(Op.SET_GLOBAL, constant(slot.name()), line);
-            default -> throw new IllegalStateException(
-                    "field stores are lowered through assignMember");
+            case LOCAL -> {
+                dup(keepValue, line);
+                emit(Op.SET_LOCAL, slot.index(), line);
+            }
+            case BOX -> {
+                dup(keepValue, line);
+                emit(Op.SET_LOCAL_BOX, slot.index(), line);
+            }
+            case UPVALUE -> {
+                dup(keepValue, line);
+                emit(Op.SET_UPVALUE, slot.index(), line);
+            }
+            case GLOBAL -> {
+                dup(keepValue, line);
+                emit(Op.SET_GLOBAL, constant(slot.name()), line);
+            }
+            case FIELD -> {
+                int mark = scope.beginBlock();
+                int at = scope.allocateTemp(1);
+                emit(Op.SET_LOCAL, at, line);
+                loadThis(line);
+                emit(Op.GET_LOCAL, at, line);
+                emit(Op.SET_MEMBER, constant(slot.name()), line);
+                if (keepValue) {
+                    // The parked copy is the value the expression answers with; a
+                    // DUP here would leave the stack holding it twice.
+                    emit(Op.GET_LOCAL, at, line);
+                }
+                scope.endBlock(mark);
+            }
+        }
+    }
+
+    /** Leaves a copy of the stored value when the assignment is used as an expression. */
+    private void dup(boolean keepValue, int line) {
+        if (keepValue) {
+            emit(Op.DUP, line);
         }
     }
 
@@ -1412,10 +1456,10 @@ public final class Compiler {
         if (!classes.isEmpty() && methodBarrier != null
                 && (classes.peek().fields.contains(name)
                         || classes.peek().inheritedFields.contains(name))) {
-            return new Slot(R_FIELD, -1, name, false);
+            return new Slot(Ref.FIELD, -1, name, false);
         }
         if (globals.contains(name)) {
-            return new Slot(R_GLOBAL, -1, name, !Boolean.TRUE.equals(globalMutable.get(name)));
+            return new Slot(Ref.GLOBAL, -1, name, !Boolean.TRUE.equals(globalMutable.get(name)));
         }
         if (Keywords.isReserved(name)) {
             throw fail("'" + name + "' is a reserved word", line, column);
@@ -1441,57 +1485,67 @@ public final class Compiler {
             return null;
         }
         boolean boxed = lex.binding().boxed();
-        int kind = boxed ? R_BOX : R_LOCAL;
+        Ref kind = boxed ? Ref.BOX : Ref.LOCAL;
         int index = lex.binding().slot();
         if (lex.owner() != scope) {
-            index = captureFrom(lex.owner(), scope, name);
-            kind = R_UPVALUE;
-        }
-        if (index < 0) {
-            throw fail("cannot reach '" + name + "' from here", line, column);
+            index = captureFrom(lex, name);
+            kind = Ref.UPVALUE;
         }
         return new Slot(kind, index, name, !lex.binding().mutable());
     }
 
-    /** A binding and the function scope that owns it. */
-    private record Lex(Scope.Binding binding, Scope owner) { }
+    /**
+     * A binding, the function scope that owns it, and the functions that must carry
+     * it down to the one asking.
+     *
+     * @param binding  the name's slot and mutability
+     * @param owner    the scope that declared the name
+     * @param carriers every function between the requester and {@code owner}, the
+     *                 requester first and the owner's own child last
+     */
+    private record Lex(Scope.Binding binding, Scope owner, List<Scope> carriers) { }
 
     /** Walks the function scopes outward, stopping at a method's own frame. */
     private Lex findLexical(String name) {
+        List<Scope> carriers = new ArrayList<>();
         Scope s = scope;
         while (s != null) {
             Scope.Binding b = s.find(name);
             if (b != null) {
-                return new Lex(b, s);
+                return new Lex(b, s, List.copyOf(carriers));
             }
             if (s == methodBarrier) {
                 return null;
             }
+            carriers.add(s);
             s = s.parent;
         }
         return null;
     }
 
     /**
-     * Registers {@code name} as an upvalue of {@code child}, boxing the owner's
-     * slot and recording the intermediate captures on the way down.
+     * Registers {@code name} as a capture of every function between its owner and the
+     * one that asked for it.
      *
-     * @return the upvalue index inside {@code child}, or -1 when nobody owns it
+     * <p>A closure reaches its owner's variables through the frame that created it,
+     * never through a frame two calls up, so a name owned by a grandparent has to be
+     * handed down: the function directly below the owner captures the owner's boxed
+     * slot ({@link Op#CAPTURE_LOCAL}), and each deeper function re-captures its own
+     * parent's cell ({@link Op#CAPTURE_UPVALUE}). Without that chain a closure built
+     * inside a nested function reads a slot its own frame does not have, which is not
+     * a wrong answer but an out-of-range one.</p>
+     *
+     * @return the upvalue index inside the requesting scope
      */
-    private int captureFrom(Scope owner, Scope child, String name) {
-        Scope.Binding b = owner.find(name);
-        if (b != null) {
-            owner.box(b.slot());
-            return child.capture(name, true, b.slot());
+    private int captureFrom(Lex lex, String name) {
+        lex.owner().box(lex.binding().slot());
+        int index = lex.binding().slot();
+        boolean fromLocal = true;
+        for (int i = lex.carriers().size() - 1; i >= 0; i--) {
+            index = lex.carriers().get(i).capture(name, fromLocal, index);
+            fromLocal = false;
         }
-        if (owner == methodBarrier || owner.parent == null) {
-            return -1;
-        }
-        int outer = captureFrom(owner.parent, owner, name);
-        if (outer < 0) {
-            return -1;
-        }
-        return child.capture(name, false, outer);
+        return index;
     }
 
     /** @return true when {@code name} is a method of the enclosing class or of a base */
