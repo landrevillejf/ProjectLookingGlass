@@ -79,13 +79,14 @@ tasks.register('mandelaRepl', JavaExec) {
 // repositoryChecks: the desktop's own tools, dogfooded on this repository
 // ---------------------------------------------------------------------------
 // scripts/mandela holds automation written *in* Mandela and aimed at this
-// repository: a documentation-link checker, a release-consistency gate and a
-// start-menu descriptor audit. They are ordinary `mandela run` invocations, so
+// repository: a documentation-link checker, an HTML/Mermaid checker for the
+// Pages site, a release-consistency gate and a start-menu descriptor audit. They
+// are ordinary `mandela run` invocations, so
 // the only thing these tasks add is the sandbox and the classpath -- run against
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all three)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all four)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -115,6 +116,8 @@ def mandelaCheck = { String name, String script, String what ->
 
 mandelaCheck('docLinksCheck', 'doc-links.mnd',
         'Fail when a relative link in the repository documentation does not resolve.')
+mandelaCheck('htmlLinksCheck', 'html-links.mnd',
+        'Fail when the Pages documentation site carries a dead href/src/viewer path or a broken mermaid fence.')
 mandelaCheck('releaseCheck', 'release-check.mnd',
         'Fail when the version references or settings.gradle disagree with the tree.')
 mandelaCheck('startMenuAudit', 'startmenu-audit.mnd',
@@ -123,7 +126,7 @@ mandelaCheck('startMenuAudit', 'startmenu-audit.mnd',
 tasks.register('repositoryChecks') {
     group = 'verification'
     description = 'Run every Mandela script that audits this repository.'
-    dependsOn 'docLinksCheck', 'releaseCheck', 'startMenuAudit'
+    dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit'
 }
 
 // ---------------------------------------------------------------------------
