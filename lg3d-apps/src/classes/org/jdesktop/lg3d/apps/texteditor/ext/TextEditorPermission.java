@@ -25,19 +25,19 @@ package org.jdesktop.lg3d.apps.texteditor.ext;
  */
 public enum TextEditorPermission {
 
-    /** Read document text and selection via {@link EditorContext#getDocumentText()} and {@link EditorContext#getSelectedText()}. */
+    /** Read document text and selection via {@link DocumentContext#getFullText()} and {@link DocumentContext#getSelectedText()}. */
     READ,
 
-    /** Write document text and selection via {@link EditorContext#setDocumentText(String)} and {@link EditorContext#replaceSelection(String)}. */
+    /** Write document text and selection via {@link DocumentContext#setFullText(String)} and {@link DocumentContext#replaceSelection(String)}. */
     WRITE,
 
-    /** Open and save files via {@link EditorContext#openFile()} and {@link EditorContext#saveFile()}; also drives the output console via {@link EditorContext#showOutput} and {@link EditorContext#clearOutput}. */
+    /** Open and save files via {@link EditorContext#openFile()} and {@link EditorContext#saveFile()}; also drives the output console via {@link EditorContext#showOutput(String, String)} and {@link EditorContext#clearOutput()}. */
     FILE_IO,
 
     /** Read or change editor settings. */
     SETTINGS,
 
-    /** Contribute toolbar buttons via {@link TextEditorExtension#toolbarContributions()}. */
+    /** Contribute toolbar buttons via {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#toolbarContributions()}. */
     TOOLBAR,
 
     /**

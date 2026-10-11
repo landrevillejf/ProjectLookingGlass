@@ -27,3 +27,13 @@ jar {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'ISO-8859-1'
 }
+
+// Javadoc reads the same sources, so it needs the same *source* encoding: under
+// the root UTF-8 default, :lg3d-escher:javadoc aborts on gnu/x11/test/Chinese.java
+// ("unmappable character (0xA7)") and the escher API silently disappears from the
+// published reference. The generated pages stay UTF-8.
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'ISO-8859-1'
+    options.docEncoding = 'UTF-8'
+    options.addStringOption('charset', 'UTF-8')
+}

@@ -17,8 +17,8 @@ import java.util.function.Consumer;
 
 /**
  * A loaded document, handed to extensions through
- * {@link TextEditorExtension#onDocumentOpened} and
- * {@link TextEditorExtension#onDocumentSaved}.
+ * {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onDocumentOpened} and
+ * {@link org.jdesktop.lg3d.apps.texteditor.TextEditorExtension#onDocumentSaved}.
  *
  * <p>The text mutator is supplied by the broker: it is the real document
  * mutator for extensions granted {@link TextEditorPermission#WRITE} and a

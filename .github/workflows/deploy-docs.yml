@@ -1,0 +1,67 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'documentation/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # The published site is the bilingual prose under documentation/ (en/ and fr/),
+      # nothing else. The Javadoc API reference is NOT published: it is generated on
+      # demand into documentation/en/api/, which is git-ignored, so it never reaches
+      # this checkout or Pages. See documentation/README.md.
+      #
+      # Guard against an accidental re-commit of the generated Javadoc: if a tree ever
+      # appears under documentation/{en,fr}/api in a checkout, the site would publish
+      # the API on the internet, which this project explicitly does not do.
+      - name: Verify the API reference is not committed
+        run: |
+          set -eu
+          if [ -d documentation/en/api ] || [ -d documentation/fr/api ]; then
+            echo "::error::documentation/{en,fr}/api must not be committed: the Javadoc is generated on demand and is never published"
+            exit 1
+          fi
+
+      - name: Create documentation structure
+        run: |
+          mkdir -p _site
+          cp -r documentation/* _site/
+          # The site is static HTML/prose, not a Jekyll project. Without .nojekyll,
+          # GitHub's Pages build pipeline post-processes the tree and can drop or
+          # rewrite pages.
+          touch _site/.nojekyll
+          echo "Documentation copied to _site"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

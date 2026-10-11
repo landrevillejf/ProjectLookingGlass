@@ -14,6 +14,13 @@ build-gradle/
 *.class
 *.jar.tmp
 
+# ---- Generated documentation (never committed, never published) ----
+# The Javadoc API reference is generated on demand by ./gradlew documentationSite
+# into documentation/en/api/. This project does NOT publish the Javadoc: the tree
+# must never be committed nor shipped to GitHub Pages. Ignore it so a stray
+# documentationSite run cannot re-add ~4k generated files (see documentation/README.md).
+documentation/en/api/
+
 # ---- Python tooling ----
 # The asset tools under lg3d-art/tools/ are plain Python; importing them leaves
 # a bytecode cache behind that must never be committed.
