@@ -65,6 +65,7 @@ import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.basic.BasicDesktopPaneUI;
 import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
+import org.jdesktop.lg3d.displayserver.desktop2d.screensaver.ScreensaverService;
 import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11CompositorSession;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
@@ -187,6 +188,14 @@ public class Desktop2D {
     private final SessionManager sessionManager;
     private final RunHistoryStore runHistoryStore;
     private final RunHistory runHistory;
+
+    /**
+     * The screen-saver host (idle detection + full-screen saver windows),
+     * installed at the end of {@link #show()}. Null before that and on the
+     * 3D desktop, which has no 2D shell; the control center's Screen Saver
+     * panel reaches it through {@link #screensaverService()}.
+     */
+    private ScreensaverService screensavers;
 
     /**
      * The multiple-workspace (virtual desktop) model: which window lives on
@@ -435,6 +444,10 @@ public class Desktop2D {
         // *_nox configs, compositing disabled), so the default shell is
         // unchanged.
         installCompositedWindows();
+        // Arm the screen saver last: it reads the same persisted settings the
+        // control center writes, and headless JVMs (tests, CI) never install
+        // the watcher at all, so this leaves those runs byte-identical.
+        installScreensaver();
     }
 
     /** The desktop window (package-visible for diagnostics). */
@@ -1461,6 +1474,75 @@ public class Desktop2D {
             return existing;
         }
         return d.hostPanel(title, icon, content, null, null, null);
+    }
+
+    // ------------------------------------------------------------------
+    // Screen saver
+    // ------------------------------------------------------------------
+
+    /**
+     * Creates the screen-saver host and arms it from the persisted settings.
+     * Must run on the EDT (called from {@link #show()}). The presentation
+     * probe lets the service postpone engagement while a maximized window
+     * fills the screen, so a slideshow or full-screen view is never blanked
+     * mid-act; headless JVMs get a no-op inside the service itself.
+     */
+    private void installScreensaver() {
+        screensavers = new ScreensaverService(this::hasMaximizedWindow);
+        screensavers.apply();
+    }
+
+    /** True when an open internal frame is maximized on the current view. */
+    private boolean hasMaximizedWindow() {
+        for (JInternalFrame f : desktop.getAllFrames()) {
+            if (f.isMaximum() && f.isVisible()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The running screen-saver host, or null when no 2D desktop (or the 3D
+     * desktop) is up. The control center's Screen Saver panel uses it for the
+     * live preview, the saver inventory and "Test"; it must degrade gracefully
+     * to editing the persisted settings alone when this returns null.
+     */
+    public static ScreensaverService screensaverService() {
+        final Desktop2D d = instance;
+        return d == null ? null : d.screensavers;
+    }
+
+    /**
+     * Re-arms the screen saver from the persisted {@code ScreensaverSettings}
+     * (enable flag, timeout, selected saver, per-saver options). A no-op when
+     * no 2D desktop runs, so the next start still honours the stored values.
+     * Safe to call from any thread; the work lands on the EDT. This is the
+     * Screen Saver panel's counterpart of {@link #applyDesktopConfig()}.
+     */
+    public static void applyScreensaverConfig() {
+        final Desktop2D d = instance;
+        if (d == null || d.screensavers == null) {
+            return;
+        }
+        Runnable apply = d.screensavers::apply;
+        if (SwingUtilities.isEventDispatchThread()) {
+            apply.run();
+        } else {
+            SwingUtilities.invokeLater(apply);
+        }
+    }
+
+    /**
+     * Shows the selected (or next cycled) saver for a short timed test,
+     * whatever the enable flag says. No-op when no 2D desktop is running.
+     * Safe from any thread. Called by the control center's Test button.
+     */
+    public static void testScreensaver() {
+        ScreensaverService service = screensaverService();
+        if (service != null) {
+            service.testNow();
+        }
     }
 
     /** Registers the taskbar bookkeeping for {@code window}. */

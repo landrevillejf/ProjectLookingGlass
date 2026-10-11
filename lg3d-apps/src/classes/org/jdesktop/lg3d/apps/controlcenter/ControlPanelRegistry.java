@@ -21,7 +21,8 @@ import java.util.logging.Logger;
 
 /**
  * Discovers the control center's category panels. The built-in panels
- * (Appearance, Customization, Desktop, Display, Sound, Power, Mouse & Keyboard,
+ * (Appearance, Customization, Desktop, Display, Screen Saver, Sound, Power,
+ *   Mouse & Keyboard,
  * Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications,
  * Network, Bluetooth, Printing, Date & Time, Language & Region, Users, System,
  * Services, System Update, Storage, Schedule, Task Scheduler) are registered on first access; extra panels can be
@@ -169,6 +170,7 @@ public final class ControlPanelRegistry {
         addDefault(CustomizationPanel::new, "Customization");
         addDefault(DesktopPanel::new, "Desktop");
         addDefault(DisplayPanel::new, "Display");
+        addDefault(ScreenSaverPanel::new, "Screen Saver");
         addDefault(SoundPanel::new, "Sound");
         addDefault(PowerPanel::new, "Power");
         addDefault(InputPanel::new, "Mouse & Keyboard");
