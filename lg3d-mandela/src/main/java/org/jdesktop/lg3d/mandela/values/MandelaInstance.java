@@ -42,12 +42,6 @@ public final class MandelaInstance {
         this.fields = new MandelaMap(Math.max(8, owner.fieldNames().size() * 2));
     }
 
-    /** Creates an instance pre-filled with {@code initial}. */
-    public MandelaInstance(MandelaClass owner, MandelaMap initial) {
-        this.owner = owner;
-        this.fields = initial;
-    }
-
     /** @return the declaration this value was made from */
     public MandelaClass owner() {
         return owner;
@@ -94,6 +88,10 @@ public final class MandelaInstance {
     /**
      * Structural equality for a {@code type}, identity for a {@code class} or an
      * {@code enum} constant.
+     *
+     * <p>A record is equal to a twin of the <em>same declaration</em>: a class is
+     * made fresh by each run, so two {@code Point}s from two engines are two
+     * types' answers and are not compared at all.</p>
      */
     @Override
     public boolean equals(Object other) {
@@ -104,7 +102,7 @@ public final class MandelaInstance {
             return false;
         }
         if (owner.kind() == MandelaClass.Kind.TYPE) {
-            return owner == instance.owner && fields.equals(instance.fields);
+            return owner == instance.owner && Values.equal(fields, instance.fields);
         }
         return false;
     }
@@ -112,10 +110,7 @@ public final class MandelaInstance {
     /** @return a hash consistent with {@link #equals(Object)} */
     @Override
     public int hashCode() {
-        if (owner.kind() == MandelaClass.Kind.TYPE) {
-            return System.identityHashCode(owner) * 31 + fields.hashCode();
-        }
-        return System.identityHashCode(this);
+        return Values.hash(this);
     }
 
     @Override

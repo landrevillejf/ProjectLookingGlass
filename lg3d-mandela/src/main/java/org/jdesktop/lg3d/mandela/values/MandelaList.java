@@ -136,15 +136,32 @@ public final class MandelaList implements Iterable<Object> {
     /**
      * Two lists are equal when they hold equal elements in the same order, which
      * is what makes {@code == } useful on parsed data.
+     *
+     * <p>Each element is asked through {@link Values#equal}, not through Java's
+     * {@code Object.equals}: a {@code java.util} walk would call {@code 1} and
+     * {@code 1.0} different inside a list while the language calls them the same
+     * number outside one.</p>
      */
     @Override
     public boolean equals(Object other) {
-        return other instanceof MandelaList list && items.equals(list.items);
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof MandelaList list) || items.size() != list.items.size()) {
+            return false;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            if (!Values.equal(items.get(i), list.items.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
+    /** @return a hash consistent with {@link #equals(Object)} */
     @Override
     public int hashCode() {
-        return items.hashCode();
+        return Values.hash(this);
     }
 
     @Override

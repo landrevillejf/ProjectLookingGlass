@@ -29,9 +29,12 @@ package org.jdesktop.lg3d.mandela.values;
  * <p>The stride is written the way Kotlin writes it, because a range is one of the
  * places where the two languages are meant to feel the same to a host developer:
  * {@code 0..8 step 2} gives 0, 2, 4, 6, 8, and a negative stride walks down
- * ({@code 8..0 step -2}). A range whose direction contradicts its bounds is empty,
- * which is the same rule {@code 10..1} already follows, so there is no range that
- * means two different things depending on how it is read.</p>
+ * ({@code 8..0 step -2}) to the same nine-value answer an upward range gets,
+ * 8, 6, 4, 2, 0. The count is measured <em>along the stride</em>, never off the
+ * bounds, which is what keeps an inclusive end included whichever way it points.
+ * A range whose direction contradicts its bounds is empty, which is the same rule
+ * {@code 10..1} already follows, so there is no range that means two different
+ * things depending on how it is read.</p>
  *
  * @param from      the first value
  * @param to        the boundary
@@ -47,24 +50,44 @@ public record MandelaRange(long from, long to, boolean exclusive, long step) {
         }
     }
 
-    /** @return the number of values the range produces, zero when it is empty */
+    /**
+     * @return the number of values the range produces, zero when it is empty, and
+     *         {@link Long#MAX_VALUE} as "more than a long can count" when the
+     *         bounds are too wide to measure
+     */
     public long size() {
-        long span = span();
-        if (span == 0L || Long.signum(span) != Long.signum(step)) {
-            return 0L;
-        }
-        // Ceil division written as (n - 1) / d + 1 so a wide range cannot overflow
-        // the way magnitude + stride - 1 would.
-        return (Math.abs(span) - 1L) / Math.abs(step) + 1L;
-    }
-
-    /** @return the number of unit values between the bounds, signed toward {@code to} */
-    private long span() {
-        // Long.MAX_VALUE as an inclusive end cannot be represented as a count.
-        if (!exclusive && to == Long.MAX_VALUE) {
+        // The distance between the bounds, signed in the direction the walk goes.
+        // Measuring that instead of "the span toward to" is the fix: an inclusive
+        // end owes the walk one more step along the *stride*, so 8..0 step -1 is
+        // nine values ending at 0 and not seven ending at 2.
+        long travelled;
+        try {
+            travelled = Math.subtractExact(to, from);
+        } catch (ArithmeticException unmeasurable) {
             return Long.MAX_VALUE;
         }
-        return exclusive ? to - from : to - from + 1L;
+        if (travelled == 0L) {
+            // Coincident bounds: the start is one value when it is also the end.
+            return exclusive ? 0L : 1L;
+        }
+        if (Long.signum(travelled) != Long.signum(step)) {
+            return 0L;
+        }
+        if (travelled == Long.MIN_VALUE) {
+            // The one distance Math.abs cannot measure: MIN_VALUE to 0 is 2^63
+            // units, one more than a long counts, in either direction.
+            return Long.MAX_VALUE;
+        }
+        long distance = Math.abs(travelled);
+        if (exclusive) {
+            // Ceil division written as (n - 1) / d + 1 so a wide range cannot
+            // overflow the way magnitude + stride - 1 would.
+            return (distance - 1L) / Math.abs(step) + 1L;
+        }
+        if (distance == Long.MAX_VALUE && Math.abs(step) == 1L) {
+            return Long.MAX_VALUE; // MAX_VALUE + 1 values is not a count a long holds
+        }
+        return distance / Math.abs(step) + 1L;
     }
 
     /** @return true when the range holds no values at all */
