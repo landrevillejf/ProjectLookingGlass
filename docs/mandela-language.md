@@ -406,7 +406,9 @@ assert keys valuesOf`
 
 `parse encode stringify isValid` — JSON text in, Mandela values out
 (`Map`/`List`/`Str`/`Double`/`Bool`/`Null`), and back. `isValid` tests without
-raising.
+raising. The reader is strict the way RFC 8259 is: one value per document, no
+comments, no trailing commas, no `NaN`, no leading zero on a number. A refusal is
+a `JsonError` that names the line and column it came from.
 
 ### `std.math`
 

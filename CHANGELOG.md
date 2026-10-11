@@ -47,6 +47,30 @@ work to make it build and run on a current toolchain.
   walks the headers and returns the first one that actually carries a version, so
   `:lg3d-mandela:repositoryChecks` is green in all three states a branch moves
   through: released, development (`## [Unreleased] — 1.69.0-dev`) and in-between.
+- **`std.json` refuses the numbers RFC 8259 refuses** (`lg3d-mandela`, `rt/Json`) —
+  the reader's own javadoc says it "stays strict on purpose, because a document that
+  two parsers disagree about is a bug nobody can find later", but it read `01` as the
+  `Int` `1`. A hand-written settings file, or an octal-looking literal from a lenient
+  producer, therefore parsed here and failed (or parsed as a different value) at the
+  other end of the wire; `json.isValid` answered `true` for it, which is the worse
+  half, since a script that validates before parsing was told the document was JSON.
+  A second digit after a `0` is now a `JsonError` naming the line and column.
+- **A Java value handed to the writer crosses the table the machine uses**
+  (`lg3d-mandela`, `rt/Json`) — `Json.encode` and `Json.stringify` are public Java
+  entry points, and the writer special-cased exactly one host type, `Integer`. So
+  `Json.encode("abc".length())` answered `3` while `Json.encode(1.5f)`,
+  `Json.encode(List.of(1, 2))` and `Json.stringify(Map.of("k", "v"))` all raised
+  *json cannot encode a Host* — an arbitrary line for a host, and the same leak
+  `VM.callHost` was just fixed for. The writer now runs its input through the
+  documented widening at every node, which is what lets the `Integer` special case go
+  away.
+- **A wide `Double` is written with a signed exponent** (`lg3d-mandela`, `rt/Json`) —
+  the language's own number rendering keeps an exponent for a value too wide for
+  plain digits, and Java spells that form as `1.0E16` while the JSON grammar requires
+  a sign on the exponent. `json.encode(1e16)` therefore produced a document this
+  reader accepts and a stricter one rejects; it now writes `1.0E+16`. All three are
+  pinned by the new `JsonTest` (113 cases), which takes `rt/Json` from no suite at all
+  to every line and branch of it covered.
 
 ### Changed
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`

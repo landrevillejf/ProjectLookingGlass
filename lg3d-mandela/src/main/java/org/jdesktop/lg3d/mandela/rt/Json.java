@@ -26,8 +26,8 @@ import org.jdesktop.lg3d.mandela.values.Values;
  * app talks to a local service over HTTP with a JSON body. RFC 8259 is a small
  * language, so the reader is a hundred lines of direct descent rather than a
  * dependency, and it stays strict on purpose &mdash; no comments, no trailing
- * commas, no {@code NaN} &mdash; because a document that two parsers disagree
- * about is a bug nobody can find later.</p>
+ * commas, no {@code NaN}, no leading zero on a number &mdash; because a document
+ * that two parsers disagree about is a bug nobody can find later.</p>
  *
  * <p>The mapping to Mandela values is the obvious one and the one a Java or
  * Kotlin host expects: {@code null}, {@code Bool}, {@code Int} (a {@code long}),
@@ -252,8 +252,15 @@ public final class Json {
         private Object number() {
             int start = pos;
             match('-');
+            int digits = pos;
             while (!atEnd() && Character.isDigit(src.charAt(pos))) {
                 pos++;
+            }
+            // RFC 8259 spells a number with no leading zero, so a second digit after
+            // a `0` means the producer wrote an octal-looking literal and every other
+            // parser on the wire will read a different value from this one.
+            if (pos - digits > 1 && src.charAt(digits) == '0') {
+                throw fail("a number may not start with a leading zero");
             }
             boolean real = false;
             if (!atEnd() && src.charAt(pos) == '.' && pos + 1 < src.length()
@@ -323,7 +330,9 @@ public final class Json {
         MandelaError fail(String message) {
             int line = 1;
             int column = pos + 1;
-            for (int i = 0; i < pos && i < src.length(); i++) {
+            // The cursor never runs past the document, so every index below it is
+            // a character the reader actually had.
+            for (int i = 0; i < pos; i++) {
                 if (src.charAt(i) == '\n') {
                     line++;
                     column = pos - i;
@@ -339,7 +348,9 @@ public final class Json {
     /**
      * Writes a value as a JSON document.
      *
-     * @param value a null, Bool, Int, Double, Str, list or map
+     * @param value a null, Bool, Int, Double, Str, list or map; a Java number,
+     *              collection or map is written as the Mandela value the conversion
+     *              table maps it to
      * @return the document
      * @throws MandelaError when the value is not expressible in JSON
      */
@@ -373,6 +384,12 @@ public final class Json {
             throw MandelaError.value("json: the value nests deeper than " + MAX_DEPTH
                     + " levels; it is probably self-referential");
         }
+        // encode() and stringify() are public Java entry points, so a host may hand
+        // them whatever it has -- an `int` off a length, a `float` off a sensor, a
+        // `java.util.Map` of its own. Each arrives as the Mandela value the
+        // conversion table names, the same crossing a bound value makes, rather than
+        // the writer special-casing the one Java type someone happened to hit.
+        value = Values.fromHost(value);
         if (value == null) {
             out.append("null");
             return;
@@ -381,8 +398,8 @@ public final class Json {
             out.append(flag ? "true" : "false");
             return;
         }
-        if (value instanceof Long || value instanceof Integer) {
-            out.append(value);
+        if (value instanceof Long whole) {
+            out.append(whole);
             return;
         }
         if (value instanceof Double real) {
@@ -393,7 +410,7 @@ public final class Json {
                 out.append('"').append(real).append('"');
                 return;
             }
-            out.append(Values.formatDouble(real));
+            out.append(jsonNumber(real));
             return;
         }
         if (value instanceof String text) {
@@ -441,6 +458,33 @@ public final class Json {
         out.append('"');
         quoteBody(text, out);
         out.append('"');
+    }
+
+    /**
+     * Renders a finite double the way RFC 8259 spells one.
+     *
+     * <p>{@link Values#formatDouble} is the language's own notation and keeps the
+     * exponent form for a value too wide for plain digits, but Java writes that form
+     * without a sign on the exponent ({@code 1.0E16}) while the JSON grammar requires
+     * one. This is the one place the writer would otherwise emit a document its own
+     * reader accepts and a stricter one does not, which is the disagreement the class
+     * exists to avoid.</p>
+     *
+     * @param value a finite double
+     * @return the JSON number
+     */
+    private static String jsonNumber(double value) {
+        String text = Values.formatDouble(value);
+        int exponent = text.indexOf('E');
+        if (exponent < 0) {
+            return text;
+        }
+        char sign = text.charAt(exponent + 1);
+        // Java spells a negative exponent with its sign and a positive one without,
+        // so only the missing '+' has to be written; testing for a '+' that formatDouble
+        // never produces is a condition no program can reach.
+        return sign == '-' ? text
+                : text.substring(0, exponent + 1) + "+" + text.substring(exponent + 1);
     }
 
     /** Escapes a string body, so the two quoting paths cannot drift apart. */
