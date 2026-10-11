@@ -147,6 +147,7 @@ never silently in code.
 - When Gradle is memory-starved locally, `build-gradle/scratch/junit.sh`
   compiles the same sources and runs the suite in one JVM. Its output is build
   scratch and must never be committed.
+- Add / maintain the test suite. Unit tests and BDD. Add new scenarios in Cucumber for each new feature, maintain existing ones. Automate manually whenever possible.
 
 ## Business Analyst
 
