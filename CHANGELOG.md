@@ -7,6 +7,33 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
+## [Unreleased]
+
+### Fixed
+- **An `Int` operation that overflows promotes to `Double` instead of answering with
+  its left operand** (`lg3d-mandela`, `values/Operators`) — the promotion branch had
+  been written as an expression that cancelled the right-hand side away, so
+  `1 + 9223372036854775807` answered `1.0`; `2 ** 63` let a raw `ArithmeticException`
+  escape the language's error model and print a Java stack trace. The documented rule
+  is now in the guide and pinned by `ArithmeticOverflowTest`.
+- **A closure can capture a variable owned by a grandparent function**
+  (`lg3d-mandela`, `code/Compiler`) — the intermediate leg of the capture chain was
+  never emitted, so a closure built two functions below the one that owns the name
+  read a slot its own frame does not have and the machine died with
+  `ArrayIndexOutOfBoundsException`. Pinned by `ClosureCaptureTest`.
+
+### Changed
+- **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
+  constants** — the load and store switches are now checked for totality by the
+  compiler instead of ending in a guard no script could reach, and a field store
+  lowers itself in `storeSlot` rather than needing a special case in `assign`.
+
+### Removed
+- **`Ast.BlockValue`, an expression node no syntax could produce** (`lg3d-mandela`) —
+  no parser rule ever built it, so the compiler's lowering case, the tree walker's
+  case and the node itself are gone; an expression-bodied function answers through
+  `Ast.Stmt.ExprValue`, as it already did.
+
 ## [1.68.0] — 2026-10-11 — Gradle / JDK 21 modernization
 
 ### Fixed
