@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import org.jdesktop.lg3d.apps.p2p.IdentityStore;
 import org.junit.jupiter.api.DisplayName;
@@ -349,15 +349,23 @@ class P2pProtocolTest {
         return condition.getAsBoolean();
     }
 
-    /** Captures every protocol event into synchronised lists for later assertion. */
+    /**
+     * Captures every protocol event for later assertion. The lists are
+     * copy-on-write, not {@code Collections.synchronizedList}: a polling
+     * assertion calls {@code stream()} on them while the node's reader thread
+     * is still adding, and a synchronized wrapper's spliterator takes no mutex
+     * (its javadoc requires the caller to synchronize manually), so sharing one
+     * with an unsynchronized iteration intermittently throws
+     * {@link java.util.ConcurrentModificationException}.
+     */
     private static final class Recorder implements ProtocolListener {
-        final List<AccountConfig> connected = Collections.synchronizedList(new ArrayList<>());
-        final List<String> disconnected = Collections.synchronizedList(new ArrayList<>());
-        final List<ChatMessage> messages = Collections.synchronizedList(new ArrayList<>());
-        final List<String> status = Collections.synchronizedList(new ArrayList<>());
-        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransferEvent> files = Collections.synchronizedList(new ArrayList<>());
-        final List<List<String>> rosters = Collections.synchronizedList(new ArrayList<>());
+        final List<AccountConfig> connected = new CopyOnWriteArrayList<>();
+        final List<String> disconnected = new CopyOnWriteArrayList<>();
+        final List<ChatMessage> messages = new CopyOnWriteArrayList<>();
+        final List<String> status = new CopyOnWriteArrayList<>();
+        final List<String> errors = new CopyOnWriteArrayList<>();
+        final List<FileTransferEvent> files = new CopyOnWriteArrayList<>();
+        final List<List<String>> rosters = new CopyOnWriteArrayList<>();
 
         @Override public void onConnected(AccountConfig account) { connected.add(account); }
         @Override public void onDisconnected(AccountConfig account, String reason) {

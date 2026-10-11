@@ -23,9 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,7 +96,8 @@ class P2pServerTest {
     @DisplayName("an acceptor failure is reported and the accept loop survives")
     void acceptorErrorReported() throws Exception {
         AtomicInteger invocations = new AtomicInteger();
-        List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        // Copy-on-write: the accept loop adds while awaitTrue() streams the list.
+        List<String> errors = new CopyOnWriteArrayList<>();
         P2pServer.ChannelAcceptor acceptor = socket -> {
             invocations.incrementAndGet();
             throw new IOException("nope");

@@ -21,11 +21,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
@@ -88,12 +87,18 @@ class BuildToolsLiveTest {
             "</project>",
             "");
 
-    /** Everything one action sent to the editor's sinks. */
+    /**
+     * Everything one action sent to the editor's sinks. The lists are
+     * copy-on-write because the build runs on a worker thread (and reports on
+     * the EDT) while this test's thread streams them in its assertions; a
+     * {@code Collections.synchronizedList} wrapper would not protect that
+     * iteration and could throw {@link java.util.ConcurrentModificationException}.
+     */
     private static final class Recorder {
-        final List<String> statuses = Collections.synchronizedList(new ArrayList<>());
-        final List<String> consoles = Collections.synchronizedList(new ArrayList<>());
-        final List<Diagnostic> diagnostics = Collections.synchronizedList(new ArrayList<>());
-        final List<String> cleared = Collections.synchronizedList(new ArrayList<>());
+        final List<String> statuses = new CopyOnWriteArrayList<>();
+        final List<String> consoles = new CopyOnWriteArrayList<>();
+        final List<Diagnostic> diagnostics = new CopyOnWriteArrayList<>();
+        final List<String> cleared = new CopyOnWriteArrayList<>();
         /** The action's answer: the first status line that is not a "Running …" notice. */
         private String terminal;
 

@@ -22,9 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import org.jdesktop.lg3d.apps.p2p.FileTransfer;
 import org.jdesktop.lg3d.apps.p2p.IdentityStore;
@@ -190,16 +189,22 @@ class P2pSideChannelTest {
         return condition.getAsBoolean();
     }
 
-    /** Records every side-channel callback on a synchronized list. */
+    /**
+     * Records every side-channel callback. The lists are copy-on-write, not
+     * {@code Collections.synchronizedList}: assertions stream them while the
+     * channel's reader thread is still adding, and a synchronized wrapper's
+     * spliterator takes no mutex, so that race intermittently throws
+     * {@link java.util.ConcurrentModificationException}.
+     */
     private static final class Recorder implements P2pSideChannel.Listener {
-        final List<String> peersChanged = Collections.synchronizedList(new ArrayList<>());
-        final List<String> chat = Collections.synchronizedList(new ArrayList<>());
-        final List<String[]> invites = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> offers = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> completed = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> closed = Collections.synchronizedList(new ArrayList<>());
-        final List<String> status = Collections.synchronizedList(new ArrayList<>());
-        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        final List<String> peersChanged = new CopyOnWriteArrayList<>();
+        final List<String> chat = new CopyOnWriteArrayList<>();
+        final List<String[]> invites = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> offers = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> completed = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> closed = new CopyOnWriteArrayList<>();
+        final List<String> status = new CopyOnWriteArrayList<>();
+        final List<String> errors = new CopyOnWriteArrayList<>();
 
         @Override public void onPeersChanged() { peersChanged.add("changed"); }
         @Override public void onChat(String peerName, String text, boolean action) {
