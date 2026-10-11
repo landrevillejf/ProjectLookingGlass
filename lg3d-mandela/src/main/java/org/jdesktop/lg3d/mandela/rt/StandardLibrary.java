@@ -184,7 +184,7 @@ public final class StandardLibrary implements Builtins {
             }
             return bound(rangeMethods.get(name), name, machine, range);
         }
-        if (receiver instanceof Long || receiver instanceof Double || receiver instanceof Integer) {
+        if (receiver instanceof Long || receiver instanceof Double) {
             // Numbers carry methods but no properties, and the receiver is boxed
             // here exactly as the machine holds it.
             return bound(numberMethods.get(name), name, machine, receiver);
@@ -1439,8 +1439,8 @@ public final class StandardLibrary implements Builtins {
     }
 
     private static long whole(Object value, String what) {
-        if (value instanceof Long || value instanceof Integer) {
-            return Values.asLong(value);
+        if (value instanceof Long exact) {
+            return exact;
         }
         if (value instanceof Double real) {
             if (real != Math.rint(real) || real.isInfinite() || real.isNaN()) {

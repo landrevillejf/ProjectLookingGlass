@@ -207,6 +207,17 @@ String s   = Interop.toJava(v, String.class);// ask for a shape
 | anything with one public `invoke` — a Kotlin lambda, a Groovy closure — or one abstract method — `java.util.function`, any SAM | a `HostFunction` that calls it |
 | anything else | **refused**, with the class named in the message |
 
+**The table is the machine's rule, not only the helper's.** A host function's
+answer crosses it inside the interpreter, so
+`HostFunction.of("count", 1, args -> text.length())` arrives as an `Int` even
+though `length()` answers a Java `int`: a host does not have to call
+`Interop.toMandela` on its own results, and the conversion inside `Interop.fn`
+and friends is the same rule applied a second time, which is harmless. Before
+this the raw result was pushed as it came, and a script holding an
+`java.lang.Integer` was told three lies about its own arithmetic —
+`typeOf(...)` called it `Host`, `count("abc") == 3` was false, and
+`1 + count("abc")` was a `TypeError`.
+
 The refusal is the load-bearing decision. A host *could* wrap an arbitrary
 object and let a script poke at its fields — that is how a script ends up
 reading `System.out.getClass().getProtectionDomain()`, and how a sandbox is

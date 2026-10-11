@@ -25,6 +25,7 @@ import org.jdesktop.lg3d.mandela.code.CompiledFunction;
 import org.jdesktop.lg3d.mandela.code.Op;
 import org.jdesktop.lg3d.mandela.rt.Capabilities;
 import org.jdesktop.lg3d.mandela.rt.HostFunction;
+import org.jdesktop.lg3d.mandela.rt.HostValues;
 import org.jdesktop.lg3d.mandela.values.Callable;
 import org.jdesktop.lg3d.mandela.values.MandelaClass;
 import org.jdesktop.lg3d.mandela.values.MandelaClosure;
@@ -1187,7 +1188,18 @@ public final class VM implements Machine {
         return positional;
     }
 
-    /** Calls a host function, turning its failure into a catchable error. */
+    /**
+     * Calls a host function, turning its failure into a catchable error.
+     *
+     * <p>The answer crosses the same conversion a bound name crosses, because a
+     * host writes {@code HostFunction.of("count", 1, args -> text.length())} in
+     * good faith and {@code length()} is a Java {@code int}. Left raw, that value
+     * is in the machine as something the language has no name for: not an {@code
+     * Int} for arithmetic, not equal to the literal it displays as, and reported as
+     * {@code Host} &mdash; three wrong answers the script is blamed for. So the
+     * ordinary Java shapes widen here, and an object with no Mandela form is
+     * refused with its class named rather than handed over.</p>
+     */
     private Object callHost(HostFunction host, Object[] args) {
         int declared = host.arity();
         if (declared >= 0 && args.length != declared) {
@@ -1195,7 +1207,8 @@ public final class VM implements Machine {
                     + " argument(s); the call gave " + args.length);
         }
         try {
-            return host.apply(new ArrayList<>(java.util.Arrays.asList(args)));
+            return HostValues.toMandela(
+                    host.apply(new ArrayList<>(java.util.Arrays.asList(args))));
         } catch (MandelaError error) {
             // A host function that raised a Mandela error (a permission refusal,
             // most often) passes it through untouched so the script's own `catch`

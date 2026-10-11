@@ -26,6 +26,18 @@ work to make it build and run on a current toolchain.
   `OperatorRulesTest` agree, while the prose said `a..b` stops before `b`. A reader
   following the sentence would have written `1..n` for a loop that must not overshoot;
   the guide now states the inclusive rule and names `a..<b>` as the exclusive form.
+- **A host function's Java answer is converted at the machine, like a bound name is**
+  (`lg3d-mandela`, `vm/VM`) — `HostFunction.of("count", 1, args -> text.length())` is
+  the shape the embedding guide tells a host to write, and `length()` answers a Java
+  `int`. The call pushed it unchanged, so the script held a value the language has no
+  name for: `typeOf(...)` answered `Host`, `count("abc") == 3` was false
+  (`Integer.equals(Long)`), `1 + count("abc")` was a `TypeError`, and a member read off
+  the number fell through to a raw `java.lang.Integer` path that no script could tell
+  was there. The documented conversion table is now applied by `VM.callHost` itself,
+  which also means an object with no Mandela form is refused with its class named
+  instead of handed to the script. Pinned by `HostBoundaryTest`; the two
+  `instanceof Integer` accommodations in `StandardLibrary` are gone with it, one of
+  which (`whole(...)`) answered `0` for any `Integer` it was given.
 
 ### Changed
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
