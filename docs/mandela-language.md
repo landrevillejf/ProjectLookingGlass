@@ -54,7 +54,7 @@ a terminal, Espresso's Output panel, the browser log — never to a hard-wired
 | --- | --- |
 | `// line` | to end of line |
 | `/* block */` | nested-free block comment |
-| `"text"`, `'text'` | string; both quote marks are accepted and are the same type |
+| `"text"`, `'text'` | string; both quote marks are the same type, but only a double-quoted string interpolates — `'a ${x} b'` keeps the `${x}` verbatim |
 | `"""text"""` | multi-line string, keeping its line breaks |
 | `"a=${expr} b=$name"` | interpolation; `${...}` takes any expression and nests |
 | `12`, `-7`, `1.5`, `0.001`, `1e3` | `Int` (a Java `long`) and `Double` |
@@ -125,7 +125,10 @@ Java author expects, applied consistently. Use `is Empty`-style members
 | access | `.`, `?.`, `?.[]`, `??`, `as`, indexing `[]` |
 
 - `+` adds numbers, joins strings and concatenates lists (`[1] + [2]`).
-- `/` between two `Int` values is integer division; `1.0 / 2` is a `Double`.
+- `/` is true division and answers in the type the arithmetic deserves: an `Int`
+  when integers divide exactly (`8 / 2` is `4`), a `Double` when they do not
+  (`7 / 2` is `3.5`). There is no integer-only division operator to misread;
+  `.floor()` or `math.floor(…)` followed by `.toInt()` is the documented way down.
 - `??` is the null-coalescing operator, `?.` the safe accessor:
   `s?.length` yields `null` instead of raising when `s` is `null`.
 - `x |> f(y)` reads as `f(x, y)` — the pipeline threads a value through calls.
@@ -529,3 +532,27 @@ Known limits, stated plainly:
 - Deep recursion is capped by `maxDepth` (1024 frames by default) rather than
   overflowing the JVM stack.
 - Tail calls are not optimised.
+
+---
+
+## 13. Working programs
+
+This repository's own automation is written in Mandela and lives in
+[`scripts/mandela/`](../scripts/mandela/README.md), so every construct above has
+a shipped reference beside it. Each one is a real tool, run against the tree it
+lives in, and each is compiled by the build (`ShippedScriptsTest`) so it cannot
+rot when the grammar moves.
+
+| Script | What it is a worked example of |
+| --- | --- |
+| `doc-links.mnd` | walking a tree with `fs.list` + `fs.isDirectory`, `loop` with `break` over `indexOf` / `substring` to scan a line, a `Map` used as a cache so a document is read once, and an anchor computed with `lower()` + `contains` |
+| `startmenu-audit.mnd` | recursive indexing into an accumulator, a list of lists as data-driven configuration, `min` over two sentinels to end a token, grouping counts into a `Map` |
+| `release-check.mnd` | `fs.lines` (a path) against `split("\n")` (a string you already hold), marker/terminator scanning, and reporting a finding with `error(msg, "ViolationError")` so CI prints one line |
+| `asset-report.mnd` | `fs.size` / `fs.modified` with `std.time` formatting, `sortedBy` + `reversed` + `take` for a leaderboard, `json.encode` of a map, and `(bytes / 1024).floor().toInt()` because `/` is true division |
+| `userscript-new.mnd` | writing a *program* as output: the template is a list joined once (see §12 on `+` in a loop), and it targets a different host's vocabulary — the browser's `page` / `inject` / `note` |
+
+Every one of them is run from the repository root with `-s .`, because `run`
+confines file access to the script's own directory by default (§10). That default
+is the security feature — a script dropped into the desktop cannot read the home
+directory — and it is the single thing a first-time author of a file-walking tool
+most often forgets to pass.

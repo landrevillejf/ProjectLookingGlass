@@ -1,0 +1,170 @@
+#!/usr/bin/env mandela
+// asset-report.mnd — what the desktop actually ships, and what it weighs.
+//
+// lg3d carries its artwork in the repository rather than downloading it, so the
+// size of the release is the size of these trees. This is the script that answers
+// "what is in there, how big is it, and is the same picture in twice" in one run,
+// as a table for a human or JSON for another program:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/asset-report.mnd -s .
+//     ... run scripts/mandela/asset-report.mnd json -s .          # machine-readable
+//     ... run scripts/mandela/asset-report.mnd out=assets.json -s .   # to a file
+//     ... run scripts/mandela/asset-report.mnd lg3d-art/src/resources -s .  # one tree
+//
+// Any word that is not `json` or `out=PATH` is taken as a directory to walk. It
+// is a report, not a gate: it always exits 0, and it never writes unless told to.
+
+use std.fs
+use std.json
+use std.time
+
+let IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "bmp", "svg", "tif", "tiff"]
+let MODEL_EXTS = ["obj", "mtl", "x3d", "wrl", "dae", "j3f"]
+let SKIP_DIRS = ["build", "build-gradle", "node_modules"]
+
+fun extensionOf(name) {
+    let dot = name.indexOf(".")
+    if (dot < 0 || dot == 0) { return "" }
+    return name.substring(dot + 1).lower()
+}
+
+fun isAsset(name) {
+    return extensionOf(name) in IMAGE_EXTS || extensionOf(name) in MODEL_EXTS
+}
+
+fun isSkipped(name) {
+    return name in SKIP_DIRS || name.startsWith(".")
+}
+
+// One record per file: where, how big, when it last changed. A map is the natural
+// row type here, and `json.encode` takes it apart for free.
+fun walkAssets(dir, found) {
+    for (name in fs.list(dir)) {
+        if (isSkipped(name)) { continue }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            walkAssets(path, found)
+        } else if (isAsset(name)) {
+            found.push({ "path": path, "name": name, "bytes": fs.size(path),
+                         "modified": fs.modified(path) })
+        }
+    }
+    return found
+}
+
+fun kb(bytes) {
+    // `/` is true division: it answers a Double unless the integers divide exact,
+    // so a byte count is brought back down with floor().toInt() rather than
+    // trusting a float to print as a whole number.
+    if (bytes < 1024) { return "${bytes} B" }
+    let kibs = (bytes / 1024).floor().toInt()
+    return "${kibs} KiB"
+}
+
+fun rootsFrom(words) {
+    var roots = []
+    for (w in words) {
+        if (w == "json" || w.startsWith("out=")) { continue }
+        roots.push(w)
+    }
+    if (roots.length == 0) {
+        roots.push("lg3d-art/src/resources")
+        roots.push("lg3d-core/src/resources")
+    }
+    return roots
+}
+
+// `out=PATH` is the only flag that makes this script write anything.
+fun outFile(words) {
+    for (w in words) {
+        if (w.startsWith("out=")) { return w.substring(4) }
+    }
+    return ""
+}
+
+// The directory part of a path, as text: split, drop the file, join back.
+fun dirOf(path) {
+    var parts = path.split("/")
+    parts.removeAt(parts.length - 1)
+    return parts.join("/")
+}
+
+let roots = rootsFrom(args)
+let out = outFile(args)
+var assets = []
+for (r in roots) {
+    if (!fs.isDirectory(r)) {
+        error("${r} is not a directory, or the run is confined to ${fs.root()}", "ViolationError")
+    }
+    walkAssets(r, assets)
+}
+
+var total = 0
+for (a in assets) { total += a["bytes"] }
+
+// Per-directory totals, which is where the weight actually is.
+var byDir = {}
+var byExt = {}
+var byName = {}
+for (a in assets) {
+    let dir = dirOf(a["path"])
+    byDir.put(dir, if (byDir.has(dir)) byDir.get(dir) + a["bytes"] else a["bytes"])
+    let ext = extensionOf(a["name"])
+    byExt.put(ext, if (byExt.has(ext)) byExt.get(ext) + 1 else 1)
+    // The same file name in two places is the one duplication this can see with
+    // no checksums and no reading of the file's bytes. The icon packs are not
+    // counted: each pack is meant to carry its own copy of every icon.
+    if (!a["path"].contains("icon-packs")) {
+        byName.put(a["name"], if (byName.has(a["name"])) byName.get(a["name"]) + 1 else 1)
+    }
+}
+
+var largest = assets.sortedBy { a -> a["bytes"] }.reversed()
+var dups = []
+for (n in keys(byName)) {
+    if (byName.get(n) > 1) { dups.push(n) }
+}
+
+if (args.contains("json")) {
+    var rows = []
+    for (a in largest) {
+        rows.push({ "path": a["path"], "bytes": a["bytes"],
+                    "modified": time.iso(a["modified"]) })
+    }
+    let report = json.encode({ "roots": roots, "files": rows.length,
+                               "bytes": total, "byDirectory": byDir,
+                               "byExtension": byExt, "duplicates": dups,
+                               "generated": time.iso(time.now()) })
+    if (out.length == 0) {
+        println(report)
+    } else {
+        fs.write(out, report)
+        println("wrote " + out)
+    }
+} else {
+    // Interpolation is how a number reaches a string here; `+` will not mix the
+    // two types, and the language says so when it is tried.
+    let count = assets.length
+    let where = roots.join(", ")
+    println("${count} assets, ${kb(total)} under ${where}")
+    println("heaviest directories:")
+    for (d in keys(byDir).sortBy { x -> 0 - byDir.get(x) }.take(8)) {
+        let size = kb(byDir.get(d)).padStart(12)
+        println("  ${size}  ${d}")
+    }
+    println("largest files:")
+    for (a in largest.take(8)) {
+        let size = kb(a["bytes"]).padStart(12)
+        let path = a["path"]
+        let when = time.format(a["modified"], "yyyy-MM-dd")
+        println("  ${size}  ${path}  (${when})")
+    }
+    let repeated = dups.length
+    if (repeated > 0) {
+        println("${repeated} file name(s) used in more than one place — worth a look:")
+        for (d in dups.take(12)) { println("  ${d}") }
+    } else {
+        println("no file name appears twice")
+    }
+}

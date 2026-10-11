@@ -56,8 +56,10 @@ never silently in code.
 - `META-INF/services/javax.script.ScriptEngineFactory` is a published
   registration; the JSR-223 names and MIME types in `api.Mandela` are part of the
   contract for hosts that discover the engine.
-- The CLI's exit codes (`0` ok, `1` usage, `2` the program failed) are a contract
-  with scripts and CI, not a convenience.
+- The CLI's exit codes (`0` ok, `1` usage, `2` the program failed, `3` a named
+  file was unreadable, `4` `check` found a blocking diagnostic) are a contract
+  with scripts and CI, not a convenience — they are the `MandelaCli` constants,
+  and the embedding guide tabulates them.
 
 ## Engineer / Developer
 
@@ -114,7 +116,8 @@ never silently in code.
   `StandardLibraryTest` (every library member), `EmbeddingApiTest` +
   `InteropTest` + `ScriptEngineTest` (the host contract),
   `api/EditorServicesTest` (the editor surface), `CliTest` (the command line),
-  `DocumentationTest` (the guide).
+  `DocumentationTest` (the guide), `ShippedScriptsTest` (the scripts the
+  repository ships in `../scripts/mandela`).
 - **The language guide is a tested artifact.** `DocumentationTest` extracts every
   `` ```mandela `` block from
   [`../docs/mandela-language.md`](../docs/mandela-language.md), parses it with the
@@ -122,6 +125,16 @@ never silently in code.
   fragment is entitled to (a value the prose introduced). A block that abbreviates
   code carries an elision marker (`…`) and is skipped, and the test fails if too
   few blocks are found, so a broken extractor cannot make it vacuously green.
+- **The repository's own automation is tested too.** `ShippedScriptsTest`
+  compiles every `.mnd` under
+  [`../scripts/mandela/`](../scripts/mandela/) with **no** finding excused — a
+  shipped script is a complete program, unlike a guide fragment — and pins the
+  header conventions (shebang, one-line purpose, the `-s` sandbox it must be run
+  with) that keep that directory usable. The scripts themselves run in CI as
+  `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `releaseCheck`,
+  `startMenuAudit`), which are intentionally *not* part of `check`: they audit the
+  whole tree, so their failures belong to the step that ran them, not to this
+  module's build.
 - **A grammar change is a two-sided test**: add the accepted form *and* pin the
   construct that must not be swallowed by it. A parse that silently changes
   meaning is worse than one that fails.

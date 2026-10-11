@@ -1,0 +1,82 @@
+#!/usr/bin/env mandela
+// userscript-new.mnd — write a new Web Browser userscript, ready to install.
+//
+// The desktop's Web Browser runs `~/.lg3d/webbrowser/userscripts/*.mnd` through
+// the bundled Mandela extension, so the useful thing a scripting language can do
+// here is author *its own scripts for another host*. Run it with the browser's
+// userscript directory as the sandbox, and the file lands where it is read:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/userscript-new.mnd my-script -s ~/.lg3d/webbrowser/userscripts
+//
+// With no sandbox it writes into the current directory, which is what the
+// repository's own smoke test does.
+//
+//   args[0]  the script's short name            (default: my-userscript)
+//   args[1]  a substring of the URLs it should fire on (default: any page)
+
+use std.fs
+
+let NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-"
+
+// A file name the filesystem and the extension's discovery loop both accept:
+// lower case, digits, hyphen; a space becomes a hyphen, and anything else is
+// dropped rather than escaped, because a userscript's name is what the browser's
+// log will show.
+fun clean(raw) {
+    var out = ""
+    for (ch in raw.lower()) {
+        if (NAME_CHARS.contains(ch)) {
+            out += ch
+        } else if ((ch == " " || ch == "_") && !out.endsWith("-")) {
+            out += "-"
+        }
+    }
+    while (out.endsWith("-")) {
+        out = out.substring(0, out.length - 1)
+    }
+    return if (out.length == 0) "my-userscript" else out
+}
+
+let name = clean(if (args.length > 0) args[0] else "my-userscript")
+let pattern = if (args.length > 1) args[1] else ""
+let target = "${name}.mnd"
+
+if (fs.exists(target)) {
+    error("${target} already exists; the script will not overwrite a script " +
+          "you may have edited", "ViolationError")
+}
+
+// The template is a list of lines joined once, which is the guide's own advice
+// about not building text with `+` in a loop, applied to the script that writes
+// scripts. The only `$` in the generated file would be interpolated *here*, so
+// the template body avoids it and reaches the file verbatim.
+var body = [
+    "// ${name}.mnd — a Mandela userscript for the lg3d Web Browser.",
+    "//",
+    "// Installed in ~/.lg3d/webbrowser/userscripts/ and run by the bundled",
+    "// 'Mandela Userscripts' extension: once per page load, in the webPage()",
+    "// profile (no files, no sockets, no JVM types, five million instructions).",
+    "// It sees page.url and page.title, may call inject(js) and note(msg), and",
+    "// its console lands in the browser log rather than in a terminal.",
+    "",
+    "if (page.title == null) {",
+    "    note(\"${name}: waiting for a page\")     // the document is not ready",
+    "} else if (!page.url.contains(\"${pattern}\")) {",
+    "    note(\"${name}: not for \" + page.url)",
+    "} else {",
+    // `+` will not mix a Str with an Int, so the count is written as text here;
+    // the language's own error message says exactly that when it is not.
+    "    note(\"${name}: saw \" + page.title + \" (\" + str(length(page.title)) + \" chars)\")",
+    "    // Narrow columns are the cheapest improvement a page script can make.",
+    "    inject(\"var s = document.createElement('style'); " +
+    "s.textContent = 'body{max-width:72ch;margin:2em auto}'; " +
+    "document.head.appendChild(s);\")",
+    "}",
+    ""
+]
+
+fs.write(target, body.join("\n"))
+let root = if (fs.root() == null) "." else fs.root()
+println("wrote ${root}/${target}")
+println("enable the extension in the browser's extension manager, then reload a page")

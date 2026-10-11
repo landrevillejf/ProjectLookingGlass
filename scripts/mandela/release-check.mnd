@@ -1,0 +1,113 @@
+#!/usr/bin/env mandela
+// release-check.mnd — prove the repository agrees with itself before a release.
+//
+// The version is written in four places by deliberate convention (the Gradle
+// coordinate, the root AGENTS.md, the README, and the CHANGELOG's [Unreleased]
+// header), and a release that ships with one of them stale is a release whose
+// artifacts disagree with their own docs. Gradle cannot see the docs and a human
+// skims them, so this is a scripting-language job:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/release-check.mnd -s .
+//
+// It also cross-checks settings.gradle against the module directories on disk,
+// the other place where a silent disagreement turns into a broken release.
+// Exits 2 on any mismatch.
+
+use std.fs
+
+// Read the text between two markers: `after` is what to look for, and the value
+// runs to the next `until` (or, with until == "", to the end of the line).
+fun valueAfter(text, after, until) {
+    let at = text.indexOf(after)
+    if (at < 0) { return "" }
+    let rest = text.substring(at + after.length)
+    if (until.length == 0) {
+        let nl = rest.indexOf("\n")
+        return if (nl < 0) rest.trim() else rest.substring(0, nl).trim()
+    }
+    let end = rest.indexOf(until)
+    if (end < 0) { return "" }
+    return rest.substring(0, end).trim()
+}
+
+// The four canonical places the version is written, as (file, marker, terminator)
+// triples: the marker ends just past the opening quote, the terminator is the
+// closing one. Keeping them in data means adding a fifth is one line, not a block.
+let REFS = [
+    ["build.gradle", "version = '", "'"],
+    ["AGENTS.md", "org.jdesktop.lg3d:", "`"],
+    ["README.md", "- Version: `", "`"],
+    ["CHANGELOG.md", "## [Unreleased] — ", " "]
+]
+
+var found = {}
+for (ref in REFS) {
+    let file = ref[0]
+    if (!fs.exists(file)) {
+        error("${file} is missing from the repository root", "ViolationError")
+    }
+    let version = valueAfter(fs.read(file), ref[1], ref[2])
+    if (version.length == 0) {
+        error("${file} does not carry the version where the convention says " +
+              "(${ref[1]})", "ViolationError")
+    }
+    found.put(file, version)
+}
+
+println("version as the repository writes it:")
+var distinct = []
+for (ref in REFS) {
+    let v = found.get(ref[0])
+    println("  ${v.padEnd(14)} ${ref[0]}")
+    if (!distinct.contains(v)) { distinct.push(v) }
+}
+
+// The Gradle coordinate is the authority the others must follow.
+let declared = found.get("build.gradle")
+var bad = []
+for (ref in REFS) {
+    if (found.get(ref[0]) != declared) {
+        bad.push("${ref[0]} says ${found.get(ref[0])}, build.gradle says ${declared}")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// settings.gradle against the tree
+// ---------------------------------------------------------------------------
+
+// `fs.lines` reads a file and yields its lines; it does not split a string that
+// is already in memory (that is `split("\n")`), which is the one API pair worth
+// knowing by heart before writing a checker like this.
+var included = []
+for (line in fs.lines("settings.gradle")) {
+    if (line.trim().startsWith("//")) { continue }        // a commented-out module
+    let name = valueAfter(line, "include '", "'")
+    if (name.length > 0) { included.push(name) }
+}
+
+for (m in included) {
+    if (!fs.isDirectory(m)) {
+        bad.push("settings.gradle includes ${m}, which is not a directory")
+    } else if (!fs.exists("${m}/build.gradle")) {
+        bad.push("settings.gradle includes ${m}, which has no build.gradle")
+    }
+}
+
+// The other direction: a module directory that Gradle never sees is a module
+// that never builds, never tests and never ships.
+for (name in fs.list(".")) {
+    if (name.startsWith(".") || !fs.isDirectory(name)) { continue }
+    if (fs.exists("${name}/build.gradle") && !included.contains(name)) {
+        bad.push("${name}/build.gradle exists but settings.gradle does not include it")
+    }
+}
+
+println("${included.length} modules in settings.gradle; " +
+        "${length(keys(found))} version references compared")
+if (bad.length == 0) {
+    println("the repository agrees with itself: ${declared}")
+} else {
+    for (b in bad) { println("  MISMATCH  ${b}") }
+    error("${bad.length} release-check finding(s)", "ViolationError")
+}

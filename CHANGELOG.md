@@ -65,6 +65,32 @@ work to make it build and run on a current toolchain.
   automatically: the next build action (or **Clean Output**) strips the trailing
   block from the document. WRITE is therefore kept on the provider's manifest —
   used only for this one-time migration strip.
+- **Eleven dead links in the live documentation** (`docs`, contracts) — reported
+  by `scripts/mandela/doc-links.mnd` and each one confirmed against the tree
+  before being touched, in four files. `lpm-lg3d-app-contract.md` (4): two links
+  pointed at `lfs-x11-contract.md` as though it sat beside the contract, where it
+  lives in `docs/`, and it referenced `docs/lpm.md` / `docs/LPM_DOCUMENTATION.md`,
+  which do not exist — replaced by the one `lpm-console/README.md` that does.
+  `system-management-contract.md` (2): the same stale contract path, twice.
+  `lpm-console/README.md` (3): its References list carried `../lfs-x11-contract.md`
+  instead of `../docs/…`, and two links into nonexistent `docs/` files became
+  links to its own `#usage` and `#architecture` headings. `lg3d-incubator`'s
+  `org/jdesktop/lg3d/utils/AGENTS.md` (2): written one directory too shallow, so
+  its links to the UI/UX rulebook and the root `AGENTS.md` resolved to nothing.
+  Anchors are now checked too, by the same script: a `#fragment` is verified
+  against the headings its target really offers, not assumed.
+- **The language guide contradicted the tested implementation**
+  (`docs/mandela-language.md`, `docs/mandela-embedding-api.md`,
+  `lg3d-mandela/AGENTS.md`) — found by writing scripts and running them, not by
+  reading. `/` is **true division** and answers in the type the arithmetic
+  deserves (`8 / 2` is the `Int` `4`, `7 / 2` is the `Double` `3.5`, exactly as
+  `LanguageTest` pins it); the guide's operator table claimed integer division
+  between integers, which is the kind of sentence that makes an author write
+  `.floor()` twice. A **single-quoted string does not interpolate** — `'a ${x} b'`
+  keeps `${x}` verbatim while `"a ${x} b"` substitutes — and the quote row said
+  nothing about the difference. The CLI's exit codes are `0` ok / `1` usage /
+  `2` program failed / `3` unreadable file / `4` blocking findings, and the two
+  places that tabulated them stopped at `2`.
 
 ### Added
 - **Espresso: Java/Kotlin IDE groundwork (Phase 0)** (`lg3d-apps`) — the editor's
@@ -704,8 +730,9 @@ work to make it build and run on a current toolchain.
   library): lexer, recursive-descent parser and AST, a bytecode compiler and stack
   VM with a disassembler, the value/object model, a standard library
   (`std.fs`/`std.json`/`std.math`/`std.time`/`std.env`), a CLI
-  (`mandela run|check|eval|dump|about|repl`, exit codes 0/1/2) and an interactive
-  REPL. The syntax is Java/Kotlin-flavoured and deliberately legible — `fun`,
+  (`mandela run|check|eval|dump|about|repl`, exit codes `0` ok / `1` usage /
+  `2` program failed / `3` unreadable file / `4` blocking findings) and an
+  interactive REPL. The syntax is Java/Kotlin-flavoured and deliberately legible — `fun`,
   `let`/`var`,
   `if`/`for`/`while`/`match` expressions, string interpolation, records and classes,
   `{ x -> … }` lambdas **including the Kotlin trailing-lambda call form**
@@ -747,10 +774,10 @@ work to make it build and run on a current toolchain.
   Docs: [`docs/mandela-language.md`](docs/mandela-language.md) (the grammar,
   library and capability model, with the rationale for every refusal),
   [`docs/mandela-embedding-api.md`](docs/mandela-embedding-api.md) (the host
-  contract) and `lg3d-mandela/AGENTS.md`. Tests: **366** headless JUnit 5 cases in
+  contract) and `lg3d-mandela/AGENTS.md`. Tests: **369** headless JUnit 5 cases in
   the new module (`SyntaxTest`, `LanguageTest`, `StandardLibraryTest`,
   `EmbeddingApiTest`, `InteropTest`, `ScriptEngineTest`, `EditorServicesTest`,
-  `CliTest`, `DocumentationTest`), plus 34 `MandelaToolsTest` and 23
+  `CliTest`, `DocumentationTest`, `ShippedScriptsTest`), plus 34 `MandelaToolsTest` and 23
   `MandelaUserscriptsExtensionTest` cases for the two hosts. The documentation is
   a tested artifact: the language
   guide's `mandela` code blocks are extracted and put through the real parser
@@ -760,6 +787,46 @@ work to make it build and run on a current toolchain.
   that will not run; and a
   finding carries a stable `rule` id (`"syntax"`, `"undefined-name"`,
   `"param-order"`) for a host to branch on instead of message text.
+- **Project Mandela dogfooded: the repository's automation is written in Mandela**
+  (`lg3d-mandela`, `scripts/mandela`, CI) — `scripts/mandela/` (see its
+  [`README.md`](scripts/mandela/README.md)) ships five `.mnd` programs that do
+  real jobs against this tree, in the language's own standard library and under
+  its own sandbox: **`doc-links.mnd`** resolves every relative link and
+  `#anchor` in the documentation (every relative link in 119 markdown files, in
+  well under a second — 426 of them on the day it was wired up), joining each
+  target against the *containing* file and
+  verifying a fragment against the headings the target really offers (GitHub's
+  slug rules), so `#…` links cannot rot silently; **`startmenu-audit.mnd`**
+  indexes the 5 677 classpath locations the assembled runtime exposes from 11
+  modules — reproducing the `resources/` merge `:lg3d-core:runtimeResources`
+  performs — then resolves every `resource:///…` and `java <class>` reference in
+  the 91 `.lgcfg` start-menu descriptors, prints the live inventory by group
+  (57 items: Utilities 13, System 8, Internet 8, Office 6, Media 6, Developers
+  6, Games 4, Education 1, ungrouped 5) and separates the 7 references that sit
+  in directories the desktop never scans from anything a user could call broken;
+  **`release-check.mnd`** compares the four canonical version references
+  (`build.gradle`, `AGENTS.md`, `README.md`, `CHANGELOG.md`) and cross-checks
+  `settings.gradle` against the module directories in *both* directions, so a
+  module that never builds and a stale coordinate are both caught before a
+  release; **`asset-report.mnd`** weighs the shipped artwork (319 assets,
+  41 606 KiB) into a human table or `std.json` (`json`, `out=PATH`), which
+  round-trips back through `json.parse`; **`userscript-new.mnd`** is a Mandela
+  program that authors Mandela programs *for another host* — it writes a Web
+  Browser userscript into the browser's `userscripts/` directory in the
+  `webPage()` vocabulary, and the generated file was run through
+  `Capabilities.webPage()` to prove that vocabulary is the one the browser
+  binds. The three gates run in CI as
+  `./gradlew :lg3d-mandela:repositoryChecks` (`docLinksCheck`, `releaseCheck`,
+  `startMenuAudit` — new `JavaExec` tasks in `lg3d-mandela/build.gradle` that
+  pass the `-s <repo root>` sandbox and need no jar); they are an explicit
+  workflow step rather than part of `check`, because they audit the whole tree
+  and their output *is* the diagnosis. `ShippedScriptsTest` (3 new cases, the
+  module now at 369) compiles every shipped `.mnd` with **no** finding excused —
+  a shipped script is a complete program, unlike a guide fragment — binds `args`
+  the way the CLI's `check` does, and pins the header conventions (shebang,
+  one-line purpose, the `-s` sandbox the script must run with) that keep the
+  directory usable without a wiki, so a grammar change that would break real
+  automation fails the build instead of the next user's script.
 
 ### Changed
 - **The 2D desktop no longer lists 3D-only applications** (`lg3d-core`) — a pure

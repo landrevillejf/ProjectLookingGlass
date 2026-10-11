@@ -1,0 +1,160 @@
+#!/usr/bin/env mandela
+// doc-links.mnd — every relative link in the live documentation must resolve.
+//
+// Why this check is written in Mandela: it is the kind of thing bash does
+// awkwardly (a markdown link has to be found, its target unquoted, its `..`
+// resolved against the *containing file*, then tested on disk) and Java does
+// overkill. Here it is a short script with a filesystem it is confined to, run
+// from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/doc-links.mnd -s .
+//
+// Exit code 0 when every link resolves, 2 when one of them does not, so CI can
+// branch on it. `-s .` is not decoration: without it the run is confined to
+// scripts/mandela and cannot see the documents it is checking.
+
+use std.fs
+
+// Directories that are never documentation: generated output, vendored code and
+// the toolchain's own state. Dot-directories are skipped by prefix below.
+let SKIP_DIRS = ["build", "build-gradle", "libs", "ext", "node_modules", "target"]
+
+// Prefixes that are not this repository's business to resolve. `cci:` is the IDE
+// locator scheme the older guides use; `resource://` is lg3d's own classpath
+// scheme, which resolves inside the assembled runtime tree, not on disk.
+let SKIP_PREFIXES = ["http://", "https://", "mailto:", "cci:", "data:",
+                    "file://", "resource://", "ftp://", "git@", "jar:", "about:"]
+
+fun isSkipped(name) {
+    name in SKIP_DIRS || name.startsWith(".")
+}
+
+// Every `](target)` on one line. A title may follow the path, and an awkward
+// path may sit in angle brackets; both are handled here so the caller only ever
+// sees a bare path.
+fun linkTargets(line) {
+    var targets = []
+    var rest = line
+    loop {
+        let open = rest.indexOf("](")
+        if (open < 0) { break }
+        rest = rest.substring(open + 2)
+        let close = rest.indexOf(")")
+        if (close < 0) { break }
+        let raw = rest.substring(0, close).trim()
+        rest = rest.substring(close)
+        // A `<path>` target and a `path "title"` target both appear; strip the
+        // wrapper either way and keep the bare path.
+        var target = raw.split(" ")[0]
+        if (raw.startsWith("<")) { target = raw.substring(1).split(">")[0] }
+        if (target.length > 0) { targets.push(target) }
+    }
+    return targets
+}
+
+fun isExternal(target) {
+    target.startsWith("#") || SKIP_PREFIXES.any { p -> target.startsWith(p) }
+}
+
+// Join a link onto the directory of the file that wrote it, honouring `.` and
+// `..` the way a reader would. Paths that climb out of the sandbox are refused
+// by the engine itself, which is the behaviour a checker wants: a link leaving
+// the repository is a finding, not a read.
+fun resolvePath(docPath, target) {
+    var parts = docPath.split("/")
+    parts.removeAt(parts.length - 1)              // drop the file's own name
+    for (piece in target.split("/")) {
+        if (piece == "." || piece == "") { continue }
+        if (piece == "..") {
+            if (parts.length > 0) { parts.removeAt(parts.length - 1) }
+            continue
+        }
+        parts.push(piece)
+    }
+    return parts.join("/")
+}
+
+// Walk the tree. `fs.list` gives names, sorted, so the report is reproducible.
+fun markdownFiles(dir, found) {
+    for (name in fs.list(dir)) {
+        if (isSkipped(name)) { continue }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            markdownFiles(path, found)
+        } else if (name.endsWith(".md")) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// The anchor a heading offers, in the form a browser computes it: lower case,
+// spaces to hyphens, punctuation dropped. Setext headings (`Title` + `=====`)
+// are not markdown links anybody writes in this repository, so they are not
+// counted here.
+let SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
+fun slug(title) {
+    var out = ""
+    for (ch in title.lower()) {
+        if (ch == " " || ch == "/") {
+            out += "-"
+        } else if (SLUG_CHARS.contains(ch)) {
+            out += ch
+        }
+    }
+    return out
+}
+
+// The anchors a file offers. Cached per file, because a document that links to
+// one target five times must not be read five times.
+var headings = {}
+fun anchorsOf(path) {
+    if (headings.has(path)) { return headings.get(path) }
+    var slugs = []
+    for (line in fs.lines(path)) {
+        let text = line.replace(">", "").trim()
+        if (!text.startsWith("#")) { continue }
+        let title = text.split("#").last.trim()
+        if (title.length > 0) { slugs.push(slug(title)) }
+    }
+    headings.put(path, slugs)
+    return slugs
+}
+
+let files = markdownFiles(".", [])
+var broken = []
+var checked = 0
+for (doc in files) {
+    var lineNo = 0
+    for (line in fs.lines(doc)) {
+        lineNo += 1
+        for (target in linkTargets(line)) {
+            if (isExternal(target)) { continue }
+            checked += 1
+            let hash = target.indexOf("#")
+            let filePart = if (hash < 0) target else target.substring(0, hash)
+            let path = resolvePath(doc, filePart)
+            if (!fs.exists(path)) {
+                broken.push("${doc}:${lineNo} -> ${target}")
+                continue
+            }
+            // The file is there; a `#fragment` still has to name a heading.
+            if (hash >= 0) {
+                let anchor = target.substring(hash + 1)
+                if (anchor.length > 0 && !anchorsOf(path).any { a -> a == anchor }) {
+                    broken.push("${doc}:${lineNo} -> ${target} (no such heading)")
+                }
+            }
+        }
+    }
+}
+
+println("checked ${checked} relative links in ${files.length} markdown files")
+if (broken.length == 0) {
+    println("every link resolves")
+} else {
+    broken.forEach { b -> println("  dead: ${b}") }
+    error("${broken.length} documentation link(s) do not resolve", "ViolationError")
+}
