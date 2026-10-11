@@ -93,6 +93,50 @@ work to make it build and run on a current toolchain.
   places that tabulated them stopped at `2`.
 
 ### Added
+- **Espresso: Gradle and Maven build extensions** (`lg3d-apps`) — two new
+  bundled providers, **Gradle Build** (`lg3d.gradle-build`) and **Maven Build**
+  (`lg3d.maven-build`), a new **Build** category, take Espresso from compiling
+  the *file* (`JvmBuildTools`) to building the *project* the document lives in.
+  Each contributes six toolbar actions — Gradle **Build / Run Tests / Run
+  Application / Clean / List Tasks / Outline Build File** and Maven **Compile /
+  Run Tests / Package / Run Application / Clean / Outline POM** — on the two
+  remaining halves of the `Ctrl+Alt+Shift` family (`G T U C S` / `E I P W Q`,
+  disjoint from JVM Build Tools' `J R D K L X` and Mandela's `M A B`; the two
+  outline actions stay unbound). Discovery walks up from the document to a
+  `settings.gradle[.kts]` / `build.gradle[.kts]` or a `pom.xml` (deepest match
+  wins, the same 10-level limit the west project tree uses) and runs the
+  project's **own wrapper** (`./gradlew`, `./mvnw`), falling back to
+  `gradle`/`mvn` on `PATH`; a missing project or launcher is a status-line
+  answer that spawns no process. The build runs on a virtual thread with plain
+  console output (`--console=plain`, `-B --no-transfer-progress`, `TERM=dumb`,
+  `JAVA_HOME` only when the parent has none), lands its full log in the Output
+  panel, and is then **interpreted**: compiler and test failures become
+  `Diagnostic`s filed against the file that owns them (Maven's
+  `[ERROR] file:[line,col]`, Gradle's `file.java:line:`, surefire's per-test
+  lines — deduped because both tools print every error twice, capped at 100),
+  while verdict, timing, the failing goal's headline and the error/warning
+  counts compress into one ≤220-char status line carrying the HTML test-report
+  path when one was written. Because a build reports on files other than the
+  focused tab, the panel now **fans a multi-path report out per open tab**,
+  un-marks the tabs the next build no longer mentions, and opens a closed file
+  *with* its markers when its Problems row is activated — a single document's
+  own analysis keeps the previous focused-tab behaviour, and a green build
+  clears the stale squiggles. Maven's **Run Application** is deliberately
+  `java -cp target/classes <mainClass>` rather than `exec:java`, so it works
+  offline (stated in the tooltip, not hidden in a failure), and both outline
+  actions parse the *live document text*, so unsaved edits and half-typed files
+  outline honestly. 63 new headless JUnit 5 tests — `BuildToolsTest` (24, the
+  pure root/launcher/argv/environment and log-interpretation rules over verbatim
+  Gradle 8.14 and Maven 3.9.11 output), `GradleBuildToolsTest` (18) and
+  `MavenBuildToolsTest` (20) driving every action through a synchronous `Runner`
+  seam so no test spawns a build, plus the panel fan-out test — bring the
+  text-editor surface to **45 suites / 480 deterministic tests** and the editor
+  to **89 toolbar actions across 23 extensions**. Four more in
+  `BuildToolsLiveTest` run the real `./gradlew` and `mvn` end-to-end and are
+  opt-in (`-Dlg3d.build.integration=true`, skipped by default and in CI). The
+  parsers were cut against those live runs, which is how the Gradle outline was
+  fixed to prefer `build.gradle` over the `settings.gradle` that wins the root
+  lookup.
 - **Espresso: Java/Kotlin IDE groundwork (Phase 0)** (`lg3d-apps`) — the editor's
   south split now hosts a four-tab **bottom panel** — **Output** (the existing
   console), **Problems** (`ProblemsPanel`, a sortable `Diagnostic` table),

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
@@ -269,19 +270,36 @@ final class Toolchain {
     }
 
     /**
+     * Runs {@code command} in {@code workDir} with the inherited environment,
+     * merging stderr into stdout, and waits up to {@code timeoutMs}. Equivalent
+     * to {@link #execute(List, Path, Map, long)} with no extra variables.
+     */
+    static Result execute(List<String> command, Path workDir, long timeoutMs) {
+        return execute(command, workDir, Map.of(), timeoutMs);
+    }
+
+    /**
      * Runs {@code command} in {@code workDir}, merging stderr into stdout, and
      * waits up to {@code timeoutMs}; on timeout the process is force-killed and
      * exit code 124 is reported (a missing executable reports 127). Blocks the
      * calling thread — production callers go through the extension's virtual
      * thread runner, tests through the injected fake.
+     *
+     * @param extraEnv variables layered over the inherited environment (the
+     *                 build tools pin {@code JAVA_HOME} and {@code TERM} here);
+     *                 null/empty runs with the inherited environment alone
      */
-    static Result execute(List<String> command, Path workDir, long timeoutMs) {
+    static Result execute(List<String> command, Path workDir, Map<String, String> extraEnv,
+            long timeoutMs) {
         Process p;
         try {
-            p = new ProcessBuilder(command)
+            ProcessBuilder builder = new ProcessBuilder(command)
                     .directory(workDir.toFile())
-                    .redirectErrorStream(true)
-                    .start();
+                    .redirectErrorStream(true);
+            if (extraEnv != null && !extraEnv.isEmpty()) {
+                builder.environment().putAll(extraEnv);
+            }
+            p = builder.start();
         } catch (IOException ioe) {
             return new Result(127, "Cannot run " + command.get(0) + ": " + ioe.getMessage());
         }

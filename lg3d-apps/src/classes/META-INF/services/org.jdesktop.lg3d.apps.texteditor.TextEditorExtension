@@ -19,3 +19,5 @@ org.jdesktop.lg3d.apps.texteditor.SnippetsTools
 org.jdesktop.lg3d.apps.texteditor.TodoScanTools
 org.jdesktop.lg3d.apps.texteditor.CommentTools
 org.jdesktop.lg3d.apps.texteditor.MandelaTools
+org.jdesktop.lg3d.apps.texteditor.GradleBuildTools
+org.jdesktop.lg3d.apps.texteditor.MavenBuildTools

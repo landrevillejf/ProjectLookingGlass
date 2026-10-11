@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,6 +35,8 @@ import javax.swing.JLabel;
 import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.text.BadLocationException;
+import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
+import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic.Kind;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -90,7 +93,7 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 77 toolbar actions")
+    @DisplayName("the bundled extensions install their 89 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
@@ -100,7 +103,8 @@ class AdvancedTextEditorPanelTest {
         // + Java Structure Tools 4 + Java Debugger 6 + Java Completion 1
         // + Insert & Snippets 5 + TODO Scan 2 + Comment Toggle 3
         // + Mandela Tools 4 (run / check / bytecode / starter template)
-        assertEquals(77, panel.extensionActionCount());
+        // + Gradle Build Tools 6 + Maven Build Tools 6
+        assertEquals(89, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -126,6 +130,15 @@ class AdvancedTextEditorPanelTest {
         assertTrue(panel.isAcceleratorBound("control alt shift M"));
         assertTrue(panel.isAcceleratorBound("control alt shift A"));
         assertTrue(panel.isAcceleratorBound("control alt shift B"));
+        // Gradle Build Tools claim G build, T test, U run, C clean, S tasks;
+        // Maven Build Tools claim E compile, I test, P package, W run, Q clean.
+        // Both outline actions stay unbound.
+        assertTrue(panel.isAcceleratorBound("control alt shift G"));
+        assertTrue(panel.isAcceleratorBound("control alt shift T"));
+        assertTrue(panel.isAcceleratorBound("control alt shift U"));
+        assertTrue(panel.isAcceleratorBound("control alt shift E"));
+        assertTrue(panel.isAcceleratorBound("control alt shift I"));
+        assertTrue(panel.isAcceleratorBound("control alt shift P"));
         // No bundled action claims Ctrl+Alt+0, so it stays unbound.
         assertFalse(panel.isAcceleratorBound("control alt 0"));
         panel.dispose();
@@ -136,7 +149,7 @@ class AdvancedTextEditorPanelTest {
     void extensionInfosListed() {
         AdvancedTextEditorPanel panel = newPanel();
         List<ExtensionsCard.ExtensionInfo> infos = panel.extensionInfos();
-        assertEquals(21, infos.size());
+        assertEquals(23, infos.size());
         assertTrue(infos.stream().allMatch(ExtensionsCard.ExtensionInfo::enabled),
                 "built-in extensions start enabled");
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.spring-boot-tools")));
@@ -149,6 +162,8 @@ class AdvancedTextEditorPanelTest {
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.todo")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.comment")));
         assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.mandela")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.gradle-build")));
+        assertTrue(infos.stream().anyMatch(i -> i.id().equals("lg3d.maven-build")));
         panel.dispose();
     }
 
@@ -211,6 +226,91 @@ class AdvancedTextEditorPanelTest {
         assertEquals(before, panel.extensionActionCount());
         assertTrue(panel.isAcceleratorBound("control alt Q"));
         panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a build's project-wide report paints each file's own tab, not the focused one")
+    void projectWideDiagnosticFanOut(@TempDir Path dir) throws IOException {
+        // Plain .txt on purpose: a JVM source file would be picked up by the
+        // bundled Java analyzer the moment its tab opens, and its asynchronous
+        // report would repaint the tab behind this test's back. A build's findings
+        // are not tied to an extension, so the routing under test is the same.
+        Path app = Files.writeString(dir.resolve("App.txt"), "one\ntwo\nthree\n");
+        Path broken = Files.writeString(dir.resolve("Broken.txt"), "a\nb\nc\nd\n");
+        Path closed = dir.resolve("Closed.txt");
+        Files.writeString(closed, "x\ny\nz\n");
+        AdvancedTextEditorPanel panel = newPanel();
+        try {
+            panel.openPath(app);
+            panel.openPath(broken);
+            EditorTab appTab = tabFor(panel, app);
+            EditorTab brokenTab = tabFor(panel, broken);
+
+            panel.reportDiagnosticsForExtension(app.toString(), List.of(
+                    Diagnostic.of(broken.toString(), 2, 1, Kind.ERROR, "cannot find symbol"),
+                    Diagnostic.of(app.toString(), 3, 1, Kind.WARNING, "unused variable")));
+
+            assertEquals(1, appTab.diagnosticCount(), "App.java owns only its own finding");
+            assertEquals(1, brokenTab.diagnosticCount());
+            assertEquals(Kind.WARNING, appTab.diagnosticAt(3));
+            assertEquals(Kind.ERROR, brokenTab.diagnosticAt(2));
+            assertEquals(2, panel.problemsPanel().problemCount(), "Problems lists the union");
+            assertEquals("1 error(s), 1 warning(s)", panel.statusMessage());
+
+            // A later build that no longer complains about Broken.java un-marks
+            // it, and reports a file that has no tab at all.
+            panel.reportDiagnosticsForExtension(app.toString(), List.of(
+                    Diagnostic.of(app.toString(), 1, 1, Kind.ERROR, "boom"),
+                    Diagnostic.of(closed.toString(), 2, 1, Kind.ERROR,
+                            "unreachable statement")));
+            assertEquals(0, brokenTab.diagnosticCount(), "a file the build likes is cleared");
+            assertEquals(1, appTab.diagnosticCount());
+            assertEquals(2, panel.problemsPanel().problemCount());
+            assertEquals("2 error(s), 0 warning(s)", panel.statusMessage());
+
+            // Activating a row whose file is closed opens it and paints its own
+            // markers — the whole point of a Problems row being clickable.
+            int before = panel.tabCount();
+            panel.problemsPanel().activateRowAt(rowFor(panel, closed.toString()));
+            assertEquals(before + 1, panel.tabCount());
+            EditorTab closedTab = tabFor(panel, closed);
+            assertSame(closedTab, panel.currentTab());
+            assertEquals(1, closedTab.diagnosticCount());
+            assertEquals(Kind.ERROR, closedTab.diagnosticAt(2));
+            assertEquals("Ln 2, Col 1", panel.statusPosition());
+
+            // One clear drops the whole project-wide picture, not just the tab
+            // the build happened to name.
+            panel.clearDiagnosticsForExtension(app.toString());
+            assertEquals(0, appTab.diagnosticCount());
+            assertEquals(0, closedTab.diagnosticCount());
+            assertEquals(0, panel.problemsPanel().problemCount());
+        } finally {
+            panel.dispose();
+        }
+    }
+
+    /** The open tab editing {@code file} (test helper over the real tab strip). */
+    private static EditorTab tabFor(AdvancedTextEditorPanel panel, Path file) {
+        JTabbedPane strip = panel.tabStrip();
+        for (int i = 0; i < strip.getTabCount(); i++) {
+            EditorTab tab = (EditorTab) strip.getComponentAt(i);
+            if (file.equals(tab.getPath())) {
+                return tab;
+            }
+        }
+        throw new AssertionError("no tab for " + file);
+    }
+
+    /** The view row listing a finding on {@code path}, or -1. */
+    private static int rowFor(AdvancedTextEditorPanel panel, String path) {
+        for (int i = 0; i < panel.problemsPanel().problemCount(); i++) {
+            Diagnostic d = panel.problemsPanel().diagnosticAt(i);
+            if (d != null && path.equals(d.path())) {
+                return i;
+            }
+        }
+        throw new AssertionError("no Problems row for " + path);
     }
 
     @Test
