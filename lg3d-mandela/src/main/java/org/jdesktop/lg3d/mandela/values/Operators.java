@@ -74,7 +74,7 @@ public final class Operators {
             return out;
         }
         if (Values.isNum(left) && Values.isNum(right)) {
-            return combine(left, right, Math::addExact, Double::sum, "+");
+            return combine(left, right, Math::addExact, Double::sum);
         }
         throw MandelaError.type("cannot add " + Values.typeName(right)
                 + " to " + Values.typeName(left));
@@ -99,7 +99,7 @@ public final class Operators {
             return out;
         }
         requireNumbers(left, right, "-");
-        return combine(left, right, Math::subtractExact, (x, y) -> x - y, "-");
+        return combine(left, right, Math::subtractExact, (x, y) -> x - y);
     }
 
     /** {@code a * b}, including the {@code "ab" * 3} repeat. */
@@ -111,7 +111,7 @@ public final class Operators {
             return repeat(text, left);
         }
         requireNumbers(left, right, "*");
-        return combine(left, right, Math::multiplyExact, (x, y) -> x * y, "*");
+        return combine(left, right, Math::multiplyExact, (x, y) -> x * y);
     }
 
     /** {@code a / b}: exact between integers, double otherwise. Never divides by zero. */
@@ -128,7 +128,7 @@ public final class Operators {
             if (divisor == -1L) {
                 return negateInt(left);
             }
-            if (divisor != 0L && divisor != -1L && (left instanceof Long l) && l % divisor == 0L) {
+            if (left instanceof Long l && l % divisor == 0L) {
                 return l / divisor;
             }
         } else if (Values.asDouble(right) == 0.0d) {
@@ -169,8 +169,15 @@ public final class Operators {
             return Math.pow((double) base, (double) exponent);
         }
         long acc = 1L;
-        for (long i = 0; i < exponent; i++) {
-            acc = Math.multiplyExact(acc, base);
+        try {
+            for (long i = 0; i < exponent; i++) {
+                acc = Math.multiplyExact(acc, base);
+            }
+        } catch (ArithmeticException overflow) {
+            // The same promotion the additive operators answer with: 2 ** 63 is far
+            // past a long, but a script asking for it wants a number, not a stack
+            // trace escaping the language's error model.
+            return promoteExact(Math.pow((double) base, (double) exponent));
         }
         return acc;
     }
@@ -223,17 +230,16 @@ public final class Operators {
         double apply(double left, double right);
     }
 
-    private static Object combine(Object left, Object right, LongOp ints, DoubleOp floats,
-                                  String symbol) {
+    private static Object combine(Object left, Object right, LongOp ints, DoubleOp floats) {
         if (Values.isInt(left) && Values.isInt(right)) {
             try {
                 return ints.apply(Values.asLong(left), Values.asLong(right));
             } catch (ArithmeticException overflow) {
                 // Promotion beats wraparound; the guide says an Int never rolls over.
-                return BigDecimal.valueOf(Values.asDouble(left))
-                        .add(BigDecimal.ZERO)
-                        .doubleValue() * (symbol.equals("*") ? 1 : 1)
-                        + floats.apply(Values.asDouble(left), Values.asDouble(right)) * 0;
+                // The double path answers the same question the exact long path would
+                // have, so the result keeps the shape of the operands' operation.
+                return promoteExact(floats.apply(Values.asDouble(left),
+                        Values.asDouble(right)));
             }
         }
         return floats.apply(Values.asDouble(left), Values.asDouble(right));

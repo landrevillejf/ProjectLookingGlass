@@ -125,6 +125,10 @@ Java author expects, applied consistently. Use `is Empty`-style members
 | access | `.`, `?.`, `?.[]`, `??`, `as`, indexing `[]` |
 
 - `+` adds numbers, joins strings and concatenates lists (`[1] + [2]`).
+- An `Int` operation that would roll over past the 64-bit range is promoted to a
+  `Double` rather than wrapping: `9223372036854775807 + 1` answers
+  `9.223372036854776E18`, and `2 ** 63` answers the same way instead of raising.
+  Losing the low digits is recoverable; a silent wraparound is not.
 - `/` is true division and answers in the type the arithmetic deserves: an `Int`
   when integers divide exactly (`8 / 2` is `4`), a `Double` when they do not
   (`7 / 2` is `3.5`). There is no integer-only division operator to misread;
