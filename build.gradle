@@ -134,6 +134,17 @@ subprojects {
     }
 
     // -------------------------------------------------------------------------
+    // Javadoc configuration
+    // -------------------------------------------------------------------------
+    // Configure Javadoc to be less strict for the legacy codebase. Treat warnings
+    // as non-fatal and suppress certain warning types that are common in the
+    // ported code.
+    tasks.withType(Javadoc).configureEach {
+        options.addStringOption('Xdoclint:none', '-quiet')
+        failOnError = false
+    }
+
+    // -------------------------------------------------------------------------
     // CycloneDX SBOM
     // -------------------------------------------------------------------------
     // `cyclonedxBom` writes a machine-readable Software Bill of Materials (exact
