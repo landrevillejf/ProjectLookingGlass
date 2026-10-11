@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -131,8 +132,8 @@ public class AdvancedTextEditorPanel extends JPanel
      * appear after these.
      */
     private static final List<String> PREFERRED_CATEGORIES = List.of(
-            "Text", "Code", "Java/Kotlin", "Mandela", "Web", "Spring", "Data",
-            "Encoding", "Markdown", "Analysis", "General");
+            "Text", "Code", "Java/Kotlin", "Build", "Mandela", "Web", "Spring",
+            "Data", "Encoding", "Markdown", "Analysis", "General");
 
     /**
      * One action contributed by one extension, tagged with its category, the
@@ -198,6 +199,14 @@ public class AdvancedTextEditorPanel extends JPanel
     private final OutputConsole outputConsole = new OutputConsole();
     /** South Problems tab: the aggregated diagnostic list. */
     private final ProblemsPanel problemsPanel = new ProblemsPanel();
+    /**
+     * The last project-wide diagnostic report (a Gradle or Maven build), grouped
+     * by the file owning each finding. Two uses: the next such report clears the
+     * tabs it no longer mentions instead of leaving stale squiggles behind, and a
+     * Problems row whose file was closed at report time gets its markers painted
+     * when the user opens that file.
+     */
+    private Map<String, List<Diagnostic>> lastProjectDiagnostics = Map.of();
     /** South Structure tab: the current document's symbol outline. */
     private final StructurePanel structurePanel = new StructurePanel();
     /** South Debug tab: the debugger surface (breakpoints/stack/locals/output). */
@@ -1791,15 +1800,49 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     /**
-     * Paints {@code diagnostics} on the matching tab (falling back to the current
-     * one), lists them in the Problems tab and summarises the counts on the status
-     * line. Delegate for {@code EditorContext.reportDiagnostics}; EDT-only.
+     * Paints {@code diagnostics} on the tabs that own them, lists them in the
+     * Problems tab and summarises the counts on the status line. A single-file
+     * report (the analysis tools) paints the reported tab, falling back to the
+     * focused one; a project-wide report (a Gradle or Maven build) spans several
+     * files, so each finding is painted on the tab owning its own path instead
+     * of dumping foreign squiggles onto the document the user happens to be in.
+     * Delegate for {@code EditorContext.reportDiagnostics}; EDT-only.
      */
     void reportDiagnosticsForExtension(String path, List<Diagnostic> diagnostics) {
         List<Diagnostic> diags = (diagnostics == null) ? List.of() : diagnostics;
-        EditorTab tab = tabForPath(path);
-        if (tab != null) {
-            tab.setDiagnostics(diags);
+        Map<String, List<Diagnostic>> byPath = groupByDiagnosticPath(diags);
+        // A report is "one document's own" when it names no file or names exactly
+        // the document it was filed against; that is an analysis tool speaking for
+        // the buffer, and it owns only that tab. Anything else is a build's
+        // project-wide report, whose findings name their own files.
+        boolean ownDocument = byPath.size() <= 1 && (byPath.isEmpty()
+                || byPath.containsKey("") || byPath.containsKey(path));
+        if (ownDocument) {
+            EditorTab tab = tabForPath(path);
+            if (tab != null) {
+                tab.setDiagnostics(diags);
+            }
+        } else {
+            Set<String> painted = new LinkedHashSet<>();
+            for (Map.Entry<String, List<Diagnostic>> e : byPath.entrySet()) {
+                EditorTab tab = tabForExistingPath(e.getKey());
+                if (tab != null) {
+                    tab.setDiagnostics(e.getValue());
+                    painted.add(e.getKey());
+                }
+            }
+            // Tabs the previous project-wide report painted, that this one says
+            // nothing about, are cleared: a build's Problems list is the whole
+            // truth for the files it covered.
+            for (String stale : lastProjectDiagnostics.keySet()) {
+                if (!painted.contains(stale)) {
+                    EditorTab tab = tabForExistingPath(stale);
+                    if (tab != null) {
+                        tab.clearDiagnostics();
+                    }
+                }
+            }
+            lastProjectDiagnostics = byPath;
         }
         problemsPanel.setDiagnostics(diags);
         int errors = 0;
@@ -1816,12 +1859,33 @@ public class AdvancedTextEditorPanel extends JPanel
         }
     }
 
-    /** Clears the diagnostics for {@code path}. Delegate for clearDiagnostics. */
+    /** Groups findings by the file owning them, keeping the log's order. */
+    private static Map<String, List<Diagnostic>> groupByDiagnosticPath(List<Diagnostic> diags) {
+        Map<String, List<Diagnostic>> byPath = new LinkedHashMap<>();
+        for (Diagnostic d : diags) {
+            byPath.computeIfAbsent((d.path() == null) ? "" : d.path(),
+                    k -> new ArrayList<>()).add(d);
+        }
+        return byPath;
+    }
+
+    /**
+     * Clears the diagnostics for {@code path}, and with it the whole project-wide
+     * picture a previous build report painted.
+     * Delegate for clearDiagnostics.
+     */
     void clearDiagnosticsForExtension(String path) {
         EditorTab tab = tabForPath(path);
         if (tab != null) {
             tab.clearDiagnostics();
         }
+        for (String painted : lastProjectDiagnostics.keySet()) {
+            EditorTab other = tabForExistingPath(painted);
+            if (other != null && other != tab) {
+                other.clearDiagnostics();
+            }
+        }
+        lastProjectDiagnostics = Map.of();
         problemsPanel.clear();
     }
 
@@ -1912,17 +1976,51 @@ public class AdvancedTextEditorPanel extends JPanel
 
     /** Opens the location of a Problems-tab row. */
     private void gotoDiagnostic(Diagnostic d) {
-        EditorTab tab = tabForPath(d.path());
+        EditorTab tab = tabForExistingPath(d.path());
         if (tab == null) {
-            return;
+            // A build reports on files the editor does not have open; opening
+            // the file is what turns a Problems row into a jump, not a dead end.
+            tab = openDiagnosticPath(d.path());
+            if (tab == null) {
+                message("Cannot open " + d.path());
+                return;
+            }
+            // The file was closed when the build reported, so no tab owned it to
+            // be painted; give it the markers its own rows describe now.
+            List<Diagnostic> recorded = lastProjectDiagnostics
+                    .getOrDefault(d.path(), List.of());
+            tab.setDiagnostics(recorded.isEmpty() ? List.of(d) : recorded);
         }
         cards.show(center, CARD_EDITOR);
         tabs.setSelectedComponent(tab);
         tab.goToLine(d.line());
     }
 
+    /** Opens {@code path} as a tab and returns it, or null when it cannot be read. */
+    private EditorTab openDiagnosticPath(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        try {
+            if (!openPath(Path.of(path))) {
+                return null;
+            }
+        } catch (RuntimeException e) {
+            // Includes InvalidPathException (a RuntimeException on JDK 21) and a
+            // file that vanished between the build report and the click.
+            return null;
+        }
+        return tabForExistingPath(path);
+    }
+
     /** The tab editing {@code path}, or the current tab when it is blank/unknown. */
     private EditorTab tabForPath(String path) {
+        EditorTab exact = tabForExistingPath(path);
+        return (exact != null) ? exact : currentTab();
+    }
+
+    /** The tab editing {@code path}, or null when no open tab owns that file. */
+    private EditorTab tabForExistingPath(String path) {
         if (path != null && !path.isEmpty()) {
             for (int i = 0; i < tabs.getTabCount(); i++) {
                 EditorTab tab = (EditorTab) tabs.getComponentAt(i);
@@ -1931,7 +2029,7 @@ public class AdvancedTextEditorPanel extends JPanel
                 }
             }
         }
-        return currentTab();
+        return null;
     }
 
     private static String baseName(String path) {

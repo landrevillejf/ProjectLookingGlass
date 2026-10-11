@@ -129,6 +129,18 @@ final class ProblemsPanel extends JPanel {
         }
     }
 
+    /**
+     * Selects the view {@code index} and activates it, exactly as a double-click
+     * does (test seam — a headless mouse event would not reach the row sorter).
+     */
+    void activateRowAt(int index) {
+        if (index < 0 || index >= table.getRowCount()) {
+            return;
+        }
+        table.setRowSelectionInterval(index, index);
+        activateSelected();
+    }
+
     private void refreshCount() {
         int errors = errorCount();
         int warnings = warningCount();
