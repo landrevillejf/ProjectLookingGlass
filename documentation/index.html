@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Looking Glass - Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .language-selector {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .lang-btn {
+            padding: 0.75rem 2rem;
+            background: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .lang-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .lang-btn.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .content {
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 1rem;
+        }
+
+        .card a {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+
+        .card a:hover {
+            background: #764ba2;
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            font-size: 2rem;
+        }
+
+        .section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .section li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .section li:last-child {
+            border-bottom: none;
+        }
+
+        .section a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .section a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: #4CAF50;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            margin-left: 0.5rem;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔮 Project Looking Glass</h1>
+            <p>3D Desktop Environment Documentation</p>
+            <p>Documentation de l'environnement de bureau 3D</p>
+        </header>
+
+        <div class="language-selector">
+            <button class="lang-btn active" onclick="switchLanguage('en')">English</button>
+            <button class="lang-btn" onclick="switchLanguage('fr')">Français</button>
+        </div>
+
+        <!-- English Content -->
+        <div id="en-content" class="content active">
+            <div class="card-grid">
+                <div class="card">
+                    <h2>📊 Architecture Diagrams</h2>
+                    <p>High-level system architecture, module dependencies, component architecture, data flow, and runtime architecture.</p>
+                    <a href="en/diagrams/architecture-overview.md">View Diagrams</a>
+                </div>
+                <div class="card">
+                    <h2>🔄 Sequence Diagrams</h2>
+                    <p>Sequence diagrams for application startup, window creation, event handling, and more.</p>
+                    <a href="en/diagrams/sequence-diagrams.md">View Diagrams</a>
+                </div>
+                <div class="card">
+                    <h2>📐 Class Diagrams</h2>
+                    <p>Class hierarchies for scene graph, widgets, display server, geometry, appearance, and lighting.</p>
+                    <a href="en/diagrams/class-diagrams.md">View Diagrams</a>
+                </div>
+                <div class="card">
+                    <h2>📋 Functional Analysis</h2>
+                    <p>Comprehensive functional requirements, use cases, specifications, and module analysis.</p>
+                    <a href="en/functional-analysis/functional-analysis.md">View Document</a>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📚 Additional Resources</h2>
+                <ul>
+                    <li><a href="../README.md">Project README</a> - Project overview and getting started</li>
+                    <li><a href="../AGENTS.md">AGENTS.md</a> - Project guidelines and conventions</li>
+                    <li><a href="../CHANGELOG.md">CHANGELOG.md</a> - Change log and release notes</li>
+                    <li><a href="../CONTRIBUTING.md">CONTRIBUTING.md</a> - Contribution guidelines</li>
+                    <li><a href="../docs/">Technical Documentation</a> - Additional technical docs</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🔧 API Documentation</h2>
+                <p>API documentation (Javadoc) is generated from the source code. To generate it:</p>
+                <pre style="background: #f5f5f5; padding: 1rem; border-radius: 5px; overflow-x: auto;"><code>./gradlew javadoc</code></pre>
+                <p style="margin-top: 1rem;">The generated Javadoc will be available in each module's <code>build-gradle/docs/javadoc/</code> directory.</p>
+            </div>
+        </div>
+
+        <!-- French Content -->
+        <div id="fr-content" class="content">
+            <div class="card-grid">
+                <div class="card">
+                    <h2>📊 Diagrammes d'architecture</h2>
+                    <p>Architecture système de haut niveau, dépendances de modules, architecture des composants, flux de données et architecture d'exécution.</p>
+                    <a href="fr/diagrams/architecture-overview.md">Voir les diagrammes</a>
+                </div>
+                <div class="card">
+                    <h2>🔄 Diagrammes de séquence</h2>
+                    <p>Diagrammes de séquence pour le démarrage d'application, la création de fenêtre, la gestion des événements, et plus encore.</p>
+                    <a href="fr/diagrams/sequence-diagrams.md">Voir les diagrammes</a>
+                </div>
+                <div class="card">
+                    <h2>📐 Diagrammes de classes</h2>
+                    <p>Hiérarchies de classes pour le graphe de scène, les widgets, le serveur d'affichage, la géométrie, l'apparence et l'éclairage.</p>
+                    <a href="fr/diagrams/class-diagrams.md">Voir les diagrammes</a>
+                </div>
+                <div class="card">
+                    <h2>📋 Analyse fonctionnelle</h2>
+                    <p>Exigences fonctionnelles complètes, cas d'utilisation, spécifications et analyse des modules.</p>
+                    <a href="fr/functional-analysis/functional-analysis.md">Voir le document</a>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📚 Ressources supplémentaires</h2>
+                <ul>
+                    <li><a href="../README.md">README du projet</a> - Aperçu du projet et démarrage</li>
+                    <li><a href="../AGENTS.md">AGENTS.md</a> - Directives et conventions du projet</li>
+                    <li><a href="../CHANGELOG.md">CHANGELOG.md</a> - Journal des modifications et notes de version</li>
+                    <li><a href="../CONTRIBUTING.md">CONTRIBUTING.md</a> - Directives de contribution</li>
+                    <li><a href="../docs/">Documentation technique</a> - Docs techniques supplémentaires</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🔧 Documentation API</h2>
+                <p>La documentation API (Javadoc) est générée à partir du code source. Pour la générer :</p>
+                <pre style="background: #f5f5f5; padding: 1rem; border-radius: 5px; overflow-x: auto;"><code>./gradlew javadoc</code></pre>
+                <p style="margin-top: 1rem;">La Javadoc générée sera disponible dans le répertoire <code>build-gradle/docs/javadoc/</code> de chaque module.</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Project Looking Glass v1.68.0-dev | Documentation v1.0</p>
+            <p>Last Updated: 2026-10-11 | Dernière mise à jour : 2026-10-11</p>
+        </footer>
+    </div>
+
+    <script>
+        function switchLanguage(lang) {
+            // Update button states
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update content visibility
+            document.querySelectorAll('.content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(lang + '-content').classList.add('active');
+        }
+    </script>
+</body>
+</html>
