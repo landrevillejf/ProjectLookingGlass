@@ -737,10 +737,10 @@ Fichier XML → Chargeur config → Validation → Application → Exécution �
 
 ### Références
 
-- [AGENTS.md](../../AGENTS.md) - Directives et conventions du projet
-- [lg3d-core/AGENTS.md](../../lg3d-core/AGENTS.md) - Directives du module core
-- [lg3d-apps/AGENTS.md](../../lg3d-apps/AGENTS.md) - Directives du module apps
-- [README.md](../../README.md) - Aperçu du projet
+- [AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/AGENTS.md) - Directives et conventions du projet
+- [lg3d-core/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-core/AGENTS.md) - Directives du module core
+- [lg3d-apps/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-apps/AGENTS.md) - Directives du module apps
+- [README.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/README.md) - Aperçu du projet
 
 ### Historique des révisions
 

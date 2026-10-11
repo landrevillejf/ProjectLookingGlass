@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"org.jdesktop.lg3d.dbmanager.jdbc"},{"l":"org.jdesktop.lg3d.dbmanager.model"},{"l":"org.jdesktop.lg3d.dbmanager.session"},{"l":"org.jdesktop.lg3d.dbmanager.ui"}];updateSearchResults();

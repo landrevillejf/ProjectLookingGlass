@@ -737,10 +737,10 @@ XML File → Config Loader → Validation → Application → Runtime → Persis
 
 ### References
 
-- [AGENTS.md](../../AGENTS.md) - Project guidelines and conventions
-- [lg3d-core/AGENTS.md](../../lg3d-core/AGENTS.md) - Core module guidelines
-- [lg3d-apps/AGENTS.md](../../lg3d-apps/AGENTS.md) - Apps module guidelines
-- [README.md](../../README.md) - Project overview
+- [AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/AGENTS.md) - Project guidelines and conventions
+- [lg3d-core/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-core/AGENTS.md) - Core module guidelines
+- [lg3d-apps/AGENTS.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-apps/AGENTS.md) - Apps module guidelines
+- [README.md](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/README.md) - Project overview
 
 ### Revision History
 
