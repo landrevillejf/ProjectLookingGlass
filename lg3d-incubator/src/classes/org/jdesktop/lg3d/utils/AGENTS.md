@@ -1,8 +1,8 @@
 # org.jdesktop.lg3d.utils.smalltoolkit — 3D Button Widget Library
 
 > Role-aware per-app guide. Module: [`lg3d-incubator`](../../../../../../AGENTS.md)
-> · UI/UX rulebook: [`lg3d-core`](../../../../../lg3d-core/AGENTS.md)
-> · build/exclusions/commits: root [`AGENTS.md`](../../../../../AGENTS.md).
+> · UI/UX rulebook: [`lg3d-core`](../../../../../../../lg3d-core/AGENTS.md)
+> · build/exclusions/commits: root [`AGENTS.md`](../../../../../../../AGENTS.md).
 
 ## App at a glance
 

@@ -1,0 +1,215 @@
+#!/usr/bin/env mandela
+// startmenu-audit.mnd — audit the desktop's start-menu descriptors.
+//
+// A `.lgcfg` descriptor names a class to launch and a classpath location for its
+// icon, and both are only strings: mis-type one and the desktop does not fail
+// loudly, it shows a blank icon or an item that dies when it is clicked. Nothing
+// in the compile can catch that, because a descriptor is runtime configuration —
+// which is exactly the gap a desktop scripting language is for.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/startmenu-audit.mnd -s .
+//
+// The script indexes the classpath this repository can produce, resolves every
+// reference in every *live* descriptor against it, prints the menu the user will
+// see, and exits 2 if a live reference resolves to nothing. Descriptors that are
+// bundled outside the directories the desktop scans are reported as inert and do
+// not fail the run.
+
+use std.fs
+
+// ---------------------------------------------------------------------------
+// the classpath this repository can produce
+// ---------------------------------------------------------------------------
+
+// classpath location -> the file on disk that provides it. First writer wins,
+// which is also the classpath's own rule for a duplicate entry.
+var classpath = {}
+
+fun register(location, path) {
+    if (!classpath.has(location)) { classpath.put(location, path) }
+}
+
+// Walk one source tree. `prefix` is the classpath location of the directory's
+// contents; `inside` is the `resources/` path a package-qualified asset will be
+// merged to, and is empty until the walk steps into a directory named
+// "resources" — :lg3d-core:runtimeResources merges exactly those assets into the
+// top-level tree, so `org/.../jmf23D/resources/images/icon/alg3d.png` resolves
+// as `resources/images/icon/alg3d.png` as well.
+fun indexTree(dir, prefix, inside) {
+    for (name in fs.list(dir)) {
+        if (name.startsWith(".")) { continue }
+        let path = "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            var deeper = inside
+            if (inside.length == 0 && name == "resources") {
+                deeper = "resources/"
+            } else if (inside.length > 0) {
+                deeper = "${inside}${name}/"
+            }
+            indexTree(path, "${prefix}${name}/", deeper)
+        } else {
+            register("${prefix}${name}", path)
+            if (inside.length > 0) { register("${inside}${name}", path) }
+        }
+    }
+}
+
+fun moduleDirs() {
+    var dirs = []
+    for (name in fs.list(".")) {
+        if (name.startsWith(".")) { continue }
+        if (fs.isDirectory("${name}/src")) { dirs.push(name) }
+    }
+    return dirs
+}
+
+let modules = moduleDirs()
+for (m in modules) {
+    // Three shapes: sources that carry their assets (legacy layout), a resources
+    // tree that is assembled under the top-level `resources/` prefix, and the
+    // Maven layout's own resource root.
+    for (shape in [["src/classes", ""], ["src/resources", "resources/"],
+                   ["src/main/resources", ""]]) {
+        let dir = "${m}/${shape[0]}"
+        if (fs.isDirectory(dir)) { indexTree(dir, shape[1], "") }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// descriptors
+// ---------------------------------------------------------------------------
+
+// The desktop scans config/demo and config/incubator on the classpath. In this
+// repository that means the apps module's descriptors and the desktop's own
+// etc/ tree; anything else in the tree is a file the desktop never reads.
+fun isLive(descriptorPath) {
+    // A statement ends at a line break, so the operator stays at the end of the
+    // line it continues.
+    return descriptorPath.startsWith("lg3d-apps/src/config/") ||
+            descriptorPath.startsWith("lg3d-core/src/etc/")
+}
+
+fun walk(dir, suffix, found) {
+    for (name in fs.list(dir)) {
+        if (name.startsWith(".") || name == "build" || name == "build-gradle") {
+            continue
+        }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            walk(path, suffix, found)
+        } else if (name.endsWith(suffix)) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// The text of one `<void property="x"> <string>value</string> </void>` block.
+// Descriptors are `java.beans.XMLDecoder` files and the only shape that matters
+// is a property holding one string, so this reads that and nothing else; a full
+// XML parser would be the heavyweight way to do a grep.
+fun propertyOf(text, name) {
+    let marker = "property=\"${name}\""
+    if (!text.contains(marker)) { return "" }
+    let rest = text.substring(text.indexOf(marker))
+    let open = rest.indexOf("<string>")
+    if (open < 0) { return "" }
+    let body = rest.substring(open + 8)
+    let close = body.indexOf("</string>")
+    if (close < 0) { return "" }
+    return body.substring(0, close).trim()
+}
+
+// Every `resource:///...` in a descriptor. A value ends at the next `<` inside a
+// `<string>` element, or at its closing quote inside an attribute; whichever
+// comes first is the terminator.
+fun resourceRefs(text) {
+    var refs = []
+    var rest = text
+    while (rest.contains("resource:///")) {
+        rest = rest.substring(rest.indexOf("resource:///") + 12)
+        let tag = rest.indexOf("<")
+        let quote = rest.indexOf("\"")
+        let end = if (quote < 0) tag else if (tag < 0) quote else min(tag, quote)
+        if (end < 0) { break }
+        refs.push(rest.substring(0, end))
+        rest = rest.substring(end)
+    }
+    return refs
+}
+
+// The main class of a `java <class> ...` command, or "" for any other command.
+fun classNameOf(command) {
+    if (!command.startsWith("java ")) { return "" }
+    for (word in command.split(" ")) {
+        if (word.contains(".") && !word.startsWith("-")) { return word }
+    }
+    return ""
+}
+
+// ---------------------------------------------------------------------------
+// the audit
+// ---------------------------------------------------------------------------
+
+// True when a class name has a .java file in any module's source tree.
+fun hasSource(className) {
+    let asPath = className.replace(".", "/")
+    for (m in modules) {
+        for (shape in ["src/classes", "src/main/java", "src/contrib/java"]) {
+            if (fs.exists("${m}/${shape}/${asPath}.java")) { return true }
+        }
+    }
+    return false
+}
+
+let descriptors = walk(".", ".lgcfg", [])
+var bad = []
+var inert = []
+var items = []
+for (cfg in descriptors) {
+    let text = fs.read(cfg)
+    let label = propertyOf(text, "name")
+    if (label.length == 0) { continue }            // a group or a template, not an item
+    let group = propertyOf(text, "menuGroup")
+    let live = isLive(cfg)
+    if (live) {
+        let shown = if (group.length == 0) "(ungrouped)" else group
+        items.push({ "group": shown, "name": label })
+    }
+    var misses = []
+    for (ref in resourceRefs(text)) {
+        if (!classpath.has(ref)) { misses.push("resource ${ref}") }
+    }
+    let cls = classNameOf(propertyOf(text, "command"))
+    if (cls.length > 0 && !classpath.has(cls.replace(".", "/") + ".class")) {
+        // The class is only reachable if some module compiles it; a source file
+        // in the tree is the build's own promise that it will.
+        if (!hasSource(cls)) { misses.push("class ${cls}") }
+    }
+    for (m in misses) {
+        if (live) { bad.push("${cfg}: no file behind ${m}") }
+        else { inert.push("${cfg}: ${m}") }
+    }
+}
+
+println("indexed ${classpath.length} classpath locations from ${modules.length} modules")
+println("${descriptors.length} descriptors scanned, ${items.length} live menu items")
+var byGroup = {}
+for (it in items) {
+    let g = it["group"]
+    byGroup.put(g, if (byGroup.has(g)) byGroup.get(g) + 1 else 1)
+}
+for (g in keys(byGroup)) {
+    println("  ${byGroup.get(g)} item(s) in ${g}")
+}
+if (inert.length > 0) {
+    println("${inert.length} reference(s) in descriptors the desktop does not scan:")
+    for (i in inert) { println("  inert  ${i}") }
+}
+if (bad.length == 0) {
+    println("every live descriptor resolves")
+} else {
+    for (b in bad) { println("  BAD  ${b}") }
+    error("${bad.length} start-menu reference(s) do not resolve", "ViolationError")
+}

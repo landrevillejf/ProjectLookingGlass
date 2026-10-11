@@ -74,6 +74,18 @@ jobs:
       - name: Assemble runtime resources
         run: ./gradlew :lg3d-core:runtimeResources --stacktrace
 
+      # Project Mandela, dogfooded: the scripts in scripts/mandela are written in
+      # the desktop's own language and audit this repository -- documentation links
+      # and anchors, release consistency across the four version references and
+      # settings.gradle, and the start-menu descriptors' resource/class refs.
+      # A separate visible step rather than part of `check`, because they inspect
+      # the whole tree: the failure is the script's own output (file:line for a
+      # dead link, the mismatching file for a stale version), which a build step
+      # attributes far better than a test failure buried in :lg3d-mandela:test.
+      # See scripts/mandela/README.md and lg3d-mandela/build.gradle.
+      - name: Repository checks (Mandela scripts)
+        run: ./gradlew :lg3d-mandela:repositoryChecks --continue --stacktrace
+
       # Coverage/Checkstyle are report-only (see the root build.gradle): the
       # ratchet floor sits just below current coverage, and Checkstyle runs with
       # ignoreFailures=true.

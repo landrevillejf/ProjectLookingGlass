@@ -10,7 +10,7 @@ that controls LPM**, the package manager of this Beyond Linux From Scratch
 > re-implement, fork, or bypass LPM's dependency resolution, database writes,
 > locking, checksum/GPG verification, transactional rollback, or history.
 > **Companion contract.** The runtime display rules are normative in
-> [`lfs-x11-contract.md`](lfs-x11-contract.md); this document inherits them and
+> [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md); this document inherits them and
 > only adds the LPM-control requirements.
 > **Keywords.** MUST / MUST NOT / SHOULD follow RFC 2119. Everything under
 > §4 (Requirements), §5 (Integration contract) and §7 (Prohibitions) is
@@ -279,12 +279,12 @@ Record the output/evidence of (1)–(9) as the compliance artefact.
 
 ## 10. References
 
-- [`lfs-x11-contract.md`](lfs-x11-contract.md) — normative lg3d / Xorg display
+- [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md) — normative lg3d / Xorg display
   contract (display ownership, extensions, JDK 21, session unit).
-- [`docs/lpm.md`](docs/lpm.md) — full LPM command reference, package format,
-  database layout, hooks, global options.
-- [`docs/LPM_DOCUMENTATION.md`](docs/LPM_DOCUMENTATION.md) — LPM architecture,
-  build-time DB seeding, system-updater integration.
+- [`lpm-console/README.md`](lpm-console/README.md) — the console's own guide:
+  features, building, installation, usage and architecture. The command
+  reference, package format, database layout, hooks and global options are
+  normative in the LPM implementation below, not duplicated here.
 - `blfs/19-lpm.sh` — the LPM implementation (`/usr/bin/lpm`, v2.7.0); the
   authoritative command surface and exit behaviour.
 - `blfs/30-install-lg3d.sh` — the lg3d install/session stage (where `/opt/lg3d`,

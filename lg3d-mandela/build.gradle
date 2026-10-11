@@ -76,6 +76,57 @@ tasks.register('mandelaRepl', JavaExec) {
 }
 
 // ---------------------------------------------------------------------------
+// repositoryChecks: the desktop's own tools, dogfooded on this repository
+// ---------------------------------------------------------------------------
+// scripts/mandela holds automation written *in* Mandela and aimed at this
+// repository: a documentation-link checker, a release-consistency gate and a
+// start-menu descriptor audit. They are ordinary `mandela run` invocations, so
+// the only thing these tasks add is the sandbox and the classpath -- run against
+// the module's compiled classes, confined to the repository root, with no jar to
+// assemble first:
+//
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all three)
+//   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
+//
+// Deliberately NOT wired into `check`: these audit the whole tree rather than
+// this module, so a stale link in unrelated documentation would redden the
+// language module's build and misdirect the blame. CI runs them as their own
+// visible step instead (see .github/workflows/build.yml), where a failure names
+// the file and line the script found. Each task exits non-zero on a finding,
+// which is what makes JavaExec fail.
+def repoRoot = rootProject.projectDir
+def scriptDir = new File(repoRoot, 'scripts/mandela')
+
+def mandelaCheck = { String name, String script, String what ->
+    tasks.register(name, JavaExec) {
+        group = 'verification'
+        description = what
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+        workingDir = repoRoot
+        // `-s .` in the docs below is the same sandbox spelled by hand; here the
+        // absolute root is passed so the task works from any directory.
+        args = ['run', new File(scriptDir, script).toString(), '-s', repoRoot.toString()]
+    }
+}
+
+mandelaCheck('docLinksCheck', 'doc-links.mnd',
+        'Fail when a relative link in the repository documentation does not resolve.')
+mandelaCheck('releaseCheck', 'release-check.mnd',
+        'Fail when the version references or settings.gradle disagree with the tree.')
+mandelaCheck('startMenuAudit', 'startmenu-audit.mnd',
+        'Report the start-menu inventory and fail when a live descriptor does not resolve.')
+
+tasks.register('repositoryChecks') {
+    group = 'verification'
+    description = 'Run every Mandela script that audits this repository.'
+    dependsOn 'docLinksCheck', 'releaseCheck', 'startMenuAudit'
+}
+
+// ---------------------------------------------------------------------------
 // PIT mutation testing (report-only, on-demand)
 // ---------------------------------------------------------------------------
 // AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable on

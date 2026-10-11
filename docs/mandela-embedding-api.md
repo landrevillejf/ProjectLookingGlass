@@ -486,9 +486,19 @@ options for run, eval, repl and dump:
   -t, --trace          print the script's frame trace when it fails
 ```
 
-Exit codes: `0` success, `1` usage, `2` the program failed — a compile error is a
-program failure, not a usage error, because the author of the script is the
-person who needs to hear about it.
+Exit codes (`MandelaCli.OK` / `USAGE` / `PROGRAM_FAILED` / `NOT_READABLE` /
+`FINDINGS`):
+
+| Code | Meaning |
+| --- | --- |
+| `0` | success |
+| `1` | the command line itself is wrong — no program was run |
+| `2` | the program failed; a compile error is a program failure, not a usage error, because the author of the script is the person who needs to hear about it, and so is a raised `error(...)` |
+| `3` | a named file was missing, unreadable or a directory |
+| `4` | `check` printed at least one blocking diagnostic |
+
+A CI gate branches on `0` versus anything else; the distinction between `2`, `3`
+and `4` is there for a wrapper that wants to say *why* without parsing text.
 
 ---
 

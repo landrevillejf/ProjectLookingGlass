@@ -183,12 +183,46 @@ JUnit 5 test infrastructure exists and runs headless:
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task
   finalizes `jacocoTestReport` (report-only, no enforced threshold).
+- `lg3d-mandela/src/test/java` - the language's own headless suite (369 tests),
+  including `DocumentationTest` (the language guide is a tested artifact) and
+  `ShippedScriptsTest` (every script in `scripts/mandela/` compiles, with no
+  finding excused).
 
 **CI workflow** ([.github/workflows/build.yml](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/.github/workflows/build.yml:0:0-0:0)):
 - Runs `./gradlew test --continue` (explicit, headless test step)
 - Runs `./gradlew build` (compile + jar; re-checks the now up-to-date tests)
 - Runs `./gradlew :lg3d-core:runtimeResources` to validate resource assembly
+- Runs `./gradlew :lg3d-mandela:repositoryChecks` (the Mandela scripts that audit
+  this repository - see *Repository Automation* below)
 - Uploads the JUnit + JaCoCo reports and the module jars as artifacts
+
+## Repository Automation (Mandela)
+
+`scripts/mandela/` holds the project's automation, written **in** the desktop's
+own language rather than in bash - see
+[`scripts/mandela/README.md`](scripts/mandela/README.md) for the sandbox rule,
+the exit codes and how to add a tool.
+
+```bash
+./gradlew :lg3d-mandela:repositoryChecks   # the three gates, one command
+./gradlew :lg3d-mandela:docLinksCheck      # or one of them
+```
+
+- `doc-links.mnd` - every relative link and `#anchor` in the tree's markdown
+  resolves against the containing file (a CI gate; its findings are `file:line`).
+- `release-check.mnd` - the four version references agree, and `settings.gradle`
+  matches the module directories in both directions (a pre-release gate).
+- `startmenu-audit.mnd` - every `resource:///...` and `java <class>` reference in
+  the `.lgcfg` start-menu descriptors resolves from the assembled classpath, and
+  the live menu inventory is printed (a gate, with a report).
+- `asset-report.mnd` (report) and `userscript-new.mnd` (a Web Browser userscript
+  generator) are not gates: the first always exits 0, the second only writes the
+  one file it names.
+
+These tasks are deliberately **not** wired into `check`: they audit the whole
+tree, so their failures belong to the CI step that ran them and not to
+`:lg3d-mandela:build`. Never run one of the gates' findings as a defect without
+verifying it by hand first - the script states a claim, it does not prove one.
 
 ## Dependencies
 

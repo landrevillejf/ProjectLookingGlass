@@ -289,6 +289,6 @@ GPL-3.0
 ## References
 
 - [LPM Control Application Contract](../lpm-lg3d-app-contract.md)
-- [LFS X11 Contract](../lfs-x11-contract.md)
-- [LPM Documentation](../docs/lpm.md)
-- [LPM Architecture](../docs/LPM_DOCUMENTATION.md)
+- [LFS X11 Contract](../docs/lfs-x11-contract.md)
+- [LPM Command Usage](#usage)
+- [LPM Architecture](#architecture)
