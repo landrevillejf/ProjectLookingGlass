@@ -170,6 +170,15 @@ work to make it build and run on a current toolchain.
   (now `89.30% / 78.95%`), so a regression of the equality, hash or range-counting
   work above — or of any line this tranche covered — fails `check` instead of
   quietly reopening the gap.
+- **The root `AGENTS.md` no longer claims that no coverage gate is enforced** — the
+  *Test coverage* status said JaCoCo was report-only with nothing enforced; the
+  root `build.gradle` has since grown a `coverageFloors` map (eight modules) whose
+  `jacocoTestCoverageVerification` task `check` depends on, so a regression below a
+  module's floor does fail the build. The section now separates what is enforced
+  (the per-module floor, raised as coverage improves) from what is not (the 100 % /
+  0-mutant target itself: PIT runs only for `lg3d-mandela`, on demand and
+  report-only; Checkstyle runs with `ignoreFailures`; a module without tests has no
+  floor). The `lg3d-mandela` test count in *Testing* is corrected with it.
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
   constants** — the load and store switches are now checked for totality by the
   compiler instead of ending in a guard no script could reach, and a field store

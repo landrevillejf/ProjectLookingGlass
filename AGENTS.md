@@ -84,15 +84,26 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 - 100% is mandatory with jacoco
 - 0 surviving mutants is mandatory with PIT
 
-> **Current status:** JaCoCo is now wired into the Gradle build (report-only —
-> each `test` task finalizes `jacocoTestReport`) and CI runs the tests explicitly
-> and publishes the coverage/JUnit reports, but PIT is still not wired and **no
-> coverage or mutation gate is enforced**, so the 100% / 0-mutant targets above
-> are not yet automated. The gate is intentionally deferred: the ported codebase
-> is ~200k lines at ~1% core coverage, so enforcing it now would red-line every
-> build. Until the gates are enforceable, scene-graph / rendering changes (which
-> need a live 3D desktop) are verified with the in-JVM probe + internal
-> screencapture described in
+> **Current status:** JaCoCo works in two halves, and only one of them is a
+> report. Every `test` task finalizes `jacocoTestReport` (the HTML/XML the CI
+> uploads), while the root [build.gradle](build.gradle) `coverageFloors` map sets
+> a per-module **minimum line/branch covered ratio** for the eight modules that
+> have a test suite, and `check` depends on `jacocoTestCoverageVerification` — so
+> **a coverage regression below a module's floor fails the build**. The floors sit
+> just under the measured numbers (`lg3d-mandela` 0.890 / 0.780 at 89.30 % /
+> 78.95 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.010 / 0.020) and
+> the convention is to **raise a floor as coverage improves**: a PR that closes a
+> package moves its module's number in the same PR.
+>
+> What is genuinely **not** enforced is the 100 % / 0-mutant target itself. PIT is
+> applied only to `lg3d-mandela` (`./gradlew :lg3d-mandela:pitest`,
+> `mutationThreshold = 0`, report-only and deliberately outside `check`),
+> Checkstyle runs inside `check` with `ignoreFailures = true`, and a module
+> without a test suite gets no floor at all (it would trivially "fail" at 0 %).
+> The gate is intentionally deferred: the ported codebase is ~200k lines at ~1 %
+> core coverage, so a hard 100 % rule would red-line every build. Until then,
+> scene-graph / rendering changes (which need a live 3D desktop) are verified with
+> the in-JVM probe + internal screencapture described in
 > [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*); report
 > that evidence in the PR instead of claiming untested success.
 
@@ -182,8 +193,11 @@ JUnit 5 test infrastructure exists and runs headless:
   suites (74 tests) wired into the Gradle `test` task via `useJUnitPlatform()`.
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task
-  finalizes `jacocoTestReport` (report-only, no enforced threshold).
-- `lg3d-mandela/src/test/java` - the language's own headless suite (369 tests),
+  finalizes `jacocoTestReport`, and `check` additionally runs
+  `jacocoTestCoverageVerification` against the module's floor in the root
+  `coverageFloors` map (see *Test coverage*).
+- `lg3d-mandela/src/test/java` - the language's own headless suite (1142 cases:
+  the JUnit suites plus the Cucumber BDD `MandelaSuite`, one `test` task),
   including `DocumentationTest` (the language guide is a tested artifact) and
   `ShippedScriptsTest` (every script in `scripts/mandela/` compiles, with no
   finding excused).
