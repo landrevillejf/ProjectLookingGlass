@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Looking Glass - Documentation</title>
+    <!--
+        viewer.html — client-side renderer for the documentation.
+
+        Why this exists: GitHub Pages serves the documentation as static files,
+        and a raw `.md` opened in the browser is shown as plain text -- so the
+        Mermaid diagrams appear as unfenced ``` code instead of pictures. The
+        portal links its cards here (`viewer.html?path=en/diagrams/....md`);
+        this page fetches the markdown, renders it with `marked`, and hands the
+        ```mermaid blocks to `mermaid` so the diagrams actually draw.
+
+        marked and mermaid load from a CDN; if that fails the raw markdown is
+        still shown, so the page never comes up blank.
+    -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+        .doc-header {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 1rem; color: #fff; margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .doc-header h1 { font-size: 1.8rem; text-shadow: 1px 1px 3px rgba(0,0,0,.3); }
+        .back {
+            display: inline-block; padding: .5rem 1rem; background: #fff; color: #667eea;
+            text-decoration: none; border-radius: 5px; font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+        }
+        .back:hover { text-decoration: none; transform: translateY(-1px); }
+        .section {
+            background: #fff; border-radius: 10px; padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+        }
+        /* Rendered markdown */
+        #content h1, #content h2, #content h3, #content h4 { color: #667eea; margin: 1.5rem 0 .75rem; line-height: 1.25; }
+        #content h1 { font-size: 2rem; margin-top: 0; }
+        #content h2 { font-size: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: .3rem; }
+        #content h3 { font-size: 1.2rem; }
+        #content p, #content li { margin-bottom: .5rem; }
+        #content ul, #content ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+        #content a { color: #2b5cad; }
+        #content code { background: #f4f4f6; padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+        #content pre { background: #f4f4f6; padding: 1rem; border-radius: 6px; overflow-x: auto; margin-bottom: 1rem; }
+        #content pre code { background: none; padding: 0; }
+        #content table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+        #content th, #content td { border: 1px solid #ddd; padding: .5rem .75rem; text-align: left; }
+        #content th { background: #f7f8fa; }
+        #content blockquote { border-left: 4px solid #667eea; padding-left: 1rem; color: #555; margin-bottom: 1rem; }
+        #content img { max-width: 100%; }
+        /* Mermaid diagrams render into <pre class="mermaid"> */
+        #content pre.mermaid { background: #fff; text-align: center; overflow-x: auto; padding: 1rem; border: 1px solid #eee; border-radius: 6px; }
+        #content pre.mermaid svg { max-width: 100%; height: auto; }
+        .muted { color: #888; font-style: italic; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="doc-header">
+            <a class="back" href="index.html">&larr; Documentation / Portail</a>
+            <h1 id="title">Documentation</h1>
+        </div>
+        <main id="content" class="section">
+            <p class="muted">Loading&hellip; / Chargement&hellip;</p>
+        </main>
+    </div>
+
+    <script type="module">
+        const content = document.getElementById('content');
+        const titleEl = document.getElementById('title');
+        const path = (new URLSearchParams(location.search).get('path') || '').trim();
+
+        // Accept only a relative .md under the site root: no traversal, no
+        // absolute paths, no protocol. That keeps the fetch same-origin.
+        const isSafeDoc = /^[\w./-]+\.md$/.test(path) && !path.includes('..') && !path.startsWith('/');
+
+        async function render() {
+            if (!isSafeDoc) {
+                titleEl.textContent = 'No document selected';
+                content.innerHTML = '<p>No valid document path. Return to the ' +
+                    '<a href="index.html">documentation portal</a>.</p>';
+                return;
+            }
+
+            let raw;
+            try {
+                const res = await fetch(path, { cache: 'no-cache' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                raw = await res.text();
+            } catch (err) {
+                content.innerHTML = '<p>Failed to load <code>' + path + '</code>: ' +
+                    (err && err.message ? err.message : err) + '</p>';
+                return;
+            }
+
+            // marked may be missing if the CDN was blocked -- fall back to raw text.
+            let html;
+            if (window.marked && typeof window.marked.parse === 'function') {
+                html = window.marked.parse(raw);
+            } else {
+                content.innerHTML = '<pre>' + raw.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</pre>';
+                return;
+            }
+            content.innerHTML = html;
+
+            const h1 = content.querySelector('h1');
+            if (h1) { titleEl.textContent = h1.textContent; document.title = 'Project Looking Glass - ' + h1.textContent; }
+
+            // Rewrite ```mermaid fences (<pre><code class="language-mermaid">) into
+            // <pre class="mermaid"> blocks that mermaid can draw, preserving the raw
+            // definition text (textContent decodes any HTML entities marked escaped).
+            content.querySelectorAll('pre > code.language-mermaid').forEach(code => {
+                const box = document.createElement('pre');
+                box.className = 'mermaid';
+                box.textContent = code.textContent;
+                code.parentElement.replaceWith(box);
+            });
+
+            const blocks = content.querySelectorAll('pre.mermaid');
+            if (blocks.length) {
+                try {
+                    const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+                    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+                    await mermaid.run({ nodes: Array.from(blocks) });
+                } catch (err) {
+                    blocks.forEach(b => b.insertAdjacentHTML('beforebegin',
+                        '<p class="muted">Diagram could not be rendered: ' + (err && err.message ? err.message : err) + '</p>'));
+                }
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
