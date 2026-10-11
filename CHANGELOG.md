@@ -10,6 +10,16 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.68.0-dev — Gradle / JDK 21 modernization
 
 ### Fixed
+- **Mermaid diagrams now render on the Pages documentation site** (`documentation/`) —
+  the portal (`documentation/index.html`) linked its cards straight to the `.md` files,
+  and GitHub Pages serves a `.md` as plain text, so "View Diagrams" showed the raw
+  markdown with unfenced ` ```mermaid ` code instead of a picture. A new
+  `documentation/viewer.html` fetches the markdown, renders it with `marked`, and draws
+  the ` ```mermaid ` fences with `mermaid` (`securityLevel: loose`, so the diagrams' own
+  `<br/>` node labels render); the eight portal cards now route through it. If the CDN
+  is unreachable it falls back to the raw text, so a page is never blank. Browsing the
+  `.md` on GitHub itself is unchanged, and no build/CI step was added — the viewer is a
+  static file under `documentation/` that the existing deploy already copies.
 - **The async test recorders no longer race their readers** (`lg3d-apps`) —
   `P2pProtocolTest`, `P2pNodeTest`, `P2pServerTest`, `P2pSideChannelTest` and
   `BuildToolsLiveTest` collected callbacks in a
@@ -109,17 +119,16 @@ work to make it build and run on a current toolchain.
   places that tabulated them stopped at `2`.
 
 ### Added
-- **Documentation site with the published API reference** (`documentation/`,
+- **Documentation site (bilingual prose) on GitHub Pages** (`documentation/`,
   `.github/workflows/deploy-docs.yml`) — the architecture, sequence and class
   diagrams (Mermaid) and the functional analysis ship in English and French under
-  `documentation/{en,fr}/`, and the generated Javadoc of **all ten built modules**
-  is published as `documentation/en/api/<module>/` behind a landing page. The tree
-  is a build artifact: `./gradlew documentationSite` regenerates it from source and
-  **fails when a module emits an empty reference**, so a module can no longer vanish
-  from the published API silently. The API reference is generated from English
-  sources and exists exactly once — the prose is bilingual, the Javadoc is not
-  duplicated per language. The Pages workflow refuses to deploy an incomplete tree
-  and drops a `.nojekyll` marker so the generated pages are served as-is.
+  `documentation/{en,fr}/`, published as a static Pages site (`.nojekyll`). The
+  Javadoc API reference is **not** published: it is generated on demand with
+  `./gradlew documentationSite` into `documentation/en/api/`, which is now git-ignored,
+  so the ~4k generated files never enter the repository or the site — the Pages
+  workflow *fails* if an `api/` tree is ever committed. The API reference is generated
+  from English sources and exists exactly once; the prose is bilingual, the Javadoc is
+  not duplicated per language.
   Two build fixes came with it: `:lg3d-escher:javadoc` no longer aborts on the
   Big5-encoded comment in `gnu/x11/test/Chinese.java` (its Javadoc now reads sources
   in ISO-8859-1, exactly like its compiler does), and the broken `{@link}` targets in
