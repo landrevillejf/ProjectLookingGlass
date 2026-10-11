@@ -204,12 +204,17 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the three gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the four gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ```
 
 - `doc-links.mnd` - every relative link and `#anchor` in the tree's markdown
   resolves against the containing file (a CI gate; its findings are `file:line`).
+- `html-links.mnd` - the Pages documentation site's HTML: every `href`/`src` in
+  `documentation/**/*.html` resolves, every `viewer.html?path=<file.md>` names a
+  document that exists, and every Mermaid fence in that tree is balanced and
+  opens with a real diagram keyword (a CI gate; doc-links only sees markdown,
+  so this is the other half of the site).
 - `release-check.mnd` - the four version references agree, and `settings.gradle`
   matches the module directories in both directions (a pre-release gate).
 - `startmenu-audit.mnd` - every `resource:///...` and `java <class>` reference in

@@ -13,6 +13,7 @@ enough to be the desktop's automation surface.
 | Script | What it does | What it found the first time it ran |
 | --- | --- | --- |
 | [`doc-links.mnd`](doc-links.mnd) | Resolves every relative link and `#anchor` in the repository's markdown, against the containing file, and verifies the anchor is a real heading. | **11 dead links** in 4 files — all repaired. Now green over 400+ links in 119 files; the count is what the tree holds that day, so the script is the authority, not this table. |
+| [`html-links.mnd`](html-links.mnd) | The Pages site's other half: resolves every `href`/`src` in `documentation/**/*.html`, checks each `viewer.html?path=<file.md>` names a real document, and verifies every Mermaid fence in that tree is balanced and opens with a diagram keyword. | Ships green over the current site (14 HTML references, 66 Mermaid blocks). It was proven against a planted dead link, a missing `src`, a non-diagram fence and an unclosed fence — each one fails, so the gate bites rather than merely passes. |
 | [`startmenu-audit.mnd`](startmenu-audit.mnd) | Indexes every classpath location the assembled runtime exposes, then resolves every `resource:///…` and `java …` reference in the start-menu descriptors, separating live menu entries from inert ones. | 57 live menu items all resolve; **7 references sit in descriptors under directories the desktop never scans**, so they can never appear. |
 | [`release-check.mnd`](release-check.mnd) | Compares the four canonical version references (Gradle coordinate, root `AGENTS.md`, `README.md`, `CHANGELOG.md`) and cross-checks `settings.gradle` against the module directories, in both directions. | The repository agreed with itself; it is the gate that keeps it that way before a release cut. |
 | [`asset-report.mnd`](asset-report.mnd) | Weighs the artwork the desktop ships — totals, heaviest directories, largest files with dates, repeated file names — as a table or as JSON, optionally to a file. | 319 assets, ~41 MiB, with the 3D background models dominating; written as a report, not a gate. |
@@ -23,7 +24,7 @@ enough to be the desktop's automation surface.
 The language needs no install, so the shortest path is the module's own classes:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks          # the three gates, in one command
+./gradlew :lg3d-mandela:repositoryChecks          # the four gates, in one command
 ./gradlew :lg3d-mandela:docLinksCheck             # or one of them
 ./gradlew :lg3d-mandela:mandelaRun -Pscript=scripts/mandela/asset-report.mnd '-Pargs=json -s .'
 ```

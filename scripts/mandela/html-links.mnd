@@ -1,0 +1,207 @@
+#!/usr/bin/env mandela
+// html-links.mnd — the Pages documentation site must not carry dead references.
+//
+// doc-links.mnd guards the markdown; this guards the other half of the site —
+// the static HTML the deploy copies, and the Mermaid diagrams that HTML renders.
+// Two regressions are easy to introduce and invisible until someone clicks:
+//
+//   1. The portal (documentation/index.html) routes every card through
+//      viewer.html?path=<the .md>. A typo in a `path=`, or a card aimed at a
+//      document that was renamed, is a runtime "document not found" — and
+//      nothing in the markdown pass sees it, because the reference lives in
+//      HTML, not markdown. The same pass resolves every plain href/src.
+//   2. A ```mermaid fence that is left open, or opens with something that is
+//      not a diagram keyword, renders blank or throws in the browser. The
+//      markdown link checker only looks at `](...)` and `#anchors`, so a
+//      broken diagram sails through it.
+//
+// Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//         run scripts/mandela/html-links.mnd -s .
+//
+// Exit code 0 when the site is sound, 2 on any finding, so CI can branch on it.
+// `-s .` is not decoration: without it the run is confined to scripts/mandela
+// and cannot see documentation/ at all.
+
+use std.fs
+
+// The site lives here and nowhere else, so the walk is rooted at documentation
+// rather than the whole tree. "api" is skipped because it is the git-ignored,
+// generated Javadoc — a local artifact of thousands of HTML files that is never
+// part of the committed site. Dot-directories are skipped by prefix below.
+let SITE_DIR = "documentation"
+let SKIP_DIRS = ["build", "build-gradle", "libs", "ext", "node_modules", "target", "api"]
+
+// Reference prefixes that are not this site's files to resolve: external URLs,
+// the browser's own inline/scheme forms, and an in-page `#fragment`.
+let SKIP_PREFIXES = ["http://", "https://", "mailto:", "tel:", "data:", "javascript:",
+                    "cci:", "resource://", "file://", "ftp://", "//", "about:", "git@", "jar:"]
+
+// The opening keyword of every diagram type Mermaid understands. A ```mermaid
+// body that starts with anything else is prose pasted in the wrong fence.
+let DIAGRAM_WORDS = ["graph", "flowchart", "sequenceDiagram", "classDiagram",
+                    "stateDiagram", "stateDiagram-v2", "erDiagram", "gantt", "pie",
+                    "journey", "timeline", "mindmap", "quadrantChart", "gitGraph",
+                    "requirement", "packet", "sankey-beta", "xychart-beta"]
+
+fun isSkipped(name) {
+    name in SKIP_DIRS || name.startsWith(".")
+}
+
+// Every `](target)` on one line is doc-links' job; here it is every attribute
+// value, so scan `name="value"` and `name='value'` across the whole document.
+// Only single-arg indexOf/substring are used, matching the engine's surface.
+fun attrValues(text, attr) {
+    var vals = []
+    var rest = text
+    loop {
+        let at = rest.indexOf(attr + "=")
+        if (at < 0) { break }
+        let after = rest.substring(at + attr.length + 1)   // starts at the opening quote
+        if (after.length == 0) { break }
+        let q = after.substring(0, 1)
+        if (q != "\"" && q != "'") { rest = after; continue }
+        let body = after.substring(1)                       // drop the opening quote
+        let close = body.indexOf(q)                          // now this is the closing one
+        if (close < 0) { break }
+        vals.push(body.substring(0, close))
+        rest = body.substring(close + 1)
+    }
+    return vals
+}
+
+fun isExternalRef(value) {
+    value.length == 0 || value.startsWith("#") ||
+        SKIP_PREFIXES.any { p -> value.startsWith(p) }
+}
+
+// The file part of a reference: drop any `?query` and `#fragment`, which a
+// browser does not use to pick the file.
+fun barePath(value) {
+    var v = value
+    let q = v.indexOf("?")
+    if (q >= 0) { v = v.substring(0, q) }
+    let h = v.indexOf("#")
+    if (h >= 0) { v = v.substring(0, h) }
+    return v
+}
+
+// A portal card reads `viewer.html?path=<file.md>`. The viewer fetches `path`
+// relative to its own directory, so return that target (or "" when the value is
+// not a viewer link) — the base `viewer.html` is still checked on its own.
+fun viewerPath(value) {
+    let q = value.indexOf("?")
+    if (q < 0) { return "" }
+    let query = value.substring(q + 1)
+    let p = query.indexOf("path=")
+    if (p < 0) { return "" }
+    let tail = query.substring(p + 5)
+    let amp = tail.indexOf("&")
+    return if (amp < 0) tail else tail.substring(0, amp)
+}
+
+// Join a reference onto the directory of the file that wrote it, honouring
+// `.` and `..`. Identical in spirit to doc-links' resolver.
+fun resolvePath(docPath, target) {
+    var parts = docPath.split("/")
+    parts.removeAt(parts.length - 1)
+    for (piece in target.split("/")) {
+        if (piece == "." || piece == "") { continue }
+        if (piece == "..") {
+            if (parts.length > 0) { parts.removeAt(parts.length - 1) }
+            continue
+        }
+        parts.push(piece)
+    }
+    return parts.join("/")
+}
+
+fun collect(dir, ext, found) {
+    for (name in fs.list(dir)) {
+        if (isSkipped(name)) { continue }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            collect(path, ext, found)
+        } else if (name.endsWith(ext)) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// Walk one document's fences. Return how many ```mermaid blocks it opened, and
+// record a finding for an unbalanced fence, an empty diagram or a body that
+// does not start with a diagram keyword.
+fun checkMermaid(doc, findings) {
+    var blocks = 0
+    var inFence = false
+    var inMermaid = false
+    var awaitingBody = false
+    var lineNo = 0
+    for (line in fs.lines(doc)) {
+        lineNo += 1
+        let t = line.trim()
+        if (!inFence && t.startsWith("```")) {
+            inFence = true
+            inMermaid = t.startsWith("```mermaid")
+            awaitingBody = inMermaid
+            if (inMermaid) { blocks += 1 }
+        } else if (inFence && t.startsWith("```")) {
+            if (inMermaid && awaitingBody) {
+                findings.push("${doc}:${lineNo} empty ```mermaid block")
+            }
+            inFence = false; inMermaid = false; awaitingBody = false
+        } else if (inMermaid && awaitingBody && t.length > 0) {
+            let firstWord = t.split(" ")[0]
+            awaitingBody = false
+            if (!DIAGRAM_WORDS.contains(firstWord)) {
+                findings.push("${doc}:${lineNo} mermaid starts with '${firstWord}', " +
+                              "not a diagram keyword")
+            }
+        }
+    }
+    if (inFence) { findings.push("${doc} unterminated ``` fence") }
+    return blocks
+}
+
+var findings = []
+var refChecked = 0
+var htmlCount = 0
+var mermaidCount = 0
+
+// --- HTML references: every href/src, plus the viewer's ?path= target --------
+for (doc in collect(SITE_DIR, ".html", [])) {
+    htmlCount += 1
+    let text = fs.read(doc)
+    var refs = attrValues(text, "href")
+    for (v in attrValues(text, "src")) { refs.push(v) }
+    for (value in refs) {
+        if (isExternalRef(value)) { continue }
+        refChecked += 1
+
+        let mdTarget = viewerPath(value)
+        if (mdTarget.length > 0 && !fs.exists(resolvePath(doc, mdTarget))) {
+            findings.push("${doc} -> viewer.html?path=${mdTarget} (no such document)")
+        }
+
+        let base = barePath(value)
+        if (base.length > 0 && !fs.exists(resolvePath(doc, base))) {
+            findings.push("${doc} -> ${value} (no such file)")
+        }
+    }
+}
+
+// --- Mermaid fences in the documents those cards render ---------------------
+for (doc in collect(SITE_DIR, ".md", [])) {
+    mermaidCount += checkMermaid(doc, findings)
+}
+
+println("checked ${refChecked} HTML references in ${htmlCount} files; " +
+        "${mermaidCount} mermaid block(s) in ${SITE_DIR}/")
+if (findings.length == 0) {
+    println("the documentation site is sound")
+} else {
+    for (f in findings) { println("  dead: ${f}") }
+    error("${findings.length} documentation-site finding(s)", "ViolationError")
+}

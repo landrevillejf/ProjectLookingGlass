@@ -147,6 +147,17 @@ work to make it build and run on a current toolchain.
   theming and session restore), all grounded in
   `org.jdesktop.lg3d.displayserver.desktop2d`. Four new portal cards route the
   docs through `viewer.html`, so their diagrams render rather than showing code.
+- **`html-links.mnd` — a fourth Mandela gate** (`scripts/mandela`,
+  `lg3d-mandela/build.gradle`) — `doc-links.mnd` guards the markdown, but the
+  Pages site's HTML was unguarded: a portal card is a `viewer.html?path=<file.md>`
+  reference, and a typo there is a runtime "document not found" that nothing in the
+  markdown pass sees. The new gate resolves every `href`/`src` in
+  `documentation/**/*.html`, checks each viewer `path=` names a real document, and
+  verifies every Mermaid fence in that tree is balanced and opens with a real
+  diagram keyword — the two failure modes that rendered a diagram as raw code or
+  blanked it. Wired into `repositoryChecks` (so CI runs it with no workflow edit),
+  and proven against planted dead links, a missing `src`, a non-diagram fence and
+  an unclosed fence.
 - **Desktop 2D surface transparency** (`lg3d-core`, `lg3d-widgets`, `lg3d-apps`) —
   the conventional desktop's four surfaces each got their own opacity, set in
   **Control Center → Customization → Transparency (2D desktop)**: one slider per
