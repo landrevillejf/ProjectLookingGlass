@@ -12,7 +12,7 @@ Scratch (BLFS/LFS)** system it runs on.
 > re-implement, fork, or bypass that tool's own logic, locking, verification,
 > or state files.
 > **Companion contracts.** Runtime display rules are normative in
-> [`lfs-x11-contract.md`](lfs-x11-contract.md); package/profile/kernel control
+> [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md); package/profile/kernel control
 > is normative in [`lpm-lg3d-app-contract.md`](lpm-lg3d-app-contract.md). This
 > document inherits both and only adds the whole-system management
 > requirements.
@@ -348,7 +348,7 @@ open `[Unreleased]` header and the relevant `AGENTS.md` updated.
 
 ## 9. References
 
-- [`lfs-x11-contract.md`](lfs-x11-contract.md) — normative lg3d / Xorg display
+- [`docs/lfs-x11-contract.md`](docs/lfs-x11-contract.md) — normative lg3d / Xorg display
   contract.
 - [`lpm-lg3d-app-contract.md`](lpm-lg3d-app-contract.md) — package/profile/
   kernel control; §5 integration rules inherited here.
