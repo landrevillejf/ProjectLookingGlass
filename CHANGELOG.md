@@ -10,6 +10,22 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.68.0-dev — Gradle / JDK 21 modernization
 
 ### Fixed
+- **The async test recorders no longer race their readers** (`lg3d-apps`) —
+  `P2pProtocolTest`, `P2pNodeTest`, `P2pServerTest`, `P2pSideChannelTest` and
+  `BuildToolsLiveTest` collected callbacks in a
+  `Collections.synchronizedList` while the producing thread (the messenger's
+  socket reader, the server accept loop, the EDT build reporter) kept adding
+  and the polling assertions called `stream()` on it. A synchronized wrapper's
+  spliterator acquires no mutex — its own javadoc says it "MUST be manually
+  synchronized" — so the iteration raced a structural modification and the
+  suites intermittently died with `ConcurrentModificationException`: seen on a
+  PR run *and* on a `main` push run, green again on a re-run, which reads as
+  infrastructure flakiness. The recorders now hold a `CopyOnWriteArrayList`,
+  whose iterator works on a stable snapshot, so a red run means a regression;
+  each recorder's javadoc states why the list type is load-bearing. The four
+  suites that already snapshot under an explicit lock (`SecureChannelTest`,
+  `FileTransferManagerTest`, `LanDiscoveryTest`, `IrcProtocolTest`) were
+  audited and left alone. No production code is touched.
 - **Espresso tabs are closable from the tab header** (`lg3d-apps`) — every
   editor tab now carries a small **×** button on its title strip, so a tab can
   be closed by click rather than only Ctrl+W / middle-click. The header is a

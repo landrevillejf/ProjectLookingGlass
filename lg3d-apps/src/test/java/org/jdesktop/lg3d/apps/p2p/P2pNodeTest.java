@@ -23,10 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
@@ -371,19 +370,27 @@ class P2pNodeTest {
         return condition.getAsBoolean();
     }
 
-    /** Captures every node event into synchronised lists for later assertion. */
+    /**
+     * Captures every node event for later assertion. The lists are
+     * copy-on-write, not {@code Collections.synchronizedList}: a polling
+     * assertion calls {@code stream()} on them while the node's reader thread
+     * is still adding, and a synchronized wrapper's spliterator takes no mutex
+     * (its javadoc requires the caller to synchronize manually), so sharing one
+     * with an unsynchronized iteration intermittently throws
+     * {@link java.util.ConcurrentModificationException}.
+     */
     private static final class Recorder implements P2pNode.Listener {
-        final List<P2pNode.Peer> connected = Collections.synchronizedList(new ArrayList<>());
-        final List<String> disconnected = Collections.synchronizedList(new ArrayList<>());
-        final List<P2pMessage> chats = Collections.synchronizedList(new ArrayList<>());
-        final List<String> presence = Collections.synchronizedList(new ArrayList<>());
-        final List<Boolean> typing = Collections.synchronizedList(new ArrayList<>());
-        final List<String[]> invites = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> offers = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> completed = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> cancelled = Collections.synchronizedList(new ArrayList<>());
-        final List<FileTransfer> failed = Collections.synchronizedList(new ArrayList<>());
-        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        final List<P2pNode.Peer> connected = new CopyOnWriteArrayList<>();
+        final List<String> disconnected = new CopyOnWriteArrayList<>();
+        final List<P2pMessage> chats = new CopyOnWriteArrayList<>();
+        final List<String> presence = new CopyOnWriteArrayList<>();
+        final List<Boolean> typing = new CopyOnWriteArrayList<>();
+        final List<String[]> invites = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> offers = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> completed = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> cancelled = new CopyOnWriteArrayList<>();
+        final List<FileTransfer> failed = new CopyOnWriteArrayList<>();
+        final List<String> errors = new CopyOnWriteArrayList<>();
 
         @Override
         public void onPeerConnected(P2pNode.Peer peer) {
