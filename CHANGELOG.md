@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.68.0-dev — Gradle / JDK 21 modernization
+## [1.68.0] — 2026-10-11 — Gradle / JDK 21 modernization
 
 ### Fixed
 - **Mermaid diagrams now render on the Pages documentation site** (`documentation/`) —
