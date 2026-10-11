@@ -43,17 +43,26 @@ let REFS = [
     ["CHANGELOG.md", "## [Unreleased] — ", " "]
 ]
 
-// The CHANGELOG carries the version in one of two header shapes that main
-// toggles between: the development form "## [Unreleased] — <version> — ..."
-// and the release-cut form "## [<version>] — <date> — ..." that make-release.sh
-// writes when it drops the -dev suffix. Read whichever the top header uses, so
-// cutting a release never turns the gate red on a repository that does agree
-// with itself: the version lives in the brackets once the section is released.
+// The CHANGELOG carries the version in one of three header shapes that main
+// moves through: the development form "## [Unreleased] — <version> — ...", the
+// release-cut form "## [<version>] — <date> — ..." that make-release.sh writes
+// when it drops the -dev suffix, and a bare "## [Unreleased]" that a feature
+// branch opens above the newest release so its bullets have a home before the
+// next bump chore names a version. Read the first header that carries one, so
+// neither cutting a release nor reopening the unreleased section turns the gate
+// red on a repository that does agree with itself.
 fun changelogVersion(text) {
-    if (text.indexOf("## [Unreleased] — ") >= 0) {
-        return valueAfter(text, "## [Unreleased] — ", " ")
+    for (line in text.split("\n")) {
+        if (!line.startsWith("## [")) { continue }
+        if (line.indexOf("## [Unreleased] — ") == 0) {
+            return valueAfter(line, "## [Unreleased] — ", " ")
+        }
+        // A bare [Unreleased] holds no version, so the version is in the section
+        // under it: the release this repository last cut.
+        if (line.startsWith("## [Unreleased]")) { continue }
+        return valueAfter(line, "[", "]")
     }
-    return valueAfter(text, "## [", "]")
+    return ""
 }
 
 var found = {}

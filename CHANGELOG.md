@@ -38,6 +38,15 @@ work to make it build and run on a current toolchain.
   instead of handed to the script. Pinned by `HostBoundaryTest`; the two
   `instanceof Integer` accommodations in `StandardLibrary` are gone with it, one of
   which (`whole(...)`) answered `0` for any `Integer` it was given.
+- **A bare `## [Unreleased]` header no longer turns `release-check` red**
+  (`scripts/mandela/release-check.mnd`) — the gate read the version out of the
+  CHANGELOG's *first* `## [` header, so the legitimate state between a release cut
+  and the next bump chore — a feature branch opening an unnamed `[Unreleased]`
+  section above the newest release — was reported as a self-contradictory
+  repository (`CHANGELOG.md says Unreleased, build.gradle says 1.68.0`). It now
+  walks the headers and returns the first one that actually carries a version, so
+  `:lg3d-mandela:repositoryChecks` is green in all three states a branch moves
+  through: released, development (`## [Unreleased] — 1.69.0-dev`) and in-between.
 
 ### Changed
 - **Name-resolution tags in the compiler are an enum (`Compiler.Ref`), not `int`
