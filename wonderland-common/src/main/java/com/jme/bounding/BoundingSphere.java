@@ -48,6 +48,46 @@ public class BoundingSphere extends BoundingVolume {
     }
 
     @Override
+    protected void mergeLocalInto(BoundingVolume toMerge) {
+        if (!(toMerge instanceof BoundingSphere)) {
+            throw new IllegalArgumentException("Cannot merge " + toMerge.getClass().getName()
+                    + " into a BoundingSphere");
+        }
+        BoundingSphere other = (BoundingSphere) toMerge;
+        if (other.radius > radius) {
+            // start from the larger volume so the enclosing cap is measured from it
+            other.mergeLocalInto(this);
+            center.set(other.center);
+            radius = other.radius;
+            return;
+        }
+        float distance = center.distance(other.center);
+        if (distance + other.radius <= radius) {
+            return; // other already enclosed
+        }
+        // smallest covering sphere along the centre axis: the two far caps define the
+        // new diameter -- midpoint of the caps is the new centre, half the span the
+        // new radius. Computed into fresh vectors; the centre field is written last.
+        Vector3f axis = new Vector3f(other.center);
+        axis.subtractLocal(center);
+        if (distance > 0) {
+            axis.normalizeLocal();
+        }
+        Vector3f high = new Vector3f(axis);
+        high.multLocal(radius);
+        high.addLocal(center); // this sphere's far cap
+        Vector3f low = new Vector3f(axis);
+        low.multLocal(-other.radius);
+        low.addLocal(other.center); // other sphere's far cap
+        Vector3f mid = new Vector3f(high);
+        mid.addLocal(low);
+        mid.multLocal(0.5f);
+        center.set(mid);
+        // reach the further far-cap AND fully swallow the other sphere
+        radius = Math.max(center.distance(high), other.radius + center.distance(other.center));
+    }
+
+    @Override
     public void transform(Quaternion rotation, Vector3f translation, Vector3f scale,
             BoundingVolume result) {
         if (!(result instanceof BoundingSphere)) {

@@ -169,7 +169,8 @@ public class Vector3f implements Serializable, Cloneable {
     public Vector3f normalize() {
         float len = length();
         if (len != 0.0F) {
-            divide(len);
+            // divide() returns a NEW vector; the 2006 jME normalize mutates in place
+            multLocal(1.0F / len);
         }
         return this;
     }

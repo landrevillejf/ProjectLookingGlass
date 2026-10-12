@@ -10,6 +10,39 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland `Cell` base class lands, headless**
+  (`wonderland-client`, `src/main/java/…/client/cell/`,
+  `src/test/java/…/cell/`; `wonderland-common`, `src/main/java/com/jme/…`) —
+  M2c, the third increment of the M2 milestone. This is the class every earlier
+  milestone circled: the `Cell` base object (ported from the decompiled
+  Wonderland 0.5 `client.cell.Cell`) together with its `CellComponent`,
+  `CellManager`, the five change-listener interfaces, the
+  `CellClientStateMessage` / `CellComponentMessage` receivers and a new
+  `MessageChannel` seam. It carries the cell **tree** (add/remove child, the
+  2006 `MultipleParentException` contract), the `@ComponentLookupClass`
+  interface-keyed component map, the `DISK → INACTIVE → ACTIVE` **ordinal status
+  walk** in both directions (components and renderers are stepped one rung at a
+  time; the DISK-down branch tears the map and unregisters receivers), the
+  `@UsesCellComponent` reflective field injection, transform propagation with
+  **world-bounds aggregation**, and component injection driven from a
+  `CellClientState` over the classloader. Three unrecoverable seams are replaced
+  per `docs/wonderland-migration.md` rather than stubbed: `ChannelComponent`
+  (needs the M3 `ClientConnection`) becomes the `MessageChannel` interface, the
+  `ClientContext.getRendererType()` lookup becomes a `Cell`-owned static holder,
+  and the module classloader (`session.getSessionManager().getClassloader()`,
+  an SGS relic) becomes `Cell.class.getClassLoader()`. To back the bounds
+  aggregation the `com.jme` shim gains `BoundingVolume.mergeLocal` (AABB and
+  sphere unions), which surfaced a **latent `Vector3f.normalize()` bug** — it
+  called the non-mutating `divide()` and so never scaled in place; that is fixed
+  and pinned. **25 new headless cases** (`CellTest` 15 +
+  `CellComponentMessageReceiverTest` 10, plus `BoundingVolumeTest` merge pins)
+  cover the reachable surface, so
+  [`coverageFloors[wonderland-client]`](build.gradle) rises to
+  `[line: 0.960, branch: 0.920]` (measured 96.42 % / 92.31 %); the residue is
+  what genuinely cannot run in a headless JVM — `createCellRendererImpl` and the
+  renderer status walk want a live Java 3D canvas, and the `CellCache` /
+  session / login branches arrive with **M2d**. Still **no** `lg3d-core` /
+  Java 3D import.
 - **The Wonderland client gains its first real logic — the cell registry and the
   comms response substrate**
   (`wonderland-client`, `src/main/java/…/client/{cell,comms}/`,

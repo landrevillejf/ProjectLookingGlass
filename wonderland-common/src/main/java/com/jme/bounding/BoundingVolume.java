@@ -45,6 +45,23 @@ public abstract class BoundingVolume implements Serializable {
     public abstract void transform(Quaternion rotation, Vector3f translation, Vector3f scale,
             BoundingVolume result);
 
+    /**
+     * Grow this volume in place so it encloses {@code toMerge} (jME's mergeLocal, the
+     * cell tree's world-bounds aggregation). A null argument is a no-op: the tree update
+     * merges children that carry no bounds hint, and the 2006 code leaned on the same
+     * silent behaviour. Merging across volume kinds is rejected -- the tree only ever
+     * aggregates like-for-like hints.
+     */
+    public BoundingVolume mergeLocal(BoundingVolume toMerge) {
+        if (toMerge != null) {
+            mergeLocalInto(toMerge);
+        }
+        return this;
+    }
+
+    /** Kind-specific in-place union; {@code toMerge} is non-null and same-class. */
+    protected abstract void mergeLocalInto(BoundingVolume toMerge);
+
     /** Shared centre transform: result = rotation * (center * scale) + translation. */
     protected final void transformCenter(Quaternion rotation, Vector3f translation, Vector3f scale,
             Vector3f target) {
