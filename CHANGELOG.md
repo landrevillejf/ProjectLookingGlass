@@ -10,6 +10,32 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland client's cell layer starts landing bottom-up**
+  (`wonderland-client`, `src/main/java/…/client/cell/`, `src/test/java/…/cell/`)
+  — M2a, the first increment of the migration plan's M2 milestone. The full M2
+  (port `client/jme` + `cellrenderer` onto Jogamp `org.jogamp.java3d`) cannot
+  land as one PR, so M2a ships only the self-contained cell *leaf* slice that
+  depends on nothing beyond `wonderland-common` + the JDK: the `@CellFactory`,
+  `@CellComponentFactory` and `@UsesCellComponent` annotations, the
+  `CellFactorySPI` / `CellComponentFactorySPI` / `CellSelectionSPI` SPIs, the
+  `AssetPreloader` callback interface and `CellCreationException`. Two headless
+  suites (**8 cases**: `CellFactorySpiTest` + `CellRegistryAnnotationsTest`)
+  pin the shape the M2b registry and renderer compile against — above all the
+  generic covariant-default-state contract
+  `<T extends CellServerState> T getDefaultCellServerState(Properties)`, whose
+  anonymous implementations prove a caller assigns the erased return back to
+  `ModelCellServerState` with no cast, exactly what the decompiled
+  `CellServerState` subclasses rely on. `wonderland-client` graduates from M0's
+  scaffold to a building, testing module: its `build.gradle` now declares the
+  `wonderland-common` dependency and the JUnit 5 + AssertJ + JaCoCo wiring, and
+  a new [`coverageFloors[wonderland-client]`](build.gradle) entry
+  (`[line: 0.900, branch: 0.000]`) gates it — the slice is interfaces and
+  annotations whose classfiles carry no executable lines, so the floor is
+  measured against `CellCreationException`, the only coded class, at 100 %;
+  it rises with M2b's real logic. No `lg3d-core` / Java 3D import yet — that
+  arrives with M2b (`Cell` base class + comms/session layer) and M2c (the
+  `client/jme` renderer, probe-verified in-JVM per `lg3d-core/AGENTS.md`),
+  which proceed only after this PR lands and the direction is re-confirmed.
 - **The Wonderland wire protocol is now a tested contract**
   (`wonderland-common`, `src/test/java/…/messages/`, `…/comms/messages/`,
   `…/cell/messages/`) — M1, the second milestone on the migration plan. M0
