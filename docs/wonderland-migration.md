@@ -9,9 +9,9 @@ ported because the underlying technology is unrecoverable and must be
 rebuilt instead.
 
 The plan this document supports lives in
-[the milestone table below](#per-milestone-parity-status): **M0** is the
-first PR, **M1** – **M7** are proposed, not started. Nothing beyond M0
-proceeds without a fresh go-ahead.
+[the milestone table below](#per-milestone-parity-status): **M0** and
+**M1** landed, **M2** – **M7** are proposed, not started. Nothing beyond
+the currently active milestone proceeds without a fresh go-ahead.
 
 ---
 
@@ -63,7 +63,7 @@ class-file counts, not the number of source files in the port.
 | **Data model** | `wonderland-common.jar!/org/jdesktop/wonderland/common/**` | 182 | `wonderland-common` | Cell state, messages, module metadata, WFS types. Only depends on `javax.vecmath` (→ `org.jogamp.vecmath`) and JAXB. Ported in M0. |
 | **jMonkeyEngine 1.x** | **NOT BUNDLED** — was JNLP | (~50 used) | `wonderland-common` (in-tree shim) | `com.jme.math`, `com.jme.bounding`, `com.jme.renderer`, `com.jme.scene.state` — reimplemented as a minimal shim on top of `org.jogamp.vecmath`, driven by what the data model actually calls. |
 | **Client: cell renderer / comms / asset manager** | `wonderland-client.jar!/org/jdesktop/wonderland/client/**` | ~565 | `wonderland-client` | `cell`, `cellrenderer`, `comms`, `jme`, `input`, `hud`, `login`, `assetmgr`, `scenemanager`, `softphone`. Depends on the jME shim, `lg3d-core`, and Jogamp Java 3D. Ported M1/M2/M5/M7. |
-| **Session/host server** | `wonderland-common.jar!/wonderland-server.jar` (GlassFish-based) | 26,206 (GlassFish) + SGS + MINA | `wonderland-server` (rebuilt) | **Unrecoverable**. Rebuilt from scratch in M3 as a plain JDK TCP / WebSocket session server that speaks the M1 wire protocol. No port of GlassFish/SGS/MINA. |
+| **Session/host server** | `wonderland-common.jar!/wonderland-server.jar` (GlassFish-based) | 26,206 (GlassFish) + SGS + MINA | `wonderland-server` (rebuilt on Spring Boot) | **Unrecoverable**. Rebuilt in M3 on **Spring Boot 3** (embedded Tomcat + Spring WebSocket): the Wonderland wire protocol is carried over a Spring WebSocket handler and REST controllers; no port of GlassFish / SGS / MINA. Chosen over a hand-rolled `java.net`/`java.nio` server because the client already needs an HTTP / REST surface for WFS (`wonderland-wfs.jar`'s JAX-RS calls) and Spring Boot gives both transports from one lifecycle. |
 | **WFS (Web Frame Sharing) wire types** | `wonderland-wfs.jar!/org/jdesktop/wonderland/wfs/**` | ~44 | `wonderland-common` (data types), `wonderland-client` (JAX-RS calls) | JAX-RS-annotated; the *types* (CellDescriptor, CellList, CellPath, WorldRoot, WorldRootList, WFSRecordingList) landed in M0 (no JAX-RS dependency in the annotations Wonderland used). The JAX-RS *calls* land in M3. |
 | **Feature modules** (NetBeans) | 71 nested module jars | varies | `wonderland-modules` | NetBeans Platform module layer is **unrecoverable** (no NBM toolchain, no `org.openide`). Reimplemented in M4 as a plain `ServiceLoader` / classpath plugin loader. Low-risk modules port first. |
 | **Bundled worlds** | 7 `wonderland-*-world.jar` | data | loaded at M5 | Collada + texture assets. Loaded via the M5 asset pipeline (`colladaloader` / `artimport` / `assetmgr`). |
@@ -105,10 +105,10 @@ not started · ❌ will not be ported (decision below)
 
 | Milestone | Scope | Status | Evidence |
 |-----------|-------|--------|----------|
-| **M0** | Scaffold + `wonderland-common` data model + jME shim + JAXB wiring | 🟨 landed, tests seed | `./gradlew :wonderland-common:build` green; 77 unit tests across `com.jme.{math,bounding}`, `Math3DUtils`, `CellTransform`, `ChecksumList` (JAXB round-trip), `ScannedClassLoader`. JaCoCo floor [0.15, 0.15]. |
-| **M1** | `client/cell` + `client/comms` message types, every codec round-trip | ⏳ | next PR |
+| **M0** | Scaffold + `wonderland-common` data model + jME shim + JAXB wiring | ✅ landed (PR #355) | `./gradlew :wonderland-common:build` green; 77 unit tests across `com.jme.{math,bounding}`, `Math3DUtils`, `CellTransform`, `ChecksumList` (JAXB round-trip), `ScannedClassLoader`. JaCoCo floor raised from [0.15, 0.15] to [0.30, 0.20] with M1. |
+| **M1** | Wire protocol codec round trips: `MessagePacker` + every `common/{messages,comms/messages,cell/messages}` type + `client/cell` pure-data types | ✅ landed | 43 new cases (11 in `MessagePackerTest`, 7 in `CommsMessagesCodecTest`, 25 in `CellMessagesCodecTest`) pack each message through `MessagePacker.pack` and read it back through `MessagePacker.unpack` — the same entry points the M3 Spring Boot WebSocket handler will call. `MessageID` Externalizable, `clientID` short, the descriptor-id cache, `WonderlandIdentity`, `SessionInternalConnectionType`, and every `CellServerState` / `CellClientState` concrete subclass resolve back to their own class through Java serialisation. |
 | **M2** | `client/jme` + `cellrenderer` on Jogamp `org.jogamp.java3d` | ⏳ | probe-verified in-JVM (see `lg3d-core/AGENTS.md`) |
-| **M3** | `wonderland-server`: rebuilt session server speaking M1's protocol | ⏳ | single-JVM loopback (M3a) then real sockets (M3b) |
+| **M3** | `wonderland-server`: **Spring Boot 3** session server speaking M1's protocol (embedded Tomcat + Spring WebSocket + REST controllers) | ⏳ | single-JVM loopback (M3a) then real sockets (M3b) |
 | **M4** | Plugin/module loader + first low-risk modules (`text-chat`, `imageviewer`, `user-list`, `stickynote`, `whiteboard`) | ⏳ | ServiceLoader |
 | **M5** | `colladaloader` / `artimport` / `assetmgr`; load the 7 bundled worlds | ⏳ | |
 | **M6** | 2D + 3D desktop integration (`Frame3D`, `SwingNode` MDI mirror of the update-manager/db-manager pattern; `.lgcfg` start-menu descriptors) | ⏳ | |
@@ -137,9 +137,9 @@ reversed before its milestone lands.
 | **`sun.misc.Service.providers(...)`** | ❌ rebuilt | Internal, removed in JDK 9. | `java.util.ServiceLoader.load(clazz, TCCL)` inside the rebuilt `ScannedClassLoader.getAll(...)`. |
 | **scannotation** | ❌ rebuilt | Dead library; cannot read modern class files. | `org.reflections:reflections:0.10.2` in `ScannedClassLoader.getClasses/getInstances`, scoped to `org.jdesktop.wonderland` on the default path so the scan stays cheap. |
 | **`@SuppressWarnings` + raw `Iterator` in `ScannedClassLoader`** | ⚠ preserved deliberately | `CellServerStateFactory` assigns `getInstances(...)` to `Iterator<CellState>` without a cast. Returning a parameterised `Iterator<Object>` would break the call sites. | `Iterator` raw return + `@SuppressWarnings("unchecked")` inside the loader. Documented in the class javadoc. |
-| **GlassFish Embedded 3.0 (26,206 classes)** | ❌ rebuilt | Retired upstream; drags in a whole application server. | `wonderland-server` (M3) starts as a plain `java.net`/`java.nio` length-prefixed TCP (or WebSocket) server, single-user loopback first. |
-| **Sun Game Server (SGS)** | ❌ rebuilt | Retired upstream; the session/host layer is the piece SGS was used for. | Folded into `wonderland-server` M3. |
-| **Apache MINA** | ❌ rebuilt | Only used by SGS. | Plain NIO in `wonderland-server`, or a WebSocket library if M3b needs it. |
+| **GlassFish Embedded 3.0 (26,206 classes)** | ❌ rebuilt | Retired upstream; drags in a whole application server. | `wonderland-server` (M3) is built on **Spring Boot 3** (embedded Tomcat + Spring WebSocket). The Wonderland wire protocol rides a `TextWebSocketHandler` / `BinaryWebSocketHandler`, WFS-style REST resources become `@RestController`s, and the client's `javax.ws.rs` calls (currently annotation-only on the wire types) gain a real JAX-RS client (or Spring's `WebClient`, chosen at M3). |
+| **Sun Game Server (SGS)** | ❌ rebuilt | Retired upstream; the session/host layer is the piece SGS was used for. | Folded into `wonderland-server` M3 as a plain Spring service (`@Service`) that owns the session registry; SGS's channel abstraction maps onto the M1 `SessionInternalConnectionType`. |
+| **Apache MINA** | ❌ rebuilt | Only used by SGS. | Spring's `WebSocketHandler` provides the codec-per-frame loop; no explicit NIO pipeline is written, and no MINA / Netty dependency is added. |
 | **winp (native JNI)** | ❌ rebuilt | Retired; only used to enumerate processes. | `java.lang.ProcessHandle` (JDK 9+). |
 | **stun** | ⏳ deferred | VoIP / softphone (M7). | Replaced by `ice4j` if M7 keeps VoIP, otherwise dropped with a written reason. |
 | **darkstar + `sas`/`sasxremwin`/`xremwin`** | ❌ dropped | Their scene / applet embedding functions are covered by the already-migrated Jogamp stack plus `SwingNode` (see [docs/swingnode.md](swingnode.md)). | No reimplementation; the migration path is the SwingNode pattern used by the update-manager / db-manager modules. |
@@ -248,9 +248,85 @@ Total: 77 tests, all green under `./gradlew :wonderland-common:test`.
 
 Measured after M0's tests: **17.56% line**, **17.90% branch**. Floor set
 to `[line: 0.150, branch: 0.150]` in the root
-[build.gradle](../build.gradle) `coverageFloors` map. Raise as M1's
-protocol round-trip tests exercise the remaining 140+ ported data-model
-classes.
+[build.gradle](../build.gradle) `coverageFloors` map. Raised with M1
+(see below).
+
+---
+
+## M1 specifics
+
+What actually landed in the second PR:
+
+### New tests (`wonderland-common/src/test/java`)
+
+- `org.jdesktop.wonderland.common.messages.MessagePackerTest` – **11**
+  cases. The protocol envelope itself: `MessageID` Externalizable round
+  trip, `Long.MIN_VALUE` "no reply-to" sentinel, `generateMessageID()`
+  monotonic counter, `ErrorMessage` with cause + text and without,
+  `ProtocolSelectionMessage` with a concrete `DefaultProtocolVersion`,
+  `MessageList` with nested messages carrying their own IDs, empty
+  `WonderlandSetupMessage`, `clientID` short including 0 and negatives,
+  and that two consecutive packs in one JVM stay independent (the pin
+  for the `WonderlandObjectOutputStream.descToId` static map being
+  read-only).
+- `org.jdesktop.wonderland.common.comms.messages.CommsMessagesCodecTest`
+  – **7** cases. The session handshake: `AttachClientMessage` with
+  `ConnectionType` + `Properties`, `AttachedClientMessage` carrying the
+  assigned short `clientID` + `reply-to`, `DetachClientMessage` for
+  negative IDs, `SessionInternalConnectionType` marker subclass
+  deserialising as itself (not the base class),
+  `SessionInitializationMessage` with a big `BigInteger` session id and
+  a full `WonderlandIdentity`, and the anonymous-handshake null-identity
+  path.
+- `org.jdesktop.wonderland.common.cell.messages.CellMessagesCodecTest`
+  – **25** cases. Every concrete subclass in `common/cell/messages/`:
+  `CellMessage.cellID` + `senderID` (via the flagship `MovableMessage`
+  round trip), the three `MovableMessage.ActionType` shapes and
+  `MovableMessage.getCellTransform()` reconstruction,
+  `MovableMessageResponse.newMoveModifiedMessage`, `MovableAvatarMessage`
+  with trigger / pressed / animation / height / collision, the four
+  `CellEditMessage` subclasses with their `EditType` tags, `CellCreatedMessage`,
+  `CellServerState{Request,Response,Set,Update}Message` resolving their
+  concrete `CellServerState` subclasses (`AvatarCellServerState`,
+  `ModelCellServerState`, `PositionComponentServerState`,
+  `ModelCellComponentServerState`), the `CellServerComponentMessage` /
+  `CellClientComponentMessage` add + remove pair with their
+  `ComponentAction` enums, `CellClientStateMessage`,
+  `CellChannelComponentRequestMessage`, `CellHierarchyMessage` with a
+  `BoundingSphere` + `CellTransform` + `ModelCellClientState` triple,
+  `CellHierarchyUnloadMessage` (which uses the no-arg `msgType =
+  UNLOAD_CELL` path), and `ViewCreateResponseMessage`. `CellServerStateUpdateMessage`
+  exercises the raw-`Set` field via a `ComponentHolder` wrapper so
+  hashCode-based collection identity survives the round trip.
+- `RoundTrip` package-private helper (`MessagePackerTest` shares it) that
+  does pack + unpack in one call so every test reads the same way.
+
+Total after M1: **120 headless tests** under
+`./gradlew :wonderland-common:test`, all green.
+
+### Hand fixes on top of M0
+
+- None in production code. The three tests caught shape issues in the
+  tests themselves (a first draft assumed the descriptor-id cache was a
+  length-reducing "warm" cache; it is not — it is populated once for a
+  fixed `coreClass` list and never mutated), and one decompilation
+  artefact (raw `Set` on `CellServerStateUpdateMessage`) is exercised
+  rather than papered over by a `ComponentHolder` wrapper.
+
+### JaCoCo coverage floor
+
+Measured after M1's 43 new cases: **32.36% line**, **21.48% branch**.
+Floor raised in the root [build.gradle](../build.gradle) `coverageFloors`
+map to `[line: 0.300, branch: 0.200]`. The remaining ~65% is the
+still-untested data-model periphery (modules, security, jaxb adapters,
+login, some of the comms internals) that each later milestone pulls into
+scope.
+
+### Standing decision update: Spring Boot 3 replaces the earlier
+"plain `java.net` / `java.nio`" plan for M3's session server. The
+**GlassFish Embedded 3.0**, **Sun Game Server (SGS)** and **Apache MINA**
+rows in [the decision table above](#unrecoverable-tech-rebuild-vs-port-decisions)
+now name Spring Boot explicitly; no port of any of the three.
 
 ---
 
