@@ -7,8 +7,10 @@
  * Portions Copyright (c) 2026, Jean-Francois Landreville - modernization:
  * a live issue-tracker URL replaces the long-dead personal crash reporter, the
  * message text is assembled by a testable pure method, a "Copy details" button
- * was added, and every Swing mutation is marshalled onto the EDT. All Rights
- * Reserved.
+ * was added, every Swing mutation is marshalled onto the EDT, and a
+ * "Report this bug" button opens the prefilled issue the crash pipeline built -
+ * the desktop files nothing itself, it hands the reporter a link with the
+ * evidence already typed into the form. All Rights Reserved.
  *
  * Redistributions in source code form must reproduce the above
  * copyright and this condition.
@@ -32,7 +34,9 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
@@ -40,6 +44,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
+
+import org.jdesktop.lg3d.utils.system.Opener;
 
 /**
  * A small dialog shown by {@link LogHandler} when a severe error occurs.
@@ -49,9 +55,18 @@ import javax.swing.SwingUtilities;
  * EDT. The message is assembled by {@link #buildMessage}, a pure function kept
  * apart from the widgetry so it can be unit-tested headlessly.</p>
  *
+ * <p>The dialog is also the desktop's manual entry point to bug reporting: the
+ * "Report this bug" button opens the prefilled issue the crash pipeline assembled
+ * for this very error. Prefilling happens in the browser, not here, because this
+ * desktop holds no credential - see
+ * {@link org.jdesktop.lg3d.displayserver.crash.IssuePrefill}.</p>
+ *
  * @author pinaraf
  */
 public class ErrorDialog extends JDialog implements Runnable {
+
+    /** Where a failure to open a browser is recorded, beside the crash itself. */
+    private static final Logger logger = Logger.getLogger("lg.errorDialog");
 
     /**
      * Where a genuine crash should be reported. The original 2006 build pointed
@@ -69,6 +84,14 @@ public class ErrorDialog extends JDialog implements Runnable {
     /** The two "components" of the dialog. */
     private final JTextArea message;
     private final JTextArea trace;
+
+    /**
+     * The prefilled issue link the crash pipeline built for this error, or
+     * {@code null} while it is still being assembled. Written by the reporter
+     * thread and read on the EDT, hence {@code volatile}; the dialog is shown
+     * before it exists on purpose, so a slow disk cannot delay the warning.
+     */
+    private volatile String reportLink;
 
     /**
      * The exit flag (issue 435): not every severe error is fatal, so the dialog
@@ -138,13 +161,16 @@ public class ErrorDialog extends JDialog implements Runnable {
         return area;
     }
 
-    /** The button row: copy the report details, then acknowledge the dialog. */
+    /** The button row: file the bug, copy the report details, then acknowledge. */
     private JPanel buildButtons() {
         JPanel buttons = new JPanel();
+        JButton reportBtn = new JButton("Report this bug");
+        reportBtn.addActionListener(e -> openReportLink());
         JButton copyBtn = new JButton("Copy details");
         copyBtn.addActionListener(e -> copyDetails());
         JButton okBtn = new JButton("OK");
         okBtn.addActionListener(e -> dismiss());
+        buttons.add(reportBtn);
         buttons.add(copyBtn);
         buttons.add(okBtn);
         return buttons;
@@ -164,6 +190,42 @@ public class ErrorDialog extends JDialog implements Runnable {
         String details = message.getText() + "\n\n--- Trace ---\n" + trace.getText();
         Toolkit.getDefaultToolkit().getSystemClipboard()
                 .setContents(new StringSelection(details), null);
+    }
+
+    /**
+     * Publishes the prefilled issue link the pipeline built for this error.
+     * May be called from any thread, before or after the dialog is on screen.
+     *
+     * @param link the {@code github.com/.../issues/new} URL, {@code null} to keep
+     *             the plain tracker page
+     */
+    public void setReportLink(String link) {
+        reportLink = link;
+    }
+
+    /**
+     * Opens the issue form. Falls back to the bare tracker page when the report is
+     * not ready or could not be built, because a button that does nothing is worse
+     * than a button that opens a page the user then fills in by hand.
+     */
+    private void openReportLink() {
+        String link = reportLink;
+        String target = (link != null && !link.isBlank()) ? link : reportUrl();
+        boolean opened;
+        try {
+            opened = Opener.openUri(target);
+        } catch (Throwable t) {
+            opened = false;
+        }
+        if (!opened) {
+            // The URL is the artefact; if no browser can be launched, the only
+            // useful thing left is to put it where the user can paste it.
+            Toolkit.getDefaultToolkit().getSystemClipboard()
+                    .setContents(new StringSelection(target), null);
+            logger.log(Level.WARNING,
+                    "no browser could be opened; the issue link was copied instead: {0}",
+                    target);
+        }
     }
 
     /**
@@ -238,7 +300,9 @@ public class ErrorDialog extends JDialog implements Runnable {
             sb.append(mustExit
                     ? "Looking Glass can't continue to work; it will stop when you click OK...\n"
                     : "Looking Glass may be able to continue to work, but no guarantee...\n");
-            sb.append("Please report it, with the details below, at:\n")
+            sb.append("Please report it, with the details below, using the\n")
+              .append("\"Report this bug\" button - it opens the issue form already")
+              .append(" filled in - or at:\n")
               .append(reportUrl())
               .append("\n\n");
         }
