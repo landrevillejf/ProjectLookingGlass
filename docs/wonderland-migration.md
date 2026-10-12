@@ -10,10 +10,11 @@ rebuilt instead.
 
 The plan this document supports lives in
 [the milestone table below](#per-milestone-parity-status): **M0** and
-**M1** landed, **M2** is in progress (**M2a** landed; **M2b+** is the Cell
-base class, comms/session and the renderer), and **M3** – **M7** are
-proposed, not started. Nothing beyond the currently active milestone
-proceeds without a fresh go-ahead.
+**M1** landed, **M2** is in progress (**M2a** + **M2b** landed — the cell
+leaf slice and the first real headless logic; **M2c+** is the `Cell` base
+class, the connection/session/login layer and the renderer, all of which pull
+`lg3d-core` (Java 3D)), and **M3** – **M7** are proposed, not started. Nothing
+beyond the currently active milestone proceeds without a fresh go-ahead.
 
 ---
 
@@ -109,7 +110,7 @@ not started · ❌ will not be ported (decision below)
 |-----------|-------|--------|----------|
 | **M0** | Scaffold + `wonderland-common` data model + jME shim + JAXB wiring | ✅ landed (PR #355) | `./gradlew :wonderland-common:build` green; 77 unit tests across `com.jme.{math,bounding}`, `Math3DUtils`, `CellTransform`, `ChecksumList` (JAXB round-trip), `ScannedClassLoader`. JaCoCo floor raised from [0.15, 0.15] to [0.30, 0.20] with M1. |
 | **M1** | Wire protocol codec round trips: `MessagePacker` + every `common/{messages,comms/messages,cell/messages}` type + `client/cell` pure-data types | ✅ landed | 43 new cases (11 in `MessagePackerTest`, 7 in `CommsMessagesCodecTest`, 25 in `CellMessagesCodecTest`) pack each message through `MessagePacker.pack` and read it back through `MessagePacker.unpack` — the same entry points the M3 Spring Boot WebSocket handler will call. `MessageID` Externalizable, `clientID` short, the descriptor-id cache, `WonderlandIdentity`, `SessionInternalConnectionType`, and every `CellServerState` / `CellClientState` concrete subclass resolve back to their own class through Java serialisation. |
-| **M2** | `client/jme` + `cellrenderer` on Jogamp `org.jogamp.java3d` | 🟨 M2a landed, M2b+ not started | **M2a** landed the self-contained cell *leaf* layer in `wonderland-client`: the `@CellFactory` / `@CellComponentFactory` / `@UsesCellComponent` annotations, the `CellFactorySPI` / `CellComponentFactorySPI` / `CellSelectionSPI` / `AssetPreloader` interfaces, and `CellCreationException` — 8 headless cases in `CellFactorySpiTest` + `CellRegistryAnnotationsTest` pin the generic covariant-default-state contract (`<T extends CellServerState> T getDefaultCellServerState(...)`) the M2b registry and renderer will call through. No lg3d-core / Java 3D import yet: the `Cell` base class, comms/session layer and the `client/jme` renderer land as M2b/M2c, probe-verified in-JVM (see `lg3d-core/AGENTS.md`). |
+| **M2** | `client/jme` + `cellrenderer` on Jogamp `org.jogamp.java3d` | 🟨 M2a + M2b landed, M2c+ not started | **M2a** landed the self-contained cell *leaf* layer: the `@CellFactory` / `@CellComponentFactory` / `@UsesCellComponent` annotations, the `CellFactorySPI` / `CellComponentFactorySPI` / `CellSelectionSPI` / `AssetPreloader` interfaces, and `CellCreationException`. **M2b** added the first **real logic that still runs headless** (no `lg3d-core` / Java 3D): `CellSelectionRegistry` (the process-wide singleton the `CellSelectionSPI` feeds), the `ClientView` / `CellRenderer` **contracts** (interfaces that name no scene-graph type), and the comms response substrate — the `ConnectionFailure` / `LoginFailure` / `ServerUnavailable` exception hierarchy, the `LoginParameters` / `WonderlandServerInfo` value types, and the `WaitResponseListener` / `OKErrorResponseListener` blocking request-reply pair. 22 headless cases cover 100 % line / 100 % branch (floor `[line: 0.950, branch: 0.900]`). **M2c** is everything that reaches `Cell` itself — the base class, the `BaseConnection` / `WonderlandSession` connection layer, the login package and the `client/jme` renderer — which pull `lg3d-core` (Java 3D) + the jME scene-graph shim and are probe-verified in-JVM (see `lg3d-core/AGENTS.md`), not asserted headless. |
 | **M3** | `wonderland-server`: **Spring Boot 3** session server speaking M1's protocol (embedded Tomcat + Spring WebSocket + REST controllers) | ⏳ | single-JVM loopback (M3a) then real sockets (M3b) |
 | **M4** | Plugin/module loader + first low-risk modules (`text-chat`, `imageviewer`, `user-list`, `stickynote`, `whiteboard`) | ⏳ | ServiceLoader |
 | **M5** | `colladaloader` / `artimport` / `assetmgr`; load the 7 bundled worlds | ⏳ | |

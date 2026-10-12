@@ -10,6 +10,40 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland client gains its first real logic — the cell registry and the
+  comms response substrate**
+  (`wonderland-client`, `src/main/java/…/client/{cell,comms}/`,
+  `src/test/java/…/{cell/utils,comms}/`) — M2b, the second increment of the M2
+  milestone. M2 was re-sliced by what CI can actually verify **headless** (the
+  excluded AWT peer means a live scene graph is not testable, and the repo
+  mandates per-module coverage), so M2b ships the first code that does real work
+  yet still depends on nothing beyond `wonderland-common` + the JDK, with no
+  `lg3d-core` / Java 3D import: `CellSelectionRegistry` (the process-wide
+  singleton that registers / reads back the M2a `CellSelectionSPI`, blanking the
+  slot only when the *same* instance unregisters it, so a stale provider cannot
+  drop the current one); the headless view / renderer **contracts** `ClientView`
+  and `CellRenderer` (interfaces that name no scene-graph type — only the common
+  `CellID` / `CellTransform` / `CellStatus` data they trade); and the comms
+  response substrate the M3 session will sit on — the `ConnectionFailure` /
+  `LoginFailure` / `ServerUnavailable` exception hierarchy (with the
+  cause-message-folding `LoginFailureException(Throwable)` shape pinned), the
+  `LoginParameters` / `WonderlandServerInfo` value types, and the
+  `WaitResponseListener` / `OKErrorResponseListener` blocking request-reply pair
+  (a caller parked in `waitForResponse` wakes when the reader thread feeds
+  `responseReceived`, and the OK/Error/unexpected three-way dispatch routes it —
+  exercised with a helper thread, no socket). **16 new headless cases**
+  (`CellSelectionRegistryTest` + `ResponseListenerTest` + `CommsValueTypesTest`,
+  on M2a's 8) cover **every line and all 16 branches**, so
+  [`coverageFloors[wonderland-client]`](build.gradle) rises to
+  `[line: 0.950, branch: 0.900]` (measured 100 % / 100 %) — the branch floor is
+  real now that the module has branch logic, replacing M2a's `0.000`
+  placeholder. What is deliberately **not** here is everything that reaches
+  `Cell` itself: the `Cell` base class, the connection / session layer
+  (`BaseConnection` / `WonderlandSession`), the login package and the `client/jme`
+  renderer all pull `lg3d-core` (Java 3D) and the jME scene-graph shim, so they
+  land as **M2c**, probe-verified in-JVM per `lg3d-core/AGENTS.md` rather than
+  claimed green; they proceed only after this PR lands and the direction is
+  re-confirmed.
 - **The Wonderland client's cell layer starts landing bottom-up**
   (`wonderland-client`, `src/main/java/…/client/cell/`, `src/test/java/…/cell/`)
   — M2a, the first increment of the migration plan's M2 milestone. The full M2
@@ -32,10 +66,13 @@ work to make it build and run on a current toolchain.
   (`[line: 0.900, branch: 0.000]`) gates it — the slice is interfaces and
   annotations whose classfiles carry no executable lines, so the floor is
   measured against `CellCreationException`, the only coded class, at 100 %;
-  it rises with M2b's real logic. No `lg3d-core` / Java 3D import yet — that
-  arrives with M2b (`Cell` base class + comms/session layer) and M2c (the
-  `client/jme` renderer, probe-verified in-JVM per `lg3d-core/AGENTS.md`),
-  which proceed only after this PR lands and the direction is re-confirmed.
+  it rises with M2b's real logic. No `lg3d-core` / Java 3D import — the
+  module's first real logic arrived in M2b (the cell selection registry and the
+  comms response substrate, both still headless); everything that reaches
+  `Cell` itself — the base class, the connection / session layer and the
+  `client/jme` renderer — lands as M2c, probe-verified in-JVM per
+  `lg3d-core/AGENTS.md`, and proceeds only after this PR lands and the direction
+  is re-confirmed.
 - **The Wonderland wire protocol is now a tested contract**
   (`wonderland-common`, `src/test/java/…/messages/`, `…/comms/messages/`,
   `…/cell/messages/`) — M1, the second milestone on the migration plan. M0
