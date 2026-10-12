@@ -232,8 +232,8 @@ work to make it build and run on a current toolchain.
 ### Changed
 - **The `lg3d-core` coverage floor is raised to `0.220` line / `0.300` branch**
   (`build.gradle`) — it sat at `0.010 / 0.020`, a floor written when the module had
-  two small suites. The measured numbers are now `22.77% / 31.48%`, and
-  `org.jdesktop.lg3d.displayserver.crash` alone is at `92.16%` line / `81.89%`
+  two small suites. The measured numbers are now `22.77% / 31.49%`, and
+  `org.jdesktop.lg3d.displayserver.crash` alone is at `92.19%` line / `82.04%`
   branch; the rest of the gap is the 2006-era scene graph, which needs a live 3D
   desktop and is verified with the in-JVM probe instead (see `AGENTS.md`).
   A regression of the crash pipeline now fails `check` rather than quietly

@@ -92,7 +92,7 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 > **a coverage regression below a module's floor fails the build**. The floors sit
 > just under the measured numbers (`lg3d-mandela` 0.905 / 0.800 at 91.19 % /
 > 81.18 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.220 / 0.300 at
-> 22.77 % / 31.48 %) and the convention is to **raise a floor as coverage
+> 22.77 % / 31.49 %) and the convention is to **raise a floor as coverage
 > improves**: a PR that closes a package moves its module's number in the same PR.
 >
 > What is genuinely **not** enforced is the 100 % / 0-mutant target itself. PIT is
