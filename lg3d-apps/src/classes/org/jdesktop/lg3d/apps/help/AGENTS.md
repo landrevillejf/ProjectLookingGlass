@@ -16,8 +16,9 @@
 | Descriptors | `src/config/helpcenter.lgcfg` (production) + `src/config/help.lgcfg` (legacy sample) → `config/demo` |
 | Build | `./gradlew :lg3d-apps:build` (search index: `:lg3d-apps:generateHelpSearchIndex`) |
 
-**Components:** `HelpCenterPanel` (JavaHelp `javax.help:javahelp:2.0.05`, 18 HTML
-topics) + the generated search index; `HelpContentTest` guards topic content.
+**Components:** `HelpCenterPanel` (JavaHelp `javax.help:javahelp:2.0.05`, 19 HTML
+topics — eighteen written by hand, `whats-new.html` generated from `CHANGELOG.md`)
++ the generated search index; `HelpContentTest` guards topic content.
 
 ## Roles
 
@@ -37,7 +38,7 @@ topics) + the generated search index; `HelpContentTest` guards topic content.
 - **Business Analyst** — Help Center is the shipped desktop user guide (complete,
   discoverable under Utilities). Production standards apply; the legacy sample has no
   user value and exists only for reference.
-- **Functional Analyst** — Spec user-visible function (browse/search 18 topics,
+- **Functional Analyst** — Spec user-visible function (browse/search 19 topics,
   navigate links) plus the contract with core (SwingNode surface, PANEL_APPS reuse,
   descriptor fields). Clearly separate `HelpCenter` (product) from `Lg3dHelp` (sample).
 - **Project Manager** — Commit scope `lg3d-apps`. Done = build (+ regenerated
@@ -91,9 +92,21 @@ The rest of this file documents the legacy `Lg3dHelp` sample.
   `org.jdesktop.lg3d.apps.help.HelpCenterPanel`, so the *same* panel is hosted as
   an MDI internal frame; the 3D wrapper is never loaded there.
 - **Content** lives under `helpcontent/`: `lg3d-help.hs`, `map.jhm`, `toc.xml`,
-  `index.xml`, `lg3d-help.css` and eighteen HTML topics. Non-`.java` files under
+  `index.xml`, `lg3d-help.css` and nineteen HTML topics. Non-`.java` files under
   `org/**` are bundled by the module's resources source set, so they ship inside
   `lg3d-apps.jar`.
+- **The generated topic** - `whats-new.html` is the one piece of help content not
+  written by hand: `scripts/mandela/whats-new.mnd` renders it from `CHANGELOG.md`
+  (`[Unreleased]` plus the three newest releases). It is **committed generated
+  output**, so never edit it - run
+  `./gradlew :lg3d-mandela:whatsNewRefresh` after changing the changelog or the
+  script, and let `:lg3d-mandela:whatsNewCheck` (a `repositoryChecks` gate) prove
+  the shipped page still matches the changelog. Its first line carries the
+  generator marker `HelpContentTest` asserts on. Because
+  `generateHelpSearchIndex` globs every `*.html` in the directory, the topic is
+  full-text searchable with no extra wiring; adding it to `toc.xml`, `map.jhm`
+  and `index.xml` (and to `HelpContentTest`'s `TARGETS`/`RESOURCES`) is the whole
+  one-time integration.
 - **Full-text search** - the Search navigator needs a generated `JavaSearch`
   database. The `:lg3d-apps:generateHelpSearchIndex` task runs JavaHelp's
   own indexer (`com.sun.java.help.search.Indexer -db <dir> <topics...>`) over the
@@ -104,7 +117,9 @@ The rest of this file documents the legacy `Lg3dHelp` sample.
   not inherit the demo-apps dependencies).
 - **Testing** - `HelpContentTest` (`src/test/java`, headless) asserts the HelpSet
   parses with the expected title and the TOC/Index/Search navigators, that every
-  map target resolves to a topic URL, and that `JHelp` constructs under JDK 21.
+  map target resolves to a topic URL, that `JHelp` constructs under JDK 21, and
+  that the generated `whats-new.html` ships with its generator marker and at
+  least one version heading.
 - **Start menu** - `helpcenter.lgcfg` (Utilities group); the legacy
   `help.lgcfg` (Simple Sample Help) is unchanged.
 

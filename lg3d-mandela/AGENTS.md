@@ -137,9 +137,13 @@ never silently in code.
   with) that keep that directory usable. The scripts themselves run in CI as
   `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `htmlLinksCheck`,
   `releaseCheck`, `startMenuAudit`, `i18nKeysCheck`, `legacyJ3dCheck`,
-  `scriptsHygieneCheck`), which are intentionally *not* part of `check`: they
-  audit the whole tree, so their failures belong to the step that ran them, not
-  to this module's build.
+  `scriptsHygieneCheck`, `whatsNewCheck`), which are intentionally *not* part of
+  `check`: they audit the whole tree, so their failures belong to the step that
+  ran them, not to this module's build. `whatsNewCheck` is the one of them that
+  compares a **committed generated file** (the Help Center's `whats-new.html`
+  against `CHANGELOG.md`); its generator half is `:lg3d-mandela:whatsNewRefresh`,
+  which is a plain task and never runs under `check` — a check may not rewrite
+  the tree.
 - **A grammar change is a two-sided test**: add the accepted form *and* pin the
   construct that must not be swallowed by it. A parse that silently changes
   meaning is worse than one that fails.

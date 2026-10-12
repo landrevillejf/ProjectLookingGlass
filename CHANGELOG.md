@@ -10,6 +10,20 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Help Center now writes its own What's New page from the CHANGELOG**
+  (`lg3d-apps`, `org.jdesktop.lg3d.apps.help` + `scripts/mandela/`) — the built-in JavaHelp
+  guide used to say only what a person remembered to write into a topic, so it went stale on
+  the day its refresh PR merged, and the desktop's own release notes were unreadable from
+  inside the desktop. `whats-new.mnd` now renders the `[Unreleased]` section and the three
+  most recently released ones into a nineteenth topic (`whats-new.html`), which the existing
+  `generateHelpSearchIndex` task indexes like any other because it globs every `*.html` in
+  the directory, so release notes are full-text searchable from the Search tab. The same
+  script is the gate: run without its `write` word it re-renders in memory and fails when the
+  committed topic no longer matches `CHANGELOG.md`, which is what turns "remember to refresh
+  the help" into a build failure, and it reports how many `Added` entries are still not named
+  in any topic — the candidates for a real new page. The rendered topic is a committed
+  generated file: edit `CHANGELOG.md` and re-run `:lg3d-mandela:whatsNewRefresh`, never the
+  HTML.
 - **Project Mandela's module documentation is now published on the GitHub Pages portal**
   (`documentation/`, mirrors `lg3d-mandela/docs/`) — the four module guides (overview,
   architecture, development, functional analysis) live under `documentation/mandela/docs/`
@@ -158,7 +172,8 @@ work to make it build and run on a current toolchain.
   retired at the ceiling and the message quotes `maxSteps` back (the number a host
   tunes against), honest work *under* the ceiling runs (the other side of the `>`),
   and tripping it is recoverable, so a host can `try` around untrusted code and keep
-  its engine. Two gates join `:lg3d-mandela:repositoryChecks` (now seven):
+  its engine. Two gates join `:lg3d-mandela:repositoryChecks` (seven at this
+  writing, eight with the What's New gate above):
   `legacy-j3d.mnd` turns the Java 3D migration rule into a build truth — no source the
   build compiles may `import` a pre-migration package (`javax.media.j3d` /
   `javax.vecmath` / `com.sun.j3d`), scoped so the do-not-edit `lg3d-docs`, the retired

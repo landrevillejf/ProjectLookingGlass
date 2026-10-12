@@ -24,6 +24,7 @@
   <indexitem text="browser, web" target="internet"/>
   <indexitem text="calculator" target="apps"/>
   <indexitem text="calendar, taskbar clock" target="desktop-2d"/>
+  <indexitem text="changelog" target="whats-new"/>
   <indexitem text="close a window" target="windows"/>
   <indexitem text="Contacts" target="productivity"/>
   <indexitem text="control center" target="customizing"/>
@@ -65,6 +66,7 @@
   <indexitem text="move a window" target="windows"/>
   <indexitem text="navigation idioms" target="gestures"/>
   <indexitem text="network indicator" target="desktop-2d"/>
+  <indexitem text="new features" target="whats-new"/>
   <indexitem text="notifications and toasts" target="desktop-2d"/>
   <indexitem text="overview" target="overview"/>
   <indexitem text="P2P (peer-to-peer)" target="internet"/>
@@ -76,7 +78,9 @@
   <indexitem text="photo viewer" target="media"/>
   <indexitem text="Private (Tor) mode" target="security-privacy"/>
   <indexitem text="reader mode" target="internet"/>
+  <indexitem text="recent changes" target="whats-new"/>
   <indexitem text="recorder" target="media"/>
+  <indexitem text="release notes" target="whats-new"/>
   <indexitem text="remote desktop" target="internet"/>
   <indexitem text="rotate a window" target="windows"/>
   <indexitem text="rounded corners" target="customizing"/>
@@ -105,6 +109,7 @@
   <indexitem text="VPN" target="security-privacy"/>
   <indexitem text="wallpapers" target="customizing"/>
   <indexitem text="web browser" target="internet"/>
+  <indexitem text="what's new" target="whats-new"/>
   <indexitem text="widgets, desktop" target="widgets"/>
   <indexitem text="window decoration" target="windows"/>
   <indexitem text="window switcher" target="desktop-2d"/>

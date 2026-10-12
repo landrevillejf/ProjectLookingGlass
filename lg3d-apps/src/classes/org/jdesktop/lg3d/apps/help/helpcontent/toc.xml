@@ -7,6 +7,7 @@
 <toc version="2.0">
   <tocitem text="Project Looking Glass Help" target="overview">
     <tocitem text="Overview" target="overview"/>
+    <tocitem text="What's New" target="whats-new"/>
     <tocitem text="Getting Started" target="getting-started"/>
     <tocitem text="A Tour of the Desktop" target="desktop-tour"/>
     <tocitem text="Working with Windows" target="windows"/>
