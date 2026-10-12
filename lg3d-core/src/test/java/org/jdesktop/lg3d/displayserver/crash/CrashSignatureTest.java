@@ -196,6 +196,48 @@ class CrashSignatureTest {
         assertTrue(signature.matches("[0-9a-f]{12}"), signature);
     }
 
+    @Test
+    @DisplayName("a hand-written bug signs on its words, and keeps the same identity")
+    void narrativeSignatureIsStableAndPathSafe() {
+        String signature = CrashSignature.ofNarrative("the taskbar is off by one pixel");
+        assertTrue(signature.matches("[0-9a-f]{12}"), signature);
+        assertEquals(signature, CrashSignature.ofNarrative("the taskbar is off by one pixel"),
+                "the same draft submitted twice is one bug, counted");
+        assertNotEquals(CrashSignature.of(boom("the taskbar is off by one pixel")), signature,
+                "a narrative and a trace are different evidence, not the same bucket");
+    }
+
+    @Test
+    @DisplayName("reformatting a draft does not open a second archive entry")
+    void whitespaceDoesNotChangeTheNarrativeIdentity() {
+        assertEquals(
+                CrashSignature.ofNarrative("clock widget\n  freezes "),
+                CrashSignature.ofNarrative("clock widget freezes"),
+                "a line break and a stray space are typing, not a different bug");
+    }
+
+    @Test
+    @DisplayName("two bugs that share a first line are still two bugs")
+    void narrativesThatCollideOnTheSurfaceDoNotCollide() {
+        // The builder's no-throwable fallback hashes at most the first 200
+        // characters of the message, and a form that puts its title in the summary
+        // leaves the message empty - so every such draft would share one signature,
+        // the archive would merge them and the second would overwrite the first.
+        // The whole narrative is the material here for exactly that reason.
+        assertNotEquals(
+                CrashSignature.ofNarrative("nothing happens\nsteps: click the taskbar"),
+                CrashSignature.ofNarrative("nothing happens\nsteps: click the calendar"));
+    }
+
+    @Test
+    @DisplayName("an empty draft is its own bucket, never a random one")
+    void blankNarrativeIsDistinctFromAnyText() {
+        String empty = CrashSignature.ofNarrative("   \n ");
+        assertEquals(empty, CrashSignature.ofNarrative(null), "nothing said is one state");
+        assertNotEquals(empty, CrashSignature.ofNarrative("a word"));
+        assertTrue(empty.matches("[0-9a-f]{12}"), empty);
+    }
+
     // ---------------------------------------------------------------- fixtures
 
     /** A throwable created inside this method, so its frames are reproducible. */

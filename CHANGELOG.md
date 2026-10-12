@@ -17,7 +17,12 @@ work to make it build and run on a current toolchain.
   what the dialog was already showing. Eight classes now do that end to end.
   `CrashSignature` hashes the root cause plus up to six non-synthetic frames to 12
   hex characters — deliberately *not* the message and not the version, so an upgrade
-  does not re-file a known bug and a crash loop stays one bug; `Redactor` replaces
+  does not re-file a known bug and a crash loop stays one bug; its `ofNarrative`
+  gives a hand-written report, which has no frames to sign, an identity taken from
+  its own words and normalised for whitespace — reformatting a draft does not open a
+  second archive entry, and two hand-written bugs are no longer merged into one by
+  the builder's no-throwable fallback, which hashes the message and therefore gave
+  every draft whose title went to the summary the same bucket; `Redactor` replaces
   home paths, the runtime user name, e-mail addresses, socket paths, GitHub / AWS /
   Google keys and `key = secret` pairs before anything is written, with linear
   patterns so a report cannot be a ReDoS against its own author; `ReportEnvironment`
@@ -61,7 +66,7 @@ work to make it build and run on a current toolchain.
   link the pipeline assembles is handed to the error dialog through `setReportLink`
   — off the EDT, on a `volatile`, since a slow disk must not delay the warning — and
   nothing at all is captured when there is neither a stack nor a text.
-- **116 headless tests for the crash package**
+- **120 headless tests for the crash package**
   (`lg3d-core`, `src/test/java/org/jdesktop/lg3d/displayserver/crash/`) — one suite
   per class, none constructing a widget or touching the network, with a recording
   sink standing in for the browser. Writing them found six defects that reading

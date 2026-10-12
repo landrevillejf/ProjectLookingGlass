@@ -219,7 +219,7 @@ JUnit 5 test infrastructure exists and runs headless:
 - `lg3d-core/src/test/java` and `lg3d-widgets/src/test/java` - active JUnit 5
   suites (1534 and 81 tests) wired into the Gradle `test` task via
   `useJUnitPlatform()`. The `lg3d-core` tree includes
-  `org.jdesktop.lg3d.displayserver.crash` (116 headless tests, one suite per
+  `org.jdesktop.lg3d.displayserver.crash` (120 headless tests, one suite per
   engine class) and the `LogHandler` wiring tests.
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task

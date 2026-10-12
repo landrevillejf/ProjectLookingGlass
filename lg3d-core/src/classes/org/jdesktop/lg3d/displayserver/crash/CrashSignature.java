@@ -87,6 +87,37 @@ public final class CrashSignature {
     }
 
     /**
+     * The identity of a report that has no throwable at all - the one a person
+     * writes in the Bug Reporter panel.
+     *
+     * <p>A hand-filed bug cannot sign on frames it does not have, and the
+     * builder's no-throwable fallback hashes at most the first 200 characters of
+     * the message - and a form that puts its title in the summary leaves the
+     * message empty, so every such draft would land in one bucket: the archive
+     * groups by signature, and the second hand-written bug would overwrite the
+     * first. Here the narrative is the identity: the
+     * words that say which bug this are the words that group it. Whitespace is
+     * collapsed first, so retyping a space or adding a line break to a draft does
+     * not open a second entry for one bug, and pressing Submit twice on the same
+     * draft is counted rather than duplicated.</p>
+     *
+     * <p>The output lives in the same namespace as {@link #of}: same digest, same
+     * length, same rules as a file name.</p>
+     *
+     * @param narrative the title and steps as written, may be {@code null}
+     * @return a short lowercase hex digest, safe as a file name
+     */
+    public static String ofNarrative(String narrative) {
+        if (narrative == null || narrative.isBlank()) {
+            // The empty draft is its own bucket: a report with no words cannot be
+            // confused with one that has them, and it must not collide with a
+            // narrative that digests to anything else.
+            return digest("<no-narrative>");
+        }
+        return digest("narrative:" + String.join(" ", narrative.trim().split("\\s+")));
+    }
+
+    /**
      * Builds the canonical text the digest is taken over. Exposed because a
      * regression in grouping is invisible in a hash: a test that reads this
      * string sees <em>why</em> two crashes signed the same way.
