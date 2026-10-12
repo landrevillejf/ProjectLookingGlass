@@ -7,7 +7,7 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased]
+## [Unreleased] — 1.68.1-dev — Gradle / JDK 21 modernization
 
 ### Fixed
 - **A class's construction counts its initialiser's parameters, not its fields**
