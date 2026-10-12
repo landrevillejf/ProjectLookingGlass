@@ -30,6 +30,7 @@ import javax.swing.event.ChangeEvent;
 import com.protonmail.landrevillejf.IconManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.BatteryStatus.Level;
 import org.jdesktop.lg3d.displayserver.desktop2d.NetworkStatus.State;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.system.SecurityPosture;
 import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
@@ -112,7 +113,7 @@ final class TaskbarIndicators extends JPanel {
             add(label);
         }
 
-        volumeLabel.setToolTipText("Volume");
+        volumeLabel.setToolTipText(Messages.tr("lg2d.indicator.volume"));
         volumeLabel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -131,7 +132,7 @@ final class TaskbarIndicators extends JPanel {
         volumeSlider.addChangeListener(this::onSliderChange);
         volumePopup.add(volumeSlider);
 
-        brightnessLabel.setToolTipText("Brightness");
+        brightnessLabel.setToolTipText(Messages.tr("lg2d.indicator.brightness"));
         brightnessLabel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -150,7 +151,7 @@ final class TaskbarIndicators extends JPanel {
         brightnessSlider.addChangeListener(this::onBrightnessSliderChange);
         brightnessPopup.add(brightnessSlider);
 
-        privacyLabel.setToolTipText("Private (Tor) mode");
+        privacyLabel.setToolTipText(Messages.tr("lg2d.indicator.privacy"));
         privacyLabel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {

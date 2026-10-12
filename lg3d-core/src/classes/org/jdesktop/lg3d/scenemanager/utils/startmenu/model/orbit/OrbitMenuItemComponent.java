@@ -41,6 +41,7 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Tapp;
+import org.jdesktop.lg3d.i18n.Messages;
 
 public class OrbitMenuItemComponent extends MenuItemComponent {
 
@@ -58,7 +59,7 @@ public class OrbitMenuItemComponent extends MenuItemComponent {
     @Override
     public void initialize() {
 //      if(menuItem.getDesc() == null || "".equals(menuItem.getDesc())) {
-            tooltipText= new PopupText(menuItem.getName(), 18);
+            tooltipText= new PopupText(Messages.trLgcfgName(menuItem.getName()), 18);
 //      } else {
 //          tooltipText= new PopupText(menuItem.getName() + "\n" + menuItem.getDesc(), 16);
 //      }

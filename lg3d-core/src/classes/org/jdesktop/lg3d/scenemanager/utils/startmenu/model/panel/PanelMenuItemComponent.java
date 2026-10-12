@@ -48,6 +48,7 @@ import org.jdesktop.lg3d.utils.shape.Text2D;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Tapp;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
+import org.jdesktop.lg3d.i18n.Messages;
 
 public class PanelMenuItemComponent extends MenuItemComponent {
 
@@ -112,12 +113,12 @@ public class PanelMenuItemComponent extends MenuItemComponent {
 
         Component3D textComp= new Component3D();
         textComp.setPreferredSize(new Vector3f(0.0f, 0.0f, 0.0f));
-        Text2D text= new Text2D(menuItem.getName(), new Color3f(1.0f, 1.0f, 1.0f),
+        Text2D text= new Text2D(Messages.trLgcfgName(menuItem.getName()), new Color3f(1.0f, 1.0f, 1.0f),
                 "SansSerif", 16, Font.BOLD);
         text.setRectangleScaleFactor(1.0f / 4096.0f);
         textComp.addChild(text);
 
-        Text2D textShadow= new Text2D(menuItem.getName(), new Color3f(0.3f, 0.3f, 0.3f),
+        Text2D textShadow= new Text2D(Messages.trLgcfgName(menuItem.getName()), new Color3f(0.3f, 0.3f, 0.3f),
                 "SansSerif", 16, Font.BOLD);
         textShadow.setRectangleScaleFactor(1.0f / 4096.0f);
         textComp.addChild(new OriginTranslation(textShadow, new Vector3f(0.0003f, -0.0003f, -0.0001f)));

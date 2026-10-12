@@ -50,6 +50,7 @@ import org.jdesktop.lg3d.displayserver.desktop2d.IconPackManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeManager;
 import org.jdesktop.lg3d.displayserver.desktop2d.MetalThemeSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.TransparencySurface;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
@@ -71,6 +72,11 @@ import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
  * <p>List selectors are used throughout (never a combo box or radio buttons) so
  * the panel keeps working when the control center is hosted offscreen in a
  * {@code SwingNode}.</p>
+ *
+ * <p>The language section is the one control that is not 2D-gated: the desktop
+ * locale is a shell-wide setting honored by both desktops, and it applies on
+ * the next desktop start (the locale is resolved once per run), which the
+ * section states.</p>
  */
 public class CustomizationPanel implements ControlPanel {
 
@@ -94,19 +100,27 @@ public class CustomizationPanel implements ControlPanel {
     private final Map<TransparencySurface, JSlider> opacitySliders =
             new LinkedHashMap<>();
 
+    /** Desktop-language choice list; the three rows the desktop honors. */
+    private final DefaultListModel<String> languageModel = new DefaultListModel<>();
+    private final JList<String> languageList = new JList<>(languageModel);
+
+    /**
+     * The persisted values, index-aligned with the list rows: the same three
+     * values {@link DesktopConfig} accepts for the desktop.locale key (the
+     * class spells them as literals; so does the i18n resolver).
+     */
+    private static final String[] LANGUAGE_CODES = {"system", "en", "fr"};
+
     public CustomizationPanel() {
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel sections = new JPanel();
+        sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
         if (Boolean.getBoolean(Desktop2D.MODE_PROPERTY)) {
-            JPanel sections = new JPanel();
-            sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
             sections.add(buildThemePanel());
             sections.add(buildIconPackPanel());
             sections.add(buildTransparencyPanel());
             // Later phases append their independent sections here (window
             // decoration) before the trailing glue.
-            sections.add(Box.createVerticalGlue());
-            root.add(sections, BorderLayout.CENTER);
-            root.add(statusLabel, BorderLayout.SOUTH);
             loadThemeState();
             loadIconPackState();
             loadTransparencyState();
@@ -118,8 +132,13 @@ public class CustomizationPanel implements ControlPanel {
                             + "The 3D desktop's surfaces are already<br>"
                             + "translucent by construction.</center></html>",
                     JLabel.CENTER);
-            root.add(note, BorderLayout.CENTER);
+            root.add(note, BorderLayout.NORTH);
         }
+        sections.add(buildLanguagePanel());
+        sections.add(Box.createVerticalGlue());
+        root.add(sections, BorderLayout.CENTER);
+        root.add(statusLabel, BorderLayout.SOUTH);
+        loadLanguageState();
     }
 
     @Override
@@ -591,6 +610,82 @@ public class CustomizationPanel implements ControlPanel {
             default:
                 return null;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Desktop language
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds the language section: a {@link JList} of the three settings the
+     * desktop honors (system default, English, French) and an update button,
+     * with the restart note below. The selection is persisted for the next
+     * desktop start - the run's locale is resolved once, so there is no live
+     * apply to promise; the note states that in the current language. A list
+     * selector (never a combo box) keeps the panel working when it is hosted
+     * offscreen in a {@code SwingNode}.
+     */
+    private JComponent buildLanguagePanel() {
+        languageList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        languageList.setVisibleRowCount(3);
+        JScrollPane languageScroll = new JScrollPane(languageList);
+        languageScroll.setPreferredSize(new Dimension(180, 74));
+
+        JButton applyLanguage = new JButton(
+                Messages.tr("lg2d.cc.language.apply"));
+        applyLanguage.addActionListener(e -> applyLanguage());
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        row.add(languageScroll);
+        row.add(applyLanguage);
+
+        JLabel restart = new JLabel(Messages.tr("lg2d.cc.language.restart"));
+
+        JPanel panel = new JPanel(new BorderLayout(2, 2));
+        panel.add(row, BorderLayout.CENTER);
+        panel.add(restart, BorderLayout.SOUTH);
+        panel.setBorder(BorderFactory.createTitledBorder(
+                Messages.tr("lg2d.cc.language")));
+        return panel;
+    }
+
+    /** Fills the choice rows and selects the persisted locale setting. */
+    private void loadLanguageState() {
+        if (languageModel.isEmpty()) {
+            languageModel.addElement(Messages.tr("lg2d.cc.language.system"));
+            languageModel.addElement(Messages.tr("lg2d.cc.language.en"));
+            languageModel.addElement(Messages.tr("lg2d.cc.language.fr"));
+        }
+        languageList.setSelectedIndex(
+                languageCodeIndex(DesktopConfig.get().getLocale()));
+    }
+
+    /**
+     * The list row for a persisted locale setting; anything unknown maps to
+     * the system-default row, which is what the desktop itself falls back to.
+     * Pure so it can be unit-tested headless.
+     */
+    static int languageCodeIndex(String locale) {
+        for (int i = 0; i < LANGUAGE_CODES.length; i++) {
+            if (LANGUAGE_CODES[i].equals(locale)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /** Persists the selected locale; it takes effect on the next start. */
+    private void applyLanguage() {
+        int i = languageList.getSelectedIndex();
+        if (i < 0) {
+            warn("Select a language first.");
+            return;
+        }
+        DesktopConfig cfg = DesktopConfig.get();
+        cfg.setLocale(LANGUAGE_CODES[i]);
+        cfg.save();
+        statusLabel.setText(Messages.tr("lg2d.cc.language.applied",
+                languageModel.get(i)));
     }
 
     private void warn(String message) {

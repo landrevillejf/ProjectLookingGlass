@@ -38,6 +38,7 @@ import org.jdesktop.lg3d.utils.shape.GlassyRingPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.wg.Component3D;
+import org.jdesktop.lg3d.i18n.Messages;
 
 public class DiscMenuGroupLinkComponent extends MenuGroupLinkComponent {
 
@@ -60,7 +61,7 @@ public class DiscMenuGroupLinkComponent extends MenuGroupLinkComponent {
         setPreferredSize(new Vector3f(0.02f, 0.02f, 0.02f));
         setLayout(new OrbitLayout(0.75f, -0.2f, (float)Math.PI / -2));
         
-        tooltipText= new PopupText(remoteGroup.getName(), 18);
+        tooltipText= new PopupText(Messages.trLgcfgName(remoteGroup.getName()), 18);
         tooltipText.setVisible(false);
         addChild(tooltipText);
         

@@ -110,6 +110,37 @@ work to make it build and run on a current toolchain.
   everything else is advice), disk and browser work off the EDT on a named
   daemon executor, and no modal dialog anywhere. 17 headless tests
   (`BugReportDraftTest` 10, `BugReporterPanelTest` 7).
+- **Internationalisation of the shell — the desktop can now speak French**
+  (`lg3d-core`, `org.jdesktop.lg3d.i18n`; `lg3d-apps`, Control Center) — the
+  2006 codebase shipped zero user-facing i18n machinery (the three
+  `ExceptionStrings.properties` files are remnants of a bundle system that no
+  longer exists), so every label was welded into the Java. Tranche 1 builds the
+  mechanism and translates the *shell*: `LgLocale` resolves the run's language
+  once at start (`-Dlg.locale` > the persisted `desktop.locale` preference >
+  the JVM default, and any unknown pin lands on English — visible-but-English
+  beats blank or crashed), and `Messages.tr(key, args…)` reads
+  `messages.properties` (English source of code) or its French twin through a
+  `ResourceBundle.Control` whose fallback is *null*, so an unsupported host
+  locale never hijacks the language. A miss echoes the key and a broken
+  `MessageFormat` pattern echoes the pattern — the painting path cannot throw.
+  Extracted: the whole 2D shell (taskbar, start menu, tray, pager, run dialog,
+  context menu, About box, launch notifications, power/exit confirms), the 3D
+  chrome (start-menu panel/disc/orbit labels, dock folder stacks, the 3D run
+  card), and the `.lgcfg` descriptors *without touching the 83 XML files* —
+  both readers look up `lgcfg.<slug-of-name>.name/.desc` and fall back to the
+  XML literal, so an untranslated descriptor simply keeps its published name
+  and `startmenu-audit.mnd` is untouched. Control Center → Customization gains
+  a Language selector (System default / English / Français, persisted, applied
+  at the next desktop restart — no hot-swap by design, a live scene graph
+  re-tinting its own text was never on the table). 288 keys in each bundle —
+  97 shell labels plus 191 start-menu descriptor entries — pinned three ways:
+  `LgLocaleTest`/`MessagesTest` headless, a descriptor
+  round trip in `Desktop2DMenuConfigTest`, and the new
+  `scripts/mandela/i18n-keys.mnd` gate in `:lg3d-mandela:repositoryChecks`
+  (every `tr` literal exists, en/fr key sets are equal, `{n}` placeholders
+  agree). All `Test` tasks run with `lg.locale=en` so the extraction cannot
+  quietly change what existing assertions read. The apps themselves
+  (~2,000 strings) are tranche 2, one PR per start-menu group.
 
 ### Fixed
 - **The release train no longer cuts releases by itself** (`.github/workflows/release-train.yml`)

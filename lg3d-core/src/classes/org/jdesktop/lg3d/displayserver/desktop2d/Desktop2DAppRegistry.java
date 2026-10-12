@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JComponent;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.system.ProcessRunner;
 import org.jdesktop.lg3d.utils.system.TorPrivateMode;
 
@@ -67,7 +68,7 @@ public final class Desktop2DAppRegistry {
 
     /** Tooltip shown on menu entries the 2D desktop cannot run. */
     public static final String UNAVAILABLE_TOOLTIP =
-            "Requires the 3D desktop";
+            Messages.tr("lg2d.app.requires3d");
 
     /** How the 2D desktop can run a given command. */
     public enum Kind {

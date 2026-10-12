@@ -45,6 +45,7 @@ import org.jdesktop.lg3d.utils.shape.GlassyRingPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * 
@@ -65,7 +66,7 @@ public class DiscMenuGroupComponent extends MenuGroupComponent {
 
     @Override
     public void initialize() {
-        tooltipText= new PopupText(menuGroup.getName(), 20);
+        tooltipText= new PopupText(Messages.trLgcfgName(menuGroup.getName()), 20);
         tooltipText.setVisible(false);
         addChild(tooltipText);
         
