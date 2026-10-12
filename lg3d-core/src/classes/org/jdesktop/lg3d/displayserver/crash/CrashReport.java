@@ -100,6 +100,16 @@ public final class CrashReport {
      */
     public static final int SUMMARY_BUDGET_CHARS = 200;
 
+    /** Budget for one named evidence file: longer than this is a pasted blob. */
+    static final int ATTACHMENT_NAME_BUDGET_CHARS = 120;
+
+    /**
+     * What the body prints where a message should be. Shared with the spool's
+     * reader, because the sentence "this report has no message" is a rendering
+     * decision, and a reader that took it for the message would file a phantom one.
+     */
+    static final String NO_MESSAGE = "(no message)";
+
     private final String id;
     private final String signature;
     private final String summary;
@@ -210,7 +220,7 @@ public final class CrashReport {
         return actual;
     }
 
-    /** @return file names mentioned as evidence, paths already shortened */
+    /** @return file names mentioned as evidence, each reduced to its bare name */
     public List<String> attachments() {
         return attachments;
     }
@@ -270,7 +280,7 @@ public final class CrashReport {
               .append("\n\n");
         }
         sb.append("### Error\n\n");
-        sb.append("`").append(message.isEmpty() ? "(no message)" : message).append("`\n\n");
+        sb.append("`").append(message.isEmpty() ? NO_MESSAGE : message).append("`\n\n");
         if (!stack.isEmpty()) {
             sb.append("```\n").append(stack).append("\n```\n\n");
         }
@@ -515,10 +525,25 @@ public final class CrashReport {
             return this;
         }
 
-        /** Names one evidence file; the path is shortened and the name kept. */
+        /**
+         * Names one evidence file. Only the file's own name survives: the report
+         * is a claim that the file exists so a maintainer can ask for it, and the
+         * absolute path a file chooser hands back - the one form a person pastes,
+         * and the only form the automatic capture never produces - would carry the
+         * reporter's user name and directory layout into a public issue, which is
+         * exactly what the {@link Redactor} exists to strip. A name that is not a
+         * name (blank, {@code .}, {@code ..}) is dropped rather than reported.
+         */
         public Builder addAttachment(String fileName) {
-            if (fileName != null && !fileName.isBlank()) {
-                this.attachments.add(fileName.trim());
+            if (fileName == null || fileName.isBlank()) {
+                return this;
+            }
+            String redacted = Redactor.redact(fileName.trim(), home(), user());
+            int separator = Math.max(redacted.lastIndexOf('/'), redacted.lastIndexOf('\\'));
+            String name = Redactor.clipText(redacted.substring(separator + 1).trim(),
+                    ATTACHMENT_NAME_BUDGET_CHARS);
+            if (!name.isEmpty() && !name.equals(".") && !name.equals("..")) {
+                this.attachments.add(name);
             }
             return this;
         }

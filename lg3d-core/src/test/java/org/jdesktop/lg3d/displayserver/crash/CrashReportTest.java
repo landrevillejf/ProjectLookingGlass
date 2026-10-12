@@ -197,6 +197,47 @@ class CrashReportTest {
     }
 
     @Test
+    @DisplayName("a named file keeps its name and loses its path")
+    void attachmentsLoseTheirPath() {
+        // Only the manual path can hand over an absolute path - a file chooser, or
+        // a person pasting one - since the automatic capture names nothing. What
+        // is under proof is that the directory part, which carries the account name
+        // and the disk layout, never reaches a public issue.
+        String home = System.getProperty("user.home");
+        CrashReport report = manual()
+                .addAttachment(home + "/Desktop/trip.png")
+                .addAttachment("C:\\Users\\someone\\Desktop\\keys.txt")
+                .addAttachment("/mnt/backup/alice/work/scene.j3f")
+                .addAttachment("./")
+                .addAttachment("..")
+                .addAttachment("   ")
+                .addAttachment(null)
+                .build();
+        assertEquals(List.of("trip.png", "keys.txt", "scene.j3f"), report.attachments());
+        assertFalse(report.body().contains(home), "the raw home path leaked");
+        assertFalse(report.body().contains("alice"), "another account name leaked");
+        assertFalse(report.body().contains("Desktop"), "the directory layout leaked");
+    }
+
+    @Test
+    @DisplayName("a file name is redacted like any other text, and bounded")
+    void attachmentNameIsScrubbed() {
+        CrashReport shaped = manual()
+                .addAttachment("ghp_" + "A".repeat(36) + ".png")
+                .build();
+        assertEquals(List.of(Redactor.TOKEN_MASK + ".png"), shaped.attachments(),
+                "a credential pasted into a file name is still a credential");
+
+        CrashReport huge = manual().addAttachment("n".repeat(400) + ".png").build();
+        String kept = huge.attachments().get(0);
+        assertTrue(kept.length() <= CrashReport.ATTACHMENT_NAME_BUDGET_CHARS
+                + Redactor.CLIP_MARK.length(), String.valueOf(kept.length()));
+        // The archive rebuilds a report from its own text, so the clipper must be
+        // idempotent or every re-filed report grows a marker and a shorter name.
+        assertEquals(huge.attachments(), huge.toBuilder().build().attachments());
+    }
+
+    @Test
     @DisplayName("the footer carries the identity a maintainer will be quoted")
     void footerCarriesIdentity() {
         CrashReport report = manual().id("deadbeef").signature("abc123def456")

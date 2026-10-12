@@ -66,7 +66,7 @@ work to make it build and run on a current toolchain.
   link the pipeline assembles is handed to the error dialog through `setReportLink`
   — off the EDT, on a `volatile`, since a slow disk must not delay the warning — and
   nothing at all is captured when there is neither a stack nor a text.
-- **120 headless tests for the crash package**
+- **123 headless tests for the crash package**
   (`lg3d-core`, `src/test/java/org/jdesktop/lg3d/displayserver/crash/`) — one suite
   per class, none constructing a widget or touching the network, with a recording
   sink standing in for the browser. Writing them found six defects that reading
@@ -79,7 +79,17 @@ work to make it build and run on a current toolchain.
   the list it was iterating would have thrown `ConcurrentModificationException`
   from inside the crash reporter — a crash in the bug reporter — while its byte
   ceiling deleted the very report that had just been written, and a SEVERE record
-  with no throwable filed a report with no content in it.
+  with no throwable filed a report with no content in it. Designing the Bug
+  Reporter panel that consumes it turned up three more, all on the archive's round
+  trip: a *named evidence file* kept the absolute path a file chooser hands back —
+  the reporter's own account name, in a public issue, while `addAttachment`'
+  javadoc claimed it had been shortened; `record.json` stored none of the human
+  half of a report, so re-filing a stored bug came back as
+  `"[MINOR] severe error"` with no steps, no expected/actual and no evidence — the
+  work a person typed, discarded; and the body's `(no message)` placeholder was
+  read back as an actual message, giving a re-filed report a title ending in
+  `": (no message)"`. `CrashStoreTest.manualNarrativeSurvivesTheArchive` pins the
+  round trip now.
 
 ### Fixed
 - **A class's construction counts its initialiser's parameters, not its fields**
@@ -230,10 +240,10 @@ work to make it build and run on a current toolchain.
   program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
-- **The `lg3d-core` coverage floor is raised to `0.220` line / `0.300` branch**
+- **The `lg3d-core` coverage floor is raised to `0.225` line / `0.310` branch**
   (`build.gradle`) — it sat at `0.010 / 0.020`, a floor written when the module had
-  two small suites. The measured numbers are now `22.77% / 31.49%`, and
-  `org.jdesktop.lg3d.displayserver.crash` alone is at `92.19%` line / `82.04%`
+  two small suites. The measured numbers are now `22.83% / 31.56%`, and
+  `org.jdesktop.lg3d.displayserver.crash` alone is at `92.43%` line / `82.16%`
   branch; the rest of the gap is the 2006-era scene graph, which needs a live 3D
   desktop and is verified with the in-JVM probe instead (see `AGENTS.md`).
   A regression of the crash pipeline now fails `check` rather than quietly

@@ -91,8 +91,8 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 > have a test suite, and `check` depends on `jacocoTestCoverageVerification` — so
 > **a coverage regression below a module's floor fails the build**. The floors sit
 > just under the measured numbers (`lg3d-mandela` 0.905 / 0.800 at 91.19 % /
-> 81.18 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.220 / 0.300 at
-> 22.77 % / 31.49 %) and the convention is to **raise a floor as coverage
+> 81.18 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.225 / 0.310 at
+> 22.83 % / 31.56 %) and the convention is to **raise a floor as coverage
 > improves**: a PR that closes a package moves its module's number in the same PR.
 >
 > What is genuinely **not** enforced is the 100 % / 0-mutant target itself. PIT is
@@ -184,6 +184,14 @@ One app is excluded for deep core-API drift (**not** a missing library):
 - **The signature excludes the message and the version** so an upgrade does not
   re-file a known bug and a crash loop stays one bug. Changing that vocabulary
   changes what a maintainer's issue queue sees.
+- **The spool is a round trip, not a log.** A stored report is read back to be
+  re-filed, so `record.json` carries the human half — subject, repro steps,
+  expected/actual and the named evidence — and `CrashReport.Builder.addAttachment`
+  keeps only a bare file name. A field the archive drops is work a person typed;
+  a path the archive keeps is the reporter's identity. `Redactor` masks are
+  renderings, so the reader must undo them (`messageOf` does, for
+  `CrashReport.NO_MESSAGE`). `CrashStoreTest.manualNarrativeSurvivesTheArchive`
+  is the gate on all of it.
 - Everything is configured by `lg.crashreport.*` (`enabled`, `repo`, `labels`,
   `assignee`, `maxPerSession`, `dir`, `maxReports`, `maxBytes`); the spool is
   `~/.lg3d/crash-reports`. Add a knob there, not a hard-coded value.
@@ -217,9 +225,9 @@ The desktop runs in development mode (`lg.fws.mode=dev`) using the standard AWT/
 
 JUnit 5 test infrastructure exists and runs headless:
 - `lg3d-core/src/test/java` and `lg3d-widgets/src/test/java` - active JUnit 5
-  suites (1534 and 81 tests) wired into the Gradle `test` task via
+  suites (1541 and 81 tests) wired into the Gradle `test` task via
   `useJUnitPlatform()`. The `lg3d-core` tree includes
-  `org.jdesktop.lg3d.displayserver.crash` (120 headless tests, one suite per
+  `org.jdesktop.lg3d.displayserver.crash` (123 headless tests, one suite per
   engine class) and the `LogHandler` wiring tests.
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task

@@ -144,6 +144,46 @@ class CrashStoreTest {
     }
 
     @Test
+    @DisplayName("a hand-written report keeps its narrative through the archive")
+    void manualNarrativeSurvivesTheArchive() {
+        // The Bug Reporter's product is the text a person typed. An archive that
+        // rebuilds a trace but drops the repro steps re-files the same bug under an
+        // empty body and a subject the reporter never wrote - which is a duplicate
+        // issue with none of the information the first one had.
+        CrashReport draft = CrashReport.builder()
+                .kind(CrashReport.Kind.MANUAL)
+                .severity(CrashReport.Severity.TRIVIAL)
+                // The identity the panel gives a draft with no throwable: the words
+                // themselves, so two sightings of one bug are one archive entry.
+                .signature(CrashSignature.ofNarrative("the task bar wraps at 1280 px"))
+                .summary("the task bar wraps at 1280 px")
+                .steps("resize the desktop\nlook at the task bar")
+                .expected("one row of buttons")
+                .actual("two rows, the second clipped")
+                .addAttachment("taskbar.png")
+                .reporter("BugReporterPanel")
+                .occurredAt(Instant.parse("2026-10-12T12:00:00Z"))
+                .environment(ReportEnvironment.collect(Instant.now(), name -> null,
+                        Runtime.getRuntime(), "UTC"))
+                .build();
+        store.store(draft);
+        CrashReport reread = store.find(draft.signature()).orElseThrow();
+        assertEquals("", reread.message(),
+                "the body's placeholder for an empty message is not itself a message");
+        assertEquals(draft.title(), reread.title(),
+                "the subject a person wrote is kept, not re-derived from a trace there is none of");
+        assertEquals(draft.steps(), reread.steps());
+        assertEquals(draft.expected(), reread.expected());
+        assertEquals(draft.actual(), reread.actual());
+        assertEquals(draft.attachments(), reread.attachments());
+        assertEquals(draft.signature(), reread.signature(),
+                "a manual report signs on its narrative, so the narrative must survive");
+        assertTrue(reread.body().contains("1. resize the desktop"), reread.body());
+        assertFalse(reread.body().contains("no manual steps recorded"),
+                "a report a person wrote is never announced as an automatic one");
+    }
+
+    @Test
     @DisplayName("the archive keeps which component caught the failure")
     void reporterSurvivesTheArchive() throws IOException {
         // A list of stored crashes that all read "spool" cannot tell an uncaught

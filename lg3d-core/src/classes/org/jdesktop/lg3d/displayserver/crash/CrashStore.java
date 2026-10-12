@@ -157,6 +157,29 @@ public final class CrashStore {
             // it as a field, because a list of stored crashes that all read "spool"
             // cannot tell an uncaught exception from a SEVERE log record.
             merged.put("reporter", report.reporter());
+            // The human half of the report. A stored bug is rebuilt from this record
+            // when it is re-filed, and a hand-written one that came back without its
+            // subject, its repro steps, its expected/actual or its named evidence
+            // would be filed as "[MINOR] severe error" with an empty body - the
+            // archive would discard the only part an automatic capture cannot
+            // supply. The Markdown file is what a person reads; this is what the
+            // store rebuilds, and the newest occurrence wins, as it does for the
+            // document.
+            merged.put("summary", report.summary());
+            merged.put("steps", report.steps());
+            merged.put("expected", report.expected());
+            merged.put("actual", report.actual());
+            // One name per line. The builder already reduced each to a bare file
+            // name; a name holding a newline - unreachable from a file chooser - is
+            // flattened here rather than silently becoming two entries.
+            StringBuilder names = new StringBuilder();
+            for (String name : report.attachments()) {
+                if (names.length() > 0) {
+                    names.append('\n');
+                }
+                names.append(name.replace('\n', ' ').trim());
+            }
+            merged.put("attachments", names.toString());
             // The first file's name is kept so a maintainer who was quoted a path
             // in a reply still finds the document after the bug recurs.
             if (record == null || !record.containsKey("markdown")) {
@@ -292,6 +315,14 @@ public final class CrashStore {
                     // to have come from the spool.
                     .reporter((caughtBy == null || caughtBy.isBlank())
                             ? "spool" : caughtBy)
+                    // The narrative, when the record carries it. A blank or absent
+                    // subject leaves the builder's derivation in charge, which is
+                    // what an archive written before this field existed needs.
+                    .summary(record.get("summary"))
+                    .steps(record.get("steps"))
+                    .expected(record.get("expected"))
+                    .actual(record.get("actual"))
+                    .attachments(namesOf(record.get("attachments")))
                     .build());
         } catch (IOException | RuntimeException e) {
             // One unreadable report must not blank the archive list.
@@ -480,7 +511,13 @@ public final class CrashStore {
                 .replace("\\t", "\t").replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
-    /** The message line of a stored report: the sentence after {@code ### Error}. */
+    /**
+     * The message line of a stored report: the sentence after {@code ### Error}.
+     * The placeholder the renderer prints for "there is no message" is undone here,
+     * because a report that came back with that sentence as its message would file
+     * a title ending in ": (no message)" - a phantom difference between the archive
+     * and the issue the title is supposed to match.
+     */
     private static String messageOf(String markdown) {
         String marker = "### Error\n\n";
         int at = markdown.indexOf(marker);
@@ -490,8 +527,9 @@ public final class CrashStore {
         String rest = markdown.substring(at + marker.length());
         int end = rest.indexOf("\n");
         String line = (end < 0) ? rest : rest.substring(0, end);
-        return line.startsWith("`") && line.endsWith("`") && line.length() > 1
+        String message = line.startsWith("`") && line.endsWith("`") && line.length() > 1
                 ? line.substring(1, line.length() - 1) : line;
+        return CrashReport.NO_MESSAGE.equals(message) ? "" : message;
     }
 
     /** The fenced trace of a stored report, empty when it carried none. */
@@ -502,6 +540,20 @@ public final class CrashStore {
         }
         int end = markdown.indexOf("\n```", fence + 4);
         return (end < 0) ? markdown.substring(fence + 4) : markdown.substring(fence + 4, end);
+    }
+
+    /** The stored evidence names, one per line; a blank line is not a file. */
+    private static List<String> namesOf(String stored) {
+        if (stored == null || stored.isBlank()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String name : stored.split("\n")) {
+            if (!name.isBlank()) {
+                out.add(name);
+            }
+        }
+        return out;
     }
 
     private static int parseInt(String value, int fallback) {
