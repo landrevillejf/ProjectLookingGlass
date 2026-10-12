@@ -1,10 +1,12 @@
 # Release process — the automated release train
 
-This is the turnkey guide to shipping a Project Looking Glass release. The whole
-lifecycle — milestone tracking, version derivation, release-candidate builds,
-release notes and the final publish — is automated by two GitHub Actions
-workflows plus a small, unit-tested shell library. **The only manual step is the
-approval gate: merging the `release/X.Y.Z` pull request.**
+This is the guide to shipping a Project Looking Glass release. Milestone
+tracking, version derivation and release notes are bookkept by two GitHub
+Actions workflows plus a small, unit-tested shell library — but **cutting a
+release is never automatic: the canonical path is the local `./make-release.sh`
+(section 10).** The train's `cut-rc` stage exists only as an explicit
+`workflow_dispatch` override for an operator who deliberately wants a hosted
+RC; a completed milestone is bookkeeping, not a release trigger.
 
 Everything here is driven by [Conventional Commits](https://www.conventionalcommits.org/)
 merged to `main`, so writing good commit/PR titles is what feeds the machine.
@@ -32,7 +34,7 @@ GitHub event.
 
 ---
 
-## 2. One-time setup (required for full automation)
+## 2. Optional setup (only for hand-driven train stages)
 
 Create a repository secret named **`RELEASE_PAT`**:
 
@@ -71,7 +73,7 @@ created by the workflows.
         │  sync-milestone        │   one open milestone, whose title is the
         │  (next version X.Y.Z)  │   next version derived from the commits
         └───────────┬────────────┘
-                    │  milestone has 0 open items and ≥1 closed
+                    │  operator dispatches action=cut-rc (never automatic)
                     ▼
         ┌────────────────────────┐   opens PR "Release X.Y.Z" on branch
         │  cut-rc                │   release/X.Y.Z (CHANGELOG dated, -dev
@@ -163,20 +165,21 @@ Both build the same `:lg3d-core:releaseBundle -PreleaseVersion=<v>` bundle
 
 | Job | Trigger | What it does |
 | --- | --- | --- |
-| `sync-milestone` | every train event | Derives the next version; ensures exactly **one** open milestone titled with it. Outputs `version`, `milestone`, `milestone_number`. |
-| `assign` | a PR is **merged** to `main` (not `release/*`, not `chore/bump*`) | Attaches that PR to the open milestone, then fires a `repository_dispatch: evaluate-release`. |
-| `cut-rc` | `evaluate-release` dispatch, daily schedule, an issue closed, or manual `cut-rc` | Gate: version resolvable, no existing `vX.Y.Z-rc.*` tag, no open `release/X.Y.Z` PR, and (unless `force`) the milestone is **complete** (0 open, ≥1 closed). Then creates `release/X.Y.Z`, runs `prepare-release.sh`, opens the *Release X.Y.Z* PR with the notes body + promotion checklist, and tags `vX.Y.Z-rc.1`. |
+| `sync-milestone` | every train event | Derives the next version; ensures exactly **one** open milestone titled with it — renaming a stale milestone title to the derived version so it cannot sit "complete" forever. Outputs `version`, `milestone`, `milestone_number`. |
+| `assign` | a PR is **merged** to `main` (not `release/*`, not `chore/bump*`) | Attaches that PR to the open milestone. It does NOT dispatch a release re-evaluation any more. |
+| `cut-rc` | **manual `cut-rc` dispatch only — never automatic** | Gate: version resolvable, no existing `vX.Y.Z-rc.*` tag, no open `release/X.Y.Z` PR, and (unless `force`) the milestone is **complete** (0 open, ≥1 closed). Then creates `release/X.Y.Z`, runs `prepare-release.sh`, opens the *Release X.Y.Z* PR with the notes body + promotion checklist, and tags `vX.Y.Z-rc.1`. |
 | `refresh-rc` | a **push** to an existing `release/**` branch (`created == false`) | Tags the next `rc.N+1` so updated branches rebuild. |
 | `promote` | the `release/*` PR is **merged** | Tags the final `vX.Y.Z` (→ `release.yml` publishes latest), closes the milestone, and opens the `chore: bump to <next>-dev` PR via `reopen-dev.sh`. |
 | `manual-reopen-dev` | manual `reopen-dev` | Re-opens the dev cycle by hand if the auto PR was skipped. |
 
 **Idempotency.** Every stage checks for existing tags/branches/PRs before acting,
-so a re-run (or the daily schedule) never creates duplicates.
+so a re-run never creates duplicates.
 
-**Race-free triggering.** The train does not rely on fragile event ordering. The
-`assign` job explicitly dispatches `evaluate-release`, and a **daily schedule**
-(`cron: '17 7 * * *'`) re-checks milestone completion as a safety net, so even if
-a dispatch is dropped (e.g. degraded mode) the RC still gets cut within a day.
+**No autonomous cutting.** The `assign` job used to dispatch `evaluate-release`
+and a daily schedule re-checked milestone completion as a safety net — both
+could cut an RC without a human deciding to ship anything. They are removed:
+the schedule now only keeps the milestone title in sync, and a release is cut
+exclusively by `./make-release.sh` or by an explicit `cut-rc` dispatch.
 
 ---
 
@@ -217,22 +220,30 @@ push and pull request.
 
 ---
 
-## 10. Shipping a release — the short version
+## 10. Shipping a release — the canonical path (`make-release.sh`)
 
 1. Merge feature/fix PRs to `main` as usual (Conventional Commit titles). The
-   train attaches each to the open milestone automatically.
-2. When the milestone is complete, the train opens the **Release X.Y.Z** PR and
-   publishes `vX.Y.Z-rc.1` as a pre-release. Smoke-test the RC bundle.
-3. Need another fix? Merge it into the `release/X.Y.Z` branch — the train tags
-   `rc.2` and rebuilds.
-4. **Merge the Release X.Y.Z PR** (the approval gate). The train tags `vX.Y.Z`,
-   `release.yml` publishes it as the latest release + `version.json`, the
-   milestone closes, and the `chore: bump to <next>-dev` PR opens.
-5. Merge the bump PR (or let it merge automatically per your policy) — the dev
-   cycle is re-opened and the train starts tracking the next version.
+   train attaches each to the open milestone as bookkeeping.
+2. Cut the release **locally**: `./make-release.sh <X.Y.Z>` bumps the four
+   canonical refs, dates the CHANGELOG and opens the `chore: bump version to
+   <X.Y.Z>` PR.
+3. **Merge the bump PR** — that merge is the approval gate. Then:
+   `git checkout main && git pull --ff-only` and
+   `./make-release.sh <X.Y.Z> --skip-bump --tag`. The annotated tag is pushed
+   with your real credentials, so `release.yml` fires: it builds, tests,
+   packages `lg3d-<X.Y.Z>.zip`, signs it when the signing secrets are set, and
+   publishes the GitHub Release + `version.json`.
+4. Re-open the dev cycle: a `chore: bump version to <next>-dev` PR branched off
+   `main` touching exactly the four version refs (the version-bump chore rule),
+   or the train's `reopen-dev` dispatch once a `RELEASE_PAT` exists.
 
-That is the entire process. Steps 1–4 require no commands; step 4 is a single
-click.
+Why local-first: without a `RELEASE_PAT` the train cannot open the release PR
+(GitHub forbids `GITHUB_TOKEN` from creating PRs) and a `GITHUB_TOKEN`-pushed
+tag does not fire `release.yml` (anti-recursion) — an auto-cut therefore stalls
+half-done and leaves orphan `release/X.Y.Z` branches behind. `make-release.sh`
+pushes with real credentials, so the one path that works end to end is also the
+only path. The train's `cut-rc`/`promote` stages stay available as explicit
+`workflow_dispatch` overrides for maintainers who have configured a PAT.
 
 ---
 
@@ -241,8 +252,8 @@ click.
 | Symptom | Cause / fix |
 | --- | --- |
 | RC tag pushed but no release published | `RELEASE_PAT` missing → the tag used `GITHUB_TOKEN` and `release.yml` did not fire. Add the secret, or run `release.yml` manually for that tag. |
-| No RC is ever cut | The milestone still has open items (the "right moment" gate). Close them, or run `cut-rc` with `force=true`. The daily schedule retries regardless. |
-| More than one open milestone | The train warns and uses the first. Close the extras so the version is unambiguous. |
+| No RC is ever cut | By design since the manual-cut fix: merges and schedules no longer cut anything. Ship with `./make-release.sh` (section 10), or dispatch `cut-rc` explicitly. |
+| More than one open milestone | The train warns and uses the first, renaming its title to the derived version. Close the extras so the version is unambiguous. |
 | `release/X.Y.Z` PR exists but no new RC | `refresh-rc` only fires on a **push to an existing** branch (`created == false`). Push a commit, or run `cut-rc` manually. |
 | Notes missing the PR appendix | `gh` was unauthenticated/offline at build time. The CHANGELOG section is still emitted; re-run once `RELEASE_PAT`/`gh` is available. |
 | Wrong next version | Version comes from commit types since the last **stable** tag. Check `bash scripts/release/next-version.sh`, or pass an explicit `version` override on dispatch. |

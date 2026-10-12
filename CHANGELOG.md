@@ -112,6 +112,19 @@ work to make it build and run on a current toolchain.
   (`BugReportDraftTest` 10, `BugReporterPanelTest` 7).
 
 ### Fixed
+- **The release train no longer cuts releases by itself** (`.github/workflows/release-train.yml`)
+  — a merge to `main` could complete the one open milestone and the train then auto-cut a
+  `release/X.Y.Z` branch without any human deciding to ship; with the `RELEASE_PAT` secret
+  absent the cut died halfway (the release PR cannot be created by `GITHUB_TOKEN`), leaving
+  orphan stale branches — three of them, `release/1.67.0`, `release/1.68.1` and
+  `release/1.69.0`, accumulated before this fix. The root confusion was a stale milestone
+  title (`1.28.0`, open since September, permanently "complete") that `sync-milestone` reused
+  without checking it against the derived version. Now `cut-rc` fires only on an explicit
+  `workflow_dispatch`, the merge-assign job no longer dispatches a release re-evaluation, the
+  daily schedule is bookkeeping only, and `sync-milestone` renames a drifted milestone title
+  to the derived version. The canonical release path is the local `./make-release.sh`, which
+  pushes the annotated tag with real credentials so `release.yml` actually publishes
+  — documented as such in [`docs/release-process.md`](docs/release-process.md).
 - **A class's construction counts its initialiser's parameters, not its fields**
   (`lg3d-mandela`, `vm/VM`) — `class Box { var v = 1 }` has one field and takes no
   argument, but the upper bound of the count was read off the declaration's field
