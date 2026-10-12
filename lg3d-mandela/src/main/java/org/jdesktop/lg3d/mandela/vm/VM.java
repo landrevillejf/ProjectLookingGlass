@@ -402,9 +402,6 @@ public final class VM implements Machine {
     }
 
     private static void checkArity(CompiledFunction function, int given) {
-        if (function.arity() < 0) {
-            return;
-        }
         if (given < function.minArgs()) {
             throw MandelaError.value("'" + describe(function) + "' needs at least "
                     + function.minArgs() + " argument(s); the call gave " + given);
@@ -433,11 +430,17 @@ public final class VM implements Machine {
         barrier = frame;
         driveDepth++;
         if (driveDepth > caps.maxDepth() / 2) {
+            // The depth the host has to be told about is the one that was reached,
+            // not the one the barrier is about to be restored to: a host tunes its
+            // budget against the number in the sentence, so reporting the outer
+            // depth would understate the recursion by one and point the reader at
+            // a budget that would have been enough.
+            int reached = driveDepth;
             barrier = outer;
             driveDepth = outerDepth;
             throw MandelaError.limit("the script has been calling back into the host"
-                    + " " + driveDepth + " deep without returning; a callback is"
-                    + " probably invoking itself");
+                    + " " + reached + " deep without returning (this host allows "
+                    + caps.maxDepth() / 2 + "); a callback is probably invoking itself");
         }
         try {
             loop();
@@ -1122,6 +1125,13 @@ public final class VM implements Machine {
      * <p>A synthesised initialiser ends by returning {@code this}, so entering its
      * frame is the whole construction and the instance reaches the stack through
      * the normal return path. A type with no initialiser at all is pushed here.</p>
+     *
+     * <p>The count a construction accepts is the count its <em>initialiser</em>
+     * takes, which is the declared parameter list. A declaration's field count is a
+     * different number: {@code class Box { var v = 1 }} has one field and no
+     * parameter, because a {@code var} is storage the body initialises rather than a
+     * slot a caller fills. Asking the initialiser also keeps a refusal on the name
+     * the author wrote rather than on the internal {@code init}.</p>
      */
     private void construct(MandelaClass declared, Object[] args, String[] names) {
         if (declared.kind() == MandelaClass.Kind.ENUM) {
@@ -1129,15 +1139,16 @@ public final class VM implements Machine {
                     + " constants are already built, so it cannot be constructed");
         }
         Object[] positional = (names == null) ? args : position(declared, args, names);
-        if (positional.length < declared.arity() || positional.length > declared.declaredArity()) {
+        Callable init = declared.lookup("init");
+        int accepts = (init == null) ? declared.fieldNames().size() : init.arity();
+        if (positional.length < declared.arity() || positional.length > accepts) {
             throw MandelaError.value("'" + declared.name() + "' takes"
-                    + " " + declared.declaredArity() + " argument(s)"
-                    + (declared.arity() == declared.declaredArity() ? ""
+                    + " " + accepts + " argument(s)"
+                    + (declared.arity() == accepts ? ""
                             : " (as few as " + declared.arity() + " with defaults)")
                     + "; the call gave " + positional.length);
         }
         MandelaInstance instance = new MandelaInstance(declared);
-        Callable init = declared.lookup("init");
         if (init == null) {
             if (positional.length > 0) {
                 throw MandelaError.value("'" + declared.name() + "' takes no arguments");
@@ -1158,7 +1169,10 @@ public final class VM implements Machine {
      *
      * <p>Names are matched against the declared fields, so an argument left out
      * lands as {@link Values#ABSENT} and the body's default expression fills it
-     * exactly as a short positional call would.</p>
+     * exactly as a short positional call would. A field with no default cannot be
+     * left out, however, and naming a later field must not be allowed to widen the
+     * list past it: the hole would arrive as the machine's own absent marker, a
+     * value no script can name, compare or print as anything but {@code <absent>}.</p>
      */
     private static Object[] position(MandelaClass declared, Object[] args, String[] names) {
         if (names.length != args.length) {
@@ -1184,6 +1198,15 @@ public final class VM implements Machine {
                 positional = widened;
             }
             positional[at] = args[i];
+        }
+        // The required fields are the first `arity()` of the declaration, in the
+        // order it declared them, so a named call has to reach each of them.
+        for (int i = 0; i < declared.arity() && i < fields.size(); i++) {
+            if (i >= positional.length || positional[i] == Values.ABSENT) {
+                throw MandelaError.value("'" + declared.name() + "' has no value for '"
+                        + fields.get(i) + "', which is required and has no default;"
+                        + " a named call cannot skip it");
+            }
         }
         return positional;
     }

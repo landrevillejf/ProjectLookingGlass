@@ -10,6 +10,18 @@ work to make it build and run on a current toolchain.
 ## [Unreleased]
 
 ### Fixed
+- **A class's construction counts its initialiser's parameters, not its fields**
+  (`lg3d-mandela`, `vm/VM`) — `class Box { var v = 1 }` has one field and takes no
+  argument, but the upper bound of the count was read off the declaration's field
+  list, so `Box(42)` was accepted and overwrote the body's default. The refusal now
+  names the count the author wrote, and a named call that leaves a required field
+  with no default as a hole is refused on that field's name instead of handing the
+  machine's own `<absent>` marker to the body. Pinned by `MachineDispatchTest`.
+- **The host re-entrancy limit reports the depth that was reached**
+  (`lg3d-mandela`, `vm/VM`) — the sentence was built after the counter was restored
+  to the outer frame, so it understated the recursion by one and pointed a host
+  tuning its budget at a number that would have been enough; the allowed budget is
+  now named in the message too. Pinned by `MachineHostTest`.
 - **An `Int` operation that overflows promotes to `Double` instead of answering with
   its left operand** (`lg3d-mandela`, `values/Operators`) — the promotion branch had
   been written as an expression that cancelled the right-hand side away, so
