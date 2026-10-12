@@ -27,6 +27,14 @@ public interface MessageChannel {
 
     ResponseMessage sendAndWait(CellMessage message) throws InterruptedException;
 
+    /**
+     * M2e reconciliation: the receive side the real ChannelComponent always
+     * had. CellChannelConnection delivers an inbound CellMessage here and the
+     * component dispatches it to the receiver registered for its exact class
+     * (the 2006 ChannelComponent.messageReceived contract, verbatim).
+     */
+    void messageReceived(CellMessage message);
+
     interface MessageReceiver {
         void messageReceived(CellMessage message);
     }

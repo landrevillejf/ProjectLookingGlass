@@ -14,6 +14,10 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import org.jdesktop.wonderland.client.cell.annotation.UsesCellComponent;
 import org.jdesktop.wonderland.common.cell.ComponentLookupClass;
 import org.jdesktop.wonderland.common.cell.CellID;
@@ -65,6 +69,18 @@ class CellTestFixtures {
             }
             return response;
         }
+
+        /** M2e: dispatch mirrors the real ChannelComponent's exact-class map. */
+        @Override
+        public void messageReceived(CellMessage message) {
+            received.add(message);
+            MessageReceiver receiver = registered.get(message.getClass());
+            if (receiver != null) {
+                receiver.messageReceived(message);
+            }
+        }
+
+        final List<CellMessage> received = new ArrayList<>();
     }
 
     static class RecordingComponent extends CellComponent {
@@ -290,5 +306,41 @@ class CellTestFixtures {
         CellTransform t = new CellTransform();
         t.setTranslation(new com.jme.math.Vector3f(x, y, z));
         return t;
+    }
+
+    /**
+     * Runs a body with the owner's logger pinned to {@code level} and returns
+     * the records of that level it published. Doubles as the way to exercise
+     * the isLoggable-guarded FINE/FINEST branches verbatim ported from 2006.
+     */
+    static List<LogRecord> capture(Class<?> owner, Level level, Runnable body) {
+        Logger lg = Logger.getLogger(owner.getName());
+        List<LogRecord> seen = new ArrayList<>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                if (record.getLevel() == level) {
+                    seen.add(record);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        Level old = lg.getLevel();
+        lg.setLevel(Level.ALL);
+        lg.addHandler(handler);
+        try {
+            body.run();
+        } finally {
+            lg.removeHandler(handler);
+            lg.setLevel(old);
+        }
+        return seen;
     }
 }

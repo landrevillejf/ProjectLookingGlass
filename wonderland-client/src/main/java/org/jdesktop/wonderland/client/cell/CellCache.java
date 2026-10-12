@@ -8,16 +8,17 @@
  * M2d seam note (docs/wonderland-migration.md, "rebuild the unrecoverable"):
  * the 2006 interface named three types that cannot exist headless --
  *   - WonderlandSession getSession()  (pulls the SGS SimpleClient) is dropped;
- *     the concrete cache holds a MessageChannel seam for the one place the
+ *     the concrete cache holds a MessageSink seam for the one place the
  *     original reached for the session (a CellReparentMessage when a parent is
  *     missing), so the registry needs no session to run or to be tested.
  *   - ViewCell setViewCell()/getViewCell() (the camera/avatar cell, whose
  *     setStatus pulls CellClientSession + MovableComponent) is reduced to a
  *     boolean "has view" notion on the impl; ViewCell itself lands with the
- *     renderer milestone (M2e).
- *   - CellChannelConnection getCellChannelConnection() (the comms transport,
- *     M3) is dropped.
- * Everything else is the original surface, verbatim.
+ *     renderer milestone (M2f).
+ * getCellChannelConnection() was dropped with the rest in the M2d note, but
+ * M2e restores it: the connection layer arrived and the 2006 ChannelComponent
+ * ctor resolves its transport through exactly this accessor, so that member is
+ * back to the original. Everything else is the original surface, verbatim.
  */
 package org.jdesktop.wonderland.client.cell;
 
@@ -34,6 +35,9 @@ public interface CellCache {
     Cell[] getCells();
 
     EnvironmentCell getEnvironmentCell();
+
+    /** M2e: the per-cell message transport the loaded ChannelComponent rides. */
+    CellChannelConnection getCellChannelConnection();
 
     Collection<Cell> getRootCells();
 

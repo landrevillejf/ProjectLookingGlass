@@ -10,6 +10,36 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland connection/session layer lands, headless**
+  (`wonderland-client`, `src/main/java/…/client/comms/` +
+  `src/main/java/…/client/cell/`, `src/test/java/…/comms/`) — M2e, the fifth
+  increment of the M2 milestone. `BaseConnection` (the status pair, the
+  `Not connected` send guard, the request-reply routing that consumes a
+  `ResponseMessage` for a waiting listener before `handleMessage` ever sees
+  it) over a seam-reduced `WonderlandSession` interface — the SGS login
+  surface is **dropped, not stubbed**, and rebuilt on the M3 Spring session.
+  The three cell connections land as the 2006 protocol machine, verbatim
+  quirks and all: `CellCacheConnection` fans hierarchy messages out to the
+  cache (including the documented `DELETE_CELL` fall-through) and registers
+  the `ClientView` with the server on connect; `CellChannelConnection`
+  demultiplexes inbound `CellMessage`s through a per-cell delivery that
+  **queues before the receiver exists and flushes when the cell walks
+  through `ACTIVE`**, with the original Noop-receiver blinds and the
+  scheduled unload drop; `CellEditChannelConnection` is the typed edit front
+  and makes M2d's `MessageSink` seam real — the cache's reparent requests now
+  ride the edit channel. `ChannelComponent` lands as the loaded cell's actual
+  `MessageChannel` (the receiver-map contract, the wrong-`CellID` SEVERE, the
+  fill-in-your-own-id send), and `CellClientSession` wires the whole machine
+  — tested end-to-end against an in-JVM **loopback `WonderlandSession`** (the
+  M3 endpoint's stand-in): view registration over `sendAndWait`, hierarchy
+  `LOAD` → cache → real channel → inbound message reaches the cell's
+  receiver, missing-parent `LOAD` → `CellReparentMessage` out of the edit
+  connection. **53 new headless cases** (131 total), so
+  [`coverageFloors[wonderland-client]`](build.gradle) rises to
+  `[line: 0.975, branch: 0.945]` (measured 98.06 % / 95.15 %); the residue is
+  the renderer paths a headless JVM cannot run and the `ViewCell` / avatar
+  branches that arrive with **M2f**. Still **no** `lg3d-core` / Java 3D
+  import.
 - **The Wonderland cell cache registry lands, headless**
   (`wonderland-client`, `src/main/java/…/client/cell/`,
   `src/test/java/…/cell/`) — M2d, the fourth increment of the M2 milestone.
