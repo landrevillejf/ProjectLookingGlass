@@ -1,7 +1,14 @@
 name: Release train
 
-# Fully automated release lifecycle for the lg3d desktop: milestones, release
-# candidates and the final release, with generated notes -- a turnkey pipeline.
+# Release lifecycle bookkeeping for the lg3d desktop: milestones, merged-PR
+# attribution, generated notes and optional hand-driven RC cuts. Cutting a
+# release is NOT automated: the canonical path is the local ./make-release.sh
+# (see docs/release-process.md section 10), which pushes the annotated tag with
+# the developer's real credentials so release.yml fires. This workflow only
+# (a) keeps the single open milestone in sync and (b) offers cut-rc/promote/
+# reopen-dev as explicit workflow_dispatch stages for operators who want a
+# hosted RC instead of the local cut. Nothing here may open a release PR,
+# push a tag or publish a release on its own.
 #
 # DESIGN (see docs/release-process.md for the full guide):
 #
@@ -9,11 +16,13 @@ name: Release train
 #     version derived from the Conventional Commits merged since the last stable
 #     tag (feat -> minor, fix -> patch, BREAKING -> major). `sync-milestone`
 #     creates/keeps it; `assign` attaches every PR merged to main to it.
-#   * When that milestone is COMPLETE (no open items, at least one closed), CI
-#     auto-cuts a release candidate: it opens a `release/X.Y.Z` PR that dates the
-#     CHANGELOG and de-`-dev`s the four version refs, then pushes `vX.Y.Z-rc.N`.
-#     release.yml builds that tag and publishes a GitHub PRE-RELEASE (which never
-#     becomes releases/latest, so the update-manager is untouched by an RC).
+#   * `cut-rc` runs ONLY on an explicit workflow_dispatch (action=cut-rc). It
+#     never fires from a schedule, a merge, a closed issue or a dispatch: a
+#     completed milestone is bookkeeping, not a release trigger. When driven by
+#     hand it opens a `release/X.Y.Z` PR that dates the CHANGELOG and de-`-dev`s
+#     the four version refs, then pushes `vX.Y.Z-rc.N`; release.yml builds that
+#     tag and publishes a GitHub PRE-RELEASE (which never becomes
+#     releases/latest, so the update-manager is untouched by an RC).
 #   * Pushing more commits to the `release/X.Y.Z` branch re-cuts `rc.N+1`.
 #   * THE ONE MANUAL STEP (the approval gate): merging the `release/X.Y.Z` PR.
 #     `promote` then tags the final `vX.Y.Z` (release.yml publishes it as the
@@ -34,7 +43,7 @@ name: Release train
 
 on:
   schedule:
-    - cron: '17 7 * * *'          # daily safety net: re-check milestone completion
+    - cron: '17 7 * * *'          # daily milestone bookkeeping; cannot cut anything
   workflow_dispatch:
     inputs:
       action:
@@ -55,10 +64,6 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
-  issues:
-    types: [closed]
-  repository_dispatch:
-    types: [evaluate-release]
   push:
     branches: ['release/**']
 
@@ -125,7 +130,17 @@ jobs:
           if [ "$COUNT" -ge 1 ]; then
             NUM="$(printf '%s' "$OPEN" | head -1 | cut -f1)"
             TITLE="$(printf '%s' "$OPEN" | head -1 | cut -f2)"
-            echo "Using existing open milestone #$NUM '$TITLE'."
+            if [ "$TITLE" != "$V" ]; then
+              # The open milestone must carry the DERIVED version. Without this
+              # rename a stale title (e.g. '1.28.0' kept open since September)
+              # stayed permanently "complete" and misled every later cut; that
+              # drift is what this branch fixes.
+              gh api -X PATCH "repos/${REPO}/milestones/${NUM}" -f title="$V" >/dev/null
+              echo "Renamed open milestone #$NUM '$TITLE' -> '$V' (title tracks the derived version)."
+              TITLE="$V"
+            else
+              echo "Using existing open milestone #$NUM '$TITLE'."
+            fi
           else
             TITLE="$V"
             NUM="$(gh api "repos/${REPO}/milestones" -X POST \
@@ -138,8 +153,10 @@ jobs:
           echo "number=$NUM" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # Attach every PR merged to main to the open milestone, then ask for a release
-  # re-evaluation. Skips the pipeline's own release/* and chore/* PRs.
+  # Attach every PR merged to main to the open milestone. Deliberately does NOT
+  # dispatch evaluate-release any more: a merge is bookkeeping, and only an
+  # operator decides when a release is cut (./make-release.sh or action=cut-rc).
+  # Skips the pipeline's own release/* and chore/* PRs.
   # ---------------------------------------------------------------------------
   assign:
     name: Assign merged PR to the milestone
@@ -151,7 +168,7 @@ jobs:
       !startsWith(github.event.pull_request.head.ref, 'release/') &&
       !startsWith(github.event.pull_request.head.ref, 'chore/bump')
     steps:
-      - name: Assign + re-evaluate
+      - name: Assign merged PR to the milestone
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -163,25 +180,15 @@ jobs:
               && echo "Assigned PR #$PR to milestone '$MILESTONE'." \
               || echo "::warning::Could not assign PR #$PR to '$MILESTONE'."
           fi
-          # Ask cut-rc to re-check completion. With RELEASE_PAT this fires the
-          # run; with a bare GITHUB_TOKEN it will not (anti-recursion) and the
-          # daily schedule covers it instead.
-          gh api "repos/${REPO}/dispatches" -X POST -f event_type=evaluate-release \
-            && echo "Dispatched evaluate-release." \
-            || echo "::warning::repository_dispatch failed; the daily schedule will re-evaluate."
 
   # ---------------------------------------------------------------------------
-  # Cut a release candidate when the milestone is complete (or on demand).
+  # Cut a release candidate on explicit operator dispatch only. NEVER automatic.
   # ---------------------------------------------------------------------------
   cut-rc:
     name: Cut a release candidate
     runs-on: ubuntu-latest
     needs: sync-milestone
-    if: >
-      (github.event_name == 'repository_dispatch' && github.event.action == 'evaluate-release') ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'issues' && github.event.action == 'closed') ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'cut-rc')
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'cut-rc'
     steps:
       - uses: actions/checkout@v4
         with:
