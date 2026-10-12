@@ -84,6 +84,17 @@ final class Scripts {
     }
 
     /**
+     * Runs one program with host names bound and returns its answer as text.
+     *
+     * @param source   the program
+     * @param bindings the names it may read
+     * @return the displayed value, {@code "null"} for no value
+     */
+    static String display(String source, Map<String, Object> bindings) {
+        return Values.display(run(source, bindings));
+    }
+
+    /**
      * An engine the caller keeps, so a multi-statement scenario (a setup run and
      * then a call) can share one set of names.
      *
@@ -141,6 +152,18 @@ final class Scripts {
      */
     static MandelaError failure(String source, Runtime.Builder builder) {
         return failure(() -> builder.build().run(source, "test.mnd"));
+    }
+
+    /**
+     * Runs a program with host names bound that is expected to fail.
+     *
+     * @param source   the program
+     * @param bindings the names it may read
+     * @return the error the script raised
+     * @throws AssertionError when the program finished, which is the bug
+     */
+    static MandelaError failure(String source, Map<String, Object> bindings) {
+        return failure(() -> run(source, bindings));
     }
 
     /**

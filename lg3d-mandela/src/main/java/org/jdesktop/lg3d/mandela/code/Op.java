@@ -41,8 +41,6 @@ public enum Op {
     POP,
     /** Duplicate the top value. */
     DUP,
-    /** Push the enclosing instance ({@code this}); arg is the slot holding it. */
-    LOAD_THIS,
 
     // -- variables ----------------------------------------------------------
 
@@ -128,8 +126,6 @@ public enum Op {
     JMP_IF_TRUE,
     /** Pop and jump to {@code arg} when the value is not null. */
     JMP_IF_NOT_NULL,
-    /** Pop and jump to {@code arg} when the value is null. */
-    JMP_IF_NULL,
 
     // -- functions ----------------------------------------------------------
 
@@ -189,8 +185,6 @@ public enum Op {
      * unchangeable afterwards.
      */
     INIT_FIELD,
-    /** Length of a string, list, map, range or instance. */
-    LENGTH,
 
     // -- iteration ----------------------------------------------------------
 
@@ -231,10 +225,6 @@ public enum Op {
     POP_HANDLERS,
     /** Push the top closure onto the frame's defer list. */
     ADD_DEFER,
-    /** Run and clear the frame's defer list (unwinding an error). */
-    RUN_DEFERS,
-    /** Stop the machine and hand {@code arg}'s value back to the host. */
-    HALT,
 
     /** Assert-free no-op kept for the debugger and for padding. */
     NOOP;
@@ -265,7 +255,6 @@ public enum Op {
             case GET_LOCAL_BOX:
             case SET_LOCAL_BOX:
             case CAPTURE_LOCAL:
-            case LOAD_THIS:
                 return "slot";
             case GET_UPVALUE:
             case SET_UPVALUE:
@@ -287,7 +276,6 @@ public enum Op {
             case JMP_IF_FALSE:
             case JMP_IF_TRUE:
             case JMP_IF_NOT_NULL:
-            case JMP_IF_NULL:
             case ENTER_TRY:
                 return "target";
             case CALL:

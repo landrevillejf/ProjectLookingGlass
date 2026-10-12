@@ -98,7 +98,7 @@ subprojects {
         'update-manager': [line: 0.550, branch: 0.500],  // measured 56.35% / 51.54%
         'db-manager'    : [line: 0.620, branch: 0.570],  // measured 63.36% / 58.51% (model+jdbc+session ~full via real H2/SQLite; the Swing ui layer is construction/probe-tested)
         'ftp-client'    : [line: 0.600, branch: 0.520],  // measured 61.96% / 54.84% (model+net+session ~full via in-JVM MockFtpServer + mocked JSch; the Swing ui layer is construction/probe-tested)
-        'lg3d-mandela'  : [line: 0.890, branch: 0.780],  // measured 89.30% / 78.95% (JUnit unit suites + Cucumber BDD; org.jdesktop.lg3d.mandela.values is at every line covered, rt/StandardLibrary and rt/Json likewise -- the language toolchain's goal remains 100% line/branch and 0 surviving mutants per lg3d-mandela/AGENTS.md, and this floor is raised as each package closes)
+        'lg3d-mandela'  : [line: 0.905, branch: 0.800],  // measured 91.19% / 81.18% (JUnit unit suites + Cucumber BDD + the Machine* suites that address the VM in its own instruction set; org.jdesktop.lg3d.mandela.values is at every line covered, rt/StandardLibrary and rt/Json likewise -- the language toolchain's goal remains 100% line/branch and 0 surviving mutants per lg3d-mandela/AGENTS.md, and this floor is raised as each package closes)
     ]
     def floor = coverageFloors[project.name]
     if (floor != null) {
