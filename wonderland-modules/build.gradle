@@ -1,0 +1,4 @@
+// wonderland-modules: the plugin layer replacing the NetBeans module system and
+// scannotation class scanning. Scaffolded in M0; populated in milestone M4.
+// Intended deps: implementation project(':wonderland-client')
+jar { archiveBaseName = 'wonderland-modules' }

@@ -1,0 +1,6 @@
+// wonderland-client: the Java 3D renderer + cell/comms client. Scaffolded in M0;
+// its sources land in milestone M1/M2 (port client/cell + client/jme onto Jogamp
+// org.jogamp.java3d, and depend on wonderland-common + lg3d-core). Intended deps:
+//   implementation project(':wonderland-common')
+//   api project(':lg3d-core')   // brings the migrated Jogamp java3d + vecmath
+jar { archiveBaseName = 'wonderland-client' }

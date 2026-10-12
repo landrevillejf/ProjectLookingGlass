@@ -1,0 +1,51 @@
+// wonderland-common: the shared OpenWonderland data model -- cells, transforms,
+// bounding volumes, the comms message types and the server-state model. Decompiled
+// from the 2006-era wonderland-common.jar and rewritten for JDK 21 + Jogamp.
+//
+// It is a plain Java library with NO lg3d-core dependency and no display: it
+// compiles against vecmath + JAXB only, so it builds and tests headless. The
+// toolchain (JDK 21), UTF-8 encoding, build-gradle output directory, checkstyle
+// (report-only) and jacoco are inherited from the root build.gradle subprojects
+// block. The Maven-standard source layout (src/main/java, src/test/java) is used.
+//
+// Replacements applied in this module (see docs/wonderland-migration.md):
+//   - javax.vecmath.*            -> org.jogamp.vecmath.*   (house Java 3D migration)
+//   - javax.xml.bind.*           -> kept, supplied by the JAXB 2.3.x API (removed
+//                                   from the JDK in Java 11) + the Glassfish RI at runtime
+//   - com.jme.math/bounding/...  -> in-tree org.jdesktop.lg3d shim under com.jme.*
+//                                   (jMonkeyEngine was fetched over Java Web Start and
+//                                   is NOT in the bundle, so its math/bounding surface is
+//                                   reimplemented on plain float math and pinned by tests)
+//   - org.scannotation + sun.misc.Service -> Reflections + java.util.ServiceLoader
+
+jar {
+    archiveBaseName = 'wonderland-common'
+}
+
+dependencies {
+    // vecmath replaces the legacy javax.vecmath imports the decompiled transforms use.
+    api libs.vecmath
+
+    // JAXB 2.3.x is the last release that keeps the `javax.xml.bind` package name the
+    // decompiled @XmlRootElement model / XmlAdapter classes import. It was removed from
+    // the JDK in Java 11, so the API is a compile dependency and the RI a runtime one.
+    api 'jakarta.xml.bind:jakarta.xml.bind-api:2.3.3'
+    runtimeOnly 'org.glassfish.jaxb:jaxb-runtime:2.3.9'
+
+    // ScannedClassLoader rebuilds the original scannotation @ServerState class scan on
+    // Reflections (scannotation is dead and does not read modern class files).
+    implementation 'org.reflections:reflections:0.10.2'
+
+    // Headless JUnit 5 + AssertJ back the module's test suite (geometry + round-trip).
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+    // JAXB marshalling round-trip tests need the RI on the test runtime classpath.
+    testRuntimeOnly 'org.glassfish.jaxb:jaxb-runtime:2.3.9'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}
