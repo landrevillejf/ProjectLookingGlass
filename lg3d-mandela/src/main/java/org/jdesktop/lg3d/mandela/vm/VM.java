@@ -551,7 +551,10 @@ public final class VM implements Machine {
 
     /** Executes instructions until the barrier frame returns or the chain empties. */
     private void dispatch() {
-        while (current != null) {
+        // The loop has exactly one way out: the barrier frame returning, which the
+        // {@code RETURN} cases take with a {@code return}. Nothing else can empty
+        // the chain from inside a dispatch, so the test is not made twice.
+        while (true) {
             Frame frame = current;
             int[] code = frame.function.code();
             int ip = frame.ip;
@@ -572,9 +575,6 @@ public final class VM implements Machine {
                     break;
                 case DUP:
                     push(peek());
-                    break;
-                case LOAD_THIS:
-                    push(frame.slots[arg]);
                     break;
                 case GET_LOCAL:
                     push(frame.slots[arg]);
@@ -684,11 +684,6 @@ public final class VM implements Machine {
                         frame.ip = arg;
                     }
                     break;
-                case JMP_IF_NULL:
-                    if (pop() == null) {
-                        frame.ip = arg;
-                    }
-                    break;
                 case IS_ABSENT:
                     push(Values.isAbsent(pop()));
                     break;
@@ -760,9 +755,6 @@ public final class VM implements Machine {
                     initField(target, (String) constants[arg], value);
                     break;
                 }
-                case LENGTH:
-                    push(Operators.length(pop()));
-                    break;
                 case NEW_ITER:
                     push(MandelaIterator.of(pop()));
                     break;
@@ -807,15 +799,6 @@ public final class VM implements Machine {
                     break;
                 case ADD_DEFER:
                     frame.addDefer((MandelaClosure) pop());
-                    break;
-                case RUN_DEFERS:
-                    runDefers(frame);
-                    break;
-                case HALT:
-                    // The host's own stop button: retire the value on top and end
-                    // this run, which is what a debugger's "finish frame" needs.
-                    lastReturn = (sp > 0) ? pop() : null;
-                    current = null;
                     break;
                 case NOOP:
                 default:
