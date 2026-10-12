@@ -10,6 +10,20 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A published history of the language** (`lg3d-mandela/docs/HISTORY.md`, mirrored on
+  the GitHub Pages site as `documentation/mandela/docs/HISTORY.md`) — the module told
+  you what Mandela is and how it is built, and never once why it is called *Mandela*,
+  who made it, or when any of it arrived. The new page answers all three: the homage to
+  Nelson Mandela stated as the record has it (imprisoned from 1962 until his release on
+  11 February 1990, president 1994–1999, died 5 December 2013 — he did **not** die in
+  prison, which is the telling this page exists to correct), the creator attribution to
+  Jean-François Landreville publishing as Dr. Land Evil, the four reasons a language of
+  its own was written rather than bought, and a dated milestone table read out of
+  `git log` — the module landing whole in one commit on 2026-10-10, then the scripts,
+  the guides, the BDD suite, the defect campaign and the eight gates. The module's copy
+  is canonical and the site copy is its mirror with the links that leave
+  `documentation/` made absolute, exactly as the other four guides are; both indexes
+  link it and the portal gained a card in each language.
 - **The Help Center now writes its own What's New page from the CHANGELOG**
   (`lg3d-apps`, `org.jdesktop.lg3d.apps.help` + `scripts/mandela/`) — the built-in JavaHelp
   guide used to say only what a person remembered to write into a topic, so it went stale on

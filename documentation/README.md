@@ -29,7 +29,8 @@ documentation/
 │       ├── README.md            # Language overview (index)
 │       ├── ARCHITECTURE.md      # Module architecture & design decisions
 │       ├── DEVELOPMENT.md       # Contributor guide (build, test, CLI)
-│       └── FUNCTIONAL_ANALYSIS.md # Functional requirements & VM instruction set
+│       ├── FUNCTIONAL_ANALYSIS.md # Functional requirements & VM instruction set
+│       └── HISTORY.md           # Why the name, the author, the milestone record
 ├── en/                          # English documentation / Documentation en anglais
 │   ├── diagrams/
 │   │   ├── architecture-overview.md    # Architecture diagrams
@@ -107,6 +108,9 @@ guides; the full language reference and the embedding API live in the repository
 - **[Architecture](mandela/docs/ARCHITECTURE.md)** - Internal architecture, package structure and design decisions
 - **[Development Guide](mandela/docs/DEVELOPMENT.md)** - Contributor guide: build, test, tooling and coding standards
 - **[Functional Analysis](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases and the VM instruction set
+- **[History of the Language](mandela/docs/HISTORY.md)** - Why the name honours Nelson Mandela, who created it, and the dated record of how it landed
+
+> `HISTORY.md` is the published copy of [`lg3d-mandela/docs/HISTORY.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/docs/HISTORY.md).
 
 > The published copies under `documentation/mandela/docs/` mirror the module guides
 > in `lg3d-mandela/docs/`. When a module guide changes, refresh the copy and keep the
