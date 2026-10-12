@@ -10,6 +10,35 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A published page demonstrating the language in everyday use**
+  (`lg3d-mandela/docs/USAGE.md`, mirrored on the GitHub Pages site as
+  `documentation/mandela/docs/USAGE.md`) — the module had a reference, an
+  architecture and a history, and nothing that answered *what do I write this in
+  for, on a Tuesday*. The new page is a demonstration rather than a manual, and
+  every block of it was executed rather than recalled: one ~80-line program that
+  does what almost every desktop script does (**walk** a tree with `fs.list` +
+  `fs.isDirectory`, **scan** the text it found with `indexOf`/`substring` in a
+  loop, **classify** with a `match` expression, **answer** through
+  `json.stringify`) followed by the CLI's real output, which shows 10 shipped
+  programs, the 8 wired gate tasks, and the security model in a single JSON field
+  — the script could read the tree but `env.get` came back
+  `refused by the host (PermissionError)`. A table then puts the four hosts
+  side by side with what each actually grants, read out of the code that builds
+  the engine: the CLI's `desktop(root)` at 50 M steps, Espresso's
+  `mandela-run`/`-check`/`-bytecode`/template actions on the `console()` profile
+  (no files at all — an unsaved buffer is not a sandbox), the browser's
+  `webPage()` at 5 M steps with `page`/`inject`/`note` bound and `println`
+  *bound* to the browser log rather than granted, and any JVM through the facade
+  or JSR-223. The page also documents what the host accepts instead of a regular
+  expression — the `// @match` glob is `*`, `?` and literals, translated by the
+  host — closes with the four rules a first script learns (`-s DIR`, an
+  immutable `let`, `+` refusing `Str` + number, and `Str.indexOf` taking one
+  argument), and reproduces real `check`, `dump` and runaway-`eval` transcripts
+  with the exit codes a build can branch on. The site copy is the module copy's
+  mirror with the links that leave `documentation/` made absolute, both module
+  indexes and the site READMEs list it, and the portal gained a card in each
+  language; the two stale "VM instruction set" blurbs in the site README were
+  corrected on the way past, since no guide in the tree contains one.
 - **A published history of the language** (`lg3d-mandela/docs/HISTORY.md`, mirrored on
   the GitHub Pages site as `documentation/mandela/docs/HISTORY.md`) — the module told
   you what Mandela is and how it is built, and never once why it is called *Mandela*,

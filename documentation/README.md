@@ -29,8 +29,9 @@ documentation/
 │       ├── README.md            # Language overview (index)
 │       ├── ARCHITECTURE.md      # Module architecture & design decisions
 │       ├── DEVELOPMENT.md       # Contributor guide (build, test, CLI)
-│       ├── FUNCTIONAL_ANALYSIS.md # Functional requirements & VM instruction set
-│       └── HISTORY.md           # Why the name, the author, the milestone record
+│       ├── FUNCTIONAL_ANALYSIS.md # Functional requirements & use cases
+│       ├── HISTORY.md           # Why the name, the author, the milestone record
+│       └── USAGE.md             # The language in daily use, with real transcripts
 ├── en/                          # English documentation / Documentation en anglais
 │   ├── diagrams/
 │   │   ├── architecture-overview.md    # Architecture diagrams
@@ -107,10 +108,13 @@ guides; the full language reference and the embedding API live in the repository
 - **[Mandela Overview](mandela/docs/README.md)** - What Mandela is, its module structure, security model and quick start
 - **[Architecture](mandela/docs/ARCHITECTURE.md)** - Internal architecture, package structure and design decisions
 - **[Development Guide](mandela/docs/DEVELOPMENT.md)** - Contributor guide: build, test, tooling and coding standards
-- **[Functional Analysis](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases and the VM instruction set
+- **[Functional Analysis](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases and specifications
 - **[History of the Language](mandela/docs/HISTORY.md)** - Why the name honours Nelson Mandela, who created it, and the dated record of how it landed
+- **[Mandela at Work](mandela/docs/USAGE.md)** - The language in daily use: one program that walks, scans, classifies and answers, the four hosts that run it, and transcripts of the real tools
 
-> `HISTORY.md` is the published copy of [`lg3d-mandela/docs/HISTORY.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/docs/HISTORY.md).
+> `HISTORY.md` and `USAGE.md` are the published copies of
+> [`lg3d-mandela/docs/HISTORY.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/docs/HISTORY.md)
+> and [`lg3d-mandela/docs/USAGE.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/docs/USAGE.md).
 
 > The published copies under `documentation/mandela/docs/` mirror the module guides
 > in `lg3d-mandela/docs/`. When a module guide changes, refresh the copy and keep the
@@ -127,7 +131,9 @@ complète du langage et l'API d'intégration se trouvent dans le répertoire
 - **[Aperçu Mandela](mandela/docs/README.md)** - Ce qu'est Mandela, sa structure de modules, son modèle de sécurité et son démarrage rapide
 - **[Architecture](mandela/docs/ARCHITECTURE.md)** - Architecture interne, structure des paquets et décisions de conception
 - **[Guide de développement](mandela/docs/DEVELOPMENT.md)** - Guide contributeur : build, test, outillage et normes de code
-- **[Analyse fonctionnelle](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Exigences fonctionnelles, cas d'utilisation et jeu d'instructions de la VM
+- **[Analyse fonctionnelle](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Exigences fonctionnelles, cas d'utilisation et spécifications
+- **[Histoire du langage](mandela/docs/HISTORY.md)** - Pourquoi le nom honore Nelson Mandela, qui l'a créé, et le journal daté de son arrivée (Anglais uniquement / English only)
+- **[Mandela au travail](mandela/docs/USAGE.md)** - Le langage dans son usage quotidien : un programme qui parcourt, analyse, classe et répond, les quatre hôtes qui l'exécutent, et de vrais journaux des outils (Anglais uniquement / English only)
 
 ## API Documentation
 

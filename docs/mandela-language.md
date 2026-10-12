@@ -10,7 +10,10 @@ or give Espresso an outline of what you are typing — and the same engine that
 runs it sits inside those applications as a jar on the classpath.
 
 This guide is the language reference. For embedding the engine in Java or
-Kotlin, see [mandela-embedding-api.md](mandela-embedding-api.md).
+Kotlin, see [mandela-embedding-api.md](mandela-embedding-api.md). To see the
+vocabulary below assembled into programs that run in the desktop, with the
+grants each host really hands out, see
+[Mandela at Work](../lg3d-mandela/docs/USAGE.md).
 
 - **Module:** `lg3d-mandela` (`org.jdesktop.lg3d:lg3d-mandela`)
 - **Packages:** `lang` (lexer, parser, AST, diagnostics) · `code` (compiler,
