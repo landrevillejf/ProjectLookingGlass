@@ -62,6 +62,25 @@ public class BoundingBox extends BoundingVolume {
     }
 
     @Override
+    protected void mergeLocalInto(BoundingVolume toMerge) {
+        if (!(toMerge instanceof BoundingBox)) {
+            throw new IllegalArgumentException("Cannot merge " + toMerge.getClass().getName()
+                    + " into a BoundingBox");
+        }
+        BoundingBox other = (BoundingBox) toMerge;
+        float minX = Math.min(center.x - xExtent, other.center.x - other.xExtent);
+        float minY = Math.min(center.y - yExtent, other.center.y - other.yExtent);
+        float minZ = Math.min(center.z - zExtent, other.center.z - other.zExtent);
+        float maxX = Math.max(center.x + xExtent, other.center.x + other.xExtent);
+        float maxY = Math.max(center.y + yExtent, other.center.y + other.yExtent);
+        float maxZ = Math.max(center.z + zExtent, other.center.z + other.zExtent);
+        center.set((minX + maxX) / 2f, (minY + maxY) / 2f, (minZ + maxZ) / 2f);
+        xExtent = (maxX - minX) / 2f;
+        yExtent = (maxY - minY) / 2f;
+        zExtent = (maxZ - minZ) / 2f;
+    }
+
+    @Override
     public void transform(Quaternion rotation, Vector3f translation, Vector3f scale,
             BoundingVolume result) {
         if (!(result instanceof BoundingBox)) {
