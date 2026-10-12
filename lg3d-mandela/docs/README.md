@@ -43,6 +43,7 @@ org.jdesktop.lg3d.mandela
 
 - **[Architecture](ARCHITECTURE.md)** - Internal architecture, package structure, and design decisions
 - **[Development Guide](DEVELOPMENT.md)** - Contributor guide with build, test, and coding guidelines
+- **[Mandela at Work](USAGE.md)** - The language in daily use: one program that walks, scans, classifies and answers, the four hosts that run it, and transcripts of the real tools
 - **[Functional Analysis](FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases, and specifications
 - **[History of the Language](HISTORY.md)** - Why the name, who created it, and the record of how it landed in Project Looking Glass
 
