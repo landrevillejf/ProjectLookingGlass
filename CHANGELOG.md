@@ -9,6 +9,73 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased] — 1.68.1-dev — Gradle / JDK 21 modernization
 
+### Added
+- **A crash-report pipeline that turns a crash into a GitHub issue without ever
+  holding a credential** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.crash`) —
+  the desktop has had a crash *dialog* since 2006 and no way to make one into a bug
+  report: its button opened a bare tracker page and expected the reporter to retype
+  what the dialog was already showing. Eight classes now do that end to end.
+  `CrashSignature` hashes the root cause plus up to six non-synthetic frames to 12
+  hex characters — deliberately *not* the message and not the version, so an upgrade
+  does not re-file a known bug and a crash loop stays one bug; `Redactor` replaces
+  home paths, the runtime user name, e-mail addresses, socket paths, GitHub / AWS /
+  Google keys and `key = secret` pairs before anything is written, with linear
+  patterns so a report cannot be a ReDoS against its own author; `ReportEnvironment`
+  collects the twelve fields that diagnose without identifying anyone (version, JVM,
+  OS, display, locale, memory — no user name, no host name); `CrashReport` is the
+  one immutable text that is simultaneously the spool file, the clipboard content
+  and the issue body, so what a reporter copies is what a maintainer reads;
+  `CrashStore` keeps `~/.lg3d/crash-reports` grouped by signature with an
+  occurrence count, written atomically and pruned under both a 50-report and an
+  8 MB ceiling; `IssuePrefill` builds the
+  `github.com/landrevillejf/ProjectLookingGlass/issues/new` link — titled, labelled
+  `crash`, assigned, with the body clipped to a 7600-byte *encoded* budget rather
+  than a character count, because percent-escaping triples what a URL can actually
+  carry; `CrashReporter` is the facade on one daemon thread; and `CrashWatcher` is
+  the `Thread.setDefaultUncaughtExceptionHandler` hook installed on the first line
+  of `Main.main`, which still prints the dump the JDK would have printed — installing
+  a handler *silences* it — and still chains to the handler the host already had.
+  **There is no HTTP call anywhere in it.** The only network-facing artefact is a
+  link handed to the browser, so the person stays the one who submits, the review
+  step an unattended upload would skip is kept, and a kiosk image has no token to
+  leak.
+- **The noise rules are what makes it usable** (`lg3d-core`, `CrashReporter`) — one
+  signature opens one browser tab per session, a bug already in the archive is not
+  reopened by a new session, and a per-session budget caps how many *distinct* bugs
+  may interrupt anyone; past it reports are still captured, silently, because
+  capture is local and cheap and interruption is the only real cost. A report a
+  *person* asked for — the dialog's new **Report this bug** button, the manual Bug
+  Reporter app to come — overrides every one of those rules. Everything is
+  configurable without a rebuild through `lg.crashreport.*`: `enabled`, `repo`,
+  `labels`, `assignee`, `maxPerSession`, `dir`, `maxReports`, `maxBytes`. The
+  assignee is the "notify the admin" answer: GitHub mails the person pre-filled in
+  the link, so there is no SMTP configuration and no address baked into a build.
+  A kill switch never silences a hand-written report, and only the literal word
+  `false` flips it — a typo is not a reason to go back to twenty years of
+  unreported crashes.
+- **A SEVERE log record is a bug report too** (`lg3d-core`, `LogHandler`) — the
+  trigger is no longer only an escaping exception, and the record's own text is now
+  carried into the report: without that, the desktop's most common complaint
+  (`cannot open {0}`, throwing nothing) filed a form with nothing in it. `describe`
+  does the `{i}` substitution by hand, because `MessageFormat` eats apostrophes. The
+  link the pipeline assembles is handed to the error dialog through `setReportLink`
+  — off the EDT, on a `volatile`, since a slow disk must not delay the warning — and
+  nothing at all is captured when there is neither a stack nor a text.
+- **116 headless tests for the crash package**
+  (`lg3d-core`, `src/test/java/org/jdesktop/lg3d/displayserver/crash/`) — one suite
+  per class, none constructing a widget or touching the network, with a recording
+  sink standing in for the browser. Writing them found six defects that reading
+  the same code had missed: every *automatic* capture was bypassing dedupe and the
+  budget (`doReport` passed `explicit = true`, so a crash loop would have opened a
+  browser tab per exception), a console echo that threw skipped the chained host
+  handler, a second `install()` stacked a second watcher and captured every crash
+  twice, a re-read archive could no longer tell an uncaught exception from a log
+  record (`CrashStore.read` hardcoded the reporter), a `prune()` that mutated
+  the list it was iterating would have thrown `ConcurrentModificationException`
+  from inside the crash reporter — a crash in the bug reporter — while its byte
+  ceiling deleted the very report that had just been written, and a SEVERE record
+  with no throwable filed a report with no content in it.
+
 ### Fixed
 - **A class's construction counts its initialiser's parameters, not its fields**
   (`lg3d-mandela`, `vm/VM`) — `class Box { var v = 1 }` has one field and takes no
@@ -158,6 +225,14 @@ work to make it build and run on a current toolchain.
   program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
+- **The `lg3d-core` coverage floor is raised to `0.220` line / `0.300` branch**
+  (`build.gradle`) — it sat at `0.010 / 0.020`, a floor written when the module had
+  two small suites. The measured numbers are now `22.77% / 31.48%`, and
+  `org.jdesktop.lg3d.displayserver.crash` alone is at `92.16%` line / `81.89%`
+  branch; the rest of the gap is the 2006-era scene graph, which needs a live 3D
+  desktop and is verified with the in-JVM probe instead (see `AGENTS.md`).
+  A regression of the crash pipeline now fails `check` rather than quietly
+  reopening the gap.
 - **The language guide now says what the machine does** (`docs/mandela-language.md`) —
   three sentences were wrong, and each is the kind an author repeats without
   checking. *Truthiness*: the guide said only `false` and `null` are false, while the

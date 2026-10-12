@@ -7,7 +7,9 @@
  * Portions Copyright (c) 2026, Jean-Francois Landreville - modernization:
  * benign third-party engine SEVERE records (JavaFX/WebKit) no longer raise the
  * crash dialog, the show/suppress decision and trace formatting are testable
- * pure methods, and the dialog is built on the EDT. All Rights Reserved.
+ * pure methods, the dialog is built on the EDT, and every severe record that
+ * reaches the dialog is also captured by the crash-report pipeline, which spools
+ * it and builds the prefilled issue the dialog offers. All Rights Reserved.
  *
  * Redistributions in source code form must reproduce the above
  * copyright and this condition.
@@ -24,10 +26,13 @@
 
 package org.jdesktop.lg3d.displayserver;
 
+import java.util.function.Consumer;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.displayserver.crash.CrashReport;
+import org.jdesktop.lg3d.displayserver.crash.CrashReporter;
 
 /**
  * A {@link Handler} that opens the {@link ErrorDialog} when a severe error
@@ -44,6 +49,12 @@ import javax.swing.SwingUtilities;
  * a spurious "save your work" warning even though nothing crashed. Genuine lg3d
  * severe errors (logger {@code lg.*}) are never suppressed.</p>
  *
+ * <p>A record that passes that filter is also the desktop's most reliable
+ * observation point for a real bug, so {@link #publish} hands the throwable to
+ * {@link CrashReporter} on its way to the dialog. The capture never blocks the
+ * logging thread: the dialog is queued first and the report's prefilled link is
+ * pushed into it when the spool write finishes.</p>
+ *
  * @author pinaraf
  */
 public class LogHandler extends Handler {
@@ -56,7 +67,10 @@ public class LogHandler extends Handler {
         "com.sun.javafx.", "com.sun.webkit.", "javafx."
     };
 
-    private ErrorDialog dialog;
+    /** Names the catching component in the report footer and the archive record. */
+    static final String REPORT_SOURCE = "LogHandler";
+
+    private volatile ErrorDialog dialog;
 
     /** Creates a new instance of LogHandler. */
     public LogHandler() {
@@ -82,6 +96,105 @@ public class LogHandler extends Handler {
             dialog.setTrace(trace);
             dialog.run();
         });
+        // Captured after the dialog is queued, so a slow or full disk delays a bug
+        // report and never the user's warning.
+        try {
+            captureReport(record, CrashReporter.shared(), url -> {
+                // Marshalled back onto the EDT: the dialog is constructed there, so
+                // reading the field from the reporter thread would race the
+                // assignment that created it - and on a fast capture the link would
+                // be dropped before any dialog existed.
+                SwingUtilities.invokeLater(() -> {
+                    ErrorDialog shown = dialog;
+                    if (shown != null) {
+                        shown.setReportLink(url);
+                    }
+                });
+            });
+        } catch (Throwable reportingFailed) {
+            // The pipeline's own contract is that it never throws; this guard is
+            // for a mis-wired shared instance, and losing a report must not stop the
+            // dialog that already happened nor break the logger for the next record.
+            reportFailureQuietly(reportingFailed);
+        }
+    }
+
+    /**
+     * The capture half of {@link #publish}, split out so it can be tested without
+     * building a Swing dialog. A record with no throwable is still reported: a
+     * desktop that logs SEVERE without an exception has found something wrong, and
+     * "no stack trace" is a fact about the bug rather than a reason to file nothing
+     * - so the record's own text becomes the report.
+     *
+     * @param record   the severe record already accepted by {@link
+     *                 #shouldShowDialog}
+     * @param reporter the pipeline to hand it to
+     * @param onLink   receives the prefilled issue link, off the calling thread for
+     *                 a recoverable error and on it for a fatal one
+     */
+    static void captureReport(LogRecord record, CrashReporter reporter,
+                              Consumer<String> onLink) {
+        Throwable thrown = record.getThrown();
+        String message = describe(record);
+        if (thrown == null && message.isEmpty()) {
+            // Neither a stack nor a text says nothing a maintainer could act on:
+            // such a report would open an empty issue and spend the session's budget
+            // on it. The dialog still appears, as it always did.
+            return;
+        }
+        // Issue 435's rule, reused: only a SevereRuntimeError ends the desktop.
+        boolean fatal = thrown instanceof SevereRuntimeError;
+        if (fatal) {
+            // Synchronously: the dialog will exit the desktop when the user
+            // acknowledges it, and a queued task on a daemon thread is not
+            // guaranteed to have run by then. The report of the crash that ends
+            // the session is the one report that cannot be lost.
+            reporter.report(thrown, message, CrashReport.Kind.SEVERE, true, REPORT_SOURCE);
+        } else {
+            reporter.capture(thrown, message, CrashReport.Kind.SEVERE, false, REPORT_SOURCE,
+                    outcome -> {
+                        if (outcome.prefill() != null) {
+                            onLink.accept(outcome.prefill().url());
+                        }
+                    });
+        }
+    }
+
+    /**
+     * The text of a record, with its parameters substituted by hand.
+     * {@code MessageFormat} is not used on purpose: it treats every apostrophe as an
+     * escape, so "can't open the file" would be filed as "cant open the file" - a
+     * report that misspells the user's own error message is a report a maintainer
+     * stops trusting.
+     *
+     * @param record the log record
+     * @return the message, never {@code null}
+     */
+    static String describe(LogRecord record) {
+        String raw = record.getMessage();
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        Object[] params = record.getParameters();
+        if (params == null || params.length == 0) {
+            return raw;
+        }
+        String out = raw;
+        for (int i = 0; i < params.length; i++) {
+            out = out.replace("{" + i + "}", String.valueOf(params[i]));
+        }
+        return out;
+    }
+
+    /**
+     * Records a failure of the reporting pipeline itself, without re-entering this
+     * handler - a {@code SEVERE} record here would raise a dialog and try to report
+     * the failure to report, which is the recursion every crash reporter eventually
+     * discovers the hard way.
+     */
+    private static void reportFailureQuietly(Throwable failure) {
+        java.util.logging.Logger.getLogger("lg.crashreport").log(
+                Level.WARNING, "the crash report could not be started", failure);
     }
 
     @Override

@@ -90,18 +90,19 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 > a per-module **minimum line/branch covered ratio** for the eight modules that
 > have a test suite, and `check` depends on `jacocoTestCoverageVerification` — so
 > **a coverage regression below a module's floor fails the build**. The floors sit
-> just under the measured numbers (`lg3d-mandela` 0.890 / 0.780 at 89.30 % /
-> 78.95 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.010 / 0.020) and
-> the convention is to **raise a floor as coverage improves**: a PR that closes a
-> package moves its module's number in the same PR.
+> just under the measured numbers (`lg3d-mandela` 0.905 / 0.800 at 91.19 % /
+> 81.18 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.220 / 0.300 at
+> 22.77 % / 31.48 %) and the convention is to **raise a floor as coverage
+> improves**: a PR that closes a package moves its module's number in the same PR.
 >
 > What is genuinely **not** enforced is the 100 % / 0-mutant target itself. PIT is
 > applied only to `lg3d-mandela` (`./gradlew :lg3d-mandela:pitest`,
 > `mutationThreshold = 0`, report-only and deliberately outside `check`),
 > Checkstyle runs inside `check` with `ignoreFailures = true`, and a module
 > without a test suite gets no floor at all (it would trivially "fail" at 0 %).
-> The gate is intentionally deferred: the ported codebase is ~200k lines at ~1 %
-> core coverage, so a hard 100 % rule would red-line every build. Until then,
+> The gate is intentionally deferred: the ported codebase is ~200k lines at ~23 %
+> core coverage (and the 2006-era scene graph is still close to none of it), so a
+> hard 100 % rule would red-line every build. Until then,
 > scene-graph / rendering changes (which need a live 3D desktop) are verified with
 > the in-JVM probe + internal screencapture described in
 > [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*); report
@@ -161,6 +162,32 @@ One app is excluded for deep core-API drift (**not** a missing library):
 > [`lg3d-incubator/build.gradle`](lg3d-incubator/build.gradle) rather than trusting
 > this prose — it has been stale before.
 
+## Crash Reporting (`displayserver.crash`)
+
+`lg3d-core` owns the bug-report pipeline: `org.jdesktop.lg3d.displayserver.crash`
+(`CrashSignature`, `Redactor`, `ReportEnvironment`, `CrashReport`, `CrashStore`,
+`IssuePrefill`, `CrashReporter`, `CrashWatcher`), wired at three points —
+`Main.main` installs the uncaught-exception hook, `LogHandler` feeds it every
+`SEVERE` record, and `ErrorDialog` offers the **Report this bug** button.
+
+**Non-negotiable rules for anyone touching that package:**
+
+- **No credential, no HTTP call.** The only artefact is a prefilled
+  `github.com/<owner>/<repo>/issues/new?...` link handed to the browser, so the
+  human stays the submitter and a build ships nothing that can leak. Do not add a
+  token, an `HttpClient`, an SMTP send or an attachment upload — the review step an
+  unattended upload would skip is the point.
+- **It must never throw and never log `SEVERE`.** A defect here is a second failure
+  on top of the user's first, on the path that may be the last code the JVM runs;
+  and a `SEVERE` record re-enters the reporter through `LogHandler`. Degrade to a
+  missing report, nothing else.
+- **The signature excludes the message and the version** so an upgrade does not
+  re-file a known bug and a crash loop stays one bug. Changing that vocabulary
+  changes what a maintainer's issue queue sees.
+- Everything is configured by `lg.crashreport.*` (`enabled`, `repo`, `labels`,
+  `assignee`, `maxPerSession`, `dir`, `maxReports`, `maxBytes`); the spool is
+  `~/.lg3d/crash-reports`. Add a knob there, not a hard-coded value.
+
 ## Runtime Resources
 
 LG3D resolves artwork through the classpath under a top-level `resources/` prefix (e.g., `resources/images/icon/firefox-icon.png`). The `:lg3d-core:runtimeResources` task assembles this tree from:
@@ -190,7 +217,10 @@ The desktop runs in development mode (`lg.fws.mode=dev`) using the standard AWT/
 
 JUnit 5 test infrastructure exists and runs headless:
 - `lg3d-core/src/test/java` and `lg3d-widgets/src/test/java` - active JUnit 5
-  suites (74 tests) wired into the Gradle `test` task via `useJUnitPlatform()`.
+  suites (1534 and 81 tests) wired into the Gradle `test` task via
+  `useJUnitPlatform()`. The `lg3d-core` tree includes
+  `org.jdesktop.lg3d.displayserver.crash` (116 headless tests, one suite per
+  engine class) and the `LogHandler` wiring tests.
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task
   finalizes `jacocoTestReport`, and `check` additionally runs

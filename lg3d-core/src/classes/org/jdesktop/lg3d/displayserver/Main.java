@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.LogManager;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import org.jdesktop.lg3d.displayserver.crash.CrashWatcher;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing;
 import org.jdesktop.lg3d.displayserver.socketconnector.ServerHandler;
@@ -44,6 +45,12 @@ public final class Main {
     */
     public static void main(String[] args) {
         Logger logger = Logger.getLogger("lg.displayserver");
+        // Watch uncaught exceptions from the first line that can run. Installed
+        // before anything else touches a thread, because the failures worth
+        // reporting are the ones no component logs - and the handler chains, so a
+        // host that installed its own keeps it. See CrashWatcher for why the trace
+        // is still printed and why no second dialog is raised.
+        CrashWatcher.install();
         Locale locale = Locale.getDefault();
         
         StringBuffer logMsg = new StringBuffer("\n");
