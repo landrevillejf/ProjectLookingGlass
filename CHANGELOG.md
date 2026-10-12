@@ -10,6 +10,37 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland cell cache registry lands, headless**
+  (`wonderland-client`, `src/main/java/…/client/cell/`,
+  `src/test/java/…/cell/`) — M2d, the fourth increment of the M2 milestone.
+  `CellCache` (the headless interface; the session / `ViewCell` /
+  connection getters are dropped seams, documented per
+  `docs/wonderland-migration.md`) and its registry implementation
+  `CellCacheBasicImpl`: cells are instantiated by reflection through the now
+  canonical `Cell(CellID, CellCache)` contract — `Cell` gains the cache
+  back-reference (`getCellCache()`) the 2006 loader always passed — and the
+  cache owns the load/get/configure/unload/reparent lifecycle: tree linkage
+  with the `MultipleParentException` catches, a child whose parent the cache
+  does not (yet) hold sends a `CellReparentMessage` over the new `MessageSink`
+  seam (a session-level `Message` transport, distinct from M2c's per-cell
+  `MessageChannel`, because `CellEditMessage` and `CellMessage` are siblings),
+  the **synchronous** `DISK → … → VISIBLE` ordinal walk replaces the 2006
+  async URL-downloading `ParallelCellStatusManager` (its own header defers
+  the real manager to M2e), `setHasView` drives the whole-tree walk, a
+  thread-local marks the cell currently in a status transition, and loads are
+  timed through the ported pure `CellStatistics` layer (swappable SPI with the
+  no-op default; `StringCellStat` / `LongCellStat` / `TimeCellStat` unit
+  suffixes / `SizeCellStat` b-kb-mb formatting pinned verbatim). `EnvironmentCell`
+  lands as the abstract `Cell` subclass the registry special-cases (loaded
+  straight to `ACTIVE`, never in the root set). **29 new headless cases**
+  (`CellCacheBasicImplTest` 21 + `CellStatisticsTest` 8) close the slice at
+  100 % of its reachable branches, so
+  [`coverageFloors[wonderland-client]`](build.gradle) rises to
+  `[line: 0.965, branch: 0.935]` (measured 96.80 % / 93.95 %); the residue
+  stays what a headless JVM cannot run — the live Java 3D renderer paths and
+  the defensive listener guards — and the `ViewCell` / camera / avatar and
+  connection layers arrive with **M2e**. Still **no** `lg3d-core` / Java 3D
+  import.
 - **The Wonderland `Cell` base class lands, headless**
   (`wonderland-client`, `src/main/java/…/client/cell/`,
   `src/test/java/…/cell/`; `wonderland-common`, `src/main/java/com/jme/…`) —

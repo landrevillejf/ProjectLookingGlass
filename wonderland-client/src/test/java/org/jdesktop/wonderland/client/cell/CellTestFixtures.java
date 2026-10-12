@@ -10,6 +10,7 @@ package org.jdesktop.wonderland.client.cell;
 
 import com.jme.bounding.BoundingBox;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,9 @@ import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.messages.CellMessage;
+import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.cell.state.CellComponentClientState;
+import org.jdesktop.wonderland.common.messages.Message;
 import org.jdesktop.wonderland.common.messages.MessageID;
 import org.jdesktop.wonderland.common.messages.ResponseMessage;
 
@@ -180,6 +183,99 @@ class CellTestFixtures {
         RecordingResponse(MessageID messageID) {
             super(messageID);
         }
+    }
+
+    // ---- M2d cell-cache fixtures ------------------------------------------------
+
+    /** Records what the cache sends session-level (the reparent seam). */
+    static class RecordingSink implements MessageSink {
+        final List<Message> sent = new ArrayList<>();
+
+        @Override
+        public void send(Message message) {
+            sent.add(message);
+        }
+    }
+
+    /** A cache-loadable cell: the public (CellID, CellCache) ctor instantiateCell
+     *  reflects open, and it captures the thread-local active cell seen mid-walk. */
+    public static class CacheableCell extends Cell {
+        Cell activeDuringStatusWalk;
+        final List<String> statusCalls = new ArrayList<>();
+
+        public CacheableCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+        }
+
+        @Override
+        protected void setStatus(CellStatus status, boolean increasing) {
+            activeDuringStatusWalk = CellCacheBasicImpl.getCurrentActiveCell();
+            statusCalls.add(status + "/" + increasing);
+            super.setStatus(status, increasing);
+        }
+    }
+
+    /** A concrete EnvironmentCell so getEnvironmentCell()'s cast has a target. */
+    public static class CacheableEnvCell extends EnvironmentCell {
+        public CacheableEnvCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+        }
+    }
+
+    static Cell PRE_PARENT;
+
+    /** Attaches itself to PRE_PARENT in its ctor, so the cache's own
+     *  parent.addChild(cell) then hits the MultipleParentException catch. */
+    public static class PreParentedCell extends CacheableCell {
+        public PreParentedCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+            if (PRE_PARENT != null) {
+                try {
+                    PRE_PARENT.addChild(this);
+                } catch (org.jdesktop.wonderland.common.cell.MultipleParentException ignored) {
+                    // expected -- the point is that this cell already has a parent
+                }
+            }
+        }
+    }
+
+    /** getClientComponentClasses() throws: drives loadCell's failure/catch branch. */
+    static class ThrowingClientState extends CellClientState {
+        @Override
+        public String[] getClientComponentClasses() {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    /** Records every stat add so the noop-by-default SPI is observable in tests. */
+    static class RecordingStatsProvider implements CellStatistics.CellStatisticsSPI {
+        final Map<String, CellStatistics.CellStat> store = new LinkedHashMap<>();
+
+        @Override
+        public void add(Cell cell, CellStatistics.CellStat stat) {
+            store.put(stat.getId(), stat);
+        }
+
+        @Override
+        public CellStatistics.CellStat get(Cell cell, String id) {
+            return store.get(id);
+        }
+
+        @Override
+        public Collection<CellStatistics.CellStat> getAll(Cell cell) {
+            return store.values();
+        }
+
+        @Override
+        public CellStatistics.CellStat remove(Cell cell, String id) {
+            return store.remove(id);
+        }
+    }
+
+    static CellClientState namedState(String name) {
+        CellClientState state = new CellClientState();
+        state.setName(name);
+        return state;
     }
 
     static CellID id(int i) {

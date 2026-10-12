@@ -21,8 +21,11 @@
  *     unrecoverable SGS-bound) is replaced by Cell.class.getClassLoader(): under
  *     M4's plain-classpath loader the app loader IS the module loader, so the
  *     injection semantics are identical without the session.
- *   - CellCache (getSession / ViewCell / CellChannelConnection) is deferred to
- *     M2d; the constructor therefore takes only the CellID.
+ *   - CellCache: M2c shipped the Cell(CellID) convenience constructor while the
+ *     cache was still deferred. M2d lands the cache, whose instantiateCell calls
+ *     the real (CellID, CellCache) constructor -- so that two-arg form is now the
+ *     canonical one (the back-reference the 2006 code used via getCellCache()),
+ *     and the one-arg form is kept for headless tests and cache-less cells.
  * The original cached world bounds on each status change; the localBounds null
  * guards below fix the latent NPE the 2006 tree-update walked into for a cell
  * with no bounds hint (it logged "NULL cachedVWBounds" and dumped stack).
@@ -78,6 +81,7 @@ public class Cell {
     private CellTransform local2VW = new CellTransform();
     private CellTransform worldTransform = new CellTransform();
     private CellID cellID;
+    private CellCache cellCache;
     private String name = null;
     private CellStatus currentStatus;
     private final Object statusLock = new Object();
@@ -95,10 +99,21 @@ public class Cell {
     private final Set<CellParentChangeListener> parentChangeListeners = new CopyOnWriteArraySet<>();
     private final Set<CellChildrenChangeListener> childChangeListeners = new CopyOnWriteArraySet<>();
 
-    public Cell(CellID cellID) {
+    /** The canonical 2006 constructor: a cell knows its cache (load-time back-ref). */
+    public Cell(CellID cellID, CellCache cellCache) {
         this.currentStatus = CellStatus.DISK;
         this.cellID = cellID;
+        this.cellCache = cellCache;
         logger.fine("Cell: Creating new Cell ID=" + cellID);
+    }
+
+    /** Cache-less convenience form for headless tests and standalone cells. */
+    public Cell(CellID cellID) {
+        this(cellID, null);
+    }
+
+    public CellCache getCellCache() {
+        return cellCache;
     }
 
     /** Replaces the 2006 ClientContext.getRendererType() global; null creates none. */
