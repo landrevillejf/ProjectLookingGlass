@@ -25,6 +25,7 @@ import javax.swing.JPopupMenu;
 
 import com.protonmail.landrevillejf.IconManager;
 import com.protonmail.landrevillejf.IconManager.IconCategory;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * Builds the 2D/Swing desktop's background context menu (a {@link JPopupMenu})
@@ -40,25 +41,26 @@ import com.protonmail.landrevillejf.IconManager.IconCategory;
  */
 public final class Desktop2DContextMenu {
 
-    // Menu labels; package-visible so the headless test can assert on them.
-    static final String TERMINAL = "Open Terminal";
-    static final String FILE_MANAGER = "Open File Manager";
-    static final String CHANGE_WALLPAPER = "Change Wallpaper";
-    static final String DESKTOP_SETTINGS = "Desktop Settings...";
-    static final String DO_NOT_DISTURB = "Do Not Disturb";
-    static final String CASCADE = "Cascade Windows";
-    static final String TILE = "Tile Windows";
-    static final String MINIMIZE_ALL = "Minimize All Windows";
-    static final String RESTORE_ALL = "Restore All Windows";
-    static final String LOCK_SCREEN = "Lock Screen";
-    static final String SUSPEND = "Suspend";
-    static final String REBOOT = "Reboot...";
-    static final String SHUT_DOWN = "Shut Down...";
-    static final String REFRESH = "Refresh";
-    static final String EXIT = "Exit...";
+    // Menu labels, in the run's language (see org.jdesktop.lg3d.i18n); package-visible so
+    // the headless test can assert on them.
+    static final String TERMINAL = Messages.tr("lg2d.ctx.openTerminal");
+    static final String FILE_MANAGER = Messages.tr("lg2d.ctx.openFileManager");
+    static final String CHANGE_WALLPAPER = Messages.tr("lg2d.ctx.changeWallpaper");
+    static final String DESKTOP_SETTINGS = Messages.tr("lg2d.ctx.desktopSettings");
+    static final String DO_NOT_DISTURB = Messages.tr("lg2d.ctx.dnd");
+    static final String CASCADE = Messages.tr("lg2d.ctx.cascade");
+    static final String TILE = Messages.tr("lg2d.ctx.tile");
+    static final String MINIMIZE_ALL = Messages.tr("lg2d.ctx.minimizeAll");
+    static final String RESTORE_ALL = Messages.tr("lg2d.ctx.restoreAll");
+    static final String LOCK_SCREEN = Messages.tr("lg2d.ctx.lockScreen");
+    static final String SUSPEND = Messages.tr("lg2d.ctx.suspend");
+    static final String REBOOT = Messages.tr("lg2d.ctx.reboot");
+    static final String SHUT_DOWN = Messages.tr("lg2d.ctx.shutDown");
+    static final String REFRESH = Messages.tr("lg2d.ctx.refresh");
+    static final String EXIT = Messages.tr("lg2d.ctx.exit");
 
     /** Placeholder shown when no bundled wallpaper could be resolved. */
-    static final String NO_WALLPAPERS = "(no wallpapers)";
+    static final String NO_WALLPAPERS = Messages.tr("lg2d.ctx.noWallpapers");
 
     /** Menu icon edge, in pixels. */
     private static final int ICON_SIZE = 16;
@@ -211,7 +213,7 @@ public final class Desktop2DContextMenu {
         JCheckBoxMenuItem entry =
                 new JCheckBoxMenuItem(DO_NOT_DISTURB, loadIcon(IconCategory.GENERAL, "Bell"),
                         actions.isDoNotDisturbActive());
-        entry.setToolTipText("Suppress notification pop-ups (errors still show)");
+        entry.setToolTipText(Messages.tr("lg2d.ctx.dnd.tooltip"));
         entry.addActionListener(e -> actions.toggleDoNotDisturb());
         return entry;
     }

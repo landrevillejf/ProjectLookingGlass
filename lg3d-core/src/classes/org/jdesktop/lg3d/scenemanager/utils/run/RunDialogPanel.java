@@ -30,6 +30,7 @@ import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.MenuModel;
 import org.jdesktop.lg3d.displayserver.desktop2d.RunHistory;
 import org.jdesktop.lg3d.displayserver.desktop2d.RunHistoryStore;
 import org.jdesktop.lg3d.displayserver.desktop2d.RunResolver;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * The Alt+F2 "run command" card for the native 3D desktop: the pure-Swing
@@ -59,10 +60,10 @@ import org.jdesktop.lg3d.displayserver.desktop2d.RunResolver;
 public class RunDialogPanel extends JPanel {
 
     /** Prompt shown above the field. */
-    public static final String TITLE = "Run command";
+    public static final String TITLE = Messages.tr("lg2d.run.title");
 
     /** Status text before anything is entered. */
-    public static final String HINT = "Type an application name or a command";
+    public static final String HINT = Messages.tr("lg2d.run.hint");
 
     /** Fixed card footprint; the hosted SwingNode texture never resizes. */
     static final int CARD_WIDTH_PX = 420;
@@ -202,7 +203,8 @@ public class RunDialogPanel extends JPanel {
         RunResolver.Decision decision = RunResolver.resolve(text, model);
         if (decision.isNotFound()) {
             String trimmed = text.trim();
-            statusText = trimmed.isEmpty() ? HINT : "Not found: " + trimmed;
+            statusText = trimmed.isEmpty()
+                    ? HINT : Messages.tr("lg2d.run.notFound", trimmed);
             repaint();
             return false;
         }

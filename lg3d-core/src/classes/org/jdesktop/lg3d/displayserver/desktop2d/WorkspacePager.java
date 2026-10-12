@@ -20,6 +20,7 @@ import java.util.List;
 import javax.swing.ButtonGroup;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * A small row of numbered workspace buttons for the 2D/Swing desktop's taskbar:
@@ -77,9 +78,12 @@ final class WorkspacePager extends JPanel {
             JToggleButton button = buttons.get(i);
             button.setSelected(i == model.current());
             int windows = model.countOn(i);
-            button.setToolTipText("Workspace " + (i + 1)
-                    + (windows == 0 ? " (empty)"
-                            : " (" + windows + (windows == 1 ? " window)" : " windows)")));
+            button.setToolTipText(Messages.tr("lg2d.pager.tooltip", i + 1,
+                    windows == 0
+                            ? Messages.tr("lg2d.pager.empty")
+                            : Messages.tr(windows == 1
+                                    ? "lg2d.pager.oneWindow" : "lg2d.pager.nWindows",
+                                    windows)));
         }
         revalidate();
         repaint();

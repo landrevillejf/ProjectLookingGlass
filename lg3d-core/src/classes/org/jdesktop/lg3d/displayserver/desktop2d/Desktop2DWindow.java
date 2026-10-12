@@ -22,6 +22,7 @@ import javax.swing.JInternalFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * One application window of the 2D desktop: an MDI internal frame hosting a
@@ -165,9 +166,10 @@ public class Desktop2DWindow extends JInternalFrame implements TranslucentSurfac
      * start-menu descriptor already supplies.
      */
     private JMenuBar buildMenuBar(String title) {
-        JMenu help = new JMenu("Help");
+        JMenu help = new JMenu(Messages.tr("lg2d.window.help"));
         JMenuItem about =
-                new JMenuItem("About " + AboutDialog.displayTitle(title));
+                new JMenuItem(Messages.tr("lg2d.window.about",
+                        AboutDialog.displayTitle(title)));
         about.addActionListener(e ->
                 AboutDialog.show(this, getTitle(), description, getFrameIcon()));
         help.add(about);

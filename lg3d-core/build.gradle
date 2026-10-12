@@ -101,6 +101,10 @@ sourceSets {
             // ShaderEffects (org.jdesktop.lg3d.utils.shape), e.g. the soft-drop-
             // shadow SDF pair; they live beside the classes under src/classes.
             include 'org/jdesktop/lg3d/utils/shape/resources/**'
+            // Shell UI message bundles for the i18n package (English base +
+            // French); they live beside LgLocale/Messages, resolved through
+            // ResourceBundle at run start-up (see org.jdesktop.lg3d.i18n).
+            include 'org/jdesktop/lg3d/i18n/*.properties'
         }
     }
     test {

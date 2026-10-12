@@ -33,6 +33,7 @@ import javax.swing.JPopupMenu;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.GroupSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.MenuModel;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * Builds the 2D desktop's start menu (a {@link JPopupMenu}) from the same
@@ -56,7 +57,7 @@ public final class Desktop2DStartMenu {
     static final int ICON_SIZE = 16;
 
     /** Shown when no descriptor defined any menu group. */
-    static final String NO_APPS_LABEL = "(no applications configured)";
+    static final String NO_APPS_LABEL = Messages.tr("lg2d.startmenu.noApps");
 
     /**
      * The legacy top-level classpath prefix every descriptor icon resource uses
@@ -127,12 +128,15 @@ public final class Desktop2DStartMenu {
                 // A back-link to an ancestor ("Main" inside "Demos").
                 continue;
             }
-            JMenu subMenu = new JMenu(child.getName());
+            // Display-only translation: the model keeps the raw group name, which
+            // is also the link key items point at; only what the menu shows speaks
+            // the run's language.
+            JMenu subMenu = new JMenu(Messages.trLgcfgName(child.getName()));
             // Give the category sub-menu a recognisable glyph (Internet, Media,
             // System, ...) so the tree reads at a glance, matching the iconned
             // application entries inside it.
             subMenu.setIcon(CategoryIcons.iconFor(child.getName(), ICON_SIZE));
-            subMenu.setToolTipText(child.getDesc());
+            subMenu.setToolTipText(Messages.trLgcfgDesc(child.getName(), child.getDesc()));
             Set<String> nested = new LinkedHashSet<>(ancestors);
             nested.add(child.getName());
             appendItems(subMenu, model.getItemsOf(child.getName()), launcher);

@@ -30,6 +30,7 @@ import java.util.List;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.GroupSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.MenuModel;
+import org.jdesktop.lg3d.i18n.LgLocale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -111,6 +112,39 @@ class Desktop2DMenuConfigTest {
     }
 
     @Test
+    @DisplayName("descriptor names read through the bundle when the slug key exists")
+    void lgcfgNamesAreTranslated() throws Exception {
+        URL url = writeFixture().toUri().toURL();
+        try {
+            System.setProperty(LgLocale.SYSPROP, LgLocale.EN);
+            LgLocale.resetForTests();
+            ItemSpec en = Desktop2DMenuConfig.build(List.of(url))
+                    .getItemsOf("Utilities").get(0);
+            assertEquals("Calculator", en.getName());
+            // lgcfg.calculator.name AND .desc both exist (the real descriptor is
+            // translated), so the bundle wins over the fixture's own literals.
+            assertEquals("Scientific calculator with expression history",
+                    en.getDesc());
+
+            System.setProperty(LgLocale.SYSPROP, LgLocale.FR);
+            LgLocale.resetForTests();
+            ItemSpec fr = Desktop2DMenuConfig.build(List.of(url))
+                    .getItemsOf("Utilities").get(0);
+            assertEquals("Calculatrice", fr.getName());
+            assertEquals("Calculatrice scientifique avec historique d\u2019expressions",
+                    fr.getDesc());
+            // The proof the fallback stays: "Orphan" has no lgcfg.orphan.name,
+            // so a descriptor nobody translated keeps its published text.
+            assertEquals("Orphan",
+                    Desktop2DMenuConfig.build(List.of(url)).getOrphanItems()
+                            .get(0).getName());
+        } finally {
+            System.clearProperty(LgLocale.SYSPROP);
+            LgLocale.resetForTests();
+        }
+    }
+
+    @Test
     @DisplayName("groups and items are read, ApplicationDescription is also supported")
     void readsGroupsAndItemsOnly() throws Exception {
         MenuModel model = fixtureModel();
@@ -159,7 +193,11 @@ class Desktop2DMenuConfigTest {
         assertEquals("Calculator", calculator.getName());
         assertEquals("java org.jdesktop.lg3d.apps.calculator.Calculator",
                 calculator.getCommand());
-        assertEquals("A calculator", calculator.getDesc());
+        // The fixture's "A calculator" literal is superseded at parse time:
+        // the shipped bundle defines lgcfg.calculator.desc (English value =
+        // the real descriptor's text, byte for byte).
+        assertEquals("Scientific calculator with expression history",
+                calculator.getDesc());
         assertEquals("Utilities", calculator.getMenuGroup());
         assertEquals("resources/images/icon/calculator.png",
                 calculator.getIconResource());

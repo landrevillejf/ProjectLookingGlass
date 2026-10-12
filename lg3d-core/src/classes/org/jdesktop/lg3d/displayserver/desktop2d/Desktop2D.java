@@ -67,6 +67,7 @@ import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.screensaver.ScreensaverService;
 import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11CompositorSession;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
 import org.jdesktop.lg3d.utils.system.Opener;
@@ -102,7 +103,7 @@ public class Desktop2D {
     public static final String MODE_PROPERTY = "lg.desktop2d";
 
     /** Window title, so the host window manager shows something sensible. */
-    static final String FRAME_TITLE = "Project Looking Glass (2D desktop)";
+    static final String FRAME_TITLE = Messages.tr("lg2d.frame.title");
 
     /** Wallpapers tried, in order, for the desktop backdrop. */
     private static final String[] WALLPAPERS = {
@@ -800,9 +801,9 @@ public class Desktop2D {
 
         @Override
         public void openDesktopSettings() {
-            openApp(new ItemSpec("Control Center",
+            openApp(new ItemSpec(Messages.tr("lg2d.menu.controlCenter"),
                     "java org.jdesktop.lg3d.apps.controlcenter.ControlCenter",
-                    "Configure the desktop", null, null));
+                    Messages.tr("lg2d.menu.controlCenter.desc"), null, null));
         }
 
         @Override
@@ -862,16 +863,16 @@ public class Desktop2D {
 
         @Override
         public void reboot() {
-            if (confirmPowerAction("Reboot the machine?\nOpen applications will be closed.",
-                    "Reboot")) {
+            if (confirmPowerAction(Messages.tr("lg2d.power.reboot"),
+                    Messages.tr("lg2d.power.rebootTitle"))) {
                 SessionPowerStatus.reboot();
             }
         }
 
         @Override
         public void shutDown() {
-            if (confirmPowerAction("Shut down the machine?\nOpen applications will be closed.",
-                    "Shut Down")) {
+            if (confirmPowerAction(Messages.tr("lg2d.power.shutDown"),
+                    Messages.tr("lg2d.power.shutDownTitle"))) {
                 SessionPowerStatus.powerOff();
             }
         }
@@ -1079,9 +1080,9 @@ public class Desktop2D {
 
         @Override
         public void search() {
-            openApp(new ItemSpec("Search",
+            openApp(new ItemSpec(Messages.tr("lg2d.menu.search"),
                     "java org.jdesktop.lg3d.apps.search.Search",
-                    "Find files and text across the system", null, null));
+                    Messages.tr("lg2d.menu.search.desc"), null, null));
         }
 
         @Override
@@ -1240,26 +1241,25 @@ public class Desktop2D {
                 Desktop2DAppRegistry.launchSwingFrame(item.getCommand());
                 // A Swing frame opens beside the desktop with no taskbar button,
                 // so surface it as a notification the user cannot miss.
-                raiseNotification("Launched " + item.getName(),
-                        "Running in its own window, outside the desktop",
+                raiseNotification(Messages.tr("lg2d.notify.launched", item.getName()),
+                        Messages.tr("lg2d.notify.launchedOwnWindow"),
                         Notification.Kind.INFO);
                 break;
             case EXTERNAL:
                 if (Desktop2DAppRegistry.launchExternal(item.getCommand())) {
                     // An external process likewise has no taskbar presence.
-                    raiseNotification("Launched " + item.getName(), null,
+                    raiseNotification(Messages.tr("lg2d.notify.launched", item.getName()), null,
                             Notification.Kind.INFO);
                 } else {
-                    showMessage("Could not start \"" + item.getName() + "\"",
-                            "The command could not be executed:\n"
-                            + item.getCommand());
+                    showMessage(Messages.tr("lg2d.error.couldNotStart", item.getName()),
+                            Messages.tr("lg2d.error.commandFailed", item.getCommand()));
                 }
                 break;
             case UNAVAILABLE:
             default:
-                showMessage(item.getName() + " needs the 3D desktop",
-                        Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP
-                        + ", which is not available on this machine.");
+                showMessage(Messages.tr("lg2d.error.needs3d", item.getName()),
+                        Messages.tr("lg2d.error.needs3dBody",
+                                Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP));
                 break;
         }
     }
@@ -1271,9 +1271,9 @@ public class Desktop2D {
      * so lg3d-core keeps no compile-time dependency on lg3d-apps.
      */
     private void openSecurityCenter() {
-        openApp(new ItemSpec("Security Center",
+        openApp(new ItemSpec(Messages.tr("lg2d.menu.securityCenter"),
                 "java org.jdesktop.lg3d.apps.securitycenter.SecurityCenter",
-                "Security and privacy", null, null));
+                Messages.tr("lg2d.menu.securityCenter.desc"), null, null));
     }
 
     /**
@@ -1287,8 +1287,8 @@ public class Desktop2D {
         SwingUtilities.invokeLater(() -> {
             taskbar.indicators().refreshStatuses();
             if (to == TorPrivateMode.State.CUT) {
-                raiseNotification("Private mode: Tor stopped",
-                        "The network has been cut to prevent leaks",
+                raiseNotification(Messages.tr("lg2d.notify.torStopped"),
+                        Messages.tr("lg2d.notify.networkCut"),
                         Notification.Kind.WARNING);
             }
         });
@@ -1296,9 +1296,9 @@ public class Desktop2D {
 
     /** Opens the file manager internal frame at {@code directory}. */
     public void openFileManager(Path directory) {
-        ItemSpec item = new ItemSpec("File Manager",
+        ItemSpec item = new ItemSpec(Messages.tr("lg2d.menu.fileManager"),
                 "java org.jdesktop.lg3d.apps.filemanager.FileManager",
-                "Browse files and folders", null, null);
+                Messages.tr("lg2d.menu.fileManager.desc"), null, null);
         openPanelApp(item, directory);
     }
 
@@ -1313,8 +1313,8 @@ public class Desktop2D {
         if (date == null) {
             return;
         }
-        ItemSpec item = new ItemSpec("Agenda 3D", AGENDA_COMMAND,
-                "3D week agenda", null, "resources/images/icon/agenda3d.png");
+        ItemSpec item = new ItemSpec(Messages.tr("lg2d.menu.agenda3d"), AGENDA_COMMAND,
+                Messages.tr("lg2d.menu.agenda3d.desc"), null, "resources/images/icon/agenda3d.png");
         Desktop2DWindow window = openPanelApp(item, null, false);
         if (window != null && window.getContentPane().getComponentCount() > 0) {
             JComponent panel =
@@ -1362,8 +1362,8 @@ public class Desktop2D {
             logger.log(Level.WARNING,
                     "Could not start " + appName + " in the 2D desktop", t);
             if (!quiet) {
-                showMessage("Could not start " + appName,
-                        "The application could not run in 2D mode:\n" + t);
+                showMessage(Messages.tr("lg2d.error.couldNotStart", appName),
+                        Messages.tr("lg2d.error.notIn2d", String.valueOf(t)));
             }
             return null;
         }
@@ -1803,9 +1803,9 @@ public class Desktop2D {
             return;
         }
         if (!Opener.open(path)) {
-            showMessage("Could not open " + path.getFileName(),
-                    "No application is registered for this file type"
-                    + " (xdg-open is unavailable or failed).");
+            showMessage(Messages.tr("lg2d.error.couldNotOpen",
+                            String.valueOf(path.getFileName())),
+                    Messages.tr("lg2d.error.noAppForType"));
         }
     }
 
@@ -1909,8 +1909,8 @@ public class Desktop2D {
     /** Asks for confirmation, then leaves the desktop (and the JVM). */
     public void confirmExit() {
         int answer = JOptionPane.showConfirmDialog(frame,
-                "Leave the 2D desktop?\nOpen applications will be closed.",
-                "Exit Project Looking Glass",
+                Messages.tr("lg2d.exit.confirm"),
+                Messages.tr("lg2d.exit.confirmTitle"),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (answer == JOptionPane.OK_OPTION) {
             exit();

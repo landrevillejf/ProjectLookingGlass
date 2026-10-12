@@ -34,6 +34,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * A reusable "About" box for the 2D/Swing desktop's application windows.
@@ -67,14 +68,14 @@ public final class AboutDialog {
     public static final String UNKNOWN_VERSION = "unknown";
 
     /** Title used when an application supplies no usable name. */
-    static final String DEFAULT_TITLE = "Application";
+    static final String DEFAULT_TITLE = Messages.tr("lg2d.about.defaultTitle");
 
     /** Description used when an application supplies no usable one. */
     static final String DEFAULT_DESCRIPTION =
-            "A Project Looking Glass desktop application.";
+            Messages.tr("lg2d.about.defaultDescription");
 
     /** Footer tying the application back to the product. */
-    static final String PRODUCT_LINE = "Part of Project Looking Glass";
+    static final String PRODUCT_LINE = Messages.tr("lg2d.about.productLine");
 
     /** Width the description text wraps to, in pixels. */
     private static final int DESCRIPTION_WIDTH_PX = 240;
@@ -128,8 +129,8 @@ public final class AboutDialog {
     /** The credit rows shown under the description, in display order. */
     static List<String> creditLines() {
         List<String> lines = new ArrayList<>();
-        lines.add("Author: " + AUTHOR);
-        lines.add("Version: " + getVersion());
+        lines.add(Messages.tr("lg2d.about.author", AUTHOR));
+        lines.add(Messages.tr("lg2d.about.version", getVersion()));
         lines.add(PRODUCT_LINE);
         return Collections.unmodifiableList(lines);
     }
@@ -175,7 +176,7 @@ public final class AboutDialog {
         for (String line : creditLines()) {
             JLabel label = new JLabel(line, SwingConstants.CENTER);
             label.setAlignmentX(Component.CENTER_ALIGNMENT);
-            if (line.startsWith("Author:")) {
+            if (line.startsWith(Messages.tr("lg2d.about.authorLabel"))) {
                 label.setFont(label.getFont().deriveFont(Font.BOLD));
             } else {
                 label.setForeground(new Color(0x44, 0x44, 0x44));
@@ -223,7 +224,7 @@ public final class AboutDialog {
                 : (owner == null ? null
                         : javax.swing.SwingUtilities.getWindowAncestor(owner));
         final JDialog dialog = new JDialog(ownerWindow,
-                "About " + displayTitle(title),
+                Messages.tr("lg2d.about.title", displayTitle(title)),
                 ModalityType.APPLICATION_MODAL);
 
         JPanel root = new JPanel(new BorderLayout());
@@ -231,7 +232,7 @@ public final class AboutDialog {
         root.setBackground(Color.WHITE);
         root.add(buildContent(title, description, icon), BorderLayout.CENTER);
 
-        JButton close = new JButton("Close");
+        JButton close = new JButton(Messages.tr("lg2d.about.close"));
         close.addActionListener(e -> dialog.dispose());
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttons.setOpaque(true);

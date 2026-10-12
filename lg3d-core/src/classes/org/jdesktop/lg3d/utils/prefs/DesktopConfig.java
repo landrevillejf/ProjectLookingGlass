@@ -85,6 +85,7 @@ public final class DesktopConfig {
     private static final String KEY_ICON_PACK = "icon.pack";
     private static final String KEY_ICON_PACK_DIR = "icon.packDir";
     private static final String KEY_CORNER_LOGO = "desktop.cornerLogo";
+    private static final String KEY_LOCALE = "desktop.locale";
     private static final String KEY_SCHEDULE_WALLPAPER_ENABLED = "schedule.wallpaperEnabled";
     private static final String KEY_SCHEDULE_LIGHTING_ENABLED = "schedule.lightingEnabled";
     /** Wallpaper-schedule entries: a count plus per-index hour/minute/file. */
@@ -181,6 +182,14 @@ public final class DesktopConfig {
      */
     public static final String DEFAULT_METAL_THEME = "";
     private static final String DEF_METAL_THEME = DEFAULT_METAL_THEME;
+    /**
+     * Default UI language: "system" follows the host locale; the Control
+     * Center can pin "en" or "fr". Read once at start-up by
+     * {@link org.jdesktop.lg3d.i18n.LgLocale} - a change takes effect on the
+     * next desktop restart, by design (no hot language swap).
+     */
+    public static final String DEFAULT_LOCALE = "system";
+    private static final String DEF_LOCALE = DEFAULT_LOCALE;
     /** Default set of user-created Metal themes: none (empty encoded list). */
     public static final String DEFAULT_METAL_CUSTOM_THEMES = "";
     private static final String DEF_METAL_CUSTOM_THEMES = DEFAULT_METAL_CUSTOM_THEMES;
@@ -339,6 +348,7 @@ public final class DesktopConfig {
     private int widgetOpacity = DEF_SURFACE_OPACITY;
     private int notificationOpacity = DEF_SURFACE_OPACITY;
     private String metalTheme = DEF_METAL_THEME;
+    private String locale = DEF_LOCALE;
     private String metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
     private String accentColor = DEF_THEME_ACCENT;
     private String iconPack = DEF_ICON_PACK;
@@ -429,6 +439,7 @@ public final class DesktopConfig {
         notificationOpacity = clampOpacity(
                 prefs.getInt(KEY_NOTIFICATION_OPACITY, DEF_SURFACE_OPACITY));
         metalTheme = normalizeThemeName(prefs.get(KEY_METAL_THEME, DEF_METAL_THEME));
+        locale = normalizeLocale(prefs.get(KEY_LOCALE, DEF_LOCALE));
         metalCustomThemes = normalizeCustomThemes(
                 prefs.get(KEY_METAL_CUSTOM_THEMES, DEF_METAL_CUSTOM_THEMES));
         accentColor = normalizeAccentColor(prefs.get(KEY_THEME_ACCENT, DEF_THEME_ACCENT));
@@ -532,6 +543,7 @@ public final class DesktopConfig {
         prefs.putInt(KEY_WIDGET_OPACITY, widgetOpacity);
         prefs.putInt(KEY_NOTIFICATION_OPACITY, notificationOpacity);
         prefs.put(KEY_METAL_THEME, metalTheme);
+        prefs.put(KEY_LOCALE, locale);
         prefs.put(KEY_METAL_CUSTOM_THEMES, metalCustomThemes);
         prefs.put(KEY_THEME_ACCENT, accentColor);
         prefs.put(KEY_ICON_PACK, iconPack);
@@ -588,6 +600,7 @@ public final class DesktopConfig {
         widgetOpacity = DEF_SURFACE_OPACITY;
         notificationOpacity = DEF_SURFACE_OPACITY;
         metalTheme = DEF_METAL_THEME;
+        locale = DEF_LOCALE;
         metalCustomThemes = DEF_METAL_CUSTOM_THEMES;
         accentColor = DEF_THEME_ACCENT;
         iconPack = DEF_ICON_PACK;
@@ -731,6 +744,20 @@ public final class DesktopConfig {
 
     public void setMetalTheme(String metalTheme) {
         this.metalTheme = normalizeThemeName(metalTheme);
+    }
+
+    /**
+     * The pinned UI language: "system", "en" or "fr" (never anything else -
+     * {@link #normalizeLocale} filters reads and writes). Consumed once at
+     * start-up by {@link org.jdesktop.lg3d.i18n.LgLocale}; the desktop must
+     * be restarted for a new value to show.
+     */
+    public String getLocale() {
+        return locale;
+    }
+
+    public void setLocale(String locale) {
+        this.locale = normalizeLocale(locale);
     }
 
     /**
@@ -1194,6 +1221,18 @@ public final class DesktopConfig {
     /** Trims a Metal theme name; null falls back to the empty (native) default. */
     private static String normalizeThemeName(String s) {
         return (s == null) ? DEF_METAL_THEME : s.trim();
+    }
+
+    /**
+     * Accepts only the three language values the selector offers ("system",
+     * "en", "fr"), case- and whitespace-insensitive; anything else falls back
+     * to the default. The literals mirror {@code LgLocale}'s constants - this
+     * class stays free of an i18n import so the dependency only runs one way.
+     */
+    private static String normalizeLocale(String s) {
+        String candidate = (s == null) ? "" : s.trim().toLowerCase(java.util.Locale.ROOT);
+        return (candidate.equals("system") || candidate.equals("en")
+                || candidate.equals("fr")) ? candidate : DEF_LOCALE;
     }
 
     /** Trims the encoded custom-theme list; null falls back to empty. */

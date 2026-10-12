@@ -36,6 +36,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -341,10 +342,11 @@ public final class Desktop2DMenuConfig {
 
     private static ItemSpec parseItem(Element object) {
         String command = stringProperty(object, "command");
+        String xmlName = stringProperty(object, "name");
         return new ItemSpec(
-                desktopDisplayName(stringProperty(object, "name"), command),
+                desktopDisplayName(Messages.trLgcfgName(xmlName), command),
                 command,
-                stringProperty(object, "desc"),
+                Messages.trLgcfgDesc(xmlName, stringProperty(object, "desc")),
                 stringProperty(object, "menuGroup"),
                 stripResourceScheme(stringProperty(object, "displayResourceUrlName")));
     }
@@ -371,9 +373,9 @@ public final class Desktop2DMenuConfig {
             menuGroup = "Utilities";
         }
         return new ItemSpec(
-                desktopDisplayName(name, command),
+                desktopDisplayName(Messages.trLgcfgName(name), command),
                 command,
-                stringProperty(object, "desc"),
+                Messages.trLgcfgDesc(name, stringProperty(object, "desc")),
                 menuGroup,
                 iconUrl);
     }

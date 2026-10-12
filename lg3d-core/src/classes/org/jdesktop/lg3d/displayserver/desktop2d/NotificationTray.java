@@ -29,6 +29,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * The taskbar's notification-area button: a "Notifications" label carrying an
@@ -129,8 +130,8 @@ final class NotificationTray {
             button.setIcon(baseIcon);
             button.setText(badgeLabel(unread, dndActive));
             button.setToolTipText(dndActive
-                    ? "Desktop notifications (Do Not Disturb on)"
-                    : "Desktop notifications");
+                    ? Messages.tr("lg2d.tray.tooltip.dnd")
+                    : Messages.tr("lg2d.tray.tooltip"));
         }
     }
 
@@ -139,14 +140,13 @@ final class NotificationTray {
      * presentation keeps off the button face.
      */
     static String tooltip(int unread, boolean dndActive) {
-        StringBuilder sb = new StringBuilder("Desktop notifications");
         if (unread > 0) {
-            sb.append(" (").append(unread).append(" unread)");
+            return dndActive
+                    ? Messages.tr("lg2d.tray.tooltip.unreadDnd", unread)
+                    : Messages.tr("lg2d.tray.tooltip.unread", unread);
         }
-        if (dndActive) {
-            sb.append(" \u2014 Do Not Disturb on");
-        }
-        return sb.toString();
+        return Messages.tr(dndActive
+                ? "lg2d.tray.tooltip.dnd" : "lg2d.tray.tooltip");
     }
 
     /**
@@ -211,7 +211,7 @@ final class NotificationTray {
         List<Notification> items =
                 (model == null) ? List.of() : model.notifications();
         if (items.isEmpty()) {
-            JMenuItem empty = new JMenuItem("No notifications");
+            JMenuItem empty = new JMenuItem(Messages.tr("lg2d.tray.menu.empty"));
             empty.setEnabled(false);
             menu.add(empty);
             return;
@@ -224,7 +224,7 @@ final class NotificationTray {
             menu.add(entry);
         }
         menu.addSeparator();
-        JMenuItem clear = new JMenuItem("Clear all");
+        JMenuItem clear = new JMenuItem(Messages.tr("lg2d.tray.menu.clear"));
         clear.addActionListener(e -> clearAll());
         menu.add(clear);
     }
@@ -232,7 +232,8 @@ final class NotificationTray {
     /** Adds the Do Not Disturb on/off checkbox and "for 1 hour" entry. */
     private void addDndControls() {
         boolean active = dnd.active(System.currentTimeMillis());
-        JCheckBoxMenuItem toggle = new JCheckBoxMenuItem("Do Not Disturb", active);
+        JCheckBoxMenuItem toggle = new JCheckBoxMenuItem(
+                Messages.tr("lg2d.tray.menu.dnd"), active);
         toggle.addActionListener(e -> {
             if (dnd.active(System.currentTimeMillis())) {
                 dnd.disable();
@@ -241,7 +242,7 @@ final class NotificationTray {
             }
         });
         menu.add(toggle);
-        JMenuItem forHour = new JMenuItem("Do Not Disturb for 1 hour");
+        JMenuItem forHour = new JMenuItem(Messages.tr("lg2d.tray.menu.dndHour"));
         forHour.setEnabled(!active);
         forHour.addActionListener(e ->
                 dnd.enableFor(DoNotDisturb.ONE_HOUR_MILLIS, System.currentTimeMillis()));
@@ -275,7 +276,8 @@ final class NotificationTray {
      * are unseen notifications.
      */
     static String badgeLabel(int unread) {
-        return (unread > 0) ? "Notifications (" + unread + ")" : "Notifications";
+        return (unread > 0) ? Messages.tr("lg2d.tray.count", unread)
+                : Messages.tr("lg2d.tray.notifications");
     }
 
     /**
@@ -284,7 +286,7 @@ final class NotificationTray {
      */
     static String badgeLabel(int unread, boolean dndActive) {
         String base = badgeLabel(unread);
-        return dndActive ? "[DND] " + base : base;
+        return dndActive ? Messages.tr("lg2d.tray.dndPrefix", base) : base;
     }
 
     /**

@@ -63,6 +63,7 @@ import javax.swing.border.EmptyBorder;
 import com.protonmail.landrevillejf.IconManager;
 import com.protonmail.landrevillejf.MissingIcon;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 
 /**
@@ -104,9 +105,9 @@ public class Desktop2DTaskbar extends JPanel {
             "resources/images/icon/folder-downloads.png";
 
     /** Text labels for the chrome buttons, shown only in ICONS_AND_TEXT mode. */
-    private static final String START_LABEL = "Start";
-    private static final String DOCUMENTS_LABEL = "documents";
-    private static final String DOWNLOADS_LABEL = "downloads";
+    private static final String START_LABEL = Messages.tr("lg2d.taskbar.start");
+    private static final String DOCUMENTS_LABEL = Messages.tr("lg2d.taskbar.documents");
+    private static final String DOWNLOADS_LABEL = Messages.tr("lg2d.taskbar.downloads");
 
     /** Natural bar height at {@code barScale == 1.0}, in pixels. */
     static final int BASE_BAR_HEIGHT_PX = 34;
@@ -178,7 +179,7 @@ public class Desktop2DTaskbar extends JPanel {
         leftRow.setOpaque(false);
         startIconBase = Desktop2DStartMenu.icon(START_ICON, CHROME_ICON_BASE_PX);
         startButton = new JButton(startIconBase);
-        startButton.setToolTipText("Start - Applications");
+        startButton.setToolTipText(Messages.tr("lg2d.taskbar.start.tooltip"));
         startButton.addActionListener(e -> showPopup(desktop.getStartMenu(), startButton));
         leftRow.add(startButton);
         // The pinned quick-launch strip sits between Start and the running-window
@@ -235,7 +236,7 @@ public class Desktop2DTaskbar extends JPanel {
         exitButton = new JButton("");
         exitButton.setIcon(chromeGlyph(IconManager.loadIcon(
                 IconManager.IconCategory.GENERAL, "Stop", 24, 24)));
-        exitButton.setToolTipText("Leave the desktop");
+        exitButton.setToolTipText(Messages.tr("lg2d.taskbar.exit.tooltip"));
         exitButton.addActionListener(e -> desktop.confirmExit());
         rightRow.add(exitButton);
         JPanel right = new JPanel(new GridBagLayout());
@@ -257,7 +258,7 @@ public class Desktop2DTaskbar extends JPanel {
         // Icon-only by default; the descriptive text is the tooltip, and
         // applyConfig() restores the label only in ICONS_AND_TEXT mode.
         JButton button = new JButton(icon);
-        button.setToolTipText("Recently modified files in ~/" + label);
+        button.setToolTipText(Messages.tr("lg2d.taskbar.recentFolder", label));
         button.addActionListener(e -> showPopup(menu, button));
         return button;
     }
@@ -605,20 +606,20 @@ public class Desktop2DTaskbar extends JPanel {
                 return;
             }
             JPopupMenu menu = new JPopupMenu();
-            JMenuItem open = new JMenuItem("Launch");
+            JMenuItem open = new JMenuItem(Messages.tr("lg2d.taskbar.menu.launch"));
             open.addActionListener(a -> desktop.openApp(entry.toItemSpec()));
             menu.add(open);
             menu.addSeparator();
-            JMenuItem moveLeft = new JMenuItem("Move Left");
+            JMenuItem moveLeft = new JMenuItem(Messages.tr("lg2d.taskbar.menu.moveLeft"));
             moveLeft.setEnabled(index > 0);
             moveLeft.addActionListener(a -> quickLaunch.move(index, index - 1));
             menu.add(moveLeft);
-            JMenuItem moveRight = new JMenuItem("Move Right");
+            JMenuItem moveRight = new JMenuItem(Messages.tr("lg2d.taskbar.menu.moveRight"));
             moveRight.setEnabled(index < quickLaunch.size() - 1);
             moveRight.addActionListener(a -> quickLaunch.move(index, index + 1));
             menu.add(moveRight);
             menu.addSeparator();
-            JMenuItem unpin = new JMenuItem("Unpin from Taskbar");
+            JMenuItem unpin = new JMenuItem(Messages.tr("lg2d.taskbar.menu.unpin"));
             unpin.addActionListener(a -> quickLaunch.unpin(entry.command()));
             menu.add(unpin);
             menu.show(anchor, e.getX(), e.getY());
@@ -663,7 +664,8 @@ public class Desktop2DTaskbar extends JPanel {
             boolean pinned = quickLaunch.isPinned(command);
             JPopupMenu menu = new JPopupMenu();
             JMenuItem toggle = new JMenuItem(
-                    pinned ? "Unpin from Taskbar" : "Pin to Taskbar");
+                    Messages.tr(pinned
+                            ? "lg2d.taskbar.menu.unpin" : "lg2d.taskbar.menu.pin"));
             toggle.addActionListener(a -> {
                 if (pinned) {
                     quickLaunch.unpin(command);

@@ -72,6 +72,11 @@ subprojects {
     // hard gate would red-line every build. Layer jacocoTestCoverageVerification
     // onto individual modules as their coverage becomes meaningful.
     tasks.withType(Test).configureEach {
+        // Deterministic i18n baseline: shell labels resolve through the run's
+        // language at class-load time, so suites that assert the English
+        // literals pin the desktop locale to en here (a test that wants
+        // French sets the lg.locale sysprop itself and resets LgLocale).
+        systemProperty 'lg.locale', 'en'
         finalizedBy 'jacocoTestReport'
     }
     tasks.withType(JacocoReport).configureEach {

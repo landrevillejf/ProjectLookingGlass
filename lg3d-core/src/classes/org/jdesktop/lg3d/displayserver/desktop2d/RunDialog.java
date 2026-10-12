@@ -29,6 +29,7 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.border.EmptyBorder;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.MenuModel;
+import org.jdesktop.lg3d.i18n.Messages;
 
 /**
  * The Alt+F2 "run command" box: a lightweight popup with a single text field,
@@ -51,10 +52,10 @@ final class RunDialog {
     }
 
     /** Prompt shown above the field. */
-    static final String TITLE = "Run command";
+    static final String TITLE = Messages.tr("lg2d.run.title");
 
     /** Status text before anything is entered. */
-    static final String HINT = "Type an application name or a command";
+    static final String HINT = Messages.tr("lg2d.run.hint");
 
     private final MenuModel model;
     private final RunHistory history;
@@ -148,7 +149,7 @@ final class RunDialog {
             String trimmed = (text == null) ? "" : text.trim();
             status.setText(trimmed.isEmpty()
                     ? HINT
-                    : "Not found: " + trimmed);
+                    : Messages.tr("lg2d.run.notFound", trimmed));
             return;
         }
         history.add(text);

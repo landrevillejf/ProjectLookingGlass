@@ -147,6 +147,22 @@ the X11 path affects only real X11 windows.
    the desktop log as `WARNING: Exception caught in the EventProcessor` — the UI
    then silently "does nothing".
 
+6. **Shell labels go through `Messages.tr`.** Every user-visible string of the
+   2D shell, the 3D chrome and the start-menu descriptors is looked up in
+   `org.jdesktop.lg3d.i18n.messages` (`Messages.tr("key", args…)`, or
+   `Messages.trLgcfgName/Desc` for `.lgcfg` literals) — **a hard-coded shell
+   label is a defect**, and `scripts/mandela/i18n-keys.mnd` (in
+   `:lg3d-mandela:repositoryChecks`) fails CI when a `tr` key is missing from
+   the base bundle or the French bundle drifts from it. Technical strings (log
+   messages, exceptions, preference keys) stay English. The locale is resolved
+   **once per run** (`LgLocale`: `-Dlg.locale` > `desktop.locale` preference >
+   JVM default, unknown pins fall back to English), so changing the language is
+   applied at the **next desktop restart**, never by hot-swapping text into a
+   live scene graph. When extracting a string: add the key to
+   `messages.properties` (English, byte-identical to the old literal) and its
+   French twin to `messages_fr.properties` in the same commit; patterns that
+   take arguments double their apostrophes (`MessageFormat` rules).
+
 ---
 
 ## Depth, draw order and overlays (transparent sorting)

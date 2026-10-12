@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.MenuGroup;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.MenuItem;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuGroupComponent;
@@ -55,7 +56,8 @@ public class FolderStackStartMenuModel extends PanelStartMenuModel {
     private static final int MAX_LABEL = 28;
 
     /** Label of the trailing row that opens the folder itself. */
-    private static final String SHOW_IN_FILE_MANAGER = "Show in File Manager";
+    private static final String SHOW_IN_FILE_MANAGER =
+            Messages.tr("lg2d.stack.showInFileManager");
 
     /**
      * Margin over the 500 ms hide animation after which the lowered column is
