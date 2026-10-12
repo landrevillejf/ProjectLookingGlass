@@ -278,6 +278,26 @@ verifying it by hand first - the script states a claim, it does not prove one.
 - **Flow:** feature branch off `main` → module-scoped Conventional Commit →
   push → PR against `main` via the `gh` CLI. Run this automatically; only pause
   for genuinely destructive/irreversible operations.
+- **Branch hygiene is part of merging.** A merge is not finished until the branch
+  is gone from **both** sides: merge with `gh pr merge --delete-branch` (the
+  remote), then drop the local with `git branch -d <branch>`. A stale local that
+  outlives its merged PR is what makes a later commit land on a dead branch and
+  get cherry-picked, which duplicates the work under a second SHA.
+- **Verify the branch before committing to it**, especially when resuming an
+  interrupted session whose changes are still uncommitted in the working tree.
+  The checked-out branch may be the one whose PR already merged. Ask first:
+  `gh pr list --head "$(git branch --show-current)" --state all`, and
+  `git branch -r --contains <tip>`. If the branch is already merged, **create
+  the new branch off `main` first, then commit onto it once** — never commit on
+  the stale branch and cherry-pick afterwards.
+- **Prune only what is provably empty.** `git branch --merged origin/main` lists
+  locals that hold no unique work; those are safe to drop. A squash-merged or
+  closed PR can leave a branch whose commits exist nowhere else, so before
+  deleting any branch that is *not* in that list, prove the work is not lost:
+  `git cherry origin/main <branch>` (a `+` line is work main does not have) and
+  `git diff --shortstat origin/main...<branch>`. Never delete a branch with an
+  open PR, a `release/*` line, or a non-empty `git cherry` result. Record the
+  dropped tips first (`git rev-parse <branch>`) so they stay recoverable.
 - **Version bumps are a separate chore PR** (`chore: bump version to X.Y.0-dev`)
   branched off `main` that edits exactly the four version references (see
   *Development Process*). Feature PRs add their `CHANGELOG.md` bullets under the
