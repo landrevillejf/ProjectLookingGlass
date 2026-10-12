@@ -347,4 +347,34 @@ class CellCacheBasicImplTest {
                 CellTestFixtures.translation(0f, 0f, 0f), null, "n"))
                 .isNotNull();
     }
+
+    @Test
+    void removedListenerStopsHearingTheLoadEvents() {
+        java.util.List<org.jdesktop.wonderland.common.cell.CellID> loaded =
+                new java.util.ArrayList<>();
+        CellCache.CellCacheListener listener = new CellCache.CellCacheListener() {
+            @Override
+            public void cellLoaded(org.jdesktop.wonderland.common.cell.CellID cellId,
+                    Cell cell) {
+                loaded.add(cellId);
+            }
+
+            @Override
+            public void cellLoadFailed(org.jdesktop.wonderland.common.cell.CellID cellId,
+                    String className, org.jdesktop.wonderland.common.cell.CellID parentCellID,
+                    Throwable cause) {
+            }
+
+            @Override
+            public void cellUnloaded(org.jdesktop.wonderland.common.cell.CellID cellId,
+                    Cell cell) {
+            }
+        };
+        cache.addCellCacheListener(listener);
+        load(CellTestFixtures.id(1), CacheableCell.class.getName(), null);
+        assertThat(loaded).hasSize(1);
+        cache.removeCellCacheListener(listener);
+        load(CellTestFixtures.id(2), CacheableCell.class.getName(), null);
+        assertThat(loaded).hasSize(1);
+    }
 }

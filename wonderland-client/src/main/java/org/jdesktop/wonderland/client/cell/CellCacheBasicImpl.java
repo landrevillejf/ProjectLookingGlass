@@ -12,12 +12,14 @@
  * M2d seam notes (docs/wonderland-migration.md, "rebuild the unrecoverable"):
  *   - The 2006 constructor took (WonderlandSession, ClassLoader, connection x2)
  *     and called ClientContext.registerCellCache(). None of that is headless:
- *     ClientContext lands with the login/renderer milestone, the connections with
- *     the M3 transport. So the cache is built from just a ClassLoader (defaults to
- *     its own loader -- the same M2c classloader seam) and reaches the network
- *     only through the MessageSink seam, for the single place the original used
- *     the session: a CellReparentMessage (a session-level Message, not a
- *     CellMessage) when a load names a parent the cache does not (yet) hold.
+ *     ClientContext lands with the login/renderer milestone, so the cache is
+ *     built from just a ClassLoader (defaults to its own loader -- the same M2c
+ *     classloader seam) and reaches the network through two seams the M2e
+ *     connection layer now makes real: a MessageSink (the CellEditChannel-
+ *     Connection) for the single session-level send -- a CellReparentMessage
+ *     when a load names a parent the cache does not (yet) hold -- and the
+ *     CellChannelConnection accessor the ChannelComponent ctor reads (M2e
+ *     restores it; CellClientSession wires both, as the 2006 ctor chain did).
  *     ClientContext registration is deferred (documented, not stubbed).
  *   - The original deferred every status change to a ParallelCellStatusManager --
  *     a cached thread pool that also URL-downloaded AssetPreloader cells before
@@ -50,7 +52,8 @@ import org.jdesktop.wonderland.common.cell.MultipleParentException;
 import org.jdesktop.wonderland.common.cell.messages.CellReparentMessage;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
 
-public class CellCacheBasicImpl implements CellCache {
+public class CellCacheBasicImpl implements CellCache,
+        CellCacheConnection.CellCacheMessageListener {
 
     private static final Logger logger = Logger.getLogger(CellCacheBasicImpl.class.getName());
 
@@ -63,6 +66,7 @@ public class CellCacheBasicImpl implements CellCache {
 
     private final ClassLoader classLoader;
     private MessageSink messageSink;
+    private CellChannelConnection cellChannelConnection;
     private boolean hasView = false;
 
     private static final ThreadLocal<Cell> currentCell = new ThreadLocal<>();
@@ -80,6 +84,22 @@ public class CellCacheBasicImpl implements CellCache {
     /** M3 wires the real session sink here; null keeps the reparent send local. */
     public void setMessageSink(MessageSink messageSink) {
         this.messageSink = messageSink;
+    }
+
+    /**
+     * M2e: the 2006 ctor chain ran (cellCacheConnection.addListener(cache),
+     * cellChannelConnection.setCellCache(cache)) from CellClientSession;
+     * this setter is the second half of that wiring and returns nothing, it
+     * only stores -- the caller feeds the cache to the connection itself, so
+     * construction order stays with the session that owns both.
+     */
+    public void setCellChannelConnection(CellChannelConnection cellChannelConnection) {
+        this.cellChannelConnection = cellChannelConnection;
+    }
+
+    @Override
+    public CellChannelConnection getCellChannelConnection() {
+        return cellChannelConnection;
     }
 
     /** Replaces the camera-bound setViewCell(ViewCell); drives the VISIBLE walk. */

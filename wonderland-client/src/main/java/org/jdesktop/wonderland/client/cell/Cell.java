@@ -130,6 +130,15 @@ public class Cell {
         this.channel = channel;
     }
 
+    /**
+     * M2e: the read side the CellChannelConnection needs when a cell reaches
+     * ACTIVE (the 2006 getComponent(ChannelComponent.class) lookup, recast on
+     * the seam). Null until the session wires the real ChannelComponent.
+     */
+    public MessageChannel getChannel() {
+        return channel;
+    }
+
     public CellID getCellID() {
         return cellID;
     }
