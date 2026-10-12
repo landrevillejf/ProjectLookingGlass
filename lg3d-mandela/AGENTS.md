@@ -135,10 +135,11 @@ never silently in code.
   shipped script is a complete program, unlike a guide fragment — and pins the
   header conventions (shebang, one-line purpose, the `-s` sandbox it must be run
   with) that keep that directory usable. The scripts themselves run in CI as
-  `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `releaseCheck`,
-  `startMenuAudit`), which are intentionally *not* part of `check`: they audit the
-  whole tree, so their failures belong to the step that ran them, not to this
-  module's build.
+  `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `htmlLinksCheck`,
+  `releaseCheck`, `startMenuAudit`, `i18nKeysCheck`, `legacyJ3dCheck`,
+  `scriptsHygieneCheck`), which are intentionally *not* part of `check`: they
+  audit the whole tree, so their failures belong to the step that ran them, not
+  to this module's build.
 - **A grammar change is a two-sided test**: add the accepted form *and* pin the
   construct that must not be swallowed by it. A parse that silently changes
   meaning is worse than one that fails.

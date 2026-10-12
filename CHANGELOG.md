@@ -141,6 +141,24 @@ work to make it build and run on a current toolchain.
   agree). All `Test` tasks run with `lg.locale=en` so the extraction cannot
   quietly change what existing assertions read. The apps themselves
   (~2,000 strings) are tranche 2, one PR per start-menu group.
+- **The runaway-loop guard finally has a test, and two gates join the repository
+  checks** (`lg3d-mandela`, `vm/VM` + `MachineHostTest`; `scripts/mandela/`) — the
+  step budget is the sandbox's headline promise (a mistyped `loop { }` cannot hang
+  the desktop) yet it was the one machine limit asserted *nowhere*: `MachineHostTest`
+  pinned the call-depth and host re-entrancy guards, but a change to the retired-loop
+  check could regress silently. Three tests now pin it — a `loop`/`while` runaway is
+  retired at the ceiling and the message quotes `maxSteps` back (the number a host
+  tunes against), honest work *under* the ceiling runs (the other side of the `>`),
+  and tripping it is recoverable, so a host can `try` around untrusted code and keep
+  its engine. Two gates join `:lg3d-mandela:repositoryChecks` (now seven):
+  `legacy-j3d.mnd` turns the Java 3D migration rule into a build truth — no source the
+  build compiles may `import` a pre-migration package (`javax.media.j3d` /
+  `javax.vecmath` / `com.sun.j3d`), scoped so the do-not-edit `lg3d-docs`, the retired
+  `lg3d-awt` toolkit and the two deserialisation shims stay legitimately out of scope —
+  and `scripts-hygiene.mnd` closes the rot neither the compiler nor Gradle's own wiring
+  can see: a gate pointing at a missing script, a registered task the `repositoryChecks`
+  aggregate silently omits, or a shipped `.mnd` absent from the scripts README (and
+  vice versa). Both were proven to bite on a planted defect before shipping green.
 
 ### Fixed
 - **The release train no longer cuts releases by itself** (`.github/workflows/release-train.yml`)

@@ -88,14 +88,15 @@ tasks.register('mandelaRepl', JavaExec) {
 // ---------------------------------------------------------------------------
 // scripts/mandela holds automation written *in* Mandela and aimed at this
 // repository: a documentation-link checker, an HTML/Mermaid checker for the
-// Pages site, a release-consistency gate, a start-menu descriptor audit and an
-// i18n bundle-completeness gate. They
+// Pages site, a release-consistency gate, a start-menu descriptor audit, an
+// i18n bundle-completeness gate, a legacy Java 3D import lint and a gate on the
+// automation's own wiring. They
 // are ordinary `mandela run` invocations, so
 // the only thing these tasks add is the sandbox and the classpath -- run against
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all five)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all seven)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -133,12 +134,16 @@ mandelaCheck('startMenuAudit', 'startmenu-audit.mnd',
         'Report the start-menu inventory and fail when a live descriptor does not resolve.')
 mandelaCheck('i18nKeysCheck', 'i18n-keys.mnd',
         'Fail when a Messages.tr key is missing from the shell bundle or the French bundle drifts from the base.')
+mandelaCheck('legacyJ3dCheck', 'legacy-j3d.mnd',
+        'Fail when a built source imports a pre-migration Java 3D package (javax.media.j3d / javax.vecmath / com.sun.j3d).')
+mandelaCheck('scriptsHygieneCheck', 'scripts-hygiene.mnd',
+        'Fail when a Mandela gate is unwired, left out of repositoryChecks, or missing from the scripts README.')
 
 tasks.register('repositoryChecks') {
     group = 'verification'
     description = 'Run every Mandela script that audits this repository.'
     dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit',
-            'i18nKeysCheck'
+            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck'
 }
 
 // ---------------------------------------------------------------------------
