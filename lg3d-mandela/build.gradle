@@ -89,14 +89,15 @@ tasks.register('mandelaRepl', JavaExec) {
 // scripts/mandela holds automation written *in* Mandela and aimed at this
 // repository: a documentation-link checker, an HTML/Mermaid checker for the
 // Pages site, a release-consistency gate, a start-menu descriptor audit, an
-// i18n bundle-completeness gate, a legacy Java 3D import lint and a gate on the
+// i18n bundle-completeness gate, a legacy Java 3D import lint, a freshness gate
+// on the Help Center's generated What's New topic and a gate on the
 // automation's own wiring. They
 // are ordinary `mandela run` invocations, so
 // the only thing these tasks add is the sandbox and the classpath -- run against
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all seven)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all eight)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -138,12 +139,33 @@ mandelaCheck('legacyJ3dCheck', 'legacy-j3d.mnd',
         'Fail when a built source imports a pre-migration Java 3D package (javax.media.j3d / javax.vecmath / com.sun.j3d).')
 mandelaCheck('scriptsHygieneCheck', 'scripts-hygiene.mnd',
         'Fail when a Mandela gate is unwired, left out of repositoryChecks, or missing from the scripts README.')
+mandelaCheck('whatsNewCheck', 'whats-new.mnd',
+        "Fail when the Help Center's generated What's New topic no longer matches CHANGELOG.md.")
 
 tasks.register('repositoryChecks') {
     group = 'verification'
     description = 'Run every Mandela script that audits this repository.'
     dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit',
-            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck'
+            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck', 'whatsNewCheck'
+}
+
+// The other half of whats-new.mnd: the same script, run with its `write` mode
+// word, rendering CHANGELOG.md into the committed help topic. A generator rather
+// than a checker, so deliberately NOT in `repositoryChecks` and NOT in `check` -
+// `check` may never rewrite a tracked file. The pair is the deal: edit the
+// changelog, run this, and whatsNewCheck (above, in CI) proves the topic that
+// ships is the one the changelog describes.
+tasks.register('whatsNewRefresh', JavaExec) {
+    group = 'verification'
+    description = "Regenerate the Help Center's What's New topic from CHANGELOG.md."
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    workingDir = repoRoot
+    args = ['run', new File(scriptDir, 'whats-new.mnd').toString(), 'write',
+            '-s', repoRoot.toString()]
 }
 
 // ---------------------------------------------------------------------------

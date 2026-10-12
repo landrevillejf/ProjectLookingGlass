@@ -6,6 +6,9 @@
 -->
 <map version="2.0">
   <mapID target="overview" url="overview.html"/>
+  <!-- whats-new.html is generated from CHANGELOG.md by
+       scripts/mandela/whats-new.mnd; see HelpContentTest and whatsNewCheck. -->
+  <mapID target="whats-new" url="whats-new.html"/>
   <mapID target="getting-started" url="getting-started.html"/>
   <mapID target="desktop-tour" url="desktop-tour.html"/>
   <mapID target="windows" url="windows.html"/>

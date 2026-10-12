@@ -60,6 +60,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 ### Generated Files
 - `**/build-gradle/**` - All Gradle build output
 - `lg3d-core/build-gradle/generated-src/**` - Generated [LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0)
+- [lg3d-apps/src/classes/org/jdesktop/lg3d/apps/help/helpcontent/whats-new.html](lg3d-apps/src/classes/org/jdesktop/lg3d/apps/help/helpcontent/whats-new.html) - The Help Center's *What's New* topic, rendered from `CHANGELOG.md` by [scripts/mandela/whats-new.mnd](scripts/mandela/whats-new.mnd). It is **committed generated output**: a hand edit is a diff the next regeneration throws away, and `whatsNewCheck` fails the build on the mismatch. Edit the changelog (or the script), then run `./gradlew :lg3d-mandela:whatsNewRefresh`.
 
 ### Template Files
 - [lg3d-core/build-tools/LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0) - Contains `@TOKEN@` placeholders substituted at build time. Edit the template, not the generated output.
@@ -256,8 +257,9 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the seven gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the eight gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
+./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
 
 - `doc-links.mnd` - every relative link and `#anchor` in the tree's markdown
@@ -284,6 +286,15 @@ the exit codes and how to add a tool.
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
   scripts README and vice versa (a CI gate).
+- `whats-new.mnd` - the Help Center's *What's New* topic as a self-updating
+  artifact: it renders `CHANGELOG.md` (`[Unreleased]` plus the three newest
+  releases) into `lg3d-apps/…/help/helpcontent/whats-new.html`, and the same
+  script re-renders in memory and compares, so the committed topic cannot fall
+  behind the changelog unnoticed (a CI gate, run with `write` as the generator).
+  The topic is committed, so **any PR that edits `CHANGELOG.md` runs
+  `whatsNewRefresh` in the same PR**; the full-text search index needs no wiring
+  because `generateHelpSearchIndex` already globs every `*.html` in that
+  directory.
 - `asset-report.mnd` (report) and `userscript-new.mnd` (a Web Browser userscript
   generator) are not gates: the first always exits 0, the second only writes the
   one file it names.

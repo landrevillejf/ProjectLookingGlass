@@ -19,6 +19,7 @@ enough to be the desktop's automation surface.
 | [`i18n-keys.mnd`](i18n-keys.mnd) | The shell bundle contract: every `Messages.tr("…")` literal in a production source exists in `messages.properties`, the French bundle carries exactly the same keys, and each key's `{n}` placeholders agree between the two. Also prints the per-surface key inventory. | Green over the first extraction (288 keys, 2763 sources); proven against a planted base-only key, which fails as "no French twin". 37 legacy Latin-1 incubator sources are unreadable as text and named as skipped. |
 | [`legacy-j3d.mnd`](legacy-j3d.mnd) | The Java 3D migration rule as a gate: no source the build compiles may `import` a pre-migration package (`javax.media.j3d`, `javax.vecmath`, `com.sun.j3d`). Scoped so the exemption is honest — the do-not-edit `lg3d-docs` samples, the retired `lg3d-awt` toolkit and the two deserialisation shims that must keep the old names are all out of scope. | Ships green (the only legacy imports left in the tree are under `lg3d-docs`); proven against a planted `import javax.vecmath.*` in a built source, which the gate names by file and line. |
 | [`scripts-hygiene.mnd`](scripts-hygiene.mnd) | The automation's own wiring: every `mandelaCheck(...)` gate points at a script that exists, every registered gate is in the `repositoryChecks` aggregate CI runs, and every shipped `.mnd` is documented in this table (and every table row names a file that still exists) — the rot that the compiler and Gradle each miss. | Ships green over the current wiring; proven by registering a gate the aggregate omits and by pointing a row at a deleted script, each of which fails. |
+| [`whats-new.mnd`](whats-new.mnd) | Both halves of one job. As a gate, it re-renders `CHANGELOG.md` (the `[Unreleased]` section plus the three newest releases) and compares against the committed Help Center topic `lg3d-apps/…/help/helpcontent/whats-new.html`, failing when the guide has fallen behind the changelog. With the `write` word it is the generator that writes that topic — output free of timestamps so the comparison is byte for byte. | The first render turned 4 sections and 140 changelog bullets into the guide's nineteenth topic, and its inventory named **72 `Added` entries no other help topic mentions** — the honest list of where a real topic is still owed. The gate was proven against a changelog edit the topic did not carry. |
 | [`asset-report.mnd`](asset-report.mnd) | Weighs the artwork the desktop ships — totals, heaviest directories, largest files with dates, repeated file names — as a table or as JSON, optionally to a file. | 319 assets, ~41 MiB, with the 3D background models dominating; written as a report, not a gate. |
 | [`userscript-new.mnd`](userscript-new.mnd) | Writes a new Web Browser userscript, in the `webPage()` host vocabulary, into the browser's userscript directory. | A Mandela program that authors Mandela programs for a *different* host — the generated script was then run under `Capabilities.webPage()` and logged the page title it saw. |
 
@@ -27,8 +28,9 @@ enough to be the desktop's automation surface.
 The language needs no install, so the shortest path is the module's own classes:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks          # the seven gates, in one command
+./gradlew :lg3d-mandela:repositoryChecks          # the eight gates, in one command
 ./gradlew :lg3d-mandela:docLinksCheck             # or one of them
+./gradlew :lg3d-mandela:whatsNewRefresh           # a generator, not a gate: rewrite the help topic
 ./gradlew :lg3d-mandela:mandelaRun -Pscript=scripts/mandela/asset-report.mnd '-Pargs=json -s .'
 ```
 
@@ -63,7 +65,9 @@ run scripts/mandela/doc-links.mnd -s .    # from the repository root
 `ShippedScriptsTest` fails any shipped script whose header stopped saying it.
 `-u` / `--unrestricted` exists, and none of these scripts need it: a task that
 walks a repository is exactly what a `fileRoot` was designed for. The scripts
-write nothing except when explicitly told to (`asset-report.mnd out=PATH`).
+write nothing except when explicitly told to — `asset-report.mnd` with an
+`out=PATH` argument, and `whats-new.mnd` with its `write` mode word, which is the
+only script here that rewrites a tracked file and the reason its gate exists.
 
 ## Exit codes
 
