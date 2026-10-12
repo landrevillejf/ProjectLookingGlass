@@ -487,6 +487,15 @@ public final class Desktop2DAppRegistry {
         // hosts it here as an MDI frame with no duplicated logic.
         panels.put("org.jdesktop.lg3d.apps.search.Search",
                 "org.jdesktop.lg3d.apps.search.SearchPanel");
+        // Bug Reporter (lg3d-apps, org.jdesktop.lg3d.apps.bugreporter) is the
+        // manual half of the desktop's bug-reporting tool; the automatic half
+        // is this module's org.jdesktop.lg3d.displayserver.crash engine, and
+        // both file through the same prefilled-GitHub-link pipeline, so the
+        // panel needs no dependency beyond the core already on the classpath.
+        // Its headless BugReportDraft carries the consequences; the panel is
+        // plain Swing and hosts unchanged as an MDI frame here.
+        panels.put("org.jdesktop.lg3d.apps.bugreporter.BugReporter",
+                "org.jdesktop.lg3d.apps.bugreporter.BugReporterPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

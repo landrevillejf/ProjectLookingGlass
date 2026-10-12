@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Bug Reporter (lg3d-apps,
+ org.jdesktop.lg3d.apps.bugreporter). The manual half of the desktop's
+ bug-reporting tool - the automatic half is the lg3d-core
+ org.jdesktop.lg3d.displayserver.crash engine, which spools uncaught
+ exceptions and SEVERE log records and opens the same prefilled GitHub link.
+ The one panel serves both desktops: in 3D the BugReporter wrapper hosts it on
+ a SwingNode inside a Frame3D via TitledSwingWindow; in the 2D/Swing desktop
+ Desktop2DAppRegistry.PANEL_APPS opens the same panel as an MDI internal
+ frame. Nothing is POSTed from the desktop: submitting spools the redacted
+ report and hands a prefilled github.com/.../issues/new link to the browser,
+ where the reporter reads the draft issue and presses the real button.
+ Launched in-JVM via the "java <class>" command; the lg3d-apps jar is on the
+ :lg3d-core:run classpath. Discovery only scans config/demo and
+ config/incubator, so this descriptor lives in lg3d-apps/src/config (bundled
+ to config/demo). The "Utilities" menuGroup is declared in
+ lg3d-core/src/etc/lg3d/startmenu.lgcfg. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.bugreporter.BugReporter</string>
+  </void>
+  <void property="desc">
+   <string>File a detailed bug report or attach to a captured crash</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/bugreporter.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Utilities</string>
+  </void>
+  <void property="name">
+   <string>Bug Reporter</string>
+  </void>
+ </object>
+</java>

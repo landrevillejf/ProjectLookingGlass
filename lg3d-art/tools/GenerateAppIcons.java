@@ -132,6 +132,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in vector espresso cup on a saucer (Espresso editor) instead of a bundled glyph. */
     private static final String ESPRESSO_GLYPH = "EspressoCup";
 
+    /** Glyph name that draws a built-in six-legged bug (Bug Reporter) instead of a bundled glyph. */
+    private static final String BUG_GLYPH = "BugInsect";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -269,6 +272,12 @@ public class GenerateAppIcons {
         // espresso cup with handle and rising steam on a saucer, over the
         // coffee-brown tile. Drawn in-tool like the text-editor page above.
         {"espresso.png", IconColor.BROWN, IconCategory.TEXT, ESPRESSO_GLYPH},
+        // Bug Reporter (Swing bug-report form hosted on a SwingNode / 2D MDI
+        // frame; Utilities menu group), the manual half of the desktop's
+        // crash-reporting tool. The bundled glyph set has nothing insect
+        // shaped, so a six-legged bug with antennae is drawn in-tool like the
+        // espresso cup and the marks above.
+        {"bugreporter.png", IconColor.RED, IconCategory.DEVELOPMENT, BUG_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -337,6 +346,8 @@ public class GenerateAppIcons {
                 glyph = drawTextEditorGlyph(GLYPH);
             } else if (ESPRESSO_GLYPH.equals(glyphName)) {
                 glyph = drawEspressoCupGlyph(GLYPH);
+            } else if (BUG_GLYPH.equals(glyphName)) {
+                glyph = drawBugGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -982,6 +993,45 @@ public class GenerateAppIcons {
         g.fillOval(6, 5, 7, 7);     // top trunk node
         g.fillOval(6, 22, 7, 7);    // bottom trunk node
         g.fillOval(19, 8, 7, 7);    // branch node
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the bug glyph: a beetle seen from above - small head, solid oval
+     * body split down the elytra, three bent legs on each side and a pair of
+     * antennae - the conventional "bug / defect" mark. The bundled
+     * {@code toolbarButtonGraphics} set in {@code libs/IconManager-1.6.0.jar}
+     * carries nothing insect shaped (verified: no {@code bug}, {@code spider}
+     * or {@code insect} entry in the jar), so it is drawn in-tool like the
+     * git branch and the marks above. Designed in a 32x32 space and
+     * scaled to {@code size}.
+     */
+    private static Icon drawBugGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setColor(Color.WHITE);
+        g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        // Antennae from the head.
+        g.drawLine(13, 6, 9, 1);
+        g.drawLine(19, 6, 23, 1);
+        // Legs: three per side, shoulder-elbow-knee sweeps.
+        g.drawPolyline(new int[]{11, 6, 3}, new int[]{12, 8, 5}, 3);
+        g.drawPolyline(new int[]{11, 5, 3}, new int[]{17, 17, 21}, 3);
+        g.drawPolyline(new int[]{11, 6, 4}, new int[]{22, 26, 29}, 3);
+        g.drawPolyline(new int[]{21, 26, 29}, new int[]{12, 8, 5}, 3);
+        g.drawPolyline(new int[]{21, 27, 29}, new int[]{17, 17, 21}, 3);
+        g.drawPolyline(new int[]{21, 26, 28}, new int[]{22, 26, 29}, 3);
+        // Head and body.
+        g.fillOval(12, 4, 8, 7);
+        g.fillOval(9, 10, 14, 19);
+        // Split the elytra: a punched line, not a painted one, so the tile
+        // gradient shows through the way the browser window's content does.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawLine(16, 12, 16, 27);
         g.dispose();
         return new ImageIcon(image);
     }
