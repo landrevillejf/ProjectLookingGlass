@@ -10,6 +10,69 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland wire protocol is now a tested contract**
+  (`wonderland-common`, `src/test/java/…/messages/`, `…/comms/messages/`,
+  `…/cell/messages/`) — M1, the second milestone on the migration plan. M0
+  shipped the ~150-class data model compiling green on JDK 21 but with no
+  proof that its Java-serialisation shape still worked; that shape *is* the
+  wire contract between the ported client and the M3 Spring Boot session
+  server (M3 carries these exact bytes over a `BinaryWebSocketHandler`), so
+  any decompilation drift in a field name, an erased generic, a `serialVersionUID`
+  or the Externalizable `MessageID` envelope would silently corrupt the
+  protocol at runtime. Three new suites add **43 round-trip cases on top of
+  M0's 77**, every one of them packing a message through
+  `MessagePacker.pack(msg, clientID)` and reading it back through
+  `MessagePacker.unpack(buf)` — the same two entry points M3 will call:
+  `MessagePackerTest` (11) pins the `MessageID` Externalizable path
+  (long value + `Long.MIN_VALUE` "no-reply-to" sentinel + the
+  `generateMessageID()` monotonic counter), the `ErrorMessage` cause/text
+  pair, `ProtocolSelectionMessage` with a concrete
+  `DefaultProtocolVersion`, the `MessageList` nested-message case, the
+  empty `WonderlandSetupMessage`, the `clientID` short including 0 and
+  negatives, and that two consecutive packs in the same JVM stay
+  independent — the pin for `WonderlandObjectOutputStream.descToId` being
+  read-only; `CommsMessagesCodecTest` (7) pins the session handshake: the
+  `AttachClient` / `AttachedClient` / `DetachClient` trio, the
+  `SessionInternalConnectionType` marker subclass surviving as its own
+  class (not the `ConnectionType` base), and `SessionInitializationMessage`
+  carrying a `BigInteger` session id alongside a `WonderlandIdentity`;
+  `CellMessagesCodecTest` (25) covers every concrete subclass under
+  `common/cell/messages/` — the `CellEditMessage` family
+  (`Create` / `Delete` / `Duplicate` / `Reparent` each with its `EditType`),
+  the `CellServerState{Request,Response,Set,Update}Message` group with
+  `AvatarCellServerState` / `ModelCellServerState` concrete subclasses
+  resolving back to their own class (that is what
+  `ScannedClassLoader.getInstance(Class)` needs), the `Component` add /
+  remove messages with the `ComponentAction` enum, the `Client` state
+  messages, the `CellHierarchy{,Unload}Message` pair (which carries the
+  jME `BoundingVolume` + `CellTransform` + `CellClientState` triple that
+  M2's renderer will consume), `MovableAvatarMessage` (the only
+  `coreClass` message that crosses every one of the nine cached class
+  descriptors — Vector3f, Quaternion, CellID, CellMessage, Message, etc.
+  — in a single pack), the `MovableMessage` `MOVED` / `MOVE_REQUEST`
+  action split, and `MovableMessageResponse` / `ViewCreateResponseMessage`.
+  The raw-`Set` field on `CellServerStateUpdateMessage` — an artefact of
+  Fernflower erasing the generic — is exercised with a `ComponentHolder`
+  wrapper so the hashCode-based collection still resolves after
+  deserialisation. Two shim bugs surfaced on the way and were fixed: the
+  `Set` cast had to be a two-step through `Set<?>` to keep `-Xlint`
+  quiet, and `CellHierarchyMessage` does not carry the cell name on the
+  `AVATAR_CELL_{ADDED,REMOVED}` branches, which the test asserts rather
+  than papers over. Measured coverage jumped from **17.56% / 17.90%** to
+  **32.36% / 21.48%**, so [`coverageFloors[wonderland-common]`](build.gradle)
+  is raised to `[line: 0.300, branch: 0.200]` in the same PR. The
+  [migration doc](docs/wonderland-migration.md) M1 row is flipped to
+  🟨 in progress and its **session/host server** decision is now
+  recorded as **Spring Boot 3** (embedded Tomcat + Spring WebSocket +
+  REST controllers) rather than the earlier "plain `java.net` /
+  `java.nio`" placeholder — chosen because the client already needs an
+  HTTP surface for WFS, and one Spring Boot process gives both transports
+  from the same lifecycle. M2 (Jogamp scene-graph renderer), M3 (the
+  Spring Boot session server itself), M4 (NetBeans-layer plugin loader),
+  M5 (asset pipeline + bundled worlds), M6 (2D + 3D desktop integration)
+  and M7 (`voicebridge` / `avatar` / `animation` / `videoplayer` /
+  `pdfviewer`) still proceed only after this PR lands and the direction
+  is re-confirmed.
 - **The Wonderland migration begins with a JDK-21 data-model foundation**
   (`wonderland-common`, `wonderland-client`, `wonderland-server`,
   `wonderland-modules`; `docs/wonderland-migration.md`) — the repo has shipped
