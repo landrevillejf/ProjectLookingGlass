@@ -14,7 +14,6 @@
 package org.jdesktop.lg3d.apps.bugreporter;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -29,6 +28,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -80,13 +80,6 @@ public class BugReporterPanel extends JPanel {
     /** Panel size in native pixels; the desktop window sizes itself to this. */
     public static final int WIDTH_PX = 760;
     public static final int HEIGHT_PX = 560;
-
-    private static final Color BACKDROP = new Color(0x2B, 0x33, 0x3D);
-    private static final Color CARD = new Color(0x36, 0x40, 0x4C);
-    private static final Color TEXT = new Color(0xEC, 0xF1, 0xF7);
-    private static final Color TEXT_DIM = new Color(0xA8, 0xB4, 0xC2);
-    private static final Color ACCENT = new Color(0x6F, 0xB5, 0xE8);
-    private static final Color WARN = new Color(0xE8, 0xA8, 0x6F);
 
     /** The one model; every widget mirrors into it, every paint reads from it. */
     private final BugReportDraft draft = new BugReportDraft();
@@ -140,8 +133,6 @@ public class BugReporterPanel extends JPanel {
     public BugReporterPanel() {
         super(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
-        setBackground(BACKDROP);
-        setOpaque(true);
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildBody(), BorderLayout.CENTER);
@@ -167,12 +158,10 @@ public class BugReporterPanel extends JPanel {
     private JComponent buildHeader() {
         IssuePrefill.Target target = CrashReporter.shared().target();
         JPanel header = new JPanel(new BorderLayout(0, 2));
-        header.setOpaque(false);
         header.setBorder(BorderFactory.createEmptyBorder(10, 12, 6, 12));
 
         JLabel title = new JLabel("Bug Reporter");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 17f));
-        title.setForeground(TEXT);
         header.add(title, BorderLayout.NORTH);
 
         StringBuilder where = new StringBuilder("Files against ");
@@ -185,14 +174,12 @@ public class BugReporterPanel extends JPanel {
         }
         where.append("  \u00b7  nothing is sent from this desktop: the browser opens a draft you submit");
         JLabel whereLabel = new JLabel(where.toString());
-        whereLabel.setForeground(ACCENT);
         header.add(whereLabel, BorderLayout.SOUTH);
         return header;
     }
 
     private JComponent buildBody() {
         JPanel form = new JPanel(new GridBagLayout());
-        form.setOpaque(false);
         form.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 6));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(3, 3, 3, 3);
@@ -267,11 +254,9 @@ public class BugReporterPanel extends JPanel {
         c.gridwidth = 2;
         c.weightx = 1.0;
         JPanel evidenceRow = new JPanel(new BorderLayout(4, 0));
-        evidenceRow.setOpaque(false);
         evidenceRow.add(evidencePathField, BorderLayout.CENTER);
         evidenceRow.add(addEvidenceButton, BorderLayout.EAST);
         JPanel evidencePanel = new JPanel(new BorderLayout(0, 3));
-        evidencePanel.setOpaque(false);
         evidencePanel.add(evidenceRow, BorderLayout.NORTH);
         evidenceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         evidencePanel.add(scroller(evidenceList, 54), BorderLayout.SOUTH);
@@ -292,7 +277,6 @@ public class BugReporterPanel extends JPanel {
         JPanel preview = buildPreview();
 
         JPanel split = new JPanel(new BorderLayout(6, 0));
-        split.setOpaque(false);
         split.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 12));
         split.add(form, BorderLayout.CENTER);
         split.add(preview, BorderLayout.EAST);
@@ -301,21 +285,23 @@ public class BugReporterPanel extends JPanel {
 
     private JPanel buildArchiveColumn(JButton reload) {
         JPanel archive = new JPanel(new BorderLayout(0, 3));
-        archive.setOpaque(false);
         JLabel caption = fieldLabel("Captured crashes (optional)");
         archive.add(caption, BorderLayout.NORTH);
         archiveList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        archiveList.setCellRenderer((list, value, index, isSelected, cellHasFocus) -> {
-            JLabel label = new JLabel(value.title()
-                    + (value.occurrences() > 1 ? "  \u00d7" + value.occurrences() : ""));
-            label.setForeground(isSelected ? TEXT : TEXT_DIM);
-            label.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
-            return label;
+        archiveList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(JList<?> list,
+                    Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                CrashReport report = (CrashReport) value;
+                setText(report.title()
+                        + (report.occurrences() > 1 ? "  \u00d7" + report.occurrences() : ""));
+                return this;
+            }
         });
         archive.add(scroller(archiveList, 80), BorderLayout.CENTER);
         JPanel buttons = new JPanel();
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
-        buttons.setOpaque(false);
         buttons.add(attachCrashButton);
         buttons.add(Box.createHorizontalStrut(4));
         buttons.add(detachCrashButton);
@@ -329,28 +315,22 @@ public class BugReporterPanel extends JPanel {
 
     private JPanel buildPreview() {
         JPanel panel = new JPanel(new BorderLayout(0, 3));
-        panel.setOpaque(false);
         panel.setPreferredSize(new Dimension(300, 0));
         JLabel caption = fieldLabel("Issue preview (exact text)");
         panel.add(caption, BorderLayout.NORTH);
         previewArea.setEditable(false);
         previewArea.setLineWrap(true);
         previewArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
-        previewArea.setBackground(CARD);
-        previewArea.setForeground(TEXT_DIM);
         panel.add(scroller(previewArea, 0), BorderLayout.CENTER);
         return panel;
     }
 
     private JComponent buildFooter() {
         JPanel footer = new JPanel(new BorderLayout(0, 2));
-        footer.setOpaque(false);
         footer.setBorder(BorderFactory.createEmptyBorder(2, 12, 8, 12));
 
         JPanel buttons = new JPanel(new BorderLayout(6, 0));
-        buttons.setOpaque(false);
         JPanel right = new JPanel();
-        right.setOpaque(false);
         right.add(copyTextField);
         right.add(copyLinkButton);
         right.add(clearButton);
@@ -358,10 +338,7 @@ public class BugReporterPanel extends JPanel {
         buttons.add(right, BorderLayout.EAST);
         footer.add(buttons, BorderLayout.NORTH);
 
-        statusLabel.setForeground(ACCENT);
-        adviceLabel.setForeground(WARN);
         JPanel lines = new JPanel(new BorderLayout());
-        lines.setOpaque(false);
         lines.add(statusLabel, BorderLayout.NORTH);
         lines.add(adviceLabel, BorderLayout.SOUTH);
         footer.add(lines, BorderLayout.SOUTH);
@@ -375,15 +352,11 @@ public class BugReporterPanel extends JPanel {
     }
 
     private JLabel fieldLabel(String text) {
-        JLabel label = new JLabel(text);
-        label.setForeground(TEXT_DIM);
-        return label;
+        return new JLabel(text);
     }
 
     private JScrollPane scroller(JComponent view, int minHeight) {
         JScrollPane scroll = new JScrollPane(view);
-        scroll.getViewport().setBackground(CARD);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(0x4A, 0x55, 0x63)));
         if (minHeight > 0) {
             scroll.setPreferredSize(new Dimension(10, minHeight));
         }
@@ -489,7 +462,6 @@ public class BugReporterPanel extends JPanel {
         }
         draft.linkedCrash(selected);
         linkLabel.setText("linked to report " + selected.id() + " - keeps its signature");
-        linkLabel.setForeground(ACCENT);
         setStatus("Filing against the captured crash; its trace and environment are kept.");
         paintFromDraft();
     }
@@ -498,7 +470,6 @@ public class BugReporterPanel extends JPanel {
         draft.linkedCrash(null);
         archiveList.clearSelection();
         linkLabel.setText("filing by hand - not linked to a captured crash");
-        linkLabel.setForeground(TEXT_DIM);
         setStatus("Detached the crash; this draft signs on its own words.");
         paintFromDraft();
     }
