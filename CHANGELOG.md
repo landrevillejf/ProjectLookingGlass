@@ -227,6 +227,31 @@ work to make it build and run on a current toolchain.
   vice versa). Both were proven to bite on a planted defect before shipping green.
 
 ### Fixed
+- **`indexOf` now honours its start index instead of ignoring it**
+  (`lg3d-mandela`, `rt/StandardLibrary`) — `s.indexOf(needle, from)` read only
+  `args[0]`, so it answered the *first* occurrence and called it the answer: a
+  script asking for the closing quote after the opening one got the opening one
+  back, no error, and a wrong number. Found while writing
+  [`Mandela at Work`](lg3d-mandela/docs/USAGE.md), whose demo printed "0 wired
+  gate task(s)" until the scan was bisected (measured before the fix: both calls
+  returned index 13 on the same line). Both spellings are fixed together —
+  `Str.indexOf` and `List.indexOf` — because leaving the start index honoured in
+  one and ignored in the other would have kept the defect and only moved it. The
+  rules are the ones a Java-shaped surface promises: a negative start is `0` and
+  not a count from the end, so the `-1` a failed lookup answers cannot scramble
+  the search that follows it; a start past the end answers `-1` rather than
+  refusing; a `Long` too big for an index is clamped instead of wrapping
+  (`"a-b-c".indexOf("c", 9223372036854775807)` is `-1`, not a crash and not a
+  wrong hit); a non-number is the `TypeError` the rest of the library raises.
+  Thirteen new cases in `StandardLibraryTest` pin every branch through the public
+  facade, including the scanner idiom the page now teaches
+  (`t.indexOf("'", t.indexOf("'") + 1)` is the *second* quote), and
+  §9 of the [language guide](docs/mandela-language.md) documents the argument
+  where the member table previously listed only the name. No shipped script
+  passed a second argument, so nothing in the tree was relying on the old
+  behaviour; the page's demo was rewritten to the direct call and its transcript
+  re-run, which is byte-identical apart from the timestamp — the fix changes the
+  call, not the answer the workaround had been forced to reach.
 - **The release train no longer cuts releases by itself** (`.github/workflows/release-train.yml`)
   — a merge to `main` could complete the one open milestone and the train then auto-cut a
   `release/X.Y.Z` branch without any human deciding to ship; with the `RELEASE_PAT` secret

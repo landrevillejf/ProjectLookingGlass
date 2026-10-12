@@ -480,6 +480,21 @@ grant; `sleep` does, because it parks a host thread (`THREAD`).
 Properties (`s.length`) resolve before methods of the same name
 (`xs.length()`), so a member's kind never changes what it reports.
 
+Two of those names take an optional **start index**: `s.indexOf(needle, from)` and
+`xs.indexOf(value, from)` answer the first match *at or after* `from`. A negative
+`from` is `0` and not a count from the end — the `-1` a failed lookup answers must
+not scramble the search that follows it — and a `from` past the end answers `-1`
+instead of refusing. That is what makes a hand-written scanner one call rather
+than a remainder to search:
+
+```mandela
+let open = t.indexOf("'")
+let close = t.indexOf("'", open + 1)
+```
+
+Nothing else in the vocabulary takes an index argument: a search either finds the
+first match or reports none.
+
 ---
 
 ## 10. Security model

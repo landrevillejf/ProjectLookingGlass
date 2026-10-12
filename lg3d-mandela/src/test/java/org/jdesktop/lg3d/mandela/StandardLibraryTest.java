@@ -75,6 +75,24 @@ class StandardLibraryTest {
                 Arguments.of("\"hello\".startsWith(\"he\")", "true"),
                 Arguments.of("\"hello\".endsWith(\"lo\")", "true"),
                 Arguments.of("\"hello\".indexOf(\"z\")", "-1"),
+                // The start index is honoured, not ignored - the whole idiom of a
+                // hand-written scanner is asking for the next occurrence after the
+                // one it just found. A negative start is the 0 a failed lookup
+                // answers rather than a count from the end, so a second search
+                // never depends on where the first one failed; a start past the end
+                // finds nothing instead of refusing, and a long too big for an
+                // index is clamped to the end rather than wrapping around.
+                Arguments.of("\"a-b-c\".indexOf(\"-\")", "1"),
+                Arguments.of("\"a-b-c\".indexOf(\"-\", 2)", "3"),
+                Arguments.of("\"a-b-c\".indexOf(\"-\", -1)", "1"),
+                Arguments.of("\"a-b-c\".indexOf(\"a\", 1)", "-1"),
+                Arguments.of("\"a-b-c\".indexOf(\"b\", 3)", "-1"),
+                Arguments.of("\"a-b-c\".indexOf(\"\", 2)", "2"),
+                Arguments.of("\"a-b-c\".indexOf(\"c\", 9223372036854775807)", "-1"),
+                // The scanner the language actually writes: the second quote is not
+                // the first one, which is what this call used to answer.
+                Arguments.of("let t = \"f('x')\"; t.indexOf(\"'\", t.indexOf(\"'\") + 1)",
+                        "4"),
                 Arguments.of("\"hello\"[1]", "e"),
                 Arguments.of("\"hello\".charAt(1)", "e"),
                 Arguments.of("\"hello\".substring(1, 3)", "el"),
@@ -146,6 +164,11 @@ class StandardLibraryTest {
                 Arguments.of("[0, 1].any()", "true"),
                 Arguments.of("[1, 2, 3].find({ x -> x == 2 })", "2"),
                 Arguments.of("[1, 2, 3].indexOf(2)", "1"),
+                // The same start index the text search takes, with the same rules.
+                Arguments.of("[1, 2, 1].indexOf(1, 1)", "2"),
+                Arguments.of("[1, 2, 1].indexOf(1, -1)", "0"),
+                Arguments.of("[1, 2].indexOf(2, 2)", "-1"),
+                Arguments.of("[1, 2].indexOf(1, 9223372036854775807)", "-1"),
                 Arguments.of("[1, 2, 3].contains(4)", "false"),
                 Arguments.of("[1, 2, 3].slice(1).join(\",\")", "2,3"),
                 Arguments.of("[1, 2, 3].slice(0, 2).join(\",\")", "1,2"),
@@ -462,6 +485,9 @@ class StandardLibraryTest {
                 Arguments.of("\"a\" + 1", "TypeError"),
                 Arguments.of("[1, 2].nope", "TypeError"),
                 Arguments.of("\"hello\".charAt(9)", "IndexError"),
+                // A start index has to be an index; a search still refuses a shape
+                // it cannot compare against rather than guessing.
+                Arguments.of("\"ab\".indexOf(\"b\", \"x\")", "TypeError"),
                 Arguments.of("use std.nope", "ValueError"),
                 Arguments.of("assert(1 == 2, \"nope\")", "AssertError"),
                 // A module that is not there is a file that cannot be read, which is
