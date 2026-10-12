@@ -1,0 +1,143 @@
+#!/usr/bin/env mandela
+// scripts-hygiene.mnd — the Mandela automation cannot quietly rot.
+//
+// ShippedScriptsTest already compiles every script in this directory and pins
+// its header, so what can still rot unnoticed is not the syntax but the wiring.
+// A checker that was never registered as a task never runs in CI; a task
+// registered but left out of the repositoryChecks aggregate is dead weight that
+// the one-command gate skips; a registration whose script file was moved leaves
+// a JavaExec pointing at nothing; and a README that stopped naming a shipped
+// tool (or still names one that was deleted) misleads the next maintainer. None
+// of those are visible to the compiler or to Gradle's own wiring, so this script
+// checks the three surfaces that have to agree against each other: this
+// directory, lg3d-mandela/build.gradle and this README. Run from the root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.69.0-dev.jar \
+//         run scripts/mandela/scripts-hygiene.mnd -s .
+//
+// Four checks, exit 0 when all hold and 2 on any finding:
+//   1. every script a mandelaCheck(...) registration names exists on disk;
+//   2. every mandelaCheck(...) task is in the repositoryChecks dependsOn list;
+//   3. every shipped .mnd has a row in this README (documentation is complete);
+//   4. every .mnd a README markdown link points at exists (no dead doc row).
+
+use std.fs
+
+let DIR = "scripts/mandela"
+let GRADLE = "lg3d-mandela/build.gradle"
+let README = "${DIR}/README.md"
+
+// Every single-quoted token in a snippet of Gradle text, in order. The build
+// file is Groovy, but the three things read here are plain quoted words, so a
+// scanner over the quote pairs is enough and needs no Groovy parser.
+fun quotedAll(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("'")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("'")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        // Advance past the closing quote, not onto it: open and close are the
+        // same character here, so stopping on it would let the next pass read the
+        // just-closed quote as the next one's opener and return the gap between.
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// Every `.mnd` a markdown link ](target) points at, as a bare file name. Titles
+// after a space are dropped; a link into a subdirectory is compared against DIR
+// by the caller, which is why the row links and the target must agree.
+fun mndLinks(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("](")
+        if (open < 0) { break }
+        rest = rest.substring(open + 2)
+        let close = rest.indexOf(")")
+        if (close < 0) { break }
+        let target = rest.substring(0, close).split(" ")[0]
+        rest = rest.substring(close)
+        if (target.endsWith(".mnd")) { out.push(target) }
+    }
+    return out
+}
+
+if (!fs.exists(GRADLE)) { error("${GRADLE} is missing from the repository root", "ViolationError") }
+if (!fs.exists(README)) { error("${README} is missing", "ViolationError") }
+if (!fs.isDirectory(DIR)) { error("${DIR} is missing", "ViolationError") }
+
+let gradleText = fs.read(GRADLE)
+let readmeText = fs.read(README)
+
+// The registrations. A line opening `mandelaCheck('name', 'file.mnd',` carries
+// the task name and the script; the closure definition (`mandelaCheck = {`) is
+// skipped because it has no `(` before a quote, and the description on the
+// following line is a single quoted token, not the pair this reads.
+var registered = []
+for (line in gradleText.split("\n")) {
+    if (line.contains("mandelaCheck('")) {
+        let toks = quotedAll(line)
+        if (toks.length >= 2) { registered.push([toks[0], toks[1]]) }
+    }
+}
+
+// The aggregate the CI step actually runs: every quoted task name between
+// `dependsOn` and the parenthesis that closes that call. One dependsOn exists in
+// the file, and the task-name list carries no nested parenthesis, so the window
+// is unambiguous.
+let depAt = gradleText.indexOf("dependsOn")
+if (depAt < 0) {
+    error("repositoryChecks declares no dependsOn list, so no gate is ever run", "ViolationError")
+}
+let afterDep = gradleText.substring(depAt)
+let stop = afterDep.indexOf(")")
+let aggregate = quotedAll(if (stop < 0) afterDep else afterDep.substring(0, stop))
+
+// The scripts physically shipped here.
+var shipped = []
+for (name in fs.list(DIR)) {
+    if (name.endsWith(".mnd")) { shipped.push(name) }
+}
+
+var findings = []
+
+// 1. a wired gate must be a real file, or the JavaExec fails to start.
+for (reg in registered) {
+    if (!fs.exists("${DIR}/${reg[1]}")) {
+        findings.push("${GRADLE}: task ${reg[0]} runs ${reg[1]}, which is not in ${DIR}")
+    }
+}
+
+// 2. a wired gate must be in the aggregate, or `repositoryChecks` never runs it.
+for (reg in registered) {
+    if (!aggregate.contains(reg[0])) {
+        findings.push("task ${reg[0]} is registered but repositoryChecks does not depend on it")
+    }
+}
+
+// 3. every shipped script must be documented, named by its README row link.
+for (name in shipped) {
+    if (!readmeText.contains("(${name})")) {
+        findings.push("${name} ships in ${DIR} but the README never links to it")
+    }
+}
+
+// 4. every README row must name a file that still exists, not a deleted tool.
+for (link in mndLinks(readmeText)) {
+    if (!fs.exists("${DIR}/${link}")) {
+        findings.push("README links to ${link}, which is not in ${DIR}")
+    }
+}
+
+println("${shipped.length} script(s) in ${DIR}; ${registered.length} wired gate(s) in ${GRADLE}")
+if (findings.length == 0) {
+    println("automation hygiene holds: every gate is wired, run and documented")
+} else {
+    for (f in findings) { println("  hygiene gap: ${f}") }
+    error("${findings.length} scripts-hygiene finding(s)", "ViolationError")
+}

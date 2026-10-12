@@ -320,6 +320,72 @@ class MachineHostTest {
                 frames.getMessage());
     }
 
+    // -- the step budget ------------------------------------------------------
+
+    @Test
+    @DisplayName("a runaway loop is retired, and the guard names the ceiling it hit")
+    void theStepBudgetStopsARunawayLoop() {
+        // The sandbox's headline promise is that a mistyped `loop { }` cannot hang
+        // the desktop: the machine counts instructions retired and refuses past the
+        // budget. The message quotes maxSteps back to the reader because a host
+        // tunes its budget against that number -- an off-by-one there is a wrong
+        // instruction handed to whoever has to act on it.
+        Capabilities tiny = Capabilities.builder().label("host")
+                .grant(Capabilities.Grant.STDOUT).grant(Capabilities.Grant.STDERR)
+                .maxSteps(1_000L).maxDepth(64).build();
+        MandelaError loop = Scripts.failure("var i = 0\nloop { i += 1 }",
+                Mandela.engine(tiny));
+        assertEquals("LimitError", loop.kind());
+        assertEquals("the script retired more than 1000 instructions; a loop is"
+                + " probably never terminating", loop.getMessage());
+        // `while` that never reaches its exit is the same runaway wearing different
+        // syntax, so the one guard has to catch it too.
+        MandelaError whileLoop = Scripts.failure("var n = 0\nwhile n < 1000000 { }",
+                Mandela.engine(tiny));
+        assertEquals("LimitError", whileLoop.kind());
+        assertTrue(whileLoop.getMessage().contains("the script retired more than 1000"),
+                whileLoop.getMessage());
+    }
+
+    @Test
+    @DisplayName("the budget is a ceiling, not a trip wire: honest work under it runs")
+    void workUnderTheBudgetIsNotRefused() {
+        // The other half of the `>` comparison the guard is written against. A
+        // program that retires fewer instructions than the budget must complete,
+        // and the count is reset per run, so a finished program does not spend the
+        // next one's allowance.
+        Capabilities small = Capabilities.builder().label("host")
+                .grant(Capabilities.Grant.STDOUT).grant(Capabilities.Grant.STDERR)
+                .maxSteps(100_000L).maxDepth(64).build();
+        Runtime runtime = Mandela.engine(small).build();
+        assertEquals(45L, runtime.run(
+                "var total = 0\nvar k = 0\nwhile k < 10 { total += k; k += 1 }\ntotal",
+                "test.mnd"));
+        long afterFirst = runtime.machine().steps();
+        assertTrue(afterFirst > 0, "the run retired instructions");
+        assertTrue(afterFirst < 100_000L, "and stayed under the ceiling");
+        // A second honest run still fits on the same engine: the budget is per run.
+        assertEquals(3L, runtime.run("1 + 2", "test.mnd"));
+        assertTrue(runtime.machine().steps() < 100_000L);
+    }
+
+    @Test
+    @DisplayName("tripping the budget once does not retire the machine")
+    void theBudgetTripIsRecoverable() {
+        // The limit is a catchable MandelaError, not a fatal state: after a runaway
+        // was retired, the very same engine must run a bounded program. That is what
+        // lets a host `try` around untrusted code, keep its engine, and refuse a
+        // hang without sacrificing the session.
+        Capabilities tiny = Capabilities.builder().label("host")
+                .grant(Capabilities.Grant.STDOUT).grant(Capabilities.Grant.STDERR)
+                .maxSteps(500L).maxDepth(64).build();
+        Runtime runtime = Mandela.engine(tiny).build();
+        MandelaError raised = Scripts.failure("loop { }", runtime);
+        assertEquals("LimitError", raised.kind());
+        // The machine survived the runaway: a fresh run gets a fresh budget.
+        assertEquals(7L, runtime.run("3 + 4", "test.mnd"));
+    }
+
     @Test
     @DisplayName("a failure that escapes leaves no frame for the host to read")
     void anEscapedFailureClearsTheChain() {

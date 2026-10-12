@@ -256,7 +256,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the four gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the seven gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ```
 
@@ -272,6 +272,18 @@ the exit codes and how to add a tool.
 - `startmenu-audit.mnd` - every `resource:///...` and `java <class>` reference in
   the `.lgcfg` start-menu descriptors resolves from the assembled classpath, and
   the live menu inventory is printed (a gate, with a report).
+- `i18n-keys.mnd` - the shell bundle contract: every `Messages.tr("...")` literal
+  in a production source exists in `messages.properties`, the French bundle
+  carries the same keys, and each key's `{n}` placeholders agree (a CI gate).
+- `legacy-j3d.mnd` - the Java 3D migration rule as a gate: no source the build
+  compiles may `import` a pre-migration package (`javax.media.j3d`,
+  `javax.vecmath`, `com.sun.j3d`); the do-not-edit `lg3d-docs` samples, the
+  retired `lg3d-awt` toolkit and the two deserialisation shims are out of scope
+  (a CI gate).
+- `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
+  gate names a script that exists, every registered gate is in the
+  `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
+  scripts README and vice versa (a CI gate).
 - `asset-report.mnd` (report) and `userscript-new.mnd` (a Web Browser userscript
   generator) are not gates: the first always exits 0, the second only writes the
   one file it names.

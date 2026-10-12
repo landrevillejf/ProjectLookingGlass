@@ -1,0 +1,106 @@
+#!/usr/bin/env mandela
+// legacy-j3d.mnd — no built source may import the pre-migration Java 3D packages.
+//
+// The port migrated Sun's Java 3D to Jogamp: javax.media.j3d.* became
+// org.jogamp.java3d.*, javax.vecmath.* became org.jogamp.vecmath.*, and the
+// com.sun.j3d.* helpers folded into the same space. The AGENTS.md rule is that
+// new code uses the Jogamp packages, so a legacy import that reappears in code
+// the build compiles is either a merge dragging old source back in or a
+// copy-paste out of a 2006 tutorial — both only ever compile by accident, and
+// both silently undo the migration. A bare grep is trivial; the value here is
+// the scope. A legacy import is a defect in a *built* source and legitimate
+// everywhere the build never looks — the historical, do-not-edit lg3d-docs
+// samples and the retired lg3d-awt toolkit — plus the two compatibility shims
+// that must keep the old package names so legacy .j3f files still deserialize.
+// Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.69.0-dev.jar \
+//         run scripts/mandela/legacy-j3d.mnd -s .
+//
+// Exit code 0 when no built source carries a legacy import, 2 on the first one,
+// so CI can branch on it.
+
+use std.fs
+
+// The three package prefixes the migration replaced. An import of any of them
+// in code the build compiles is the drift this gate exists to catch.
+let LEGACY = ["javax.media.j3d", "javax.vecmath", "com.sun.j3d"]
+
+// Top-level trees that are never a built source, so a legacy import there is not
+// a defect: the historical documentation and the retired AWT toolkit.
+let SKIP_TREES = ["lg3d-docs", "lg3d-awt"]
+
+// Directories that are never a source: generated output, vendored jars and the
+// toolchain's own state. Dot-directories are skipped by prefix below.
+let SKIP_DIRS = ["build", "build-gradle", "libs", "ext", "node_modules", "target"]
+
+fun isSkippedName(name) {
+    name in SKIP_DIRS || name.startsWith(".")
+}
+
+// The package prefix of a legacy import on this line, or "" when the line is not
+// one. Only a real `import` statement counts. The language has no regex, so the
+// keyword is peeled off by hand and the leading package matched against LEGACY;
+// a commented-out import is ignored because it cannot break the build.
+fun legacyImport(line) {
+    let text = line.trim()
+    if (!text.startsWith("//") && text.startsWith("import")) {
+        var rest = text.substring("import".length).trim()
+        if (rest.startsWith("static")) { rest = rest.substring("static".length).trim() }
+        for (pkg in LEGACY) {
+            if (rest.startsWith(pkg)) { return pkg }
+        }
+    }
+    return ""
+}
+
+// Walk the tree collecting built sources. A directory whose path is a skipped
+// top-level tree is never entered, so the files under it are never examined —
+// that is the whole of the exemption for lg3d-docs and lg3d-awt.
+fun javaFiles(dir, found) {
+    for (name in fs.list(dir)) {
+        if (isSkippedName(name)) { continue }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            if (!SKIP_TREES.any { t -> path == t || path.startsWith("${t}/") }) {
+                javaFiles(path, found)
+            }
+        } else if (name.endsWith(".java")) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+let files = javaFiles(".", [])
+var offenders = []
+var unreadable = []
+for (doc in files) {
+    var lineNo = 0
+    // A source the reader cannot decode as UTF-8 (a legacy Latin-1 incubator or
+    // Escher file) cannot carry a migration-breaking ASCII import anybody added
+    // in modern style, so it is skipped — but named, because a skipped file is a
+    // blind spot a maintainer should see rather than one hidden in a green run.
+    try {
+        for (line in fs.lines(doc)) {
+            lineNo += 1
+            let pkg = legacyImport(line)
+            if (pkg.length > 0) {
+                offenders.push("${doc}:${lineNo} imports ${pkg}.* (migrate to org.jogamp.java3d / org.jogamp.vecmath)")
+            }
+        }
+    } catch (e) {
+        unreadable.push(doc)
+    }
+}
+
+println("scanned ${files.length} built source file(s); ${SKIP_TREES.length} tree(s) out of scope")
+for (u in unreadable) {
+    println("  unreadable, skipped: ${u}")
+}
+if (offenders.length == 0) {
+    println("no built source imports a pre-migration Java 3D package")
+} else {
+    for (o in offenders) { println("  legacy import: ${o}") }
+    error("${offenders.length} legacy Java 3D import(s) in built sources", "ViolationError")
+}
