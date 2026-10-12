@@ -10,6 +10,14 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Project Mandela's module documentation is now published on the GitHub Pages portal**
+  (`documentation/`, mirrors `lg3d-mandela/docs/`) — the four module guides (overview,
+  architecture, development, functional analysis) live under `documentation/mandela/docs/`
+  and are reached from the bilingual landing page, where two new cards open them through
+  `viewer.html`. The links that leave `documentation/` were rewritten to absolute GitHub
+  URLs so they resolve on the published site — Pages serves this directory as the site root,
+  so a `../` link 404s there even though it works in the module tree — and the site README
+  gained the matching structure entry and a bilingual *Project Mandela* section.
 - **A crash-report pipeline that turns a crash into a GitHub issue without ever
   holding a credential** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.crash`) —
   the desktop has had a crash *dialog* since 2006 and no way to make one into a bug

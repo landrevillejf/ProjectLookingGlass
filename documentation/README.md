@@ -8,6 +8,7 @@ Bienvenue dans la documentation de Project Looking Glass. Welcome to the Project
 - [Documentation Structure](#documentation-structure)
 - [English Documentation](#english-documentation)
 - [Documentation Française](#documentation-française)
+- [Project Mandela](#project-mandela)
 - [API Documentation](#api-documentation)
 - [Contributing](#contributing)
 
@@ -23,6 +24,12 @@ Project Looking Glass (LG3D) est un environnement de bureau 3D moderne, porté d
 documentation/
 ├── README.md                    # This file / Ce fichier
 ├── index.html                   # Documentation portal (bilingual landing page)
+├── mandela/                     # Project Mandela module docs / Docs du module Mandela
+│   └── docs/
+│       ├── README.md            # Language overview (index)
+│       ├── ARCHITECTURE.md      # Module architecture & design decisions
+│       ├── DEVELOPMENT.md       # Contributor guide (build, test, CLI)
+│       └── FUNCTIONAL_ANALYSIS.md # Functional requirements & VM instruction set
 ├── en/                          # English documentation / Documentation en anglais
 │   ├── diagrams/
 │   │   ├── architecture-overview.md    # Architecture diagrams
@@ -88,6 +95,35 @@ See [API Documentation](#api-documentation) below for how to build it locally.
 
 La Javadoc des modules construits est générée à la demande et n'est **pas** publiée ici.
 Voir [Documentation API](#documentation-api) plus bas pour la construire localement.
+
+## Project Mandela
+
+The documentation of the desktop's own scripting language, **Project Mandela**
+(`lg3d-mandela`), is published here as a module snapshot. These are the module
+guides; the full language reference and the embedding API live in the repository's
+[`docs/`](https://github.com/landrevillejf/ProjectLookingGlass/tree/main/docs) directory.
+
+- **[Mandela Overview](mandela/docs/README.md)** - What Mandela is, its module structure, security model and quick start
+- **[Architecture](mandela/docs/ARCHITECTURE.md)** - Internal architecture, package structure and design decisions
+- **[Development Guide](mandela/docs/DEVELOPMENT.md)** - Contributor guide: build, test, tooling and coding standards
+- **[Functional Analysis](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases and the VM instruction set
+
+> The published copies under `documentation/mandela/docs/` mirror the module guides
+> in `lg3d-mandela/docs/`. When a module guide changes, refresh the copy and keep the
+> links that leave `documentation/` **absolute** - GitHub Pages serves this directory
+> as the site root, so a `../` link would 404 on the published site.
+
+## Projet Mandela
+
+La documentation du langage de script du bureau, **Project Mandela** (`lg3d-mandela`),
+est publiée ici comme instantané du module. Ce sont les guides du module ; la référence
+complète du langage et l'API d'intégration se trouvent dans le répertoire
+[`docs/`](https://github.com/landrevillejf/ProjectLookingGlass/tree/main/docs) du dépôt.
+
+- **[Aperçu Mandela](mandela/docs/README.md)** - Ce qu'est Mandela, sa structure de modules, son modèle de sécurité et son démarrage rapide
+- **[Architecture](mandela/docs/ARCHITECTURE.md)** - Architecture interne, structure des paquets et décisions de conception
+- **[Guide de développement](mandela/docs/DEVELOPMENT.md)** - Guide contributeur : build, test, outillage et normes de code
+- **[Analyse fonctionnelle](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Exigences fonctionnelles, cas d'utilisation et jeu d'instructions de la VM
 
 ## API Documentation
 
