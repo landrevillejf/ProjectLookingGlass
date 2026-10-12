@@ -10,6 +10,52 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland migration begins with a JDK-21 data-model foundation**
+  (`wonderland-common`, `wonderland-client`, `wonderland-server`,
+  `wonderland-modules`; `docs/wonderland-migration.md`) — the repo has shipped
+  `wonderland/Wonderland.jar` (the 400 MB Java-5 installer, `.gitignore`d) for
+  years with no way to build or run it on a current toolchain. M0 is the first
+  PR on the approved milestone plan (`docs/wonderland-migration.md` records
+  the subsystem inventory, the per-milestone parity table, and every
+  rebuild-vs-port decision for the unrecoverable tech). What landed: four
+  Gradle modules wired into `settings.gradle` and inheriting the root
+  `subprojects` block (JDK 21 toolchain, JaCoCo, Checkstyle, CycloneDX);
+  146 classes decompiled with Fernflower from `wonderland-common.jar` +
+  `wonderland-wfs.jar` and hand-migrated to JDK 21 (vecmath imports renamed to
+  `org.jogamp.vecmath`, 11 raw-collection for-each loops recovered, 4 JAXB
+  `XmlAdapter` subclasses re-parameterised, `ChecksumList` parameterised +
+  given its erased `@XmlElement(type = Checksum.class)` so JAXB actually
+  marshals on JDK 21); `ScannedClassLoader` rebuilt from `sun.misc.Service` +
+  scannotation onto `java.util.ServiceLoader` + `org.reflections:reflections:
+  0.10.2` while preserving its raw-`Iterator` public surface so
+  `CellServerStateFactory` stays source-compatible; **a from-scratch 10-file
+  in-tree `com.jme.*` shim** (`math.{Vector3f,Quaternion,Matrix3f,Matrix4f,
+  FastMath}`, `bounding.{BoundingVolume,BoundingBox,BoundingSphere}`,
+  `renderer.ColorRGBA`, `scene.state.MaterialState`) that implements exactly
+  the surface the ported data model calls, because jME 1.x was fetched via
+  Java Web Start at launch and is *not* in Wonderland.jar — no bytecode to
+  port; `javax.xml.bind` restored against `jakarta.xml.bind:jakarta.xml.bind-api:
+  2.3.3` + `org.glassfish.jaxb:jaxb-runtime:2.3.9` (the 2.3.x line still uses
+  the `javax.xml.bind` package name). 77 headless JUnit-5 tests across
+  `com.jme.{math,bounding}`, `Math3DUtils`, `CellTransform` (both the pure-shim
+  `transform/sub/clone` path and the vecmath `mul/invert` path),
+  `ChecksumList` (an end-to-end JAXB round-trip that also proves the
+  dependency wiring), and `ScannedClassLoader` (stable singleton, drainable
+  iterators, `ClassScanningError` cause wrapping). Measured 17.56% line /
+  17.90% branch on the new module, floor set to
+  [`coverageFloors[line: 0.150, branch: 0.150]`](build.gradle) and raised per
+  milestone. `.gitignore` gained an anchored `/wonderland/` rule so the
+  400 MB installer stays out without also hiding the
+  `wonderland-common/src/main/java/org/jdesktop/wonderland/` package tree.
+  No milestone claims global 100% parity; M1 (`client/cell` + `client/comms`
+  protocol round-trips), M2 (Jogamp scene-graph renderer), M3 (rebuilt
+  session server to replace GlassFish/SGS/MINA), M4 (NetBeans-layer plugin
+  loader), M5 (asset pipeline + bundled worlds), M6 (2D + 3D desktop
+  integration via `SwingNode`) and M7 (`voicebridge` / `avatar` / `animation`
+  / `videoplayer` / `pdfviewer`) proceed only after this PR lands and the
+  direction is re-confirmed. `darkstar` + `sas`/`sasxremwin`/`xremwin` are
+  dropped outright: their scene/applet functions are already covered by the
+  Jogamp stack plus `SwingNode` (see [docs/swingnode.md](docs/swingnode.md)).
 - **A published page demonstrating the language in everyday use**
   (`lg3d-mandela/docs/USAGE.md`, mirrored on the GitHub Pages site as
   `documentation/mandela/docs/USAGE.md`) — the module had a reference, an

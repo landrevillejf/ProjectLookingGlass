@@ -41,6 +41,24 @@ include 'ftp-client'
 // and the Web Browser (the Mandela userscript extension) both call into it, and
 // :lg3d-core:run / releaseBundle put its jar on the desktop classpath.
 include 'lg3d-mandela'
+// OpenWonderland modernization port (decompiled from the 2006-era Wonderland.jar
+// installer and rewritten for JDK 21 + Jogamp). Four projects mirror the original
+// client/common/server/module-platform split, kept separate so the pure layers
+// stay headless-testable:
+//   wonderland-common  - the shared data model (cells, messages, state, transforms).
+//                        Depends on vecmath + JAXB only, no lg3d-core, no display.
+//   wonderland-client  - the Java 3D renderer + cell/comms client (milestone M1+).
+//   wonderland-server  - the session/host server that replaces GlassFish+SGS+JAX-RS
+//                        (milestone M3+; wonderland-wfs' REST surface is rebuilt here).
+//   wonderland-modules - the plugin layer that replaces the NetBeans module system
+//                        + scannotation class scanning (milestone M4+).
+// M0 ships wonderland-common building green; the other three are scaffolded here and
+// filled by their own milestones. The original 400 MB installer (wonderland/*.jar)
+// is a local build input and is NOT committed (see .gitignore).
+include 'wonderland-common'
+include 'wonderland-client'
+include 'wonderland-server'
+include 'wonderland-modules'
 
 // lg3d-awt is RETIRED — it is not, and will not be, part of the Gradle build.
 //

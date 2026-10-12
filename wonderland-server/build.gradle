@@ -1,0 +1,5 @@
+// wonderland-server: the session/host server that replaces the bundled
+// GlassFish 3.0 + Sun Game Server + JAX-RS stack. Scaffolded in M0; its sources
+// land in milestone M3 (and the wonderland-wfs REST surface is rebuilt here).
+// Intended deps: implementation project(':wonderland-common')
+jar { archiveBaseName = 'wonderland-server' }

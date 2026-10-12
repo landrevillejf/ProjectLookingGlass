@@ -61,3 +61,11 @@ Thumbs.db
 # belong in the repo. Only ignore runtime-generated logs.
 hs_err_pid*
 lg3d-perf-*.log
+
+# ---- OpenWonderland port: local build inputs ----
+# The original 400 MB Wonderland.jar installer bundle is a LOCAL decompilation
+# input (wonderland/), far above GitHub's per-file limit and never a deliverable.
+# The ported sources live in the wonderland-* Gradle modules, not here.
+# Anchor the pattern to the repo root (/wonderland/) so it does not also hide
+# the package directory wonderland-common/src/main/java/org/jdesktop/wonderland/.
+/wonderland/
