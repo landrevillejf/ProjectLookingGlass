@@ -1,6 +1,41 @@
-// wonderland-client: the Java 3D renderer + cell/comms client. Scaffolded in M0;
-// its sources land in milestone M1/M2 (port client/cell + client/jme onto Jogamp
-// org.jogamp.java3d, and depend on wonderland-common + lg3d-core). Intended deps:
-//   implementation project(':wonderland-common')
-//   api project(':lg3d-core')   // brings the migrated Jogamp java3d + vecmath
+// wonderland-client: the cell/comms client model + the Java 3D renderer.
+// Scaffolded in M0; M2 ports it in bottom-up increments onto wonderland-common
+// (the shared data model landed in M0/M1) and, for the renderer half (M2b+),
+// lg3d-core's already-migrated Jogamp org.jogamp.java3d scene graph.
+//
+// M2a (this PR) lands ONLY the self-contained cell *leaf* layer -- the
+// annotations, SPIs, listener/callback interfaces, CellStatistics and the
+// CellCreationException / selection-registry SPIs that depend on nothing
+// beyond wonderland-common + the JDK. The Cell base class, the comms/session
+// layer and the client/jme renderer pull lg3d-core (Java 3D) and the jME
+// scene-graph shim and follow as M2b/M2c.
+//
+// The toolchain (JDK 21), UTF-8 encoding, build-gradle output directory,
+// checkstyle (report-only) and jacoco are inherited from the root build.gradle
+// subprojects block. The Maven-standard layout (src/main/java, src/test/java)
+// matches wonderland-common.
+//
+// Replacements applied here mirror the module plan (docs/wonderland-migration.md):
+//   - javax.vecmath.*  -> org.jogamp.vecmath.*   (house Java 3D migration; via
+//                        wonderland-common's api vecmath, so no direct dep here yet)
+//   - javax.media.j3d / com.sun.j3d / com.jme.scene / renderer / system / util ->
+//        deferred to M2b; those are the renderer tree, not the M2a leaf slice.
+
 jar { archiveBaseName = 'wonderland-client' }
+
+dependencies {
+    // The shared data model (cells, transforms, messages, the com.jme math/bounding
+    // shim) the client consumes; vecmath + JAXB arrive transitively through its api.
+    implementation project(':wonderland-common')
+
+    // Headless JUnit 5 + AssertJ back the module's M2a test suite.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}
