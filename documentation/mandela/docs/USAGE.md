@@ -47,7 +47,8 @@ fun programsUnder(dir, found) {
 }
 
 // 2. SCAN. No regular expressions, so a scan is a loop over lines: test the
-//    marker, then take what sits between the first pair of quotes.
+//    marker, then take what sits between the first pair of quotes. `indexOf`
+//    takes a start index, so the closing quote is asked for directly.
 fun gateNames(path) {
     let names = []
     for (line in fs.lines(path)) {
@@ -59,10 +60,9 @@ fun gateNames(path) {
         if (open < 0) {
             continue
         }
-        let tail = t.substring(open + 1, t.length)
-        let close = tail.indexOf("'")
-        if (close > 0) {
-            names.push(tail.substring(0, close))
+        let close = t.indexOf("'", open + 1)
+        if (close > open) {
+            names.push(t.substring(open + 1, close))
         }
     }
     return names
@@ -132,7 +132,7 @@ mandela run build-gradle/scratch/mandela-at-work.mnd -s .
    gate and generator  <-  whats-new.mnd
 
 == the same facts as JSON ==
-   {"programs":10,"gates":8,"root":"/home/fedora/Documents/ProjectLookingGlass","runBy":"refused by the host (PermissionError)","at":"2026-10-12 15:02"}
+   {"programs":10,"gates":8,"root":"/home/fedora/Documents/ProjectLookingGlass","runBy":"refused by the host (PermissionError)","at":"2026-10-12 15:31"}
    parsed back: 10 programs, 8 gates
 ```
 
@@ -316,9 +316,11 @@ The same jar answers under `javax.script`:
 3. **`+` will not mix a `Str` with a number.** Interpolate - `"${count} gates"` -
    or write `str(count)`. The refusal names itself: *`'+' cannot mix Int and Str;
    concatenate two strings, or write str(...) on the other side`*.
-4. **`Str.indexOf` takes one argument.** A second, "start here" argument is
-   ignored rather than refused, so the second occurrence is found by searching
-   the remainder: `t.substring(open + 1, t.length).indexOf("'")`.
+4. **`indexOf` takes a start index.** `t.indexOf("'", open + 1)` is the closing
+   quote, so a scanner is one call per token. A negative start counts as `0` -
+   the `-1` a failed lookup answers never scrambles the search after it - and a
+   start past the end answers `-1` rather than refusing. `List.indexOf` takes the
+   same second argument.
 
 ## What the language deliberately does not have
 

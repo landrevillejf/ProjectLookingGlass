@@ -416,8 +416,20 @@ public final class StandardLibrary implements Builtins {
                 argText(args, 0, "startsWith")));
         stringMethods.put("endsWith", (m, self, args) -> text(self).endsWith(
                 argText(args, 0, "endsWith")));
-        stringMethods.put("indexOf", (m, self, args) -> (long) text(self).indexOf(
-                argText(args, 0, "indexOf")));
+        stringMethods.put("indexOf", (m, self, args) -> {
+            String source = text(self);
+            String needle = argText(args, 0, "indexOf");
+            // The optional start index is honoured, never ignored: a scan that has
+            // just found one quote must be able to ask for the next one, and a
+            // second argument that silently did nothing answered a wrong number
+            // rather than refusing. A negative start is 0. Unlike substring(), a
+            // negative does not count from the end, because the -1 a failed lookup
+            // hands back is a normal input here and must not scramble the search
+            // that follows it. A start past the end simply finds nothing, so it
+            // clamps instead of throwing.
+            return (long) source.indexOf(needle,
+                    startIndex(args, 1, "indexOf", source.length()));
+        });
         stringMethods.put("charAt", (m, self, args) -> {
             String source = text(self);
             long at = argWhole(args, 0, "charAt");
@@ -596,7 +608,10 @@ public final class StandardLibrary implements Builtins {
         listMethods.put("indexOf", (m, self, args) -> {
             MandelaList list = asList(self);
             Object wanted = arg(args, 0);
-            for (int i = 0; i < list.size(); i++) {
+            // The same start index the text search takes, with the same rules, so
+            // an author who learned one can rely on the other.
+            for (int i = startIndex(args, 1, "indexOf", list.size());
+                    i < list.size(); i++) {
                 if (Values.equal(list.get(i), wanted)) {
                     return (long) i;
                 }
@@ -1339,6 +1354,28 @@ public final class StandardLibrary implements Builtins {
     private static MandelaError missingArgument(String what, int index) {
         return MandelaError.value(index == 0 ? what + " needs an argument"
                 : what + " needs " + (index + 1) + " arguments");
+    }
+
+    /**
+     * The index a search starts at, for the {@code indexOf} of a text or a list.
+     *
+     * <p>Omitted or negative it is 0; a negative is what a failed lookup answers,
+     * and reading that as "from the end" would make the second search depend on
+     * where the first one failed. Anything past the end is the end, which finds
+     * nothing &mdash; a search refuses nothing, it just does not match.</p>
+     *
+     * @param args    the call's arguments
+     * @param at      which argument carries the start index
+     * @param what    the calling method, for the refusal of a non-number
+     * @param length  how many positions there are to search
+     * @return a valid {@code fromIndex} for {@code String.indexOf} or a loop bound
+     */
+    private static int startIndex(List<Object> args, int at, String what, int length) {
+        if (args.size() <= at) {
+            return 0;
+        }
+        long wanted = argWhole(args, at, what);
+        return (int) Math.min(Math.max(wanted, 0L), (long) length);
     }
 
     /** Clamps an index into {@code size}, counting from the end when negative. */
