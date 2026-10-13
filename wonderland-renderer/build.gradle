@@ -31,6 +31,11 @@ dependencies {
     implementation project(':wonderland-client')
     // The M5 Collada model the renderer turns into geometry (ColladaDocument, ...).
     implementation project(':wonderland-modules')
+    // M6b: the bundled avatar pool. The AvatarLoadResolver reads AvatarPool's
+    // catalog at compile time, and the pool's .dae bytes must be on this
+    // module's test runtime classpath so the resolver's tests can drive the
+    // real ClasspathWorldStore against the real bundled bodies.
+    implementation project(':wonderland-avatars')
 
     // Java 3D (the repo-wide Jogamp 1.7.2 fork, packages org.jogamp.java3d /
     // org.jogamp.vecmath). Declared directly rather than through lg3d-core so the

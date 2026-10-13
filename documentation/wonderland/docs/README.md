@@ -23,7 +23,8 @@ each kept as pure/testable as the original allowed:
 | `wonderland-client` | the cell / comms / view client logic | yes (renderer deferred to M6) |
 | `wonderland-server` | the session/host server — **rebuilt on Spring Boot**, no GlassFish | yes |
 | `wonderland-modules` | the plugin layer (`ServiceLoader`) + the feature modules + the asset/COLLADA pipeline | yes |
-| `wonderland-renderer` | the deferred scene-graph renderer on `org.jogamp.java3d` — the Collada cell renderer, the seam that hangs a `Shape3D` branch on a `Cell` | mixed: the pure mesh/transform/binding logic yes; the `Shape3D`/`BranchGroup` assembly needs a live 3D canvas (the in-JVM probe) |
+| `wonderland-renderer` | the deferred scene-graph renderer on `org.jogamp.java3d` — the Collada cell renderer (M6a), the avatar renderer on the bundled pool (M6b), the seam that hangs a `Shape3D` branch on a `Cell` | mixed: the pure mesh/transform/binding/avatar-pool-resolve logic yes; the `Shape3D`/`BranchGroup` assembly needs a live 3D canvas (the in-JVM probe) |
+| `wonderland-avatars` | the M6b bundled avatar pool: three hand-authored COLLADA `.dae` bodies plus the pure `AvatarPool` catalog naming them | yes (a pure resource jar, no runtime dependencies) |
 
 ## Milestone map
 
@@ -39,8 +40,12 @@ See **[Milestones](MILESTONES.md)** for the full parity table. In one line each:
 - **M5** — the COLLADA / deployed-model / asset pipeline that **reads** a bundled
   world's 3D models (**[Asset Pipeline](ASSET_PIPELINE.md)**).
 - **M6a** — the Collada **cell renderer** on `org.jogamp.java3d`, in the new
-  `wonderland-renderer` leaf (**[Renderer](RENDERER.md)**). M6b (avatar) and
-  M6c (desktop integration) re-plan as each unblocks.
+  `wonderland-renderer` leaf (**[Renderer](RENDERER.md)**).
+- **M6b** — the **avatar renderer** on the bundled `.dae` pool: the new
+  `wonderland-avatars` resource-jar module, the `ClasspathWorldStore`, the
+  optional `avatarModelUrl` wire hint, and the `AvatarRendererInstaller`
+  seam in `wonderland-client` (**[Renderer](RENDERER.md#m6b--the-avatar-renderer)**).
+  M6c (desktop integration) re-plans as it unblocks.
 - **M7** — the high-risk features (VoIP, avatar/animation, videoplayer,
   pdfviewer) — proposed, **not started**.
 

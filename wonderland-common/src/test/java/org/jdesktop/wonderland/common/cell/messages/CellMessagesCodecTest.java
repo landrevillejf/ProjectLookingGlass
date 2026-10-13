@@ -250,6 +250,31 @@ class CellMessagesCodecTest {
         assertThat(back.getCellServerState().getName()).isEqualTo("alice");
         assertThat(((AvatarCellServerState) back.getCellServerState()).getUserName())
                 .isEqualTo("alice");
+        // M6b: the avatarModelUrl field is optional; the pre-M6b constructor
+        // leaves it null and Java serialisation round-trips that null cleanly.
+        assertThat(((AvatarCellServerState) back.getCellServerState()).getAvatarModelUrl())
+                .isNull();
+    }
+
+    @Test
+    void avatarCellServerStateCarriesTheM6bAvatarModelUrlWhenSet() {
+        // The wire extension is a plain optional String: an AvatarCellServerState
+        // with a URL set must survive pack/unpack with the URL intact, because
+        // the client's AvatarLoadResolver reads it back to pick the .dae body.
+        MessageID replyTo = new MessageID(124L);
+        AvatarCellServerState state = new AvatarCellServerState("bob");
+        state.setName("bob");
+        state.setAvatarModelUrl("wla://wonderland-avatars/humanoid-a.dae");
+        CellServerStateResponseMessage msg =
+                new CellServerStateResponseMessage(replyTo, state);
+
+        CellServerStateResponseMessage back =
+                (CellServerStateResponseMessage) rt(msg);
+        assertThat(back.getCellServerState()).isInstanceOf(AvatarCellServerState.class);
+        AvatarCellServerState bs = (AvatarCellServerState) back.getCellServerState();
+        assertThat(bs.getUserName()).isEqualTo("bob");
+        assertThat(bs.getAvatarModelUrl())
+                .isEqualTo("wla://wonderland-avatars/humanoid-a.dae");
     }
 
     @Test

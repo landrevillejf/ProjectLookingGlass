@@ -58,6 +58,10 @@ include 'lg3d-mandela'
 //                        depends on the pure layers + Java 3D, so wonderland-client
 //                        stays headless-testable; the scene graph itself is verified
 //                        with the in-JVM probe, not asserted headless.
+//   wonderland-avatars  - the M6b bundled avatar pool: a pure resource jar of
+//                        hand-authored .dae bodies plus the AvatarPool catalog
+//                        that names them. Depends on nothing; read through
+//                        wonderland-modules' ClasspathWorldStore from the client.
 // M0 ships wonderland-common building green; the other three are scaffolded here and
 // filled by their own milestones. The original 400 MB installer (wonderland/*.jar)
 // is a local build input and is NOT committed (see .gitignore).
@@ -66,6 +70,7 @@ include 'wonderland-client'
 include 'wonderland-server'
 include 'wonderland-modules'
 include 'wonderland-renderer'
+include 'wonderland-avatars'
 
 // lg3d-awt is RETIRED — it is not, and will not be, part of the Gradle build.
 //

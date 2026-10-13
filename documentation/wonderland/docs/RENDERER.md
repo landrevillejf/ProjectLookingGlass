@@ -6,13 +6,14 @@ M6 is where a bundled world's 3D models finally get **seen**. M5 made a
 split into three slices so each lands as its own module-scoped PR:
 
 - **M6a** — the Collada **cell** renderer (this page).
-- **M6b** — the **avatar** renderer, replacing `AvatarCell`'s deferred null.
+- **M6b** — the **avatar** renderer, replacing `AvatarCell`'s deferred null
+  (this page, section "M6b — the avatar renderer").
 - **M6c** — the **2D + 3D desktop integration** that hosts a cell's
   `BranchGroup` in `lg3d-core`'s `Frame3D` / `SceneGraphView`.
 
-M6a is landed. M6b and M6c are re-planned as each one unblocks — the
-migration rule holds that a milestone PR must be re-confirmed before the
-next one starts.
+M6a and M6b are landed. M6c is re-planned as it unblocks — the migration
+rule holds that a milestone PR must be re-confirmed before the next one
+starts.
 
 ## Why a new module and not inside `wonderland-client`
 
@@ -150,3 +151,195 @@ never claims rendering it did not prove.
 - **[Architecture](ARCHITECTURE.md)** — the module layout and dependency
   direction `wonderland-renderer` must respect.
 - Back to the **[overview](README.md)**.
+
+## M6b — the avatar renderer
+
+M6b replaces `AvatarCell`'s M2f "createCellRenderer returns null" quirk with
+a live Java 3D avatar body hung on the same seam M6a opened. The whole path
+— pool, wire, client seam, renderer dispatch, probe — splits pure-vs-probe
+exactly like M6a, so a headless `check` still proves every data-conversion
+line and never claims a Jogamp class it did not build.
+
+### The bundled avatar pool (`wonderland-avatars`)
+
+2006 pulled avatar bodies from a jME-1.x `.jme` binary pool the port never
+recovers (the format was jme-serialized and the assets were not in
+`wonderland.jar`). M6b ships a **new leaf module**, `wonderland-avatars`, as
+a pure resource jar depending on nothing:
+
+- `wonderland-avatars/src/main/resources/wonderland-avatars/*.dae` — three
+  hand-authored placeholder humanoid COLLADA 1.4.1 bodies (`humanoid-a`,
+  `humanoid-b`, `humanoid-c`) sized as axis-aligned boxes with feet at
+  `y=0`. Real artist-supplied CC0 humanoids swap in as pure content edits —
+  the filenames and the `wla://` URL shape are the code contract, the bytes
+  are not.
+- `AvatarPool` — the tiny pure catalog. `names()` returns the shipped
+  bodies in declaration order; `defaultName()` returns the stable fallback
+  (`"humanoid-a"` today); `urlFor(name)` shapes the `wla://` reference. The
+  pool's coverage floor is high because the class is that small — the
+  `.dae` files are resource bytes, not code, and do not appear in JaCoCo.
+
+The pool's `.dae` bytes are reached through a **new `ClasspathWorldStore`**
+added beside M5's `DirectoryWorldStore` in `wonderland-modules/asset`. Same
+`wla://<module>/<path>` contract; the resolution goes through a
+`ClassLoader.getResourceAsStream("<module>/<path>")` instead of a base path,
+and the `../` refusal that keeps a caller inside its module's directory
+carries over unchanged. `listAssets` returns an empty list by design — the
+pool is a fixed catalog, not a directory to enumerate, and reliably listing
+classpath resources across exploded *and* jar-packaged layouts is fiddly in
+ways M6b has no consumer for.
+
+### The wire extension
+
+`AvatarCellServerState` gains one optional `@XmlAttribute`, `avatarModelUrl`
+(`required = false`). A pre-M6b server still sends only `userName`; the
+field decodes to null and the client falls back to the pool default. A
+future server that lets a user pick a body writes the attribute; the client
+side is already fully wired. `CellMessagesCodecTest` pins both branches —
+null round-trips through the pre-existing avatar-cell test; the set-URL case
+is a new test asserting the value survives `MessagePacker.pack` /
+`unpack`.
+
+### The client seam (`AvatarRendererInstaller`)
+
+`wonderland-client` cannot import `wonderland-renderer` — that would cycle
+(the renderer already depends on the client for `CellRenderer` /
+`RendererType`). M6b introduces a **static installer slot** in
+`wonderland-client/.../cell/view`:
+
+- **`AvatarRendererInstaller`** — a `@FunctionalInterface` whose one method
+  is `CellRenderer create(AvatarCell cell, Cell.RendererType type)`.
+- **`AvatarRendererInstallers`** — a volatile static holder with `install`,
+  `get` and `require`. A writer never coordinates with itself; a reader
+  sees either the last install or `null`, and both are documented states.
+
+`AvatarCell.createCellRenderer(RendererType)` changes from `return null;`
+to a null-guarded delegation: with nothing installed (a headless test JVM,
+a desktop before the renderer bootstrap runs) the M2f "no renderer" quirk
+is preserved; with the live installer registered by
+`WonderlandRendererBootstrap.install()` at desktop boot the cell hands
+back the scene-graph renderer.
+
+`AvatarCell` also gains a typed `getServerState()` /
+`setServerState(AvatarCellServerState)` pair so the factory can read the
+optional `avatarModelUrl` hint without pushing a generic `serverState` onto
+the base `Cell` — nothing else in the headless client reads it.
+
+### The renderer slice — pure
+
+The M6b pure classes live in a new `wonderland-renderer/…/avatar` package
+and mirror M6a's `mesh` / `transform` / `seam` split:
+
+- **`AvatarLoadResolver`** — the pure resolve step. Given a URL-or-null it
+  returns an **`AvatarLoadResult`** (a small dedicated record; M5's
+  `ModelLoadResult` factories are package-private inside
+  `wonderland-modules` and carry fields M6b does not need). URL selection:
+  an explicit value wins; `null` / empty falls back to
+  `AvatarPool.urlFor(AvatarPool.defaultName())`. The bytes are read
+  through `ClasspathWorldStore` and parsed by `ColladaParser`. Every
+  failure — non-`wla://` scheme, missing resource, malformed COLLADA —
+  degrades to an error result rather than throwing, mirroring M5's "warn
+  and continue" behaviour. **Design deviation from the plan wording:** the
+  plan text said *"calls `ModelLoader.load(new ClasspathWorldStore(),
+  url)`"*, but M5's `ModelLoader` parses a `.dep` indirection first and
+  the pool ships raw `.dae` bytes with no `.dep` per body (adding one would
+  double the shipped content and change nothing on the wire contract). The
+  resolver therefore opens the `.dae` through `ClasspathWorldStore`
+  directly and hands the stream to `ColladaParser` — same URL scheme, same
+  store, same parser, no `.dep`. Documented in the class header.
+- **`AvatarTriggerState`** — the mutable value class the renderer owns.
+  Carries `pressed`, `collisionHeight` / `collisionOn`,
+  `lastAnimationName` (the string M7's animator subsystem will eventually
+  consume; M6b stores it but does not act on it), and the nullable
+  `gotoPosition` / `gotoLook` pair. Its two decision methods,
+  `chooseDiffuseColour()` returning a fresh `float[4]` RGBA (yellow when
+  pressed, neutral grey otherwise) and `chooseYOffset()` returning the
+  collision height when the flag is on or `0.0` otherwise, are the whole
+  state-driven visual subset the plan asked for.
+- **`AvatarTransformFeed`** — the pose composer. Static
+  `compose(CellTransform base, AvatarTriggerState state)` returns the same
+  row-major `double[16]` shape M6a uses, so the probe-side `Transform3D`
+  never has to know which half built it. Rules in order: start from
+  `WorldTransformMath.fromCellTransform(base)` (identity when base is
+  null); if `state.hasGoto()`, **replace** the base entirely with a fresh
+  `Matrix4d` built from the goto look (identity when null) and the goto
+  position; then add `state.chooseYOffset()` to the translation column's
+  Y entry (vecmath's last-column convention — index **7**, i.e. `m13`).
+- **`AvatarRendererFactory`** — the seam dispatch, mirroring
+  `ModelRendererFactory`. A `RendererSupplier` `@FunctionalInterface` lets
+  a test install a stub so the *decision* — `RENDERER_JME` + loaded result
+  → delegate; `NONE` / `RENDERER_2D` / null / errored load / null supplier
+  → null — is exercised headless. `liveFactory()` wraps the supplier that
+  constructs a real `AvatarRenderer`; the whole suite runs without ever
+  firing it.
+
+### The renderer slice — probe-only
+
+- **`AvatarRenderer implements CellRenderer, AvatarCell.AvatarActionTrigger`**
+  — the live branch. Owns a `BranchGroup` → `Switch` → `TransformGroup`
+  chain shaped exactly like `ModelRenderer` (show / hide is the same
+  `Switch.setWhichChild` flip; this fork has no `Node.setEnable` on
+  `Shape3D`). Under the pose `TransformGroup` sits one `TransformGroup`
+  per Collada scene node hosting one `Shape3D` per primitive, built
+  through M6a's `J3dMeshFactory` + `ColladaMeshBuilder`. What M6b adds on
+  top: because the class also implements the `AvatarActionTrigger` inner
+  interface `AvatarCell` already declares, the cell's
+  `triggerAction` / `triggerCollision` / `triggerGoto` dispatches land
+  here and mutate the local `AvatarTriggerState`. A press re-tints every
+  `Shape3D`'s `Material.diffuseColor` in place — the write capabilities
+  `J3dMeshFactory` already sets on every `Material` and `Appearance` make
+  that legal on a live universe without rebuilding geometry — and a
+  collision or a goto rewrites the pose `Transform3D` through
+  `AvatarTransformFeed`, so a fresh `cellTransformUpdate` from the comms
+  layer also passes through the same feed and the offset survives every
+  subsequent move message. **Compiled under `check`; asserted only by the
+  in-JVM probe**, same treatment M6a's `ModelRenderer` gets.
+- **`WonderlandRendererBootstrap`** — a single static entry point the
+  desktop's launcher calls during boot to install the live installer into
+  the client slot. Nothing in `check` triggers it (running it would
+  construct Jogamp classes); its install / replace / uninstall sequence
+  and its live-installer composition rule are headless-tested via an
+  injected stub resolver + factory pair, so the boot sequence is provable
+  without touching Jogamp.
+
+### The M7 descope, in writing
+
+Real skeletal animation is **not** delivered by M6b. The reason is
+concrete: the 2006 `AvatarJME` drove animation through jME-1.x's `Animator`
+subsystem against `.jme`-binary bodies serialized with jME's own class
+layout — the assets were never in `wonderland.jar` and the library is not
+recoverable, so there is nothing to port. Building a *new* animator
+subsystem, a skinning-capable COLLADA loader and a rigged-body asset format
+on top of the pool is a milestone-sized slice in its own right. M6b
+therefore ships the state-driven visual subset (trigger press tints the
+body, collision lifts it, a goto teleports it) and defers the animator +
+skinning pipeline to **M7**, where it lands next to the other high-risk
+per-feature descopes (VoIP, videoplayer, pdfviewer). The animation-name
+string the wire already carries through `MovableAvatarMessage` is preserved
+on `AvatarTriggerState.lastAnimationName` so M7 does not have to widen the
+wire a second time.
+
+### How M6b is verified
+
+In CI: `./gradlew :wonderland-avatars:check :wonderland-modules:check
+:wonderland-client:check :wonderland-common:check :wonderland-renderer:check`.
+That is **97 new headless cases** across five modules — `AvatarPoolTest`,
+`ClasspathWorldStoreTest`, `AvatarRendererInstallersTest`, the extended
+`CellMessagesCodecTest`, and the five renderer files (`AvatarLoadResolverTest`,
+`AvatarTriggerStateTest`, `AvatarTransformFeedTest`,
+`AvatarRendererFactoryTest`, `WonderlandRendererBootstrapTest`) — plus
+checkstyle and the JaCoCo floors. The renderer floor stays at
+`[line: 0.530, branch: 0.560]`; the `wonderland-avatars` floor is set at
+`[line: 0.950, branch: 0.900]`, a level a tiny pure catalog clears
+comfortably.
+
+Not in CI: the live scene graph. `AvatarRenderer`'s Jogamp class
+construction, the `AvatarRendererFactory.liveSupplier()` path, and the
+`WonderlandRendererBootstrap.install()` no-arg convenience that composes
+the live chain, are verified by launching the desktop + a bundled world
+through the in-JVM probe described in `lg3d-core/AGENTS.md` — walk a peer
+avatar into view, click it to fire a trigger, and read the
+`lgscreen-0-N.png` screencapture to confirm the body draws and the
+pressed / collision colour / offset changes. The PR records the exact
+probe command; running it is the reviewer's step, not one the pipeline
+performs, and the PR never claims rendering it did not prove.

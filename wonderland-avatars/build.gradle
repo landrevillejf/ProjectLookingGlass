@@ -1,0 +1,38 @@
+// wonderland-avatars: the M6b bundled avatar pool.
+//
+// A pure resource jar. It ships the .dae bodies under
+// src/main/resources/wonderland-avatars/ and the AvatarPool catalog class
+// that names them; the renderer-side ClasspathWorldStore (in wonderland-modules)
+// reaches the .dae bytes through this module's ClassLoader once the desktop
+// and the test JVM both have this jar on their classpath.
+//
+// The pool is placeholder content: two hand-authored Collada bodies that
+// stand in until a real artist contributes CC0 humanoids. Swapping the
+// bytes is a content change, not a code change -- the AvatarPool catalog
+// stays identical (same names, same wla:// URL shape) as long as the .dae
+// files keep the same filenames.
+//
+// The toolchain (JDK 21), UTF-8 encoding, build-gradle output directory,
+// checkstyle (report-only) and jacoco are inherited from the root subprojects
+// block. Coverage floor lives in the root build.gradle's coverageFloors map;
+// the pure catalog class is small and fully testable so the floor sits high.
+
+jar { archiveBaseName = 'wonderland-avatars' }
+
+dependencies {
+    // Nothing at compile time -- the module is a resource jar plus a
+    // dependency-free catalog class. Consumers (wonderland-renderer and
+    // anything that boots the desktop) pair it with
+    // wonderland-modules' ClasspathWorldStore to resolve the wla:// URLs.
+
+    // Headless JUnit 5 + AssertJ back the AvatarPool catalog test.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}

@@ -10,6 +10,96 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland avatar renderer lands on the bundled `.dae` pool (`wonderland-avatars`
+  new module, `wonderland-renderer` M6b)** — M6b, the second slice of M6, replaces
+  `AvatarCell`'s M2f deferred `null` with a live Java 3D avatar hanging on the
+  same `CellRenderer` seam M6a opened. Because 2006 pulled bodies from the
+  jME-1.x `.jme` binary pool the port never recovers, this slice ships its own
+  content: a **new leaf module `wonderland-avatars`** — a pure resource jar
+  depending on nothing — carrying three hand-authored placeholder humanoid
+  COLLADA 1.4.1 bodies (`humanoid-a`, `humanoid-b`, `humanoid-c`) and the
+  `AvatarPool` catalog naming them; real artist-supplied CC0 humanoids swap in
+  as pure content edits, the filenames and the `wla://` URL shape are the code
+  contract. The pool is reached through a **new `ClasspathWorldStore`** added
+  beside M5's `DirectoryWorldStore` in `wonderland-modules/asset` — same
+  `wla://<module>/<path>` contract resolved through a `ClassLoader`, the
+  `../` confinement carried over unchanged. On the wire,
+  `AvatarCellServerState` gains an optional `avatarModelUrl` `@XmlAttribute`;
+  a pre-M6b server still sends only `userName`, the field decodes to null,
+  and the client falls back to `AvatarPool.urlFor(AvatarPool.defaultName())`
+  — `CellMessagesCodecTest` pins both branches so the extension is
+  **backward compatible**. Because `wonderland-client` cannot import
+  `wonderland-renderer` (that would cycle), the seam is a **static installer
+  slot** in the client — an `AvatarRendererInstaller`
+  `@FunctionalInterface` and an `AvatarRendererInstallers` volatile static
+  holder — and `AvatarCell.createCellRenderer` changes from `return null;` to
+  a null-guarded delegation, so a headless test JVM (nothing installed) keeps
+  the M2f quirk and a live desktop (installed by
+  `WonderlandRendererBootstrap.install()` at boot) gets the renderer back;
+  `AvatarCell` also gains a typed `getServerState()` /
+  `setServerState(AvatarCellServerState)` pair the factory reads the URL
+  through. The renderer's **pure half** is unit-tested end-to-end in a new
+  `wonderland-renderer/…/avatar` package: `AvatarLoadResolver` (URL selection
+  — explicit wins, null/empty falls back to the pool default — reading the
+  bytes through `ClasspathWorldStore` and parsing with `ColladaParser`, every
+  failure degrading to an `AvatarLoadResult.error` rather than throwing, a
+  documented deviation from `ModelLoader.load` since the pool ships raw `.dae`
+  bytes and not a `.dep` indirection), `AvatarTriggerState` (the mutable
+  value class the renderer owns — pressed, collision height / on, last
+  animation name for M7, and the nullable goto override — deciding
+  `chooseDiffuseColour()` yellow when pressed else neutral grey and
+  `chooseYOffset()` the height when the flag is on else zero),
+  `AvatarTransformFeed` (composing the base `CellTransform`, the
+  goto-override short-circuit and the collision-Y offset into the same
+  row-major `double[16]` M6a uses, with the offset landing on vecmath's
+  last-column index 7), and `AvatarRendererFactory` (the seam dispatch
+  mirrored on `ModelRendererFactory` — `RENDERER_JME` + loaded → delegate,
+  `NONE` / `RENDERER_2D` / null / errored load / null supplier → null — all
+  asserted headless with a stub supplier). The renderer's **probe-only half**
+  is `AvatarRenderer implements CellRenderer, AvatarCell.AvatarActionTrigger`
+  — a Jogamp `BranchGroup` → `Switch` → `TransformGroup` → per-node
+  `TransformGroup` → `Shape3D` chain reusing M6a's `J3dMeshFactory` and
+  `ColladaMeshBuilder` exactly as `ModelRenderer` does, driven by
+  `cellTransformUpdate` through `AvatarTransformFeed` and re-tinted in place
+  on every trigger / collision by writing through the `Material` and
+  `Appearance` `ALLOW_*_WRITE` capabilities `J3dMeshFactory` already sets,
+  plus `WonderlandRendererBootstrap.install()` composing the client-slot
+  installer from an injected resolver + factory and pulling the optional
+  `avatarModelUrl` off `AvatarCell.getServerState()`. Real skeletal animation
+  is a **documented M7 descope with written reason**: the 2006 `AvatarJME`
+  used jME-1.x's `Animator` on a `.jme` binary pool the port never recovers,
+  so M6b ships the *state-driven* visual subset only — trigger press tints
+  yellow, collision lifts / drops by the reported height, a goto teleports
+  the pose — with the animation-name string carried on
+  `AvatarTriggerState.lastAnimationName` for M7's animator subsystem to
+  consume. **97 new headless cases** across five modules — `AvatarPoolTest`
+  (7, driving the real bundled `.dae` bytes), `ClasspathWorldStoreTest` (9,
+  open / present / confinement / null-degrade), `AvatarRendererInstallersTest`
+  (7, install/get/require/uninstall and the `AvatarCell` delegation both null
+  and installed), the extended `CellMessagesCodecTest` (one case widened for
+  the null default, one new for a set URL round-tripping through
+  `MessagePacker`), and the five renderer files `AvatarLoadResolverTest` (10,
+  driving the real pool through the real store with no stubbing),
+  `AvatarTriggerStateTest` (12), `AvatarTransformFeedTest` (9),
+  `AvatarRendererFactoryTest` (10) and `WonderlandRendererBootstrapTest` (9).
+  `coverageFloors[wonderland-avatars]` is set to
+  `[line: 0.950, branch: 0.900]` (the catalog class is tiny, pure and fully
+  testable; the shipped `.dae` files are resource bytes not code and do not
+  appear in JaCoCo); `wonderland-renderer`'s floor stays at
+  `[line: 0.530, branch: 0.560]` — measured after M6b is above the M6a
+  measurement, so the floor remains an honest shade under the pure-code
+  carrier; `wonderland-client`, `wonderland-common` and `wonderland-modules`
+  floors unchanged (the installer slot, the `serverState` field, the
+  `ClasspathWorldStore` and the optional wire attribute are additive and
+  fully tested). Imports stay `org.jogamp.java3d.*` / `org.jogamp.vecmath.*`
+  only — the `legacy-j3d.mnd` gate enforces it. Live avatar rendering is
+  verified by launching the desktop + a bundled world through the in-JVM
+  probe (`lg3d-core/AGENTS.md`), walking a peer into view, clicking it to
+  fire a trigger, and reading the `lgscreen-0-N.png` screencapture — **not**
+  claimed as tested in CI, per the standing rule. M6c (the 2D + 3D desktop
+  integration hosting a cell's `BranchGroup` in `lg3d-core`'s `Frame3D` /
+  `SceneGraphView`) re-plans as it unblocks, per the
+  every-slice-requires-reconfirmation rule.
 - **The Wonderland Collada cell renderer lands on the Jogamp stack (`wonderland-renderer`,
   new module)** — M6a, the first slice of the milestone that finally *renders* what
   M5 read. A new leaf module, `wonderland-renderer`, sits on `wonderland-client`
