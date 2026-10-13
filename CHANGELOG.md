@@ -10,6 +10,46 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Wonderland avatar animation lands on COLLADA keyframes (`wonderland-modules` +
+  `wonderland-renderer` + `wonderland-avatars` + `wonderland-desktop`, M7c)** —
+  the third M7 replacement: the 2006 `AvatarJME` drove skeletal animation
+  through jME-1.x's `Animator` against a `.jme` binary pool that was fetched by
+  Java Web Start and is unrecoverable, so the port ships a **COLLADA-driven
+  keyframe animator** instead, consuming the animation-name string the wire has
+  carried since M6b (`AvatarTriggerState.lastAnimationName`). The parse half
+  lives in `wonderland-modules/collada`: `ColladaAnimation` keeps the raw
+  `<library_animations>` vocabulary — sources with their float data and
+  accessor stride (under `<technique_common>`, as the 1.4.1 spec nests it),
+  samplers with hash-stripped INPUT/OUTPUT refs, the interpolation attribute
+  and the flat index pairs, channels with the target string untouched — and
+  the Blender group-animation flatten merges child records into the parent;
+  interpretation deliberately does not live here. The playable half is a new
+  pure `org.jdesktop.wonderland.renderer.animation` package: `ChannelTarget`
+  (the `node/sid.element[.ARRAY]` vocabulary), `KeyframeTrack` (right-
+  continuous LINEAR/STEP sampling, clamped outside the key span),
+  `AnimationClip` (per-node tracks composed into a `Matrix4d` pose via
+  Rodrigues), `ColladaClips` (the raw-to-playable factory: the stride-4
+  axis+angle rotation bundle, the stride-3 Euler refusal — dropped, not
+  misread — BEZIER collapses to LINEAR, times normalise to t=0, an
+  unresolvable channel degrades instead of throwing), `SyntheticClips` (the
+  idle/walking/waving fallback so an unrigged body never freezes, exactly as
+  on the 2006 desktop), `AnimationLibrary` and `AvatarAnimationDirector` (the
+  playback policy on an injected clock: LOOPING names wrap, gestures play once
+  then revert to idle, the alias table maps walk/run to walking, unknown names
+  fall back to idle). The **live half** is probe-only: `AvatarRenderer` now
+  builds one nested LOCAL `TransformGroup` per Collada node (replacing M6b's
+  flat world-matrix soup, so an animated joint drags its subtree), ticks the
+  director from a 33 ms daemon clock wired to `WonderlandWorldContainer`
+  mount/unmount, and writes the sampled pose overrides each tick; a trigger
+  press feeds the director immediately. The bundled `humanoid-a.dae` gained
+  hand-authored `walking` (bob + axis-angle sway) and `idle` clips against its
+  real node id — bodies B and C deliberately ship no rig, exercising the
+  synthetic path. **77 new headless cases** (7 `ColladaAnimationTest`, 70
+  across eight renderer suites, the crown `AvatarAnimationBundledPoolTest`
+  driving the REAL shipped `.dae` bytes through the whole chain with no
+  stubbing); `wonderland-renderer` floor raised `[0.530, 0.560] → [0.660,
+  0.660]` (measured 66.9 % / 67.0 %). Live playback is verified on the
+  desktop probe, per the standing rule.
 - **The Wonderland pdfviewer lands on Apache PDFBox (`wonderland-modules` +
   `lg3d-apps`, M7b)** — the second M7 replacement: the 2006 pdfviewer rasterised
   pages with jpedalSTD, a dead library with no maintained JDK 21 build, and the

@@ -249,8 +249,8 @@ and mirror M6a's `mesh` / `transform` / `seam` split:
   store, same parser, no `.dep`. Documented in the class header.
 - **`AvatarTriggerState`** — the mutable value class the renderer owns.
   Carries `pressed`, `collisionHeight` / `collisionOn`,
-  `lastAnimationName` (the string M7's animator subsystem will eventually
-  consume; M6b stores it but does not act on it), and the nullable
+  `lastAnimationName` (the string M7c's `AvatarAnimationDirector` now
+  consumes; M6b stored it, M7c acts on it), and the nullable
   `gotoPosition` / `gotoLook` pair. Its two decision methods,
   `chooseDiffuseColour()` returning a fresh `float[4]` RGBA (yellow when
   pressed, neutral grey otherwise) and `chooseYOffset()` returning the
@@ -293,7 +293,13 @@ and mirror M6a's `mesh` / `transform` / `seam` split:
   `AvatarTransformFeed`, so a fresh `cellTransformUpdate` from the comms
   layer also passes through the same feed and the offset survives every
   subsequent move message. **Compiled under `check`; asserted only by the
-  in-JVM probe**, same treatment M6a's `ModelRenderer` gets.
+  in-JVM probe**, same treatment M6a's `ModelRenderer` gets. **M7c** rebuilt
+  the per-node chain as one *nested LOCAL* `TransformGroup` per Collada node
+  (replacing M6b's flat world-matrix soup) and kept the map of animatable
+  nodes, so an animated joint drags its subtree; the sampled clip poses are
+  written as overrides each tick, and a 33 ms daemon animation clock —
+  started on `WonderlandWorldContainer.mount`, stopped on `unmount` — drives
+  the director.
 - **`WonderlandRendererBootstrap`** — a single static entry point the
   desktop's launcher calls during boot to install the live installer into
   the client slot. Nothing in `check` triggers it (running it would
@@ -302,22 +308,31 @@ and mirror M6a's `mesh` / `transform` / `seam` split:
   injected stub resolver + factory pair, so the boot sequence is provable
   without touching Jogamp.
 
-### The M7 descope, in writing
+### Avatar animation: what was the M7 descope, now M7c-landed
 
-Real skeletal animation is **not** delivered by M6b. The reason is
+Real skeletal animation was **not** delivered by M6b, and the reason was
 concrete: the 2006 `AvatarJME` drove animation through jME-1.x's `Animator`
 subsystem against `.jme`-binary bodies serialized with jME's own class
 layout — the assets were never in `wonderland.jar` and the library is not
-recoverable, so there is nothing to port. Building a *new* animator
-subsystem, a skinning-capable COLLADA loader and a rigged-body asset format
-on top of the pool is a milestone-sized slice in its own right. M6b
-therefore ships the state-driven visual subset (trigger press tints the
-body, collision lifts it, a goto teleports it) and defers the animator +
-skinning pipeline to **M7**, where it lands next to the other high-risk
-per-feature descopes (VoIP, videoplayer, pdfviewer). The animation-name
-string the wire already carries through `MovableAvatarMessage` is preserved
-on `AvatarTriggerState.lastAnimationName` so M7 does not have to widen the
-wire a second time.
+recoverable, so there was nothing to port. **M7c landed the replacement.**
+The jME `Animator` maps to a COLLADA-driven keyframe animator: the parse
+half (`ColladaAnimation` in `wonderland-modules`) reads raw
+`<library_animations>` records; the playable half is a pure
+`org.jdesktop.wonderland.renderer.animation` package — `ChannelTarget`,
+`KeyframeTrack` (LINEAR / STEP, right-continuous at key times),
+`AnimationClip` (per-node tracks composed to a `Matrix4d` via Rodrigues),
+`ColladaClips` (the raw-to-playable factory: stride-4 axis+angle bundles,
+BEZIER→LINEAR collapse, time normalisation, degrade-never-throw),
+`SyntheticClips` (the unrigged idle/walking/waving fallback — no body ever
+freezes, exactly as on the 2006 desktop), `AnimationLibrary` and
+`AvatarAnimationDirector` (LOOPING wrap, one-shot gestures reverting to
+idle, the walk/run alias table) — all asserted headless on an explicit
+clock, including the REAL shipped `humanoid-a.dae` bytes through the whole
+chain. The animation-name string the wire already carries through
+`MovableAvatarMessage` is preserved on `AvatarTriggerState.lastAnimationName`
+and now drives the director; the wire was never widened. What stays
+probe-only is the scene-graph *write*: the nested `TransformGroup` overrides
+and the daemon clock live in `AvatarRenderer`.
 
 ### How M6b is verified
 
@@ -328,9 +343,12 @@ That is **97 new headless cases** across five modules — `AvatarPoolTest`,
 `CellMessagesCodecTest`, and the five renderer files (`AvatarLoadResolverTest`,
 `AvatarTriggerStateTest`, `AvatarTransformFeedTest`,
 `AvatarRendererFactoryTest`, `WonderlandRendererBootstrapTest`) — plus
-checkstyle and the JaCoCo floors. The renderer floor stays at
-`[line: 0.530, branch: 0.560]`; the `wonderland-avatars` floor is set at
-`[line: 0.950, branch: 0.900]`, a level a tiny pure catalog clears
+checkstyle and the JaCoCo floors. The renderer floor was
+`[line: 0.530, branch: 0.560]` through M6b; **M7c raised it to `[line:
+0.660, branch: 0.660]`** (measured 66.9 % / 67.0 %) with its **77 new
+headless cases** (7 `ColladaAnimationTest` in the modules, 70 across the
+eight `animation` suites in the renderer). The `wonderland-avatars` floor is
+set at `[line: 0.950, branch: 0.900]`, a level a tiny pure catalog clears
 comfortably.
 
 Not in CI: the live scene graph. `AvatarRenderer`'s Jogamp class

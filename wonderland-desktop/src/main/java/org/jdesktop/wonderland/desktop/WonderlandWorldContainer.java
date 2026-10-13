@@ -43,10 +43,13 @@ public final class WonderlandWorldContainer extends Component3D implements Frame
     private static final class CellEntry {
         final TransformGroup tg;
         final BranchGroup scene;
+        /** M7c: non-null for avatar cells, so unmount can stop its ticker. */
+        final AvatarRenderer avatar;
 
-        CellEntry(TransformGroup tg, BranchGroup scene) {
+        CellEntry(TransformGroup tg, BranchGroup scene, AvatarRenderer avatar) {
             this.tg = tg;
             this.scene = scene;
+            this.avatar = avatar;
         }
     }
 
@@ -71,7 +74,14 @@ public final class WonderlandWorldContainer extends Component3D implements Frame
         scene.setCapability(BranchGroup.ALLOW_DETACH);
         tg.addChild(scene);
 
-        entries.put(cellId, new CellEntry(tg, scene));
+        // M7c: a mounted avatar animates while it is in the universe; the
+        // daemon ticker writes its clip poses. start is a no-op for a body
+        // that failed to load (no director, no thread).
+        AvatarRenderer avatar = renderer instanceof AvatarRenderer ar ? ar : null;
+        if (avatar != null) {
+            avatar.startAnimationClock();
+        }
+        entries.put(cellId, new CellEntry(tg, scene, avatar));
         // Live mount: add the TG to this container's scene-graph child list.
         // The probe verifies this works against a real desktop session.
     }
@@ -86,6 +96,9 @@ public final class WonderlandWorldContainer extends Component3D implements Frame
         // capability permits this. A scene already detached throws a runtime
         // SceneGraphObjectException, which the desktop probe surfaces; the
         // container never double-unmounts because the bridge owns that guard.
+        if (entry.avatar != null) {
+            entry.avatar.stopAnimationClock(); // M7c: no ticker outlives its cell
+        }
         entry.tg.removeChild(entry.scene);
     }
 

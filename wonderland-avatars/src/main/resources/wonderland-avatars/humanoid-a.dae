@@ -46,6 +46,97 @@
       </mesh>
     </geometry>
   </library_geometries>
+  <!--
+    wonderland-avatars M7c: the animation catalog for body A. This is the
+    COLLADA replacement for the unrecoverable jME-1.x .jme Animator clips: a
+    <library_animations> block the wonderland-renderer keyframe animator
+    parses and plays. "walking" bobs the body (translation.Y, stride-1
+    output) and tilts it (rotation, stride-4 axis+angle bundle with the four
+    .X/.Y/.Z/.ANGLE channels every 1.4.1 exporter emits); "idle" is the slow
+    breathing bob. Bodies B and C deliberately ship NO animations - they
+    exercise the SyntheticClips fallback path the renderer uses for any
+    document without a rig. A real artist body replaces this block, not the
+    filename or the pool catalog.
+  -->
+  <library_animations>
+    <animation id="humanoid-a-walk" name="walking">
+      <source id="walk-times">
+        <float_array id="walk-times-array" count="3">0 0.5 1.0</float_array>
+        <technique_common>
+          <accessor source="#walk-times-array" count="3" stride="1">
+            <param name="INPUT" type="float"/>
+          </accessor>
+        </technique_common>
+      </source>
+      <source id="walk-bob">
+        <float_array id="walk-bob-array" count="3">0 0.06 0</float_array>
+        <technique_common>
+          <accessor source="#walk-bob-array" count="3" stride="1">
+            <param name="OUTPUT" type="float"/>
+          </accessor>
+        </technique_common>
+      </source>
+      <source id="walk-sway">
+        <float_array id="walk-sway-array" count="12">0 0 1 0.05 0 0 1 -0.05 0 0 1 0.05</float_array>
+        <technique_common>
+          <accessor source="#walk-sway-array" count="3" stride="4">
+            <param name="OUTPUT" type="float"/>
+          </accessor>
+        </technique_common>
+      </source>
+      <sampler id="walk-bob-sampler" interpolation="LINEAR">
+        <input semantic="INPUT" source="#walk-times" offset="0"/>
+        <input semantic="OUTPUT" source="#walk-bob" offset="1"/>
+        <technique_common>
+          <common_accessor>
+            <index>0 0 1 1 2 2</index>
+          </common_accessor>
+        </technique_common>
+      </sampler>
+      <sampler id="walk-sway-sampler" interpolation="LINEAR">
+        <input semantic="INPUT" source="#walk-times" offset="0"/>
+        <input semantic="OUTPUT" source="#walk-sway" offset="1"/>
+        <technique_common>
+          <common_accessor>
+            <index>0 0 1 1 2 2</index>
+          </common_accessor>
+        </technique_common>
+      </sampler>
+      <channel source="#walk-bob-sampler" target="humanoid-a-node/translation.Y"/>
+      <channel source="#walk-sway-sampler" target="humanoid-a-node/rotation.X"/>
+      <channel source="#walk-sway-sampler" target="humanoid-a-node/rotation.Y"/>
+      <channel source="#walk-sway-sampler" target="humanoid-a-node/rotation.Z"/>
+      <channel source="#walk-sway-sampler" target="humanoid-a-node/rotation.ANGLE"/>
+    </animation>
+    <animation id="humanoid-a-idle" name="idle">
+      <source id="idle-times">
+        <float_array id="idle-times-array" count="3">0 2 4</float_array>
+        <technique_common>
+          <accessor source="#idle-times-array" count="3" stride="1">
+            <param name="INPUT" type="float"/>
+          </accessor>
+        </technique_common>
+      </source>
+      <source id="idle-bob">
+        <float_array id="idle-bob-array" count="3">0 0.02 0</float_array>
+        <technique_common>
+          <accessor source="#idle-bob-array" count="3" stride="1">
+            <param name="OUTPUT" type="float"/>
+          </accessor>
+        </technique_common>
+      </source>
+      <sampler id="idle-bob-sampler" interpolation="LINEAR">
+        <input semantic="INPUT" source="#idle-times" offset="0"/>
+        <input semantic="OUTPUT" source="#idle-bob" offset="1"/>
+        <technique_common>
+          <common_accessor>
+            <index>0 0 1 1 2 2</index>
+          </common_accessor>
+        </technique_common>
+      </sampler>
+      <channel source="#idle-bob-sampler" target="humanoid-a-node/translation.Y"/>
+    </animation>
+  </library_animations>
   <library_visual_scenes>
     <visual_scene id="humanoid-a-scene" name="humanoid-a">
       <node id="humanoid-a-node" name="humanoid-a">

@@ -5,8 +5,9 @@
  * wonderland-modules M5a (colladaloader): the COLLADA 1.4.1 DOM parser.
  *
  * Reads the subset the shipped Wonderland models actually use -- asset, the
- * geometry/scene/material/effect/image libraries, node transforms and the
- * instance_geometry / instance_material bindings -- into the {@link ColladaDocument}
+ * geometry/scene/material/effect/image libraries, node transforms, the
+ * instance_geometry / instance_material bindings and, since M7c, the
+ * {@code <library_animations>} keyframe records -- into the {@link ColladaDocument}
  * model. It is namespace-agnostic (matches on the element's local name) and
  * DTD/external-entity hardened, because the authoring tools emit the COLLADA
  * namespace but some exports omit it. It deliberately stops at the data model:
@@ -65,7 +66,8 @@ public final class ColladaParser {
                 parseEffects(root),
                 parseImages(root),
                 parseVisualScenes(root),
-                parseRootSceneId(root));
+                parseRootSceneId(root),
+                parseAnimations(root));
     }
 
     private static DocumentBuilder newSecureBuilder() {
@@ -247,6 +249,86 @@ public final class ColladaParser {
         }
         Element inst = first(scene, "instance_visual_scene");
         return inst == null ? null : stripHash(attr(inst, "url"));
+    }
+
+    // ---- animations (M7c) -----------------------------------------------------
+
+    private static Map<String, ColladaAnimation> parseAnimations(Element root) {
+        Map<String, ColladaAnimation> out = new LinkedHashMap<>();
+        for (Element lib : all(root, "library_animations")) {
+            for (Element anim : children(lib, "animation")) {
+                ColladaAnimation parsed = parseAnimation(anim);
+                out.put(parsed.id(), parsed);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Parse one {@code <animation>}. A group element -- one that owns no channels
+     * and only nests child {@code <animation>}s, the Blender export style -- is
+     * flattened by merging its children into its own record, so a single lookup
+     * by the group's name finds every joint's channels.
+     */
+    private static ColladaAnimation parseAnimation(Element anim) {
+        Map<String, ColladaAnimation.FloatSource> sources = new LinkedHashMap<>();
+        for (Element src : children(anim, "source")) {
+            sources.put(attr(src, "id"), parseAnimSource(src));
+        }
+        Map<String, ColladaAnimation.Sampler> samplers = new LinkedHashMap<>();
+        for (Element smp : children(anim, "sampler")) {
+            samplers.put(attr(smp, "id"), parseSampler(smp));
+        }
+        List<ColladaAnimation.Channel> channels = new ArrayList<>();
+        for (Element ch : children(anim, "channel")) {
+            channels.add(new ColladaAnimation.Channel(
+                    stripHash(attr(ch, "source")), attr(ch, "target")));
+        }
+        List<ColladaAnimation> children = new ArrayList<>();
+        for (Element child : children(anim, "animation")) {
+            children.add(parseAnimation(child));
+        }
+        ColladaAnimation record = new ColladaAnimation(
+                attr(anim, "id"), attr(anim, "name"), sources, samplers, channels);
+        return channels.isEmpty() && !children.isEmpty()
+                ? record.mergedWith(children) : record;
+    }
+
+    private static ColladaAnimation.FloatSource parseAnimSource(Element src) {
+        double[] data = new double[0];
+        Element floatArray = first(src, "float_array");
+        if (floatArray != null) {
+            data = parseDoubles(text(floatArray));
+        }
+        int stride = 1;
+        // the 1.4.1 spec nests the accessor under <technique_common>; a handful
+        // of minimal exports emit it as a direct child, so try both
+        Element tech = first(src, "technique_common");
+        Element accessor = tech != null ? first(tech, "accessor") : first(src, "accessor");
+        if (accessor != null) {
+            stride = attr(accessor, "stride", 1);
+        }
+        return new ColladaAnimation.FloatSource(attr(src, "id"), data, stride);
+    }
+
+    private static ColladaAnimation.Sampler parseSampler(Element smp) {
+        String inputId = null;
+        String outputId = null;
+        for (Element in : children(smp, "input")) {
+            String semantic = attr(in, "semantic");
+            String source = stripHash(attr(in, "source"));
+            if ("INPUT".equals(semantic)) {
+                inputId = source;
+            } else if ("OUTPUT".equals(semantic)) {
+                outputId = source;
+            }
+        }
+        Element tech = first(smp, "technique_common");
+        Element common = tech == null ? null : first(tech, "common_accessor");
+        long[] indexPairs = common == null
+                ? new long[0] : parseLongs(textOfFirst(common, "index"));
+        return new ColladaAnimation.Sampler(attr(smp, "id"), inputId, outputId,
+                attr(smp, "interpolation"), indexPairs);
     }
 
     // ---- appearance -----------------------------------------------------------
