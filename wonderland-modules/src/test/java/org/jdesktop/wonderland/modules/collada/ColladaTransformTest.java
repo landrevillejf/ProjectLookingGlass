@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the node transform fold.
  * Pins every COLLADA 1.4.1 transform to its vecmath Matrix4d -- the column-major
  * <matrix>, the component-defaulted translate/scale, the degrees->radians rotate,

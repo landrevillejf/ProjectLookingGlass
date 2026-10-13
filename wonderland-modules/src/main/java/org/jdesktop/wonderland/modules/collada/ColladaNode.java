@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): a COLLADA 1.4.1 scene <node>.
  *
  * A node nests transforms, child nodes, geometry instances and node instances.

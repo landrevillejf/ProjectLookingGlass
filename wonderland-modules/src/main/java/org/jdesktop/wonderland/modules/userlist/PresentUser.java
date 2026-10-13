@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (user-list): one present user.
  *
  * A user is identified by a stable id (the session / avatar id the 2006 module

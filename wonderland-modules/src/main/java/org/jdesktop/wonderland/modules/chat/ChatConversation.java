@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (text-chat): the headless conversation model.
  *
  * The transcript + participant roster the chat module owns, free of any Swing

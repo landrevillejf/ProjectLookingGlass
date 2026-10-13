@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): loads a world module end to end (headless).
  *
  * Discovers a module's world-cell files ({@code *-wlc.xml}), decodes each into

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the COLLADA 1.4.1 DOM parser.
  *
  * Reads the subset the shipped Wonderland models actually use -- asset, the

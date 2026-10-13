@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (user-list): the module's WonderlandPlugin provider.
  *
  * The headless half of the present-user roster. Its list window is deferred to

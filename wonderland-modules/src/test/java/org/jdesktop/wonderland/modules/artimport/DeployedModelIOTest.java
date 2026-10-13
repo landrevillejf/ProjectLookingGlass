@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): the .dep / .ldr readers.
  * Drives DeployedModelIO across the full deployed-model record and its tolerant
  * gaps -- absent blocks read as null/zero, a non-numeric version/coord falls back

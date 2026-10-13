@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the outcome of resolving one model asset.
  *
  * What the pipeline produces for a single {@code wla://} deployed-model

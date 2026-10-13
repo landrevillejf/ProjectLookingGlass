@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the wla:// reference parse + join.
  * Pins the narrow split the loader needs and the path maths it uses to resolve a
  * texture against the model directory, including every null / no-path rejection.

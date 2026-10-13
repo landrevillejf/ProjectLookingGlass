@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): a loaded world's inventory.
  *
  * The result of a {@link WorldLoader} pass over one module: its cells, each with

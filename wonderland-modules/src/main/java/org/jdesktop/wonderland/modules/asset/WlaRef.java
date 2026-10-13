@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): a parsed wla:// asset reference.
  *
  * The worlds spell their art as {@code wla://<module>/<path>}. The wire-side

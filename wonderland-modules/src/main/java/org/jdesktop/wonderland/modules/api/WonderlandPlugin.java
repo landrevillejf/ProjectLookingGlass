@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: the plugin SPI that replaces the NetBeans Platform's
  * org.openide module contracts.
  *

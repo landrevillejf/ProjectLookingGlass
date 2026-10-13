@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (user-list): the present-user roster and its value type.
  * Pins add/refresh by id (a repeat id updates the name but fires no second join),
  * remove semantics, name-sorted iteration, presence listeners, and the PresentUser

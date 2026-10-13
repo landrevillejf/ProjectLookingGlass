@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (text-chat): the module's WonderlandPlugin provider.
  *
  * Registered through META-INF/services and discovered by WonderlandPluginLoader.

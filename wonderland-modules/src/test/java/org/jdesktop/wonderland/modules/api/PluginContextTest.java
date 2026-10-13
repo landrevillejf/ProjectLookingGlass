@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: the PluginContext lookup surface -- name lookup, the
  * typed overload (including the wrong-type cast failure and the absent-name
  * null), the loaded-name snapshot, and the defensive copy the constructor makes

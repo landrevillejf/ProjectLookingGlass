@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (whiteboard): one drawn stroke.
  *
  * An immutable polyline (two or more points) with a colour and width -- the

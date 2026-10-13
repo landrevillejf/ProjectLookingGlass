@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): a directory-backed {@link WorldStore}.
  *
  * Resolves a module's assets under {@code <base>/<module>/<path>} on the local

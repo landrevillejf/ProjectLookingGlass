@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (imageviewer): the headless image-viewer model.
  *
  * Tracks the image a viewer cell displays -- its source URI, caption and load

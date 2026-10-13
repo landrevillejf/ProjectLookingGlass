@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): the <deployed-model> a .dep file records.
  *
  * A deployed model is the artimport's record of where the Collada lives inside

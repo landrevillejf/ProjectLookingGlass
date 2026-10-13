@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the scene node + world-matrix walk.
  * Pins document-order transform concatenation and the parent*child world walk
  * the 2006 loader baked into each Shape3D, plus the instance_geometry /
