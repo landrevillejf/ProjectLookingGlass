@@ -10,6 +10,49 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland scene-graph bridge lands — a cell's world mounts inside the lg3d
+  desktop (`wonderland-desktop`, new module)** — M6c1, the first slice of the desktop
+  integration milestone, and the **first Wonderland module to depend on
+  `lg3d-core`** (strictly one-way: nothing in `lg3d-core` imports Wonderland). A
+  loaded cell finally has somewhere to *live*: M6a/M6b build a renderer's
+  `BranchGroup`, and this slice is what mounts it into the desktop's virtual
+  universe and keeps it there as the server moves it. The slice is split the
+  same pure-vs-probe way as `wonderland-renderer`. The **pure half** is
+  `CellFrameBridge`, the mount/unmount/transform/visibility *decision* layer:
+  it owns the mounted-set (a `LinkedHashSet`, so the snapshot is in mount
+  order), guards a null cellId or renderer, ignores a double mount and an
+  unmount of a cell that is not mounted, drops a transform or visibility
+  update for a cell that unmounted between the server message and the render
+  tick, and folds the `CellTransform` through M6a's `WorldTransformMath` into
+  the row-major `double[16]` — but it never touches a Jogamp type: the *how*
+  goes through the `FrameMounter` seam interface, so every decision is
+  headless-tested against a recording stub (including that the translation
+  lands on the last column, indices 3/7/11, and that a null transform degrades
+  to the identity feed rather than throwing). `WonderlandWorldContainer`
+  implements that seam for real — it extends `lg3d-core`'s `Component3D` and
+  wraps each mounted renderer's scene in its own `ALLOW_TRANSFORM_WRITE`
+  `TransformGroup`, so `applyTransform` is a live `setTransform` — and is
+  **probe-only**: its constructor reaches through `AppConnectorPrivate` and
+  cannot run headless; only its type-only scene-extraction branch
+  (`extractScene`: `ModelRenderer` / `AvatarRenderer` → its `BranchGroup`,
+  anything else → null) is package-private and asserted in CI. `WonderlandDesktop`
+  is the bootstrap (`installRenderer()` filling M6b's installer slot once, then
+  `cellLoaded` / `cellUnloaded` / `cellTransformUpdate` driving the bridge),
+  and `WonderlandDesktopPlugin` registers the whole thing as an M4 `WonderlandPlugin`
+  `ServiceLoader` provider — `dispose()` unmounts every cell, and the bridge
+  it discovers is checked by a real `ServiceLoader.load` in the test.
+  **27 new headless cases** (19 `CellFrameBridgeTest`, 5
+  `WonderlandDesktopPluginTest`, 3 `WonderlandWorldContainerTest`), so
+  [`coverageFloors[wonderland-desktop]`](build.gradle) starts at
+  `[line: 0.420, branch: 0.540]` (measured 43.8 % / 61.5 % — the gap is
+  exactly the probe-only `Component3D` / bootstrap classes, the same honest
+  shape as `wonderland-renderer`'s floor). What M6c1 deliberately does **not**
+  claim: the container's `setVisible` is a documented no-op until the `Switch`
+  node is wired per cell, and the `SwingNode` HUD / login panels, the `.lgcfg`
+  start-menu descriptor and the pick / input routing are **M6c2**. Live
+  mounting is verified by launching the desktop + a bundled world through the
+  in-JVM probe (`lg3d-core/AGENTS.md`) and reading the `lgscreen-0-N.png`
+  screencapture — **not** claimed as tested in CI, per the standing rule.
 - **The Wonderland avatar renderer lands on the bundled `.dae` pool (`wonderland-avatars`
   new module, `wonderland-renderer` M6b)** — M6b, the second slice of M6, replaces
   `AvatarCell`'s M2f deferred `null` with a live Java 3D avatar hanging on the

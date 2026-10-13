@@ -71,6 +71,7 @@ include 'wonderland-server'
 include 'wonderland-modules'
 include 'wonderland-renderer'
 include 'wonderland-avatars'
+include 'wonderland-desktop'
 
 // lg3d-awt is RETIRED — it is not, and will not be, part of the Gradle build.
 //
