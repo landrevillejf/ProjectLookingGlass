@@ -15,3 +15,8 @@ org.jdesktop.wonderland.modules.videoplayer.VideoPlayerPlugin
 # its model runs on the shipped no-op rasteriser until the desktop installs the
 # PDFBox factory, so headless discovery behaves exactly like the M4 five.
 org.jdesktop.wonderland.modules.pdfviewer.PdfViewerPlugin
+# M7d: the softphone module (ice4j + Java Sound + G.711 replacement for the
+# stun/winp/JMF stack behind the 2006 VoIP phone); its control runs on the
+# shipped no-op backend until the desktop installs the process backend, so
+# headless discovery behaves exactly like the M4 five.
+org.jdesktop.wonderland.modules.softphone.SoftphonePlugin

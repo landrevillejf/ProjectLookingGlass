@@ -47,7 +47,9 @@ See **[Milestones](MILESTONES.md)** for the full parity table. In one line each:
   seam in `wonderland-client` (**[Renderer](RENDERER.md#m6b--the-avatar-renderer)**).
   M6c (desktop integration) re-plans as it unblocks.
 - **M7** — the high-risk features (VoIP, avatar/animation, videoplayer,
-  pdfviewer) — proposed, **not started**.
+  pdfviewer) — **landed whole**: JMF → OpenJFX Media, jpedal → PDFBox, the jME
+  animator → COLLADA keyframes, and `stun`/winp/JMF-audio → ice4j +
+  `ProcessHandle` + Java Sound with an in-tree G.711.
 
 ## Read next
 

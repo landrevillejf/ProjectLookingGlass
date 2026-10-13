@@ -18,7 +18,8 @@ Two types in `org.jdesktop.wonderland.modules.api` define the contract, bridged 
 - **`PluginContext`** — the lookup a plugin gets at init time, so it can resolve
   the modules already brought up beneath it in the dependency order.
 
-Discovery is a `META-INF/services` file listing the five providers; the loader reads
+Discovery is a `META-INF/services` file listing every provider (the M4 five, plus
+`videoplayer`/`pdfviewer`/`softphone` since M7 — eight today); the loader reads
 it with `ServiceLoader.load(WonderlandPlugin.class, loader)`.
 
 ## The loader, and why it is testable
@@ -59,11 +60,11 @@ graph TD
 - **Shutdown reverses init order** — `LoadResult.shutdown()` disposes each module
   before the one it depended on, and is safe to call more than once.
 
-## The five modules
+## The shipped modules
 
 Each ships as a `ServiceLoader` provider with a **fully headless domain model**;
-their Swing / Java 3D presentation is the documented deferred seam that lands with
-the M6/M7 renderer.
+their Swing / Java 3D presentation is the documented deferred seam that lands
+with the M6/M7 renderer.
 
 | Module | Headless model it owns |
 |--------|------------------------|
@@ -72,6 +73,9 @@ the M6/M7 renderer.
 | `userlist` | the present-user roster |
 | `stickynote` | the note content |
 | `whiteboard` | the stroke surface and its bounds |
+| `videoplayer` (M7a) | the play-state machine over a `MediaSurface` seam (OpenJFX factory installed by `lg3d-apps`) |
+| `pdfviewer` (M7b) | the page/zoom model over a `PageRasterizer` seam (PDFBox factory installed by `lg3d-apps`) |
+| `softphone` (M7d) | the call state machine, RTP and jitter buffer over a `SoftphoneBackend` seam (process + Java Sound factory installed by `lg3d-apps`) |
 
 ## How it is verified
 
@@ -79,7 +83,8 @@ M4 landed **50 headless cases** — the loader's ordering/prune/cycle guards exe
 with hand-built plugins, and a `ShippedModuleSetTest` that loads the real
 `META-INF/services` set and asserts every module initialises in a dependency-safe
 order. The `wonderland-modules` floor sits at `[line: 0.980, branch: 0.920]` from
-M4; M5 later raised the branch floor to `0.930`.
+M4; M5 raised the branch floor to `0.930`, and M7d — with the softphone module's
+88 headless cases — raised it to `[0.985, 0.945]`.
 
 - See **[Architecture](ARCHITECTURE.md)** for where the loader sits in the module graph.
 - See **[Milestones](MILESTONES.md)** for M4's place in the port.

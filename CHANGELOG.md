@@ -10,6 +10,52 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland VoIP softphone lands on ice4j + Java Sound + in-tree G.711
+  (`wonderland-modules` + `lg3d-apps`, M7d)** — the fourth and last M7
+  replacement, and the one that was three dead technologies braided together:
+  the 2006 phone bundled a closed SIP binary driven over a stdin/stdout line
+  protocol, watched it with **winp** (native JNI, Windows-only, retired),
+  looked up its NAT reflexive address with **stun.jar** (never open-sourced),
+  and carried voice through **JMF RTP** (`javax.media`, unrecoverable). The
+  port splits the same job along the M4 headless line: `wonderland-modules/softphone`
+  is a dependency-free package — `SoftphoneControl` (the 2006
+  `SoftphoneControlImpl`'s STATE half ported method-for-method: call id,
+  mute, visibility, quality, recorder rules, listener fan-out, and the
+  `exitNotificationSent` "fire softphoneExited AT MOST ONCE per process"
+  rule kept verbatim in spirit), `SoftphoneCommand` / `SoftphoneEvent` (the
+  SAME line vocabulary the 2006 binary spoke — "register", "callID=", "mute"/
+  "Unmute", "quality", "recordAudio=", "linetest", "PlaceCall=…", "Shutdown",
+  and the stdout echoes — now typed, serialised and parsed, so a modern host
+  softphone is scripted against the identical protocol), `RtpPacket` (the
+  RFC 3550 fixed header as an immutable value class — V|P|X|CC and M|PT in
+  their spec octets, the modulo-2^16 sequence circle, and refusals for what
+  the 2006 stack never spoke), `G711` (the public-domain mu-law quantiser
+  from Sun's `g711.c` in pure Java, exhaustively tested: all 65536 shorts
+  encode, all 256 codes decode, the round trip lands within one quantisation
+  step, the two ISDN zeros expand to silence), `JitterBuffer` (the TreeMap
+  de-jitter reorder on extended sequence positions with its capacity, gap
+  and late-drop counters), `VuMeter` (the peak-follower needle that emits
+  the 2006 "Microphone level: N%" strings and latches the gain warning),
+  `AudioQuality` (the four 2006 presets value-for-value), the listener
+  triad, `SoftphoneBackend` + `NoopSoftphoneBackend` + the
+  `SoftphonePlugin.installBackendFactory` seam — the eighth shipped
+  ServiceLoader provider. The **live half** is `lg3d-apps`: an
+  `ExternalSoftphoneBackend` spawns and supervises the child with
+  `ProcessBuilder` + `java.lang.ProcessHandle` (the winp replacement — its
+  protocol framing is headless-tested against an in-memory `EngineProcess`
+  stub), an `Ice4jNatProbe` asks **ice4j** (Apache-2.0, the Jitsi engine on
+  Maven Central) the same "where is my public address behind this NAT"
+  question stun.jar asked (probe-only — a fabricated STUN server would prove
+  nothing), and a `JavaSoundVoiceBridge` moves voice over `javax.sound.sampled`
+  + plain UDP datagrams, feeding the CI-proven G.711/RtpPacket/JitterBuffer
+  stack (its device-free frame packing and little-endian conversion are
+  asserted; the four worker threads that touch a mic, a speaker or a socket
+  are verified live, per the standing rule). **99 new headless cases** (88
+  `wonderland-modules` across eight softphone suites — the crown G711
+  encode/decode sweeps over every short — + 11 `lg3d-apps`); `ShippedModuleSetTest`
+  now discovers eight providers; `coverageFloors[wonderland-modules]` raised
+  `[0.980, 0.935] → [0.985, 0.945]` (measured 98.88 % / 95.32 %). No audio,
+  process or network live call is claimed from CI.
 - **Wonderland avatar animation lands on COLLADA keyframes (`wonderland-modules` +
   `wonderland-renderer` + `wonderland-avatars` + `wonderland-desktop`, M7c)** —
   the third M7 replacement: the 2006 `AvatarJME` drove skeletal animation
