@@ -10,6 +10,36 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland pdfviewer lands on Apache PDFBox (`wonderland-modules` +
+  `lg3d-apps`, M7b)** — the second M7 replacement: the 2006 pdfviewer rasterised
+  pages with jpedalSTD, a dead library with no maintained JDK 21 build, and the
+  modern equivalent — **Apache PDFBox** — is already in-tree behind this
+  desktop's own PDF Viewer, so the port now ships ONE PDF backend, not two. The
+  module keeps the M4 headless shape: `PdfViewModel` is the pure document model
+  — the EMPTY/LOADING/LOADED/ERROR lifecycle (a blank source is refused so a
+  typo cannot blank an open document; a late `markLoaded` for a replaced
+  document is refused; a zero-page document is an ERROR, not a loaded one), the
+  clamped 1-based paging walk (`gotoPage` clamps into range, `nextPage` /
+  `previousPage` stick at the edges), and the clamped zoom (`[0.1, 8.0]`, a NaN
+  or non-positive scale resets to 100 %, and `zoomOut` clamps at the minimum
+  itself so a step from 0.25 cannot fall through the nonsense-reset path); the
+  pixels live behind a new `PageRasterizer` seam that speaks only encoded PNG
+  bytes and an int page count — no AWT type crosses into the module — reached
+  through the `PdfViewerPlugin` `installRasterizerFactory` slot (the M6b/M7a
+  installer idiom), with a shipped `NoopPageRasterizer` so a headless JVM lands
+  an open honestly on ERROR instead of pretending. The **live half** is the
+  `lg3d-apps` `PdfBoxRasterizer`, a thin adapter over the existing
+  `pdfviewer/PdfDocument`: it keeps exactly one parsed document open (page
+  flips must not re-load), replaces it on a URI change, PNG-encodes through
+  `ImageIO` for the seam, and returns −1 / null on missing or unparsable files.
+  Because PDFBox runs under `java.awt.headless=true` (the standing
+  `PdfDocumentTest` precedent), this adapter is **CI-provable, not probe-only**:
+  `PdfBoxRasterizerTest` resolves and rasterises real generated A4 PDFs and
+  asserts the PNG decodes back at the expected ~595×842 px for 100 % and ~half
+  for 50 % zoom. **30 new headless cases** (14 `PdfViewModelTest`, 9
+  `PdfViewerPluginTest` incl. the `ServiceLoader` discovery, 7
+  `PdfBoxRasterizerTest`); the module joins the shipped set (now seven). Live
+  in-world page display is still verified on the desktop, per the standing rule.
 - **The Wonderland videoplayer lands on OpenJFX Media (`wonderland-modules` +
   `lg3d-apps`, M7a)** — the first of the four M7 replacements, and the answer to
   the retired `javax.media` (JMF): the 2006 videoplayer drove JMF's `Player` /

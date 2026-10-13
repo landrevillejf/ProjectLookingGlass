@@ -11,3 +11,7 @@ org.jdesktop.wonderland.modules.whiteboard.WhiteboardPlugin
 # its transport runs on the shipped no-op surface until the 2D desktop installs
 # the JavaFX factory, so headless discovery behaves exactly like the M4 five.
 org.jdesktop.wonderland.modules.videoplayer.VideoPlayerPlugin
+# M7b: the pdfviewer module (Apache PDFBox replacement for the dead jpedal one);
+# its model runs on the shipped no-op rasteriser until the desktop installs the
+# PDFBox factory, so headless discovery behaves exactly like the M4 five.
+org.jdesktop.wonderland.modules.pdfviewer.PdfViewerPlugin
