@@ -30,13 +30,10 @@ package org.jdesktop.wonderland.server.loopback;
 
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
-import java.nio.ByteBuffer;
 import org.jdesktop.wonderland.client.cell.CellCacheBasicImpl;
 import org.jdesktop.wonderland.client.cell.Cell;
 import org.jdesktop.wonderland.client.cell.EnvironmentCell;
 import org.jdesktop.wonderland.client.cell.MovableComponent;
-import org.jdesktop.wonderland.client.cell.view.LocalAvatar;
-import org.jdesktop.wonderland.client.cell.view.ViewCell;
 import org.jdesktop.wonderland.client.comms.CellClientSession;
 import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
 import org.jdesktop.wonderland.common.cell.CellID;

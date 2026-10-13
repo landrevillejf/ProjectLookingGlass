@@ -10,6 +10,41 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland session/host server binds real sockets and multiplexes one
+  session over a client's three connections**
+  (`wonderland-server`, `src/main/java/…/server/ws/`,
+  `src/main/resources/application.properties`, `src/test/java/…/server/ws/`) —
+  M3b, the second increment of the M3 milestone. It lifts M3a's "a socket owns
+  its session" note and puts the router behind real, port-bound transport with
+  **no** GlassFish. `application.properties` binds the Spring Boot lifecycle
+  (`WonderlandServerApplication`) to a real embedded-Tomcat port serving both the
+  `/comms` WebSocket and the `/api/world` REST surface (tests boot the same
+  context on `RANDOM_PORT`, so parallel CI never collides). `CommsWebSocketHandler`
+  now reproduces the faithful 2006 SGS model where ONE authenticated session
+  carries the client's THREE cell connections as separate channels: a client's
+  cache / channel / edit sockets are three distinct TCP connections, so the first
+  attach mints a `ServerSession` and answers it with the `SessionInitialization`
+  id, and each follow-on channel echoes that id in its `AttachClientMessage`
+  properties (`SESSION_ID_KEY`, the id in hex) to rejoin the SAME session — one
+  `SessionRegistry` entry per session, not per socket, which keeps the router's
+  per-session semantics (echo suppression, broadcast scoping, the one view cell
+  per session) intact. A single shared `FrameSink` **dispatches by
+  `ConnectionType`** through a live per-session socket map, so a cache-targeted
+  `LOAD_CELL` fan-out and a channel-targeted move `MOVED` broadcast each leave on
+  the right one of that session's sockets, and the view-cell chain is flushed
+  type-correctly to the session's cache socket. A socket close detaches just its
+  own channel; the session (and its view cell) is torn down only when its last
+  channel goes. **17 new cases** prove it: Mockito multi-socket one-session units
+  (`CommsWebSocketHandlerTest`) plus a **real-socket**
+  `@SpringBootTest(RANDOM_PORT)` + `StandardWebSocketClient` integration test
+  (`CommsSocketIntegrationTest`) that boots embedded Tomcat and drives the login
+  handshake, the three-sockets-one-session fan-out, a cross-session move over
+  sockets and the REST world view — all through the real M1 codec, with **no
+  functionality lost**. The pre-existing `ProtocolRouterTest` /
+  `LoopbackClientServerTest` unused-import warnings are cleared; the module's
+  [`coverageFloors[wonderland-server]`](build.gradle) branch floor now sits at
+  `[line: 0.950, branch: 0.840]` (measured 96.30 % / 85.00 %), the residue being
+  defensive transport branches that want a fault-injection seam.
 - **The Wonderland session/host server lands on Spring Boot**
   (`wonderland-server`, `src/main/java/…/server/`, `src/test/java/…/server/`) —
   M3a, the first increment of the M3 milestone and the replacement for the
