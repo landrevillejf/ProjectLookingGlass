@@ -10,6 +10,46 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland COLLADA / deployed-model / asset pipeline lands, headless**
+  (`wonderland-modules`, `src/main/java/…/modules/collada/`,
+  `src/main/java/…/modules/artimport/`, `src/main/java/…/modules/asset/`,
+  `src/test/java/…/modules/`, `src/test/resources/wonderland-almostempty-world/`) —
+  M5, the milestone that lets a bundled world's 3D models be **read**. Three
+  packages: **M5a `collada`** is a namespace-safe, DOCTYPE/entity-refusing DOM
+  reader of COLLADA 1.4.1 — the asset header, geometries (source
+  `stride`/`count` and the packed-index `positions()` walk), nodes with every
+  transform folded to an `org.jogamp.vecmath.Matrix4d` (the column-major
+  `<matrix>`, the degrees→radians `<rotate>`, the `<lookat>` basis and its
+  degenerate identity, the component-defaulted translate/scale), the
+  effect/material/image inventory and the texture-path chase, and tolerant
+  numeric coercion (a bad token contributes nothing, never an abort). **M5b
+  `artimport`** reads the deployed-model (`.dep`) and loader-data (`.ldr`) XML
+  into `DeployedModel` / `LoaderData` / `DeployedTexture` plus the
+  `AssetLoadStatus` machine. **M5c `asset`** is the read side: the `wla://`
+  `WorldStore` abstraction, `DirectoryWorldStore` (the `<base>/<module>/<path>`
+  mapping and the `../` confinement that cannot escape a module), `ModelLoader`
+  (a `.dep` → Collada document, textures resolved against the **`.dae`**
+  directory the way the 2006 `KmzLoader` did, gzip sniffed by magic byte, the
+  present/missing texture split, every failure degrading to an `ERROR` result
+  rather than throwing) and `WorldLoader` (each `-wlc.xml` → a
+  `ModelCellServerState` through a JAXB handler that skips a corrupt or
+  model-less cell rather than aborting the world). Driving the reader against
+  the **real** vendored `.dae` bytes surfaced three genuine defects the
+  synthetic fixtures hid — `AxisAngle4d` built with `(angle,x,y,z)` instead of
+  `(x,y,z,angle)`, a degenerate `<lookat>` returning a zeroed rather than the
+  identity matrix, and an effect reader that accepted only `<technique_common>`
+  and so silently dropped every sampler in the shipped 2006 `<technique
+  sid="COMMON">` exports — all three fixed. The crown `WorldLoaderTest` drives
+  the whole chain over a real almost-empty world. **90 new headless cases**
+  (140 total), so
+  [`coverageFloors[wonderland-modules]`](build.gradle) branch floor rises to
+  `[line: 0.980, branch: 0.930]` (measured 98.23 % / 93.33 %); the residue is
+  defensive branches genuinely unreachable without fault injection (the I/O
+  catches, the JAXB / `ParserConfigurationException` guards, the non-namespace
+  `local()` fallback, the transform `switch` default and the geometry
+  `stride==0` / short-`<p>` guards). Depends only on `wonderland-common`; **no**
+  `lg3d-core` / Java 3D import — the scene graph that *renders* these loaded
+  models is the deferred **M6** seam, and no rendering is claimed working here.
 - **The Wonderland plugin loader lands, headless, with the first five modules**
   (`wonderland-modules`, `src/main/java/…/modules/`, `src/main/java/…/modules/api/`,
   `src/main/resources/META-INF/services/`, `src/test/java/…/modules/`) —
