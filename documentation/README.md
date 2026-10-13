@@ -115,6 +115,7 @@ guides; the full language reference and the embedding API live in the repository
 - **[Functional Analysis](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases and specifications
 - **[History of the Language](mandela/docs/HISTORY.md)** - Why the name honours Nelson Mandela, who created it, and the dated record of how it landed
 - **[Mandela at Work](mandela/docs/USAGE.md)** - The language in daily use: one program that walks, scans, classifies and answers, the four hosts that run it, and transcripts of the real tools
+- **[Mandela Roadmap](mandela/docs/ROADMAP.md)** - The language's life outside the desktop, probing a running JVM with an embedded engine, and what comes next on both version axes
 
 > `HISTORY.md` and `USAGE.md` are the published copies of
 > [`lg3d-mandela/docs/HISTORY.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/docs/HISTORY.md)
