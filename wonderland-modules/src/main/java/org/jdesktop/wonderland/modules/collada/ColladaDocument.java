@@ -29,6 +29,7 @@ public final class ColladaDocument {
     private final Map<String, ColladaImage> images;
     private final Map<String, ColladaVisualScene> visualScenes;
     private final String rootSceneId;
+    private final Map<String, ColladaAnimation> animations;
 
     public ColladaDocument(ColladaAsset asset,
                            Map<String, ColladaGeometry> geometries,
@@ -37,6 +38,18 @@ public final class ColladaDocument {
                            Map<String, ColladaImage> images,
                            Map<String, ColladaVisualScene> visualScenes,
                            String rootSceneId) {
+        this(asset, geometries, materials, effects, images, visualScenes, rootSceneId, Map.of());
+    }
+
+    /** M7c: the full form carrying the parsed {@code <library_animations>} records. */
+    public ColladaDocument(ColladaAsset asset,
+                           Map<String, ColladaGeometry> geometries,
+                           Map<String, ColladaMaterial> materials,
+                           Map<String, ColladaEffect> effects,
+                           Map<String, ColladaImage> images,
+                           Map<String, ColladaVisualScene> visualScenes,
+                           String rootSceneId,
+                           Map<String, ColladaAnimation> animations) {
         this.asset = asset == null ? new ColladaAsset(null, 1.0, null, null, null) : asset;
         this.geometries = Map.copyOf(geometries);
         this.materials = Map.copyOf(materials);
@@ -44,6 +57,7 @@ public final class ColladaDocument {
         this.images = Map.copyOf(images);
         this.visualScenes = Map.copyOf(visualScenes);
         this.rootSceneId = rootSceneId;
+        this.animations = Map.copyOf(animations);
     }
 
     public ColladaAsset asset() {
@@ -113,8 +127,22 @@ public final class ColladaDocument {
         return paths;
     }
 
+    /**
+     * The {@code <library_animations>} records keyed by id, in parse order.
+     * M5 documents never had animations; an empty map is the honest answer for
+     * every shipped static model and for the two un-rigged placeholder bodies.
+     */
+    public Map<String, ColladaAnimation> animations() {
+        return animations;
+    }
+
     public int geometryCount() {
         return geometries.size();
+    }
+
+    /** Number of animation records (M7c). */
+    public int animationCount() {
+        return animations.size();
     }
 
     public int materialCount() {
