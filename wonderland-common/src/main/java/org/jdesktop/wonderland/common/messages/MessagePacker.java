@@ -91,7 +91,9 @@ public class MessagePacker {
          Logger.getLogger(MessagePacker.class.getName()).log(Level.SEVERE, (String)null, ex);
       } finally {
          try {
-            in.close();
+            if (in != null) {
+               in.close();
+            }
          } catch (IOException ex) {
             Logger.getLogger(MessagePacker.class.getName()).log(Level.SEVERE, (String)null, ex);
          }

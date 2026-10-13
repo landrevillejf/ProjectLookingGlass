@@ -1,5 +1,45 @@
 // wonderland-server: the session/host server that replaces the bundled
-// GlassFish 3.0 + Sun Game Server + JAX-RS stack. Scaffolded in M0; its sources
-// land in milestone M3 (and the wonderland-wfs REST surface is rebuilt here).
-// Intended deps: implementation project(':wonderland-common')
+// GlassFish 3.0 + Sun Game Server (SGS) + Apache MINA + JAX-RS stack.
+// Scaffolded in M0; M3 rebuilds it on Spring Boot 3 (docs/wonderland-migration.md,
+// "rebuild vs. port"): the Wonderland wire protocol (M1's MessagePacker) rides a
+// Spring WebSocket handler, the SGS session/login oracle becomes a plain
+// @Service session registry, and the wonderland-wfs REST surface becomes
+// @RestControllers. No GlassFish / SGS / MINA is ported.
+//
+// M3a is the single-JVM loopback increment: the server's session registry +
+// protocol router are real and exercised through the real MessagePacker codec by
+// an in-JVM transport that drives a real wonderland-client CellClientSession.
+// The WebSocket/REST classes compile and are unit-tested headless (MockMvc /
+// direct handler calls); the real socket endpoint + boot repackage land in M3b.
+//
+// Depends on wonderland-common ONLY (the shared wire/data model). It does NOT
+// import wonderland-client or lg3d-core in production code -- that would invert
+// the repo dependency rule. wonderland-client appears only in TEST scope, so the
+// loopback integration test can drive the real client against the real router.
 jar { archiveBaseName = 'wonderland-server' }
+
+dependencies {
+    // The shared data model + the M1 wire codec (MessagePacker) the server speaks.
+    implementation project(':wonderland-common')
+
+    // Spring Boot, version-managed by the BOM (gradle/libs.versions.toml).
+    // web -> embedded Tomcat + the REST stack; websocket -> the wire-protocol
+    // handler; validation -> bean validation on the REST surface.
+    api platform(libs.spring.boot.bom)
+    implementation platform(libs.spring.boot.bom)
+    implementation libs.spring.boot.starter.web
+    implementation libs.spring.boot.starter.websocket
+    implementation libs.spring.boot.starter.validation
+
+    // Headless tests: spring-boot-starter-test carries JUnit 5 + AssertJ +
+    // Mockito + MockMvc; the loopback integration test pulls the real client.
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation libs.spring.boot.starter.test
+    testImplementation project(':wonderland-client')
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}
