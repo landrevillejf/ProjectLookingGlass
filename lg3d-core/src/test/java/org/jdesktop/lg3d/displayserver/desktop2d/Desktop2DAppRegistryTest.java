@@ -89,6 +89,12 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
+        // Wonderland World (M6c2): the desktop's read-only browser over a
+        // wonderland-server world is a plain Swing panel over the AWT-free
+        // WorldCatalog, so the 2D desktop hosts it as an MDI frame and never
+        // loads the wrapper that builds the Frame3D.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.wonderland.WonderlandWorld"));
     }
 
     @Test
@@ -198,6 +204,9 @@ class Desktop2DAppRegistryTest {
         assertEquals("org.jdesktop.lg3d.apps.firewall.FirewallPanel",
                 Desktop2DAppRegistry.panelClass(
                         "java org.jdesktop.lg3d.apps.firewall.Firewall"));
+        assertEquals("org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.wonderland.WonderlandWorld"));
         // A non-panel command has no panel class.
         assertNull(Desktop2DAppRegistry.panelClass(
                 "swingapp org.jdesktop.lg3d.apps.paint.PaintApp"));

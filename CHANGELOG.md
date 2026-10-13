@@ -10,6 +10,60 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Wonderland reaches the desktop — the M6c2 integration, in 2D and 3D
+  (`wonderland-desktop` + `lg3d-apps` + `lg3d-core`)** — the milestone this
+  port had been reporting as "awaits re-confirmation" while M7 shipped on top
+  of it, and the audit that reopened the milestone found real missing
+  functionality in two directions. On the scene graph,
+  `WonderlandWorldContainer` stops being a mount that only remembers: each cell
+  now gets its own `BranchGroup` → pose
+  `TransformGroup` → visibility `Switch` → renderer-scene chain under the
+  container's `Java3DGraph` child, so `setVisible` — the documented no-op
+  M6c1 left — is a real `Switch.CHILD_ALL` / `CHILD_NONE` edit, gating in the
+  container rather than in the renderer so the shell can hide a cell without
+  touching the client's own DISK→VISIBLE status, and `addJ3dChild`'s
+  `PickTool.setCapabilities(node, INTERSECT_COORD)` walk is what makes a cell
+  pickable at all; a node→cellId identity map registered before the branch goes
+  live answers "which cell owns this hit" without a parent walk. The decision
+  layers are pure and headless: `SessionFeed` folds the client's
+  `cellLoaded` / `cellUnloaded` / `cellTransformUpdate` stream into bridge
+  calls, `PickRouter` + `PickDecision` + `PickIntent` make the routing answer
+  (nearest mounted cell wins, a cell that is not mounted cannot be picked, and a
+  gesture the world does not claim — the wheel above all — stays with the
+  desktop's scene manager), `WorldInputRouter` adapts lg3d's picked
+  `MouseEvent3D` vocabulary to that decision and never lets a failure escape
+  onto the desktop's event thread, and `WorldInventory` + `WorldHudModel`
+  compute the HUD snapshot (depth-first rows over the parent links with a seeded
+  seen-set, MOUNTED / HIDDEN / PENDING per cell, the one-line summary). The
+  Swing and launcher half follows the repository's app-layer convention and
+  lives in `lg3d-apps`, mirroring the update-manager / db-manager pattern:
+  `WorldCatalog` reads the M3 server's own `/api/world/cells` REST view with the
+  JDK HTTP
+  client + Jackson (one truth about the world, never a second one compiled by
+  hand), `WonderlandWorldPanel` is the read-only browser hosted **both** ways —
+  a 2D MDI `JInternalFrame` through `Desktop2DAppRegistry.PANEL_APPS` and a 3D
+  `SwingNode` through `TitledSwingWindow` — `WorldCatalogInventory` adapts that
+  catalog to the bridge's `WorldInventory` instead of duplicating an HTTP stack
+  inside it, `WonderlandHudPanel` is the mount HUD writing Show / Hide through
+  the bridge, and `WonderlandWorld3D` is the in-JVM launcher that installs the
+  renderer, hands the world to the scene manager as a `Frame3D` and opens the
+  HUD. Two `.lgcfg` start-menu descriptors and their generated icons
+  (`wonderland.png`, `wonderland3d.png`, both from `GenerateAppIcons`) put them
+  on the menu; `WonderlandWorld3D` is deliberately absent from
+  `Desktop2DAppRegistry`, so the 2D shell classifies it UNAVAILABLE and drops it
+  rather than building a scene graph with no universe to hold it, while the
+  read-only browser stays available in both desktops. **109 new headless
+  cases** (61 in `wonderland-desktop`, taking the module from 27 to 88 —
+  `CellFrameBridgeTest` +7, `SessionFeedTest` 13, `PickRouterTest` 17,
+  `WorldHudModelTest` 16, `WorldInputRouterTest` 8; 48 in `lg3d-apps` —
+  `WorldCatalogTest` 22, `WonderlandHudPanelTest` 11, `WonderlandWorldPanelTest`
+  10, `WorldCatalogInventoryTest` 5), plus two assertions in
+  `Desktop2DAppRegistryTest`; `coverageFloors[wonderland-desktop]` rises
+  `[0.410, 0.540] → [0.610, 0.710]` (measured 61.90 % / 71.36 %, the residue
+  still exactly the probe-only `Component3D` / bootstrap classes). No rendering
+  is claimed from CI: live mounting remains verified by the in-JVM desktop
+  probe + the `lgscreen-0-N.png` screencapture, and this entry claims the path
+  exists, not that a world was seen on screen.
 - **The Wonderland VoIP softphone lands on ice4j + Java Sound + in-tree G.711
   (`wonderland-modules` + `lg3d-apps`, M7d)** — the fourth and last M7
   replacement, and the one that was three dead technologies braided together:
@@ -995,6 +1049,42 @@ work to make it build and run on a current toolchain.
   vice versa). Both were proven to bite on a planted defect before shipping green.
 
 ### Fixed
+- **No wonderland jar was on the desktop's classpath, so the Wonderland
+  applications shipped since M7a could not run (`lg3d-core` + `lg3d-apps`)** —
+  `lg3d-core`'s hand-assembled `run` classpath and its `releaseBundle` listed
+  every module jar the shell needs by name, and when the wonderland modules
+  were added to the build nobody added them there: `grep wonderland
+  lg3d-core/build.gradle` returned nothing. Seven `lg3d-apps` production
+  classes import `org.jdesktop.wonderland.*` — M7a's `JfxMediaSurface`, M7b's
+  `PdfBoxRasterizer`, M7d's `ExternalSoftphoneBackend` and
+  `JavaSoundVoiceBridge`, and M6c2's `WonderlandWorld3D`, `WonderlandHudPanel`
+  and `WorldCatalogInventory` — so each died with
+  `NoClassDefFoundError: org/jdesktop/wonderland/…` the first time a started
+  app touched them: the milestone had reported live sinks that the running
+  desktop could not reach at all. `lg3d-apps` now declares `wonderland-desktop` / `wonderland-client`
+  / `wonderland-common` (the last two named because `wonderland-desktop`
+  carries them as non-exposed `implementation` while its signatures name their
+  types), and both the run task and the release bundle carry the six
+  wonderland jars plus the third-party set they need — JAXB,
+  `jakarta.xml.bind-api`, `reflections` and `javassist` reached through
+  `wonderland-common`'s own `runtimeClasspath` (so the versions cannot drift
+  from the module's, and `lg3d-core` is not dragged in twice) — and `ice4j`
+  through a detached configuration. Verified by diffing the assembled run
+  classpath against `:lg3d-apps`' own `runtimeClasspath`: the only entry the
+  desktop lacks is `lg3d-core`'s own jar, which the run task supplies as
+  classes; `releaseBundle` now contains `wonderland-*.jar`, `ice4j` and
+  `jaxb-runtime` in `lib/`, which the launcher's `lib/*` wildcard picks up
+  without a script edit.
+- **`WorldInputRouter` did not read the abstract mouse-motion class as a hover
+  (`wonderland-desktop`)** — the mapping tested `MouseMovedEvent3D` but lg3d's
+  own hierarchy puts `MouseMovedEvent3D` and `MouseDraggedEvent3D` under
+  `MouseMotionEvent3D`, so a motion event handed over as the class a listener
+  registered — rather than the concrete event's own — fell through to `null`
+  and the cell silently never heard the gesture. The hover branch now tests the
+  abstract parent (the drag is still answered first, so a drag cannot be
+  misread as a hover, and the wheel still belongs to the scene manager), pinned
+  by `WorldInputRouterTest.motionAndEnterBothReadAsHover` — the case that found
+  it, and a failure this branch would have shipped.
 - **A parsed COLLADA document lost the author's order, and the avatar clip list
   shuffled itself** (`wonderland-modules`, `wonderland-renderer`) —
   `ColladaDocument` kept every library (`animations`, `effects`, `visualScenes`,
