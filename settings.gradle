@@ -52,6 +52,12 @@ include 'lg3d-mandela'
 //                        (milestone M3+; wonderland-wfs' REST surface is rebuilt here).
 //   wonderland-modules - the plugin layer that replaces the NetBeans module system
 //                        + scannotation class scanning (milestone M4+).
+//   wonderland-renderer - the deferred Java 3D scene-graph renderer (milestone M6+):
+//                        turns a loaded M5 Collada model into a live Shape3D branch,
+//                        rebuilt on the org.jogamp.java3d stack. It is a leaf that
+//                        depends on the pure layers + Java 3D, so wonderland-client
+//                        stays headless-testable; the scene graph itself is verified
+//                        with the in-JVM probe, not asserted headless.
 // M0 ships wonderland-common building green; the other three are scaffolded here and
 // filled by their own milestones. The original 400 MB installer (wonderland/*.jar)
 // is a local build input and is NOT committed (see .gitignore).
@@ -59,6 +65,7 @@ include 'wonderland-common'
 include 'wonderland-client'
 include 'wonderland-server'
 include 'wonderland-modules'
+include 'wonderland-renderer'
 
 // lg3d-awt is RETIRED — it is not, and will not be, part of the Gradle build.
 //

@@ -15,7 +15,7 @@ deferred, not as working.
 | **M3** | `wonderland-server`: Spring Boot session server on the M1 protocol | 🟨 M3a–M3b landed; desktop integration + worlds arrive at M5/M6 | 69 cases at floor `[0.950, 0.840]`. M3a loopback router; M3b real embedded-Tomcat sockets + the three-connections-one-session fan-out. No GlassFish. |
 | **M4** | Plugin/module loader + first five low-risk modules | ✅ landed | `ServiceLoader` plugin loader + chat / imageviewer / userlist / stickynote / whiteboard domain models. 50 headless cases. — **[Plugin Loader](PLUGIN_LOADER.md)** |
 | **M5** | `collada` / `artimport` / `asset`: read the bundled worlds' models | ✅ landed | COLLADA 1.4.1 reader + deployed-model readers + the `wla://` asset pipeline. 90 new cases (140 total) at floor `[0.980, 0.930]`. — **[Asset Pipeline](ASSET_PIPELINE.md)** |
-| **M6** | 2D + 3D desktop integration; rebuild the deferred scene-graph renderer | ⏳ not started | Also rebuilds the M2 `client/jme` / `cellrenderer` / `AvatarCell` renderer half on `lg3d-core`'s Jogamp bridge. |
+| **M6** | 2D + 3D desktop integration; rebuild the deferred scene-graph renderer | 🟨 M6a landed; M6b + M6c re-planned as each unblocks | `wonderland-renderer` (a new leaf module on `org.jogamp.java3d` 1.7.2): the pure Collada→mesh / transform / texture-binding conversion is fully unit-tested headless, the probe-only `Shape3D` / `BranchGroup` / `Appearance` assembly is verified by the in-JVM screencapture probe, not claimed in CI. 52 new headless cases at floor `[0.530, 0.560]`. — **[Renderer](RENDERER.md)** |
 | **M7** | High-risk features: VoIP, avatar/animation, videoplayer, pdfviewer | ⏳ not started | May descope per-feature with a written reason. |
 
 ## A note on what "landed" means

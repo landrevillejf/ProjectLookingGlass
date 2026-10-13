@@ -1,0 +1,53 @@
+// wonderland-renderer: the deferred Java 3D scene-graph renderer (milestone M6).
+//
+// docs/wonderland-migration.md deferred the whole rendering half of the client to
+// M6: wonderland-client stays a pure, headless module (its 164-case suite runs
+// java.awt.headless=true under a [0.980, 0.950] coverage floor, and the repo rule
+// is that Jogamp scene-graph objects cannot be constructed in a headless test JVM).
+// Dropping the renderer into wonderland-client would add uncoverable Java 3D lines
+// and break that floor, so M6 lands it here instead -- a leaf that sits on top of
+// the pure layers plus Java 3D, exactly as lg3d-core treats its own un-headless
+// scene graph (a modest floor, the rendering classes probe-verified).
+//
+// Slice M6a is the Collada cell renderer: it turns the geometry M5 already reads
+// (wonderland-modules' ColladaDocument / ColladaGeometry) into a live Java 3D
+// Shape3D branch hung on wonderland-client's existing CellRenderer seam. The
+// data-only conversion (Collada mesh -> flat vertex/index arrays, world-matrix ->
+// Transform3D feed, material -> colour/texture binding) is pure and unit-tested
+// headless; the actual Java 3D assembly is thin and verified with the in-JVM probe
+// (see lg3d-core/AGENTS.md), never claimed as tested here.
+//
+// The toolchain (JDK 21), UTF-8 encoding, build-gradle output directory,
+// checkstyle (report-only) and jacoco are inherited from the root subprojects block.
+// The Maven-standard layout (src/main/java, src/test/java) matches the other
+// wonderland modules.
+
+jar { archiveBaseName = 'wonderland-renderer' }
+
+dependencies {
+    // The pure data model (CellTransform, CellStatus, CellID) the renderer consumes.
+    implementation project(':wonderland-common')
+    // The CellRenderer contract + RendererType enum + the Cell the renderer hangs on.
+    implementation project(':wonderland-client')
+    // The M5 Collada model the renderer turns into geometry (ColladaDocument, ...).
+    implementation project(':wonderland-modules')
+
+    // Java 3D (the repo-wide Jogamp 1.7.2 fork, packages org.jogamp.java3d /
+    // org.jogamp.vecmath). Declared directly rather than through lg3d-core so the
+    // M6a leaf stays light; the lg3d-core Frame3D/SceneGraphView bridge arrives at
+    // M6c (desktop integration) when the renderer is hosted into the live desktop.
+    implementation libs.java3d.core
+    implementation libs.java3d.utils
+    implementation libs.vecmath
+
+    // Headless JUnit 5 + AssertJ back the pure mesh / transform / binding suites.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}
