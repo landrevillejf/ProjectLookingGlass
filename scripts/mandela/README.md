@@ -16,6 +16,7 @@ enough to be the desktop's automation surface.
 | [`html-links.mnd`](html-links.mnd) | The Pages site's other half: resolves every `href`/`src` in `documentation/**/*.html`, checks each `viewer.html?path=<file.md>` names a real document, and verifies every Mermaid fence in that tree is balanced and opens with a diagram keyword. | Ships green over the current site (61 HTML references in 11 files, 70 Mermaid blocks — the 11 include the 9 generated release pages, so a changelog page is audited like any other page of the site). It was proven against a planted dead link, a missing `src`, a non-diagram fence and an unclosed fence — each one fails, so the gate bites rather than merely passes. |
 | [`startmenu-audit.mnd`](startmenu-audit.mnd) | Indexes every classpath location the assembled runtime exposes, then resolves every `resource:///…` and `java …` reference in the start-menu descriptors, separating live menu entries from inert ones. | 57 live menu items all resolve; **7 references sit in descriptors under directories the desktop never scans**, so they can never appear. |
 | [`release-check.mnd`](release-check.mnd) | Compares the four canonical version references (Gradle coordinate, root `AGENTS.md`, `README.md`, `CHANGELOG.md`) and cross-checks `settings.gradle` against the module directories, in both directions. | The repository agreed with itself; it is the gate that keeps it that way before a release cut. |
+| [`mandela-version.mnd`](mandela-version.mnd) | The same job for the language itself, which carries its own version rather than the desktop's: compares the two axes — `mandela.version` (the jar, the manifest, the artifact name) and `mandela.language` (the grammar a script may assume) — across the eight places they are written, with `gradle.properties` as the authority because that is what the build stamps the artifact with. | Ships green at jar `1.0.0`, language `1.0`; proven against a constant the gate had not been told about, which fails naming both copies and the axis they disagree on. |
 | [`i18n-keys.mnd`](i18n-keys.mnd) | The shell bundle contract: every `Messages.tr("…")` literal in a production source exists in `messages.properties`, the French bundle carries exactly the same keys, and each key's `{n}` placeholders agree between the two. Also prints the per-surface key inventory. | Green over the first extraction (288 keys, 2763 sources); proven against a planted base-only key, which fails as "no French twin". 37 legacy Latin-1 incubator sources are unreadable as text and named as skipped. |
 | [`legacy-j3d.mnd`](legacy-j3d.mnd) | The Java 3D migration rule as a gate: no source the build compiles may `import` a pre-migration package (`javax.media.j3d`, `javax.vecmath`, `com.sun.j3d`). Scoped so the exemption is honest — the do-not-edit `lg3d-docs` samples, the retired `lg3d-awt` toolkit and the two deserialisation shims that must keep the old names are all out of scope. | Ships green (the only legacy imports left in the tree are under `lg3d-docs`); proven against a planted `import javax.vecmath.*` in a built source, which the gate names by file and line. |
 | [`scripts-hygiene.mnd`](scripts-hygiene.mnd) | The automation's own wiring: every `mandelaCheck(...)` gate points at a script that exists, every registered gate is in the `repositoryChecks` aggregate CI runs, and every shipped `.mnd` is documented in this table (and every table row names a file that still exists) — the rot that the compiler and Gradle each miss. | Ships green over the current wiring; proven by registering a gate the aggregate omits and by pointing a row at a deleted script, each of which fails. |
@@ -28,7 +29,7 @@ enough to be the desktop's automation surface.
 The language needs no install, so the shortest path is the module's own classes:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks          # the eight gates, in one command
+./gradlew :lg3d-mandela:repositoryChecks          # the nine gates, in one command
 ./gradlew :lg3d-mandela:docLinksCheck             # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh           # a generator, not a gate: rewrite the help topic and the release archive
 ./gradlew :lg3d-mandela:mandelaRun -Pscript=scripts/mandela/asset-report.mnd '-Pargs=json -s .'
@@ -40,11 +41,11 @@ mandela` shebang at the top of each script expects:
 
 ```bash
 ./gradlew :lg3d-mandela:jar
-java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.0.0.jar \
     run scripts/mandela/doc-links.mnd -s .
 
 # the launcher the shebang resolves to, once the jar is where you keep it:
-#   mandela() { exec java -jar …/lg3d-mandela-1.68.0-dev.jar "$@"; }
+#   mandela() { exec java -jar …/lg3d-mandela-1.0.0.jar "$@"; }
 ```
 
 Every script's own header repeats its invocation, because the invocation carries

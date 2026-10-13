@@ -7,7 +7,7 @@
 // artifacts disagree with their own docs. Gradle cannot see the docs and a human
 // skims them, so this is a scripting-language job:
 //
-//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.68.0-dev.jar \
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.0.0.jar \
 //         run scripts/mandela/release-check.mnd -s .
 //
 // It also cross-checks settings.gradle against the module directories on disk,

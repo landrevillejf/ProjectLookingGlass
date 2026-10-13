@@ -204,10 +204,10 @@ for still land, because the delivery is in a `finally`.
 
 ### The repository's own CI
 
-The eight programs the build ran above are wired as gates:
+The nine programs the build ran above are wired as gates:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks     # all eight
+./gradlew :lg3d-mandela:repositoryChecks     # all nine
 ./gradlew :lg3d-mandela:docLinksCheck        # one of them
 ```
 
@@ -215,7 +215,10 @@ One of them, `whats-new.mnd`, is both a **generator** and a **gate**: with the
 word `write` it renders a page of the desktop's Help Center out of
 `CHANGELOG.md`, and without it the same program compares the committed page with
 what it would write now and fails the build on a difference. That is the pattern
-this repository uses: the check that ships with the thing it checks.
+this repository uses: the check that ships with the thing it checks. Another,
+`mandela-version.mnd`, checks the language against itself — the jar's version and
+the language's are written in eight places, and a jar whose own documentation
+contradicts it is how an embeddable engine loses the trust that got it embedded.
 
 ## Reading the machine
 

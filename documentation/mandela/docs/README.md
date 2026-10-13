@@ -64,7 +64,7 @@ The complete language and API documentation is located in the parent project:
 ./gradlew :lg3d-mandela:mandelaRun -Pscript=hello.mnd
 
 # Using the JAR (after build)
-java -jar build-gradle/libs/lg3d-mandela-1.68.0-dev.jar run hello.mnd
+java -jar build-gradle/libs/lg3d-mandela-<version>.jar run hello.mnd
 
 # Using the mandela CLI (if installed)
 mandela run hello.mnd

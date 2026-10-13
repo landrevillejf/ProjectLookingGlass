@@ -1,0 +1,156 @@
+#!/usr/bin/env mandela
+// mandela-version.mnd — prove the language agrees with itself about who it is.
+//
+// release-check.mnd does this job for the desktop. Mandela needs its own answer
+// because it carries its own version on purpose (see the note at the top of
+// gradle.properties): a zero-dependency language cannot be counted in desktop
+// releases, and eight surfaces write its two numbers down —
+//
+//   mandela.version    the jar      -> gradle.properties, the two constants in
+//                                     api/Mandela.java, lg3d-mandela/CHANGELOG.md,
+//                                     and the jar name the script docs tell a
+//                                     person to type
+//   mandela.language   the language -> gradle.properties, Mandela.LANGUAGE_VERSION,
+//                                     the line under docs/mandela-language.md
+//
+// Eight copies of two numbers drift, and the drift is silent until somebody
+// embeds a jar whose own documentation contradicts it — which is exactly how a
+// library loses the trust that got it embedded. gradle.properties is the
+// authority, because that is what the build stamps the artifact with; everything
+// else is a description of it, and a description that disagrees with the thing it
+// describes is the finding. Registered as mandelaVersionCheck in this module's
+// build.gradle and in repositoryChecks, so a bump that forgets a file is red in
+// CI. Exits 2 on any mismatch.
+//
+//     ./gradlew :lg3d-mandela:mandelaVersionCheck
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.0.0.jar \
+//         run scripts/mandela/mandela-version.mnd -s .
+
+use std.fs
+
+// Read the value written between two markers: `after` is what to look for, and
+// the value runs to the next `until` — or, with an empty `until`, to the end of
+// the line. The same shape release-check.mnd uses, so the two gates read alike.
+fun valueAfter(text, after, until) {
+    let at = text.indexOf(after)
+    if (at < 0) { return "" }
+    let rest = text.substring(at + after.length)
+    if (until.length == 0) {
+        let nl = rest.indexOf("\n")
+        return if (nl < 0) rest.trim() else rest.substring(0, nl).trim()
+    }
+    let end = rest.indexOf(until)
+    if (end < 0) { return "" }
+    return rest.substring(0, end).trim()
+}
+
+// The CHANGELOG names a version in its headers, and the newest one is the release
+// this module's jar *is*. An open "## [Unreleased]" section sits above it while a
+// feature branch works, so skip those headers instead of reading the word
+// "Unreleased" as a version — the same tolerance release-check.mnd learned for the
+// desktop's changelog.
+fun changelogVersion(text) {
+    for (line in text.split("\n")) {
+        if (!line.startsWith("## [")) { continue }
+        if (line.startsWith("## [Unreleased]")) { continue }
+        return valueAfter(line, "[", "]")
+    }
+    return ""
+}
+
+// One written copy of one version, as (file, marker, terminator, axis). Single
+// quotes where the marker carries a double quote: only a double-quoted Mandela
+// string interpolates, and none of these markers should. Keeping the refs in data
+// means a ninth surface is one line, not a block.
+let REFS = [
+    ["gradle.properties", "mandela.version=", "", "jar"],
+    ["gradle.properties", "mandela.language=", "", "language"],
+    ["lg3d-mandela/src/main/java/org/jdesktop/lg3d/mandela/api/Mandela.java",
+     'IMPLEMENTATION_VERSION = "', '"', "jar"],
+    ["lg3d-mandela/src/main/java/org/jdesktop/lg3d/mandela/api/Mandela.java",
+     'LANGUAGE_VERSION = "', '"', "language"],
+    ["lg3d-mandela/CHANGELOG.md", "## [", "]", "jar"],
+    ["docs/mandela-language.md", "language version ", " ", "language"],
+    ["scripts/mandela/README.md", "libs/lg3d-mandela-", ".jar", "jar"],
+    ["scripts/mandela/release-check.mnd", "libs/lg3d-mandela-", ".jar", "jar"]
+]
+
+// What the repository says, keyed by "<axis> <file> <marker>", so one pass prints
+// both axes and a file may answer for either of them.
+var found = {}
+var unreadable = []
+for (ref in REFS) {
+    let file = ref[0]
+    let axis = ref[3]
+    let marker = ref[1]
+    if (!fs.exists(file)) {
+        unreadable.push("${file} is missing from the repository root")
+        continue
+    }
+    let text = fs.read(file)
+    var value = ""
+    if (file == "lg3d-mandela/CHANGELOG.md") {
+        value = changelogVersion(text)
+    } else {
+        value = valueAfter(text, marker, ref[2])
+    }
+    if (value.length == 0) {
+        unreadable.push("${file} carries no ${axis} version where the convention " +
+                        "says one is written")
+        continue
+    }
+    found.put("${axis} ${file} ${marker}", value)
+}
+
+// Print and compare one axis against its gradle.properties authority, pushing any
+// disagreement into the caller's list (a Mandela list is an object, so the checks
+// for both axes accumulate in one place).
+fun checkAxis(axis, authorityMarker, problems) {
+    let authority = found.get("${axis} gradle.properties ${authorityMarker}")
+    if (authority.length == 0) { return }
+    var copies = 0
+    println("the ${axis} version as the repository writes it:")
+    for (key in keys(found)) {
+        if (!key.startsWith("${axis} ")) { continue }
+        let value = found.get(key)
+        let where = key.substring(axis.length + 1)
+        copies = copies + 1
+        println("  ${value.padEnd(12)} ${where}")
+        if (value != authority) {
+            problems.push("${where} says ${value}, gradle.properties says ${authority}")
+        }
+    }
+    if (copies < 2) {
+        problems.push("the ${axis} version survives in a single copy, so this " +
+                      "gate has nothing to compare")
+    }
+}
+
+if (unreadable.length > 0) {
+    for (u in unreadable) { println("  MISSING       ${u}") }
+    error("mandela-version.mnd cannot read every written version: " +
+          "${unreadable.length} finding(s)", "ViolationError")
+}
+
+var bad = []
+checkAxis("jar", "mandela.version=", bad)
+checkAxis("language", "mandela.language=", bad)
+
+// Consistent copies can still be a nonsense number. The jar version is what a
+// manifest and a coordinate both parse and what a release will one day tag, so it
+// is spelled major.minor.patch and nothing else. The language axis is
+// deliberately shorter on purpose: "1.0" is what a script may assume, which is a
+// promise about compatibility rather than the name of an artifact.
+let jarVersion = found.get("jar gradle.properties mandela.version=")
+if (jarVersion.length > 0 && jarVersion.split(".").length != 3) {
+    bad.push("mandela.version is ${jarVersion}; a jar version is major.minor.patch")
+}
+
+println("${length(keys(found))} written copies compared against gradle.properties")
+if (bad.length == 0) {
+    println("the language agrees with itself: jar ${jarVersion}, language " +
+            "${found.get('language gradle.properties mandela.language=')}")
+} else {
+    for (b in bad) { println("  MISMATCH      ${b}") }
+    error("${bad.length} mandela-version finding(s)", "ViolationError")
+}

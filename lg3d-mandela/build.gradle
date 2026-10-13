@@ -20,10 +20,28 @@
 // src/test/java, src/main/resources) is kept as-is, so no sourceSet override is
 // needed.
 
+// Mandela's own version, not the desktop's. The root build.gradle puts
+// `1.69.0-dev` on every module through `allprojects`, and this line overrides it
+// here alone: a zero-dependency language cannot be counted in desktop releases,
+// because a host that drops the jar on its classpath has to be told which
+// language a script may assume. Both numbers come from gradle.properties, so a
+// Mandela bump is one edit in one place; scripts/mandela/mandela-version.mnd is
+// the registered gate that keeps the jar, the two constants in api/Mandela.java,
+// the two guides and lg3d-mandela/CHANGELOG.md saying the same thing. The
+// desktop's release train never rewrites these lines, and the bundle's `lib/*`
+// wildcard classpath does not care what the file is called.
+version = providers.gradleProperty('mandela.version').get()
+
 jar {
     archiveBaseName = 'lg3d-mandela'
     manifest {
-        attributes 'Main-Class': 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+        attributes 'Main-Class': 'org.jdesktop.lg3d.mandela.cli.MandelaCli',
+                // What a host reads when it asks the artifact who it is; the CLI
+                // prints the same two numbers from the same two sources.
+                'Implementation-Title': 'Project Mandela',
+                'Implementation-Version': version,
+                'Specification-Title': 'Mandela',
+                'Specification-Version': providers.gradleProperty('mandela.language').get()
     }
 }
 
@@ -88,7 +106,8 @@ tasks.register('mandelaRepl', JavaExec) {
 // ---------------------------------------------------------------------------
 // scripts/mandela holds automation written *in* Mandela and aimed at this
 // repository: a documentation-link checker, an HTML/Mermaid checker for the
-// Pages site, a release-consistency gate, a start-menu descriptor audit, an
+// Pages site, a release-consistency gate, a version-consistency gate for the
+// language itself, a start-menu descriptor audit, an
 // i18n bundle-completeness gate, a legacy Java 3D import lint, a freshness gate on
 // the generated What's New help topic and on the release archive drawn from the same
 // changelog, and a gate on the automation's own wiring. They
@@ -97,7 +116,7 @@ tasks.register('mandelaRepl', JavaExec) {
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all eight)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all nine)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -131,6 +150,8 @@ mandelaCheck('htmlLinksCheck', 'html-links.mnd',
         'Fail when the Pages documentation site carries a dead href/src/viewer path or a broken mermaid fence.')
 mandelaCheck('releaseCheck', 'release-check.mnd',
         'Fail when the version references or settings.gradle disagree with the tree.')
+mandelaCheck('mandelaVersionCheck', 'mandela-version.mnd',
+        "Fail when the language's own version (jar and language axes) is written inconsistently across gradle.properties, api/Mandela.java, the two guides, the module changelog and the scripts README.")
 mandelaCheck('startMenuAudit', 'startmenu-audit.mnd',
         'Report the start-menu inventory and fail when a live descriptor does not resolve.')
 mandelaCheck('i18nKeysCheck', 'i18n-keys.mnd',
@@ -146,7 +167,8 @@ tasks.register('repositoryChecks') {
     group = 'verification'
     description = 'Run every Mandela script that audits this repository.'
     dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit',
-            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck', 'whatsNewCheck'
+            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck', 'whatsNewCheck',
+            'mandelaVersionCheck'
 }
 
 // The other half of whats-new.mnd: the same script, run with its `write` mode

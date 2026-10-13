@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
+  `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
+  own identity while its real version was two hard-coded `"1.0"` strings nobody
+  compared to anything, so a host that embedded the jar could not ask which language
+  it had been given and `mandela --version` answered from memory. A module that
+  depends on nothing releases on its own clock, and counting it in desktop versions
+  says nothing about it: `mandela.version` (the jar, now `1.0.0`) and
+  `mandela.language` (the grammar, `1.0`) in `gradle.properties` are the authority,
+  the build overrides the module's version from them and stamps both into the jar
+  manifest (`Implementation-Version`, `Specification-Version`),
+  `Mandela.IMPLEMENTATION_VERSION` reads `1.0.0`, and the module's own
+  `CHANGELOG.md` — nine lines, a header with two typos in it and no entries at all —
+  now carries the version policy and the release's record. The copies are what drift,
+  so `mandela-version.mnd` joins the gates and compares the eight places the two
+  numbers are written against their property; the jar name three of those documents
+  quoted had gone stale at `1.68.0-dev` while the build said `1.69.0-dev`, so the
+  module's docs now spell it `lg3d-mandela-<version>.jar` and only the two
+  invocations the gate reads still name a number. The desktop's release train never
+  rewrites Mandela's version and `release-check.mnd` does not look at it — the bundle
+  puts the jar on a `lib/*` wildcard classpath, which does not care what the file is
+  called — so a Mandela bump is its own module-scoped chore, gated by its own script.
 - **A release is now a page, and the page carries its test reports**
   (`scripts/mandela` + `documentation/` + `.github/workflows/`) — the changelog had
   always been rendered for one audience only: `whats-new.mnd` parsed `CHANGELOG.md`
