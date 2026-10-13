@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland plugin loader lands, headless, with the first five modules**
+  (`wonderland-modules`, `src/main/java/…/modules/`, `src/main/java/…/modules/api/`,
+  `src/main/resources/META-INF/services/`, `src/test/java/…/modules/`) —
+  M4, the milestone that replaces the **NetBeans Platform module system**
+  (`org.openide`, the NBM toolchain — both unrecoverable) and the dead
+  scannotation class scan with a plain `java.util.ServiceLoader` plugin layer.
+  `WonderlandPlugin` / `PluginContext` are the SPI, bridged to the module
+  metadata already ported in `wonderland-common` (`ModuleInfo` /
+  `ModuleRequires`). `WonderlandPluginLoader` does ServiceLoader discovery with
+  duplicate/missing-name guards, **topological ordering** so a dependency
+  initialises before its dependents, skip-and-cascade for an unsatisfiable
+  requirement, a loud `PluginCycleException` on a cycle, ordered `initialize`
+  and reverse-order `dispose`. Five low-risk modules ship as ServiceLoader
+  providers — **chat** (conversation transcript), **imageviewer** (image
+  load-status machine), **userlist** (present-user roster), **stickynote**
+  (note content) and **whiteboard** (stroke surface + bounds) — each with a
+  fully headless domain model; their Swing / Java 3D presentation is the
+  documented deferred seam M2f used, landing with the desktop integration at
+  **M6/M7** and NOT claimed working here. **50 new headless cases** back it,
+  so [`coverageFloors[wonderland-modules]`](build.gradle) is set to
+  `[line: 0.980, branch: 0.920]` (measured 99.80 % / 93.57 %); the residue is
+  defensive branches — the `ServiceConfigurationError` catch, the shutdown
+  per-pass dispose guard — unreachable without fault injection. The module
+  depends only on `wonderland-common`; **no** `wonderland-client` / `lg3d-core`
+  / Java 3D import yet.
 - **The Wonderland session/host server binds real sockets and multiplexes one
   session over a client's three connections**
   (`wonderland-server`, `src/main/java/…/server/ws/`,

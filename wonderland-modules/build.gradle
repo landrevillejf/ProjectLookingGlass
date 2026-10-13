@@ -1,4 +1,46 @@
-// wonderland-modules: the plugin layer replacing the NetBeans module system and
-// scannotation class scanning. Scaffolded in M0; populated in milestone M4.
-// Intended deps: implementation project(':wonderland-client')
+// wonderland-modules: the plugin layer that replaces the NetBeans Platform
+// module system (org.openide, the NBM toolchain -- both unrecoverable) and the
+// dead scannotation class scan. See docs/wonderland-migration.md (milestone M4).
+//
+// M4 lands the ServiceLoader-based loader + the first low-risk modules, sliced
+// so every line is verifiable HEADLESS in CI today (the repo mandates per-module
+// coverage and the excluded AWT peer means a live scene graph is not testable):
+//   - org.jdesktop.wonderland.modules.api   the plugin SPI (WonderlandPlugin +
+//     PluginContext), bridged to the module metadata already ported in
+//     wonderland-common (ModuleInfo / ModuleRequires);
+//   - WonderlandPluginLoader                discovery via java.util.ServiceLoader
+//     (the ScannedClassLoader "finalised in M4" concern), duplicate detection,
+//     topological ordering by ModuleRequires, ordered init / reverse dispose;
+//   - the five low-risk modules (chat, imageviewer, userlist, stickynote,
+//     whiteboard) as ServiceLoader providers, each with a headless domain model.
+//     The Swing / Java 3D presentation of each is DEFERRED -- the same documented
+//     seam M2f used for the AvatarCell renderer -- and arrives with the desktop
+//     integration at M6/M7; it is not claimed as working here.
+//
+// The toolchain (JDK 21), UTF-8 encoding, build-gradle output directory,
+// checkstyle (report-only) and jacoco are inherited from the root build.gradle
+// subprojects block. The Maven-standard layout (src/main/java, src/test/java)
+// matches wonderland-common / wonderland-client.
+
 jar { archiveBaseName = 'wonderland-modules' }
+
+dependencies {
+    // The loader consumes the module metadata (ModuleInfo / ModuleRequires) that
+    // wonderland-common already ports; vecmath + JAXB arrive transitively through
+    // its api. No wonderland-client / lg3d-core dependency yet: the M4 loader and
+    // the five headless models need only the data model. The client dependency --
+    // for live session presence (user-list / chat) and the cell renderers of the
+    // other modules -- is added at M5/M6 when their presentation lands.
+    implementation project(':wonderland-common')
+
+    // Headless JUnit 5 + AssertJ back the loader + per-module test suites.
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+}
