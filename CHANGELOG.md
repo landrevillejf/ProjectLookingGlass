@@ -10,6 +10,39 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland session/host server lands on Spring Boot**
+  (`wonderland-server`, `src/main/java/…/server/`, `src/test/java/…/server/`) —
+  M3a, the first increment of the M3 milestone and the replacement for the
+  retired **GlassFish Embedded 3.0 + Sun Game Server (SGS) + Apache MINA +
+  JAX-RS** stack. `WonderlandServerApplication` is the one Spring Boot lifecycle
+  that owns embedded Tomcat, the WebSocket endpoint and the REST controllers.
+  `SessionRegistry` / `ServerSession` mint the BigInteger session ids and the
+  per-connection short client ids the wire stamps (the id policy the 2006 SGS
+  server used), and reach the client through a transport-agnostic `FrameSink`.
+  `WorldModel` / `WorldCell` hold the authoritative cell hierarchy (with the
+  environment-root remove guard and the `applyMove` authority). `ProtocolRouter`
+  is the transport-agnostic brain both the M3a loopback and the M3b WebSocket
+  call: the `SET_VIEW` handshake answers `ViewCreateResponse` and fans the world
+  out as `LOAD_CELL`s; it registers a real `ViewCell`-typed world cell and pushes
+  its `LOAD_CELL` through a **deferred post-reply flush** — the deterministic
+  reproduction of the async socket ordering the client's `ViewCell →
+  LocalAvatar.viewCellConfigured → setViewCell` walk depends on (a frame
+  delivered mid-`sendAndWait` would walk the view cell against a not-yet-set
+  id); an authoritative `MovableMessage` gets its `MOVE_MODIFIED` reply routed by
+  `MessageID` plus a `senderID`-stamped broadcast every peer uses to suppress its
+  own echo; a reparent echoes `CONFIGURE_CELL`; a corrupt frame is rejected.
+  `WorldRestController` (Spring MVC), `CommsWebSocketHandler` + `WebSocketConfig`
+  (`/comms`) compile and are wired but not yet bound to a port (M3b). Spring
+  Boot's own **serialization-free** `MessagePacker` was hardened: `unpack` now
+  null-guards its stream close so a malformed frame fails as a clean
+  `PackerException` instead of an NPE (`wonderland-common`). **52 new headless
+  cases**, the crown being `LoopbackClientServerTest` — a **real**
+  `wonderland-client` `CellClientSession` driven against the **real** Spring
+  router over the real M1 codec, proving handshake, world fan-out, the avatar
+  command chain, the multiplayer move round trip, echo suppression and
+  departure-unload with **no functionality lost** and **no** GlassFish.
+  [`coverageFloors[wonderland-server]`](build.gradle) is set to
+  `[line: 0.950, branch: 0.850]` (measured 96.21 % / 86.73 %).
 - **The Wonderland view/avatar movement core lands, headless**
   (`wonderland-client`, `src/main/java/…/client/cell/`,
   `src/main/java/…/client/cell/view/`, `src/main/java/…/client/utils/`) —

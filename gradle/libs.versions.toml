@@ -76,6 +76,15 @@ checkstyle = "10.18.2"    # Checkstyle tool version (parses modern Java syntax)
 pitestPlugin = "1.15.0"   # info.solidsoft.pitest Gradle plugin
 pitest = "1.17.0"         # PIT mutation-testing engine
 pitestJunit5 = "1.2.1"    # PIT <-> JUnit 5 bridge
+# Spring Boot backs the WonderLAN M3 session server (wonderland-server), the
+# modern replacement for the retired GlassFish Embedded 3.0 + Sun Game Server +
+# MINA + JAX-RS stack (docs/wonderland-migration.md, "rebuild vs. port"). The
+# wire protocol rides a Spring WebSocket handler; the wonderland-wfs REST
+# surface becomes @RestControllers. 3.5.x is the current GA line and the JDK 21
+# baseline Spring Boot supports. Kept a library dependency (not the boot Gradle
+# plugin): M3a runs the server in-JVM (loopback + unit/MockMvc tests), so no
+# executable bootJar is required yet; boot repackage lands with M3b real sockets.
+springBoot = "3.5.6"      # org.springframework.boot:* (Apache-2.0)
 
 # Build-analysis plugins. Declared here (not hardcoded in build.gradle) so a
 # bump is a one-line change; applied with `apply false` at the root and enabled
@@ -162,6 +171,19 @@ pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 # lg3d-core/build.gradle), so the in-JVM start-menu launch finds them.
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
+
+# Spring Boot (wonderland-server, M3). The BOM constrains every spring-* and
+# transitive (Tomcat, Jackson, the WebSocket + validation stacks) version, so a
+# boot bump is the single [versions].springBoot change above. starter-web brings
+# embedded Tomcat + the REST stack; starter-websocket the Spring WebSocket handler
+# that carries the WonderLAN wire protocol; starter-validation the bean-validation
+# API for the REST surface; starter-test (test-only) JUnit 5 + AssertJ + Mockito +
+# MockMvc. None carry an explicit version: the BOM below constrains them.
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-websocket = { module = "org.springframework.boot:spring-boot-starter-websocket" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 
 [plugins]
 # Third-party Gradle plugins (Checkstyle / JaCoCo / signing are built in and

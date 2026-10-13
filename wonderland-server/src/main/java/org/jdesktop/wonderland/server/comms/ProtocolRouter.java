@@ -1,0 +1,331 @@
+/*
+ * wonderland-server (M3): the protocol brain -- the transport-agnostic core the
+ * Spring WebSocket handler (M3b) and the M3a in-JVM loopback both call. It speaks
+ * M1's wire: every inbound ByteBuffer is unpacked with MessagePacker.unpack and
+ * every outbound frame is packed with MessagePacker.pack against the short client
+ * id the session registry assigned that connection. Nothing here knows sockets
+ * from loopback pipes; it knows the cell protocol and the world.
+ *
+ * What it reproduces, faithfully, from the 2006 SGS server:
+ *   - the view handshake: a CellHierarchyMessage SET_VIEW (the first thing the
+ *     client's CellCacheConnection sends) is answered with a
+ *     ViewCreateResponseMessage carrying a freshly minted view-cell id, then the
+ *     whole world hierarchy (environment first, content after) is fanned out as
+ *     LOAD_CELL messages -- the push that seeds the client cache. The minted view
+ *     id alone is NOT functional: the client's ViewCell only configures the
+ *     avatar when the view cell itself reaches ACTIVE (ViewCell.setStatus ->
+ *     LocalAvatar.viewCellConfigured -> cache.setViewCell, the walk that lifts
+ *     the whole tree to VISIBLE). So the router also registers a ViewCell-typed
+ *     WorldCell for the session and pushes LOAD_CELL frames through the sink AFTER
+ *     the synchronous reply frames -- the original's async socket timing, where
+ *     CellCacheConnection had already stored viewCellID by the time a view cell's
+ *     frame was processed; a frame delivered mid-sendAndWait would walk a ViewCell
+ *     to ACTIVE against a not-yet-set id. The sync fan-out therefore carries only
+ *     NON-view cells, and the async push is own-view first, foreign views after:
+ *     a foreign view cell activating before the owning view would hijack the
+ *     fresh session's LocalAvatar (a 2006 race the loopback's determinism would
+ *     turn into a certainty).
+ *   - the authoritative move: a MovableMessage MOVE_REQUEST on the channel
+ *     connection mutates the WorldModel, answers the mover with a
+ *     MovableMessageResponse (MOVE_MODIFIED) routed by the request's MessageID,
+ *     and broadcasts the accepted transform to EVERY channel-connected session
+ *     as a MovableMessage MOVED stamped with the mover's session id as senderID.
+ *     That senderID is exactly what the client's MovableComponent compares to its
+ *     own session id to suppress the echo of its own move -- so multiplayer apply
+ *     and self-suppression both survive the rebuild.
+ *   - a move for an unknown cell is refused with an ErrorMessage (a stale client
+ *     cannot forge a cell); an edit (reparent) is applied and echoed as a
+ *     CONFIGURE_CELL.
+ */
+package org.jdesktop.wonderland.server.comms;
+
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.jdesktop.wonderland.common.cell.CellID;
+import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.common.cell.CellCacheConnectionType;
+import org.jdesktop.wonderland.common.cell.CellChannelConnectionType;
+import org.jdesktop.wonderland.common.cell.CellEditConnectionType;
+import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage;
+import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage.ActionType;
+import org.jdesktop.wonderland.common.cell.messages.CellReparentMessage;
+import org.jdesktop.wonderland.common.cell.messages.MovableMessage;
+import org.jdesktop.wonderland.common.cell.messages.MovableMessageResponse;
+import org.jdesktop.wonderland.common.cell.messages.ViewCreateResponseMessage;
+import org.jdesktop.wonderland.common.comms.ConnectionType;
+import org.jdesktop.wonderland.common.messages.ErrorMessage;
+import org.jdesktop.wonderland.common.messages.Message;
+import org.jdesktop.wonderland.common.messages.MessagePacker;
+import org.jdesktop.wonderland.common.messages.MessagePacker.PackerException;
+import org.jdesktop.wonderland.common.messages.MessagePacker.ReceivedMessage;
+import org.jdesktop.wonderland.common.cell.state.CellClientState;
+import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
+import org.jdesktop.wonderland.server.world.WorldCell;
+import org.jdesktop.wonderland.server.world.WorldModel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ProtocolRouter {
+
+    /**
+     * The default client-side view cell type, inert data like every stored class
+     * name (the 2006 server likewise shipped the view cell's class name as world
+     * data; the concrete public ViewCell is instantiable headless). A deployment
+     * passes its own subclass -- with a MovableAvatarComponent, the way the
+     * original avatar cell had one -- through the constructor.
+     */
+    public static final String VIEW_CELL_CLASS =
+            "org.jdesktop.wonderland.client.cell.view.ViewCell";
+
+    private final WorldModel world;
+    private final SessionRegistry registry;
+    private final String viewCellClass;
+    private final Map<BigInteger, CellID> viewCells = new ConcurrentHashMap<>();
+    /** Per-session frames the transport must deliver AFTER its reply list (see flush). */
+    private final Map<BigInteger, Deque<ByteBuffer>> deferred = new ConcurrentHashMap<>();
+
+    @Autowired
+    public ProtocolRouter(WorldModel world, SessionRegistry registry) {
+        this(world, registry, VIEW_CELL_CLASS);
+    }
+
+    public ProtocolRouter(WorldModel world, SessionRegistry registry, String viewCellClass) {
+        this.world = world;
+        this.registry = registry;
+        this.viewCellClass = viewCellClass;
+    }
+
+    /**
+     * Register one of a session's connections with the registry so the wire has a
+     * client id to stamp. Returns the assigned short. This is the router-facing
+     * half of attach; the transport still owns its own handshake frames.
+     */
+    public short attach(ServerSession session, ConnectionType type) {
+        return registry.attach(session, type);
+    }
+
+    public void detach(ServerSession session, ConnectionType type) {
+        registry.detach(session, type);
+        if (CellCacheConnectionType.CLIENT_TYPE.equals(type)) {
+            deferred.remove(session.getID());
+            CellID viewCellID = viewCells.remove(session.getID());
+            if (viewCellID != null && world.find(viewCellID) != null) {
+                world.removeCell(viewCellID);
+                broadcastUnload(viewCellID);
+            }
+        }
+    }
+
+    /**
+     * Unpack and route one inbound frame for a session's connection, returning the
+     * frames to deliver back to THAT connection. Cross-session broadcasts are
+     * pushed straight to the other sessions' sinks as a side effect, so the caller
+     * only handles its own reply list.
+     */
+    public List<ByteBuffer> routeInbound(ServerSession session, ConnectionType type,
+            ByteBuffer inbound) {
+        return routeMessage(session, type, unpack(inbound).getMessage());
+    }
+
+    /**
+     * Route an already-unpacked message. A transport that peeked the frame to
+     * tell an attach from a data message calls this so the payload is decoded
+     * exactly once (a ByteBuffer cannot be unpacked twice without a rewind).
+     */
+    public List<ByteBuffer> routeMessage(ServerSession session, ConnectionType type,
+            Message message) {
+        if (CellCacheConnectionType.CLIENT_TYPE.equals(type)) {
+            return onCacheMessage(session, message);
+        }
+        if (CellChannelConnectionType.CLIENT_TYPE.equals(type)) {
+            return onChannelMessage(session, message);
+        }
+        if (CellEditConnectionType.CLIENT_TYPE.equals(type)) {
+            return onEditMessage(session, message);
+        }
+        return new ArrayList<>();
+    }
+
+    /**
+     * Pop the next frame the router owes this session AFTER its reply list --
+     * the view-cell chain the 2006 async socket delivered once the client had
+     * recorded its viewCellID. The transport calls this after delivering the
+     * routeMessage replies (see the loopback and the WebSocket handler); an
+     * empty queue means nothing is pending.
+     */
+    public ByteBuffer flush(ServerSession session) {
+        Deque<ByteBuffer> queue = deferred.get(session.getID());
+        if (queue == null) {
+            return null;
+        }
+        ByteBuffer frame = queue.pollFirst();
+        if (frame == null) {
+            deferred.remove(session.getID(), queue);
+        }
+        return frame;
+    }
+
+    /** Queue one post-reply frame for a cache-attached session; silent otherwise. */
+    private void defer(ServerSession session, Message message) {
+        if (session.isAttached(CellCacheConnectionType.CLIENT_TYPE)) {
+            deferred.computeIfAbsent(session.getID(), k -> new ArrayDeque<>())
+                    .addLast(pack(message, session, CellCacheConnectionType.CLIENT_TYPE));
+        }
+    }
+
+    private List<ByteBuffer> onCacheMessage(ServerSession session, Message message) {
+        List<ByteBuffer> out = new ArrayList<>();
+        if (!(message instanceof CellHierarchyMessage)) {
+            return out;
+        }
+        CellHierarchyMessage msg = (CellHierarchyMessage) message;
+        if (msg.getActionType() != ActionType.SET_VIEW) {
+            return out;
+        }
+        CellID viewCellID = world.newCellID();
+        viewCells.put(session.getID(), viewCellID);
+        // the view is a real cell in the authoritative world -- an avatar shell
+        // every other session eventually learns to load too (presence)
+        WorldCell viewCell = new WorldCell(viewCellID, world.getEnvironmentCellID(),
+                viewCellClass, "view-" + session.getID(), null,
+                new CellTransform(), new ViewCellClientState(session.getUserID()));
+        world.putCell(viewCell);
+        out.add(pack(new ViewCreateResponseMessage(msg.getMessageID(), viewCellID),
+                session, CellCacheConnectionType.CLIENT_TYPE));
+        // the synchronous fan-out carries the NON-view world only: environment
+        // first, then content, so every parent precedes its children, and no
+        // foreign avatar cell can hijack this session's LocalAvatar before its
+        // own view is configured (see header)
+        for (WorldCell cell : world.hierarchy()) {
+            if (!viewCellClass.equals(cell.getClassName())) {
+                out.add(pack(cell.toLoadMessage(), session,
+                        CellCacheConnectionType.CLIENT_TYPE));
+            }
+        }
+        // the async push (deferred, delivered after the reply list above): own
+        // view first -- it configures the avatar and lifts the tree -- then the
+        // foreign view cells the sync pass skipped; by the time those land the
+        // session's viewCellID is set, so a foreign cell's ACTIVE rung no-ops
+        defer(session, viewCell.toLoadMessage());
+        for (WorldCell cell : world.hierarchy()) {
+            if (viewCellClass.equals(cell.getClassName())
+                    && !cell.getCellID().equals(viewCellID)) {
+                defer(session, cell.toLoadMessage());
+            }
+        }
+        return out;
+    }
+
+    private List<ByteBuffer> onChannelMessage(ServerSession session, Message message) {
+        List<ByteBuffer> out = new ArrayList<>();
+        if (!(message instanceof MovableMessage)) {
+            return out;
+        }
+        MovableMessage move = (MovableMessage) message;
+        CellTransform transform = move.getCellTransform();
+        CellID cellID = move.getCellID();
+        if (!world.applyMove(cellID, transform)) {
+            out.add(pack(new ErrorMessage(move.getMessageID(),
+                    "unknown cell " + cellID), session,
+                    CellChannelConnectionType.CLIENT_TYPE));
+            return out;
+        }
+        // answer the mover: routed back through its waiting response listener by id
+        out.add(pack(MovableMessageResponse.newMoveModifiedMessage(move.getMessageID(),
+                transform.getTranslation(null), transform.getRotation(null),
+                transform.getScaling()), session, CellChannelConnectionType.CLIENT_TYPE));
+        // broadcast the accepted transform to every channel-connected session; the
+        // senderID is the mover's session id, which the mover's own component
+        // compares to itself and drops (echo suppression)
+        broadcastMove(session.getID(), cellID, transform);
+        return out;
+    }
+
+    private List<ByteBuffer> onEditMessage(ServerSession session, Message message) {
+        List<ByteBuffer> out = new ArrayList<>();
+        if (!(message instanceof CellReparentMessage)) {
+            return out;
+        }
+        CellReparentMessage reparent = (CellReparentMessage) message;
+        WorldCell existing = world.find(reparent.getCellID());
+        if (existing == null) {
+            return out;
+        }
+        world.putCell(new WorldCell(existing.getCellID(), reparent.getParentCellID(),
+                existing.getClassName(), existing.getName(), existing.getLocalBounds(),
+                reparent.getChildCellTransform(), existing.getClientState()));
+        broadcastConfigure(reparent.getCellID());
+        return out;
+    }
+
+    private void broadcastMove(BigInteger senderID, CellID cellID, CellTransform transform) {
+        MovableMessage moved = MovableMessage.newMovedMessage(cellID,
+                transform.getTranslation(null), transform.getRotation(null),
+                transform.getScaling());
+        moved.setSenderID(senderID);
+        for (ServerSession target : registry.all()) {
+            if (target.isAttached(CellChannelConnectionType.CLIENT_TYPE)) {
+                target.deliver(CellChannelConnectionType.CLIENT_TYPE,
+                        pack(moved, target, CellChannelConnectionType.CLIENT_TYPE));
+            }
+        }
+    }
+
+    private void broadcastConfigure(CellID cellID) {
+        WorldCell cell = world.find(cellID);
+        if (cell == null) {
+            return;
+        }
+        CellHierarchyMessage configure = cell.toConfigureMessage();
+        for (ServerSession target : registry.all()) {
+            if (target.isAttached(CellCacheConnectionType.CLIENT_TYPE)) {
+                target.deliver(CellCacheConnectionType.CLIENT_TYPE,
+                        pack(configure, target, CellCacheConnectionType.CLIENT_TYPE));
+            }
+        }
+    }
+
+    /** Tell every cache-connected session the departed avatar cell is gone. */
+    private void broadcastUnload(CellID cellID) {
+        CellHierarchyMessage unload = new CellHierarchyMessage(ActionType.UNLOAD_CELL,
+                null, null, cellID, null, null, (CellClientState) null, null);
+        for (ServerSession target : registry.all()) {
+            if (target.isAttached(CellCacheConnectionType.CLIENT_TYPE)) {
+                target.deliver(CellCacheConnectionType.CLIENT_TYPE,
+                        pack(unload, target, CellCacheConnectionType.CLIENT_TYPE));
+            }
+        }
+    }
+
+    private ByteBuffer pack(Message message, ServerSession session, ConnectionType type) {
+        try {
+            return MessagePacker.pack(message, session.clientID(type));
+        } catch (PackerException ex) {
+            throw new IllegalStateException("failed to pack " + message.getClass(), ex);
+        }
+    }
+
+    private ReceivedMessage unpack(ByteBuffer buffer) {
+        try {
+            ReceivedMessage received = MessagePacker.unpack(buffer);
+            if (received == null) {
+                throw new PackerException();
+            }
+            return received;
+        } catch (PackerException ex) {
+            throw new IllegalStateException("failed to unpack inbound frame", ex);
+        }
+    }
+
+    /** The view cell id minted for a session, or null before its SET_VIEW lands. */
+    public CellID viewCellOf(ServerSession session) {
+        return viewCells.get(session.getID());
+    }
+}
