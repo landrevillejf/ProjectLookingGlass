@@ -996,11 +996,41 @@ public class UpdateService {
             : Optional.of(manager.toHtml());
     }
 
+    /**
+     * Where the shipped changelog is read from, in the order an operator can
+     * influence it:
+     * <ol>
+     *   <li>{@code update.changelog.path}, from the configuration or from the
+     *       command line - a pinned path is honoured even when the file is gone,
+     *       because naming one is a statement about where the notes live;</li>
+     *   <li>the root of the release bundle the desktop is running from, which is
+     *       where {@code :lg3d-core:releaseBundle} puts {@code changelog.md} next to
+     *       the {@code lg3d.sh} launcher - the same document the Help Center's
+     *       <em>What's New</em> topic and the release page are generated from;</li>
+     *   <li>the working directory, the historical location kept for a launch from
+     *       a source tree.</li>
+     * </ol>
+     *
+     * @return the changelog file, {@code null} when nothing ships one
+     */
     private Path getLocalChangelogPath() {
         String configured = config.getProperty(CONFIG_CHANGELOG_PATH, "").trim();
 
+        if (configured.isEmpty()) {
+            // A bundle launcher passes the path as a system property: the config
+            // file is user state, and the shipped notes are not the user's to pin.
+            configured = System.getProperty(CONFIG_CHANGELOG_PATH, "").trim();
+        }
+
         if (!configured.isEmpty()) {
             return Path.of(configured);
+        }
+
+        Optional<Path> shipped = getInstallLocation().detect()
+            .map(root -> root.resolve(DEFAULT_CHANGELOG_FILE))
+            .filter(Files::isRegularFile);
+        if (shipped.isPresent()) {
+            return shipped.get();
         }
 
         Path workingDirCandidate = Path.of(System.getProperty("user.dir"), DEFAULT_CHANGELOG_FILE);

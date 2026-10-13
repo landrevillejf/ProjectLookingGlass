@@ -23,10 +23,67 @@ import java.util.regex.*;
 /**
  * Manages and parses changelog files for update history display.
  * Supports Markdown format with automatic parsing and HTML rendering.
+ *
+ * <p>Two vocabularies are read, because two documents are ever handed to this
+ * class:</p>
+ * <ul>
+ *   <li>the repository's own {@code CHANGELOG.md} — and the per-release
+ *       {@code changelog.md} asset the release workflow publishes from a section
+ *       of it — which is Keep a Changelog: {@code ## [1.68.0] — 2026-10-11 —
+ *       Gradle / JDK 21 modernization} headers over {@code ### Added / Changed /
+ *       Removed / Fixed} groups;</li>
+ *   <li>the marker vocabulary this class was written against, {@code ## Version
+ *       1.2.3 (2026-09-11)} with {@code - [NEW]} / {@code - [FIX]} / {@code -
+ *       Breaking change:} bullets, which older release assets still carry.</li>
+ * </ul>
+ *
+ * <p>Reading only the second vocabulary is what made the desktop's
+ * <em>What's New</em> show "No changelog available": the header pattern wanted a
+ * digit where this repository writes a bracket, so every real section parsed to
+ * zero entries and the dialog had nothing to render. The same document already
+ * feeds the Help Center's <em>What's New</em> topic (regenerated from
+ * {@code CHANGELOG.md} by {@code scripts/mandela/whats-new.mnd}), so both
+ * surfaces read one source of truth instead of two hand-kept notes files.</p>
  */
 @Slf4j
 public class ChangelogManager {
-    
+
+    /** Keep a Changelog header: {@code ## [<version>] — <date> — <description>}. */
+    private static final Pattern RELEASE_HEADER_PATTERN =
+        Pattern.compile("^##\\s+\\[([^\\]]+)\\](.*)$");
+
+    /** An ISO date anywhere in a header tail: an {@code [Unreleased]} header has none. */
+    private static final Pattern DATE_TOKEN_PATTERN =
+        Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+
+    /** The vocabulary older release assets were published in. */
+    private static final Pattern LEGACY_HEADER_PATTERN =
+        Pattern.compile("^##\\s+(?:Version\\s+)?([\\d.]+)\\s*\\(([^)]+)\\)?");
+
+    /**
+     * The three legacy bullet markers. They are matched against the text behind
+     * the dash, and they name a bucket outright whichever group holds them.
+     */
+    private static final Pattern LEGACY_BREAKING_PATTERN =
+        Pattern.compile("^(?:Breaking|BREAKING)\\s+(?:change|changes)\\s*:(.*)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LEGACY_FEATURE_PATTERN =
+        Pattern.compile("^(?:\\[NEW\\]|\\[FEATURE\\])\\s*(.*)$");
+    private static final Pattern LEGACY_FIX_PATTERN =
+        Pattern.compile("^(?:\\[FIX\\]|\\[BUGFIX\\])\\s*(.*)$");
+
+    /**
+     * The inline markdown a changelog is written in, for rendering only. A code
+     * span is a run of backticks closed by the next run of exactly the same
+     * length, so a bullet quoting an unfenced fence writes ` ```mermaid ` and
+     * reads as it was typed. Both delimiters are pinned to the start of a run and
+     * to nothing but the run, so a longer run reads as the text being quoted
+     * rather than as a delimiter, and the unbalanced rest stays as typed.
+     */
+    private static final Pattern LINK_PATTERN = Pattern.compile("\\[([^\\]]+)\\]\\(([^)]+)\\)");
+    private static final Pattern BOLD_PATTERN = Pattern.compile("\\*\\*([^*]+)\\*\\*");
+    private static final Pattern CODE_PATTERN =
+        Pattern.compile("(?<!`)(`++)((?:(?!(?<!`)\\1(?!`)).)*?)(?<!`)\\1(?!`)");
+
     private final Path changelogPath;
     private List<ChangelogEntry> entries;
     
@@ -78,74 +135,195 @@ public class ChangelogManager {
     }
     
     /**
-     * Parse Markdown changelog format.
-     * Expected format:
-     * ## Version X.Y.Z (YYYY-MM-DD)
-     * - Feature/Fix description
-     * - Another feature/fix
-     * - Breaking change: Description
+     * Parse the changelog document into one entry per version header.
+     *
+     * <p>Both vocabularies named in the class documentation are read, the Keep a
+     * Changelog header probed first because it is the one this repository writes.
+     * A bullet keeps the raw text its author typed - the getters hand that back
+     * unchanged and only the HTML rendering turns markdown spans into tags - and
+     * it absorbs the indented lines under it: a wrapped sentence continues with a
+     * space, a nested {@code - } item with a semicolon, because the dialog shows
+     * a flat list and a sub-bullet dropped on the floor is a change nobody sees.</p>
+     *
+     * @param content the raw Markdown changelog
+     * @return one entry per version header, in document order
      */
     private List<ChangelogEntry> parseMarkdown(String content) {
         List<ChangelogEntry> result = new ArrayList<>();
-        Pattern versionPattern = Pattern.compile("##\\s+(?:Version\\s+)?([\\d.]+)\\s*\\(([^)]+)\\)?");
-        Pattern breakingPattern = Pattern.compile("^\\s*-\\s*(?:Breaking|BREAKING)\\s+(?:change|changes)\\s*:(.*)$", Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
-        Pattern featurePattern = Pattern.compile("^\\s*-\\s*(?:\\[NEW\\]|\\[FEATURE\\])\\s*(.*)$", Pattern.MULTILINE);
-        Pattern fixPattern = Pattern.compile("^\\s*-\\s*(?:\\[FIX\\]|\\[BUGFIX\\])\\s*(.*)$", Pattern.MULTILINE);
-        
-        String[] lines = content.split("\n");
-        ChangelogEntry currentEntry = null;
-        
-        for (String line : lines) {
-            Matcher versionMatcher = versionPattern.matcher(line);
-            if (versionMatcher.find()) {
-                if (currentEntry != null) {
-                    result.add(currentEntry);
-                }
-                String version = versionMatcher.group(1);
-                String date = versionMatcher.group(2);
-                currentEntry = new ChangelogEntry(version, date);
-                continue;
-            }
-            
-            if (currentEntry == null) {
-                continue;
-            }
-            
-            Matcher breakingMatcher = breakingPattern.matcher(line);
-            if (breakingMatcher.find()) {
-                String description = breakingMatcher.group(1).trim();
-                currentEntry.addBreakingChange(description);
-                continue;
-            }
-            
-            Matcher featureMatcher = featurePattern.matcher(line);
-            if (featureMatcher.find()) {
-                String description = featureMatcher.group(1).trim();
-                currentEntry.addFeature(description);
-                continue;
-            }
-            
-            Matcher fixMatcher = fixPattern.matcher(line);
-            if (fixMatcher.find()) {
-                String description = fixMatcher.group(1).trim();
-                currentEntry.addFix(description);
-                continue;
-            }
-            
-            String trimmed = line.trim();
-            if (trimmed.startsWith("-") && currentEntry != null && !trimmed.isEmpty()) {
-                String description = trimmed.substring(1).trim();
-                if (!description.isEmpty()) {
-                    currentEntry.addChange(description);
+        if (content == null || content.isEmpty()) {
+            return result;
+        }
+
+        ChangelogEntry current = null;
+        String group = "";
+        StringBuilder bullet = null;
+
+        for (String line : content.split("\n", -1)) {
+            String text = line.trim();
+
+            String version = null;
+            String date = "";
+            Matcher release = RELEASE_HEADER_PATTERN.matcher(line);
+            if (release.find()) {
+                version = release.group(1).trim();
+                date = firstMatch(DATE_TOKEN_PATTERN, release.group(2));
+            } else {
+                Matcher legacy = LEGACY_HEADER_PATTERN.matcher(line);
+                if (legacy.find()) {
+                    version = legacy.group(1).trim();
+                    date = legacy.group(2).trim();
                 }
             }
+            if (version != null) {
+                finishBullet(current, group, bullet);
+                if (current != null) {
+                    result.add(current);
+                }
+                current = new ChangelogEntry(version, date);
+                group = "";
+                bullet = null;
+                continue;
+            }
+
+            // Anything before the first version header is the document's own
+            // preamble, not an entry of it.
+            if (current == null) {
+                continue;
+            }
+
+            if (text.startsWith("### ")) {
+                finishBullet(current, group, bullet);
+                group = text.substring(4).trim();
+                bullet = null;
+                continue;
+            }
+
+            if (text.startsWith("- ")) {
+                if (line.startsWith("- ") || bullet == null) {
+                    finishBullet(current, group, bullet);
+                    bullet = new StringBuilder(text.substring(2).trim());
+                } else {
+                    bullet.append("; ").append(text.substring(2).trim());
+                }
+                continue;
+            }
+
+            if (bullet != null && line.startsWith(" ") && !text.isEmpty()) {
+                bullet.append(' ').append(text);
+                continue;
+            }
+
+            finishBullet(current, group, bullet);
+            bullet = null;
         }
-        
-        if (currentEntry != null) {
-            result.add(currentEntry);
+
+        finishBullet(current, group, bullet);
+        if (current != null) {
+            result.add(current);
         }
-        
         return result;
+    }
+
+    /**
+     * File one finished bullet where its group says it belongs: {@code Added} is
+     * a feature, {@code Fixed} and {@code Security} are fixes, {@code Deprecated}
+     * and {@code Removed} are the changes a reader must act on, and anything else
+     * - a group this vocabulary does not name, or no group at all, which is every
+     * legacy document - is a plain change. The legacy markers are consulted first
+     * so a {@code [FIX]} written inside a {@code ### Added} group still reads as
+     * the fix it claims to be.
+     */
+    private static void finishBullet(ChangelogEntry entry, String group, StringBuilder bullet) {
+        if (entry == null || bullet == null) {
+            return;
+        }
+        String text = bullet.toString().trim();
+        if (text.isEmpty()) {
+            return;
+        }
+
+        Matcher breaking = LEGACY_BREAKING_PATTERN.matcher(text);
+        if (breaking.find()) {
+            entry.addBreakingChange(breaking.group(1).trim());
+            return;
+        }
+        Matcher feature = LEGACY_FEATURE_PATTERN.matcher(text);
+        if (feature.find()) {
+            entry.addFeature(feature.group(1).trim());
+            return;
+        }
+        Matcher fix = LEGACY_FIX_PATTERN.matcher(text);
+        if (fix.find()) {
+            entry.addFix(fix.group(1).trim());
+            return;
+        }
+
+        if ("Added".equalsIgnoreCase(group)) {
+            entry.addFeature(text);
+        } else if ("Fixed".equalsIgnoreCase(group) || "Security".equalsIgnoreCase(group)) {
+            entry.addFix(text);
+        } else if ("Deprecated".equalsIgnoreCase(group) || "Removed".equalsIgnoreCase(group)) {
+            entry.addBreakingChange(text);
+        } else {
+            entry.addChange(text);
+        }
+    }
+
+    /** The first token a pattern matches, or empty text when it matches nothing. */
+    private static String firstMatch(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        return matcher.find() ? matcher.group() : "";
+    }
+
+    /** {@code 1.69.0-dev} and {@code 1.69.0-rc.1} are both cut to {@code 1.69.0}. */
+    private static String baseVersion(String version) {
+        int cut = version.length();
+        for (String marker : new String[] {"-", "+"}) {
+            int at = version.indexOf(marker);
+            if (at >= 0 && at < cut) {
+                cut = at;
+            }
+        }
+        return version.substring(0, cut);
+    }
+
+    private static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /**
+     * One bullet as HTML: escaped first, then the markdown this changelog is
+     * actually written in becomes spans, so a reader sees {@code lg3d.sh} as a
+     * code span instead of as two backticks. Links go first, so the label they
+     * emit is still plain text for the bold and code passes to pick up, and an
+     * unbalanced marker is left exactly as typed rather than swallowing the line.
+     */
+    private static String inlineHtml(String raw) {
+        String out = escapeHtml(raw);
+        out = LINK_PATTERN.matcher(out).replaceAll("<a href=\"$2\">$1</a>");
+        out = BOLD_PATTERN.matcher(out).replaceAll("<strong>$1</strong>");
+        return codeSpans(out);
+    }
+
+    /**
+     * Code spans, with the padding a quoting author writes taken back out: a span
+     * that both starts and ends with a space is holding backticks as its content,
+     * and one space on each side is not part of that content.
+     */
+    private static String codeSpans(String text) {
+        Matcher matcher = CODE_PATTERN.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            String body = matcher.group(2);
+            if (body.length() > 2 && body.startsWith(" ") && body.endsWith(" ")
+                && !body.trim().isEmpty()) {
+                body = body.substring(1, body.length() - 1);
+            }
+            matcher.appendReplacement(out,
+                Matcher.quoteReplacement("<code>" + body + "</code>"));
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
     
     /**
@@ -157,10 +335,27 @@ public class ChangelogManager {
     
     /**
      * Get changelog for a specific version.
+     *
+     * <p>An exact header wins; failing that, a stored {@code -dev} or {@code -rc.1}
+     * suffix answers to the plain version it is a build of, so asking for
+     * {@code 1.69.0} still finds the {@code [1.69.0-dev]} section the desktop is
+     * about to be updated to. An {@code [Unreleased]} header keeps the literal
+     * version {@code Unreleased} - no release number resolves to it, and it is
+     * still rendered by {@link #toHtml()}.</p>
      */
     public Optional<ChangelogEntry> getEntry(String version) {
+        if (version == null) {
+            return Optional.empty();
+        }
+        Optional<ChangelogEntry> exact = entries.stream()
+            .filter(e -> version.equals(e.getVersion()))
+            .findFirst();
+        if (exact.isPresent()) {
+            return exact;
+        }
+        String base = baseVersion(version);
         return entries.stream()
-            .filter(e -> e.getVersion().equals(version))
+            .filter(e -> base.equals(baseVersion(e.getVersion())))
             .findFirst();
     }
     
@@ -277,34 +472,30 @@ public class ChangelogManager {
         
         public String toHtml() {
             StringBuilder html = new StringBuilder();
-            html.append("<div class='version-header'>Version ").append(version)
-                .append(" <span class='date'>(").append(date).append(")</span></div>");
-            
-            if (!breakingChanges.isEmpty()) {
-                html.append("<div class='breaking'>⚠️ Breaking Changes:</div><ul>");
-                breakingChanges.forEach(bc -> html.append("<li class='breaking'>").append(bc).append("</li>"));
-                html.append("</ul>");
+            html.append("<div class='version-header'>Version ").append(escapeHtml(version));
+            if (date != null && !date.isEmpty()) {
+                html.append(" <span class='date'> (").append(escapeHtml(date)).append(")</span>");
             }
-            
-            if (!features.isEmpty()) {
-                html.append("<div class='feature'>✨ New Features:</div><ul>");
-                features.forEach(f -> html.append("<li class='feature'>").append(f).append("</li>"));
-                html.append("</ul>");
-            }
-            
-            if (!fixes.isEmpty()) {
-                html.append("<div class='fix'>🐛 Bug Fixes:</div><ul>");
-                fixes.forEach(f -> html.append("<li class='fix'>").append(f).append("</li>"));
-                html.append("</ul>");
-            }
-            
-            if (!changes.isEmpty()) {
-                html.append("<div class='change'>Changes:</div><ul>");
-                changes.forEach(c -> html.append("<li class='change'>").append(c).append("</li>"));
-                html.append("</ul>");
-            }
-            
+            html.append("</div>");
+        
+            appendSection(html, "breaking", "⚠️ Breaking Changes", breakingChanges);
+            appendSection(html, "feature", "✨ New Features", features);
+            appendSection(html, "fix", "🐛 Bug Fixes", fixes);
+            appendSection(html, "change", "Changes", changes);
+        
             return html.toString();
+        }
+        
+        /** One bucket of the entry as a list, its bullets rendered from markdown. */
+        private void appendSection(StringBuilder html, String cssClass, String label, List<String> items) {
+            if (items.isEmpty()) {
+                return;
+            }
+            html.append("<div class='").append(cssClass).append("'>").append(label).append(":</div><ul>");
+            for (String item : items) {
+                html.append("<li class='").append(cssClass).append("'>").append(inlineHtml(item)).append("</li>");
+            }
+            html.append("</ul>");
         }
     }
 }

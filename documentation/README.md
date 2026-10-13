@@ -9,6 +9,7 @@ Bienvenue dans la documentation de Project Looking Glass. Welcome to the Project
 - [English Documentation](#english-documentation)
 - [Documentation Française](#documentation-française)
 - [Project Mandela](#project-mandela)
+- [Release Archive](#release-archive)
 - [API Documentation](#api-documentation)
 - [Contributing](#contributing)
 
@@ -24,6 +25,9 @@ Project Looking Glass (LG3D) est un environnement de bureau 3D moderne, porté d
 documentation/
 ├── README.md                    # This file / Ce fichier
 ├── index.html                   # Documentation portal (bilingual landing page)
+├── releases/                    # Generated release archive (see below)
+│   ├── index.html               # One row per released version
+│   └── <version>.html           # That version's section of CHANGELOG.md
 ├── mandela/                     # Project Mandela module docs / Docs du module Mandela
 │   └── docs/
 │       ├── README.md            # Language overview (index)
@@ -134,6 +138,52 @@ complète du langage et l'API d'intégration se trouvent dans le répertoire
 - **[Analyse fonctionnelle](mandela/docs/FUNCTIONAL_ANALYSIS.md)** - Exigences fonctionnelles, cas d'utilisation et spécifications
 - **[Histoire du langage](mandela/docs/HISTORY.md)** - Pourquoi le nom honore Nelson Mandela, qui l'a créé, et le journal daté de son arrivée (Anglais uniquement / English only)
 - **[Mandela au travail](mandela/docs/USAGE.md)** - Le langage dans son usage quotidien : un programme qui parcourt, analyse, classe et répond, les quatre hôtes qui l'exécutent, et de vrais journaux des outils (Anglais uniquement / English only)
+
+## Release Archive
+
+`releases/` is generated, never written. [`scripts/mandela/whats-new.mnd`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/scripts/mandela/whats-new.mnd)
+parses [`CHANGELOG.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/CHANGELOG.md)
+once and renders the same sections twice: once into the desktop's own Help Center
+"What's New" topic, once into this archive - one page per released version, plus
+[`releases/index.html`](releases/index.html) listing them. The pages are committed so
+`htmlLinksCheck` can prove the portal reaches them; refresh them whenever the
+changelog changes:
+
+```bash
+# Regenerate the help topic, the release pages and their index from CHANGELOG.md
+./gradlew :lg3d-mandela:whatsNewRefresh
+
+# What CI runs instead: fail when a committed page no longer matches the changelog
+./gradlew :lg3d-mandela:whatsNewCheck
+```
+
+Never hand-edit a file under `releases/` - the generator's marker comment is checked
+byte for byte, so an edit fails the build rather than drifting silently.
+
+Test reports are **never** committed either. When a Release is published,
+`.github/workflows/release-reports.yml` builds them from the tagged source, pushes
+`releases/<version>/reports/{junit,jacoco,cucumber,pitest}/` onto the `site-releases`
+storage branch, and attaches the same tree to the Release as `reports-<version>.zip`.
+`deploy-docs.yml` remains the only publisher of this site and overlays that branch
+here when it deploys. A repository with no `site-releases` branch yet is normal: the
+site then carries the committed archive alone, without the report trees.
+
+La section `releases/` est générée, jamais écrite. Le script Mandela parse une seule
+fois [`CHANGELOG.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/CHANGELOG.md)
+et rend les mêmes sections deux fois : dans le topic « What's New » du Centre d'aide du
+bureau, et ici - une page par version publiée, plus leur [index](releases/index.html).
+Les pages sont commitées pour que `htmlLinksCheck` puisse prouver que le portail les
+atteint ; régénérez-les à chaque changement du journal avec
+`./gradlew :lg3d-mandela:whatsNewRefresh` (la gate `whatsNewCheck` compare ces pages au
+journal octet pour octet - ne les éditez jamais à la main).
+
+Les rapports de tests ne sont pas commités non plus. À la publication d'une Release,
+`.github/workflows/release-reports.yml` les construit depuis la source taguée, empile
+`releases/<version>/reports/{junit,jacoco,cucumber,pitest}/` sur la branche de stockage
+`site-releases` et attache le même arbre à la Release sous forme de
+`reports-<version>.zip`. `deploy-docs.yml` reste le seul éditeur de ce site et superpose
+cette branche au déploiement. L'absence de branche `site-releases` est normale : le site
+ne porte alors que l'archive commitée, sans les arbres de rapports.
 
 ## API Documentation
 
