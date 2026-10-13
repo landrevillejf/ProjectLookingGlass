@@ -1,0 +1,9 @@
+# wonderland-modules M4: the feature modules discovered by WonderlandPluginLoader.
+# One line per WonderlandPlugin provider. Keep this list and the shipped plugins
+# in step; the ShippedModuleSetTest loads it through ServiceLoader and asserts
+# every module initialises in a dependency-safe order.
+org.jdesktop.wonderland.modules.chat.ChatPlugin
+org.jdesktop.wonderland.modules.imageviewer.ImageViewerPlugin
+org.jdesktop.wonderland.modules.userlist.UserListPlugin
+org.jdesktop.wonderland.modules.stickynote.StickyNotePlugin
+org.jdesktop.wonderland.modules.whiteboard.WhiteboardPlugin
