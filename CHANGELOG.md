@@ -10,6 +10,45 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A release is now a page, and the page carries its test reports**
+  (`scripts/mandela` + `documentation/` + `.github/workflows/`) — the changelog had
+  always been rendered for one audience only: `whats-new.mnd` parsed `CHANGELOG.md`
+  into the Help Center's What's New topic and stopped there, so a release's notes
+  were readable on the desktop or on GitHub but never on the documentation site,
+  and the reports CI generates (under `<module>/build-gradle/reports/`) vanished
+  with the run that made them. The script now parses once and renders twice: the
+  help topic, byte for byte unchanged, and one page per released version under
+  `documentation/releases/` plus an `index.html` listing them, in the site's own
+  skin, with the portal's bilingual cards (`documentation/index.html`) pointing at
+  that index so no page is reachable only by a deep link. Eight pages and the index
+  are committed — every `## [` header of `CHANGELOG.md` except `[Unreleased]`, at
+  this writing — because a committed page is a page the gates can check:
+  `whatsNewCheck` no longer compares one file, it byte-compares the topic *and*
+  every archive page, and reports a missing page, a stale page or a page whose
+  version has left the changelog as findings carrying the one instruction that
+  fixes them; `htmlLinksCheck` audits their links like any other page of the site.
+  Test reports are never committed, for the reason the Javadoc is not: a committed
+  copy rots on the next test run. `.github/workflows/release-reports.yml` runs on a
+  published Release (or a manual run on an existing tag), rebuilds `test`,
+  `jacocoTestReport`, `jacocoTestCoverageVerification`, `:lg3d-mandela:pitest` and
+  `:lg3d-mandela:repositoryChecks` from the tagged source, stages
+  `releases/<version>/reports/{junit,jacoco,cucumber,pitest}/`, publishes the
+  version's page beside that tree, pushes the result append-only onto a
+  `site-releases` storage branch and attaches the same tree to the Release as
+  `reports-<version>.zip`, then asks `deploy-docs.yml` — still the only publisher of
+  Pages — to run, which overlays the branch while it deploys. The link between a
+  committed page and an uncommitted tree is a placeholder: the page carries a
+  `<!-- test-reports -->` comment the workflow substitutes with links into the tree
+  it just built, because a committed `href` into a directory that exists only after
+  CI would be a dead link in every checkout, and `htmlLinksCheck` would rightly
+  refuse the pull request. The page says what the reports are instead of flattering
+  the release: PIT covers `lg3d-mandela`, the only module the repository configures
+  it for, so the figure is the language core and the page calls it that. A tag with
+  no archive page (a development or pre-release build) still gets its zip, and the
+  site simply does not gain a page. The gate was proven to bite — removing one
+  archive page turns `:lg3d-mandela:whatsNewCheck` red naming the count — before
+  the pages shipped green, and the Javadoc remains off Pages behind the existing
+  guard in `deploy-docs.yml`.
 - **Wonderland reaches the desktop — the M6c2 integration, in 2D and 3D
   (`wonderland-desktop` + `lg3d-apps` + `lg3d-core`)** — the milestone this
   port had been reporting as "awaits re-confirmation" while M7 shipped on top
@@ -1049,6 +1088,44 @@ work to make it build and run on a current toolchain.
   vice versa). Both were proven to bite on a planted defect before shipping green.
 
 ### Fixed
+- **The Update Manager's What's New had nothing to show, because its parser did not
+  recognise this repository's changelog** (`update-manager`) — `ChangelogManager`
+  read `## Version X.Y.Z (YYYY-MM-DD)` headers and `- [NEW]` / `- [FIX]` /
+  `- Breaking change:` bullets, the vocabulary of its own unit tests, while
+  `CHANGELOG.md` — and the `changelog.md` asset `scripts/release/release-notes.sh`
+  extracts from it for each Release — is written Keep a Changelog: a `## [X.Y.Z]` —
+  date — summary header with `### Added` / `### Fixed` groups. Its header regex
+  (`##\s+(?:Version\s+)?([\d.]+)`) cannot match a `[`, so the document this product
+  ships parses to zero entries: `getEntry` answered empty, the dialog said "No
+  changelog available", and it said that for every version since the format changed
+  — a feature dead in the water, with a green suite, because the tests fed it the
+  format it was written for rather than the one the repository writes. Both
+  vocabularies are read now: a bracketed header yields its version (a pre-release
+  suffix is kept, and `getEntry` compares the base version first, then the whole
+  header), the six Keep a Changelog groups map onto the entry's own buckets
+  (`Added` to features, `Fixed` and `Security` to fixes, `Changed` to changes,
+  `Deprecated` and `Removed` to breaking changes), and a bullet outside any group is
+  reported as a change instead of being dropped. `[Unreleased]` never answers
+  `getEntry(version)` but does appear in `toHtml()`, so in-progress work cannot be
+  presented to a user as shipped. Inline markdown now renders instead of showing
+  its own markup: the changelog's `**bold**`, `` `code` `` and links became spans, with
+  code spans following the CommonMark rule — a run of *n* backticks is opened and
+  closed only by a run of exactly *n* — so the `` ` ```mermaid ` `` prose in the
+  changelog no longer ate the sentence around it. That rule is implemented twice,
+  here and in `scripts/mandela/whats-new.mnd`, and pinned by tests on both sides:
+  the same document read in two places must not disagree in either. No public
+  signature changed, so `UpdateService`, `UpdatePresenter` and `ChangelogDialog`
+  needed nothing. The parser is also given a document to parse on a fresh install,
+  which is the half that made the fix invisible without it: `releaseBundle` now
+  carries `CHANGELOG.md` renamed `changelog.md` at the archive root, the generated
+  `lg3d.sh` passes `-Dupdate.changelog.path="${HERE}/changelog.md"`, and
+  `getLocalChangelogPath()` resolves configuration, then that system property, then
+  the detected install root, then `user.dir` — so the notes open offline, before any
+  update server is contacted, while the remote path (`version.json` → `changelog`)
+  lands in the same reader. `ChangelogManagerTest` grows from 16 cases to 28: the
+  real header and group spellings, `[Unreleased]` refusing a lookup, a faithful
+  excerpt of the shipped changelog yielding entries where the old parser yielded
+  none, the backtick-run edges, and the legacy vocabulary still passing unchanged.
 - **No wonderland jar was on the desktop's classpath, so the Wonderland
   applications shipped since M7a could not run (`lg3d-core` + `lg3d-apps`)** —
   `lg3d-core`'s hand-assembled `run` classpath and its `releaseBundle` listed

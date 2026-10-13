@@ -316,6 +316,60 @@ class UpdateServicePhase6Test {
     }
 
     @Test
+    void testTheChangelogShippedInTheBundleIsFoundFromTheInstallRoot() throws Exception {
+        // :lg3d-core:releaseBundle puts changelog.md at the archive root, next to the
+        // lg3d.sh launcher, so a desktop started from a bundle reads the notes it was
+        // shipped with instead of nothing at all.
+        Path bundle = tempDir.resolve("bundle");
+        Files.createDirectories(bundle.resolve("lib"));
+        Files.writeString(bundle.resolve("lg3d.sh"), "#!/bin/sh\n");
+        Files.writeString(bundle.resolve("changelog.md"), """
+            ## [0.6.0] — 2026-09-11 — Gradle / JDK 21 modernization
+
+            ### Added
+            - **The shipped changelog is read from the bundle** — one document, three readers
+            """);
+
+        Properties config = baseConfig();
+        config.setProperty(UpdateService.CONFIG_CHANGELOG_PATH, "");
+        UpdateService updateService = newService(config);
+        updateService.setInstallLocation(new InstallLocation(
+            () -> bundle.resolve("lib").resolve("update-manager-" + FORCED_VERSION + ".jar"),
+            key -> null));
+
+        Optional<String> entryHtml = updateService.getLocalChangelogHtml("0.6.0");
+
+        assertThat(entryHtml).isPresent();
+        assertThat(entryHtml.get()).contains("read from the bundle");
+    }
+
+    @Test
+    void testTheLauncherCanPinTheShippedChangelog() throws Exception {
+        // The bundle launcher passes -Dupdate.changelog.path=…/changelog.md: a path
+        // named on the command line is honoured even though the config file is empty.
+        Path pinned = tempDir.resolve("pinned-changelog.md");
+        Files.writeString(pinned, """
+            ## Version 0.6.0 (2026-09-11)
+            - [NEW] Pinned by the launcher
+            """);
+
+        Properties config = baseConfig();
+        config.setProperty(UpdateService.CONFIG_CHANGELOG_PATH, "");
+        UpdateService updateService = newService(config);
+
+        System.setProperty(UpdateService.CONFIG_CHANGELOG_PATH, pinned.toString());
+        try {
+            assertThat(updateService.getLocalChangelogHtml("0.6.0"))
+                .isPresent()
+                .get()
+                .asString()
+                .contains("Pinned by the launcher");
+        } finally {
+            System.clearProperty(UpdateService.CONFIG_CHANGELOG_PATH);
+        }
+    }
+
+    @Test
     void testRemoteChangelogIsPreferred() {
         repository.setChangelog("""
             ## Version 0.6.0 (2026-09-11)

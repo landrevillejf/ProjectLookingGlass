@@ -1,0 +1,348 @@
+name: Release Reports
+
+# A release has to be *read*, not only downloaded: this publishes the test
+# reports of the tagged source beside the release's own changelog page on the
+# documentation site, and attaches the same tree to the GitHub Release as
+# reports-<version>.zip.
+#
+# Why a workflow and not the repository: the reports are generated, they are
+# megabytes of HTML, and a committed copy would silently rot on the next test
+# run - which is the exact argument that keeps the Javadoc off Pages (see
+# documentation/README.md and the guard in deploy-docs.yml). So they live on a
+# storage branch, `site-releases`, that `deploy-docs.yml` materialises into the
+# published site. That workflow stays the only publisher of Pages, and only
+# committed prose is ever committed here.
+#
+# The page is NOT a second generator. `scripts/mandela/whats-new.mnd` renders
+# documentation/releases/<version>.html out of CHANGELOG.md - the same parse that
+# feeds the desktop's What's New help topic and the release assets - and the
+# whatsNewCheck gate proves it matches the changelog. This workflow reads that
+# committed page and replaces the `<!-- test-reports -->` comment it carries with
+# links into the tree published beside it. The comment is a comment because the
+# tree is never committed: a committed href into it would be a dead link in every
+# checkout, and htmlLinksCheck would (rightly) fail the pull request.
+#
+# Triggers: a published Release, or a manual run on an existing tag. Never a pull
+# request - there is no release to describe before one exists, and the reports of
+# a branch build are what build.yml is for.
+#
+# Re-running is safe: the storage branch is append-only (no --force, a new commit
+# sits on its tip) and the asset is uploaded with --clobber.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag whose reports should be published (e.g. v1.68.0)'
+        required: true
+        type: string
+
+permissions:
+  # Push the storage branch, and upload the asset to the Release.
+  contents: write
+  # Dispatch deploy-docs.yml once there is a new archive for it to publish.
+  actions: write
+
+# Two releases published in the same minute must not interleave their pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reports:
+    name: Build and publish the release's test reports
+    # The same headless Linux build build.yml runs, so the figures describe the
+    # environment the release was actually tested in.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            release) TAG="$RELEASE_TAG" ;;
+            *)       TAG="$INPUT_TAG" ;;
+          esac
+          if [ -z "$TAG" ]; then
+            echo "ERROR: could not resolve a release tag." >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          BASE_VERSION="${VERSION%%-*}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$TAG version=$VERSION base=$BASE_VERSION"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # The reports must describe the shipped code, not the branch tip.
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Every report this publishes. --continue matters: a module whose suite is
+      # red still gets its report, and the run fails loudly at the end instead of
+      # publishing a tree with silently missing modules. repositoryChecks belongs
+      # here because a release whose own gates are red must not gain an archive.
+      - name: Run the suite and generate every report
+        run: |
+          ./gradlew test jacocoTestReport jacocoTestCoverageVerification \
+            :lg3d-mandela:pitest :lg3d-mandela:repositoryChecks --continue --stacktrace
+
+      # The four trees the release page links, under the version's own directory:
+      # reports/junit/<module> and reports/jacoco/<module> (per-module HTML), plus
+      # reports/cucumber and reports/pitest - the last two from lg3d-mandela, the
+      # only module the repository configures them for. Saying so is better than
+      # inventing a repo-wide mutation figure. Everything is staged under
+      # runner.temp, never in the checkout, so no report can be committed by
+      # accident by the step that pushes the storage branch.
+      - name: Collect the report tree
+        id: tree
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          BASE_VERSION: ${{ steps.tag.outputs.base_version }}
+          ARCHIVE: ${{ runner.temp }}/archive
+        run: |
+          set -euo pipefail
+          # The archive page is named after the changelog's own section header, so
+          # a pre-release tag looks for 1.10.0-rc.1 first and 1.10.0 after it.
+          PUBLISHED=""
+          for candidate in "$VERSION" "$BASE_VERSION"; do
+            if [ -f "documentation/releases/${candidate}.html" ]; then
+              PUBLISHED="$candidate"
+              break
+            fi
+          done
+          if [ -z "$PUBLISHED" ]; then
+            echo "documentation/releases/ carries no page for ${VERSION} - a" \
+              "development or pre-release build: the reports are still attached to" \
+              "the release, only the site archive skips it."
+            echo "published=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ROOT="$ARCHIVE/releases/$PUBLISHED"
+          mkdir -p "$ROOT/reports"
+          for dir in */build-gradle/reports/tests/test; do
+            [ -d "$dir" ] || continue
+            module="${dir%%/*}"
+            mkdir -p "$ROOT/reports/junit/$module"
+            cp -r "$dir/." "$ROOT/reports/junit/$module/"
+          done
+          for dir in */build-gradle/reports/jacoco/test/html; do
+            [ -d "$dir" ] || continue
+            module="${dir%%/*}"
+            mkdir -p "$ROOT/reports/jacoco/$module"
+            cp -r "$dir/." "$ROOT/reports/jacoco/$module/"
+          done
+          for kind in cucumber pitest; do
+            dir="lg3d-mandela/build-gradle/reports/$kind"
+            if [ -d "$dir" ]; then
+              mkdir -p "$ROOT/reports/$kind"
+              cp -r "$dir/." "$ROOT/reports/$kind/"
+            else
+              echo "no $kind report was generated; the page will say so, not link it"
+            fi
+          done
+          echo "collected $(find "$ROOT" -type f | wc -l) report file(s) for $PUBLISHED"
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+
+      # The page: the committed, gate-checked changelog section, with the report
+      # links substituted for the placeholder whats-new.mnd leaves for them. Then
+      # every link is proven to resolve against the tree collected a moment ago -
+      # the check htmlLinksCheck cannot make, because that tree is not in the
+      # repository.
+      - name: Write the release page with its report links
+        env:
+          PUBLISHED: ${{ steps.tree.outputs.published }}
+          ARCHIVE: ${{ runner.temp }}/archive
+        run: |
+          set -euo pipefail
+          [ -n "$PUBLISHED" ] || { echo "skipped (no archive page for this tag)"; exit 0; }
+          SRC="documentation/releases/$PUBLISHED.html"
+          DEST="$ARCHIVE/releases/$PUBLISHED.html"
+          TREE="$ARCHIVE/releases/$PUBLISHED/reports"
+          NAV="${RUNNER_TEMP:?}/nav.html"
+          {
+            echo '  <h2>Test reports</h2>'
+            echo "  <p>Generated by the CI build of <code>$PUBLISHED</code> ("
+            echo '  <code>test</code>, <code>jacocoTestReport</code>,'
+            echo '  <code>:lg3d-mandela:pitest</code>) and published beside this page'
+            echo '  by <code>.github/workflows/release-reports.yml</code>. The same tree'
+            echo "  travels with the release as <code>reports-$PUBLISHED.zip</code>.</p>"
+            echo '  <h3>JUnit - unit and integration tests</h3>'
+            echo '  <ul>'
+            for dir in "$TREE/junit/"*/; do
+              [ -d "$dir" ] || continue
+              module="$(basename "$dir")"
+              echo "    <li><a href=\"$PUBLISHED/reports/junit/$module/index.html\">$module</a></li>"
+            done
+            echo '  </ul>'
+            echo '  <h3>JaCoCo - coverage</h3>'
+            echo '  <ul>'
+            for dir in "$TREE/jacoco/"*/; do
+              [ -d "$dir" ] || continue
+              module="$(basename "$dir")"
+              echo "    <li><a href=\"$PUBLISHED/reports/jacoco/$module/index.html\">$module</a></li>"
+            done
+            echo '  </ul>'
+            echo '  <h3>Cucumber - acceptance reports</h3>'
+            if [ -f "$TREE/cucumber/index.html" ]; then
+              echo "  <p><a href=\"$PUBLISHED/reports/cucumber/index.html\">lg3d-mandela</a>,"
+              echo '  the module the acceptance suite runs in.</p>'
+            else
+              echo '  <p>No Cucumber report was generated for this release.</p>'
+            fi
+            echo '  <h3>PIT - mutation testing</h3>'
+            # Which file opens the report depends on the PIT plugin's own naming,
+            # and a link invented here would be a dead one on the published site:
+            # the entry point is read off the tree that was just collected.
+            PIT=''
+            for name in index.html mutations.html; do
+              if [ -f "$TREE/pitest/$name" ]; then PIT="$name"; break; fi
+            done
+            if [ -n "$PIT" ]; then
+              echo "  <p><a href=\"$PUBLISHED/reports/pitest/$PIT\">lg3d-mandela</a> -"
+              echo '  the only module this repository configures PIT for, so the figure'
+              echo '  is the language core, not the desktop.</p>'
+            else
+              echo '  <p>No PIT report was generated for this release.</p>'
+            fi
+          } > "$NAV"
+          # A page whose placeholder has gone would be published without its
+          # reports and nobody would notice, so insist on the substitution.
+          if ! grep -q "test-reports" "$SRC"; then
+            echo "ERROR: $SRC carries no test-reports placeholder; regenerate it with" \
+              "the whatsNewRefresh task before publishing." >&2
+            exit 1
+          fi
+          awk -v nav="$NAV" '
+            index($0, "<!-- test-reports -->") {
+              while ((getline line < nav) > 0) print line
+              close(nav); next
+            }
+            { print }' "$SRC" > "$DEST"
+          cd "$ARCHIVE/releases"
+          for link in $(grep -o "href=\"$PUBLISHED/reports/[^\"]*\"" "$PUBLISHED.html" \
+                        | sed 's/^href="//; s/"$//'); do
+            test -f "$link" || { echo "ERROR: $link does not resolve" >&2; exit 1; }
+          done
+          echo "wrote $DEST with $(grep -c "href=\"$PUBLISHED/reports/" "$PUBLISHED.html") report link(s)"
+
+      - name: Pack the report tree as a release asset
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          PUBLISHED: ${{ steps.tree.outputs.published }}
+          ARCHIVE: ${{ runner.temp }}/archive
+        run: |
+          set -euo pipefail
+          TREE="$ARCHIVE/releases/$PUBLISHED/reports"
+          [ -d "$TREE" ] || { echo "no report tree was collected; nothing to pack"; exit 0; }
+          ASSETS="${RUNNER_TEMP:?}/assets"
+          mkdir -p "$ASSETS"
+          # Named after the tag that was built, so a re-run overwrites its own
+          # asset instead of leaving two beside the release.
+          (cd "$ARCHIVE/releases/$PUBLISHED" && zip -qr "$ASSETS/reports-$VERSION.zip" reports)
+          ls -l "$ASSETS"
+
+      # Append to the storage branch. No --force: its history is the archive's,
+      # and a lost commit is a release whose reports went missing. A rejected
+      # push means somebody published beside this run, which is worth a red build
+      # over a silent overwrite.
+      - name: Publish the archive to the site-releases branch
+        id: publish
+        env:
+          PUBLISHED: ${{ steps.tree.outputs.published }}
+          ARCHIVE: ${{ runner.temp }}/archive
+          SITE: ${{ runner.temp }}/site
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          [ -n "$PUBLISHED" ] || { echo "skipped (no archive page for this tag)"; exit 0; }
+          # An empty repository in runner.temp, so the tree being pushed is exactly
+          # the reports and nothing the checkout happened to carry.
+          git init -q "$SITE"
+          cd "$SITE"
+          git remote add origin "https://github.com/$REPO.git"
+          gh auth setup-git
+          if git ls-remote --exit-code --heads origin site-releases >/dev/null 2>&1; then
+            git fetch -q --depth=1 origin site-releases
+            git checkout -q -b site-releases FETCH_HEAD
+          else
+            # First release: an orphan branch with nothing in its index.
+            git checkout -q --orphan site-releases
+          fi
+          mkdir -p releases
+          cp -r "$ARCHIVE/releases/." releases/
+          git add releases
+          if git diff --cached --quiet; then
+            echo "site-releases already carries this release's reports; nothing to push"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "Publish the $PUBLISHED release reports on the documentation site"
+          git push -q origin HEAD:refs/heads/site-releases
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "Pushed releases/$PUBLISHED to site-releases"
+
+      - name: Attach the reports to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ASSETS="${RUNNER_TEMP:?}/assets"
+          shopt -s nullglob
+          FILES=("$ASSETS"/reports-*.zip)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no report tree was collected; nothing to attach"
+            exit 0
+          fi
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG does not exist yet; attach them on the next run" >&2
+            exit 0
+          fi
+          # version.json and changelog.md are release.yml's business; this adds the
+          # reports and nothing else.
+          gh release upload "$TAG" --clobber "${FILES[@]}"
+          printf '  attached %s\n' "${FILES[@]}"
+
+      # deploy-docs.yml is the only editor of Pages, and it publishes on a push to
+      # main under documentation/** - which this run must not fake. Dispatch it
+      # instead, so the archive just pushed is materialised into the site.
+      - name: Ask the documentation site to republish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED: ${{ steps.publish.outputs.changed }}
+        run: |
+          set -euo pipefail
+          if [ "${CHANGED:-false}" != "true" ]; then
+            echo "site-releases did not change; no reason to rebuild the site"
+            exit 0
+          fi
+          gh workflow run "Deploy Documentation to GitHub Pages" --ref main
+          echo "dispatched the documentation deploy"

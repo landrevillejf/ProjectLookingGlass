@@ -61,6 +61,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 - `**/build-gradle/**` - All Gradle build output
 - `lg3d-core/build-gradle/generated-src/**` - Generated [LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0)
 - [lg3d-apps/src/classes/org/jdesktop/lg3d/apps/help/helpcontent/whats-new.html](lg3d-apps/src/classes/org/jdesktop/lg3d/apps/help/helpcontent/whats-new.html) - The Help Center's *What's New* topic, rendered from `CHANGELOG.md` by [scripts/mandela/whats-new.mnd](scripts/mandela/whats-new.mnd). It is **committed generated output**: a hand edit is a diff the next regeneration throws away, and `whatsNewCheck` fails the build on the mismatch. Edit the changelog (or the script), then run `./gradlew :lg3d-mandela:whatsNewRefresh`.
+- `documentation/releases/*.html` - The Pages release archive: one page per released version of `CHANGELOG.md`, plus the `index.html` that lists them. Same script, same generator command, same gate - the topic and the archive are the two skins of one render, so they cannot disagree, and neither is ever edited by hand.
 
 ### Template Files
 - [lg3d-core/build-tools/LgBuildInfo.java](cci:7://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/build-tools/LgBuildInfo.java:0:0-0:0) - Contains `@TOKEN@` placeholders substituted at build time. Edit the template, not the generated output.
@@ -249,6 +250,14 @@ JUnit 5 test infrastructure exists and runs headless:
   this repository - see *Repository Automation* below)
 - Uploads the JUnit + JaCoCo reports and the module jars as artifacts
 
+**Release reports are never committed.** [`.github/workflows/release-reports.yml`](.github/workflows/release-reports.yml)
+builds them from a published release's own tag, accumulates the tree on the
+`site-releases` storage branch and attaches it to the release as
+`reports-<version>.zip`; `deploy-docs.yml` is still the only publisher of Pages
+and materialises that branch beside the committed `documentation/releases/`
+archive. A generated report in `documentation/**` is a defect: same argument that
+keeps the Javadoc out (see [`documentation/README.md`](documentation/README.md)).
+
 ## Repository Automation (Mandela)
 
 `scripts/mandela/` holds the project's automation, written **in** the desktop's
@@ -286,12 +295,20 @@ the exit codes and how to add a tool.
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
   scripts README and vice versa (a CI gate).
-- `whats-new.mnd` - the Help Center's *What's New* topic as a self-updating
-  artifact: it renders `CHANGELOG.md` (`[Unreleased]` plus the three newest
-  releases) into `lg3d-apps/…/help/helpcontent/whats-new.html`, and the same
-  script re-renders in memory and compares, so the committed topic cannot fall
-  behind the changelog unnoticed (a CI gate, run with `write` as the generator).
-  The topic is committed, so **any PR that edits `CHANGELOG.md` runs
+- `whats-new.mnd` - the project's release notes as one self-updating artifact with
+  three readers. It renders `CHANGELOG.md` twice over: `[Unreleased]` plus the
+  three newest releases become `lg3d-apps/…/help/helpcontent/whats-new.html`
+  (headlines only, for a reader scanning a guide), and every released version gets
+  its own page under `documentation/releases/` with a full narrative and an index
+  that lists them. The same script re-renders all of it in memory and compares
+  byte for byte, so the committed pages cannot fall behind the changelog
+  unnoticed - a missing page, a stale one, or a page naming a version the
+  changelog no longer carries all fail the gate (a CI gate, run with `write` as
+  the generator). The desktop's own Update Manager reads the very same
+  `CHANGELOG.md` (shipped as `changelog.md` in the release bundle and pointed at
+  by the launcher), which is why there is exactly one renderer: a second generator
+  for a second surface would drift from this parse on the first edit.
+  The pages are committed, so **any PR that edits `CHANGELOG.md` runs
   `whatsNewRefresh` in the same PR**; the full-text search index needs no wiring
   because `generateHelpSearchIndex` already globs every `*.html` in that
   directory.
