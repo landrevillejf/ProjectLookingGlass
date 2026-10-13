@@ -56,6 +56,15 @@ greenmail = "2.1.3"       # com.icegreen:greenmail (Apache-2.0, test-only)
 # (Apache-2.0) replacement: Loader.loadPDF + PDFRenderer.renderImageWithDPI give
 # the page->BufferedImage contract the reader consumes.
 pdfbox = "3.0.5"          # org.apache.pdfbox:pdfbox (Apache-2.0)
+# The WonderLAN M7d softphone replaces three dead 2006 libraries at once:
+# stun.jar (NAT traversal) -> ice4j, winp (process supervision) -> JDK
+# java.lang.ProcessHandle, and the JMF RTP/audio path -> Java Sound + the
+# in-tree G.711 codec. ice4j is the Apache-2.0 IETF ICE/STUN/TURN engine the
+# Jitsi project maintains and publishes to Maven Central under the org.jitsi
+# namespace (its git-describe version line). Only the NAT-traversal half needs
+# it; the process and audio halves use the JDK, so no other VoIP dependency
+# is introduced.
+ice4j = "3.2-21-g3d9cdaa"  # org.jitsi:ice4j (Apache-2.0; ICE/STUN/TURN)
 # The Archive app (lg3d-apps, org.jdesktop.lg3d.apps.archive) browses, extracts
 # and creates archives of every common open format (zip, tar, tar.gz/.tgz,
 # tar.bz2, tar.xz, gz, bz2, xz, cpio, ar, 7z) through Apache Commons Compress.
@@ -163,6 +172,14 @@ greenmail = { module = "com.icegreen:greenmail", version.ref = "greenmail" }
 # (replaces the proprietary JPedal library). Pulls in fontbox +
 # pdfbox-io + commons-logging transitively from Maven Central.
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+
+# ice4j: the ICE/STUN/TURN NAT-traversal engine behind the WonderLAN M7d
+# softphone's local-reflexive candidate gathering (replaces the discontinued
+# stun.jar). Pulls jitsi-utils + weupnp + jicoco-config + kotlin-stdlib and
+# their transives from Maven Central. It is a compile dependency of lg3d-apps
+# (the live sink) only; wonderland-modules stays dependency-free so its
+# headless floor is unaffected.
+ice4j = { module = "org.jitsi:ice4j", version.ref = "ice4j" }
 
 # Apache Commons Compress: the multi-format archive engine backing the lg3d-apps
 # Archive app (zip/tar/gz/bz2/xz/cpio/ar/7z). XZ for Java (org.tukaani:xz) is the

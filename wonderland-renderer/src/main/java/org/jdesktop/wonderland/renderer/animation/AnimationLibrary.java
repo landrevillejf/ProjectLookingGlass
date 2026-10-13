@@ -15,6 +15,7 @@
  */
 package org.jdesktop.wonderland.renderer.animation;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -34,7 +35,11 @@ public final class AnimationLibrary {
             }
             lower.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue());
         }
-        this.clips = Map.copyOf(lower);
+        // names() is documented to be in insertion order (the order the author
+        // wrote the <animation> elements, i.e. clip priority for a human reading
+        // the HUD list). Map.copyOf silently reorders by hash, so the sequence
+        // would depend on the key hashes; wrap the LinkedHashMap instead.
+        this.clips = Collections.unmodifiableMap(lower);
     }
 
     /**

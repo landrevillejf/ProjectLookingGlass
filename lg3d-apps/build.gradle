@@ -256,6 +256,14 @@ dependencies {
     // or in wonderland-modules (which keeps a hard headless floor). No cycle:
     // wonderland-modules depends only on wonderland-common.
     implementation project(':wonderland-modules')
+    // Wonderland M7d softphone: the pure control (wonderland-modules) owns the
+    // call state; this 2D-desktop app supplies the live sinks through the
+    // module's installBackendFactory seam -- an external SIP engine spawned and
+    // supervised with ProcessBuilder + java.lang.ProcessHandle (the winp
+    // replacement), NAT traversal via ice4j (the stun.jar replacement), and
+    // voice over Java Sound + the in-tree G.711 codec (the JMF RTP replacement).
+    // ice4j is a compile dep only here; wonderland-modules stays dependency-free.
+    implementation libs.ice4j
     // Jackson + SLF4J for the SSH Client's profile persistence and logging.
     // These are NOT transitive from :ftp-client (which uses `implementation`),
     // so they must be declared here for compile-time access.

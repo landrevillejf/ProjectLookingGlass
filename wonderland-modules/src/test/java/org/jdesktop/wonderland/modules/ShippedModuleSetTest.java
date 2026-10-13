@@ -31,7 +31,9 @@ class ShippedModuleSetTest {
                 // M7a joins the shipped set (the videoplayer, OpenJFX replacement)
                 "videoplayer",
                 // M7b joins the shipped set (the pdfviewer, Apache PDFBox replacement)
-                "pdfviewer");
+                "pdfviewer",
+                // M7d joins the shipped set (the VoIP softphone, ice4j + Java Sound)
+                "softphone");
         assertThat(result.skipped()).isEmpty();
 
         // every model is live after load
@@ -44,7 +46,7 @@ class ShippedModuleSetTest {
 
     @Test
     void discoveryAloneReturnsTheShippedProviders() {
-        assertThat(new WonderlandPluginLoader().discover()).hasSize(7);
+        assertThat(new WonderlandPluginLoader().discover()).hasSize(8);
     }
 
     @Test

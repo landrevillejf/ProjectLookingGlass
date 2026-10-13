@@ -12,6 +12,8 @@
  */
 package org.jdesktop.wonderland.modules.collada;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** A {@code <library_effects>/<effect>} element (profile_COMMON only). */
@@ -39,7 +41,12 @@ public final class ColladaEffect {
         this.technique = technique;
         this.diffuseColor = diffuseColor == null ? null : diffuseColor.clone();
         this.transparency = transparency;
-        this.samplers = Map.copyOf(samplers);
+        // samplers() is walked in order by ColladaDocument.texturePaths(), which
+        // promises encounter order, and by the renderer's texture binding; the
+        // author's <technique_common> order must survive into the view, so an
+        // order-preserving unmodifiable copy is used rather than Map.copyOf
+        // (whose iteration order is unspecified and varies per JVM run).
+        this.samplers = Collections.unmodifiableMap(new LinkedHashMap<>(samplers));
     }
 
     public String id() {

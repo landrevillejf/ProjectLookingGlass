@@ -34,16 +34,19 @@ the biggest such seam and are folded into **M6** — see
 | **GlassFish Embedded 3.0** (~26,206 classes) | ❌ rebuilt (retired; drags in a whole app server) | `wonderland-server` on **Spring Boot 3** — embedded Tomcat + Spring WebSocket + REST controllers. |
 | **Sun Game Server (SGS)** | ❌ rebuilt (retired) | Folded into the Spring Boot server as a plain `@Service` owning the session registry. |
 | **Apache MINA** | ❌ rebuilt (only SGS used it) | Spring's `WebSocketHandler` gives the codec-per-frame loop; no NIO pipeline, no MINA/Netty. |
-| **winp** (native JNI) | ❌ rebuilt (retired; only enumerated processes) | `java.lang.ProcessHandle` (JDK 9+). |
+| **winp** (native JNI) | ❌ rebuilt (retired; only enumerated processes) | `java.lang.ProcessHandle` (JDK 9+) — **landed at M7d**: the softphone backend reaps and polls its engine process through `ProcessBuilder` + `ProcessHandle` only. |
 | **NetBeans Platform module system** (71 module jars) | ❌ rebuilt (NBM toolchain gone; no source) | A plain `ServiceLoader` plugin loader — **[Plugin Loader](PLUGIN_LOADER.md)**. |
 | **`darkstar`, `sas`/`sasxremwin`/`xremwin`** | ❌ dropped | Their applet / 2D-window embedding is already covered by the migrated Jogamp stack + `SwingNode`. |
 
 **Deferred, not rejected** (may still be dropped at their milestone with a written
 reason):
 
-- **`stun`** — VoIP / softphone, lands or is descoped at **M7** (candidate: `ice4j`).
+- **`stun`** — VoIP / softphone: **landed at M7d** on **ice4j** (`lg3d-apps`
+  `Ice4jNatProbe`), the maintained Jitsi replacement for the abandoned STUN jar.
 - **`NetworkAddress`** — only used by the GlassFish stack; deferred to the server.
-- **`ComposerVector3f`** — only referenced by avatar/animation paths; deferred to **M7**.
+- **`ComposerVector3f`** — only referenced by avatar/animation paths; **resolved
+  at M7c**: the class exists nowhere in the built tree (only in the `wl-extract`
+  decompilation reference), and M7c's COLLADA-driven animator never needed it.
 
 ## What "rebuilt" means for the reader
 
