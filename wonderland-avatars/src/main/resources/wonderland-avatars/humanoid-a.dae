@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  wonderland-avatars M6b: the default humanoid body.
+
+  A single hand-authored axis-aligned box (0.4 x 1.7 x 0.25 m, feet at y=0)
+  standing in for the real artist-supplied CC0 avatar content. The bytes are
+  placeholder; the AvatarPool catalog is the code contract. Once a proper
+  rigged body is authored the .dae is replaced under the same filename, and
+  the pool's names and wla:// URL shape stay identical.
+
+  The mesh is a bare POSITION + triangles geometry: no normals, no texcoords,
+  no material library, so the M6b renderer's TextureBindingPlan falls back to
+  the neutral grey diffuse, and AvatarRenderer's state-driven trigger colour
+  is what the in-JVM probe actually sees (idle grey -> pressed yellow).
+-->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <authoring_tool>wonderland-avatars placeholder generator</authoring_tool>
+    </contributor>
+    <created>2026-10-13T00:00:00Z</created>
+    <modified>2026-10-13T00:00:00Z</modified>
+    <unit meter="1.0" name="meter"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="humanoid-a-geom" name="humanoid-a">
+      <mesh>
+        <source id="humanoid-a-positions">
+          <float_array id="humanoid-a-positions-array" count="24">-0.2 0.0 -0.125 0.2 0.0 -0.125 0.2 1.7 -0.125 -0.2 1.7 -0.125 -0.2 0.0 0.125 0.2 0.0 0.125 0.2 1.7 0.125 -0.2 1.7 0.125</float_array>
+          <technique_common>
+            <accessor count="8" source="#humanoid-a-positions-array" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="humanoid-a-vertices">
+          <input semantic="POSITION" source="#humanoid-a-positions"/>
+        </vertices>
+        <triangles count="12">
+          <input semantic="POSITION" source="#humanoid-a-positions" offset="0"/>
+          <p>4 5 6 4 6 7 1 0 3 1 3 2 5 1 2 5 2 6 0 4 7 0 7 3 3 7 6 3 6 2 0 1 5 0 5 4</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="humanoid-a-scene" name="humanoid-a">
+      <node id="humanoid-a-node" name="humanoid-a">
+        <instance_geometry url="#humanoid-a-geom"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#humanoid-a-scene"/>
+  </scene>
+</COLLADA>

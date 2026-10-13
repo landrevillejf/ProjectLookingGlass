@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  wonderland-avatars M6b: the short-and-wide humanoid body.
+
+  Placeholder content, same shape as humanoid-a scaled to 0.5 x 1.5 x 0.35 m.
+  Present so the pool has three distinct entries the AvatarPool catalog can
+  name and the ClasspathWorldStore can resolve to distinct .dae bytes.
+-->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <authoring_tool>wonderland-avatars placeholder generator</authoring_tool>
+    </contributor>
+    <created>2026-10-13T00:00:00Z</created>
+    <modified>2026-10-13T00:00:00Z</modified>
+    <unit meter="1.0" name="meter"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="humanoid-c-geom" name="humanoid-c">
+      <mesh>
+        <source id="humanoid-c-positions">
+          <float_array id="humanoid-c-positions-array" count="24">-0.25 0.0 -0.175 0.25 0.0 -0.175 0.25 1.5 -0.175 -0.25 1.5 -0.175 -0.25 0.0 0.175 0.25 0.0 0.175 0.25 1.5 0.175 -0.25 1.5 0.175</float_array>
+          <technique_common>
+            <accessor count="8" source="#humanoid-c-positions-array" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="humanoid-c-vertices">
+          <input semantic="POSITION" source="#humanoid-c-positions"/>
+        </vertices>
+        <triangles count="12">
+          <input semantic="POSITION" source="#humanoid-c-positions" offset="0"/>
+          <p>4 5 6 4 6 7 1 0 3 1 3 2 5 1 2 5 2 6 0 4 7 0 7 3 3 7 6 3 6 2 0 1 5 0 5 4</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="humanoid-c-scene" name="humanoid-c">
+      <node id="humanoid-c-node" name="humanoid-c">
+        <instance_geometry url="#humanoid-c-geom"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#humanoid-c-scene"/>
+  </scene>
+</COLLADA>
