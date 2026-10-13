@@ -29,7 +29,9 @@ class ShippedModuleSetTest {
         assertThat(loadedNames).containsExactlyInAnyOrder(
                 "text-chat", "imageviewer", "user-list", "stickynote", "whiteboard",
                 // M7a joins the shipped set (the videoplayer, OpenJFX replacement)
-                "videoplayer");
+                "videoplayer",
+                // M7b joins the shipped set (the pdfviewer, Apache PDFBox replacement)
+                "pdfviewer");
         assertThat(result.skipped()).isEmpty();
 
         // every model is live after load
@@ -42,7 +44,7 @@ class ShippedModuleSetTest {
 
     @Test
     void discoveryAloneReturnsTheShippedProviders() {
-        assertThat(new WonderlandPluginLoader().discover()).hasSize(6);
+        assertThat(new WonderlandPluginLoader().discover()).hasSize(7);
     }
 
     @Test
