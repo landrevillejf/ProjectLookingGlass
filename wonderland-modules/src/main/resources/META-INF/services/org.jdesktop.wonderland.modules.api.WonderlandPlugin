@@ -7,3 +7,7 @@ org.jdesktop.wonderland.modules.imageviewer.ImageViewerPlugin
 org.jdesktop.wonderland.modules.userlist.UserListPlugin
 org.jdesktop.wonderland.modules.stickynote.StickyNotePlugin
 org.jdesktop.wonderland.modules.whiteboard.WhiteboardPlugin
+# M7a: the videoplayer module (OpenJFX Media replacement for the dead JMF one);
+# its transport runs on the shipped no-op surface until the 2D desktop installs
+# the JavaFX factory, so headless discovery behaves exactly like the M4 five.
+org.jdesktop.wonderland.modules.videoplayer.VideoPlayerPlugin
