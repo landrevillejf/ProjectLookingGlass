@@ -22,7 +22,6 @@ package org.jdesktop.wonderland.server.comms;
 
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +30,6 @@ import org.jdesktop.wonderland.common.cell.CellCacheConnectionType;
 import org.jdesktop.wonderland.common.cell.CellChannelConnectionType;
 import org.jdesktop.wonderland.common.cell.CellEditConnectionType;
 import org.jdesktop.wonderland.common.cell.CellID;
-import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage;
 import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage.ActionType;
