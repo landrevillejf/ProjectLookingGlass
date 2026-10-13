@@ -10,6 +10,59 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland Collada cell renderer lands on the Jogamp stack (`wonderland-renderer`,
+  new module)** — M6a, the first slice of the milestone that finally *renders* what
+  M5 read. A new leaf module, `wonderland-renderer`, sits on `wonderland-client`
+  (the `CellRenderer` / `RendererType` seam), `wonderland-modules` (the M5
+  `ColladaDocument` API), `wonderland-common` and `org.jogamp.java3d:java3d-core:1.7.2`
+  directly. It is a **new module and not inside `wonderland-client`** by design:
+  `wonderland-client` runs its 164-case suite under `java.awt.headless=true` at a hard
+  `[0.980, 0.950]` floor, and the repo rule is that Jogamp scene-graph objects
+  (`Shape3D`, `GeometryArray`, `BranchGroup`, `Appearance`, `Texture`) cannot be
+  constructed there — dropping the renderer into `wonderland-client` would add
+  uncoverable Java 3D lines and break that floor. The renderer is split **pure-vs-probe**
+  so every line of *data conversion* is headless-tested and only the Java 3D assembly
+  is deferred to the in-JVM probe. Pure and unit-tested: `ColladaMeshData`/`ColladaMeshBuilder`
+  (walks a `ColladaGeometry`'s `Mesh.sources()`/`vertices()`/`primitives()`, resolves
+  each `Input` semantic→source by `sourceById`, applies `stride`/`offset`, fans
+  `triangles`/`polylist`/`trifan`/`tristrip` into a flat index buffer, tolerates a
+  missing normals or texcoord binding, an unresolvable source ref (reads zeros), a
+  secondary `set=` texcoord (prefers `set="0"`/unset), and a dangling tail below three
+  vertices); `WorldTransformMath` (folds a `ColladaNode.WorldMatrix` — an
+  `org.jogamp.vecmath.Matrix4d` — into the row-major `double[16]` feed Java 3D's
+  `Transform3D` constructor accepts, vecmath's translation-in-last-column layout at
+  indices 3, 7, 11; derives the same feed from a `CellTransform`); `TextureBindingPlan`
+  (per-material `MaterialAppearance`: diffuse RGB with the effect's transparency folded
+  into alpha even when the diffuse is missing, and the sampler-to-present-texture
+  binding decision); `ModelRendererFactory` (the seam: a `RendererSupplier`
+  `@FunctionalInterface` lets a test install a stub so the *dispatch decision* —
+  `RENDERER_JME` + loaded → delegate, `NONE`/`RENDERER_2D`/null/errored → null — is
+  exercised headless); and `WonderlandModelCell` (the `Cell` subclass the desktop hands
+  out for a deployed model, overriding `createCellRenderer` to delegate). Probe-only,
+  compile-tested but asserted by the in-JVM probe and **not claimed as tested in CI**:
+  `J3dMeshFactory` (builds the real `IndexedTriangleArray` — the 5-arg form when there
+  is no texcoord, the 7-arg one with `texCoordSetMap` when there is — plus `Shape3D`,
+  `Appearance`, `Material`, `Texture`, `ImageComponent2D`; alpha expressed through
+  `TransparencyAttributes.BLENDED` because this fork has no `Material.setTransparencyRatio`)
+  and `ModelRenderer implements CellRenderer` (the live `BranchGroup` → `Switch` →
+  `TransformGroup` chain; `Switch.setWhichChild(0 / CHILD_NONE)` for show/hide because
+  this fork has no `Node.setEnable` on `Shape3D`; `cellTransformUpdate` walks through
+  `WorldTransformMath`; `setStatus` maps `VISIBLE`/`RENDERING` to shown). Imports stay
+  `org.jogamp.java3d.*` / `org.jogamp.vecmath.*` only — the `legacy-j3d.mnd` gate
+  enforces it; the `lg3d-core` `Frame3D` bridge is deliberately **not** a dependency
+  yet, arriving at M6c. **52 new headless cases** across `ColladaMeshBuilderTest`,
+  `WorldTransformMathTest`, `TextureBindingPlanTest`, `ModelRendererFactoryTest` and
+  `WonderlandModelCellTest` — measured **line 55.44 % / branch 59.29 %**, so
+  [`coverageFloors[wonderland-renderer]`](build.gradle) is set one shade under at
+  `[line: 0.530, branch: 0.560]`; the gap to `wonderland-client`'s floor is exactly
+  the probe-only classes, an honest reflection of what a headless JVM can prove rather
+  than an oversight. Live rendering is verified by launching the desktop + a bundled
+  world through the in-JVM probe (`lg3d-core/AGENTS.md`) and confirming the loaded
+  model appears in the `lgscreen-0-N.png` screencapture — **not** claimed as tested
+  in CI, per the standing rule. M6b (avatar renderer, replacing `AvatarCell`'s
+  deferred null) and M6c (2D+3D desktop integration hosting a cell's `BranchGroup`
+  in `lg3d-core`'s `Frame3D` / `SceneGraphView`) re-plan as each unblocks, per the
+  migration's every-slice-requires-reconfirmation rule.
 - **The Wonderland COLLADA / deployed-model / asset pipeline lands, headless**
   (`wonderland-modules`, `src/main/java/…/modules/collada/`,
   `src/main/java/…/modules/artimport/`, `src/main/java/…/modules/asset/`,

@@ -23,6 +23,7 @@ each kept as pure/testable as the original allowed:
 | `wonderland-client` | the cell / comms / view client logic | yes (renderer deferred to M6) |
 | `wonderland-server` | the session/host server — **rebuilt on Spring Boot**, no GlassFish | yes |
 | `wonderland-modules` | the plugin layer (`ServiceLoader`) + the feature modules + the asset/COLLADA pipeline | yes |
+| `wonderland-renderer` | the deferred scene-graph renderer on `org.jogamp.java3d` — the Collada cell renderer, the seam that hangs a `Shape3D` branch on a `Cell` | mixed: the pure mesh/transform/binding logic yes; the `Shape3D`/`BranchGroup` assembly needs a live 3D canvas (the in-JVM probe) |
 
 ## Milestone map
 
@@ -37,8 +38,11 @@ See **[Milestones](MILESTONES.md)** for the full parity table. In one line each:
   (**[Plugin Loader](PLUGIN_LOADER.md)**).
 - **M5** — the COLLADA / deployed-model / asset pipeline that **reads** a bundled
   world's 3D models (**[Asset Pipeline](ASSET_PIPELINE.md)**).
-- **M6 / M7** — desktop + scene-graph integration, and the high-risk features —
-  proposed, **not started**.
+- **M6a** — the Collada **cell renderer** on `org.jogamp.java3d`, in the new
+  `wonderland-renderer` leaf (**[Renderer](RENDERER.md)**). M6b (avatar) and
+  M6c (desktop integration) re-plan as each unblocks.
+- **M7** — the high-risk features (VoIP, avatar/animation, videoplayer,
+  pdfviewer) — proposed, **not started**.
 
 ## Read next
 
