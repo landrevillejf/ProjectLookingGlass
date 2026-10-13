@@ -10,6 +10,40 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland videoplayer lands on OpenJFX Media (`wonderland-modules` +
+  `lg3d-apps`, M7a)** — the first of the four M7 replacements, and the answer to
+  the retired `javax.media` (JMF): the 2006 videoplayer drove JMF's `Player` /
+  `MediaHandler`, which has no JDK 21 build and is unrecoverable, so the modern
+  equivalent is OpenJFX `Media` / `MediaPlayer` / `MediaView` — the same engine
+  already in-tree behind the Web Browser. The module is split the pure-vs-sink
+  way every Wonderland slice now is. The **pure half** lives in a new
+  `org.jdesktop.wonderland.modules.videoplayer` package with **no toolkit type
+  at all** (so `wonderland-modules`' hard headless floor holds): `MediaSurface`
+  is the sink seam (`open` / `play` / `pause` / `stop` / `seekTo` / `setVolume`
+  / `release`), `VideoTransport` is the guarded lifecycle machine — `load`
+  refuses a null/empty URI and stops the old media first, `play` rewinds from
+  `ENDED`/`STOPPED`, `pause` only lands from `PLAYING`, `seek` clamps to
+  `[0, duration]` but stays unclamped for a live/unknown-length stream, `tick`
+  advances only while `PLAYING` and walks once to `ENDED` + a single `stop`, and
+  `setVolume` clamps with `NaN` → silent — `Playlist` is the wrapping-cursor
+  catalog whose `removeAt` keeps the cursor on the successor, and
+  `VideoPlayerPlugin` is the `ServiceLoader` provider holding a static
+  `installSurfaceFactory` slot (the M6b installer idiom): headless it drives a
+  shipped `NoopMediaSurface`, and `tickAndAdvance` moves the cursor **before**
+  the load so an ended item is never replayed and its successor never skipped.
+  The **live sink** is `lg3d-apps`' `JfxMediaSurface` — it boots the toolkit via
+  the browser's `JFXPanel`-on-the-EDT pattern, marshals every mutating call
+  through `Platform.runLater`, and converts a bare file path to a `file:` URI
+  for local playlist items; it wires in through `VideoPlayerPlugin.installSurfaceFactory`,
+  so `lg3d-apps` gains an `implementation project(':wonderland-modules')` dep
+  (no cycle: `wonderland-modules` depends only on `wonderland-common`). JavaFX
+  is initialised **only** in this 2D-desktop JVM, never in the Java 3D process,
+  exactly the standing constraint. **56 new headless cases** (`VideoTransportTest`,
+  `PlaylistTest`, `VideoPlayerPluginTest` incl. the `ServiceLoader` discovery and
+  the auto-advance ordering), so
+  [`coverageFloors[wonderland-modules]`](build.gradle) branch rises `0.930 → 0.935`
+  (measured 98.52 % / 93.71 %). `JfxMediaSurface` is compile-checked in CI; live
+  playback is verified on the desktop, **not** claimed as tested headless.
 - **The Wonderland scene-graph bridge lands — a cell's world mounts inside the lg3d
   desktop (`wonderland-desktop`, new module)** — M6c1, the first slice of the desktop
   integration milestone, and the **first Wonderland module to depend on
