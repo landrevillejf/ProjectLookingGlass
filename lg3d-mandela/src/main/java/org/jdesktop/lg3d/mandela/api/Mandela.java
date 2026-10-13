@@ -86,11 +86,26 @@ public final class Mandela {
      * The language version. This is the version of the language and its runtime,
      * not of the desktop that ships them, so a host can state what a script may
      * assume.
+     *
+     * <p>It is the same number as {@code mandela.language} in the repository's
+     * gradle.properties, which is what lands in the jar manifest as
+     * {@code Specification-Version}; the two are kept in step by
+     * {@code scripts/mandela/mandela-version.mnd} rather than by code generation,
+     * so this stays a compile-time constant a host can switch on.</p>
      */
     public static final String LANGUAGE_VERSION = "1.0";
 
-    /** The implementation version, kept with the module's own build information. */
-    public static final String IMPLEMENTATION_VERSION = "1.0";
+    /**
+     * The implementation version: the jar's own number, and the one a host checks
+     * when it asks whether a bug it hit is fixed here.
+     *
+     * <p>It is the same number as {@code mandela.version} in the repository's
+     * gradle.properties, which is what names the artifact
+     * ({@code lg3d-mandela-1.0.0.jar}) and fills the manifest's
+     * {@code Implementation-Version}. It is deliberately <em>not</em> the desktop's
+     * version: this module depends on nothing, so it releases on its own clock.</p>
+     */
+    public static final String IMPLEMENTATION_VERSION = "1.0.0";
 
     /** The file extension a Mandela source file uses, without the dot. */
     public static final String FILE_EXTENSION = "mnd";

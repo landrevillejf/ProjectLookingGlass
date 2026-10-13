@@ -5,6 +5,11 @@
 Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsystems 3D desktop. The codebase has been migrated from Ant + Java 1.5 to Gradle 8.14 + JDK 21, with Java 3D migrated from Sun's `javax.media.j3d` to Jogamp's `org.jogamp.java3d` 1.7.2.
 
 **Project coordinates:** `org.jdesktop.lg3d:1.69.0-dev`
+**Mandela's own coordinates:** jar `1.0.0`, language `1.0` (`mandela.version` /
+`mandela.language` in [gradle.properties](gradle.properties)) — `lg3d-mandela`
+carries a version of its own because it depends on nothing and therefore releases
+on its own clock; the desktop bundles whatever jar that version names. See
+[lg3d-mandela/CHANGELOG.md](lg3d-mandela/CHANGELOG.md) for the policy.
 
 ## Build System
 
@@ -47,7 +52,7 @@ Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsy
 - `lg3d-core` - Scene-graph / windowing / display-server SDK and desktop
 - `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`
 - `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
-- `lg3d-mandela` - **Project Mandela**: the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI and REPL). No third-party and no lg3d dependency, so it embeds anywhere.
+- `lg3d-mandela` - **Project Mandela**: the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI and REPL). No third-party and no lg3d dependency, so it embeds anywhere. It versions itself (see *Project coordinates* above and its own `CHANGELOG.md`): a Mandela bump is its own module-scoped chore PR, never part of a desktop bump.
 
 ### Excluded from Build
 - `lg3d-awt` - **RETIRED** (not merely excluded): the custom AWT Toolkit/peer implementation. JDK 9+ removed the `awt.toolkit` install hook, 46 of its 79 classes implement the `java.awt.peer.*` SPI and 9 use `sun.awt.*` internals unexported in JDK 21, so it cannot be installed on stock JDK 21 and will not be resurrected. Replacement mapping: 2D-in-3D widgets -> `org.jdesktop.lg3d.wg.SwingNode` (lg3d's pure-Java Swing→offscreen-`BufferedImage`→texture bridge, no JavaFX/AWT peer; see `TitledSwingWindow` in `lg3d-apps`); foreign X11 app compositing -> `org.jdesktop.lg3d.displayserver.nativewindow.x11` (pure-Java Escher compositor). Sources remain in-tree for reference only.
@@ -266,7 +271,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the eight gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the nine gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -280,6 +285,12 @@ the exit codes and how to add a tool.
   so this is the other half of the site).
 - `release-check.mnd` - the four version references agree, and `settings.gradle`
   matches the module directories in both directions (a pre-release gate).
+- `mandela-version.mnd` - the same gate for the language itself: `mandela.version`
+  (the jar) and `mandela.language` (the grammar) are written in eight places across
+  `gradle.properties`, `api/Mandela.java`, the jar's artifact name as the scripts
+  document it, the two guides and `lg3d-mandela/CHANGELOG.md`, and every copy is
+  compared against its `gradle.properties` authority (a CI gate). Bumping Mandela
+  without editing one of them fails here, not in a host's issue report.
 - `startmenu-audit.mnd` - every `resource:///...` and `java <class>` reference in
   the `.lgcfg` start-menu descriptors resolves from the assembled classpath, and
   the live menu inventory is printed (a gate, with a report).

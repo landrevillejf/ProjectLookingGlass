@@ -17,6 +17,7 @@
 | Depends on | **Nothing** — no repo module, no third-party jar. `java.base` + `javax.script` only. |
 | Depended on by | `lg3d-apps` (Espresso's `MandelaTools`, the Web Browser's `MandelaUserscriptsExtension`); its jar is also resolved onto `lg3d-core`'s `run` classpath and copied into the release bundle. |
 | Jar | `build-gradle/libs/lg3d-mandela-<version>.jar`, `Main-Class: …mandela.cli.MandelaCli` |
+| Version | **Its own**, not the desktop's: `mandela.version` (the jar, `1.0.0`) and `mandela.language` (the grammar, `1.0`) in [`../gradle.properties`](../gradle.properties), mirrored in `api.Mandela`'s two constants and the jar manifest. `mandela-version.mnd` gates all eight copies; the policy and the release record are in [CHANGELOG.md](CHANGELOG.md). |
 | Build | `./gradlew :lg3d-mandela:build` |
 | Run | `./gradlew :lg3d-mandela:mandelaRun -Pscript=hello.mnd` · `:lg3d-mandela:mandelaRepl` |
 | Tests | `./gradlew :lg3d-mandela:test` — 1142 headless JUnit 5 tests (`java.awt.headless=true`) |
@@ -136,8 +137,9 @@ never silently in code.
   header conventions (shebang, one-line purpose, the `-s` sandbox it must be run
   with) that keep that directory usable. The scripts themselves run in CI as
   `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `htmlLinksCheck`,
-  `releaseCheck`, `startMenuAudit`, `i18nKeysCheck`, `legacyJ3dCheck`,
-  `scriptsHygieneCheck`, `whatsNewCheck`), which are intentionally *not* part of
+  `releaseCheck`, `mandelaVersionCheck`, `startMenuAudit`, `i18nKeysCheck`,
+  `legacyJ3dCheck`, `scriptsHygieneCheck`, `whatsNewCheck`), which are
+  intentionally *not* part of
   `check`: they audit the whole tree, so their failures belong to the step that
   ran them, not to this module's build. `whatsNewCheck` is the one of them that
   compares a **committed generated file** (the Help Center's `whats-new.html`
@@ -197,6 +199,11 @@ never silently in code.
   to.
 - Commit scope is `lg3d-mandela` (or `agents` for this file). Follow branch →
   commit → push → PR against `main`; never commit directly to `main`.
+- **A Mandela version bump is its own chore PR and it never rides with a desktop
+  bump.** Edit `mandela.version` (and `mandela.language` when the grammar changed),
+  `api.Mandela`'s matching constant, the guide line under its title and a new header
+  in [CHANGELOG.md](CHANGELOG.md) — `mandelaVersionCheck` is red until all four agree,
+  and the desktop's `release-check.mnd` deliberately does not read them.
 - Definition of done: `:lg3d-mandela:test` green, `:lg3d-apps:test` green (the
   hosts), both guides updated in the same PR, and no new dependency in
   `lg3d-mandela/build.gradle`.

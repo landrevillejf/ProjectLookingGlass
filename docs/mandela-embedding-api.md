@@ -93,7 +93,8 @@ this document is what to do when they are not enough — which is mostly
 | Member | What it gives you |
 | --- | --- |
 | `LANGUAGE_NAME` `"Mandela"` · `PROJECT_NAME` `"Project Mandela"` | the names to show a user |
-| `LANGUAGE_VERSION` / `IMPLEMENTATION_VERSION` `"1.0"` | language vs jar version |
+| `LANGUAGE_VERSION` `"1.0"` | the grammar's version — what a script may assume |
+| `IMPLEMENTATION_VERSION` `"1.0.0"` | the jar's version — what a host checks when it asks whether a bug is fixed here |
 | `FILE_EXTENSION` `"mnd"` | the suffix, without the dot |
 | `ENGINE_NAMES` / `MIME_TYPES` | the JSR-223 aliases (`mandela`, …) and `text/x-mandela` |
 | `engine()` | a `Runtime.Builder` seeded with `Capabilities.console()` |
@@ -532,7 +533,12 @@ and `4` is there for a wrapper that wants to say *why* without parsing text.
 ## 14. Compatibility
 
 `LANGUAGE_VERSION` is the grammar's version, `IMPLEMENTATION_VERSION` the jar's;
-`about()` answers both. Within `1.x`:
+`about()` answers both. Both are written in eight places across this repository —
+the two `gradle.properties` keys, these two constants, the manifest, the artifact
+name, the line under the language guide's title and the module changelog's newest
+header — and [`scripts/mandela/mandela-version.mnd`](../scripts/mandela/mandela-version.mnd)
+(`:lg3d-mandela:mandelaVersionCheck`) compares every copy against its property, so
+a bump that forgets a file is red in CI rather than surprising a host. Within `1.x`:
 
 - the public surface in §3–§7 and §9–§10 is the contract; the packages behind it
   may be reorganised;
