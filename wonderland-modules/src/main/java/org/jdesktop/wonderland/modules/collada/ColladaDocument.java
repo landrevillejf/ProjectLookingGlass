@@ -14,6 +14,8 @@
 package org.jdesktop.wonderland.modules.collada;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,13 +53,27 @@ public final class ColladaDocument {
                            String rootSceneId,
                            Map<String, ColladaAnimation> animations) {
         this.asset = asset == null ? new ColladaAsset(null, 1.0, null, null, null) : asset;
-        this.geometries = Map.copyOf(geometries);
-        this.materials = Map.copyOf(materials);
-        this.effects = Map.copyOf(effects);
-        this.images = Map.copyOf(images);
-        this.visualScenes = Map.copyOf(visualScenes);
+        // Every library below is exposed as a keyed VIEW whose iteration order is
+        // part of its contract: animations() is documented parse order (the
+        // renderer's clip catalog is built from it), rootVisualScene() falls back
+        // to the "first" scene, and texturePaths() promises encounter order over
+        // effects.values(). Map.copyOf hands back an unordered immutable map whose
+        // iteration order is unspecified and varies between JVM runs, so the
+        // contracts would silently break (and the tests that pin them would turn
+        // flaky). Wrap the caller's LinkedHashMap instead: same immutability, and
+        // the document order survives.
+        this.geometries = preserveOrder(geometries);
+        this.materials = preserveOrder(materials);
+        this.effects = preserveOrder(effects);
+        this.images = preserveOrder(images);
+        this.visualScenes = preserveOrder(visualScenes);
         this.rootSceneId = rootSceneId;
-        this.animations = Map.copyOf(animations);
+        this.animations = preserveOrder(animations);
+    }
+
+    /** An unmodifiable copy that keeps the source map's iteration order. */
+    private static <V> Map<String, V> preserveOrder(Map<String, V> source) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 
     public ColladaAsset asset() {

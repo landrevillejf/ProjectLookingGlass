@@ -165,7 +165,15 @@ public final class AnimationClip {
             kept.put(e.getKey(), e.getValue());
             end = Math.max(end, e.getValue().endTime());
         }
-        this.nodes = Map.copyOf(kept);
+        // Insertion order is part of the contract, not an implementation
+        // detail: animatedNodes() and sampleAt() are what the live renderer
+        // walks when it writes the per-node LOCAL transforms, so the authored
+        // node order must survive into the immutable view. Map.copyOf does NOT
+        // preserve it (its iteration order is the hash table's own), which made
+        // the clip's node sequence depend on the key hashes; Collections
+        // .unmodifiableMap over the LinkedHashMap keeps the sequence and the
+        // immutability.
+        this.nodes = java.util.Collections.unmodifiableMap(kept);
         this.duration = Math.max(end, 0.0);
     }
 

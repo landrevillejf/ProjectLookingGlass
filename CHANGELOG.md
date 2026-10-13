@@ -995,6 +995,29 @@ work to make it build and run on a current toolchain.
   vice versa). Both were proven to bite on a planted defect before shipping green.
 
 ### Fixed
+- **A parsed COLLADA document lost the author's order, and the avatar clip list
+  shuffled itself** (`wonderland-modules`, `wonderland-renderer`) —
+  `ColladaDocument` kept every library (`animations`, `effects`, `visualScenes`,
+  `geometries`, `images`, `materials`) as a `Map.copyOf` copy while its own
+  javadoc promised *parse order*, and `ColladaClips.fromDocument` documented that
+  its clip map "matches the library's parse order" on top of that. `Map.copyOf`
+  returns an unordered immutable map: its iteration sequence comes from the keys'
+  hashes and is not specified, so `AnimationLibrary.names()` (the clip listing),
+  `AnimationClip.animatedNodes()` / `sampleAt()` (the sequence the live renderer
+  walks to write the per-node LOCAL transforms) and `ColladaDocument.texturePaths()`
+  (documented *encounter* order) all silently disagreed with their contract. It
+  bit M7c's `AvatarAnimationBundledPoolTest.bodyAclipsParseFromTheShippedBytes`,
+  which asks the shipped `humanoid-a.dae` for `[walking, idle]` and got
+  `[idle, walking]` back on some JVM runs and the expected pair on others — a
+  four-in-six failure rate measured on the branch before the fix, i.e. a flaky CI
+  step over what is really an ordering bug. The parsers were already building
+  `LinkedHashMap`s; the views now wrap them with `Collections.unmodifiableMap`
+  (same immutability, real document order), so the sequence is fixed by the file
+  rather than by a hash. Pinned by the new
+  `AnimationLibraryTest.clipAndNodeOrderIsTheAuthorsNotTheHashesOfTheNames`, which
+  asserts the guarantee at all three levels — catalog, clip, and two `<animation>`
+  elements parsed end to end — with names chosen so a hash order would differ
+  from the written order.
 - **`indexOf` now honours its start index instead of ignoring it**
   (`lg3d-mandela`, `rt/StandardLibrary`) — `s.indexOf(needle, from)` read only
   `args[0]`, so it answered the *first* occurrence and called it the answer: a
