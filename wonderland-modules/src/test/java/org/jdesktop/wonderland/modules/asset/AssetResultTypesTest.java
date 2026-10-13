@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the load-state vocabulary and the two
  * result aggregates. Pins AssetLoadStatus.isTerminal, the ModelLoadResult
  * loaded/error split, and WorldContents' counting over a mix of loaded cells,

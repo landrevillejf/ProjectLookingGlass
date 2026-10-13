@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: the five shipped feature-module providers, each on its
  * initialize / dispose lifecycle and its module identity. The presentation each
  * 2006 module attached is deferred (see the class javadocs); these tests pin the

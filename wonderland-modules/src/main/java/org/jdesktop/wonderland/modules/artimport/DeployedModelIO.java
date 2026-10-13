@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): readers for the .dep / .ldr bundle files.
  *
  * Small namespace-agnostic DOM readers turning the two XML descriptors the 2006

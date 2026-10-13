@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): the deployed-model value contract.
  * Pins the defensive vector copies (a null block stays null) and the bounding
  * volume's longest-side helper, including the null-dimension case.

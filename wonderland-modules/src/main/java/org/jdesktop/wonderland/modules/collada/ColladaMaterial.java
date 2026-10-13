@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): a COLLADA <material>.
  *
  * A material instance-binds one effect; the loader records that binding so a

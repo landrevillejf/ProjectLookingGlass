@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): a COLLADA <visual_scene>.
  *
  * A named bundle of top-level nodes. The document's {@code <scene>} points at one

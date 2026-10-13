@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the document aggregate walks.
  * Pins the reference-chasing the asset pipeline relies on -- the root-scene
  * selection and its fallback, the world-matrix flatten (and its empty case),

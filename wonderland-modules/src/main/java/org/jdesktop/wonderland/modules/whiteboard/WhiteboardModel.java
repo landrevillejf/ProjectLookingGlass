@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (whiteboard): the shared drawing surface model.
  *
  * The ordered stroke list a whiteboard cell syncs across participants, with the

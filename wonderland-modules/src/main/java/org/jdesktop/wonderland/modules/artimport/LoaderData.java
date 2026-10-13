@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): the <loader-data> a .ldr file records.
  *
  * The loader descriptor the 2006 KmzLoader / artimport emitted alongside a

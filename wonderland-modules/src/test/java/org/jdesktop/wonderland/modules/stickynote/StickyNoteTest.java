@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (stickynote): the note content model -- null body /
  * author normalised to empty, null colour selecting the default YELLOW, the
  * no-clear setter semantics, and isEmpty.

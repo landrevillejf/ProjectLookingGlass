@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (imageviewer): the module's WonderlandPlugin provider.
  *
  * The headless half of the image-viewer feature module. Its Java 3D renderer

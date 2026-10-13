@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules: the plugin layer that replaces the NetBeans Platform
  * module system and the dead scannotation class scan (milestone M4).
  *

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (text-chat): one posted chat line.
  *
  * The 2006 chat module painted these into a Swing conversation window; that

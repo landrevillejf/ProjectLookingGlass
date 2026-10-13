@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (stickynote): the module's WonderlandPlugin provider.
  *
  * The headless half of the sticky-note feature module; it exposes a factory for

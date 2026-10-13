@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (stickynote): the headless note model.
  *
  * The text, author and colour a sticky-note cell carries. The Java 3D note

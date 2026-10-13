@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the content store a world's assets resolve against.
  *
  * A world bundles its art as {@code wla://<module>/<path>} references; the 2006

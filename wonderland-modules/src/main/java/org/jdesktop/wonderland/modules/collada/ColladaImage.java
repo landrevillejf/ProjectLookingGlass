@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): a COLLADA <image>.
  *
  * The <library_images>/<image>/<init_from> entry names the texture file the

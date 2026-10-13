@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the directory-backed content store.
  * Pins open/present/listAssets against a real temp tree and, crucially, the
  * confinement guarantee: a {@code ../} in a descriptor cannot escape the module

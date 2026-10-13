@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the deployed-model resolver.
  * The asset pipeline's read side, driven against an in-memory store so every
  * degrades-to-ERROR branch is reachable headless: a non-wla reference, an absent

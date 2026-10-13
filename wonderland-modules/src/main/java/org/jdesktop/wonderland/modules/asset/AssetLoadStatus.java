@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the load-state vocabulary.
  *
  * The 2006 art loader walked a model through a small state machine (unloaded →

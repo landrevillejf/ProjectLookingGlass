@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (whiteboard): the module's WonderlandPlugin provider.
  *
  * The headless half of the shared drawing surface. Its stroke renderer is

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (imageviewer): the load status machine -- EMPTY ->
  * LOADING -> LOADED / ERROR, the blank-source guard, the null-caption
  * normalisation, and the requireSource guard on the transition markers.

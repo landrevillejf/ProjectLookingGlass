@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the COLLADA document aggregate.
  *
  * The parsed libraries keyed by id, the root scene selection, and the reference

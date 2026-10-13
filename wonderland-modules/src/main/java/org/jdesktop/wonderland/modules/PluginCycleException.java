@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: raised when the declared module requirements form a
  * cycle, so no dependency-safe initialisation order exists. A cycle is a defect
  * in the module set, not a runtime condition to degrade around, so -- unlike a

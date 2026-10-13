@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: the assembled boot path. loadAll() runs ServiceLoader
  * discovery over the shipped META-INF/services entry and initialises every module
  * it finds. This proves the five low-risk modules really are registered, that

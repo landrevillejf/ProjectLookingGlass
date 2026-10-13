@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4: the loader brain, exercised headless with hand-built
  * plugins. Covers the four ordering/dependency behaviours the class header
  * claims -- dependency-before-dependent order, the skip (and its cascade) for an

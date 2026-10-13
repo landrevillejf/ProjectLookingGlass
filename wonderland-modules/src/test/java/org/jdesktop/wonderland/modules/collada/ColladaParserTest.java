@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the COLLADA 1.4.1 DOM parser.
  * Drives the reader across every reachable branch on synthetic bytes -- the
  * full library set, the transform/instance inventory, the effect/transparent/

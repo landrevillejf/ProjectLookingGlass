@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): the end-to-end world load over REAL bytes.
  * Loads the vendored almost-empty world (real .wlc.xml -> JAXB ModelCellServerState,
  * real .dep/.ldr and gzip'd .dae bytes) through a directory store and asserts the

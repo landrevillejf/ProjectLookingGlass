@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (user-list): the present-user roster.
  *
  * The model behind the 2006 user-list window (that window's Swing/3D

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5b (artimport): one deployed texture reference.
  *
  * The <loader-data> the .ldr file carries records each texture as a

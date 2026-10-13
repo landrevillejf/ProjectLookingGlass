@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (text-chat): the conversation model + message value.
  * Pins the faithful behaviours: non-blank sender/body, capacity trimming to the
  * newest lines, ordered listener notification, join-order participants, and the

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the appearance / asset value types.
  * Pins the small normalisations each carries: the image init_from path strip
  * (file:// and the leading slash), the asset up-axis and unit-scale defaults,

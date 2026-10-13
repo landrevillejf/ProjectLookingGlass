@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M4 (whiteboard): the surface model and its stroke value
  * type. Pins add/undo/clear, the drawing-order snapshot, the bounding box across
  * every point of every stroke, and the Stroke guards (>= 2 points, positive

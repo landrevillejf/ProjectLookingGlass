@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5c (assetmgr): resolves and parses one deployed model.
  *
  * The read side of the asset pipeline: given a {@code wla://} reference to a

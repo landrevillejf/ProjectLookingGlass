@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
+ */
+/*
  * wonderland-modules M5a (colladaloader): the geometry data model + position walk.
  * Exercises the headless half of what the 2006 loader fed to the Shape3D build:
  * source stride/count, the mesh source lookup, and Primitive.positions() across
