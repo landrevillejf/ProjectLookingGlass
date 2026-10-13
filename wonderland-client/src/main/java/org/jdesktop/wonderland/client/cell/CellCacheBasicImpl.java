@@ -26,9 +26,13 @@
  *     activating them. Live URL downloads are not testable headless, so this
  *     slice applies status changes synchronously (deterministic, fully covered).
  *     The async/asset-preload manager is an M2e concern.
- *   - setViewCell(ViewCell) (the camera cell) is reduced to setHasView(boolean):
- *     the cache only needs to know a view exists so a freshly loaded cell is
- *     walked to VISIBLE; ViewCell itself is M2e.
+ *   - setViewCell(ViewCell)/getSession() (the camera cell + its owning session)
+ *     were reduced to a boolean "has view" flag while ViewCell and the session
+ *     were still deferred; M2f lands ViewCell and CellClientSession, so the real
+ *     fields are restored: setViewCell() keeps the original's unconditional
+ *     roots-to-VISIBLE walk (it fires even when handed null -- the 2006 code has
+ *     no null guard) and getSession() returns the CellClientSession that the
+ *     session wires in via setSession().
  * The status ordinal walk is the Cell base class's contract, reused verbatim.
  */
 package org.jdesktop.wonderland.client.cell;
@@ -45,6 +49,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jdesktop.wonderland.client.cell.view.ViewCell;
+import org.jdesktop.wonderland.client.comms.CellClientSession;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.CellTransform;
@@ -67,7 +73,8 @@ public class CellCacheBasicImpl implements CellCache,
     private final ClassLoader classLoader;
     private MessageSink messageSink;
     private CellChannelConnection cellChannelConnection;
-    private boolean hasView = false;
+    private CellClientSession session;
+    private ViewCell viewCell = null;
 
     private static final ThreadLocal<Cell> currentCell = new ThreadLocal<>();
 
@@ -102,22 +109,37 @@ public class CellCacheBasicImpl implements CellCache,
         return cellChannelConnection;
     }
 
-    /** Replaces the camera-bound setViewCell(ViewCell); drives the VISIBLE walk. */
-    public void setHasView(boolean hasView) {
-        this.hasView = hasView;
-        if (hasView) {
-            synchronized (cells) {
-                for (Cell cell : cells.values()) {
-                    if (cell.getParent() == null) {
-                        changeCellTreeStatus(cell, CellStatus.VISIBLE);
-                    }
+    /** M2f: the session that owns this cache; the 2006 ctor passed it in. */
+    public void setSession(CellClientSession session) {
+        this.session = session;
+    }
+
+    @Override
+    public CellClientSession getSession() {
+        return session;
+    }
+
+    /**
+     * M2f restores the original setViewCell: store the camera cell, then walk
+     * every parentless cell up to VISIBLE -- unconditionally, exactly as the
+     * 2006 code does (there is no null guard: setting the view to null still
+     * makes the loaded tree visible, the quirk the M2f tests pin).
+     */
+    @Override
+    public void setViewCell(ViewCell viewCell) {
+        this.viewCell = viewCell;
+        synchronized (cells) {
+            for (Cell cell : cells.values()) {
+                if (cell.getParent() == null) {
+                    changeCellTreeStatus(cell, CellStatus.VISIBLE);
                 }
             }
         }
     }
 
-    public boolean isHasView() {
-        return hasView;
+    @Override
+    public ViewCell getViewCell() {
+        return viewCell;
     }
 
     @Override
@@ -190,9 +212,10 @@ public class CellCacheBasicImpl implements CellCache,
             }
 
             fireCellLoaded(cell);
-            if (hasView) {
+            if (viewCell != null) {
                 changeCellStatus(cell, CellStatus.VISIBLE);
-            } else if (cellId.equals(CellID.getEnvironmentCellID())) {
+            } else if (cell instanceof ViewCell
+                    || cellId.equals(CellID.getEnvironmentCellID())) {
                 changeCellStatus(cell, CellStatus.ACTIVE);
             }
 

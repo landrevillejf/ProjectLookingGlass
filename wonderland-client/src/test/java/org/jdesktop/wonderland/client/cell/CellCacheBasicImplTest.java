@@ -243,18 +243,22 @@ class CellCacheBasicImplTest {
     }
 
     @Test
-    void droppingTheViewIsRecordedButDoesNotMoveStatuses() {
+    void theViewWalkIsUnconditionalPerTheOriginal() {
         CellID id = CellTestFixtures.id(1);
         Cell cell = load(id, CacheableCell.class.getName(), null);
-        cache.setHasView(false);
-        assertThat(cache.isHasView()).isFalse();
         assertThat(cell.getStatus()).isSameAs(CellStatus.DISK);
+        // M2f restores the original setViewCell: it has NO null guard, so even
+        // handing it a null view walks every parentless cell up to VISIBLE --
+        // the 2006 quirk the boolean seam used to hide.
+        cache.setViewCell(null);
+        assertThat(cache.getViewCell()).isNull();
+        assertThat(cell.getStatus()).isSameAs(CellStatus.VISIBLE);
     }
 
     @Test
     void childrenOfAVisibleParentSkipTheTreeWalkRung() {
         CellID rootId = CellTestFixtures.id(1);
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
         // loaded while the view is up -> loadCell walks it straight to VISIBLE
         Cell root = load(rootId, CacheableCell.class.getName(), null);
         assertThat(root.getStatus()).isSameAs(CellStatus.VISIBLE);
@@ -264,7 +268,7 @@ class CellCacheBasicImplTest {
         // a second walk meets the root already at the required status: the
         // rung is skipped, but the recursion still visits the child
         int rootRungs = ((CacheableCell) root).statusCalls.size();
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
         assertThat(((CacheableCell) root).statusCalls).hasSize(rootRungs);
         assertThat(child.getStatus()).isSameAs(CellStatus.VISIBLE);
     }
@@ -289,8 +293,8 @@ class CellCacheBasicImplTest {
         CellID childId = CellTestFixtures.id(2);
         Cell child = load(childId, CacheableCell.class.getName(), rootId);
 
-        cache.setHasView(true);
-        assertThat(cache.isHasView()).isTrue();
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
+        assertThat(cache.getViewCell()).isNotNull();
         assertThat(root.getStatus()).isSameAs(CellStatus.VISIBLE);
         assertThat(child.getStatus()).isSameAs(CellStatus.VISIBLE);
         // walking through every rung in order, increasing
@@ -302,7 +306,7 @@ class CellCacheBasicImplTest {
     @Test
     void activeCellThreadLocalIsVisibleDuringTheWalk() {
         CellID id = CellTestFixtures.id(1);
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
         Cell cell = load(id, CacheableCell.class.getName(), null);
         // during loadCell's status walk the cache marks the cell current...
         assertThat(((CacheableCell) cell).activeDuringStatusWalk).isSameAs(cell);
@@ -320,7 +324,7 @@ class CellCacheBasicImplTest {
         // loadCell always records a LoadTime stat
         assertThat(provider.store).containsKey("LoadTime");
         // and the status walk records a per-status stat re-used across rungs
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
         load(CellTestFixtures.id(2), CacheableCell.class.getName(), null);
         assertThat(provider.store).containsKeys("ACTIVE-time", "RENDERING-time",
                 "VISIBLE-time");

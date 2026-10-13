@@ -10,6 +10,39 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland view/avatar movement core lands, headless**
+  (`wonderland-client`, `src/main/java/…/client/cell/`,
+  `src/main/java/…/client/cell/view/`, `src/main/java/…/client/utils/`) —
+  M2f, the sixth and last headless increment of the M2 milestone.
+  `Throttle` is the shared rate limiter, keeping the 2006 quirk that
+  `clear()` cannot cancel a pending task (the `ScheduledFuture` is never
+  stored). `MovableComponent` moves a cell: a throttled (2/sec) move request
+  whose first schedule runs inline, an inbound receiver that ignores the
+  server echo of the session's own moves (sender identity read through the
+  restored `CellCache.getSession()`), the LOCAL-applies-immediately /
+  REMOTE-notifies change split, and the move-modified / error reply paths on
+  the response listener — its `@UsesCellComponent` injection is a documented
+  seam because the real channel is the cell's `getChannel()`, resolved at the
+  `ACTIVE` rung, not a component-map entry. `MovableAvatarComponent` carries
+  the trigger / pressed / animation / height / collision payload, keeps the
+  trigger path deliberately **UNthrottled** (an animation must not be
+  rate-limited away) and answers a non-null move-modified listener with the
+  original `Not supported`. `ViewCell` + `LocalAvatar` land the configure
+  handshake — the session now owns its avatar the way 2006 did, and
+  `viewCellConfigured` fires as the status walk crosses `ACTIVE` / `INACTIVE`;
+  `cache.setViewCell()` is restored with the original's **unconditional**
+  roots-to-VISIBLE walk (even a null view walks the tree — pinned as a quirk),
+  and the load guard regains its `instanceof ViewCell` arm. `AvatarCell`
+  lands as the headless shell: the three trigger entry points keep the
+  renderer-type guard and dispatch, while `createCellRenderer` returns null
+  because the `client/jme` `AvatarJME` stack is **rebuilt at M6** on
+  `lg3d-core`'s Jogamp bridge — the scene-graph half is not claimed working.
+  **33 new headless cases** (164 total), so
+  [`coverageFloors[wonderland-client]`](build.gradle) rises to
+  `[line: 0.980, branch: 0.950]` (measured 98.37 % / 95.77 %); the residue is
+  the branches a headless JVM cannot reach — `Throttle`'s dead cancel arm and
+  the renderer status walk that wants a live Java 3D canvas. Still **no**
+  `lg3d-core` / Java 3D import.
 - **The Wonderland connection/session layer lands, headless**
   (`wonderland-client`, `src/main/java/…/client/comms/` +
   `src/main/java/…/client/cell/`, `src/test/java/…/comms/`) — M2e, the fifth

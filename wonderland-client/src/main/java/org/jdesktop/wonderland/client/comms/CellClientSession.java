@@ -15,6 +15,19 @@
  *   exposes the channel connection to every ChannelComponent a load creates,
  *   and the edit connection is the cache's session-level MessageSink.
  *
+ * M2f lands the two members the cell/view layer reads off the session and that
+ * the M2e slice had to omit while the avatar types were still deferred:
+ *   - the session owns its LocalAvatar the way 2006 did (new LocalAvatar(this),
+ *     handed to CellCacheConnection as the ClientView); getLocalAvatar() exposes
+ *     it, and ViewCell drives viewCellConfigured through it;
+ *   - getID() delegates to the WonderlandSession supplied to connect() -- in
+ *     2006 CellClientSession *was* the session (it extended WonderlandSessionImpl
+ *     which minted the id); headless the transport is injected, so the id is
+ *     read through it, null until a session is connected (MovableComponent treats
+ *     a null self-id as "not me", matching the original's null-sender path);
+ *   - the cache is told who owns it (setSession(this)) so CellCache.getSession()
+ *     -- which ViewCell and MovableComponent call -- resolves back here.
+ *
  * The one deliberate divergence, because the 2006 component machinery is
  * scene-graph-adjacent: the original got each cell's channel from the
  * client-state's default component classes. The headless cache emits
@@ -24,6 +37,7 @@
  */
 package org.jdesktop.wonderland.client.comms;
 
+import java.math.BigInteger;
 import java.util.Properties;
 import org.jdesktop.wonderland.client.cell.ChannelComponent;
 import org.jdesktop.wonderland.client.cell.Cell;
@@ -32,7 +46,7 @@ import org.jdesktop.wonderland.client.cell.CellCacheBasicImpl;
 import org.jdesktop.wonderland.client.cell.CellCacheConnection;
 import org.jdesktop.wonderland.client.cell.CellChannelConnection;
 import org.jdesktop.wonderland.client.cell.CellEditChannelConnection;
-import org.jdesktop.wonderland.client.cell.view.ClientView;
+import org.jdesktop.wonderland.client.cell.view.LocalAvatar;
 import org.jdesktop.wonderland.common.InternalAPI;
 import org.jdesktop.wonderland.common.cell.CellID;
 
@@ -40,26 +54,42 @@ import org.jdesktop.wonderland.common.cell.CellID;
 public class CellClientSession {
 
     private final CellCacheConnection cellCacheConnection;
+    private final LocalAvatar localAvatar;
     private final CellChannelConnection cellChannelConnection;
     private final CellEditChannelConnection cellEditChannelConnection;
     private final CellCache cellCache;
     private final Properties cellCacheProps = new Properties();
     private final Properties cellChannelProps = new Properties();
     private final Properties cellEditProps = new Properties();
+    private WonderlandSession session;
 
-    public CellClientSession(ClientView clientView) {
-        this(clientView, null);
+    public CellClientSession() {
+        this(null);
     }
 
-    public CellClientSession(ClientView clientView, ClassLoader loader) {
-        this.cellCacheConnection = new CellCacheConnection(clientView);
+    public CellClientSession(ClassLoader loader) {
+        // the original created the avatar first and handed it to the cache
+        // connection as the ClientView; the same object plays both roles here
+        this.localAvatar = new LocalAvatar(this);
+        this.cellCacheConnection = new CellCacheConnection(this.localAvatar);
         this.cellChannelConnection = new CellChannelConnection();
         this.cellEditChannelConnection = new CellEditChannelConnection();
         this.cellCache = createCellCache(loader);
     }
 
+    public LocalAvatar getLocalAvatar() {
+        return localAvatar;
+    }
+
+    /** 2006 getID() (from WonderlandSessionImpl); headless it delegates to the
+     *  connected transport, null until connect() supplies one. */
+    public BigInteger getID() {
+        return session == null ? null : session.getID();
+    }
+
     protected CellCache createCellCache(ClassLoader loader) {
         CellCacheBasicImpl cacheImpl = new CellCacheBasicImpl(loader);
+        cacheImpl.setSession(this);
         cacheImpl.setMessageSink(cellEditChannelConnection);
         cacheImpl.setCellChannelConnection(cellChannelConnection);
         cellChannelConnection.setCellCache(cacheImpl);
@@ -120,6 +150,7 @@ public class CellClientSession {
      * (loopback today, Spring in M3) session and the same order is kept.
      */
     public void connect(WonderlandSession session) throws ConnectionFailureException {
+        this.session = session;
         cellChannelConnection.connect(session, cellChannelProps);
         cellCacheConnection.connect(session, cellCacheProps);
         cellEditChannelConnection.connect(session, cellEditProps);
