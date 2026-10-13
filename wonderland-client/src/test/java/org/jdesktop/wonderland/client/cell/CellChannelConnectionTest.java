@@ -98,14 +98,14 @@ class CellChannelConnectionTest {
 
         // walk the tree through ACTIVE under FINE -- the flush trace runs too
         CellTestFixtures.capture(CellChannelConnection.class, Level.FINE,
-                () -> cache.setHasView(true));
+                () -> cache.setViewCell(CellTestFixtures.viewCell(cache)));
         assertThat(cell.getStatus()).isEqualTo(CellStatus.VISIBLE);
         assertThat(channel.received).containsExactly(first, second);
     }
 
     @Test
     void activeCellWithoutAChannelGetsTheNoopReceiver() {
-        cache.setHasView(true); // walk happens inside the load, channel still null
+        cache.setViewCell(CellTestFixtures.viewCell(cache)); // walk happens inside the load, channel still null
         CellID id = CellTestFixtures.id(1);
         Cell cell = load(id);
         assertThat(cell.getChannel()).isNull();
@@ -152,7 +152,7 @@ class CellChannelConnectionTest {
     @Timeout(10)
     void unloadDropsTheDeliveryEntryAfterTheCleanupDelay() throws Exception {
         installChannelOnLoad();
-        cache.setHasView(true); // the walk to DISK on unload fires the rung
+        cache.setViewCell(CellTestFixtures.viewCell(cache)); // the walk to DISK on unload fires the rung
         CellID id = CellTestFixtures.id(1);
         load(id);
         conn.handleMessage(new ProbeMessage(id));
@@ -175,7 +175,7 @@ class CellChannelConnectionTest {
     @Timeout(10)
     void reloadBeforeTheCleanupKeepsTheDeliveryEntry() throws Exception {
         installChannelOnLoad();
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
         CellID id = CellTestFixtures.id(1);
         load(id);
         CellChannelConnection.CellMessageDelivery cmd = conn.getCellMessageDelivery(id);

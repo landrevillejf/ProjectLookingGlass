@@ -17,7 +17,6 @@ import org.jdesktop.wonderland.client.cell.CellTestFixtures.CacheableCell;
 import org.jdesktop.wonderland.client.comms.CellClientSession;
 import org.jdesktop.wonderland.client.comms.ClientConnection;
 import org.jdesktop.wonderland.client.comms.ConnectionTestFixtures.PipelineSession;
-import org.jdesktop.wonderland.client.cell.view.ClientView;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage;
@@ -34,7 +33,6 @@ class CellClientSessionTest {
 
     private CellClientSession session;
     private PipelineSession loop;
-    private RecordingView view;
 
     static class ProbeMessage extends CellMessage {
         ProbeMessage() {
@@ -46,30 +44,9 @@ class CellClientSessionTest {
         }
     }
 
-    /** Records the view lifecycle the connect() registration drives. */
-    static class RecordingView implements ClientView {
-        final List<ViewCreateResponseMessage> initialized = new ArrayList<>();
-        final List<CellID> configured = new ArrayList<>();
-
-        @Override
-        public String getViewID() {
-            return "view-1";
-        }
-
-        @Override
-        public void serverInitialized(ViewCreateResponseMessage response) {
-            initialized.add(response);
-        }
-
-        @Override
-        public void viewCellConfigured(CellID cellID) {
-            configured.add(cellID);
-        }
-    }
-
     @BeforeEach
     void setUp() {
-        session = new CellClientSession(view = new RecordingView());
+        session = new CellClientSession();
         loop = new PipelineSession();
         loop.responder = (c, msg) -> {
             if (msg instanceof CellHierarchyMessage
@@ -100,7 +77,12 @@ class CellClientSessionTest {
         assertThat(session.getCellEditChannelConnection().getStatus())
                 .isSameAs(ClientConnection.Status.CONNECTED);
         // the cache connection's override ran the SET_VIEW registration
-        assertThat(view.initialized).hasSize(1);
+        // M2f: the session owns its LocalAvatar and hands it to the cache
+        // connection as the ClientView; its serverInitialized is empty per the
+        // original, so the observable effect of the registration is the stored
+        // view cell id plus the avatar's stable DEFAULT view id.
+        assertThat(session.getLocalAvatar()).isNotNull();
+        assertThat(session.getLocalAvatar().getViewID()).isEqualTo("DEFAULT");
         assertThat(session.getCellCacheConnection().getViewCellID())
                 .isEqualTo(new CellID(7777L));
     }
@@ -129,7 +111,7 @@ class CellClientSessionTest {
     void loadedCellGetsTheRealChannelAndFullRoundTrip() throws Exception {
         session.connect(loop);
         CellCacheBasicImpl cache = (CellCacheBasicImpl) session.getCellCache();
-        cache.setHasView(true);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
 
         CellID id = CellTestFixtures.id(1);
         session.getCellCacheConnection().handleMessage(load(id, null));

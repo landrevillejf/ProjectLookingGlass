@@ -288,6 +288,98 @@ class CellTestFixtures {
         }
     }
 
+    // ---- M2f movable / view-cell fixtures -------------------------------------
+
+    /** A cache-loadable cell that owns a plain MovableComponent (attached in the
+     *  ctor, before the channel exists); the ACTIVE rung resolves the channel. */
+    public static class MovableCell extends CacheableCell {
+        public final MovableComponent movable;
+
+        public MovableCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+            movable = new MovableComponent(this);
+            addComponent(movable);
+        }
+    }
+
+    /** A ViewCell with a MovableAvatarComponent, so the ACTIVE rung captures
+     *  movableComp and localMoveRequest has a delegate to forward to. */
+    public static class MovableViewCell extends
+            org.jdesktop.wonderland.client.cell.view.ViewCell {
+        public final MovableAvatarComponent movable;
+
+        public MovableViewCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+            movable = new MovableAvatarComponent(this);
+            addComponent(movable);
+        }
+    }
+
+    /** An AvatarCell carrying a MovableAvatarComponent -- the serverMoveRequest
+     *  fold path casts the cell to AvatarCell, so the trigger methods must exist. */
+    public static class AvatarMoveCell extends
+            org.jdesktop.wonderland.client.cell.view.AvatarCell {
+        public final MovableAvatarComponent movable;
+
+        public AvatarMoveCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+            movable = new MovableAvatarComponent(this);
+            addComponent(movable);
+        }
+    }
+
+    /** An AvatarCell whose renderer implements AvatarActionTrigger, so the
+     *  trigger* dispatch (behind the RENDERER_JME guard) is observable. */
+    public static class TriggerableAvatarCell extends
+            org.jdesktop.wonderland.client.cell.view.AvatarCell {
+        public final RecordingAvatarRenderer renderer = new RecordingAvatarRenderer();
+
+        public TriggerableAvatarCell(CellID cellID, CellCache cellCache) {
+            super(cellID, cellCache);
+        }
+
+        @Override
+        protected CellRenderer createCellRenderer(RendererType rendererType) {
+            return renderer;
+        }
+    }
+
+    /** Records the three avatar trigger callbacks; also a minimal CellRenderer. */
+    public static class RecordingAvatarRenderer implements CellRenderer,
+            org.jdesktop.wonderland.client.cell.view.AvatarCell.AvatarActionTrigger {
+        public final List<String> triggers = new ArrayList<>();
+        private CellStatus status = CellStatus.DISK;
+
+        @Override
+        public void trigger(int trigger, boolean pressed, String animationName) {
+            triggers.add("action:" + trigger + "/" + pressed + "/" + animationName);
+        }
+
+        @Override
+        public void triggerGoto(com.jme.math.Vector3f worldPosition, com.jme.math.Quaternion look) {
+            triggers.add("goto");
+        }
+
+        @Override
+        public void triggerCollision(float height, boolean collision) {
+            triggers.add("collision:" + height + "/" + collision);
+        }
+
+        @Override
+        public void cellTransformUpdate(CellTransform transform) {
+        }
+
+        @Override
+        public void setStatus(CellStatus status, boolean increasing) {
+            this.status = status;
+        }
+
+        @Override
+        public CellStatus getStatus() {
+            return status;
+        }
+    }
+
     static CellClientState namedState(String name) {
         CellClientState state = new CellClientState();
         state.setName(name);
@@ -306,6 +398,13 @@ class CellTestFixtures {
         CellTransform t = new CellTransform();
         t.setTranslation(new com.jme.math.Vector3f(x, y, z));
         return t;
+    }
+
+    /** M2f: a detached view cell to feed cache.setViewCell() -- it is not in the
+     *  cache so the roots-to-VISIBLE walk never visits it; the caller's loaded
+     *  cells are the ones walked. Stands in for the old setHasView(true). */
+    static org.jdesktop.wonderland.client.cell.view.ViewCell viewCell(CellCache cache) {
+        return new org.jdesktop.wonderland.client.cell.view.ViewCell(id(9999), cache);
     }
 
     /**
