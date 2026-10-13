@@ -358,9 +358,30 @@ tasks.register('run', JavaExec) {
     // does the same, so the jar must be on the desktop run classpath for
     // org.jdesktop.lg3d.mandela.* to resolve.
     def mandelaJar = project(':lg3d-mandela').tasks.named('jar')
+    // Wonderland: the world the desktop hosts. Seven lg3d-apps classes link
+    // against org.jdesktop.wonderland.* and are launched in-JVM by a
+    // "java <class>" start-menu command -- the M7a videoplayer's MediaSurface,
+    // the M7b pdfviewer's PageRasterizer, the M7d softphone's G.711 / RTP /
+    // jitter-buffer vocabulary, and the M6c2 world HUD, its inventory adapter and
+    // the WonderlandWorld3D launcher that mounts a live world through
+    // wonderland-desktop's scene-graph bridge. None of them is optional at
+    // runtime: without these jars the first touch dies with
+    // NoClassDefFoundError: org/jdesktop/wonderland/..., which is precisely how
+    // the M6c2 bridge came to be built, tested and unreachable.
+    // wonderland-server is deliberately absent -- the desktop talks to a server
+    // process over REST / WebSocket, it does not host one.
+    def wonderlandCommonJar = project(':wonderland-common').tasks.named('jar')
+    def wonderlandClientJar = project(':wonderland-client').tasks.named('jar')
+    def wonderlandModulesJar = project(':wonderland-modules').tasks.named('jar')
+    def wonderlandRendererJar = project(':wonderland-renderer').tasks.named('jar')
+    def wonderlandAvatarsJar = project(':wonderland-avatars').tasks.named('jar')
+    def wonderlandDesktopJar = project(':wonderland-desktop').tasks.named('jar')
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
-            updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar, runtimeResources
+            updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar,
+            wonderlandCommonJar, wonderlandClientJar, wonderlandModulesJar,
+            wonderlandRendererJar, wonderlandAvatarsJar, wonderlandDesktopJar,
+            runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -523,15 +544,36 @@ tasks.register('run', JavaExec) {
         dependencies.create("org.slf4j:slf4j-nop:${libs.versions.slf4j.get()}"),
         dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"))
 
+    // The third party the wonderland jars need and the desktop does not already
+    // carry: Jakarta XML Binding (the cell-state and world-config documents the
+    // client and the module platform JAXB-decode, with the GlassFish runtime as
+    // the provider) and the reflections scanner (the module metadata read). These
+    // are taken from wonderland-common's own runtime classpath rather than
+    // re-listed here: that module has no project dependency, so the configuration
+    // contributes third-party jars and nothing else, and the versions cannot
+    // drift from the module that actually uses them.
+    def wonderlandLibs = project(':wonderland-common').configurations.runtimeClasspath
+
+    // ice4j, the ICE/STUN/TURN engine the M7d softphone's Ice4jNatProbe drives for
+    // the Video Conference app (the 2006 stun.jar replacement). It is a compile
+    // dependency of lg3d-apps only, and this classpath is assembled from packaged
+    // jars rather than that module's runtimeClasspath, so resolve it here --
+    // otherwise the first call setup dies with NoClassDefFoundError:
+    // net/sctp/... or org/ice4j/....
+    def ice4jLibs = configurations.detachedConfiguration(
+        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"))
+
     mainClass = 'org.jdesktop.lg3d.displayserver.Main'
     // The assembled resources/ tree's parent goes on the classpath so that
     // getResource("resources/...") lookups resolve (icons, wallpapers, bgmanager).
     classpath = sourceSets.main.runtimeClasspath +
         files(appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
               updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar,
+              wonderlandCommonJar, wonderlandClientJar, wonderlandModulesJar,
+              wonderlandRendererJar, wonderlandAvatarsJar, wonderlandDesktopJar,
               runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, archiveLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
-              javafxLibs, iconManagerLib, mailLibs)
+              javafxLibs, iconManagerLib, mailLibs, wonderlandLibs, ice4jLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -863,7 +905,9 @@ tasks.register('releaseBundle', Zip) {
     // slf4j, and the db-manager's Jackson / slf4j + the bundled SQLite / H2 /
     // PostgreSQL / MariaDB JDBC drivers, plus the ftp-client's Commons Net
     // (FTP/FTPS) + JSch (SFTP); its Jackson / slf4j / bcprov are already listed.
-    // jbusinessday + slf4j and the incubator ext jars are added below.
+    // The wonderland jars, the JAXB / reflections set they need and ice4j (the
+    // softphone's NAT engine) are added below with the module jars. jbusinessday +
+    // slf4j and the incubator ext jars are added below too.
     def releaseRuntime = configurations.detachedConfiguration(
         dependencies.create("org.jogamp.java3d:java3d-core:${libs.versions.java3d.get()}"),
         dependencies.create("org.jogamp.java3d:java3d-utils:${libs.versions.java3d.get()}"),
@@ -899,7 +943,11 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.openjfx:javafx-controls:${libs.versions.openjfx.get()}:linux"),
         dependencies.create("org.openjfx:javafx-media:${libs.versions.openjfx.get()}:linux"),
         dependencies.create("org.openjfx:javafx-web:${libs.versions.openjfx.get()}:linux"),
-        dependencies.create("org.openjfx:javafx-swing:${libs.versions.openjfx.get()}:linux"))
+        dependencies.create("org.openjfx:javafx-swing:${libs.versions.openjfx.get()}:linux"),
+        // ice4j, the ICE/STUN/TURN engine the M7d softphone's NAT probe drives for
+        // the Video Conference app (the 2006 stun.jar replacement); resolved like
+        // the run classpath above.
+        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"))
 
     // The specific incubator ext jars the desktop apps touch at runtime (same
     // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl
@@ -923,12 +971,29 @@ tasks.register('releaseBundle', Zip) {
     // classpath above: Espresso's MandelaTools and the Web Browser bridge link
     // against it at runtime, not build time.
     def mandelaJar = project(':lg3d-mandela').tasks.named('jar')
+    // The wonderland jars, for the same reason they are on the run classpath
+    // above: the start-menu apps link against them at runtime, and a bundle whose
+    // start menu offers a command whose classes it does not carry is a bundle that
+    // shows the user a dead icon.
+    def wonderlandCommonJar = project(':wonderland-common').tasks.named('jar')
+    def wonderlandClientJar = project(':wonderland-client').tasks.named('jar')
+    def wonderlandModulesJar = project(':wonderland-modules').tasks.named('jar')
+    def wonderlandRendererJar = project(':wonderland-renderer').tasks.named('jar')
+    def wonderlandAvatarsJar = project(':wonderland-avatars').tasks.named('jar')
+    def wonderlandDesktopJar = project(':wonderland-desktop').tasks.named('jar')
+    // Jakarta XML Binding (+ its GlassFish provider) and the reflections scanner,
+    // the third party the wonderland jars need; taken from wonderland-common's own
+    // runtime classpath so the versions cannot drift, exactly as on the run
+    // classpath above.
+    def wonderlandThirdParty = project(':wonderland-common').configurations.runtimeClasspath
     def runtimeResources = tasks.named('runtimeResources')
     def releaseLauncher = tasks.named('releaseLauncher')
 
     dependsOn coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
-            mandelaJar, runtimeResources, releaseLauncher
+            mandelaJar, wonderlandCommonJar, wonderlandClientJar,
+            wonderlandModulesJar, wonderlandRendererJar, wonderlandAvatarsJar,
+            wonderlandDesktopJar, runtimeResources, releaseLauncher
 
     // lib/ : every module jar + every third-party runtime jar. These go inside
     // an explicit into('lib') { from(...) } child spec rather than
@@ -939,8 +1004,11 @@ tasks.register('releaseBundle', Zip) {
     into('lib') {
         from(coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
              lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
-             mandelaJar)
+             mandelaJar, wonderlandCommonJar, wonderlandClientJar,
+             wonderlandModulesJar, wonderlandRendererJar, wonderlandAvatarsJar,
+             wonderlandDesktopJar)
         from(releaseRuntime)
+        from(wonderlandThirdParty)
         from(incubatorExtJars)
         from(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
         // The bundled IconManager library the 2D desktop draws its application

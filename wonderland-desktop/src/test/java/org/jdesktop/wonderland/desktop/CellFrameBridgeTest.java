@@ -205,6 +205,89 @@ class CellFrameBridgeTest {
         assertThat(bridge.isMounted(null)).isFalse();
     }
 
+    // ---- M6c2: visibility is a fact the bridge can be asked about -----------
+
+    @Test
+    void aFreshMountIsVisibleAndWritesNothing() {
+        bridge.mountCell("A", STUB_RENDERER);
+
+        assertThat(bridge.isVisible("A")).isTrue();
+        // shown is the default, so the scene-graph Switch is left alone
+        assertThat(mounter.visibilityCalls).isEmpty();
+    }
+
+    @Test
+    void isVisibleIsFalseForNothingAndForTheUnmounted() {
+        assertThat(bridge.isVisible(null)).isFalse();
+        bridge.mountCell("A", STUB_RENDERER);
+        bridge.unmountCell("A");
+
+        assertThat(bridge.isVisible("A")).isFalse();
+    }
+
+    @Test
+    void aRepeatedVisibilityWriteIsNotForwardedTwice() {
+        bridge.mountCell("A", STUB_RENDERER);
+
+        bridge.setCellVisible("A", false);
+        bridge.setCellVisible("A", false);
+        bridge.setCellVisible("A", true);
+        bridge.setCellVisible("A", true);
+
+        assertThat(mounter.visibilityCalls).hasSize(2);
+        assertThat(mounter.visibilityCalls.get(0).visible()).isFalse();
+        assertThat(mounter.visibilityCalls.get(1).visible()).isTrue();
+        assertThat(bridge.isVisible("A")).isTrue();
+    }
+
+    @Test
+    void nullCellIdVisibilityIsIgnored() {
+        bridge.mountCell("A", STUB_RENDERER);
+        bridge.setCellVisible(null, false);
+
+        assertThat(mounter.visibilityCalls).isEmpty();
+        assertThat(bridge.isVisible("A")).isTrue();
+    }
+
+    @Test
+    void aHideSurvivesAReloadAndIsRewrittenOnTheFreshBranch() {
+        bridge.mountCell("A", STUB_RENDERER);
+        bridge.setCellVisible("A", false);
+        bridge.unmountCell("A");
+        mounter.visibilityCalls.clear();
+
+        bridge.mountCell("A", STUB_RENDERER);
+
+        // The server repainted the cell; a cell the user hid must not pop back.
+        assertThat(mounter.visibilityCalls).hasSize(1);
+        assertThat(mounter.visibilityCalls.get(0).visible()).isFalse();
+        assertThat(bridge.isVisible("A")).isFalse();
+    }
+
+    @Test
+    void unmountAllDropsTheHideRecords() {
+        bridge.mountCell("A", STUB_RENDERER);
+        bridge.setCellVisible("A", false);
+        bridge.unmountAll();
+        mounter.visibilityCalls.clear();
+
+        // A new world starting with a cell the previous world hid is a new cell,
+        // not the old one coming back hidden.
+        bridge.mountCell("A", STUB_RENDERER);
+
+        assertThat(mounter.visibilityCalls).isEmpty();
+        assertThat(bridge.isVisible("A")).isTrue();
+    }
+
+    @Test
+    void showingACellThatWasNeverHiddenWritesNothing() {
+        bridge.mountCell("A", STUB_RENDERER);
+
+        bridge.setCellVisible("A", true);
+
+        assertThat(mounter.visibilityCalls).isEmpty();
+    }
+
     // ---- helpers -------------------------------------------------------------
 
     /**

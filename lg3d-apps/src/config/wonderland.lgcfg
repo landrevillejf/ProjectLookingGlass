@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Wonderland World (lg3d-apps, org.jdesktop.lg3d.apps.wonderland).
+ A read-only browser over a running wonderland-server world: it reads the
+ server's own /api/world/cells REST view (the WorldModel rendered flat, with the
+ tree computed from each cell's parent link) over the JDK java.net.http client
+ and Jackson, so what the panel lists can never drift from what the world holds -
+ and cannot edit it behind the cell protocol's back. The one panel serves both
+ desktops: in 3D the WonderlandWorld wrapper hosts it on a SwingNode inside a
+ Frame3D via TitledSwingWindow; in the 2D/Swing desktop
+ Desktop2DAppRegistry.PANEL_APPS opens the same panel as an MDI internal frame.
+ Launched in-JVM via the "java <class>" command; the lg3d-apps jar is on the
+ :lg3d-core:run classpath. The server address comes from
+ -Dlg.wonderland.server.url (default http://localhost:8080) and is editable in
+ the panel. Discovery only scans config/demo and config/incubator, so this
+ descriptor lives in lg3d-apps/src/config (bundled to config/demo). The
+ "Internet" menuGroup is declared in lg3d-core/src/etc/lg3d/startmenu.lgcfg. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.wonderland.WonderlandWorld</string>
+  </void>
+  <void property="desc">
+   <string>Browse the cells of a running Wonderland world</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/wonderland.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Internet</string>
+  </void>
+  <void property="name">
+   <string>Wonderland World</string>
+  </void>
+ </object>
+</java>

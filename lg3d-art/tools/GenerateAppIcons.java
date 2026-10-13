@@ -135,6 +135,12 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in six-legged bug (Bug Reporter) instead of a bundled glyph. */
     private static final String BUG_GLYPH = "BugInsect";
 
+    /** In-tool mark: a cube over a perspective floor grid, the "3D world" sign. */
+    private static final String WORLD_GRID_GLYPH = "WorldGrid";
+
+    /** In-tool mark: the same cube over a list plate, the "world and its HUD" sign. */
+    private static final String WORLD_CUBE_HUD_GLYPH = "WorldCubeHud";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -278,6 +284,19 @@ public class GenerateAppIcons {
         // shaped, so a six-legged bug with antennae is drawn in-tool like the
         // espresso cup and the marks above.
         {"bugreporter.png", IconColor.RED, IconCategory.DEVELOPMENT, BUG_GLYPH},
+        // Wonderland World (Swing cell browser hosted on a SwingNode / 2D MDI
+        // frame; Internet menu group): the desktop's read-only view of a running
+        // wonderland-server world. The bundled glyph set has nothing 3D-world
+        // shaped, so a cube floating over a perspective floor grid is drawn
+        // in-tool like the espresso cup and the bug above.
+        {"wonderland.png", IconColor.PURPLE, IconCategory.GENERAL, WORLD_GRID_GLYPH},
+        // Wonderland World 3D (the live world mounted through wonderland-desktop's
+        // scene-graph bridge, plus its HUD; Internet menu group, 3D desktop only).
+        // The cube is shared with the read-only browser above -- it is the same
+        // world -- but it stands over a list plate instead of the floor grid: the
+        // tile is what tells the two start-menu entries apart, so the mark says
+        // "world + control panel" rather than relying on colour alone.
+        {"wonderland3d.png", IconColor.CYAN, IconCategory.GENERAL, WORLD_CUBE_HUD_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -348,6 +367,10 @@ public class GenerateAppIcons {
                 glyph = drawEspressoCupGlyph(GLYPH);
             } else if (BUG_GLYPH.equals(glyphName)) {
                 glyph = drawBugGlyph(GLYPH);
+            } else if (WORLD_GRID_GLYPH.equals(glyphName)) {
+                glyph = drawWorldGridGlyph(GLYPH);
+            } else if (WORLD_CUBE_HUD_GLYPH.equals(glyphName)) {
+                glyph = drawWorldCubeHudGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -1278,5 +1301,89 @@ public class GenerateAppIcons {
         g.fillOval(3, 26, 23, 3);
         g.dispose();
         return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the world glyph: a shaded cube floating above a perspective floor
+     * grid, the conventional "3D world / virtual space" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing scene shaped (its globe is
+     * a flat map, which the Web Browser already took with its wireframe), so it is
+     * drawn in-tool like the espresso cup, the bug and the marks above. Designed in
+     * a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawWorldGridGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        paintWorldCube(g);
+        // Floor grid: two horizontals and three converging lines, the classic
+        // perspective plane a Wonderland world is drawn on.
+        g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(Color.WHITE);
+        g.drawLine(5, 24, 27, 24);
+        g.drawLine(2, 30, 30, 30);
+        g.drawLine(11, 24, 7, 30);
+        g.drawLine(16, 24, 16, 30);
+        g.drawLine(21, 24, 25, 30);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the world-and-HUD glyph: the same cube as {@link
+     * #drawWorldGridGlyph(int)} -- it is the same world -- standing over a list
+     * plate instead of a floor grid, because this entry is the world's control
+     * surface rather than its scenery. The rows are cut out of the plate with
+     * {@code AlphaComposite.Clear}, so the tile colour reads through them and the
+     * mark stays a two-tone white glyph like every other in-tool draw here.
+     * Designed in a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawWorldCubeHudGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        paintWorldCube(g);
+        // HUD plate: the list of cells the panel shows beside the world.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(4, 22, 24, 9, 3, 3);
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRoundRect(7, 24, 11, 2, 1, 1);
+        g.fillRoundRect(7, 27, 17, 2, 1, 1);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * The cube shared by the two Wonderland marks: a white top face over two
+     * slightly grey side faces, so the solid reads as a body in space rather than
+     * a flat hexagon. Painted in the caller's 32-unit space.
+     */
+    private static void paintWorldCube(Graphics2D g) {
+        GeneralPath top = new GeneralPath();
+        top.moveTo(16, 3);
+        top.lineTo(25, 8);
+        top.lineTo(16, 13);
+        top.lineTo(7, 8);
+        top.closePath();
+        GeneralPath left = new GeneralPath();
+        left.moveTo(7, 8);
+        left.lineTo(16, 13);
+        left.lineTo(16, 21);
+        left.lineTo(7, 16);
+        left.closePath();
+        GeneralPath right = new GeneralPath();
+        right.moveTo(16, 13);
+        right.lineTo(25, 8);
+        right.lineTo(25, 16);
+        right.lineTo(16, 21);
+        right.closePath();
+        g.setColor(Color.WHITE);
+        g.fill(top);
+        g.setColor(new Color(0xE8, 0xE8, 0xE8));
+        g.fill(left);
+        g.setColor(new Color(0xD0, 0xD0, 0xD0));
+        g.fill(right);
     }
 }

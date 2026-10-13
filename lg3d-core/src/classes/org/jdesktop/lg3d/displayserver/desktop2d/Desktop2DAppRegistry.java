@@ -497,6 +497,18 @@ public final class Desktop2DAppRegistry {
         // plain Swing and hosts unchanged as an MDI frame here.
         panels.put("org.jdesktop.lg3d.apps.bugreporter.BugReporter",
                 "org.jdesktop.lg3d.apps.bugreporter.BugReporterPanel");
+        // Wonderland World (lg3d-apps, org.jdesktop.lg3d.apps.wonderland) is the
+        // desktop's read-only browser over a running wonderland-server world: a
+        // Swing cell list + detail panel over the AWT-free WorldCatalog, which
+        // reads the server's own /api/world/cells REST view with the JDK HTTP
+        // client and Jackson. The 3D scene-graph embedding of the live cells is
+        // wonderland-desktop's own job; this is the shell's inventory of what the
+        // world holds, so the panel loads no Java 3D and hosts here as an MDI
+        // internal frame exactly like the Weather reader. The lg3d-apps jar (with
+        // jackson-databind) is on the desktop run classpath, so the reflective
+        // lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.wonderland.WonderlandWorld",
+                "org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

@@ -256,6 +256,23 @@ dependencies {
     // or in wonderland-modules (which keeps a hard headless floor). No cycle:
     // wonderland-modules depends only on wonderland-common.
     implementation project(':wonderland-modules')
+    // Wonderland M6c2 desktop integration: the 3D start-menu command
+    // (org.jdesktop.lg3d.apps.wonderland.WonderlandWorld3D) mounts the live
+    // world through wonderland-desktop's scene-graph bridge, and its HUD draws
+    // the rows WorldHudModel joins from that bridge. The dependency points the
+    // only way it can: lg3d-apps -> wonderland-desktop -> lg3d-core, and
+    // wonderland-desktop never looks back at lg3d-apps, so the graph stays
+    // acyclic (lg3d-apps already depends on lg3d-core). The
+    // client / common jars are named explicitly because wonderland-desktop
+    // carries them as `implementation` (not exposed to consumers) and its own
+    // signatures name CellRenderer and CellTransform, which the HUD's mount
+    // fixtures have to implement. wonderland-renderer / wonderland-avatars are
+    // not referenced here, only needed at runtime, and arrive transitively on
+    // the runtime classpath (and are listed on the desktop run classpath in
+    // lg3d-core/build.gradle).
+    implementation project(':wonderland-desktop')
+    implementation project(':wonderland-client')
+    implementation project(':wonderland-common')
     // Wonderland M7d softphone: the pure control (wonderland-modules) owns the
     // call state; this 2D-desktop app supplies the live sinks through the
     // module's installBackendFactory seam -- an external SIP engine spawned and
