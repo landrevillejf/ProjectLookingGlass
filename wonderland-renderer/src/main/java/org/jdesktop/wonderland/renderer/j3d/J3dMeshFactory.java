@@ -294,11 +294,24 @@ public final class J3dMeshFactory {
     }
 
     private static ImageComponent2D toComponent(BufferedImage img) {
+        // Upload with the image's origin at the UPPER LEFT (yUp=false). This is
+        // not a guess about Java 3D -- it is the one convention every textured
+        // consumer in this renderer already documents and is authored against:
+        // SkyArt.rowOf, WorldScene.tagQuad and WorldScene.flatQuad each state
+        // that "the image's first row is sampled at v = 0", and the shipped
+        // COLLADA exports author their V coordinate top-down the same way. A
+        // default-constructed ImageComponent2D + set(img) instead reads
+        // bottom-up (v = 0 lands on the image's LAST row), so that single
+        // mismatch inverted the sky ("ciel a l'envers") and every sign, poster
+        // and name tag in every world at once. Constructing the component from
+        // the image with yUp=false is the proven path lg3d's own upright text
+        // already uses (GlassyTextTextureGenerator) and, because it sits on the
+        // one shared upload, it corrects the orientation for every textured
+        // primitive in every stock world rather than one world at a time.
         ImageComponent2D comp = new ImageComponent2D(
-                ImageComponent2D.FORMAT_RGBA, img.getWidth(), img.getHeight(),
-                /*byReference*/ false, /*isReadable*/ true);
+                ImageComponent2D.FORMAT_RGBA, img,
+                /*byReference*/ false, /*yUp*/ false);
         comp.setCapability(ImageComponent2D.ALLOW_IMAGE_READ);
-        comp.set(img);
         return comp;
     }
 
