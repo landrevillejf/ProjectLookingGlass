@@ -114,10 +114,31 @@ public final class WonderlandServerLauncher {
     /** Whether a server already answers at a URL; the seam the tests fake. */
     interface Probe {
         boolean ready(String server);
+
+        /**
+         * Whether the server at {@code server} is <em>hosting</em> {@code module}
+         * right now &mdash; the seeded live world, not merely a listed one. The
+         * default says no, so a fake that only answers {@link #ready} keeps the
+         * older "already answers is enough" behavior; {@link HttpProbe} asks the
+         * worlds catalog, which carries the {@code hosted} flag.
+         */
+        default boolean hosting(String server, String module) {
+            return false;
+        }
     }
 
-    /** The outcome of one ensure attempt: what happened, and why in one line. */
-    public record Result(boolean ready, boolean launched, String note) {
+    /**
+     * The outcome of one ensure attempt: what happened, why in one line, and
+     * the address that actually serves the world when it is not the one asked
+     * for ({@code url} is {@code null} for "the address you named"). A
+     * relocated spawn carries its new base so the panel can follow it.
+     */
+    public record Result(boolean ready, boolean launched, String note, String url) {
+
+        /** An outcome at the requested address (no relocation happened). */
+        public Result(boolean ready, boolean launched, String note) {
+            this(ready, launched, note, null);
+        }
     }
 
     /**
@@ -153,23 +174,15 @@ public final class WonderlandServerLauncher {
 
     /**
      * Ensure a server answers at {@code server}, starting a local one if none is
-     * and this machine can. A server this launcher spawns seeds
-     * {@link #DEFAULT_SEED}, so a freshly started world hosts content instead
-     * of an empty Environment root. Never throws; see the class boundary above.
+     * and this machine can. A server that already answers is left exactly as its
+     * owner started it &mdash; this is the polite form the auto-start-on-failed-
+     * read uses; the panel's explicit Start press uses
+     * {@link #ensureRunning(String, String)}, which guarantees a <em>world</em>,
+     * not just a process. A spawned server seeds {@link #DEFAULT_SEED}, so a
+     * freshly started world hosts content instead of an empty Environment root.
+     * Never throws; see the class boundary above.
      */
     public Result ensureRunning(String server) {
-        return ensureRunning(server, null);
-    }
-
-    /**
-     * As {@link #ensureRunning(String)}, but the world the panel has selected
-     * is the one a spawned server seeds ({@code seedModule} null or blank falls
-     * back to {@link #DEFAULT_SEED}). A server that already answers is left
-     * exactly as its owner started it &mdash; the seed only ever applies to a
-     * spawn, because re-seeding a live world would mean killing somebody
-     * else's process.
-     */
-    public Result ensureRunning(String server, String seedModule) {
         if (server == null || server.isBlank()) {
             return new Result(false, false, "no server address given");
         }
@@ -181,6 +194,45 @@ public final class WonderlandServerLauncher {
         if (probe.ready(base)) {
             return new Result(true, false, "a server already answers on " + base);
         }
+        return spawnAt(base, DEFAULT_SEED);
+    }
+
+    /**
+     * As {@link #ensureRunning(String)}, but guarantees the world the panel
+     * selected: the spawned server seeds it ({@code seedModule} null or blank
+     * falls back to {@link #DEFAULT_SEED}), and &mdash; if some <em>other</em>
+     * server already answers on the requested address without hosting it
+     * &mdash; this launcher starts its own on the next free local port and
+     * names that address in {@link Result#url()}. That is the difference
+     * between "a server exists" and "the world I chose is running": pressing
+     * Start on a machine whose port 8080 was squatted by an older, unseeded
+     * server used to resolve into a polite no-op; now the chosen world comes
+     * up beside it. A server that already hosts the selected world is left
+     * exactly as it is &mdash; re-seeding a live world would mean killing
+     * somebody else's process.
+     */
+    public Result ensureRunning(String server, String seedModule) {
+        if (server == null || server.isBlank()) {
+            return new Result(false, false, "no server address given");
+        }
+        String base = WorldCatalog.normalizeServer(server);
+        if (!isLocal(base)) {
+            return new Result(false, false,
+                    "a remote server (" + host(base) + ") is not started by the desktop");
+        }
+        String module = seedFor(seedModule);
+        if (probe.ready(base)) {
+            if (probe.hosting(base, module)) {
+                return new Result(true, false,
+                        "world '" + module + "' is already live on " + base);
+            }
+            return spawnBeside(base, module);
+        }
+        return spawnAt(base, module);
+    }
+
+    /** Spawn ours on the requested address's own port, seeded with {@code module}. */
+    private Result spawnAt(String base, String module) {
         Path jar = resolveJar();
         if (jar == null) {
             return new Result(false, false,
@@ -190,7 +242,7 @@ public final class WonderlandServerLauncher {
         }
         try {
             Launched child = spawner.spawn(command(jar, portOf(base),
-                    worldsDirFor(jar), seedFor(seedModule)));
+                    worldsDirFor(jar), module));
             launched = child;
             boolean ready = awaitReady(base);
             return new Result(ready, true,
@@ -200,6 +252,47 @@ public final class WonderlandServerLauncher {
             return new Result(false, false,
                     "could not start wonderland-server: " + spawnFailed.getMessage());
         }
+    }
+
+    /**
+     * The requested port carries somebody else's server that does not host
+     * {@code module}: start ours on the next local port nothing answers on,
+     * seeded with that world. Honest by construction &mdash; no foreign
+     * process is touched, and the note names both addresses so the status line
+     * explains why the field just moved.
+     */
+    private Result spawnBeside(String base, String module) {
+        Path jar = resolveJar();
+        if (jar == null) {
+            return new Result(false, false,
+                    "no wonderland-server jar found (looked under "
+                            + (roots.isEmpty() ? "nowhere" : roots.get(0)) + "); "
+                            + "build it or run: " + WorldCatalog.startCommand());
+        }
+        int port = portOf(base);
+        for (int candidate = port + 1; candidate <= port + MAX_PORT_SCAN; candidate++) {
+            String url = withPort(base, candidate);
+            if (probe.ready(url)) {
+                continue; // something already answers there; not ours to move onto
+            }
+            try {
+                Launched child = spawner.spawn(command(jar, candidate,
+                        worldsDirFor(jar), module));
+                launched = child;
+                boolean ready = awaitReady(url);
+                return new Result(ready, true,
+                        ready ? base + " does not host '" + module + "'; "
+                                + "started ours on " + url
+                                : "wonderland-server spawned on " + url
+                                        + " but never answered within " + timeout,
+                        ready ? url : null);
+            } catch (IOException spawnFailed) {
+                return new Result(false, false,
+                        "could not start wonderland-server: " + spawnFailed.getMessage());
+            }
+        }
+        return new Result(false, false,
+                "no free port beside " + base + " to host '" + module + "'");
     }
 
     /** Stop the server this launcher started, if any. Idempotent; never throws. */
@@ -246,6 +339,37 @@ public final class WonderlandServerLauncher {
     static int portOf(String base) {
         int port = URI.create(base).getPort();
         return port > 0 ? port : DEFAULT_PORT;
+    }
+
+    /** How many ports beside the requested one {@link #spawnBeside} will scan. */
+    static final int MAX_PORT_SCAN = 10;
+
+    /**
+     * The same URL with a different port: {@code http://localhost:8080} and a
+     * candidate {@code 8081} give {@code http://localhost:8081}, a bare
+     * {@code http://localhost} gains its port, and any path after the authority
+     * is carried over untouched. An IPv6 host keeps its brackets. Pure, so the
+     * relocation's address arithmetic is a tested claim.
+     */
+    static String withPort(String base, int port) {
+        int scheme = base.indexOf("://");
+        if (scheme < 0) {
+            throw new IllegalArgumentException("not a URL: " + base);
+        }
+        int authorityStart = scheme + 3;
+        int path = base.indexOf('/', authorityStart);
+        String authority = (path < 0) ? base.substring(authorityStart)
+                : base.substring(authorityStart, path);
+        String host;
+        if (authority.startsWith("[")) {
+            int close = authority.indexOf(']');
+            host = authority.substring(0, close + 1);
+        } else {
+            int colon = authority.lastIndexOf(':');
+            host = (colon < 0) ? authority : authority.substring(0, colon);
+        }
+        return base.substring(0, authorityStart) + host + ":" + port
+                + ((path < 0) ? "" : base.substring(path));
     }
 
     /** The host of a normalised base URL, lower-cased ("" when it will not parse). */
@@ -501,6 +625,28 @@ public final class WonderlandServerLauncher {
                 return false;
             } catch (IOException | RuntimeException notYet) {
                 return false; // refused / no route / half-up: not ready yet
+            }
+        }
+
+        /**
+         * Ask the same catalog the browser reads: one of its entries is
+         * {@code hosted} and names {@code module}. A server too old to carry
+         * the flag answers "not hosting", which is the safe reading &mdash; a
+         * stale server is exactly the one that must not be trusted to be
+         * running the chosen world.
+         */
+        @Override
+        public boolean hosting(String server, String module) {
+            try {
+                for (WorldCatalog.WorldEntry entry
+                        : WorldCatalog.loadWorlds(server, WorldCatalog.HTTP_FETCHER)) {
+                    if (entry.hosted() && entry.module().equals(module)) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (IOException | RuntimeException unreachable) {
+                return false;
             }
         }
     }

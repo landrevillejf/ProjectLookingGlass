@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- One of the clinic's residents: a body at a place, with a name over
+     it. See resident-reception-wlc.xml for why a world authors any. -->
+<avatar-cell avatarModelUrl="wla://wonderland-avatars/humanoid-a.dae">
+    <name>Technician</name>
+    <metadata/>
+    <position-component>
+        <translation><x>4.6</x><y>0.05</y><z>0.8</z></translation>
+        <bounds><type>BOX</type><x>0.35</x><y>0.9</y><z>0.2</z></bounds>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>-1.2</angle></rotation>
+    </position-component>
+    <userName>tech</userName>
+</avatar-cell>

@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.jdesktop.lg3d.apps.wonderland.WorldCatalog.Cell;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -164,6 +165,54 @@ class WorldCatalogTest {
         assertThrows(IOException.class, () -> WorldCatalog.parse("<html>500</html>"));
         assertThrows(IOException.class, () -> WorldCatalog.parse(""));
         assertThrows(IOException.class, () -> WorldCatalog.parse(null));
+    }
+
+    @Test
+    @DisplayName("the placement fields a server adds become readable cell geometry")
+    void parsesCellPlacement() throws IOException {
+        WorldCatalog.WorldView world = WorldCatalog.parse(
+                "[{\"id\":\"1\",\"className\":\"X\",\"name\":\"Placed\","
+                + "\"x\":-8.0,\"z\":-5.0,\"width\":8.0,\"depth\":8.0},"
+                + "{\"id\":\"2\",\"className\":\"Y\",\"name\":\"NoFootprint\",\"x\":1.0,\"z\":2.0},"
+                + "{\"id\":\"3\",\"className\":\"Z\",\"name\":\"HalfPlaced\",\"x\":3.0},"
+                + "{\"id\":\"4\",\"className\":\"W\",\"name\":\"Degenerate\","
+                + "\"x\":0.0,\"z\":0.0,\"width\":0.0,\"depth\":-2.0}]");
+
+        Cell placed = world.find("1");
+        assertTrue(placed.placed());
+        assertEquals(-8.0, placed.x);
+        assertEquals(-5.0, placed.z);
+        assertEquals(8.0, placed.width);
+        assertEquals(8.0, placed.depth);
+
+        // a position with no size is still placed: the plan draws it as a unit
+        // square rather than dropping the room entirely
+        Cell sizeless = world.find("2");
+        assertTrue(sizeless.placed());
+        assertNull(sizeless.width);
+        assertNull(sizeless.depth);
+
+        // a position on one axis only is not placed: inventing the other would
+        // be a lie about the world
+        assertFalse(world.find("3").placed());
+
+        // a non-positive footprint is no footprint (positiveOrNull): a server
+        // that serializes an unbounded box as 0 must not draw a zero-width room
+        Cell degenerate = world.find("4");
+        assertTrue(degenerate.placed());
+        assertNull(degenerate.width);
+        assertNull(degenerate.depth);
+        // and an absent footprint is the same null, not a surprise 0.0
+        assertNull(degenerate.depth);
+    }
+
+    @Test
+    @DisplayName("a document with no geometry at all parses exactly as before")
+    void unplacedCellsKeepTheOldShape() throws IOException {
+        Cell root = WorldCatalog.parse(SAMPLE).find("1");
+        assertFalse(root.placed());
+        assertNull(root.x);
+        assertNull(root.width);
     }
 
     // ------------------------------------------------------------------
@@ -342,6 +391,9 @@ class WorldCatalogTest {
         // a name with a query-unsafe character is percent-encoded, not sent raw
         assertEquals("http://localhost:8080/api/world/cells?module=a%23b",
                 WorldCatalog.cellsUrl("localhost:8080", "a#b"));
+        // the preview resource follows the same rule: a server, a module, encoded
+        assertEquals("http://localhost:8080/api/world/preview?module=a%23b",
+                WorldCatalog.previewUrl("localhost:8080", "a#b"));
     }
 
     @Test
@@ -362,6 +414,20 @@ class WorldCatalogTest {
         assertEquals("Outpatient Clinic (clinic)", worlds.get(0).displayLabel());
         // a title-less entry falls back to the module for its label
         assertEquals("Town (town)", worlds.get(1).displayLabel());
+    }
+
+    @Test
+    @DisplayName("the worlds document marks which module the server hosts live")
+    void parsesWorldsHostedFlag() throws IOException {
+        List<WorldCatalog.WorldEntry> worlds = WorldCatalog.parseWorlds(
+                "[{\"module\":\"clinic\",\"title\":\"Clinic\",\"source\":\"classpath\","
+                + "\"cellCount\":9,\"hosted\":true},"
+                + "{\"module\":\"town\",\"title\":\"Town\",\"source\":\"jar\",\"cellCount\":2}]");
+
+        assertTrue(worlds.get(0).hosted());
+        // a server that does not send the field says nothing about hosting,
+        // which reads as "not hosted" rather than failing the whole catalog
+        assertFalse(worlds.get(1).hosted());
     }
 
     @Test
@@ -416,6 +482,43 @@ class WorldCatalogTest {
                 () -> WorldCatalog.loadWorld("localhost:8080", "clinic", null));
         assertThrows(IllegalArgumentException.class,
                 () -> WorldCatalog.loadWorlds("localhost:8080", null));
+    }
+
+    // ------------------------------------------------------------------
+    // The preview image: bytes, and a 404 that is an answer rather than a fault
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("loadPreview asks the preview URL of the module it names")
+    void loadPreviewUsesPreviewUrl() throws IOException {
+        List<String> requested = new ArrayList<>();
+        WorldCatalog.ByteFetcher recorder = url -> {
+            requested.add(url);
+            return Optional.of(new byte[] {1, 2, 3});
+        };
+
+        Optional<byte[]> bytes =
+                WorldCatalog.loadPreview("localhost:8080", "clinic", recorder);
+
+        assertEquals(List.of("http://localhost:8080/api/world/preview?module=clinic"),
+                requested);
+        assertEquals(3, bytes.orElseThrow().length);
+    }
+
+    @Test
+    @DisplayName("a world with no picture reads as empty, not as a failure")
+    void loadPreviewTreatsAbsentAsAnAnswer() throws IOException {
+        WorldCatalog.ByteFetcher none = url -> Optional.empty();
+
+        assertTrue(WorldCatalog.loadPreview("localhost:8080", "clinic", none).isEmpty());
+    }
+
+    @Test
+    @DisplayName("a missing binary transport is refused before the read")
+    void loadPreviewRequiresFetcher() {
+        assertThrows(IllegalArgumentException.class,
+                () -> WorldCatalog.loadPreview("localhost:8080", "clinic",
+                        (WorldCatalog.ByteFetcher) null));
     }
 
     private static List<String> ids(List<Cell> cells) {

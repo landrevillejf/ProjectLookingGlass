@@ -51,6 +51,36 @@ public final class ColladaMeshBuilder {
         ColladaGeometry.Input position = findInput(inputs, "POSITION");
         ColladaGeometry.Input normal = findInput(inputs, "NORMAL");
         ColladaGeometry.Input texcoord = findTexcoord(inputs);
+        // Remembered before the VERTEX indirection fills them in, because a
+        // component bound on the primitive reads its own offset while a component
+        // inherited from <vertices> reads the vertex token's.
+        boolean positionBound = position != null;
+        boolean normalBound = normal != null;
+
+        // Where the vertex token sits in the packed group, for the components read
+        // through a VERTEX binding (0 when a component is bound directly).
+        long vertexOffset = 0;
+        ColladaGeometry.Input vertex = findInput(inputs, "VERTEX");
+        if (vertex != null) {
+            /*
+             * COLLADA's vertex indirection: a primitive may bind semantic VERTEX,
+             * whose token indexes the <vertices> array, and let that <vertices>
+             * element name the POSITION (and NORMAL) float sources. The 2006-era
+             * Google Earth / SketchUp exports the shipped Wonderland art came from
+             * bind nothing else -- VERTEX plus TEXCOORD -- so a builder that looks
+             * only for a POSITION input finds none, expands all 941 draw elements
+             * of the Japanese pavilion to an empty mesh, and hands the scene graph
+             * zero Shape3D: a world that renders as nothing at all.
+             */
+            ColladaGeometry.Vertices verts = mesh == null ? null : mesh.vertices();
+            vertexOffset = vertex.offset();
+            if (position == null && verts != null) {
+                position = findInput(verts.inputs(), "POSITION");
+            }
+            if (normal == null && verts != null) {
+                normal = findInput(verts.inputs(), "NORMAL");
+            }
+        }
 
         if (position == null || vertexCount < 1) {
             // no POSITION binding: the 2006 loader likewise produced nothing here
@@ -70,11 +100,17 @@ public final class ColladaMeshBuilder {
         int tcStride = texcoord == null ? 0 : sourceStride(mesh, texcoord);
         float[] texCoords = texcoord == null ? new float[0] : new float[vertexCount * 2];
 
+        // A component bound directly keeps its own offset; one reached through the
+        // <vertices> element is indexed by the VERTEX token, since the position and
+        // normal arrays are parallel to the vertex array.
+        long posOffset = positionBound ? position.offset() : vertexOffset;
+        long nrmOffset = normalBound ? normal.offset() : vertexOffset;
+
         for (int v = 0; v < vertexCount; v++) {
-            readComponents(posData, posStride, token(indices, stride, v, position.offset()),
+            readComponents(posData, posStride, token(indices, stride, v, posOffset),
                     3, coordinates, v * 3);
             if (normal != null) {
-                readComponents(nrmData, nrmStride, token(indices, stride, v, normal.offset()),
+                readComponents(nrmData, nrmStride, token(indices, stride, v, nrmOffset),
                         3, normals, v * 3);
             }
             if (texcoord != null) {

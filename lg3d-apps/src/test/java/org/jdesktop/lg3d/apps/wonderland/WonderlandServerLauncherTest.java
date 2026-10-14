@@ -13,6 +13,7 @@ package org.jdesktop.lg3d.apps.wonderland;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -357,6 +358,155 @@ class WonderlandServerLauncherTest {
             assertFalse(result.ready());
             assertFalse(result.launched());
             assertTrue(result.note().contains("could not start"), result.note());
+        } finally {
+            if (before == null) {
+                System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);
+            } else {
+                System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, before);
+            }
+        }
+    }
+
+    // ---- the explicit Start press guarantees the chosen WORLD, not just a
+    // ---- process: a foreign server that answers without hosting it must not
+    // ---- end the press as a polite no-op.
+
+    /** A probe over mutable sets: "up" answers ready, "|module" answers hosting. */
+    private static WonderlandServerLauncher.Probe byUrl(
+            java.util.Set<String> up, java.util.Set<String> hosted) {
+        return new WonderlandServerLauncher.Probe() {
+            @Override
+            public boolean ready(String server) {
+                return up.contains(server);
+            }
+
+            @Override
+            public boolean hosting(String server, String module) {
+                return up.contains(server) && hosted.contains(server + "|" + module);
+            }
+        };
+    }
+
+    /** The port a recorded argv binds to. */
+    private static String boundPort(List<String> argv) {
+        return argv.stream().filter(a -> a.startsWith("--server.port="))
+                .findFirst().orElseThrow().substring("--server.port=".length());
+    }
+
+    @Test
+    void withPortRewritesOnlyThePort() {
+        assertEquals("http://localhost:8081",
+                WonderlandServerLauncher.withPort("http://localhost:8080", 8081));
+        assertEquals("http://localhost:8081",
+                WonderlandServerLauncher.withPort("http://localhost", 8081));
+        assertEquals("http://127.0.0.1:9000/api/x",
+                WonderlandServerLauncher.withPort("http://127.0.0.1:80/api/x", 9000));
+        assertEquals("http://[::1]:8081",
+                WonderlandServerLauncher.withPort("http://[::1]:8080", 8081));
+        assertThrows(IllegalArgumentException.class,
+                () -> WonderlandServerLauncher.withPort("localhost:8080", 1));
+    }
+
+    @Test
+    @DisplayName("a server that already hosts the chosen world is left alone")
+    void ensureRunningKeepsAHostedWorldAsItIs() {
+        WonderlandServerLauncher launcher = new WonderlandServerLauncher(
+                Path.of("/unused"),
+                argv -> {
+                    throw new AssertionError("a hosted world must not spawn a second server");
+                },
+                byUrl(java.util.Set.of("http://localhost:8080"),
+                        java.util.Set.of("http://localhost:8080|wonderland-town-world")),
+                Duration.ZERO);
+
+        WonderlandServerLauncher.Result result =
+                launcher.ensureRunning("localhost:8080", "wonderland-town-world");
+
+        assertTrue(result.ready());
+        assertFalse(result.launched());
+        assertNull(result.url());
+        assertTrue(result.note().contains("already live"), result.note());
+    }
+
+    @Test
+    void ensureRunningRelocatesPastAForeignUnseededServer(@TempDir Path repo)
+            throws IOException {
+        Path jar = repo.resolve("wonderland-server-app.jar");
+        Files.createFile(jar);
+        String before = System.getProperty(WonderlandServerLauncher.JAR_PROPERTY);
+        try {
+            System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, jar.toString());
+            // 8080 answers but hosts nothing; 8081 is somebody else's too;
+            // 8082 is free, and a server spawned there comes up on it.
+            java.util.Set<String> up = new java.util.HashSet<>(
+                    java.util.List.of("http://localhost:8080", "http://localhost:8081"));
+            java.util.ArrayList<String> argv = new java.util.ArrayList<>();
+            WonderlandServerLauncher.Spawner spawnAndRaise = a -> {
+                argv.addAll(a);
+                up.add("http://localhost:" + boundPort(a));
+                return new WonderlandServerLauncher.Launched() {
+                    @Override
+                    public boolean alive() {
+                        return true;
+                    }
+
+                    @Override
+                    public void stop() {
+                        // fake child: nothing to reap
+                    }
+                };
+            };
+            WonderlandServerLauncher launcher = new WonderlandServerLauncher(
+                    repo, spawnAndRaise, byUrl(up, java.util.Set.of()),
+                    Duration.ofSeconds(5));
+
+            WonderlandServerLauncher.Result result = launcher.ensureRunning(
+                    "localhost:8080", "wonderland-town-world");
+
+            assertTrue(result.ready(), result.note());
+            assertTrue(result.launched());
+            assertTrue(argv.contains("--server.port=8082"), String.valueOf(argv));
+            assertTrue(argv.contains("--wonderland.world.seed=wonderland-town-world"),
+                    String.valueOf(argv));
+            assertEquals("http://localhost:8082", result.url(),
+                    "the panel must be told where the world actually went live");
+            assertTrue(result.note().contains("does not host"), result.note());
+            assertTrue(launcher.isManaging());
+            launcher.shutdown();
+        } finally {
+            if (before == null) {
+                System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);
+            } else {
+                System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, before);
+            }
+        }
+    }
+
+    @Test
+    void ensureRunningSaysSoWhenEveryNearbyPortIsTaken(@TempDir Path repo)
+            throws IOException {
+        Path jar = repo.resolve("wonderland-server-app.jar");
+        Files.createFile(jar);
+        String before = System.getProperty(WonderlandServerLauncher.JAR_PROPERTY);
+        try {
+            System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, jar.toString());
+            java.util.Set<String> up = new java.util.HashSet<>();
+            for (int p = 8080; p <= 8080 + WonderlandServerLauncher.MAX_PORT_SCAN; p++) {
+                up.add("http://localhost:" + p);
+            }
+            WonderlandServerLauncher launcher = new WonderlandServerLauncher(
+                    repo,
+                    argv -> {
+                        throw new AssertionError("no free port means no spawn");
+                    },
+                    byUrl(up, java.util.Set.of()), Duration.ZERO);
+
+            WonderlandServerLauncher.Result result =
+                    launcher.ensureRunning("localhost:8080", "wonderland-town-world");
+
+            assertFalse(result.ready());
+            assertNull(result.url());
+            assertTrue(result.note().contains("no free port"), result.note());
         } finally {
             if (before == null) {
                 System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);

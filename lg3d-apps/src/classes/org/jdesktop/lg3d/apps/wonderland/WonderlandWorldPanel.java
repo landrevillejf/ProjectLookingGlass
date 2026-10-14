@@ -20,10 +20,14 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
@@ -61,10 +65,16 @@ import javax.swing.border.Border;
  *
  * <p>What it shows is the <em>published</em> world: the cells the server's
  * {@code WorldModel} holds, indented by the parent chain the four wire fields
- * describe, with the selected cell's breadcrumb in the right-hand column.
- * Reading is deliberately the whole feature &mdash; moving or deleting a cell
- * rides the cell protocol, and a desktop tool that could edit the world behind
- * that protocol's back would be a bug report waiting to happen.</p>
+ * describe, with the selected cell's breadcrumb in the right-hand column &mdash;
+ * under a <em>vignette</em>: whichever world the picker holds, seen as a
+ * picture when the server has one (its {@code /api/world/preview} art, the way
+ * the original Wonderland browser listed worlds) and as a {@link WorldPlan}
+ * top-down floor plan when it does not, so "what does this world look like?"
+ * has an honest answer on the 2D desktop too (the walk inside it is
+ * {@link WonderlandWorld3D}'s, on the 3D one). Reading is
+ * deliberately the whole feature &mdash; moving or deleting a cell rides the
+ * cell protocol, and a desktop tool that could edit the world behind that
+ * protocol's back would be a bug report waiting to happen.</p>
  *
  * <p>Fetching runs on one background daemon thread (never the EDT) and results
  * are handed back to the EDT to fill the list. The status line always states the
@@ -76,6 +86,14 @@ public class WonderlandWorldPanel extends JPanel {
     /** Panel size in native pixels; the wrapper hands these to TitledSwingWindow. */
     public static final int WIDTH_PX = 660;
     public static final int HEIGHT_PX = 420;
+
+    /**
+     * The walk-in window's canvas. Deliberately larger than the panel: this is
+     * the view the whole app exists to give, and a world seen through a
+     * 660-pixel stamp is a thumbnail, not a place.
+     */
+    static final int VIEWER_WIDTH_PX = 1024;
+    static final int VIEWER_HEIGHT_PX = 768;
 
     /** Indent added per tree level, in pixels. */
     private static final int INDENT_PX = 16;
@@ -116,16 +134,25 @@ public class WonderlandWorldPanel extends JPanel {
         final WorldCatalog.WorldView world;
         final IOException failure;
 
+        /** The world's picture, or {@code null} when it has none. */
+        final BufferedImage preview;
+
         Loaded(String server, WorldCatalog.WorldView world, IOException failure) {
-            this(server, null, world, failure);
+            this(server, null, world, failure, null);
         }
 
         Loaded(String server, String module, WorldCatalog.WorldView world,
                 IOException failure) {
+            this(server, module, world, failure, null);
+        }
+
+        Loaded(String server, String module, WorldCatalog.WorldView world,
+                IOException failure, BufferedImage preview) {
             this.server = server;
             this.module = module;
             this.world = world;
             this.failure = failure;
+            this.preview = preview;
         }
     }
 
@@ -152,11 +179,15 @@ public class WonderlandWorldPanel extends JPanel {
     private final JTextField serverField = new JTextField(20);
     private final JComboBox<WorldCatalog.WorldEntry> worldsCombo = new JComboBox<>();
     private final JButton refreshButton = new JButton("Refresh");
+    private final JButton enterButton = new JButton("Enter World");
     private final JButton startButton = new JButton("Start Server");
     private final JButton stopButton = new JButton("Stop Server");
     private final DefaultListModel<Row> cellModel = new DefaultListModel<>();
     private final JList<Row> cellList = new JList<>(cellModel);
     private final JLabel statusLabel = new JLabel(" ");
+
+    /** The world's vignette: its picture, or its top-down plan. */
+    private final WorldPreviewPanel vignette = new WorldPreviewPanel();
 
     // The detail column, filled when a row is selected.
     private final JLabel detailName = new JLabel(" ");
@@ -167,6 +198,91 @@ public class WonderlandWorldPanel extends JPanel {
 
     /** The transport; a scripted one in the headless tests. */
     private final WorldCatalog.Fetcher fetcher;
+
+    /**
+     * The binary transport the vignette's picture is read through. Separate from
+     * {@link #fetcher} because an image is not a document; it defaults to the
+     * real one, and a preview read that fails is never a world read that fails.
+     */
+    private WorldCatalog.ByteFetcher previewFetcher = WorldCatalog.HTTP_BYTE_FETCHER;
+
+    /**
+     * What the face needs of an open world window: raise it, close it, and hear
+     * when it went away. An interface rather than the {@code WorldViewer} class
+     * because a Java 3D canvas cannot be constructed in a headless JVM, and the
+     * promise that Enter World opens exactly one window is a claim the suite has
+     * to be able to test rather than one it has to take on faith.
+     */
+    interface WorldHandle {
+        void focus();
+
+        void close();
+
+        void setOnClose(Runnable hook);
+    }
+
+    /**
+     * The render path: the world's own picture, and the window that walks it.
+     * A seam rather than a direct call for the same reason the transports are:
+     * Java 3D has no business in a headless test, and a test that cannot name
+     * what the panel asked for cannot prove the panel asked for it.
+     */
+    interface RenderPath {
+        BufferedImage preview(String server, String module,
+                WorldCatalog.WorldView world, WorldCatalog.ByteFetcher assets);
+
+        WorldHandle open(String server, String module,
+                WorldCatalog.WorldView world,
+                WorldCatalog.ByteFetcher assets, int width, int height);
+    }
+
+    /** The live path: load the world's models and render them in Java 3D. */
+    private RenderPath renderer = new LiveRender();
+
+    /** The default {@link RenderPath}: {@link WorldRender}, nothing else. */
+    private static final class LiveRender implements RenderPath {
+        @Override
+        public BufferedImage preview(String server, String module,
+                WorldCatalog.WorldView world, WorldCatalog.ByteFetcher assets) {
+            return WorldRender.preview(server, module, world, assets);
+        }
+
+        @Override
+        public WorldHandle open(String server, String module,
+                WorldCatalog.WorldView world,
+                WorldCatalog.ByteFetcher assets, int width, int height) {
+            org.jdesktop.wonderland.renderer.view.WorldViewer viewer =
+                    WorldRender.open(server, module, world, assets, width, height);
+            return new WorldHandle() {
+                @Override
+                public void focus() {
+                    viewer.focus();
+                }
+
+                @Override
+                public void close() {
+                    viewer.close();
+                }
+
+                @Override
+                public void setOnClose(Runnable hook) {
+                    viewer.setOnClose(hook);
+                }
+            };
+        }
+    }
+
+    /** The world the face currently shows, for the render and the walk-in. */
+    private volatile WorldCatalog.WorldView current;
+
+    /** The module {@link #current} was read under; a render must not cross worlds. */
+    private volatile String currentModule;
+
+    /** Bumped by every world read, so a slow render cannot answer a stale picker. */
+    private volatile long worldGeneration;
+
+    /** The open 3D window, or {@code null}. One per panel: re-entry raises it. */
+    private volatile WorldHandle viewer;
 
     /** The local server launcher, or {@code null} to leave auto-start off. */
     private final WonderlandServerLauncher launcher;
@@ -221,12 +337,21 @@ public class WonderlandWorldPanel extends JPanel {
         // catalog from wherever the user just pointed it.
         serverField.addActionListener(e -> refresh());
         refreshButton.addActionListener(e -> refresh());
+        // The door into the world. Everything else on this face reads; this is
+        // the one control that goes in, and it is the reason the panel exists --
+        // a list of rooms you cannot walk into is an inventory, not a browser.
+        enterButton.setToolTipText("Open the selected world in its own 3D window "
+                + "and walk it: arrows or W/S move, A/D strafe, Q/E or the mouse "
+                + "turn, PageUp/PageDown rise and sink, Home reframes the view.");
+        enterButton.addActionListener(e -> enterWorld());
         // The explicit server controls: the auto-start on a failed read is a
         // convenience, but the panel must also let the operator bring Spring
         // Boot up and tear it down on demand, from the desktop, with no
         // terminal open anywhere.
-        startButton.setToolTipText("Start a local wonderland-server (java -jar) "
-                + "on the address above, then read its worlds.");
+        startButton.setToolTipText("Make the selected world live: start a local "
+                + "wonderland-server (java -jar) on the address above, or, if a "
+                + "server that does not host this world already answers there, "
+                + "start ours on the next free port and follow the address.");
         startButton.addActionListener(e -> startServer());
         stopButton.setToolTipText("Stop the wonderland-server this panel "
                 + "started. A server you started elsewhere is left to its owner.");
@@ -291,7 +416,11 @@ public class WonderlandWorldPanel extends JPanel {
         end0.gridy = 0;
         bar.add(new JLabel("World"), row0);
         bar.add(worldsCombo, grow0);
-        bar.add(refreshButton, end0);
+        JPanel worldButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        worldButtons.setOpaque(false);
+        worldButtons.add(enterButton);
+        worldButtons.add(refreshButton);
+        bar.add(worldButtons, end0);
 
         GridBagConstraints row1 = (GridBagConstraints) label.clone();
         GridBagConstraints grow1 = (GridBagConstraints) grow.clone();
@@ -328,7 +457,15 @@ public class WonderlandWorldPanel extends JPanel {
         filler.fill = GridBagConstraints.BOTH;
         detail.add(new JLabel(" "), filler);
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, cells, detail);
+        // The right column is the vignette over the fields: whichever world
+        // the picker holds, seen from above, then the selected cell's details.
+        JPanel right = new JPanel(new BorderLayout());
+        right.setOpaque(false);
+        vignette.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        right.add(vignette, BorderLayout.NORTH);
+        right.add(detail, BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, cells, right);
         split.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
         split.setResizeWeight(0.42);
         split.setDividerLocation(260);
@@ -423,6 +560,7 @@ public class WonderlandWorldPanel extends JPanel {
             setWorlds(List.of());
             cellModel.clear();
             showDetail(null);
+            clearVignette();
             String message = outcome.failure.getMessage();
             String reach = "Cannot reach " + safeUrl(outcome.server)
                     + (message == null ? "" : " (" + message + ")");
@@ -440,6 +578,7 @@ public class WonderlandWorldPanel extends JPanel {
         if (outcome.worlds.isEmpty()) {
             cellModel.clear();
             showDetail(null);
+            clearVignette();
             statusLabel.setToolTipText(null);
             statusLabel.setText("no worlds published \u00B7 " + safeUrl(outcome.server));
             return;
@@ -487,23 +626,33 @@ public class WonderlandWorldPanel extends JPanel {
         fetchThread.execute(() -> {
             final WonderlandServerLauncher.Result started
                     = launcher.ensureRunning(server, seed);
+            // A relocated spawn (the requested port carries somebody else's
+            // unseeded server) reads from where the world actually went live.
+            final String effective = (started.url() == null || started.url().isBlank())
+                    ? server : started.url();
             final WorldsOutcome outcome =
-                    started.ready() ? readWorlds(server) : null;
+                    started.ready() ? readWorlds(effective) : null;
             SwingUtilities.invokeLater(() -> renderStart(started, outcome));
         });
     }
 
     /**
      * Renders one explicit start attempt: the launcher's note when the server
-     * did not come up, or the catalog read the press asked for. Production
-     * calls this on the EDT; the headless suite calls it directly.
+     * did not come up, or the catalog read the press asked for &mdash; and if
+     * the launcher had to move to a free port, the address field follows it,
+     * so the panel keeps pointing at the server that actually runs the world.
+     * Production calls this on the EDT; the headless suite calls it directly.
      */
     void renderStart(WonderlandServerLauncher.Result started, WorldsOutcome outcome) {
         busy = false;
+        if (started.url() != null && !started.url().isBlank()) {
+            serverField.setText(started.url());
+        }
         if (!started.ready()) {
             setWorlds(List.of());
             cellModel.clear();
             showDetail(null);
+            clearVignette();
             statusLabel.setToolTipText(null);
             statusLabel.setText("cannot start wonderland-server \u2014 "
                     + started.note());
@@ -535,6 +684,7 @@ public class WonderlandWorldPanel extends JPanel {
             setWorlds(List.of());
             cellModel.clear();
             showDetail(null);
+            clearVignette();
         }
         String note = owned
                 ? "wonderland-server stopped \u00B7 Start Server brings one back"
@@ -550,6 +700,10 @@ public class WonderlandWorldPanel extends JPanel {
     private void updateServerButtons() {
         startButton.setEnabled(launcher != null && !busy);
         stopButton.setEnabled(launcher != null && launcher.isManaging());
+        // The door is only worth a click once there is a world behind it, and
+        // only one at a time: a second window over the same world would be a
+        // second universe competing for the same canvas.
+        enterButton.setEnabled(current != null && !busy && viewer == null);
     }
 
     /** Reads the cells of whichever world the picker now holds. */
@@ -582,16 +736,163 @@ public class WonderlandWorldPanel extends JPanel {
 
     /**
      * Fetches and parses one world's cells ({@code module} null reads the live
-     * world); off the EDT, and never throws.
+     * world) and its preview picture; off the EDT, and never throws.
      */
     Loaded read(String server, String module) {
         try {
             WorldCatalog.WorldView world = (module == null)
                     ? WorldCatalog.load(server, fetcher)
                     : WorldCatalog.loadWorld(server, module, fetcher);
-            return new Loaded(server, module, world, null);
+            return new Loaded(server, module, world, null, readPreview(server, module));
         } catch (IOException | RuntimeException failure) {
             return new Loaded(server, module, null, asIo(failure));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Rendering (the world itself, not its inventory)
+    // ------------------------------------------------------------------
+
+    /**
+     * Open whichever world the picker holds in its own navigable window. This is
+     * the app's whole point: a list of rooms you cannot walk into is an
+     * inventory. The read, the model loads and the Java 3D setup run on the
+     * fetch thread (they are slow and must never freeze the face), and the only
+     * thing that happens on the EDT is the window appearing.
+     *
+     * <p>Failures are stated, not swallowed: "no server", "no display" and
+     * "none of this world's models loaded" are three different sentences a
+     * visitor needs to hear, and a silent button is indistinguishable from a
+     * broken one.</p>
+     *
+     * <p>Package-visible as the click handler's body, so the suite drives the
+     * door itself rather than through a mouse event it cannot wait for.</p>
+     */
+    void enterWorld() {
+        final String server = serverField.getText();
+        final WorldCatalog.WorldView world = current;
+        final String module = currentModule;
+        if (world == null) {
+            statusLabel.setText("Nothing to enter yet \u2014 read a world first");
+            return;
+        }
+        if (!isReadableAddress(server)) {
+            statusLabel.setText("Enter a server address");
+            return;
+        }
+        WorldHandle already = viewer;
+        if (already != null) {
+            already.focus();
+            return;
+        }
+        if (busy) {
+            return;
+        }
+        busy = true;
+        updateServerButtons();
+        statusLabel.setToolTipText(null);
+        statusLabel.setText("Entering " + nameOf(module)
+                + " \u2014 loading its models \u2026");
+        fetchThread.execute(() -> {
+            WorldHandle shown = null;
+            RuntimeException refusal = null;
+            try {
+                shown = renderer.open(server, module, world, previewFetcher,
+                        VIEWER_WIDTH_PX, VIEWER_HEIGHT_PX);
+            } catch (RuntimeException cannotRender) {
+                refusal = cannotRender;
+            }
+            final WorldHandle opened = shown;
+            final String why = (refusal == null) ? null
+                    : String.valueOf(refusal.getMessage());
+            SwingUtilities.invokeLater(() -> openFinished(opened, why, module));
+        });
+    }
+
+    /** The EDT half of {@link #enterWorld()}: the window is up, or it is not. */
+    private void openFinished(WorldHandle opened, String why, String module) {
+        busy = false;
+        if (opened != null) {
+            viewer = opened;
+            // Whoever closes the window -- the title bar, this panel's close(), a
+            // crash -- puts the door back, so the button's state is the truth.
+            opened.setOnClose(() -> {
+                viewer = null;
+                updateServerButtons();
+            });
+            statusLabel.setToolTipText(null);
+            statusLabel.setText("Walking " + nameOf(module)
+                    + " \u00B7 arrows or W/S move, A/D strafe, Q/E turn,"
+                    + " PageUp/PageDown rise and sink, Home reframes");
+        } else {
+            statusLabel.setText("Cannot enter " + nameOf(module)
+                    + (why == null ? "" : " (" + why + ")"));
+            statusLabel.setToolTipText("<html>Wonderland could not show this world:"
+                    + "<br><tt>" + why + "</tt><br>The world list above is still the "
+                    + "server's own answer; only the view failed.</html>");
+        }
+        updateServerButtons();
+    }
+
+    /**
+     * Ask Java 3D for one frame of the world and put it in the vignette. Only
+     * ever run when the server had no picture of its own, so the render is the
+     * fallback rather than a second copy of an image the server already draws.
+     *
+     * <p>The {@code generation} is the whole concurrency story: the picker can
+     * move on while a world is still loading, and a frame of the clinic painted
+     * over the pavilion is worse than no frame. A stale job skips its own work
+     * and never touches the face.</p>
+     */
+    private void queueRender(final String server, final String module,
+            final WorldCatalog.WorldView world, final long generation) {
+        statusLabel.setText("Rendering " + nameOf(module)
+                + " \u00B7 " + world.size() + " cells \u2026");
+        fetchThread.execute(() -> {
+            if (generation != worldGeneration) {
+                return; // the picker moved on; this frame would paint the wrong world
+            }
+            final BufferedImage shot;
+            try {
+                shot = renderer.preview(server, module, world, previewFetcher);
+            } catch (RuntimeException | Error cannotRender) {
+                return; // no picture is the honest answer, and the plan stays up
+            }
+            if (shot == null) {
+                return;
+            }
+            SwingUtilities.invokeLater(() -> {
+                if (generation == worldGeneration) {
+                    vignette.setPreviewImage(shot);
+                }
+            });
+        });
+    }
+
+    /** The world's name for a status line; the module is the last resort. */
+    private static String nameOf(String module) {
+        return (module == null || module.isBlank()) ? "the live world" : module;
+    }
+
+    /**
+     * The world's picture, decoded off the EDT, or {@code null} for "this world
+     * has none". Deliberately unthrowable and silent: a preview is a courtesy,
+     * so a 404, a dead server or bytes that are not an image all leave the vignette
+     * on its floor plan rather than disturbing the world read beside them.
+     */
+    private BufferedImage readPreview(String server, String module) {
+        if (module == null || module.isBlank()) {
+            return null; // the live-world read names no module to ask a picture for
+        }
+        try {
+            Optional<byte[]> bytes =
+                    WorldCatalog.loadPreview(server, module, previewFetcher);
+            if (bytes.isEmpty()) {
+                return null;
+            }
+            return ImageIO.read(new ByteArrayInputStream(bytes.get()));
+        } catch (IOException | RuntimeException absent) {
+            return null;
         }
     }
 
@@ -624,6 +925,13 @@ public class WonderlandWorldPanel extends JPanel {
         if (loaded.failure != null) {
             cellModel.clear();
             showDetail(null);
+            clearVignette();
+            // No world, no door: a pressable Enter World over a status line that
+            // says the server is down is the same lie as a stale picture.
+            current = null;
+            currentModule = null;
+            worldGeneration++;
+            updateServerButtons();
             String message = loaded.failure.getMessage();
             String reach = "Cannot reach " + url
                     + (message == null ? "" : " (" + message + ")");
@@ -644,12 +952,26 @@ public class WonderlandWorldPanel extends JPanel {
             cellModel.addElement(
                     new Row(cell, world.depthOf(cell.id), world.pathOf(cell.id)));
         }
+        vignette.setPreviewImage(loaded.preview);
+        vignette.setPlan(WorldPlan.of(world.cells()));
+        // Remember what is on screen: Enter World walks into exactly this world,
+        // and a render must not answer a picker that has already moved on.
+        current = world;
+        currentModule = loaded.module;
+        final long generation = ++worldGeneration;
         statusLabel.setToolTipText(null);
         statusLabel.setText(world.summary() + " \u00B7 " + url);
         if (cellModel.isEmpty()) {
             showDetail(null);
         } else {
             cellList.setSelectedIndex(0);
+        }
+        updateServerButtons();
+        // The server's own picture wins when it has one; when it has none, the
+        // world is asked for a frame of itself rather than left as a diagram.
+        if (loaded.preview == null && loaded.module != null
+                && WorldRender.hasGeometry(world)) {
+            queueRender(loaded.server, loaded.module, world, generation);
         }
     }
 
@@ -742,6 +1064,74 @@ public class WonderlandWorldPanel extends JPanel {
         return stopButton.isEnabled();
     }
 
+    /**
+     * Swaps the render path; the headless seam that keeps Java 3D out of the
+     * suite the same way {@link #setPreviewFetcher} keeps the socket out. Not a
+     * constructor argument: a panel that never renders still lists worlds, and
+     * production always wants the live one.
+     */
+    void setRenderPath(RenderPath path) {
+        this.renderer = (path == null) ? new LiveRender() : path;
+    }
+
+    /** Whether Enter World is currently pressable. For the tests. */
+    boolean enterWorldEnabled() {
+        return enterButton.isEnabled();
+    }
+
+    /** Whether a world window is open. For the tests. */
+    boolean isInsideWorld() {
+        return viewer != null;
+    }
+
+    /**
+     * Wait for the work already queued on the fetch thread, then flush the EDT.
+     * The only deterministic way for the suite to assert on what a background
+     * pass <em>painted</em> rather than on what it will paint someday; a test
+     * that sleeps instead would be a test that fails on a loaded machine.
+     */
+    void drainFetchThread() throws Exception {
+        fetchThread.submit(() -> { }).get(15, java.util.concurrent.TimeUnit.SECONDS);
+        java.awt.EventQueue.invokeAndWait(() -> { });
+    }
+
+    /** The world the face is showing, or {@code null} before the first read. */
+    WorldCatalog.WorldView currentWorld() {
+        return current;
+    }
+
+    /** The vignette's current plan. For the tests. */
+    WorldPlan currentPlan() {
+        return vignette.getPlan();
+    }
+
+    /** The vignette's current picture, or null when it shows the plan. For tests. */
+    BufferedImage currentPreview() {
+        return vignette.getPreviewImage();
+    }
+
+    /**
+     * Empties the vignette: no picture, no plan. Every "the world is not there"
+     * branch goes through here, because a stale clinic next to a status line
+     * saying the server is down is exactly the lie this panel's vocabulary is
+     * built to avoid.
+     */
+    private void clearVignette() {
+        vignette.setPreviewImage(null);
+        vignette.setPlan(WorldPlan.EMPTY);
+    }
+
+    /**
+     * Swaps the binary transport the picture is read through; the headless
+     * seam that matches {@link WorldCatalog.ByteFetcher}. Production never
+     * calls it, and it is not a constructor argument because a panel with no
+     * scripted cells transport has no business fetching images either.
+     */
+    void setPreviewFetcher(WorldCatalog.ByteFetcher fetcher) {
+        this.previewFetcher = (fetcher == null)
+                ? WorldCatalog.HTTP_BYTE_FETCHER : fetcher;
+    }
+
     /** Wires the 2D desktop's Close toolbar button, when the host has one. */
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
@@ -755,6 +1145,13 @@ public class WonderlandWorldPanel extends JPanel {
      */
     public void close() {
         fetchThread.shutdownNow();
+        // Down the door before the house: a viewer left open after its panel is
+        // gone is a Java 3D canvas with nobody to close it.
+        WorldHandle open = viewer;
+        viewer = null;
+        if (open != null) {
+            open.close();
+        }
         if (launcher != null) {
             launcher.shutdown();
         }

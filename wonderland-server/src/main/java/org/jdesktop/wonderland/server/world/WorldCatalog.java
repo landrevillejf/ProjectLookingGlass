@@ -40,17 +40,24 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import com.jme.math.Vector3f;
+import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
+import org.jdesktop.wonderland.common.cell.state.ForeignCellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
+import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
 import org.jdesktop.wonderland.modules.asset.JarWorldStore;
 import org.jdesktop.wonderland.modules.asset.ManifestClasspathWorldStore;
+import org.jdesktop.wonderland.modules.asset.MultiWorldStore;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldLoader;
+import org.jdesktop.wonderland.modules.asset.WorldPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -115,21 +122,37 @@ public class WorldCatalog {
         if (module == null || module.isBlank()) {
             return Optional.empty();
         }
-        Optional<Path> jar = worldJar(module);
-        if (jar.isPresent()) {
-            try (JarWorldStore store = new JarWorldStore(jar.get())) {
-                return Optional.of(decode(new WorldLoader(), store, module));
-            } catch (IOException | RuntimeException ex) {
-                LOG.warn("world jar {} for '{}' could not be read as a world ({})",
-                        jar.get().getFileName(), module, ex.toString());
-                return Optional.empty();
-            }
+        String name = module.trim();
+        if (worldJar(name).isEmpty() && !BUNDLED.contains(name)) {
+            return Optional.empty(); // unknown module: nothing to load
         }
-        if (BUNDLED.contains(module)) {
-            return Optional.of(decode(new WorldLoader(),
-                    new ManifestClasspathWorldStore(), module));
+        // Load across every installed world, not just this module's own jar: the
+        // combined world places cells whose models live in the other six jars, and
+        // a single-module store silently drops all of them (see MultiWorldStore).
+        try (MultiWorldStore store = openAllStores()) {
+            return Optional.of(decode(new WorldLoader(), store, name));
+        } catch (IOException | RuntimeException ex) {
+            LOG.warn("world '{}' could not be read across the installed worlds ({})",
+                    name, ex.toString());
+            return Optional.empty();
         }
-        return Optional.empty();
+    }
+
+    /**
+     * Open every installed world jar plus the bundled classpath fallback as one
+     * {@link MultiWorldStore}, so a world that references another module's assets
+     * resolves them. The caller owns the returned store and must close it (which
+     * closes each jar). A jar that cannot be opened aborts the whole build rather
+     * than half-populating a store: a world missing one module's art is as wrong
+     * as a world that failed to load, and both degrade to an empty listing.
+     */
+    MultiWorldStore openAllStores() throws IOException {
+        MultiWorldStore store = new MultiWorldStore();
+        for (Path jar : worldJars()) {
+            store.add(stem(jar), jar);
+        }
+        store.fallback(new ManifestClasspathWorldStore());
+        return store;
     }
 
     /** {@link WorldLoader#load} guarded: a world that will not decode is empty, not fatal. */
@@ -153,15 +176,25 @@ public class WorldCatalog {
      * <p>Classification mirrors {@link WorldSeeder#seedCell} exactly -- a cell
      * with a model component reads as the renderer's model cell, every other
      * named cell as the environment class -- and an unnamed cell is skipped, so
-     * what this lists is what seeding the same module would publish. A module's
-     * cells are siblings (all seeded flat under the environment), so every
-     * {@code parent} is null. An unknown or unreadable module yields an empty
-     * list, never a throw.</p>
+     * what this lists is what seeding the same module would publish.</p>
+     *
+     * <p>The placement is <em>absolute</em>, and that is the whole point of this
+     * method existing rather than handing the state's own numbers over: a stock
+     * world files its cells inside their parent's directory and measures each one
+     * from that parent, so the twenty-odd objects of the meeting complex listed
+     * at their local coordinates sat ninety metres from the container that holds
+     * them, and a browser framed on what it could see looked at empty sky. See
+     * {@link WorldPlacement}.</p>
+     *
+     * <p>An unknown or unreadable module yields an empty list, never a throw.</p>
      */
     public List<Map<String, Object>> describeCells(String module) {
         return loadContents(module).map(contents -> {
+            List<WorldContents.LoadedCell> loaded = contents.cells();
+            Map<String, WorldPlacement.Absolute> placed =
+                    WorldPlacement.resolve(WorldPlacement.cellsOf(loaded));
             List<Map<String, Object>> out = new ArrayList<>();
-            for (WorldContents.LoadedCell cell : contents.cells()) {
+            for (WorldContents.LoadedCell cell : loaded) {
                 CellServerState state = cell.state();
                 if (state == null || state.getName() == null || state.getName().isEmpty()) {
                     continue; // the seeder's rule: an unnamed cell is nothing to list
@@ -169,19 +202,170 @@ public class WorldCatalog {
                 ModelCellComponentServerState model = (ModelCellComponentServerState)
                         state.getComponentServerState(ModelCellComponentServerState.class);
                 boolean isModel = model != null;
+                AvatarCellServerState avatar =
+                        (state instanceof AvatarCellServerState a) ? a : null;
+                ForeignCellServerState foreign =
+                        (state instanceof ForeignCellServerState f) ? f : null;
                 Map<String, Object> described = new LinkedHashMap<>();
                 described.put("id", contents.module() + ":" + out.size());
                 described.put("parent", null);
-                described.put("className",
-                        isModel ? WorldSeeder.MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS);
+                described.put("className", avatar != null ? WorldSeeder.AVATAR_CELL_CLASS
+                        : isModel ? WorldSeeder.MODEL_CELL_CLASS
+                                : WorldModel.ENVIRONMENT_CLASS);
                 described.put("name", state.getName());
                 if (isModel) {
                     described.put("deployedModelURL", model.getDeployedModelURL());
                 }
+                if (foreign != null) {
+                    // What the cell was written as and what it shows: the two facts
+                    // a client needs to draw a poster as its picture instead of
+                    // guessing from a name. See ForeignCellServerState.
+                    described.put("cellType", foreign.getCellType());
+                    if (foreign.getAssetURI() != null) {
+                        described.put("assetURL", foreign.getAssetURI());
+                    }
+                    // The picture's own measure. A cell is a plane, not a placemark:
+                    // "show this file here" needs a size as well as a place, and the
+                    // only size a poster's file records is how wide one of its pixels
+                    // is in metres. The picture's pixel count is the reader's half of
+                    // the multiplication -- it has the bytes -- so what travels here
+                    // is the scale, plus the preferred size for the two viewers that
+                    // write one and have no picture to be measured by.
+                    described.put("planeScale", List.of(foreign.getPixelScaleX(),
+                            foreign.getPixelScaleY()));
+                    if (foreign.getPixelWidth() > 0.0) {
+                        described.put("planePixels", List.of(foreign.getPixelWidth(),
+                                foreign.getPixelHeight()));
+                    }
+                }
+                if (avatar != null) {
+                    // The body the client should wear. Null is the pool default,
+                    // and the client says so -- so the key is present only when
+                    // the world actually chose a body for this resident.
+                    String body = avatar.getAvatarModelUrl();
+                    if (body != null && !body.isBlank()) {
+                        described.put("avatarModelUrl", body);
+                    }
+                }
+                putPlacement(described, state, placed.get(cell.path()));
                 out.add(described);
             }
             return out;
         }).orElse(List.of());
+    }
+
+    /**
+     * Add one cell's world placement to a descriptor: the absolute position as
+     * {@code x}/{@code y}/{@code z}, its heading as {@code yaw} and its composed
+     * stretch as {@code scale}, plus {@code width}/{@code depth} -- its authored
+     * footprint on the floor plane, grown by the same stretch, because a browser
+     * drawing a plan of a world it has only listed needs a size in metres and a
+     * cell file records half-extents (the {@code Bounds(BoundingVolume)}
+     * contract), so the footprint is twice the recorded extent times the scale.
+     *
+     * <p>A null placement -- a cell the resolver did not see, which happens only
+     * for a cell with no path at all -- carries no keys: absent is how this
+     * surface says "nowhere", and a zero is a place.</p>
+     *
+     * <p>This is what lets a browser draw a top-down plan of a catalog world it
+     * has only listed <em>and</em> what lets it render the world for real: a
+     * {@code .dep} stores its model in the importer's units, and the rotation and
+     * scale here are the other half of the transform that puts it back in
+     * metres. A client that reads only the translation sees the town spun the
+     * wrong way and the clinic's floor a metre across, which is exactly the
+     * "the world never appears" this surface exists to end.</p>
+     */
+    private static void putPlacement(Map<String, Object> described,
+            CellServerState state, WorldPlacement.Absolute absolute) {
+        if (absolute == null) {
+            return;
+        }
+        Object component = (state == null) ? null
+                : state.getComponentServerState(PositionComponentServerState.class);
+        boolean authored = component instanceof PositionComponentServerState;
+        // A cell that neither it nor any ancestor placed is nowhere, and nowhere
+        // is absent keys -- not the (0,0,0) the resolver hands back as the
+        // identity for a position-less cell, which a reader would take for a
+        // real spot at the origin (see the class header). A child with no own
+        // position but a placed parent has a non-identity absolute and stays.
+        if (!authored && isUnplaced(absolute)) {
+            return;
+        }
+        Vector3f translation = absolute.translation();
+        described.put("x", translation.x);
+        described.put("y", translation.y);
+        described.put("z", translation.z);
+        described.put("yaw", WorldPlacement.yawOf(absolute));
+        Vector3f scale = absolute.scale();
+        if (!isUnit(scale)) {
+            described.put("scale", List.of((double) scale.x, (double) scale.y,
+                    (double) scale.z));
+        }
+        putFootprint(described, state, scale);
+    }
+
+    /**
+     * Whether a resolved placement is the identity -- no authored translation and
+     * no stretch -- which is what the resolver returns for a cell nobody placed.
+     */
+    private static boolean isUnplaced(WorldPlacement.Absolute absolute) {
+        Vector3f t = absolute.translation();
+        return t.x == 0f && t.y == 0f && t.z == 0f && isUnit(absolute.scale());
+    }
+
+    /** Whether a composed stretch still leaves a cell its authored size. */
+    private static boolean isUnit(Vector3f scale) {
+        return scale.x == 1.0f && scale.y == 1.0f && scale.z == 1.0f;
+    }
+
+    /**
+     * Add the cell's authored footprint, grown by the stretch its ancestors and
+     * its own position component compose to. A bounds hint is measured in the
+     * cell's own space, so a room filed inside a container scaled to a tenth is
+     * a tenth as wide in the world -- reporting the authored number next to the
+     * composed placement is the pair of facts that cannot both be true, and the
+     * plan a browser draws is wrong in exactly the way a floor plan of a town
+     * drawn at two scales is wrong.
+     */
+    private static void putFootprint(Map<String, Object> described,
+            CellServerState state, Vector3f scale) {
+        Object component = (state == null) ? null
+                : state.getComponentServerState(PositionComponentServerState.class);
+        if (!(component instanceof PositionComponentServerState position)) {
+            return;
+        }
+        PositionComponentServerState.Bounds bounds = position.getBounds();
+        if (bounds != null && bounds.x > 0 && bounds.z > 0) {
+            described.put("width", 2.0 * bounds.x * scale.x);
+            described.put("depth", 2.0 * bounds.z * scale.z);
+        }
+    }
+
+    /**
+     * The quaternion's heading about the vertical axis, in radians, or 0.0 when
+     * the world recorded no rotation. Taken from the rotation matrix's first row
+     * and last column, which is the standard Y-up extraction and, unlike reading
+     * the quaternion's {@code y} component, stays right for a rotation that also
+     * tilts. The quaternion is normalised first because jMonkeyEngine will build
+     * one from any axis/angle pair the author typed.
+     */
+    static double yawOf(com.jme.math.Quaternion rotation) {
+        if (rotation == null) {
+            return 0.0;
+        }
+        double x = rotation.x;
+        double y = rotation.y;
+        double z = rotation.z;
+        double w = rotation.w;
+        double length = Math.sqrt(x * x + y * y + z * z + w * w);
+        if (length < 1e-9) {
+            return 0.0; // a zero quaternion is no rotation at all
+        }
+        x /= length;
+        y /= length;
+        z /= length;
+        w /= length;
+        return Math.atan2(2.0 * (w * y + x * z), 1.0 - 2.0 * (y * y + x * x));
     }
 
     /** The installed world jar for {@code module}, if the worlds directory carries one. */
@@ -192,6 +376,98 @@ public class WorldCatalog {
         return worldJars().stream()
                 .filter(j -> module.equals(stem(j)))
                 .findFirst();
+    }
+
+    /**
+     * One world's preview image: the bytes and the media type its file name says.
+     * A value here is a promise the browser can keep -- the REST surface answers
+     * 200 with exactly this content type, and 404 when {@link #preview} is empty.
+     *
+     * <p>Public, because that REST surface lives in another package and hands one
+     * of these straight to the caller.</p>
+     */
+    public record Preview(byte[] bytes, String contentType) {
+    }
+
+    /**
+     * The conventional preview file names, tried in order inside a module's own
+     * store (a jar store also resolves them under its {@code art/} root). A world
+     * that ships {@code preview.png} at its module root needs no code anywhere:
+     * this is the whole contract an author has to satisfy.
+     */
+    static final List<String> PREVIEW_NAMES =
+            List.of("preview.png", "preview.jpg", "preview.jpeg");
+
+    /**
+     * The hand-verified stock-world previews: a world whose only picture in the
+     * shipped library lives in <em>another</em> module's jar, as
+     * {@code module -> {source module, asset path}}.
+     *
+     * <p>This table exists because the stock Open Wonderland world jars are not
+     * consistent about carrying a world view. Of the seven, exactly one image in
+     * the whole library is a rendered picture of a world:
+     * {@code art/Japanese-Pavilion-portal3.png}, which sits in the combined
+     * world's jar and shows the Japanese Pavilion -- so the pavilion borrows it
+     * and the combined world does not, since one portal plane is not a view of a
+     * world that contains six. The other poster-shaped asset in that jar
+     * ({@code OWLDefaultWorldPoster.v2-sm.png}) is a text signboard reading "Use
+     * the Placemarks menu to explore this world"; serving it as a preview would
+     * be a lie about what the world looks like, so it is deliberately absent.
+     * Every entry here must be opened and looked at before it is named -- an
+     * unverified world has no preview, and the browser falls back to its floor
+     * plan.</p>
+     */
+    private static final Map<String, String[]> PREVIEW_ALIASES = Map.of(
+            "wonderland-japanesepavilion-world",
+            new String[] {"wonderland-combined-world", "Japanese-Pavilion-portal3.png"});
+
+    /**
+     * Resolve a world's preview image: the module's own conventional file first,
+     * then the verified alias table. Defensive on the catalog's usual terms -- an
+     * unknown module, an absent asset or an unreadable jar all yield empty, never
+     * a throw, because a missing picture is a world with no preview, not a fault.
+     *
+     * <p>The REST surface in {@code server.web} is its only production caller; the
+     * resolution order and the degrade are pinned by the catalog's own tests.</p>
+     */
+    public Optional<Preview> preview(String module) {
+        if (module == null || module.isBlank()) {
+            return Optional.empty();
+        }
+        String name = module.trim();
+        for (String candidate : PREVIEW_NAMES) {
+            Optional<Preview> found = readPreview(name, candidate);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        String[] alias = PREVIEW_ALIASES.get(name);
+        return (alias == null) ? Optional.empty() : readPreview(alias[0], alias[1]);
+    }
+
+    /** One preview candidate's bytes, with the media type its extension names. */
+    private Optional<Preview> readPreview(String storeModule, String path) {
+        return openAssetBytes(storeModule, path)
+                .map(bytes -> new Preview(bytes, contentTypeOf(path)));
+    }
+
+    /**
+     * The media type an image asset's name declares. Only the two formats a
+     * preview may be: anything else has no type here, so a stray {@code .gif}
+     * or {@code .svg} in a world module is not silently served as a PNG.
+     *
+     * <p>Public and pure so a deployment (or a test) can ask what a name means
+     * without opening a store for it.</p>
+     */
+    public static String contentTypeOf(String path) {
+        String lower = path.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        return "application/octet-stream";
     }
 
     /**

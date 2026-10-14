@@ -9,7 +9,12 @@
  */
 package org.jdesktop.wonderland.modules.asset;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.jdesktop.wonderland.modules.collada.ColladaDocument;
+import org.jdesktop.wonderland.modules.collada.ColladaParser;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -65,5 +70,27 @@ class AssetResultTypesTest {
         assertThat(contents.cells()).containsExactly(loaded, errored, nonModel);
         assertThat(loaded.name()).isNull(); // a null state reads as a null name
         assertThat(loaded.state()).isNull(); // the state accessor carries the decoded cell
+    }
+
+    @Test
+    void aBareResultWrapsAColladaWithNoDescriptorAndNoTextures() {
+        // The avatar pool's path: a .dae on the classpath with no .dep to resolve,
+        // so the load is LODED with a document but empty texture inventories.
+        String dae = "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\""
+                + " version=\"1.4.1\"></COLLADA>";
+        try (InputStream in = new ByteArrayInputStream(dae.getBytes(StandardCharsets.UTF_8))) {
+            ColladaDocument doc = new ColladaParser().parse(in);
+            ModelLoadResult result = ModelLoadResult.bare(doc);
+
+            assertThat(result.isLoaded()).isTrue();
+            assertThat(result.error()).isNull();
+            assertThat(result.model()).isNull();
+            assertThat(result.loaderData()).isNull();
+            assertThat(result.document()).isSameAs(doc);
+            assertThat(result.presentTextures()).isEmpty();
+            assertThat(result.missingTextures()).isEmpty();
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
     }
 }

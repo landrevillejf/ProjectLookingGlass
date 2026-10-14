@@ -27,6 +27,7 @@
 package org.jdesktop.wonderland.modules.asset;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,20 +52,23 @@ public final class ClasspathWorldStore implements WorldStore {
 
     @Override
     public Optional<InputStream> open(String module, String path) {
-        String resource = confine(module, path);
-        if (resource == null) {
-            return Optional.empty();
+        for (String resource : confineAll(module, path)) {
+            InputStream found = loader.getResourceAsStream(resource);
+            if (found != null) {
+                return Optional.of(found);
+            }
         }
-        return Optional.ofNullable(loader.getResourceAsStream(resource));
+        return Optional.empty();
     }
 
     @Override
     public boolean present(String module, String path) {
-        String resource = confine(module, path);
-        if (resource == null) {
-            return false;
+        for (String resource : confineAll(module, path)) {
+            if (loader.getResource(resource) != null) {
+                return true;
+            }
         }
-        return loader.getResource(resource) != null;
+        return false;
     }
 
     @Override
@@ -74,6 +78,24 @@ public final class ClasspathWorldStore implements WorldStore {
         // catalog (wonderland-avatars' AvatarPool, or an application
         // providing its own index), not through this abstraction.
         return List.of();
+    }
+
+    /**
+     * The resource names one reference may be bundled under, in order, each already
+     * confined. A stock world folded into a jar keeps the packager's spelling --
+     * gzipped COLLADA beside an {@code art/} root -- exactly as it does in a
+     * standalone world jar, so the same rule has to hold here or a world would load
+     * its models one way when installed and another when bundled.
+     */
+    private static List<String> confineAll(String module, String path) {
+        List<String> out = new ArrayList<>(4);
+        for (String candidate : AssetSpelling.candidates(path)) {
+            String confined = confine(module, candidate);
+            if (confined != null) {
+                out.add(confined);
+            }
+        }
+        return out;
     }
 
     /**

@@ -47,6 +47,16 @@ public class WorldModel {
     private final AtomicLong nextCellID = new AtomicLong(CellID.getFirstCellID());
     private final CellID environmentCellID = CellID.getEnvironmentCellID();
 
+    /**
+     * The module whose cells were seeded into this world, or {@code null} when
+     * nothing was seeded. The world is a bag of cells and does not otherwise
+     * know where they came from; the REST catalog needs that one fact to tell
+     * a browser which listed world is actually live (the {@code hosted} flag),
+     * so a browser can decide whether the address it points at already runs
+     * the world it is about to ask for.
+     */
+    private volatile String liveModule;
+
     public WorldModel() {
         this(ENVIRONMENT_CLASS);
     }
@@ -61,6 +71,19 @@ public class WorldModel {
 
     public CellID getEnvironmentCellID() {
         return environmentCellID;
+    }
+
+    /** The seeded module this world now hosts, or {@code null} for an empty one. */
+    public String getLiveModule() {
+        return liveModule;
+    }
+
+    /**
+     * Record which module was seeded (called by {@link WorldSeeder} on success).
+     * A null/blank module clears the mark, so an unseeded world says so.
+     */
+    public void setLiveModule(String module) {
+        liveModule = (module == null || module.isBlank()) ? null : module.trim();
     }
 
     /** Mint a fresh cell id (never the environment id, never reused). */

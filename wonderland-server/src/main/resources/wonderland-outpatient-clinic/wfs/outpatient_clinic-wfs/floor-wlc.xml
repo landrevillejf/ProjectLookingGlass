@@ -3,7 +3,7 @@
     <name>Floor</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-ground.kmz/clinic-ground.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -14,18 +14,18 @@
         <translation>
             <x>0</x>
             <y>0.0</y>
-            <z>0</z>
+            <z>-8</z>
         </translation>
         <bounds>
             <type>BOX</type>
             <x>24.0</x>
             <y>0.05</y>
-            <z>18.0</z>
+            <z>34.0</z>
         </bounds>
         <scale>
             <x>24.0</x>
             <y>0.05</y>
-            <z>18.0</z>
+            <z>34.0</z>
         </scale>
         <rotation>
             <x>0.0</x>

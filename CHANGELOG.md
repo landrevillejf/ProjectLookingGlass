@@ -10,6 +10,77 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The world browser can now start the world it shows — and shows what it
+  starts** (`wonderland-server` + `lg3d-apps`) — the picker listed every
+  catalog world, but **Start Server** against a stale or foreign server
+  already answering on the port did nothing: `ensureRunning` found the port
+  busy, "already answers" won, the chosen world was never seeded, and
+  **Stop Server** rightly refused to kill a process it did not own; and in
+  the 2D desktop there was no viewer at all, so a world had no face beyond
+  its cell rows. Two new server-side facts close that loop. `WorldModel`
+  now remembers its `liveModule` — set only when seeding succeeds — and
+  `GET /api/world/worlds` marks exactly that entry `hosted: true`, so "is
+  *my* world running" is one read, not a guess; and
+  `GET /api/world/cells?module=` describes each cell's authored placement —
+  the position component's translation as `x`/`y`/`z` and its bounds as
+  `width`/`depth` (stored half-extents, doubled on read) — purely additive
+  fields an older reader ignores. The client `WorldCatalog` parses both, and
+  a missing or non-positive footprint stays `null`, because "nowhere" and
+  "at the origin" must not read as the same number. The launcher's contract
+  is now honest: a server that answers *and hosts the chosen world* is left
+  exactly as its owner started it; one that does not (the stale case — the
+  old jar cannot even answer the hosting question) is walked past, and the
+  panel's own seeded server starts on the next free localhost port (a
+  bounded scan) with `Result.url` carrying the new address, which
+  **Start Server** then writes back into the server field so every later
+  read follows the server the press actually brought up; a remote server is
+  still never touched. And the vignette, which is the half the picker was
+  missing: the original Wonderland browser answered "what does this world
+  look like?" with a *picture*, so the server now serves one —
+  `GET /api/world/preview?module=` hands back the world's own
+  `preview.png` (`.jpg`/`.jpeg` too, and the `art/` spelling the world jars
+  already use) from the very store the models come from, and answers a
+  plain 404 when a world ships none; `WorldPreviewPanel` paints that
+  picture aspect-kept above the cell tree and falls back to a floor plan
+  only when there is no picture to show. The plan is `WorldPlan` (pure,
+  headless) folding a world's placed cells into the unit square — one
+  uniform scale so aspect survives, +z up, the environment root and
+  unplaced cells skipped, a missing footprint drawn as a unit square, a
+  degenerate all-in-one-point world inflated instead of dividing by zero —
+  plus the two rules that turned an unreadable cluster into a map: the one
+  cell covering 3/4 of the world on both axes is the *ground*, so it frames
+  the plan instead of setting its scale (the clinic's 48×36 Floor had been
+  shrinking its nine rooms to specks, and their names to mush), and a label
+  is wrapped into its own box or left out, never painted over its
+  neighbours. Stock-world art is wired only where it is true: of the seven
+  shipped world jars exactly one image is a rendered view of a world —
+  `art/Japanese-Pavilion-portal3.png`, which pictures the pavilion while
+  sitting in the combined jar — so the pavilion borrows it by name and the
+  other six worlds get the plan; the library's other poster-shaped asset,
+  `OWLDefaultWorldPoster.v2-sm.png`, is a text signboard reading "Use the
+  Placemarks menu to explore this world", and serving it as a preview would
+  lie about what the world looks like. **12
+  new headless cases** on the server (`liveModule`'s set-and-blank-clears
+  contract, a seeded world recording the module it hosts, `hosted` marking
+  only the seeded module, a module's cells carrying the authored placement,
+  the bundled clinic's `describeCells` case now asserting Exam Room 1's
+  authored −8/−5 spot and its doubled 8×8 footprint, the preview resolve
+  order — a module's own `preview.png`, then its `art/` spelling, then the
+  alias — and the endpoint's 200-with-the-right-media-type and
+  404-when-none) **and 30 on the
+  desktop side** (port rewriting that keeps everything but the port, a
+  hosted server left alone, relocation past a foreign unseeded server, the
+  every-nearby-port-taken admission, the panel following a relocated
+  server, the picture painted when the server has one and the plan when it
+  does not, an absent, undecodable or unreachable preview costing the world
+  read nothing, both cleared on a failed read, twelve `WorldPlan`
+  normalization and ground rules, and the `hosted`/geometry/preview parse). **All
+  verified live**: with a stale jar holding 8080, the real panel's **Start
+  Server** spawned seeded servers on 8081 and 8082 instead of giving up; a
+  fresh jar's `/api/world/worlds` marks only the clinic `hosted`; and
+  `/api/world/cells?module=wonderland-outpatient-clinic` returned all nine
+  named rooms with their authored placement (Exam Room 1 at x=−8 z=−5,
+  8×8; the Floor 48×36), the stock `wonderland-town-world` jar likewise.
 - **The Wonderland client session went production: the world is now seen, not
   just listed** (`wonderland-client` + `lg3d-apps`) — the port had no real
   `WonderlandSession` past the in-JVM loopback, so the 3D world frame opened

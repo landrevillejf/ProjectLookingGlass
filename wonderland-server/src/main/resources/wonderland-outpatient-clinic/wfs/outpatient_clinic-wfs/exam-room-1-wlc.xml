@@ -3,7 +3,7 @@
     <name>Exam Room 1</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -14,7 +14,7 @@
         <translation>
             <x>-8</x>
             <y>0.0</y>
-            <z>-5</z>
+            <z>-12.3</z>
         </translation>
         <bounds>
             <type>BOX</type>

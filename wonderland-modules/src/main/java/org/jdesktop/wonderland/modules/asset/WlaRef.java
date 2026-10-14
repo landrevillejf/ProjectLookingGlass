@@ -78,4 +78,18 @@ public final class WlaRef {
         int slash = path.lastIndexOf('/');
         return slash < 0 ? "" : path.substring(0, slash);
     }
+
+    /**
+     * The file portion of a path (everything after the last slash). The name a
+     * message quotes: a loader that says "no reader for
+     * art/OrientationWorld.mtg" makes a person open the package, while the same
+     * sentence naming {@code mtgloader.MtgLoader} says what is missing.
+     */
+    public static String baseName(String path) {
+        if (path == null) {
+            return "";
+        }
+        int slash = path.lastIndexOf('/');
+        return slash < 0 ? path : path.substring(slash + 1);
+    }
 }

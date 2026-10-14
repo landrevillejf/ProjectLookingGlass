@@ -10,9 +10,9 @@
  * *-wlc.xml cells and resolves their deployed models headless, and the desktop
  * bridge already mounts a loaded cell -- but nothing ever fed one into the other.
  * The seeder closes that gap on the SERVER side: it reads a world through a
- * store chosen by {@link WorldCatalog} -- a {@link JarWorldStore} when the seed
- * names an installed world jar in the configured directory, else a
- * {@link ManifestClasspathWorldStore} for a bundled classpath module -- and for
+ * {@link MultiWorldStore} built by {@link WorldCatalog} -- one store spanning every
+ * installed world jar plus the bundled classpath, so a world that places cells
+ * whose models live in another module (the combined world) resolves them -- and for
  * each cell mints a CellID and stores a
  * WorldCell carrying the client class name (inert data, so the server never
  * imports the renderer), the human name, the transform lifted from the position
@@ -36,18 +36,19 @@ package org.jdesktop.wonderland.server.world;
 
 import com.jme.math.Vector3f;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Optional;
+import java.util.Map;
 import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
-import org.jdesktop.wonderland.modules.asset.JarWorldStore;
 import org.jdesktop.wonderland.modules.asset.ManifestClasspathWorldStore;
+import org.jdesktop.wonderland.modules.asset.MultiWorldStore;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldLoader;
+import org.jdesktop.wonderland.modules.asset.WorldPlacement;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,6 +72,14 @@ public class WorldSeeder implements ApplicationRunner {
      */
     static final String MODEL_CELL_CLASS =
             "org.jdesktop.wonderland.renderer.cell.WonderlandModelCell";
+
+    /**
+     * The client-side class an avatar cell instantiates to. A world's residents
+     * are therefore described, listed and walked as the same thing: a body at a
+     * place, with a name over it, which is what the 2009 desktop showed.
+     */
+    static final String AVATAR_CELL_CLASS =
+            "org.jdesktop.wonderland.client.cell.view.AvatarCell";
 
     /** The sentinel seed value that leaves the world empty (the default). */
     static final String SEED_NONE = "none";
@@ -104,29 +113,17 @@ public class WorldSeeder implements ApplicationRunner {
         if (seedModule.isEmpty() || SEED_NONE.equalsIgnoreCase(seedModule)) {
             return; // empty world, exactly as the tests expect
         }
-        // A stock world jar in the configured worlds directory wins; otherwise the
-        // seed names a bundled classpath module (the outpatient clinic).
-        Optional<Path> jar = catalog.worldJar(seedModule);
-        if (jar.isPresent()) {
-            seedJar(jar.get(), seedModule);
-        } else {
-            seed(new ManifestClasspathWorldStore(), seedModule);
-        }
-    }
-
-    /**
-     * Seed a world from its module jar through {@link JarWorldStore}. A jar that
-     * cannot be opened (corrupt, removed mid-boot) degrades to an empty server with
-     * a warning, exactly like a world that cannot be read -- the never-throw
-     * contract the class header promises, so {@link IOException} is caught here
-     * rather than escaping to abort the boot.
-     */
-    private void seedJar(Path jarFile, String module) {
-        try (JarWorldStore store = new JarWorldStore(jarFile)) {
-            seed(store, module);
+        // Seed across every installed world so a world that references another
+        // module's art (the combined world) resolves it; the classpath fallback
+        // inside the store is what makes a bundled seed (the outpatient clinic)
+        // work with no worlds directory. A directory that cannot be opened degrades
+        // to the classpath alone rather than aborting the boot.
+        try (MultiWorldStore store = catalog.openAllStores()) {
+            seed(store, seedModule);
         } catch (IOException ex) {
-            LOG.warn("world jar {} for '{}' could not be opened; serving an empty world ({})",
-                    jarFile.getFileName(), module, ex.toString());
+            LOG.warn("installed worlds could not be opened to seed '{}'; falling "
+                    + "back to the classpath ({})", seedModule, ex.toString());
+            seed(new ManifestClasspathWorldStore(), seedModule);
         }
     }
 
@@ -150,11 +147,21 @@ public class WorldSeeder implements ApplicationRunner {
     /** Seed every named cell of a loaded world; returns how many were stored. */
     int seedContents(WorldContents contents) {
         int seeded = 0;
+        // World coordinates, not the numbers in each cell file: a stock world
+        // files a cell inside its parent and measures it from there, so seeding
+        // flat parks a whole building complex ninety metres from its own ground
+        // (see WorldPlacement).
+        Map<String, WorldPlacement.Absolute> placed =
+                WorldPlacement.resolve(WorldPlacement.cellsOf(contents.cells()));
         for (WorldContents.LoadedCell cell : contents.cells()) {
-            if (seedCell(cell.state())) {
+            if (seedCell(cell.state(), placed.get(cell.path()))) {
                 seeded++;
             }
         }
+        // The world now hosts this module: the REST catalog marks its entry
+        // hosted so a browser can tell "listed" from "live" (see
+        // WorldModel.getLiveModule).
+        world.setLiveModule(contents.module());
         LOG.info("seeded world '{}': {} of {} cells", contents.module(),
                 seeded, contents.cellCount());
         return seeded;
@@ -168,13 +175,24 @@ public class WorldSeeder implements ApplicationRunner {
      * @return whether the cell was seeded
      */
     boolean seedCell(CellServerState state) {
+        return seedCell(state, null);
+    }
+
+    /**
+     * Store one decoded cell at a placement resolved against the world. A null
+     * absolute falls back to the cell's own numbers, which is what a caller with
+     * no tree to walk (a single hand-made cell in a test) means by "put it here".
+     */
+    boolean seedCell(CellServerState state, WorldPlacement.Absolute absolute) {
         if (state == null || state.getName() == null || state.getName().isEmpty()) {
             return false;
         }
         ModelCellComponentServerState model = (ModelCellComponentServerState) state.getComponentServerState(
                 ModelCellComponentServerState.class);
         boolean isModel = model != null;
-        String className = isModel ? MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS;
+        String className = (state instanceof AvatarCellServerState)
+                ? AVATAR_CELL_CLASS
+                : isModel ? MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS;
         // The wla:// model URL is carried on BOTH surfaces: the WorldCell field
         // feeds the read-only REST descriptor + HTTP asset endpoint, while a
         // ModelCellClientState folds it into the shared wire format so a client
@@ -190,12 +208,26 @@ public class WorldSeeder implements ApplicationRunner {
             clientState = new CellClientState();
         }
         world.addCell(world.newCellID(), className, state.getName(),
-                transformOf(state), clientState, modelURL);
+                transformOf(state, absolute), clientState, modelURL);
         return true;
     }
 
     /** The cell transform from the position component (translation/rotation/scale). */
     static CellTransform transformOf(CellServerState state) {
+        return transformOf(state, null);
+    }
+
+    /**
+     * The transform to store: the world-resolved placement when there is one,
+     * else the cell's own, so a caller that has not walked the tree gets exactly
+     * what it got before rather than a silent identity.
+     */
+    static CellTransform transformOf(CellServerState state,
+            WorldPlacement.Absolute absolute) {
+        if (absolute != null) {
+            return new CellTransform(absolute.rotation(), absolute.translation(),
+                    absolute.scale());
+        }
         Object component = state.getComponentServerState(PositionComponentServerState.class);
         if (component instanceof PositionComponentServerState position) {
             Vector3f scale = position.getScaling();

@@ -3,7 +3,7 @@
     <name>Observation Room</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -11,7 +11,7 @@
         <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
     </model-cell-component>
     <position-component>
-        <translation><x>8</x><y>0</y><z>5</z></translation>
+        <translation><x>8</x><y>0</y><z>-12.3</z></translation>
         <bounds><type>BOX</type><x>4.0</x><y>3.0</y><z>4.0</z></bounds>
         <scale><x>4.0</x><y>3.0</y><z>4.0</z></scale>
         <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>

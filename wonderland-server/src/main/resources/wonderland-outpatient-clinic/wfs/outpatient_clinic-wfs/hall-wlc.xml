@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The clinic's main hall: the one room the 2009 screenshot is a picture of.
+     It is the same room shell the exam rooms use, authored as a unit cube and
+     stretched to 22 x 3.4 x 16 m, because that shell carries everything a room
+     needs to read as a room rather than as a plinth: carpet, a blue dado to
+     waist height, white walls above it, and a ceiling with light panels in it
+     that is drawn facing down, so it closes the hall around the person standing
+     in it and stays out of the top-down view.
+
+     The hall is the world's subject: the visitor arrives inside it, on the
+     +Z side, and looks across the carpet at the people standing in it. The
+     named exam rooms behind it are rooms a visitor walks to, not rooms the
+     world is judged by, and a scatter of 8 m boxes on an open plane is what
+     made the first cut of this clinic look like a model of a clinic rather
+     than a clinic. -->
+<model-cell>
+    <name>Outpatient Clinic Hall</name>
+    <metadata/>
+    <model-cell-component>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
+        <PickingEnabled>true</PickingEnabled>
+        <CollisionEnabled>true</CollisionEnabled>
+        <LightingEnabled>false</LightingEnabled>
+        <BackfaceCullingEnabled>true</BackfaceCullingEnabled>
+        <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
+    </model-cell-component>
+    <position-component>
+        <translation>
+            <x>0</x>
+            <y>0.0</y>
+            <z>0</z>
+        </translation>
+        <bounds>
+            <type>BOX</type>
+            <x>22.0</x>
+            <y>3.4</y>
+            <z>16.0</z>
+        </bounds>
+        <scale>
+            <x>22.0</x>
+            <y>3.4</y>
+            <z>16.0</z>
+        </scale>
+        <rotation>
+            <x>0.0</x>
+            <y>1.0</y>
+            <z>0.0</z>
+            <angle>0.0</angle>
+        </rotation>
+    </position-component>
+    <placemark-component>
+        <placemarkName>Outpatient Clinic Hall</placemarkName>
+    </placemark-component>
+</model-cell>

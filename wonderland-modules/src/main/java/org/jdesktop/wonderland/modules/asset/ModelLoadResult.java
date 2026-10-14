@@ -49,6 +49,22 @@ public final class ModelLoadResult {
                 document, presentTextures, missingTextures);
     }
 
+    /**
+     * A loaded model that arrived as a bare COLLADA document, with no
+     * {@code .dep} and no {@code .ldr} behind it.
+     *
+     * <p>The avatar pool is the reason this exists: the bundled bodies are
+     * {@code .dae} files on the classpath (see
+     * {@code org.jdesktop.wonderland.avatars.AvatarPool}), authored at human
+     * scale and normalised by nobody, so there is no deployment descriptor to
+     * resolve and nothing to normalise against. A renderer that could only draw
+     * what a {@code .dep} had pointed at could not draw a person.</p>
+     */
+    public static ModelLoadResult bare(ColladaDocument document) {
+        return new ModelLoadResult(AssetLoadStatus.LOADED, null, null, null,
+                document, List.of(), List.of());
+    }
+
     /** A failed load with the reason the pipeline stopped. */
     static ModelLoadResult error(String message) {
         return new ModelLoadResult(AssetLoadStatus.ERROR, message, null, null, null,

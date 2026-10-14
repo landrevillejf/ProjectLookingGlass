@@ -71,7 +71,39 @@ class WorldRestControllerTest {
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].source")
                         .value("classpath"))
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].cellCount")
-                        .value(9));
+                        .value(18));
+    }
+
+    /**
+     * The listed/live distinction the browser's Start button turns on: exactly
+     * the entry whose module the live world was seeded from carries
+     * {@code hosted}, and an unseeded server claims it for nobody.
+     */
+    @Test
+    void worldsMarksOnlyTheSeededModuleHosted() throws Exception {
+        mvc.perform(get("/api/world/worlds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$[?(@.module == 'wonderland-outpatient-clinic')].hosted")
+                        .value(false));
+
+        world.setLiveModule("wonderland-outpatient-clinic");
+        mvc.perform(get("/api/world/worlds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$[?(@.module == 'wonderland-outpatient-clinic')].hosted")
+                        .value(true));
+    }
+
+    /** A catalog world's cells carry their authored placement for a preview. */
+    @Test
+    void cellsForAModuleCarryTheAuthoredPlacement() throws Exception {
+        mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].x").value(-8.0))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].z").value(-12.3))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].width").value(32.0))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].depth").value(32.0));
     }
 
     @Test
@@ -98,7 +130,7 @@ class WorldRestControllerTest {
         // readable through ?module= -- this is the "pick any world" surface
         mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(9)))
+                .andExpect(jsonPath("$", hasSize(18)))
                 .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')]").exists())
                 .andExpect(jsonPath("$[0].parent").doesNotExist());
     }
@@ -236,6 +268,40 @@ class WorldRestControllerTest {
         mvc.perform(get("/api/world/asset")
                         .param("module", "wonderland-outpatient-clinic")
                         .param("path", "../../etc/passwd"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ---- the world preview: the browser's vignette asks for a picture of the
+    // ---- world, and a world without one must answer 404, not an empty 200.
+
+    @Test
+    void previewServesTheWorldsOwnPictureWithItsMediaType(@TempDir Path dir)
+            throws Exception {
+        String module = "wonderland-town-world";
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(
+                dir.resolve(module + ".jar")))) {
+            put(out, "module.xml", "<wonderland-module><name>A Town</name></wonderland-module>");
+            put(out, "preview.png", "PNG-BYTES");
+        }
+        MockMvc jarMvc = MockMvcBuilders.standaloneSetup(new WorldRestController(
+                new WorldModel(), new WorldCatalog(dir.toString()))).build();
+
+        jarMvc.perform(get("/api/world/preview").param("module", module))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes("PNG-BYTES".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void previewIsNotFoundForAWorldThatCarriesNoPicture() throws Exception {
+        // the bundled clinic ships no preview.png, so the browser's cue to draw
+        // the floor plan is a plain 404 -- never a 200 with an empty body, which
+        // a caller would have to decode as an image to discover
+        mvc.perform(get("/api/world/preview")
+                        .param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isNotFound());
+        // and a missing module parameter is Spring's problem, not ours to guess
+        mvc.perform(get("/api/world/preview"))
                 .andExpect(status().isBadRequest());
     }
 

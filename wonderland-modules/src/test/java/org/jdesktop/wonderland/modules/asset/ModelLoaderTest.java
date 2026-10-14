@@ -192,4 +192,76 @@ class ModelLoaderTest {
         }
         return store;
     }
+
+    // ---- which artifacts this pipeline may hand to a COLLADA parser -------
+
+    @Test
+    void aColladaDocumentIsReadWhateverTheDescriptorCallsItself() {
+        // The document is the evidence. Every shipped stock world names one of three
+        // loaders for the same .dae, and refusing by class name is what threw away
+        // ten real models: JmeColladaLoader carries "jme" and IS a COLLADA reader.
+        assertThat(ModelLoader.readsCollada(
+                "org.jdesktop.wonderland.modules.jmecolladaloader.client"
+                + ".JmeColladaLoader", "Arch-rustic.kmz/models/untitled.dae.gz"))
+                .as("the auditorium's and the gallery's own loader")
+                .isTrue();
+        assertThat(ModelLoader.readsCollada(
+                "org.jdesktop.wonderland.modules.collada.loader.ColladaLoader",
+                "dir/models/untitled.dae")).isTrue();
+        assertThat(ModelLoader.readsCollada(null, "dir/models/untitled.dae"))
+                .as("no loader named at all is still a COLLADA document")
+                .isTrue();
+        assertThat(ModelLoader.readsCollada(null, "dir/scene.xml")).isTrue();
+        assertThat(ModelLoader.readsCollada(null, "dir/scene.xml.gz")).isTrue();
+    }
+
+    @Test
+    void anArtifactThatIsNotADocumentIsRefusedUnlessTheDescriptorSaysCollada() {
+        // The meeting complex's orientation artifact: a binary that a DOM parser can
+        // only answer with "Content is not allowed in prolog" on stderr. Refusing it
+        // here is what turns that stack trace into one line naming the cell and why.
+        assertThat(ModelLoader.readsCollada(
+                "org.jdesktop.wonderland.modules.mtgloader.client.MtgLoader",
+                "OrientationWorld.mtg")).isFalse();
+        assertThat(ModelLoader.readsCollada(null, "models/mesh.ogre")).isFalse();
+        assertThat(ModelLoader.readsCollada(null, null)).isFalse();
+        // ... and a descriptor that does name a Collada loader is believed, even
+        // about an unusual suffix, because the author's word is the only evidence left.
+        assertThat(ModelLoader.readsCollada(
+                "org.jdesktop.wonderland.modules.collada.loader.ColladaLoader",
+                "models/untitled.collada")).isTrue();
+    }
+
+    @Test
+    void theCaseOfTheSuffixAndTheClassNameIsNeitherOfThemMeaningful() {
+        assertThat(ModelLoader.readsCollada(null, "dir/UNTITLED.DAE.GZ")).isTrue();
+        assertThat(ModelLoader.readsCollada(
+                "org.example.COLLADALOADER", "models/untitled")).isTrue();
+    }
+
+    @Test
+    void aNonColladaDeployedModelIsSkippedWithAReasonRatherThanAParseFailure() {
+        // End to end over the real .dep vocabulary: the cell must cost itself and not
+        // the world, and the message must name both the loader and the artifact, since
+        // that message is the only record a maintainer gets of a format still missing.
+        String dep = "<deployed-model>"
+                + "<modelURL>wla://M/OrientationWorld.mtg</modelURL>"
+                + "<modelLoaderClassname>"
+                + "org.jdesktop.wonderland.modules.mtgloader.client.MtgLoader"
+                + "</modelLoaderClassname>"
+                + "</deployed-model>";
+        MapStore store = new MapStore()
+                .put("OrientationWorld.dep", bytes(dep))
+                // the bytes are there, and they are not XML: reading them is the bug
+                .put("OrientationWorld.mtg", new byte[]{0x00, 0x01, 0x02, (byte) 0xff});
+        ModelLoadResult result = LOADER.load(store, "wla://M/OrientationWorld.dep");
+
+        assertThat(result.isLoaded()).isFalse();
+        assertThat(result.error())
+                .contains("no reader for loader")
+                .contains("MtgLoader")
+                .contains("OrientationWorld.mtg")
+                .as("never the parser's own complaint about a binary")
+                .doesNotContain("prolog");
+    }
 }

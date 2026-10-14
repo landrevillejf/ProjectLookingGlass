@@ -60,6 +60,21 @@ public final class ModelLoader {
         if (modelRef == null) {
             return ModelLoadResult.error("collada reference not resolvable: " + model.modelURL());
         }
+        // The {@code .dep} names the loader the 2006 client would have run, and not
+        // every one of them produced COLLADA. The meeting complex's orientation
+        // artifact is an {@code .mtg} handed to {@code MtgLoader}, and reading its
+        // bytes as a document is what printed
+        // "Content is not allowed in prolog" into the sweep log: the answer was
+        // never a broken model, it is an art format this port has no reader for.
+        // Refuse it on the document's own evidence -- see {@link #readsCollada},
+        // which records the time refusing on the loader's <em>name</em> scrapped
+        // ten real models -- so the cell is skipped with a reason rather than a
+        // stack trace, exactly as the 2006 client skipped a module it lacked.
+        if (!readsCollada(model.modelLoaderClassname(), modelRef.path())) {
+            return ModelLoadResult.error("no reader for loader "
+                    + model.modelLoaderClassname() + " ("
+                    + WlaRef.baseName(modelRef.path()) + ")");
+        }
         byte[] modelBytes = read(store, modelRef.module(), modelRef.path());
         if (modelBytes == null) {
             return ModelLoadResult.error("collada not found: " + model.modelURL());
@@ -83,6 +98,38 @@ public final class ModelLoader {
         }
         return ModelLoadResult.loaded(model, loaderData, document, List.copyOf(present),
                 List.copyOf(missing));
+    }
+
+    /**
+     * Whether this pipeline can read the artifact a {@code .dep} points at.
+     *
+     * <p>The document decides, not the loader's class name. The first cut here
+     * refused by class name and threw away ten models of the shipped worlds,
+     * because {@code org.jdesktop.wonderland.modules.jmecolladaloader.client.
+     * JmeColladaLoader} carries {@code jme} in its name and is nonetheless a
+     * COLLADA reader -- so it silently scrapped the auditorium, the gallery's main
+     * building and five cells of the combined world. That is the exact failure this
+     * port is being judged for, and a name is not evidence.
+     *
+     * <p>A {@code .dae} (optionally gzipped) or a {@code .xml} is a COLLADA
+     * document by construction and is read. Anything else -- the meeting complex's
+     * {@code OrientationWorld.mtg} -- is only read if the descriptor names a
+     * Collada loader, which {@code MtgLoader} does not.
+     *
+     * @param loaderClassname the {@code modelLoaderClassname} the {@code .dep}
+     *                        recorded, or null when it recorded none
+     * @param modelPath       the artifact path the {@code modelURL} resolved to
+     */
+    static boolean readsCollada(String loaderClassname, String modelPath) {
+        if (modelPath != null) {
+            String lower = modelPath.toLowerCase(java.util.Locale.ROOT);
+            if (lower.endsWith(".dae") || lower.endsWith(".dae.gz")
+                    || lower.endsWith(".xml") || lower.endsWith(".xml.gz")) {
+                return true;
+            }
+        }
+        return loaderClassname != null
+                && loaderClassname.toLowerCase(java.util.Locale.ROOT).contains("collada");
     }
 
     private LoaderData loadLoaderData(WorldStore store, String loaderUrl) {

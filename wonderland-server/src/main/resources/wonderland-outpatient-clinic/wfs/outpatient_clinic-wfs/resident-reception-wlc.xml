@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- One of the clinic's residents: a body at a place, with a name over it.
+     The 2009 world showed nine of these because nine people were logged in;
+     this one is authored, because the clinic is a staffed clinic: a
+     receptionist sits behind the counter the world ships. The element order is
+     the JAXB field order of CellServerState (name, metadata, components) with
+     AvatarCellServerState's own userName after them. -->
+<avatar-cell avatarModelUrl="wla://wonderland-avatars/humanoid-a.dae">
+    <name>Receptionist</name>
+    <metadata/>
+    <position-component>
+        <translation><x>-8.5</x><y>0.05</y><z>4.4</z></translation>
+        <bounds><type>BOX</type><x>0.35</x><y>0.9</y><z>0.2</z></bounds>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+    <userName>receptionist</userName>
+</avatar-cell>

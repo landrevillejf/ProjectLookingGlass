@@ -6,6 +6,9 @@
 # Order is not significant: WorldLoader sorts, and the server seeds the hierarchy
 # with the environment root first regardless.
 wfs/outpatient_clinic-wfs/floor-wlc.xml
+# The hall first: it is the room the world is entered into and photographed from,
+# and the exam rooms behind it are the rooms its directory board lists.
+wfs/outpatient_clinic-wfs/hall-wlc.xml
 wfs/outpatient_clinic-wfs/exam-room-1-wlc.xml
 wfs/outpatient_clinic-wfs/exam-room-1-waiting-wlc.xml
 wfs/outpatient_clinic-wfs/exam-room-2-wlc.xml
@@ -14,3 +17,14 @@ wfs/outpatient_clinic-wfs/patient-education-wlc.xml
 wfs/outpatient_clinic-wfs/observation-room-wlc.xml
 wfs/outpatient_clinic-wfs/reception-wlc.xml
 wfs/outpatient_clinic-wfs/directory-sign-wlc.xml
+wfs/outpatient_clinic-wfs/sofa-a-wlc.xml
+wfs/outpatient_clinic-wfs/sofa-b-wlc.xml
+wfs/outpatient_clinic-wfs/sofa-c-wlc.xml
+# The clinic's residents: avatar cells, bodies not furniture. The 2009 world
+# showed people because people were logged in; a staffed clinic is shown
+# staffed, with role names rather than invented private individuals.
+wfs/outpatient_clinic-wfs/resident-reception-wlc.xml
+wfs/outpatient_clinic-wfs/resident-waiting-1-wlc.xml
+wfs/outpatient_clinic-wfs/resident-waiting-2-wlc.xml
+wfs/outpatient_clinic-wfs/resident-corridor-wlc.xml
+wfs/outpatient_clinic-wfs/resident-education-wlc.xml
