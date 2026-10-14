@@ -149,6 +149,35 @@ class WorldSeederTest {
     }
 
     @Test
+    void aModelCellCapturesItsDeployedModelUrlServerSide() {
+        WorldModel world = new WorldModel();
+        WorldSeeder seeder = new WorldSeeder(world, CLINIC);
+
+        ModelCellComponentServerState component = new ModelCellComponentServerState();
+        component.setDeployedModelURL("wla://" + CLINIC + "/exam-room.kmz/exam-room.dep");
+        CellServerState model = new ModelCellServerState();
+        model.setName("Exam Room 9");
+        model.addComponentServerState(component);
+
+        seeder.seedCell(model);
+        assertThat(only(world, "Exam Room 9").getDeployedModelURL())
+                .as("the wla:// url is stored on the cell for REST + the asset endpoint")
+                .isEqualTo("wla://" + CLINIC + "/exam-room.kmz/exam-room.dep");
+    }
+
+    @Test
+    void aNonModelCellCarriesNoDeployedModelUrl() {
+        WorldModel world = new WorldModel();
+        WorldSeeder seeder = new WorldSeeder(world, CLINIC);
+
+        CellServerState avatar = new AvatarCellServerState("Dr. Alan");
+        avatar.setName("Avatar");
+        seeder.seedCell(avatar);
+
+        assertThat(only(world, "Avatar").getDeployedModelURL()).isNull();
+    }
+
+    @Test
     void aCellWithoutTheModelComponentSeedsAsTheEnvironmentClass() {
         WorldModel world = new WorldModel();
         WorldSeeder seeder = new WorldSeeder(world, CLINIC);

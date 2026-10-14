@@ -74,9 +74,20 @@ public class WorldModel {
      */
     public WorldCell addCell(CellID cellID, String className, String name,
             CellTransform transform, CellClientState clientState) {
+        return addCell(cellID, className, name, transform, clientState, null);
+    }
+
+    /**
+     * Register a content cell that carries a {@code wla://} deployed-model URL, so
+     * the read-only REST surface and the HTTP asset endpoint can resolve the cell's
+     * art without the wire (see {@link WorldCell#getDeployedModelURL()}).
+     */
+    public WorldCell addCell(CellID cellID, String className, String name,
+            CellTransform transform, CellClientState clientState, String deployedModelURL) {
         WorldCell cell = new WorldCell(cellID, environmentCellID, className, name,
                 new BoundingSphere(1f, new Vector3f()),
-                transform == null ? new CellTransform() : transform, clientState);
+                transform == null ? new CellTransform() : transform, clientState,
+                deployedModelURL);
         cells.put(cellID, cell);
         return cell;
     }
@@ -115,7 +126,7 @@ public class WorldModel {
         }
         cells.put(cellID, new WorldCell(existing.getCellID(), existing.getParentID(),
                 existing.getClassName(), existing.getName(), existing.getLocalBounds(),
-                transform, existing.getClientState()));
+                transform, existing.getClientState(), existing.getDeployedModelURL()));
         return true;
     }
 

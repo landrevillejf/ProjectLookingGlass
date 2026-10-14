@@ -16,16 +16,19 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.server.world.WorldCatalog;
 import org.jdesktop.wonderland.server.world.WorldCell;
 import org.jdesktop.wonderland.server.world.WorldModel;
 import org.jdesktop.wonderland.server.world.WorldSummary;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -70,12 +73,50 @@ public class WorldRestController {
         return ResponseEntity.ok(describe(cell));
     }
 
+    /**
+     * Serve one world asset's bytes (Stage 2: the HTTP asset endpoint). A cell's
+     * descriptor carries a {@code wla://<module>/<path>} deployed-model URL; the
+     * walk host resolves the art it names by calling this with that module and
+     * path, so the model bytes come over plain HTTP and the WebSocket wire format
+     * is never touched. The read is confined to the module's own store (a bundled
+     * classpath world or an installed jar) via {@link WorldCatalog#openAssetBytes};
+     * a missing asset is a 404, and a path that tries to escape the module root is
+     * rejected as a 400 before the store is consulted.
+     */
+    @GetMapping("/asset")
+    public ResponseEntity<byte[]> asset(@RequestParam("module") String module,
+            @RequestParam("path") String path) {
+        if (!isConfinedAssetPath(path)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        Optional<byte[]> bytes = catalog.openAssetBytes(module, path);
+        return bytes.map(b -> ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(b))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    /**
+     * Whether {@code path} stays inside the module root: no leading '/', no parent
+     * ('..') segment, no backslash. Defense in depth -- the stores already refuse
+     * traversal, but the endpoint should not even hand a crafted path to them.
+     */
+    private static boolean isConfinedAssetPath(String path) {
+        return path != null && !path.isBlank() && !path.startsWith("/")
+                && !path.contains("..") && !path.contains("\\");
+    }
+
     private Map<String, Object> describe(WorldCell cell) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", cell.getCellID().toString());
         map.put("parent", cell.getParentID() == null ? null : cell.getParentID().toString());
         map.put("className", cell.getClassName());
         map.put("name", cell.getName());
+        // only a model cell carries a URL; omitting it for the rest keeps the
+        // environment/non-model descriptor exactly as before (no null noise)
+        if (cell.getDeployedModelURL() != null) {
+            map.put("deployedModelURL", cell.getDeployedModelURL());
+        }
         return map;
     }
 }
