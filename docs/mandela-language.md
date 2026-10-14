@@ -452,6 +452,25 @@ a `JsonError` that names the line and column it came from.
 `PI E tau abs sign floor ceil round sqrt cbrt pow exp log log10 log2 sin cos
 tan asin acos atan atan2 hypot min max random randomInt`
 
+### `std.glob`
+
+`matches(text, pattern)` and `isMatch(pattern, text)` — the `*` / `?` matcher,
+the same vocabulary the browser's `// @match` header speaks (there the host
+translates it; here a script calls it directly). `*` is any run of characters
+including none, `?` is exactly one, everything else is literal, and the match
+covers the whole text. Needs no grant: matching text asks nothing of the host.
+
+```mandela
+use std.glob
+let url = "http://example.com/"
+if (glob.matches(url, "http://*")) { println("plain http") }
+```
+
+Regular expressions stay out of the language (§12); a glob is the one matcher
+a sandbox can hand out, because it scans once and never backtracks — the cost
+of a wrong guess is one more segment, not an exponential retry. `*a*a` names
+`"aa"` and no more: each segment needs ground of its own.
+
 ### `std.fs` *(needs the filesystem grant)*
 
 `read lines write append exists isDirectory list mkdir delete size modified
@@ -471,8 +490,8 @@ grant; `sleep` does, because it parks a host thread (`THREAD`).
 
 | Type | Members |
 | --- | --- |
-| `Str` | `length upper lower trim split replace replaceFirst contains startsWith endsWith indexOf charAt substring toInt toDouble repeat padStart padEnd` |
-| `List` | `length size isEmpty first last push add insert removeAt pop clear set get indexOf contains join map filter reduce forEach any all find sort sortBy sorted sortedBy reversed slice take skip sum min max distinct flatten` |
+| `Str` | `length upper lower trim split splitOnce replace replaceFirst contains startsWith endsWith indexOf charAt substring toInt toDouble repeat padStart padEnd count isBlank lines words removePrefix removeSuffix` |
+| `List` | `length size isEmpty first last push add insert removeAt pop clear set get indexOf contains join map filter reduce forEach any all count partition find sort sortBy sorted sortedBy reversed slice take skip sum min max distinct flatten` |
 | `Map` | `length size isEmpty keys values get put set remove has clear merge copy forEach mapValues entries` |
 | `Range` | `length first last step isEmpty toList contains reversed sum map filter forEach any all find join min max distinct slice take skip sorted sortedBy` |
 | `Int`/`Double` | `abs sign floor ceil round sqrt cbrt toInt toDouble isWhole` |

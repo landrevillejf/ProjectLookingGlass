@@ -1,0 +1,169 @@
+#!/usr/bin/env mandela
+// changelog-check.mnd — the changelog that feeds three readers must stay parseable.
+//
+// CHANGELOG.md is not only prose anymore: whats-new.mnd renders it into the
+// Help Center's What's New topic and the Pages release archive, and the
+// Update Manager's dialog parses the same sections at run time. All three
+// readers walk `## [X.Y.Z] — date` headers and `### Added`-style groups; a
+// header that deviates is a release page that silently misses a version, or a
+// dialog that answers "No changelog available" with a green test suite — the
+// exact bug the Update Manager's rewrite was. This gate is that bug's second
+// line of defence: it reads the document the way the readers do and fails
+// where they would quietly drop a section.
+//
+//     ./gradlew :lg3d-mandela:changelogCheck
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/changelog-check.mnd -s .
+//
+// Exit code 0 when the document parses, 2 with file:line findings when not.
+
+use std.fs
+
+let FILE = "CHANGELOG.md"
+let GROUPS = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
+let DIGITS = "0123456789"
+
+// The ISO date a header carries, read from just after its `]`: a separator
+// (`—`, `--` or `-`, which this document has spelled all three across its
+// history — including the one-character em dash that is not three hyphens),
+// then ten characters of digits-and-hyphens. What follows the date is the
+// header's own narrative and nobody's to re-read here. (Not whether the day
+// exists: a shape gate that re-implements a calendar is a gate nobody
+// trusts.)
+fun dateAfter(text) {
+    var rest = text.trim()
+    while (rest.length > 0 && (rest.charAt(0) == "-" || rest.charAt(0) == "—")) {
+        rest = rest.substring(1).trim()
+    }
+    if (rest.length < 10) { return "" }
+    let d = rest.substring(0, 10)
+    for (i in 0..9) {
+        let c = d.charAt(i)
+        if (i == 4 || i == 7) {
+            if (c != "-") { return "" }
+        } else if (DIGITS.indexOf(c) < 0) {
+            return ""
+        }
+    }
+    return d
+}
+
+// The bracketed label of a `## [` header, with the version pulled out of it:
+// X.Y.Z (optionally -dev) or "" when the label is no version — "Unreleased"
+// being the one that legitimately is not.
+fun labelOf(line) {
+    let close = line.indexOf("]", 4)
+    if (close < 0) { return "" }
+    return line.substring(4, close)
+}
+
+fun versionOf(label) {
+    let at = label.indexOf("-")
+    let bare = if (at < 0) label else label.substring(0, at)
+    let parts = bare.split(".")
+    if (parts.length != 3) { return "" }
+    for (p in parts) {
+        if (p.length == 0 || DIGITS.indexOf(p.charAt(0)) < 0) { return "" }
+        for (c in p) {
+            if (DIGITS.indexOf(c) < 0) { return "" }
+        }
+    }
+    return bare
+}
+
+fun rankOf(v) {
+    let parts = v.split(".")
+    return parts[0].toInt() * 1000000 + parts[1].toInt() * 1000 + parts[2].toInt()
+}
+
+if (!fs.exists(FILE)) {
+    error("${FILE} missing from the repository root", "IOError")
+}
+
+var findings = []
+var headers = []      // [line number, label, the header line itself]
+var groups = []       // one list of group names per header, same order
+var n = 0
+for (line in fs.lines(FILE)) {
+    n = n + 1
+    if (line.startsWith("## [")) {
+        let label = labelOf(line)
+        if (label.length == 0) { continue }
+        headers.push([n, label, dateAfter(line.substring(line.indexOf("]", 4) + 1))])
+        groups.push([])
+    } else if (line.startsWith("### ")) {
+        if (groups.length > 0) {
+            groups[groups.length - 1].push(line.substring(4).trim())
+        } else {
+            findings.push("${FILE}:${n}: a ### group sits above every ## [ header")
+        }
+    }
+}
+
+if (headers.length == 0) {
+    error("${FILE} carries no `## [` release header: no reader can find a version",
+          "ViolationError")
+}
+
+// Rule 1 — [Unreleased] first, and only once. whats-new.mnd reads it as the
+// work-in-progress headline; a second one splits the same story in two.
+if (headers[0][1] != "Unreleased") {
+    findings.push("${FILE}:${headers[0][0]}: the first release header is " +
+                  "[${headers[0][1]}]; Keep a Changelog opens with [Unreleased]")
+}
+var sawUnreleased = 0
+for (h in headers) {
+    if (h[1] == "Unreleased") { sawUnreleased = sawUnreleased + 1 }
+}
+if (sawUnreleased > 1) {
+    findings.push("${FILE}: ${sawUnreleased} [Unreleased] headers; the archive " +
+                  "and the help topic would render the same work twice")
+}
+
+// Rules 2-5 per header: a version label, its order, its date, its groups.
+var previous = ""
+var seen = {}
+for (k in 0..headers.length - 1) {
+    let hdr = headers[k]
+    let where = "${FILE}:${hdr[0]}"
+    if (hdr[1] == "Unreleased") { continue }
+    let v = versionOf(hdr[1])
+    if (v.length == 0) {
+        findings.push("${where}: header labels [${hdr[1]}]; a released section " +
+                      "names X.Y.Z (optionally -dev), the way both readers parse it")
+        continue
+    }
+    if (seen.has(v)) {
+        findings.push("${where}: version ${v} already opened at line ${seen.get(v)}")
+    } else {
+        seen.put(v, hdr[0])
+    }
+    if (previous.length > 0 && rankOf(v) >= rankOf(previous)) {
+        findings.push("${where}: ${v} follows ${previous}; releases descend, " +
+                      "or the archive lists a stale page as the newest")
+    }
+    previous = v
+    if (hdr[2].length == 0) {
+        findings.push("${where}: no ISO date after the label; the release pages " +
+                      "print the date the header is supposed to carry")
+    }
+
+    let g = groups[k]
+    if (g.length == 0 && k > 0) {
+        findings.push("${where}: release [${hdr[1]}] has no ### section; a reader " +
+                      "sees a version with nothing under it")
+    }
+    for (name in g) {
+        if (!GROUPS.contains(name)) {
+            findings.push("${where}: under [${hdr[1]}] a group named `${name}`; the " +
+                          "readers map only " + GROUPS.join(", "))
+        }
+    }
+}
+
+println("changelog-check: ${headers.length} headers, ${seen.length} released " +
+        "versions read the way the three readers read them")
+if (findings.length > 0) {
+    for (f in findings) { println("  VIOLATION     ${f}") }
+    error("${findings.length} changelog finding(s)", "ViolationError")
+}

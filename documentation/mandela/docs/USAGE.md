@@ -74,6 +74,7 @@ fun kindOf(name) {
     return match (name) {
         "whats-new" => "gate and generator",
         "asset-report" => "report",
+        "todo-scan" => "report",
         "userscript-new" => "writes a program",
         _ => "gate"
     }
@@ -105,35 +106,41 @@ mandela run build-gradle/scratch/mandela-at-work.mnd -s .
 ```text
 == what the repository ships in the language ==
    scripts/mandela/asset-report.mnd  5929 bytes
+   scripts/mandela/changelog-check.mnd  6389 bytes
    scripts/mandela/doc-links.mnd  5969 bytes
    scripts/mandela/html-links.mnd  8243 bytes
    scripts/mandela/i18n-keys.mnd  7813 bytes
    scripts/mandela/legacy-j3d.mnd  4567 bytes
-   scripts/mandela/release-check.mnd  5804 bytes
+   scripts/mandela/mandela-version.mnd  7036 bytes
+   scripts/mandela/release-check.mnd  5799 bytes
    scripts/mandela/scripts-hygiene.mnd  5906 bytes
    scripts/mandela/startmenu-audit.mnd  8359 bytes
+   scripts/mandela/todo-scan.mnd  3737 bytes
    scripts/mandela/userscript-new.mnd  3651 bytes
-   scripts/mandela/whats-new.mnd  18652 bytes
-   10 program(s)
+   scripts/mandela/whats-new.mnd  34977 bytes
+   13 program(s)
 
 == what the build claims ==
-   8 wired gate task(s): docLinksCheck, htmlLinksCheck, releaseCheck, startMenuAudit, i18nKeysCheck, legacyJ3dCheck, scriptsHygieneCheck, whatsNewCheck
+   10 wired gate task(s): docLinksCheck, htmlLinksCheck, releaseCheck, mandelaVersionCheck, changelogCheck, startMenuAudit, i18nKeysCheck, legacyJ3dCheck, scriptsHygieneCheck, whatsNewCheck
 
 == one line per program ==
    report  <-  asset-report.mnd
+   gate  <-  changelog-check.mnd
    gate  <-  doc-links.mnd
    gate  <-  html-links.mnd
    gate  <-  i18n-keys.mnd
    gate  <-  legacy-j3d.mnd
+   gate  <-  mandela-version.mnd
    gate  <-  release-check.mnd
    gate  <-  scripts-hygiene.mnd
    gate  <-  startmenu-audit.mnd
+   report  <-  todo-scan.mnd
    writes a program  <-  userscript-new.mnd
    gate and generator  <-  whats-new.mnd
 
 == the same facts as JSON ==
-   {"programs":10,"gates":8,"root":"/home/fedora/Documents/ProjectLookingGlass","runBy":"refused by the host (PermissionError)","at":"2026-10-12 15:31"}
-   parsed back: 10 programs, 8 gates
+   {"programs":13,"gates":10,"runBy":"refused by the host (PermissionError)","at":"2026-10-13 20:09"}
+   parsed back: 13 programs, 10 gates
 ```
 
 Read that last block twice, because it is the whole security model in one field:
@@ -204,10 +211,11 @@ for still land, because the delivery is in a `finally`.
 
 ### The repository's own CI
 
-The nine programs the build ran above are wired as gates:
+Thirteen programs ship in `scripts/mandela/`; the ten gates among them are what
+the build ran above wires:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks     # all nine
+./gradlew :lg3d-mandela:repositoryChecks     # all ten
 ./gradlew :lg3d-mandela:docLinksCheck        # one of them
 ```
 

@@ -5,7 +5,7 @@
 Project Looking Glass (lg3d) is a modernization port of the 2006-era Sun Microsystems 3D desktop. The codebase has been migrated from Ant + Java 1.5 to Gradle 8.14 + JDK 21, with Java 3D migrated from Sun's `javax.media.j3d` to Jogamp's `org.jogamp.java3d` 1.7.2.
 
 **Project coordinates:** `org.jdesktop.lg3d:1.69.0-dev`
-**Mandela's own coordinates:** jar `1.0.0`, language `1.0` (`mandela.version` /
+**Mandela's own coordinates:** jar `1.1.0`, language `1.0` (`mandela.version` /
 `mandela.language` in [gradle.properties](gradle.properties)) — `lg3d-mandela`
 carries a version of its own because it depends on nothing and therefore releases
 on its own clock; the desktop bundles whatever jar that version names. See
@@ -97,8 +97,8 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 > a per-module **minimum line/branch covered ratio** for the eight modules that
 > have a test suite, and `check` depends on `jacocoTestCoverageVerification` — so
 > **a coverage regression below a module's floor fails the build**. The floors sit
-> just under the measured numbers (`lg3d-mandela` 0.905 / 0.800 at 91.19 % /
-> 81.18 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.225 / 0.310 at
+> just under the measured numbers (`lg3d-mandela` 0.910 / 0.815 at 91.49 % /
+> 81.86 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.225 / 0.310 at
 > 22.83 % / 31.56 %) and the convention is to **raise a floor as coverage
 > improves**: a PR that closes a package moves its module's number in the same PR.
 >
@@ -241,7 +241,7 @@ JUnit 5 test infrastructure exists and runs headless:
   finalizes `jacocoTestReport`, and `check` additionally runs
   `jacocoTestCoverageVerification` against the module's floor in the root
   `coverageFloors` map (see *Test coverage*).
-- `lg3d-mandela/src/test/java` - the language's own headless suite (1142 cases:
+- `lg3d-mandela/src/test/java` - the language's own headless suite (1259 cases:
   the JUnit suites plus the Cucumber BDD `MandelaSuite`, one `test` task),
   including `DocumentationTest` (the language guide is a tested artifact) and
   `ShippedScriptsTest` (every script in `scripts/mandela/` compiles, with no
@@ -271,7 +271,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the nine gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the ten gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -323,8 +323,16 @@ the exit codes and how to add a tool.
   `whatsNewRefresh` in the same PR**; the full-text search index needs no wiring
   because `generateHelpSearchIndex` already globs every `*.html` in that
   directory.
-- `asset-report.mnd` (report) and `userscript-new.mnd` (a Web Browser userscript
-  generator) are not gates: the first always exits 0, the second only writes the
+- `changelog-check.mnd` - the changelog's shape as a gate: `[Unreleased]` first
+  and once, `X.Y.Z` release labels in descending order with ISO dates, only the
+  six Keep-a-Changelog groups, and no empty released section - because the help
+  topic, the Pages archive and the Update Manager's dialog all parse the same
+  headers, and a header they cannot read is a version that silently disappears
+  from three surfaces at once (a CI gate; a changelog edit without `whatsNewRefresh`
+  fails `whatsNewCheck` anyway, this gate catches what neither renders prove).
+- `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
+  `TODO`/`FIXME` markers, always exit 0) and `userscript-new.mnd` (a Web Browser userscript
+  generator) are not gates: the first two always exit 0, the third only writes the
   one file it names.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole

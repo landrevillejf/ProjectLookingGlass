@@ -29,7 +29,77 @@ jar this module produces.
 
 ## [Unreleased]
 
-_Nothing has landed here since 1.0.0 below._
+_Nothing has landed here since 1.1.0 below._
+
+## [1.1.0] — 2026-10-13
+
+The first release on the module's own clock after the version identity landed.
+Everything in it is the *Next* horizon of
+[docs/ROADMAP.md](docs/ROADMAP.md) §3.1: stdlib members and tooling the shipped
+gates were hand-rolling. The grammar is untouched, so `mandela.language` stays
+`1.0` — a script written for 1.0 runs here unchanged, and only a script that
+asks for the new members needs this jar.
+
+### Added
+
+- **String value members** — `s.count(needle)`, `s.splitOnce(sep)`,
+  `s.isBlank()`, `s.removePrefix(p)` / `s.removeSuffix(s)`, `s.lines()` and
+  `s.words()`: the occurrence scan, the first-pair `key=value` split and the
+  trim-to-empty test each gate in `scripts/mandela/` repeated by hand.
+  `lines()` splits on LF, CRLF or CR alike.
+- **List value members** — `xs.count()` (bare: truthiness count; with a
+  predicate: indexed callback count) and `xs.partition(pred)`, the report-and-
+  split pair behind the gates' `filter` + re-filter pattern.
+- **`std.glob`** — `glob.matches(text, pattern)` and `glob.isMatch(pattern,
+  text)`: the `*`/`?` matcher of the browser userscript host, exposed as a
+  scriptable module. Segment-scan by construction, never backtracking, so it
+  stays inside the step budget the way a regular expression could not (the
+  guide's §12 still says no regex; this is the answer to that want).
+- **`scripts/mandela/changelog-check.mnd`** — a tenth gate: `CHANGELOG.md` is
+  read by three readers (the Help Center topic, the Pages archive, the Update
+  Manager's dialog), and a malformed header is invisible to all of them until
+  it renders wrong. The gate reads the document the way they do — `[Unreleased]`
+  first and once, `X.Y.Z` labels in descending order with ISO dates, only the
+  six Keep-a-Changelog groups, no empty release.
+- **`scripts/mandela/todo-scan.mnd`** — a report, not a gate (always exits 0,
+  like `asset-report.mnd`): the tree's open `TODO`/`FIXME` markers across the
+  root notes and the Java sources the build compiles, with build output, the
+  vendored ANTLR generator and the two trees no build compiles (`lg3d-docs`,
+  the retired `lg3d-awt`) deliberately out — the same exemption vocabulary
+  `legacy-j3d.mnd` states. Measured on this tree: 520 markers across 253
+  files, read out of 799,773 lines in 4,099 sources, 38 undecodable files
+  named as the blind spot. Writing it found the sandbox's own edge: asking
+  each line `contains(marker + ":")` allocates four strings a line, and over
+  860k lines that spent the whole 50M-step `desktop(root)` budget before the
+  walk finished — the same question asked against two literal `contains` is
+  what fits, with the occurrences enumerated only on the lines that mention a
+  marker at all.
+- **Guide and tables** — `docs/mandela-language.md` documents every member
+  above in the Str/List tables and carries a new §9 section for `std.glob`,
+  with its code fence compiled by `DocumentationTest`.
+- **The suite that proves it** — 117 cases (1142 → **1259** in the module's one
+  `test` task): every new member answered from a script, `std.glob` read at its
+  edges (a candidate shorter than its pattern, a tail whose ground the head
+  already consumed, consecutive stars, a starless literal mismatch), and the
+  two-arity `count` callback indexed like `map`'s. Writing them is what found
+  the matcher's one real defect: the head segment was cut by where the pattern's
+  first star sits without asking the text how long it was, so
+  `glob.matches("a", "abc*")` threw an index error instead of answering `false`.
+  The bound is now checked before the walk, and the run's length is derived from
+  the segment rather than passed beside it — which is how the mistake became
+  unrepresentable rather than merely untested.
+
+### Changed
+
+- The artifact name is `lg3d-mandela-1.1.0.jar`; `Mandela.IMPLEMENTATION_VERSION`
+  and the manifest's `Implementation-Version` follow it. `mandela-version.mnd`
+  gates all eight copies over the bump.
+- The module's JaCoCo floor moves with the numbers it is set under: 0.905 / 0.800
+  → **0.910 / 0.815** (measured 91.49 % line / 81.86 % branch). `rt/StandardLibrary`
+  stays at every line covered, and the new members' branches are covered from both
+  sides rather than only the true half — the two outcomes that hid the glob defect
+  and the carriage return that ends a text are both line-covered today and were
+  both wrong yesterday, which is the argument for pinning branches and not lines.
 
 ## [1.0.0] — 2026-10-13
 

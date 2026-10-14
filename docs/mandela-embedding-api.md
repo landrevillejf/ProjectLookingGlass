@@ -94,7 +94,7 @@ this document is what to do when they are not enough — which is mostly
 | --- | --- |
 | `LANGUAGE_NAME` `"Mandela"` · `PROJECT_NAME` `"Project Mandela"` | the names to show a user |
 | `LANGUAGE_VERSION` `"1.0"` | the grammar's version — what a script may assume |
-| `IMPLEMENTATION_VERSION` `"1.0.0"` | the jar's version — what a host checks when it asks whether a bug is fixed here |
+| `IMPLEMENTATION_VERSION` `"1.1.0"` | the jar's version — what a host checks when it asks whether a bug is fixed here |
 | `FILE_EXTENSION` `"mnd"` | the suffix, without the dot |
 | `ENGINE_NAMES` / `MIME_TYPES` | the JSR-223 aliases (`mandela`, …) and `text/x-mandela` |
 | `engine()` | a `Runtime.Builder` seeded with `Capabilities.console()` |

@@ -117,7 +117,7 @@ class EditorServicesTest {
     @DisplayName("moduleNames() lists every module a use statement can ask for")
     void moduleNamesIncludeTheStaticAndGatedModules() {
         assertTrue(EditorServices.moduleNames().containsAll(
-                List.of("json", "math", "fs", "env", "time")),
+                List.of("json", "math", "glob", "fs", "env", "time")),
                 () -> "got " + EditorServices.moduleNames());
     }
 

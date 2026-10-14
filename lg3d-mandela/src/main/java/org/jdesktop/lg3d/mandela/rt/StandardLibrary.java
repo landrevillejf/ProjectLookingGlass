@@ -467,6 +467,73 @@ public final class StandardLibrary implements Builtins {
         });
         stringMethods.put("padStart", (m, self, args) -> pad(text(self), args, true));
         stringMethods.put("padEnd", (m, self, args) -> pad(text(self), args, false));
+        // The shape every shipped gate hand-rolled: a scan counting literal
+        // occurrences. Non-overlapping, left to right - three "aa" live in
+        // "aaaa", not the two a sliding window would answer.
+        stringMethods.put("count", (m, self, args) -> {
+            String source = text(self);
+            String needle = argText(args, 0, "count");
+            if (needle.isEmpty()) {
+                // Every position sits in "nothing", so an occurrence lives at
+                // each character and one at the end - the count a join of the
+                // characters back together proves: n + 1, never a division by
+                // the length the caller did not write.
+                return (long) source.length() + 1;
+            }
+            long hits = 0;
+            int at = 0;
+            while ((at = source.indexOf(needle, at)) >= 0) {
+                hits++;
+                at += needle.length();
+            }
+            return hits;
+        });
+        // The first-pair split a `key = value` line is read with: exactly two
+        // fields, the remainder never broken again, and no separator found
+        // means the whole text as the one field. `split(sep, 2)` is not this:
+        // a literal split takes no count anywhere in the vocabulary.
+        stringMethods.put("splitOnce", (m, self, args) -> {
+            String source = text(self);
+            String sep = argText(args, 0, "splitOnce");
+            MandelaList out = new MandelaList(2);
+            if (sep.isEmpty()) {
+                // Splitting on "" is the characters, which is what split("")
+                // already means; once is the first of them and the remainder.
+                out.add(source.isEmpty() ? "" : source.substring(0, 1));
+                out.add(source.substring(Math.min(1, source.length())));
+                return out;
+            }
+            int at = source.indexOf(sep);
+            if (at < 0) {
+                out.add(source);
+                out.add("");
+                return out;
+            }
+            out.add(source.substring(0, at));
+            out.add(source.substring(at + sep.length()));
+            return out;
+        });
+        stringMethods.put("isBlank", (m, self, args) -> text(self).isBlank());
+        stringMethods.put("removePrefix", (m, self, args) -> {
+            String source = text(self);
+            String prefix = argText(args, 0, "removePrefix");
+            return source.startsWith(prefix) ? source.substring(prefix.length()) : source;
+        });
+        stringMethods.put("removeSuffix", (m, self, args) -> {
+            String source = text(self);
+            String suffix = argText(args, 0, "removeSuffix");
+            return (suffix.isEmpty() || source.endsWith(suffix))
+                    ? source.substring(0, Math.max(0, source.length() - suffix.length()))
+                    : source;
+        });
+        // Line ends are not one character in a tree whose files are edited on
+        // three platforms, so the newline splitter reads \r\n, \r and \n as
+        // each line's end and keeps every other character - no trim, no
+        // surprises for a count that has to match the file's own lines.
+        stringMethods.put("lines", (m, self, args) -> splitLines(text(self)));
+        // The bare split's sibling with a name: a run of whitespace is one
+        // separator, and the text neither starts nor ends with an empty field.
+        stringMethods.put("words", (m, self, args) -> splitText(text(self), null));
     }
 
     /** Splits on a literal separator, or on whitespace runs when called bare. */
@@ -508,6 +575,38 @@ public final class StandardLibrary implements Builtins {
             out.add(source.substring(at, next));
             at = next + sep.length();
         }
+    }
+
+    /**
+     * Splits on line ends, whichever spelling the file happens to use: CRLF is
+     * one end (not an empty line hiding after a CR), a lone CR ends a line like
+     * the classic Mac text that still turns up in a tree, and LF is the one the
+     * repository writes. Every other character survives, and a text ending in
+     * its line terminator answers no trailing empty line - the count reads as
+     * the file's own.
+     */
+    private static MandelaList splitLines(String source) {
+        MandelaList out = new MandelaList(8);
+        StringBuilder line = new StringBuilder();
+        for (int i = 0; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '\r') {
+                if (i + 1 < source.length() && source.charAt(i + 1) == '\n') {
+                    i++;
+                }
+                out.add(line.toString());
+                line.setLength(0);
+            } else if (c == '\n') {
+                out.add(line.toString());
+                line.setLength(0);
+            } else {
+                line.append(c);
+            }
+        }
+        if (line.length() > 0) {
+            out.add(line.toString());
+        }
+        return out;
     }
 
     private static String pad(String source, List<Object> args, boolean before) {
@@ -681,6 +780,53 @@ public final class StandardLibrary implements Builtins {
         });
         listMethods.put("any", (m, self, args) -> testList(m, self, args, true));
         listMethods.put("all", (m, self, args) -> testList(m, self, args, false));
+        // The counting half of the test pair: bare, the truthiness any() and
+        // all() answer for; with a predicate, the size of the filter the
+        // caller would otherwise build to throw the values away.
+        listMethods.put("count", (m, self, args) -> {
+            MandelaList list = asList(self);
+            // The bare call is the truthiness count; anything passed at all is
+            // read as the predicate, and a predicate that is not callable is
+            // named by needCallable below rather than silently counted.
+            if (args.isEmpty()) {
+                long hits = 0;
+                for (Object value : list.items()) {
+                    if (Values.truthy(value)) {
+                        hits++;
+                    }
+                }
+                return hits;
+            }
+            Callable callback = needCallable(arg(args, 0), "count");
+            long matched = 0;
+            for (int i = 0; i < list.size(); i++) {
+                if (Values.truthy(invoke(m, callback, list.get(i), (long) i))) {
+                    matched++;
+                }
+            }
+            return matched;
+        });
+        // The other half: one walk, two lists, each in its original order -
+        // the report that passes and the report that does not, where filter
+        // alone made the caller walk twice and pay for the misses again.
+        listMethods.put("partition", (m, self, args) -> {
+            MandelaList list = asList(self);
+            Callable callback = needCallable(arg(args, 0), "partition");
+            MandelaList yes = new MandelaList(list.size());
+            MandelaList no = new MandelaList(list.size());
+            for (int i = 0; i < list.size(); i++) {
+                Object value = list.get(i);
+                if (Values.truthy(invoke(m, callback, value, (long) i))) {
+                    yes.add(value);
+                } else {
+                    no.add(value);
+                }
+            }
+            MandelaList halves = new MandelaList(2);
+            halves.add(yes);
+            halves.add(no);
+            return halves;
+        });
         listMethods.put("find", (m, self, args) -> {
             MandelaList list = asList(self);
             Callable callback = needCallable(arg(args, 0), "find");
@@ -1074,6 +1220,119 @@ public final class StandardLibrary implements Builtins {
             return ThreadLocalRandom.current().nextLong(low, high + 1);
         }));
         modules.put("math", math);
+
+        // Glob: the `*` / `?` matcher, stated once as data instead of never.
+        // Regular expressions stay out of the language - a backtracking
+        // matcher burns any step budget inside one Java instruction - but a
+        // glob has no backtracking to burn: it matches segment by segment, so
+        // the work is bounded by the text and the pattern in front of it.
+        // This is the same vocabulary the browser's `// @match` header uses
+        // (the host translates it; the script never writes one); std.glob
+        // gives a script the matcher itself, without a grant, because
+        // matching text asks nothing of the host.
+        MandelaMap glob = new MandelaMap(2);
+        glob.put("matches", HostFunction.of("glob.matches", 2,
+                args -> globMatches(argText(args, 0, "glob.matches"),
+                        argText(args, 1, "glob.matches"))));
+        glob.put("isMatch", HostFunction.of("glob.isMatch", 2,
+                args -> globMatches(argText(args, 1, "glob.isMatch"),
+                        argText(args, 0, "glob.isMatch"))));
+        modules.put("glob", glob);
+    }
+
+    /**
+     * Whole-text glob matching: {@code *} is any run of characters, {@code ?}
+     * exactly one, everything else is literal. The algorithm is the segment
+     * scan - split the pattern on its stars, pin the first and last segment to
+     * the text's edges, and find every middle segment in order, each after the
+     * one before. There is no backtracking state to blow and no path whose
+     * cost outruns the text's length; a million-character URL and a
+     * twenty-segment pattern is twenty scans, never exponential. And it is
+     * simply correct where the greedy one-pointer matcher is not: {@code *a*a}
+     * names {@code "aa"} and no more, because the segments have no shared
+     * character to live on.
+     *
+     * @param text    the candidate, in full
+     * @param pattern the glob, anchoring the whole text
+     * @return whether the pattern names the text
+     */
+    private static boolean globMatches(String text, String pattern) {
+        if (pattern.indexOf('*') < 0) {
+            // No star to float on: the pattern is the text's exact shape.
+            return text.length() == pattern.length()
+                    && matchSegment(text, pattern, 0);
+        }
+        int at = 0;
+        if (pattern.charAt(0) != '*') {
+            // The head segment is pinned to the start, whatever it is made of.
+            int bar = pattern.indexOf('*');
+            if (!matchSegment(text, pattern.substring(0, bar), 0)) {
+                return false;
+            }
+            at = bar; // every head character consumed exactly one
+        }
+        int end = text.length();
+        String tail = pattern.substring(pattern.lastIndexOf('*') + 1);
+        if (!tail.isEmpty()) {
+            // And so is the tail, to the very end - anchored before the middle
+            // is scanned, or a greedy middle could eat the tail's own ground.
+            int head = end - tail.length();
+            if (head < at || !matchSegment(text, tail, head)) {
+                return false;
+            }
+            end = head;
+        }
+        // The middle segments, in order, each searched after the one before -
+        // the whole cost of a wrong guess is one more scan, never a retry.
+        int from = (pattern.charAt(0) == '*') ? 1 : pattern.indexOf('*') + 1;
+        int stop = pattern.lastIndexOf('*');
+        while (from < stop) {
+            int bar = pattern.indexOf('*', from);
+            if (bar > from) {
+                String segment = pattern.substring(from, bar);
+                int hit = -1;
+                for (int start = at; start + segment.length() <= end; start++) {
+                    if (matchSegment(text, segment, start)) {
+                        hit = start + segment.length();
+                        break;
+                    }
+                }
+                if (hit < 0) {
+                    return false;
+                }
+                at = hit;
+            }
+            from = bar + 1;
+        }
+        return true;
+    }
+
+    /**
+     * Whether the text starting at {@code from} equals the pattern segment, for
+     * exactly as many characters as the segment has: each {@code ?} stands for
+     * one character, every other pattern character is itself. The run is
+     * measured from the segment and not passed in - there is no second pointer
+     * for a caller to lose, which is what makes the segment scan the matcher a
+     * sandbox can hand out and a backtracking one could not.
+     *
+     * <p>The text bounds are checked before the walk, because the head segment
+     * is cut by where the pattern's first star sits and not by how long the
+     * candidate is: {@code glob.matches("a", "abc*")} asks three characters of
+     * ground out of a one-character text, and that is no match rather than an
+     * index the caller gets to regret - a host function that throws is a script
+     * that dies on a URL shorter than the pattern written for it.</p>
+     */
+    private static boolean matchSegment(String text, String segment, int from) {
+        if (from + segment.length() > text.length()) {
+            return false;
+        }
+        for (int i = 0; i < segment.length(); i++) {
+            char p = segment.charAt(i);
+            if (p != '?' && p != text.charAt(from + i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

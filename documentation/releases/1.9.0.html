@@ -276,17 +276,13 @@
     </li>
     <li><strong>Image Studio maximized without filling the screen width</strong> &mdash; the frame's preferred size used fixed fractions of the raw screen (0.62 W x 0.66 H), an aspect narrower than the usable desktop band, so the aspect-preserving maximize scale hit the height bound first and left wide empty margins left and right while the height looked correct. <code>ImageStudioFrame3D</code> now derives its preferred size from the usable area (<code>screenHeight - Taskbar.getReservedBottomHeight()</code>) with the matching aspect, so a maximized window fills the viewport on both axes (uniform 5% margin) and the normal window keeps screen proportions.
     </li>
-  </ul>
-
-  <h3>Known non-fatal runtime messages</h3>
-  <ul>
-    <li><code>Executable &lt;app&gt; not found, ignoring taskbar item</code> &mdash; a sample taskbar or start-menu item references an app that is not installed on the host and has no available alternate (e.g. Firefox/Thunderbird). The <strong>Terminal</strong> item no longer triggers this: it now resolves through its <code>alternateExec</code> / <code>alternateCommands</code> fallback list to an installed emulator.
-    </li>
-    <li><code>Could not lock System prefs</code> &mdash; the JDK preferences backing store warning.
-    </li>
-    <li><code>No default preferences file found: /etc/lg3d/skel/prefs.xml</code> &mdash; first-run defaults are created instead.
-    </li>
-    <li><code>PluginJ3fData</code> user-data <code>ClassNotFoundException</code> in <code>J3fLoader</code> &mdash; the original J3dFly plugin class is not present; the model geometry still loads.
+    <li><strong>Known non-fatal runtime messages</strong> &mdash; harmless and expected in dev mode, recorded here so a reader can tell noise from failure:
+      <ul>
+        <li><code>Executable &lt;app&gt; not found, ignoring taskbar item</code> &mdash; a sample taskbar or start-menu item references an app that is not installed on the host and has no available alternate (e.g. Firefox/Thunderbird). The <strong>Terminal</strong> item no longer triggers this: it now resolves through its <code>alternateExec</code> / <code>alternateCommands</code> fallback list to an installed emulator.</li>
+        <li><code>Could not lock System prefs</code> &mdash; the JDK preferences backing store warning.</li>
+        <li><code>No default preferences file found: /etc/lg3d/skel/prefs.xml</code> &mdash; first-run defaults are created instead.</li>
+        <li><code>PluginJ3fData</code> user-data <code>ClassNotFoundException</code> in <code>J3fLoader</code> &mdash; the original J3dFly plugin class is not present; the model geometry still loads.</li>
+      </ul>
     </li>
   </ul>
 
