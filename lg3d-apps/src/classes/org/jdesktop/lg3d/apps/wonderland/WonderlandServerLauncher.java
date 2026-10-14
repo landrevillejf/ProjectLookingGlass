@@ -165,7 +165,7 @@ public final class WonderlandServerLauncher {
                             + "build it or run: " + WorldCatalog.startCommand());
         }
         try {
-            Launched child = spawner.spawn(command(jar, portOf(base)));
+            Launched child = spawner.spawn(command(jar, portOf(base), worldsDirFor(jar)));
             launched = child;
             boolean ready = awaitReady(base);
             return new Result(ready, true,
@@ -241,6 +241,16 @@ public final class WonderlandServerLauncher {
 
     /** The command line that runs the built server jar on {@code port}. */
     static List<String> command(Path jar, int port) {
+        return command(jar, port, null);
+    }
+
+    /**
+     * The command line that runs the built server jar on {@code port}, and on
+     * the installed-worlds directory when the layout carries one: without
+     * {@code --wonderland.world.dir} the server only ever sees the bundled
+     * classpath worlds, which is why the catalog listed just the clinic.
+     */
+    static List<String> command(Path jar, int port, Path worldsDir) {
         String javaBinary = Path.of(System.getProperty("java.home"),
                 "bin", "java").toString();
         List<String> argv = new ArrayList<>();
@@ -248,7 +258,24 @@ public final class WonderlandServerLauncher {
         argv.add("-jar");
         argv.add(jar.toString());
         argv.add("--server.port=" + port);
+        if (worldsDir != null) {
+            argv.add("--wonderland.world.dir=" + worldsDir.toAbsolutePath());
+        }
         return argv;
+    }
+
+    /**
+     * The extracted world jars beside a built server jar: {@code extractWorlds}
+     * unpacks the stock {@code *-world.jar} modules into
+     * {@code <repo>/wonderland-server/wonderland-worlds}, three directories up
+     * from the jar's own {@code build-gradle/libs}. Returns {@code null} when
+     * the jar sits in no such layout (a flat release bundle) or nothing was
+     * extracted &mdash; then the server simply serves its bundled worlds.
+     */
+    static Path worldsDirFor(Path appJar) {
+        Path moduleDir = appJar.toAbsolutePath().normalize().resolve("../../..");
+        Path worlds = moduleDir.resolve("wonderland-worlds").normalize();
+        return Files.isDirectory(worlds) ? worlds : null;
     }
 
     /**

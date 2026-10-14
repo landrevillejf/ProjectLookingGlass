@@ -33,7 +33,12 @@ work to make it build and run on a current toolchain.
   local address also **starts the server itself** —
   `WonderlandServerLauncher` finds the `bootJar` the build already produced
   (`wonderland-server/build-gradle/libs/*-app.jar`, overridable by
-  `lg.wonderland.server.jar`), spawns `java -jar` on the field's port, and polls
+  `lg.wonderland.server.jar`, and found by walking up from the working
+  directory or the desktop's own code location, so a `:lg3d-core:run` desktop
+  started inside the module still finds it), passes it
+  `--wonderland.world.dir` when `extractWorlds` has unpacked the stock world
+  jars beside the build (without the flag the server sees only the bundled
+  classpath clinic), spawns `java -jar` on the field's port, and polls
   readiness before reloading the catalog; it only ever touches a *localhost*
   address (a remote server is somebody else's process), it never throws, and on
   any failure the panel falls back to the same manual `bootRun` hint it showed

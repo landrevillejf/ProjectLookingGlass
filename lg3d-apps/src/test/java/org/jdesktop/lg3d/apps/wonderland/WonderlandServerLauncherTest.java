@@ -111,6 +111,51 @@ class WonderlandServerLauncherTest {
     }
 
     @Test
+    void commandCarriesTheInstalledWorldsDirWhenTheLayoutHasOne(@TempDir Path repo)
+            throws IOException {
+        Path libs = repo.resolve("wonderland-server").resolve("build-gradle").resolve("libs");
+        Files.createDirectories(libs);
+        Path jar = libs.resolve("wonderland-server-1.69.0-dev-app.jar");
+        Files.createFile(jar);
+        Path worlds = repo.resolve("wonderland-server").resolve("wonderland-worlds");
+        Files.createDirectory(worlds);
+
+        // extractWorlds unpacked the stock *-world.jar there: the started
+        // server must be told, or its catalog lists only the bundled clinic.
+        assertEquals(worlds, WonderlandServerLauncher.worldsDirFor(jar));
+        List<String> argv = WonderlandServerLauncher.command(
+                jar, 8080, WonderlandServerLauncher.worldsDirFor(jar));
+        assertTrue(argv.contains("--wonderland.world.dir=" + worlds), String.valueOf(argv));
+
+        // Nothing extracted (or a flat bundle layout): no flag, and the
+        // server honestly serves just what its jar carries.
+        Files.delete(worlds);
+        assertNull(WonderlandServerLauncher.worldsDirFor(jar));
+        assertFalse(WonderlandServerLauncher.command(jar, 8080).stream()
+                .anyMatch(a -> a.startsWith("--wonderland.world.dir=")),
+                String.valueOf(WonderlandServerLauncher.command(jar, 8080)));
+    }
+
+    @Test
+    void ensureRunningStartsTheServerOnTheInstalledWorlds(@TempDir Path repo)
+            throws IOException {
+        Path libs = repo.resolve("wonderland-server").resolve("build-gradle").resolve("libs");
+        Files.createDirectories(libs);
+        Files.createFile(libs.resolve("wonderland-server-1.69.0-dev-app.jar"));
+        Path worlds = repo.resolve("wonderland-server").resolve("wonderland-worlds");
+        Files.createDirectory(worlds);
+        java.util.ArrayList<String> argv = new java.util.ArrayList<>();
+        WonderlandServerLauncher launcher = new WonderlandServerLauncher(
+                repo, recording(argv), sequence(false, true), Duration.ofSeconds(5));
+
+        WonderlandServerLauncher.Result result = launcher.ensureRunning("localhost:8080");
+
+        assertTrue(result.ready(), result.note());
+        assertTrue(argv.contains("--wonderland.world.dir=" + worlds), String.valueOf(argv));
+        launcher.shutdown();
+    }
+
+    @Test
     void resolveJarWalksUpFromAModuleDirectory(@TempDir Path repo) throws IOException {
         // The desktop's working directory is lg3d-core/, one level below the
         // repository root that carries the server's build output: the search
