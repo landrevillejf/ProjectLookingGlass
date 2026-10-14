@@ -60,6 +60,47 @@ work to make it build and run on a current toolchain.
   production WebSocket `WonderlandSession` and asset HTTP serving that are the
   next increment, so this entry proves the server hosts the world, not that a
   room was seen on screen.
+- **Access to every existing Wonderland world, plus the world-library agent
+  guide** (`wonderland-server` + `wonderland-modules` + `wonderland-server/AGENTS.md`)
+  — the server could seed the one bundled clinic; it could not see, let alone
+  host, the seven **stock Open Wonderland worlds** (almostempty, auditorium,
+  combined, gallery, japanesepavilion, meetingcomplex, town) that ship as
+  packaged `wonderland-*-world.jar` modules inside the gitignored 400 MB
+  installer. They are made reachable **without committing a single binary**.
+  `JarWorldStore` (`wonderland-modules`) reads a world module jar directly: a
+  `JarFile` *is* enumerable, so `listAssets` walks its entries — the very
+  enumeration the classpath store refuses — and `open`/`present` try the
+  module-root entry then the `art/` sibling, because each stock world spells its
+  art as `wla://<module>/<path>` at the module root while the jar packs those
+  bytes under `art/`; the mismatch is bridged on read, so no vendored binary is
+  ever rewritten. `WorldCatalog` (`wonderland-server`) merges the two origins —
+  bundled classpath worlds (always offered) and installed `*-world.jar`s in the
+  new `wonderland.world.dir` directory — into a `WorldSummary` per world
+  (module, title and description read from `module.xml`, `source`, `cellCount`),
+  every read defensive so one bad jar hides neither the rest nor the boot. The
+  `WorldSeeder` now selects a `JarWorldStore` when the seed names an installed
+  jar, else the classpath store, keeping the opt-in/never-throw contract.
+  `GET /api/world/worlds` serves the catalog, read independently of the seeded
+  world so a browser lists what is available before any world loads.
+  `:wonderland-server:extractWorlds` unpacks the seven stock jars from the local
+  installer into a gitignored `wonderland-worlds/` (it warns and succeeds when
+  no installer is present, so it is never a build dependency and is not wired
+  into `check`). **13 new headless cases** (5 in `JarWorldStoreTest` building a
+  synthetic world jar in a `@TempDir` to prove enumeration, the `art/` read
+  fallback, exact-match preference and the absent-asset degrade; 6 in
+  `WorldCatalogTest` proving bundled/jar discovery, the corrupt-jar and
+  missing-`module.xml` degrades and the unconfigured-directory cases; 2 in
+  `WorldSeederTest` seeding from a jar and skipping an unnamed cell) plus a
+  `/worlds` case in `WorldRestControllerTest`. **Verified live**: `extractWorlds`
+  then `bootRun --args='--wonderland.world.dir=wonderland-worlds
+  --wonderland.world.seed=wonderland-town-world'` returns all eight worlds from
+  `/api/world/worlds` (clinic source `classpath`/9 cells, `combined-world`
+  41, `meetingcomplex-world` 11, …) and fans out the seeded town world's cells.
+  `wonderland-server/AGENTS.md` is the new role guide — it teaches world
+  authoring (the clinic as the worked module, `module.xml`/`*-wlc.xml`/`wla://`
+  chain, the `world-index.txt` a classpath world needs and the `BUNDLED`
+  registration) and world access (extraction, the directory knob, the catalog
+  endpoint), and is indexed from the root `AGENTS.md` module table.
 - **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
   `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
   own identity while its real version was two hard-coded `"1.0"` strings nobody

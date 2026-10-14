@@ -94,3 +94,45 @@ tasks.named('test') {
     useJUnitPlatform()
     systemProperty 'java.awt.headless', 'true'
 }
+
+// extractWorlds: unpack the STOCK Open Wonderland world module jars out of the
+// (gitignored, ~400 MB) installer so the server's world catalog lists them and
+// the seeder can host them. The installer is never committed and CI has no copy,
+// so this is a local convenience task, deliberately NOT wired into check/build:
+// with the installer present it copies every modules/wonderland-*-world.jar into
+// wonderland-worlds/ (the leading modules/ is dropped); with it absent it warns
+// and succeeds, leaving the bundled classpath worlds (the outpatient clinic)
+// available. Read the result back with the directory knob (see application.properties):
+//   ./gradlew :wonderland-server:extractWorlds
+//   ./gradlew :wonderland-server:bootRun --args='--wonderland.world.dir=wonderland-worlds'
+def installerWorldsJar = rootProject.file('wonderland/Wonderland.jar')
+def worldsOutDir = project.findProperty('wonderlandWorldsDir') ?: "${projectDir}/wonderland-worlds"
+
+tasks.register('extractWorlds') {
+    description = 'Extract the stock wonderland-*-world.jar modules from the installer into wonderland-worlds/.'
+    group = 'wonderland'
+    doLast {
+        if (!installerWorldsJar.isFile()) {
+            logger.lifecycle("No installer at ${installerWorldsJar}: nothing to extract "
+                    + "(the bundled classpath worlds remain served from the server jar).")
+            return
+        }
+        def out = file(worldsOutDir)
+        out.mkdirs()
+        copy {
+            from zipTree(installerWorldsJar)
+            include 'modules/wonderland-*-world.jar'
+            into out
+            eachFile { fcd ->
+                // drop the leading "modules/" so the jars sit directly in the dir
+                fcd.relativePath = new RelativePath(true,
+                        fcd.relativePath.segments.drop(1))
+            }
+            includeEmptyDirs = false
+        }
+        def extracted = out.listFiles()
+                .findAll { it.name.endsWith('-world.jar') }
+                .collect { it.name }.sort()
+        logger.lifecycle("extracted ${extracted.size()} world jar(s) into ${out}: ${extracted.join(', ')}")
+    }
+}

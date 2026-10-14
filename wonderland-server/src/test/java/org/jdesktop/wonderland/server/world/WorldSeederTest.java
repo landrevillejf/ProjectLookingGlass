@@ -13,17 +13,25 @@
 package org.jdesktop.wonderland.server.world;
 
 import com.jme.math.Vector3f;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
@@ -52,6 +60,19 @@ class WorldSeederTest {
                 .as("no seed -> only the environment root")
                 .extracting(WorldCell::getName)
                 .containsExactly("Environment");
+    }
+
+    @Test
+    void anEmptyOrNullSeedIsTreatedAsNoSeed() {
+        // the constructor nulls an absent module to the sentinel, and an empty
+        // string short-circuits run() -- both leave the world untouched
+        WorldModel empty = new WorldModel();
+        new WorldSeeder(empty, "").run(null);
+        assertThat(names(empty)).containsExactly("Environment");
+
+        WorldModel absent = new WorldModel();
+        new WorldSeeder(absent, null).run(null);
+        assertThat(names(absent)).containsExactly("Environment");
     }
 
     @Test
@@ -189,5 +210,48 @@ class WorldSeederTest {
                 .as("a throwing store yields zero seeded cells, not a crash")
                 .isZero();
         assertThat(names(world)).containsExactly("Environment");
+    }
+
+    @Test
+    void seedingFromAWorldJarInTheDirectoryPopulatesTheWorld(@TempDir Path dir)
+            throws IOException {
+        Path jar = dir.resolve("wonderland-town-world.jar");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            put(out, "module.xml",
+                    "<wonderland-module><name>wonderland-town-world</name></wonderland-module>");
+            put(out, "wfs/town-wfs/room-wlc.xml",
+                    "<model-cell><name>Room</name></model-cell>");
+        }
+
+        WorldModel world = new WorldModel();
+        new WorldSeeder(world, "wonderland-town-world", new WorldCatalog(dir.toString()))
+                .run(null);
+
+        assertThat(names(world)).containsExactly("Environment", "Room");
+    }
+
+    @Test
+    void seedContentsSkipsAnUnnamedCellButKeepsNamedOnes() {
+        WorldModel world = new WorldModel();
+        WorldSeeder seeder = new WorldSeeder(world, CLINIC);
+
+        CellServerState named = new ModelCellServerState();
+        named.setName("Kept");
+        CellServerState nameless = new ModelCellServerState();
+        nameless.setName("");
+        WorldContents contents = new WorldContents("mod", List.of(
+                new WorldContents.LoadedCell(named, null),
+                new WorldContents.LoadedCell(nameless, null)));
+
+        assertThat(seeder.seedContents(contents))
+                .as("only the named cell counts as seeded")
+                .isEqualTo(1);
+        assertThat(names(world)).containsExactly("Environment", "Kept");
+    }
+
+    private static void put(JarOutputStream jar, String name, String body) throws IOException {
+        jar.putNextEntry(new JarEntry(name));
+        jar.write(body.getBytes(StandardCharsets.UTF_8));
+        jar.closeEntry();
     }
 }

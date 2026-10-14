@@ -10,7 +10,10 @@
  * *-wlc.xml cells and resolves their deployed models headless, and the desktop
  * bridge already mounts a loaded cell -- but nothing ever fed one into the other.
  * The seeder closes that gap on the SERVER side: it reads a world through a
- * ManifestClasspathWorldStore, and for each cell mints a CellID and stores a
+ * store chosen by {@link WorldCatalog} -- a {@link JarWorldStore} when the seed
+ * names an installed world jar in the configured directory, else a
+ * {@link ManifestClasspathWorldStore} for a bundled classpath module -- and for
+ * each cell mints a CellID and stores a
  * WorldCell carrying the client class name (inert data, so the server never
  * imports the renderer), the human name, and the transform lifted from the
  * position component. The REST surface then lists it and the wire fan-out pushes
@@ -26,17 +29,22 @@
 package org.jdesktop.wonderland.server.world;
 
 import com.jme.math.Vector3f;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Optional;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.modules.asset.JarWorldStore;
 import org.jdesktop.wonderland.modules.asset.ManifestClasspathWorldStore;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldLoader;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -60,13 +68,28 @@ public class WorldSeeder implements ApplicationRunner {
     /** The sentinel seed value that leaves the world empty (the default). */
     static final String SEED_NONE = "none";
 
+    /**
+     * The bundled clean-room outpatient clinic, shipped on the server classpath and
+     * therefore seedable with no worlds directory. The catalog names it too.
+     */
+    static final String CLINIC_MODULE = "wonderland-outpatient-clinic";
+
     private final WorldModel world;
     private final String seedModule;
+    private final WorldCatalog catalog;
 
+    @Autowired
     public WorldSeeder(WorldModel world,
-            @Value("${wonderland.world.seed:" + SEED_NONE + "}") String seedModule) {
+            @Value("${wonderland.world.seed:" + SEED_NONE + "}") String seedModule,
+            WorldCatalog catalog) {
         this.world = world;
         this.seedModule = seedModule == null ? SEED_NONE : seedModule.trim();
+        this.catalog = catalog;
+    }
+
+    /** Two-arg form for a classpath-only seed (a bundled world, or a test). */
+    WorldSeeder(WorldModel world, String seedModule) {
+        this(world, seedModule, new WorldCatalog(""));
     }
 
     @Override
@@ -74,7 +97,30 @@ public class WorldSeeder implements ApplicationRunner {
         if (seedModule.isEmpty() || SEED_NONE.equalsIgnoreCase(seedModule)) {
             return; // empty world, exactly as the tests expect
         }
-        seed(new ManifestClasspathWorldStore(), seedModule);
+        // A stock world jar in the configured worlds directory wins; otherwise the
+        // seed names a bundled classpath module (the outpatient clinic).
+        Optional<Path> jar = catalog.worldJar(seedModule);
+        if (jar.isPresent()) {
+            seedJar(jar.get(), seedModule);
+        } else {
+            seed(new ManifestClasspathWorldStore(), seedModule);
+        }
+    }
+
+    /**
+     * Seed a world from its module jar through {@link JarWorldStore}. A jar that
+     * cannot be opened (corrupt, removed mid-boot) degrades to an empty server with
+     * a warning, exactly like a world that cannot be read -- the never-throw
+     * contract the class header promises, so {@link IOException} is caught here
+     * rather than escaping to abort the boot.
+     */
+    private void seedJar(Path jarFile, String module) {
+        try (JarWorldStore store = new JarWorldStore(jarFile)) {
+            seed(store, module);
+        } catch (IOException ex) {
+            LOG.warn("world jar {} for '{}' could not be opened; serving an empty world ({})",
+                    jarFile.getFileName(), module, ex.toString());
+        }
     }
 
     /**
