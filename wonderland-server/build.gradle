@@ -16,7 +16,34 @@
 // import wonderland-client or lg3d-core in production code -- that would invert
 // the repo dependency rule. wonderland-client appears only in TEST scope, so the
 // loopback integration test can drive the real client against the real router.
-jar { archiveBaseName = 'wonderland-server' }
+
+// The Spring Boot Gradle plugin (version managed once in the root plugins block).
+// It supplies `bootRun` and an executable `bootJar` -- the entry points that make
+// the server actually startable and configurable outside a test JVM. The module's
+// application.properties already documents `bootRun` / SERVER_PORT / -Dserver.port,
+// but until this plugin was applied those entry points did not exist: the @SpringBootTest
+// suite boots Tomcat in-JVM and so never revealed the gap.
+plugins {
+    alias(libs.plugins.springboot)
+}
+
+springBoot {
+    mainClass = 'org.jdesktop.wonderland.server.WonderlandServerApplication'
+}
+
+// The Boot plugin disables the plain `jar` by default and, when re-enabled,
+// forces its classifier to `plain`. Keep the library jar under its bare, expected
+// name (the CI "module jars" artifact and any consumer resolve it there) and put
+// the executable fat jar alongside it under the `-app` classifier.
+jar {
+    enabled = true
+    archiveBaseName = 'wonderland-server'
+    archiveClassifier = ''
+}
+
+tasks.named('bootJar') {
+    archiveClassifier = 'app'
+}
 
 dependencies {
     // The shared data model + the M1 wire codec (MessagePacker) the server speaks.

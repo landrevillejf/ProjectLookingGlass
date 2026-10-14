@@ -209,3 +209,7 @@ spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-star
 cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
 pitest = { id = "info.solidsoft.pitest", version.ref = "pitestPlugin" }
 dependencyCheck = { id = "org.owasp.dependencycheck", version.ref = "dependencyCheck" }
+# The Spring Boot Gradle plugin: adds `bootRun` + an executable `bootJar` so a
+# human can actually start wonderland-server (its @SpringBootTest suite boots
+# Tomcat in-JVM and never needed this, which is why the wiring was missing).
+springboot = { id = "org.springframework.boot", version.ref = "springBoot" }

@@ -10,6 +10,15 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Wonderland server became startable** (`wonderland-server`, `gradle`, root
+  `build.gradle`) — the module's `application.properties` documented `bootRun`,
+  `SERVER_PORT` and `-Dserver.port`, but the Spring Boot Gradle plugin was never
+  applied, so those entry points did not exist: the `@SpringBootTest` suite boots
+  Tomcat in-JVM and never revealed the gap, and there was no way for a human to
+  actually run the server. Applying the plugin (version managed once in the root
+  `plugins` block as `apply false`) adds `bootRun` and an executable `bootJar`;
+  the plain library jar is kept under its bare, expected name (what CI and any
+  consumer resolve) with the fat jar alongside it under the `-app` classifier.
 - **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
   `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
   own identity while its real version was two hard-coded `"1.0"` strings nobody
