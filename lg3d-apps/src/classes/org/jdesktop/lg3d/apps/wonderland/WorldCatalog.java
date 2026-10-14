@@ -18,9 +18,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,6 +71,9 @@ public final class WorldCatalog {
 
     /** The world-cells resource, relative to the server root. */
     static final String CELLS_PATH = "/api/world/cells";
+
+    /** The worlds-catalog resource, relative to the server root. */
+    static final String WORLDS_PATH = "/api/world/worlds";
 
     /** Request timeout: a local Spring Boot answers in milliseconds. */
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
@@ -271,6 +276,29 @@ public final class WorldCatalog {
     }
 
     // ------------------------------------------------------------------
+    // Catalog model
+    // ------------------------------------------------------------------
+
+    /**
+     * One world the server offers, as its {@code /api/world/worlds} resource
+     * describes it: the module name (the id used to ask for its cells), the human
+     * title and description read from its {@code module.xml}, where it comes from
+     * (a bundled classpath world or an installed jar) and how many cells it
+     * carries. This is the row the browser's picker lists before any world is
+     * chosen; {@link #module} is the key {@link #cellsUrl(String, String)} turns
+     * back into a cells request.
+     */
+    public record WorldEntry(String module, String title, String description,
+            String source, int cellCount) {
+
+        /** The label to show in the picker: the title, falling back to the module. */
+        public String displayLabel() {
+            String shown = (title == null || title.isBlank()) ? module : title;
+            return shown + " (" + module + ")";
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Transport seam
     // ------------------------------------------------------------------
 
@@ -351,6 +379,21 @@ public final class WorldCatalog {
         return normalizeServer(server) + CELLS_PATH;
     }
 
+    /** The full worlds-catalog URL for a server address. */
+    public static String worldsUrl(String server) {
+        return normalizeServer(server) + WORLDS_PATH;
+    }
+
+    /**
+     * The cells URL for one named module, so the browser can read a world it
+     * picked from the catalog rather than only the single one the server seeded.
+     * The module is percent-encoded as a query value.
+     */
+    public static String cellsUrl(String server, String module) {
+        return cellsUrl(server) + "?module="
+                + URLEncoder.encode(module, StandardCharsets.UTF_8);
+    }
+
     /**
      * The command that boots a local {@code wonderland-server} serving the
      * bundled outpatient-clinic world. The panel names it when a read fails:
@@ -384,6 +427,36 @@ public final class WorldCatalog {
             throw new IllegalArgumentException("fetcher must not be null");
         }
         return parse(fetcher.fetch(cellsUrl(server)));
+    }
+
+    /**
+     * Reads the published cells of one named world (blocking; call off the EDT),
+     * rather than the single world the server seeded. This is what lets the
+     * browser list every catalog world and open whichever one the user picks.
+     */
+    public static WorldView loadWorld(String server, String module) throws IOException {
+        return loadWorld(server, module, HTTP_FETCHER);
+    }
+
+    /** Loads one module's cells through an injected transport; the test seam. */
+    static WorldView loadWorld(String server, String module, Fetcher fetcher) throws IOException {
+        if (fetcher == null) {
+            throw new IllegalArgumentException("fetcher must not be null");
+        }
+        return parse(fetcher.fetch(cellsUrl(server, module)));
+    }
+
+    /** Reads the list of worlds the server can serve (blocking; call off the EDT). */
+    public static List<WorldEntry> loadWorlds(String server) throws IOException {
+        return loadWorlds(server, HTTP_FETCHER);
+    }
+
+    /** Loads the world catalog through an injected transport; the test seam. */
+    static List<WorldEntry> loadWorlds(String server, Fetcher fetcher) throws IOException {
+        if (fetcher == null) {
+            throw new IllegalArgumentException("fetcher must not be null");
+        }
+        return parseWorlds(fetcher.fetch(worldsUrl(server)));
     }
 
     /**
@@ -421,6 +494,36 @@ public final class WorldCatalog {
     }
 
     /**
+     * Parses the {@code /api/world/worlds} document: a JSON array of objects
+     * carrying {@code module}, {@code title}, {@code description}, {@code source}
+     * and {@code cellCount}. Unknown extra fields are ignored and an entry with
+     * no module is skipped -- a row the picker cannot ask cells for is worse
+     * than one fewer row.
+     *
+     * @throws IOException when the document is not a JSON array (a Spring error
+     *     page is HTML, and an HTML body parsed as a catalog is a lie)
+     */
+    public static List<WorldEntry> parseWorlds(String body) throws IOException {
+        if (body == null || body.trim().isEmpty()) {
+            throw new IOException("empty worlds document");
+        }
+        List<RawWorld> raw;
+        try {
+            raw = MAPPER.readValue(body, new TypeReference<List<RawWorld>>() { });
+        } catch (IOException e) {
+            throw new IOException("not a worlds document: " + e.getMessage(), e);
+        }
+        List<WorldEntry> out = new ArrayList<>();
+        for (RawWorld r : raw) {
+            if (r == null || r.module == null || r.module.isEmpty()) {
+                continue;
+            }
+            out.add(new WorldEntry(r.module, r.title, r.description, r.source, r.cellCount));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /**
      * Jackson's view of one wire entry; the four fields the server describes a
      * cell with. {@code ignoreUnknown} keeps the reader forward-compatible: a
      * server that later adds a transform or an owner to the document is still
@@ -432,5 +535,19 @@ public final class WorldCatalog {
         public String parent;
         public String className;
         public String name;
+    }
+
+    /**
+     * Jackson's view of one catalog entry; the five fields the server describes a
+     * loadable world with. {@code ignoreUnknown} keeps the reader
+     * forward-compatible with a server that later adds more to the summary.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static final class RawWorld {
+        public String module;
+        public String title;
+        public String description;
+        public String source;
+        public int cellCount;
     }
 }

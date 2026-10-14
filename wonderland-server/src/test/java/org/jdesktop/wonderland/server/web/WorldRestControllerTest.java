@@ -91,6 +91,37 @@ class WorldRestControllerTest {
                 .andExpect(jsonPath("$[1].parent").value("0"));
     }
 
+    /** The world browser's read: any catalog world's cells, without seeding it. */
+    @Test
+    void cellsForAModuleReadsThatWorldEvenWhenTheServerSeededNothing() throws Exception {
+        // the seeded world is empty (only the environment), yet a named module is
+        // readable through ?module= -- this is the "pick any world" surface
+        mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(9)))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')]").exists())
+                .andExpect(jsonPath("$[0].parent").doesNotExist());
+    }
+
+    @Test
+    void cellsForAnUnknownModuleIsAnEmptyListNotAnError() throws Exception {
+        mvc.perform(get("/api/world/cells").param("module", "no-such-world"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void aBlankModuleFallsBackToTheSeededWorld() throws Exception {
+        CellID content = world.newCellID();
+        world.addCell(content, "some.client.Cell", "cube", new CellTransform(),
+                new CellClientState());
+        // an empty module parameter is "no module chosen": the live world answers,
+        // so the seeded hierarchy (environment + cube) is what the browser sees
+        mvc.perform(get("/api/world/cells").param("module", "  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)));
+    }
+
     @Test
     void cellLookupsAnswerFoundAndNotFound() throws Exception {
         CellID content = world.newCellID();

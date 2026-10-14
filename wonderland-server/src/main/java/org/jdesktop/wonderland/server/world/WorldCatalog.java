@@ -38,13 +38,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.jdesktop.wonderland.common.cell.state.CellServerState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.modules.asset.JarWorldStore;
 import org.jdesktop.wonderland.modules.asset.ManifestClasspathWorldStore;
+import org.jdesktop.wonderland.modules.asset.WorldContents;
+import org.jdesktop.wonderland.modules.asset.WorldLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -90,6 +96,92 @@ public class WorldCatalog {
         out.sort(Comparator.comparing(WorldSummary::source)
                 .thenComparing(WorldSummary::module));
         return out;
+    }
+
+    /**
+     * Load one world module's decoded contents without seeding them into the
+     * live {@link WorldModel}. This is what lets the REST surface answer
+     * "show me the cells of world X" for any world in the catalog -- bundled or
+     * installed -- rather than only the single one the server happened to seed
+     * at boot. The store is chosen exactly as {@link WorldSeeder} would choose
+     * it (an installed world jar wins, else a bundled classpath module), so the
+     * listing cannot disagree with what seeding that same module would produce.
+     *
+     * <p>Defensive on the same terms as the rest of the catalog: an unknown
+     * module, an unopenable jar or a world that will not decode yields empty,
+     * never a throw -- a read-only browse must not be able to fault a request.
+     */
+    public Optional<WorldContents> loadContents(String module) {
+        if (module == null || module.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Path> jar = worldJar(module);
+        if (jar.isPresent()) {
+            try (JarWorldStore store = new JarWorldStore(jar.get())) {
+                return Optional.of(decode(new WorldLoader(), store, module));
+            } catch (IOException | RuntimeException ex) {
+                LOG.warn("world jar {} for '{}' could not be read as a world ({})",
+                        jar.get().getFileName(), module, ex.toString());
+                return Optional.empty();
+            }
+        }
+        if (BUNDLED.contains(module)) {
+            return Optional.of(decode(new WorldLoader(),
+                    new ManifestClasspathWorldStore(), module));
+        }
+        return Optional.empty();
+    }
+
+    /** {@link WorldLoader#load} guarded: a world that will not decode is empty, not fatal. */
+    private static WorldContents decode(WorldLoader loader,
+            org.jdesktop.wonderland.modules.asset.WorldStore store, String module) {
+        try {
+            return loader.load(store, module);
+        } catch (RuntimeException | Error ex) {
+            LOG.warn("world '{}' failed to decode; listing it as empty ({})",
+                    module, ex.toString());
+            return new WorldContents(module, List.of());
+        }
+    }
+
+    /**
+     * Describe one world module's cells in the same flat, read-only vocabulary
+     * {@code WorldRestController} uses for the seeded world (id, parent,
+     * className, name, and a deployedModelURL for a model cell), so a browser
+     * reading any catalog world sees the shape it already knows.
+     *
+     * <p>Classification mirrors {@link WorldSeeder#seedCell} exactly -- a cell
+     * with a model component reads as the renderer's model cell, every other
+     * named cell as the environment class -- and an unnamed cell is skipped, so
+     * what this lists is what seeding the same module would publish. A module's
+     * cells are siblings (all seeded flat under the environment), so every
+     * {@code parent} is null. An unknown or unreadable module yields an empty
+     * list, never a throw.</p>
+     */
+    public List<Map<String, Object>> describeCells(String module) {
+        return loadContents(module).map(contents -> {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (WorldContents.LoadedCell cell : contents.cells()) {
+                CellServerState state = cell.state();
+                if (state == null || state.getName() == null || state.getName().isEmpty()) {
+                    continue; // the seeder's rule: an unnamed cell is nothing to list
+                }
+                ModelCellComponentServerState model = (ModelCellComponentServerState)
+                        state.getComponentServerState(ModelCellComponentServerState.class);
+                boolean isModel = model != null;
+                Map<String, Object> described = new LinkedHashMap<>();
+                described.put("id", contents.module() + ":" + out.size());
+                described.put("parent", null);
+                described.put("className",
+                        isModel ? WorldSeeder.MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS);
+                described.put("name", state.getName());
+                if (isModel) {
+                    described.put("deployedModelURL", model.getDeployedModelURL());
+                }
+                out.add(described);
+            }
+            return out;
+        }).orElse(List.of());
     }
 
     /** The installed world jar for {@code module}, if the worlds directory carries one. */

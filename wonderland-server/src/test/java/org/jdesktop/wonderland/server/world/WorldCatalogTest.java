@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
@@ -197,5 +198,64 @@ class WorldCatalogTest {
         Files.write(bad, "not a jar".getBytes(StandardCharsets.UTF_8));
         assertThat(new WorldCatalog(dir.toString())
                 .openAssetBytes("wonderland-broken", "any.ldr")).isEmpty();
+    }
+
+    // ---- describeCells / loadContents: reading any catalog world's cells on
+    // ---- demand, independent of the single one the server seeds.
+
+    @Test
+    void describeCellsReadsEveryNamedCellOfTheBundledClinic() {
+        List<Map<String, Object>> cells = new WorldCatalog("").describeCells(CLINIC);
+
+        // the nine authored cells, without the environment root the seeder adds
+        assertThat(cells).hasSize(9);
+        assertThat(cells).extracting(c -> c.get("name")).contains(
+                "Floor", "Exam Room 1", "Reception", "Clinic Directory");
+        // a module's cells are siblings: every parent is null
+        assertThat(cells).allSatisfy(c -> assertThat(c.get("parent")).isNull());
+        // the clinic's cells carry a model, so they read as the renderer's class
+        assertThat(cells).allSatisfy(c ->
+                assertThat(c.get("className")).isEqualTo(WorldSeeder.MODEL_CELL_CLASS));
+        // ids are unique and namespaced to the module, so a browser can select one
+        assertThat(cells).extracting(c -> c.get("id").toString())
+                .doesNotHaveDuplicates()
+                .allSatisfy(id -> assertThat(id).startsWith(CLINIC + ":"));
+    }
+
+    @Test
+    void describeCellsClassifiesAJarCellWithoutAModelAsTheEnvironmentClass()
+            throws IOException {
+        writeWorldJar(dir.resolve("wonderland-town-world.jar"),
+                "wonderland-town-world", "A Town", "room");
+
+        List<Map<String, Object>> cells = new WorldCatalog(dir.toString())
+                .describeCells("wonderland-town-world");
+
+        assertThat(cells).hasSize(1);
+        assertThat(cells.get(0).get("name")).isEqualTo("room");
+        assertThat(cells.get(0).get("className")).isEqualTo(WorldModel.ENVIRONMENT_CLASS);
+        // a non-model cell carries no deployed model URL in its descriptor
+        assertThat(cells.get(0)).doesNotContainKey("deployedModelURL");
+    }
+
+    @Test
+    void describeCellsAndLoadContentsAreDefensiveForUnknownAndBrokenWorlds()
+            throws IOException {
+        WorldCatalog catalog = new WorldCatalog("");
+        // the null/blank guard short-circuits before any store is consulted
+        assertThat(catalog.describeCells(null)).isEmpty();
+        assertThat(catalog.describeCells("  ")).isEmpty();
+        assertThat(catalog.loadContents(null)).isEmpty();
+        // a module that is neither bundled nor installed resolves to nothing
+        assertThat(catalog.describeCells("no-such-world")).isEmpty();
+        assertThat(catalog.loadContents("no-such-world")).isEmpty();
+
+        // a file that claims to be a world jar but is not a zip degrades to empty,
+        // never a throw -- the same never-500 contract the asset read already keeps
+        Path bad = dir.resolve("wonderland-broken-world.jar");
+        Files.write(bad, "not a jar".getBytes(StandardCharsets.UTF_8));
+        WorldCatalog jarCatalog = new WorldCatalog(dir.toString());
+        assertThat(jarCatalog.loadContents("wonderland-broken-world")).isEmpty();
+        assertThat(jarCatalog.describeCells("wonderland-broken-world")).isEmpty();
     }
 }

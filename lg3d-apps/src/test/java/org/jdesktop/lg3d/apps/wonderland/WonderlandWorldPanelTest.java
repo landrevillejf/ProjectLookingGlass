@@ -15,13 +15,18 @@ package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.Loaded;
 import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.Row;
+import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.WorldsOutcome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -197,5 +202,127 @@ class WonderlandWorldPanelTest {
         WonderlandWorldPanel panel = panelReturning(SAMPLE);
         panel.close();
         assertNull(panel.selectedRow());
+    }
+
+    // ------------------------------------------------------------------
+    // The world browser: list every world, pick one, and (auto) start a server
+    // ------------------------------------------------------------------
+
+    /** Two worlds in the shape {@code /api/world/worlds} writes. */
+    private static final String WORLDS_BODY = "["
+            + "{\"module\":\"clinic\",\"title\":\"Clinic\",\"description\":\"a clinic\","
+            + "\"source\":\"classpath\",\"cellCount\":9},"
+            + "{\"module\":\"town\",\"title\":\"Town\",\"description\":\"\","
+            + "\"source\":\"jar\",\"cellCount\":2}]";
+
+    /** A launcher whose server is already answering, and one that never spawns. */
+    private static WonderlandServerLauncher launcher(String server, boolean ready) {
+        WonderlandServerLauncher.Spawner never = argv -> {
+            throw new IOException("a test launcher never spawns");
+        };
+        WonderlandServerLauncher.Probe probe = candidate -> ready;
+        return new WonderlandServerLauncher(
+                Path.of("/nonexistent-repo"), never, probe, Duration.ofMillis(1));
+    }
+
+    @Test
+    @DisplayName("a catalog read fills the picker and holds the first world")
+    void renderWorldsFillsPicker() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> WORLDS_BODY, false);
+
+        WorldsOutcome outcome = panel.readWorlds("localhost:8080");
+        assertNull(outcome.failure);
+        assertEquals(2, outcome.worlds.size());
+
+        panel.renderWorlds(outcome);
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("an unreachable server with no launcher names the start command")
+    void worldsFailureNamesTheStartCommand() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> {
+            throw new IOException("Connection refused");
+        }, false);
+
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.rows().isEmpty());
+        assertTrue(panel.statusText().startsWith(
+                "Cannot reach http://localhost:8080/api/world/cells (Connection refused)"),
+                panel.statusText());
+        assertTrue(panel.statusText().contains(WorldCatalog.startCommand()),
+                panel.statusText());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a failed auto-start explains itself instead of the manual hint")
+    void worldsFailureWithFailedAutoStartNamesTheNote() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> {
+                    throw new IOException("Connection refused");
+                },
+                launcher("localhost:8080", false), // probe never ready, repo has no jar
+                false);
+
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.statusText().contains("auto-start"), panel.statusText());
+        // no jar under the fake repo root -> the launcher says where to fall back
+        assertTrue(panel.statusText().contains("no wonderland-server jar found"),
+                panel.statusText());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("auto-start retries the catalog once the server is up")
+    void autoStartRetriesAfterTheServerComesUp() {
+        AtomicInteger calls = new AtomicInteger();
+        WorldCatalog.Fetcher flaky = url -> {
+            if (calls.getAndIncrement() == 0) {
+                throw new IOException("Connection refused");
+            }
+            return WORLDS_BODY;
+        };
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                flaky, launcher("localhost:8080", true), false);
+
+        WorldsOutcome outcome = panel.readWorlds("localhost:8080");
+        assertNull(outcome.failure);
+        assertNotNull(outcome.attemptNote);
+        assertEquals(2, outcome.worlds.size());
+
+        panel.renderWorlds(outcome);
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a remote address is never auto-started")
+    void aRemoteServerIsNotLaunchedLocally() {
+        WonderlandServerLauncher remote = launcher("example.org:8080", false);
+        WonderlandServerLauncher.Result result =
+                remote.ensureRunning("http://world.example.org:8080");
+
+        assertFalse(result.ready());
+        assertFalse(result.launched());
+        assertTrue(result.note().contains("remote server"), result.note());
+    }
+
+    @Test
+    @DisplayName("close stops a server the launcher started, but only its own")
+    void closeDoesNotStopAnUnownedServer() {
+        // a panel built with the no-auto-start constructor owns no launcher, so
+        // closing it is safe and stops nothing that it did not start
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> WORLDS_BODY, false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+        panel.close();
+        assertEquals(2, panel.worldCount());
     }
 }

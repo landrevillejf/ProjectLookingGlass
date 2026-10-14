@@ -10,6 +10,33 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland World browser became a world picker that starts its own
+  server** (`wonderland-server` + `lg3d-apps`) — the panel was a reader of the
+  one world a server happened to seed: it dumped `GET /api/world/cells` and,
+  when nothing answered, dead-ended on a bare "cannot reach". It now does what
+  the catalog endpoint always made possible. `GET /api/world/cells?module=`
+  reads **any** catalog world's cells on demand (`WorldCatalog.describeCells`
+  loads the module through the same store the seeder would pick and classifies
+  each cell exactly as seeding would — a model cell as the renderer class, every
+  other named cell as the environment root — so the browser listing a world can
+  never disagree with what hosting it would show; a module's cells are siblings,
+  so every parent is null, and an unknown or unopenable world yields an empty
+  list, never a 500). On the desktop side `WorldCatalog` learned to read
+  `/api/world/worlds` (`loadWorlds`/`parseWorlds` → `WorldEntry`) and to ask for
+  one world's cells (`loadWorld`), and `WonderlandWorldPanel` gained a world
+  dropdown over the server host/port field: it lists every available world, opens
+  the first (or whichever you pick), and shows that world's cells. The panel now
+  **starts the server itself** for a local address that answers nothing —
+  `WonderlandServerLauncher` finds the `bootJar` the build already produced
+  (`wonderland-server/build-gradle/libs/*-app.jar`, overridable by
+  `lg.wonderland.server.jar`), spawns `java -jar` on the field's port, and polls
+  readiness before reloading the catalog; it only ever touches a *localhost*
+  address (a remote server is somebody else's process), it never throws, and on
+  any failure the panel falls back to the same manual `bootRun` hint it showed
+  before, so auto-start is a convenience rather than a new dependency the browser
+  can hang on. **Verified live** against the freshly built jar: `/api/world/cells?module=wonderland-outpatient-clinic`
+  returns the nine clinic cells from an unseeded server, and the panel's first
+  refresh now lists and opens a world instead of an empty error strip.
 - **Wonderland server became startable** (`wonderland-server`, `gradle`, root
   `build.gradle`) — the module's `application.properties` documented `bootRun`,
   `SERVER_PORT` and `-Dserver.port`, but the Spring Boot Gradle plugin was never

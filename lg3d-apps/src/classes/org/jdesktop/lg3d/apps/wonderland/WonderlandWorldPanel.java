@@ -14,6 +14,7 @@
 package org.jdesktop.lg3d.apps.wonderland;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -23,8 +24,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -100,20 +103,53 @@ public class WonderlandWorldPanel extends JPanel {
         }
     }
 
-    /** The outcome of one read, tagged with the address that was asked. */
+    /**
+     * The outcome of one cells read, tagged with the address and the world
+     * module that were asked ({@code module} is null for the server's live
+     * world), so the status line names the exact resource that answered or
+     * refused.
+     */
     static final class Loaded {
         final String server;
+        final String module;
         final WorldCatalog.WorldView world;
         final IOException failure;
 
         Loaded(String server, WorldCatalog.WorldView world, IOException failure) {
+            this(server, null, world, failure);
+        }
+
+        Loaded(String server, String module, WorldCatalog.WorldView world,
+                IOException failure) {
             this.server = server;
+            this.module = module;
             this.world = world;
             this.failure = failure;
         }
     }
 
-    private final JTextField serverField = new JTextField(24);
+    /**
+     * The outcome of one world-catalog read: the list the server offers, or the
+     * reason it refused, plus (when auto-start was attempted) the launcher's
+     * one-line note so the status strip can explain why a server did not appear.
+     */
+    static final class WorldsOutcome {
+        final String server;
+        final List<WorldCatalog.WorldEntry> worlds;
+        final IOException failure;
+        final String attemptNote;
+
+        WorldsOutcome(String server, List<WorldCatalog.WorldEntry> worlds,
+                IOException failure, String attemptNote) {
+            this.server = server;
+            this.worlds = worlds;
+            this.failure = failure;
+            this.attemptNote = attemptNote;
+        }
+    }
+
+    private final JTextField serverField = new JTextField(20);
+    private final JComboBox<WorldCatalog.WorldEntry> worldsCombo = new JComboBox<>();
     private final JButton refreshButton = new JButton("Refresh");
     private final DefaultListModel<Row> cellModel = new DefaultListModel<>();
     private final JList<Row> cellList = new JList<>(cellModel);
@@ -129,6 +165,9 @@ public class WonderlandWorldPanel extends JPanel {
     /** The transport; a scripted one in the headless tests. */
     private final WorldCatalog.Fetcher fetcher;
 
+    /** The local server launcher, or {@code null} to leave auto-start off. */
+    private final WonderlandServerLauncher launcher;
+
     private final ExecutorService fetchThread = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "WonderlandWorld-fetch");
         t.setDaemon(true);
@@ -138,28 +177,53 @@ public class WonderlandWorldPanel extends JPanel {
     /** True while a read is in flight, so Refresh cannot pile up requests. */
     private volatile boolean busy;
 
+    /** True while the world picker is being repopulated, to suppress its listener. */
+    private boolean fillingWorlds;
+
     private Runnable onClose;
 
-    /** The desktop-facing panel: reads the configured server over HTTP. */
+    /** The desktop-facing panel: lists the server's worlds and reads the chosen one. */
     public WonderlandWorldPanel() {
-        this(null, true);
+        this(null, new WonderlandServerLauncher(), true);
+    }
+
+    /**
+     * A panel with no auto-start (a scripted transport, or a host that starts
+     * its own server). Kept for the headless tests that used the two-arg form.
+     *
+     * @param fetcher  the transport to read through, or {@code null} for the real
+     *                 JDK HTTP client
+     * @param autoLoad whether to read the server as soon as the panel is built
+     */
+    WonderlandWorldPanel(WorldCatalog.Fetcher fetcher, boolean autoLoad) {
+        this(fetcher, null, autoLoad);
     }
 
     /**
      * @param fetcher  the transport to read through, or {@code null} for the real
      *                 JDK HTTP client
+     * @param launcher the local server launcher, or {@code null} to keep
+     *                 auto-start off (the address must be served already)
      * @param autoLoad whether to read the server as soon as the panel is built
-     *                 (the desktop always does; a test may not)
      */
-    WonderlandWorldPanel(WorldCatalog.Fetcher fetcher, boolean autoLoad) {
+    WonderlandWorldPanel(WorldCatalog.Fetcher fetcher, WonderlandServerLauncher launcher,
+            boolean autoLoad) {
         super(new BorderLayout());
         setPreferredSize(new Dimension(WIDTH_PX, HEIGHT_PX));
         this.fetcher = (fetcher == null) ? WorldCatalog.HTTP_FETCHER : fetcher;
+        this.launcher = launcher;
 
         serverField.setText(WorldCatalog.defaultServer());
-        // Enter in the address field means the same as the button.
+        // Enter in the address field means the same as the button: re-read the
+        // catalog from wherever the user just pointed it.
         serverField.addActionListener(e -> refresh());
         refreshButton.addActionListener(e -> refresh());
+        worldsCombo.setRenderer(new WorldRenderer());
+        worldsCombo.addActionListener(e -> {
+            if (!fillingWorlds) {
+                loadSelectedWorld();
+            }
+        });
 
         cellList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         cellList.setCellRenderer(new RowRenderer());
@@ -185,11 +249,46 @@ public class WonderlandWorldPanel extends JPanel {
     // ------------------------------------------------------------------
 
     private JComponent buildToolbar() {
-        JPanel bar = new JPanel(new BorderLayout(6, 0));
+        // Two rows: the world picker drives what is read, the server field is
+        // the configuration underneath it. Both grow horizontally so a long
+        // address or world title stays readable in a narrow window.
+        JPanel bar = new JPanel(new GridBagLayout());
         bar.setBorder(BorderFactory.createEmptyBorder(6, 8, 2, 8));
-        bar.add(new JLabel("Server"), BorderLayout.WEST);
-        bar.add(serverField, BorderLayout.CENTER);
-        bar.add(refreshButton, BorderLayout.EAST);
+
+        GridBagConstraints label = new GridBagConstraints();
+        label.gridx = 0;
+        label.insets = new Insets(2, 0, 2, 6);
+        label.anchor = GridBagConstraints.WEST;
+        GridBagConstraints grow = new GridBagConstraints();
+        grow.gridx = 1;
+        grow.weightx = 1.0;
+        grow.fill = GridBagConstraints.HORIZONTAL;
+        grow.insets = new Insets(2, 0, 2, 6);
+        GridBagConstraints end = new GridBagConstraints();
+        end.gridx = 2;
+        end.insets = new Insets(2, 0, 2, 0);
+        end.anchor = GridBagConstraints.EAST;
+
+        GridBagConstraints row0 = (GridBagConstraints) label.clone();
+        GridBagConstraints grow0 = (GridBagConstraints) grow.clone();
+        GridBagConstraints end0 = (GridBagConstraints) end.clone();
+        row0.gridy = 0;
+        grow0.gridy = 0;
+        end0.gridy = 0;
+        bar.add(new JLabel("World"), row0);
+        bar.add(worldsCombo, grow0);
+        bar.add(refreshButton, end0);
+
+        GridBagConstraints row1 = (GridBagConstraints) label.clone();
+        GridBagConstraints grow1 = (GridBagConstraints) grow.clone();
+        GridBagConstraints end1 = (GridBagConstraints) end.clone();
+        row1.gridy = 1;
+        grow1.gridy = 1;
+        end1.gridy = 1;
+        bar.add(new JLabel("Server"), row1);
+        bar.add(serverField, grow1);
+        // the picker and the field span the columns the button does not use
+        grow1.gridwidth = GridBagConstraints.REMAINDER;
         return bar;
     }
 
@@ -242,9 +341,11 @@ public class WonderlandWorldPanel extends JPanel {
     // ------------------------------------------------------------------
 
     /**
-     * Asks the server for the world. Called from the EDT by the Refresh button
-     * and by {@link #WonderlandWorldPanel()}; a request already in flight is not
-     * repeated, so a double click costs one read.
+     * Re-reads the server's world catalog into the picker. Called from the EDT
+     * by the Refresh button, the address field and {@link #WonderlandWorldPanel()};
+     * a read already in flight is not repeated. Once the list arrives the first
+     * world is opened, so a first launch lands on a real world rather than an
+     * empty picker.
      */
     private void refresh() {
         final String server = serverField.getText();
@@ -256,9 +357,111 @@ public class WonderlandWorldPanel extends JPanel {
             return;
         }
         busy = true;
-        statusLabel.setText("Reading " + safeUrl(server) + " \u2026");
+        statusLabel.setToolTipText(null);
+        statusLabel.setText("Reading worlds from " + WorldCatalog.worldsUrl(server)
+                + " \u2026");
         fetchThread.execute(() -> {
-            final Loaded loaded = read(server);
+            final WorldsOutcome outcome = readWorlds(server);
+            SwingUtilities.invokeLater(() -> renderWorlds(outcome));
+        });
+    }
+
+    /** Fetches and parses the world catalog; off the EDT, and never throws. */
+    WorldsOutcome readWorlds(String server) {
+        try {
+            return new WorldsOutcome(server, WorldCatalog.loadWorlds(server, fetcher),
+                    null, null);
+        } catch (IOException | RuntimeException first) {
+            // The common first-launch failure is that no server is up. If a
+            // launcher was given, bring one up for a local address and retry
+            // once; otherwise the failure is the honest end of the road.
+            if (launcher == null) {
+                return new WorldsOutcome(server, null, asIo(first), null);
+            }
+            WonderlandServerLauncher.Result started = launcher.ensureRunning(server);
+            if (!started.ready()) {
+                return new WorldsOutcome(server, null, asIo(first), started.note());
+            }
+            try {
+                return new WorldsOutcome(server, WorldCatalog.loadWorlds(server, fetcher),
+                        null, started.note());
+            } catch (IOException | RuntimeException again) {
+                return new WorldsOutcome(server, null, asIo(again), started.note());
+            }
+        }
+    }
+
+    /**
+     * Fills the picker from a catalog read and opens the first world. A failure
+     * clears the stale list and explains why, naming the command that starts a
+     * server (and, if auto-start was tried, why it did not come up).
+     *
+     * <p>Production calls this on the EDT; the headless suite calls it directly.
+     * Package-visible so the worlds flow is a tested claim, not a private one.</p>
+     */
+    void renderWorlds(WorldsOutcome outcome) {
+        busy = false;
+        if (outcome.failure != null) {
+            setWorlds(List.of());
+            cellModel.clear();
+            showDetail(null);
+            String message = outcome.failure.getMessage();
+            String reach = "Cannot reach " + safeUrl(outcome.server)
+                    + (message == null ? "" : " (" + message + ")");
+            String hint = (outcome.attemptNote == null)
+                    ? "  \u2014  start it: " + WorldCatalog.startCommand()
+                    : "  \u2014  auto-start: " + outcome.attemptNote;
+            statusLabel.setText(reach + hint);
+            statusLabel.setToolTipText("<html>No <code>wonderland-server</code> answered "
+                    + safeUrl(outcome.server) + ". Run this in a terminal at the "
+                    + "repository root:<br><tt>"
+                    + WorldCatalog.startCommand() + "</tt></html>");
+            return;
+        }
+        setWorlds(outcome.worlds);
+        if (outcome.worlds.isEmpty()) {
+            cellModel.clear();
+            showDetail(null);
+            statusLabel.setToolTipText(null);
+            statusLabel.setText("no worlds published \u00B7 " + safeUrl(outcome.server));
+            return;
+        }
+        loadSelectedWorld();
+    }
+
+    /** Repopulates the picker without firing the selection listener mid-fill. */
+    private void setWorlds(List<WorldCatalog.WorldEntry> worlds) {
+        fillingWorlds = true;
+        try {
+            worldsCombo.removeAllItems();
+            for (WorldCatalog.WorldEntry world : worlds) {
+                worldsCombo.addItem(world);
+            }
+            if (!worlds.isEmpty()) {
+                worldsCombo.setSelectedIndex(0);
+            }
+        } finally {
+            fillingWorlds = false;
+        }
+        worldsCombo.setEnabled(!worlds.isEmpty());
+    }
+
+    /** Reads the cells of whichever world the picker now holds. */
+    private void loadSelectedWorld() {
+        Object selected = worldsCombo.getSelectedItem();
+        if (selected == null) {
+            return;
+        }
+        final String server = serverField.getText();
+        if (!isReadableAddress(server) || busy) {
+            return;
+        }
+        final String module = ((WorldCatalog.WorldEntry) selected).module();
+        busy = true;
+        statusLabel.setToolTipText(null);
+        statusLabel.setText("Reading " + safeModuleUrl(server, module) + " \u2026");
+        fetchThread.execute(() -> {
+            final Loaded loaded = read(server, module);
             SwingUtilities.invokeLater(() -> {
                 busy = false;
                 render(loaded);
@@ -266,16 +469,31 @@ public class WonderlandWorldPanel extends JPanel {
         });
     }
 
-    /** Fetches and parses; runs off the EDT, and never throws. */
+    /** Fetches and parses the live world; runs off the EDT, and never throws. */
     Loaded read(String server) {
+        return read(server, null);
+    }
+
+    /**
+     * Fetches and parses one world's cells ({@code module} null reads the live
+     * world); off the EDT, and never throws.
+     */
+    Loaded read(String server, String module) {
         try {
-            return new Loaded(server, WorldCatalog.load(server, fetcher), null);
+            WorldCatalog.WorldView world = (module == null)
+                    ? WorldCatalog.load(server, fetcher)
+                    : WorldCatalog.loadWorld(server, module, fetcher);
+            return new Loaded(server, module, world, null);
         } catch (IOException | RuntimeException failure) {
-            IOException asIo = (failure instanceof IOException)
-                    ? (IOException) failure
-                    : new IOException(String.valueOf(failure.getMessage()), failure);
-            return new Loaded(server, null, asIo);
+            return new Loaded(server, module, null, asIo(failure));
         }
+    }
+
+    /** Wraps any transport failure as an IOException for the status strip. */
+    private static IOException asIo(Throwable failure) {
+        return (failure instanceof IOException)
+                ? (IOException) failure
+                : new IOException(String.valueOf(failure.getMessage()), failure);
     }
 
     /**
@@ -295,11 +513,13 @@ public class WonderlandWorldPanel extends JPanel {
      * rows.
      */
     void render(Loaded loaded) {
+        final String url = (loaded.module == null)
+                ? safeUrl(loaded.server) : safeModuleUrl(loaded.server, loaded.module);
         if (loaded.failure != null) {
             cellModel.clear();
             showDetail(null);
             String message = loaded.failure.getMessage();
-            String reach = "Cannot reach " + safeUrl(loaded.server)
+            String reach = "Cannot reach " + url
                     + (message == null ? "" : " (" + message + ")");
             // The usual cause is not a wrong address but no server: the desktop
             // deliberately leaves wonderland-server a separate process, so name
@@ -308,8 +528,7 @@ public class WonderlandWorldPanel extends JPanel {
             // full so a narrow window still shows the whole line.
             statusLabel.setText(reach + "  \u2014  start it: " + WorldCatalog.startCommand());
             statusLabel.setToolTipText("<html>No <code>wonderland-server</code> answered "
-                    + safeUrl(loaded.server) + ". The desktop does not start one; run this "
-                    + "in a terminal at the repository root:<br><tt>"
+                    + url + ". Run this in a terminal at the repository root:<br><tt>"
                     + WorldCatalog.startCommand() + "</tt></html>");
             return;
         }
@@ -320,7 +539,7 @@ public class WonderlandWorldPanel extends JPanel {
                     new Row(cell, world.depthOf(cell.id), world.pathOf(cell.id)));
         }
         statusLabel.setToolTipText(null);
-        statusLabel.setText(world.summary() + " \u00B7 " + safeUrl(loaded.server));
+        statusLabel.setText(world.summary() + " \u00B7 " + url);
         if (cellModel.isEmpty()) {
             showDetail(null);
         } else {
@@ -332,6 +551,15 @@ public class WonderlandWorldPanel extends JPanel {
     private static String safeUrl(String server) {
         try {
             return WorldCatalog.cellsUrl(server);
+        } catch (IllegalArgumentException notAnAddress) {
+            return server == null ? "" : server.trim();
+        }
+    }
+
+    /** The per-world cells URL to name in the status line, tolerant of a bad address. */
+    private static String safeModuleUrl(String server, String module) {
+        try {
+            return WorldCatalog.cellsUrl(server, module);
         } catch (IllegalArgumentException notAnAddress) {
             return server == null ? "" : server.trim();
         }
@@ -387,16 +615,52 @@ public class WonderlandWorldPanel extends JPanel {
         return detailPath.getText();
     }
 
+    /** How many worlds the picker currently offers. For the tests. */
+    int worldCount() {
+        return worldsCombo.getItemCount();
+    }
+
+    /** The module of the world the picker holds, or {@code null}. For the tests. */
+    String selectedWorldModule() {
+        Object selected = worldsCombo.getSelectedItem();
+        return (selected == null) ? null : ((WorldCatalog.WorldEntry) selected).module();
+    }
+
     /** Wires the 2D desktop's Close toolbar button, when the host has one. */
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
     }
 
-    /** Stops the fetch thread and runs the registered close hook. */
+    /**
+     * Stops the fetch thread, tears down a server this panel auto-started, and
+     * runs the registered close hook. A server the panel did not start is left
+     * alone &mdash; stopping somebody else's process would be worse than leaking
+     * one the launcher never owned.
+     */
     public void close() {
         fetchThread.shutdownNow();
+        if (launcher != null) {
+            launcher.shutdown();
+        }
         if (onClose != null) {
             onClose.run();
+        }
+    }
+
+    /** Shows a world entry by its title (module) rather than the record's toString. */
+    private static final class WorldRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(
+                javax.swing.JList<?> list, Object value, int index,
+                boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (value instanceof WorldCatalog.WorldEntry world) {
+                setText(world.displayLabel());
+                String description = world.description();
+                setToolTipText((description == null || description.isBlank())
+                        ? null : world.title() + " \u2014 " + description);
+            }
+            return this;
         }
     }
 

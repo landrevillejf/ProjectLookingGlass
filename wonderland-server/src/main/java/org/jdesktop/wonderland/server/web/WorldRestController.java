@@ -56,7 +56,14 @@ public class WorldRestController {
     }
 
     @GetMapping("/cells")
-    public List<Map<String, Object>> cells() {
+    public List<Map<String, Object>> cells(
+            @RequestParam(value = "module", required = false) String module) {
+        // No module: the live (seeded) world, exactly as before. A module: that
+        // catalog world read on demand, so a browser can pick any listed world
+        // and see its cells without the server having seeded it.
+        if (module != null && !module.isBlank()) {
+            return catalog.describeCells(module.trim());
+        }
         List<Map<String, Object>> out = new ArrayList<>();
         for (WorldCell cell : world.hierarchy()) {
             out.add(describe(cell));

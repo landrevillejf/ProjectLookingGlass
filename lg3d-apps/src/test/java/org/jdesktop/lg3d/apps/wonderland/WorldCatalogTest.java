@@ -327,6 +327,97 @@ class WorldCatalogTest {
                 () -> WorldCatalog.load("localhost:8080", null));
     }
 
+    // ------------------------------------------------------------------
+    // The worlds catalog: list what is available, then open one
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("worldsUrl and the per-module cells URL are built from a server")
+    void buildsWorldsAndModuleUrls() {
+        assertEquals("http://localhost:8080/api/world/worlds",
+                WorldCatalog.worldsUrl("localhost:8080"));
+        // a plain module name needs no escaping
+        assertEquals("http://localhost:8080/api/world/cells?module=wonderland-town",
+                WorldCatalog.cellsUrl("localhost:8080", "wonderland-town"));
+        // a name with a query-unsafe character is percent-encoded, not sent raw
+        assertEquals("http://localhost:8080/api/world/cells?module=a%23b",
+                WorldCatalog.cellsUrl("localhost:8080", "a#b"));
+    }
+
+    @Test
+    @DisplayName("the worlds document becomes entries in server order")
+    void parsesWorldsDocument() throws IOException {
+        List<WorldCatalog.WorldEntry> worlds = WorldCatalog.parseWorlds(
+                "[{\"module\":\"clinic\",\"title\":\"Outpatient Clinic\","
+                + "\"description\":\"a clinic\",\"source\":\"classpath\",\"cellCount\":9},"
+                + "{\"module\":\"town\",\"title\":\"Town\",\"description\":\"\","
+                + "\"source\":\"jar\",\"cellCount\":2}]");
+
+        assertEquals(2, worlds.size());
+        assertEquals("clinic", worlds.get(0).module());
+        assertEquals("Outpatient Clinic", worlds.get(0).title());
+        assertEquals(9, worlds.get(0).cellCount());
+        // the picker label always names the module too, so two same-titled worlds
+        // are still distinguishable
+        assertEquals("Outpatient Clinic (clinic)", worlds.get(0).displayLabel());
+        // a title-less entry falls back to the module for its label
+        assertEquals("Town (town)", worlds.get(1).displayLabel());
+    }
+
+    @Test
+    @DisplayName("an entry with no module is skipped, and a non-array is refused")
+    void skipsModulelessEntryAndRefusesNonArray() throws IOException {
+        List<WorldCatalog.WorldEntry> worlds = WorldCatalog.parseWorlds(
+                "[{\"title\":\"no module\"},{\"module\":\"x\",\"title\":\"X\","
+                + "\"source\":\"jar\",\"cellCount\":1}]");
+        assertEquals(1, worlds.size());
+        assertEquals("x", worlds.get(0).module());
+        assertTrue(WorldCatalog.parseWorlds("[]").isEmpty());
+        assertThrows(IOException.class, () -> WorldCatalog.parseWorlds("<html>500</html>"));
+        assertThrows(IOException.class, () -> WorldCatalog.parseWorlds("{\"worlds\":[]}"));
+        assertThrows(IOException.class, () -> WorldCatalog.parseWorlds(""));
+    }
+
+    @Test
+    @DisplayName("loadWorlds fetches the worlds URL of the given server")
+    void loadWorldsUsesNormalizedUrl() throws IOException {
+        List<String> requested = new ArrayList<>();
+        WorldCatalog.Fetcher recorder = url -> {
+            requested.add(url);
+            return "[{\"module\":\"clinic\",\"title\":\"Clinic\","
+                    + "\"source\":\"classpath\",\"cellCount\":9}]";
+        };
+
+        List<WorldCatalog.WorldEntry> worlds = WorldCatalog.loadWorlds("localhost:8080", recorder);
+
+        assertEquals(List.of("http://localhost:8080/api/world/worlds"), requested);
+        assertEquals(1, worlds.size());
+    }
+
+    @Test
+    @DisplayName("load(server, module) fetches that world's cells URL")
+    void loadModuleUsesModuleUrl() throws IOException {
+        List<String> requested = new ArrayList<>();
+        WorldCatalog.Fetcher recorder = url -> {
+            requested.add(url);
+            return SAMPLE;
+        };
+
+        WorldCatalog.WorldView world = WorldCatalog.loadWorld("localhost:8080", "clinic", recorder);
+
+        assertEquals(List.of("http://localhost:8080/api/world/cells?module=clinic"), requested);
+        assertEquals(3, world.size());
+    }
+
+    @Test
+    @DisplayName("a missing transport is refused before a module or worlds read")
+    void moduleAndWorldsLoadsRequireFetcher() {
+        assertThrows(IllegalArgumentException.class,
+                () -> WorldCatalog.loadWorld("localhost:8080", "clinic", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> WorldCatalog.loadWorlds("localhost:8080", null));
+    }
+
     private static List<String> ids(List<Cell> cells) {
         List<String> out = new ArrayList<>();
         for (Cell cell : cells) {
