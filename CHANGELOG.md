@@ -10,8 +10,8 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
-- **The Wonderland World browser became a world picker that starts its own
-  server** (`wonderland-server` + `lg3d-apps`) — the panel was a reader of the
+- **The Wonderland World browser became a world picker with Start/Stop
+  server control** (`wonderland-server` + `lg3d-apps`) — the panel was a reader of the
   one world a server happened to seed: it dumped `GET /api/world/cells` and,
   when nothing answered, dead-ended on a bare "cannot reach". It now does what
   the catalog endpoint always made possible. `GET /api/world/cells?module=`
@@ -25,8 +25,12 @@ work to make it build and run on a current toolchain.
   `/api/world/worlds` (`loadWorlds`/`parseWorlds` → `WorldEntry`) and to ask for
   one world's cells (`loadWorld`), and `WonderlandWorldPanel` gained a world
   dropdown over the server host/port field: it lists every available world, opens
-  the first (or whichever you pick), and shows that world's cells. The panel now
-  **starts the server itself** for a local address that answers nothing —
+  the first (or whichever you pick), and shows that world's cells. Spring Boot is
+  operated **from the panel**: a **Start Server** button brings a local
+  `wonderland-server` up on the field's address and reads its catalog when the
+  press lands, a **Stop Server** button reaps the child the panel started (and
+  honestly refuses to touch a server it does not own), and a failed read at a
+  local address also **starts the server itself** —
   `WonderlandServerLauncher` finds the `bootJar` the build already produced
   (`wonderland-server/build-gradle/libs/*-app.jar`, overridable by
   `lg.wonderland.server.jar`), spawns `java -jar` on the field's port, and polls

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.Row;
 import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.WorldsOutcome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless tests for the face of the Wonderland World app: what the panel shows
@@ -324,5 +326,120 @@ class WonderlandWorldPanelTest {
         panel.renderWorlds(panel.readWorlds("localhost:8080"));
         panel.close();
         assertEquals(2, panel.worldCount());
+    }
+
+    // ------------------------------------------------------------------
+    // The explicit Start / Stop Server buttons
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("without a launcher the server buttons are dead")
+    void noLauncherDisablesTheServerButtons() {
+        WonderlandWorldPanel panel = panelReturning(SAMPLE);
+
+        assertFalse(panel.serverStartEnabled());
+        assertFalse(panel.serverStopEnabled());
+        assertEquals("no launcher", panel.stopServer());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a failed Start press shows the launcher's reason")
+    void startFailureShowsTheReason() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", false), false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        panel.renderStart(new WonderlandServerLauncher.Result(false, false,
+                "no wonderland-server jar found"), null);
+
+        assertTrue(panel.statusText().startsWith(
+                "cannot start wonderland-server \u2014 no wonderland-server jar found"),
+                panel.statusText());
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.rows().isEmpty());
+        assertTrue(panel.serverStartEnabled());   // pressable again
+        assertFalse(panel.serverStopEnabled());   // nothing was started
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a Start press that landed reads the world catalog")
+    void startSuccessReadsTheWorlds() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", true), false);
+
+        panel.renderStart(new WonderlandServerLauncher.Result(
+                        true, false, "a server already answers on http://localhost:8080"),
+                panel.readWorlds("localhost:8080"));
+
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("Stop refuses a server this panel does not own")
+    void stopRefusesAnUnownedServer() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", true), false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        String note = panel.stopServer();
+
+        assertTrue(note.contains("only stops a server it started"), note);
+        assertEquals(2, panel.worldCount());      // the read is left standing
+        assertFalse(panel.serverStopEnabled());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("Stop reaps the child Start brought up")
+    void stopReapsTheManagedChild(@TempDir Path repo) throws IOException {
+        Path jar = repo.resolve("wonderland-server-app.jar");
+        Files.createFile(jar);
+        String before = System.getProperty(WonderlandServerLauncher.JAR_PROPERTY);
+        try {
+            System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, jar.toString());
+            AtomicInteger polls = new AtomicInteger();
+            WonderlandServerLauncher.Probe laterReady = server -> polls.getAndIncrement() > 0;
+            WonderlandServerLauncher.Spawner alive = argv ->
+                    new WonderlandServerLauncher.Launched() {
+                        @Override
+                        public boolean alive() {
+                            return true;
+                        }
+
+                        @Override
+                        public void stop() {
+                            // fake child: nothing to reap
+                        }
+                    };
+            WonderlandServerLauncher owned = new WonderlandServerLauncher(
+                    repo, alive, laterReady, Duration.ofMillis(1));
+            WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                    url -> WORLDS_BODY, owned, false);
+            // the Start flow: ensureRunning spawns (pre-check false, poll true)
+            assertTrue(owned.ensureRunning("localhost:8080").ready());
+
+            panel.renderStart(new WonderlandServerLauncher.Result(
+                            true, true, "started wonderland-server"),
+                    panel.readWorlds("localhost:8080"));
+            assertTrue(panel.serverStopEnabled());
+
+            String note = panel.stopServer();
+
+            assertTrue(note.contains("stopped"), note);
+            assertFalse(owned.isManaging());
+            assertFalse(panel.serverStopEnabled());
+            assertEquals(0, panel.worldCount());
+            panel.close();
+        } finally {
+            if (before == null) {
+                System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);
+            } else {
+                System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, before);
+            }
+        }
     }
 }

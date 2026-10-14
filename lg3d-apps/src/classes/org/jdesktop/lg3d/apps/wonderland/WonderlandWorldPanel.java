@@ -16,6 +16,7 @@ package org.jdesktop.lg3d.apps.wonderland;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -151,6 +152,8 @@ public class WonderlandWorldPanel extends JPanel {
     private final JTextField serverField = new JTextField(20);
     private final JComboBox<WorldCatalog.WorldEntry> worldsCombo = new JComboBox<>();
     private final JButton refreshButton = new JButton("Refresh");
+    private final JButton startButton = new JButton("Start Server");
+    private final JButton stopButton = new JButton("Stop Server");
     private final DefaultListModel<Row> cellModel = new DefaultListModel<>();
     private final JList<Row> cellList = new JList<>(cellModel);
     private final JLabel statusLabel = new JLabel(" ");
@@ -218,6 +221,16 @@ public class WonderlandWorldPanel extends JPanel {
         // catalog from wherever the user just pointed it.
         serverField.addActionListener(e -> refresh());
         refreshButton.addActionListener(e -> refresh());
+        // The explicit server controls: the auto-start on a failed read is a
+        // convenience, but the panel must also let the operator bring Spring
+        // Boot up and tear it down on demand, from the desktop, with no
+        // terminal open anywhere.
+        startButton.setToolTipText("Start a local wonderland-server (java -jar) "
+                + "on the address above, then read its worlds.");
+        startButton.addActionListener(e -> startServer());
+        stopButton.setToolTipText("Stop the wonderland-server this panel "
+                + "started. A server you started elsewhere is left to its owner.");
+        stopButton.addActionListener(e -> stopServer());
         worldsCombo.setRenderer(new WorldRenderer());
         worldsCombo.addActionListener(e -> {
             if (!fillingWorlds) {
@@ -238,6 +251,7 @@ public class WonderlandWorldPanel extends JPanel {
         statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         add(statusLabel, BorderLayout.SOUTH);
+        updateServerButtons();
 
         if (autoLoad) {
             refresh();
@@ -287,8 +301,11 @@ public class WonderlandWorldPanel extends JPanel {
         end1.gridy = 1;
         bar.add(new JLabel("Server"), row1);
         bar.add(serverField, grow1);
-        // the picker and the field span the columns the button does not use
-        grow1.gridwidth = GridBagConstraints.REMAINDER;
+        JPanel serverButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        serverButtons.setOpaque(false);
+        serverButtons.add(startButton);
+        serverButtons.add(stopButton);
+        bar.add(serverButtons, end1);
         return bar;
     }
 
@@ -401,6 +418,7 @@ public class WonderlandWorldPanel extends JPanel {
      */
     void renderWorlds(WorldsOutcome outcome) {
         busy = false;
+        updateServerButtons();
         if (outcome.failure != null) {
             setWorlds(List.of());
             cellModel.clear();
@@ -444,6 +462,90 @@ public class WonderlandWorldPanel extends JPanel {
             fillingWorlds = false;
         }
         worldsCombo.setEnabled(!worlds.isEmpty());
+    }
+
+    /**
+     * The explicit Start press: bring up (or confirm) a local
+     * wonderland-server for the address in the field, then read its world
+     * catalog. The work is off the EDT and the launcher never throws, so the
+     * press always resolves into one honest status line.
+     */
+    private void startServer() {
+        final String server = serverField.getText();
+        if (launcher == null || busy || !isReadableAddress(server)) {
+            return;
+        }
+        busy = true;
+        startButton.setEnabled(false);
+        statusLabel.setToolTipText(null);
+        statusLabel.setText("Starting wonderland-server on " + server.trim()
+                + " \u2026");
+        fetchThread.execute(() -> {
+            final WonderlandServerLauncher.Result started
+                    = launcher.ensureRunning(server);
+            final WorldsOutcome outcome =
+                    started.ready() ? readWorlds(server) : null;
+            SwingUtilities.invokeLater(() -> renderStart(started, outcome));
+        });
+    }
+
+    /**
+     * Renders one explicit start attempt: the launcher's note when the server
+     * did not come up, or the catalog read the press asked for. Production
+     * calls this on the EDT; the headless suite calls it directly.
+     */
+    void renderStart(WonderlandServerLauncher.Result started, WorldsOutcome outcome) {
+        busy = false;
+        if (!started.ready()) {
+            setWorlds(List.of());
+            cellModel.clear();
+            showDetail(null);
+            statusLabel.setToolTipText(null);
+            statusLabel.setText("cannot start wonderland-server \u2014 "
+                    + started.note());
+            updateServerButtons();
+            return;
+        }
+        updateServerButtons();
+        if (outcome != null) {
+            renderWorlds(outcome);
+        } else {
+            statusLabel.setToolTipText(null);
+            statusLabel.setText(started.note());
+        }
+    }
+
+    /**
+     * The explicit Stop press. Only a server this panel started is its child
+     * to reap; anything the operator launched elsewhere (bootRun, a terminal)
+     * stays running and the status line says so honestly. Returns the note
+     * shown, for the tests.
+     */
+    String stopServer() {
+        if (launcher == null) {
+            return "no launcher";
+        }
+        boolean owned = launcher.isManaging();
+        launcher.shutdown();
+        if (owned) {
+            setWorlds(List.of());
+            cellModel.clear();
+            showDetail(null);
+        }
+        String note = owned
+                ? "wonderland-server stopped \u00B7 Start Server brings one back"
+                : "this panel only stops a server it started \u00B7 the one at "
+                        + serverField.getText().trim() + " is not its child";
+        statusLabel.setToolTipText(null);
+        statusLabel.setText(note);
+        updateServerButtons();
+        return note;
+    }
+
+    /** Reflects the launcher's state onto the two server buttons. */
+    private void updateServerButtons() {
+        startButton.setEnabled(launcher != null && !busy);
+        stopButton.setEnabled(launcher != null && launcher.isManaging());
     }
 
     /** Reads the cells of whichever world the picker now holds. */
@@ -624,6 +726,16 @@ public class WonderlandWorldPanel extends JPanel {
     String selectedWorldModule() {
         Object selected = worldsCombo.getSelectedItem();
         return (selected == null) ? null : ((WorldCatalog.WorldEntry) selected).module();
+    }
+
+    /** Whether Start Server is currently pressable. For the tests. */
+    boolean serverStartEnabled() {
+        return startButton.isEnabled();
+    }
+
+    /** Whether Stop Server is currently pressable. For the tests. */
+    boolean serverStopEnabled() {
+        return stopButton.isEnabled();
     }
 
     /** Wires the 2D desktop's Close toolbar button, when the host has one. */
