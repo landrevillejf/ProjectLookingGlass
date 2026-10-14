@@ -9,6 +9,10 @@ plugins {
     alias(libs.plugins.cyclonedx) apply false
     alias(libs.plugins.pitest) apply false
     alias(libs.plugins.dependencyCheck) apply false
+    // Applied by wonderland-server only, so `bootRun`/`bootJar` exist for a
+    // runnable, configurable server (see that module). apply false here just
+    // puts it on the classpath with its version managed once.
+    alias(libs.plugins.springboot) apply false
 }
 
 allprojects {
