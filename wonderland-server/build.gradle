@@ -45,9 +45,33 @@ tasks.named('bootJar') {
     archiveClassifier = 'app'
 }
 
+// The Spring Boot BOM upgrades JAXB to 4.x, which renamed the packages from
+// `javax.xml.bind` to `jakarta.xml.bind`. The ported Wonderland data model
+// (wonderland-common's CellServerState, and the M5 WorldLoader the WorldSeeder
+// drives) is written against `javax.xml.bind.*`, so on the server's classpath
+// the 4.x artifacts leave those classes missing (NoClassDefFoundError:
+// javax/xml/bind/JAXBException) and a world silently fails to seed. Pin the
+// javax-namespace JAXB line back to 2.3.x here. This is safe for this module:
+// the server speaks JSON (REST) + a binary WebSocket codec and nothing on its
+// classpath consumes the `jakarta.xml.bind` package, so Spring needs no 4.x.
+configurations.all {
+    resolutionStrategy {
+        force 'jakarta.xml.bind:jakarta.xml.bind-api:2.3.3'
+        force 'org.glassfish.jaxb:jaxb-runtime:2.3.9'
+        force 'org.glassfish.jaxb:jaxb-core:2.3.0.1'
+        force 'org.glassfish.jaxb:txw2:2.3.9'
+        force 'com.sun.istack:istack-commons-runtime:3.0.12'
+    }
+}
+
 dependencies {
     // The shared data model + the M1 wire codec (MessagePacker) the server speaks.
     implementation project(':wonderland-common')
+
+    // World seeding (WorldSeeder): the M5 asset pipeline (WorldLoader + the
+    // classpath WorldStore) that reads a world module's cells. A pure layer with
+    // no client / lg3d-core dependency, so the repo dependency rule holds.
+    implementation project(':wonderland-modules')
 
     // Spring Boot, version-managed by the BOM (gradle/libs.versions.toml).
     // web -> embedded Tomcat + the REST stack; websocket -> the wire-protocol

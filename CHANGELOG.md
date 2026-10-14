@@ -19,6 +19,47 @@ work to make it build and run on a current toolchain.
   `plugins` block as `apply false`) adds `bootRun` and an executable `bootJar`;
   the plain library jar is kept under its bare, expected name (what CI and any
   consumer resolve) with the fat jar alongside it under the `-app` classifier.
+- **The Wonderland server can host a world — the outpatient clinic seeds
+  (`wonderland-server` + `wonderland-modules`)** — M5 built the world pipeline
+  (`WorldLoader` decodes a module's `*-wlc.xml` cells and resolves their
+  `wla://` deployed models headless) and M6c2 built the render bridge, but
+  nothing ever fed one into the other: a running server hosted only the
+  `Environment` root, so `/api/world/cells` — the very endpoint the desktop's
+  Wonderland World browser reads — listed nothing to walk. `WorldSeeder` closes
+  that last mile on the server side: at boot it loads a named world module
+  through a new `ManifestClasspathWorldStore` and, for each decoded cell, mints
+  a `CellID` and stores a `WorldCell` carrying the renderer class name (inert
+  string data, so the server still never imports the renderer), the human name,
+  and the transform lifted from the position component. Enumeration needed an
+  index the plain `ClasspathWorldStore` deliberately refuses to provide (a jar
+  cannot be walked across exploded and packaged layouts), so the new store reads
+  `<module>/world-index.txt` and answers `listAssets` from it while every other
+  operation delegates to the classpath store's confinement rule. Seeding is
+  **opt-in and off by default** (`wonderland.world.seed=none`): the M3b socket
+  integration test asserts an empty world fans out exactly the environment plus
+  the fresh view, and a world that cannot load degrades to an empty server with
+  a warning rather than a boot failure — a bad world must never stop a server.
+  The shipped content is a clean-room **outpatient clinic**, recreating the
+  community "TMS Medical Center" world from `outpatientclinic.jpg`: nine named
+  cells (Floor, Reception, Clinic Directory, Exam Room 1 + Waiting, Exam Room 2
+  + Waiting, Patient Education, Observation Room) resolved through one reusable
+  unit-box deployed model. `wonderland-server` gained the `wonderland-modules`
+  dependency, and the Spring Boot BOM's JAXB 4.x (which renamed the packages to
+  `jakarta.xml.bind`) is pinned back to the 2.3.x line the ported `javax.xml.bind`
+  cell-state code needs — safe because the server speaks JSON REST and a binary
+  WebSocket, nothing consumes the `jakarta.xml.bind` namespace. **12 new headless
+  cases** (6 in `WorldSeederTest` proving the off-by-default, seed-every-named-
+  cell, model/non-model class assignment, transform lift, and never-throw
+  contracts against synthetic states; 6 in `ManifestClasspathWorldStoreTest`
+  proving manifest discovery, comment/blank filtering, suffix match, sort, the
+  absent-index degrade and a corrupt-stream degrade against real test resources),
+  plus a `wonderland-indexed-world` fixture. **Verified live**, not just in CI:
+  `bootRun --args='--wonderland.world.seed=wonderland-outpatient-clinic'` makes
+  `/api/world/cells` return the environment plus all nine clinic cells. What this
+  does **not** yet claim is the 3D walk: rendering those cells needs the
+  production WebSocket `WonderlandSession` and asset HTTP serving that are the
+  next increment, so this entry proves the server hosts the world, not that a
+  room was seen on screen.
 - **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
   `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
   own identity while its real version was two hard-coded `"1.0"` strings nobody

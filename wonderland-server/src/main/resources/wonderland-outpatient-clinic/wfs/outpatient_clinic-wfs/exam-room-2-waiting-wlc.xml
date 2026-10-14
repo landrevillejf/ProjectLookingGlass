@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model-cell>
+    <name>Exam Room 2 Waiting</name>
+    <metadata/>
+    <model-cell-component>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <PickingEnabled>true</PickingEnabled>
+        <CollisionEnabled>true</CollisionEnabled>
+        <LightingEnabled>false</LightingEnabled>
+        <BackfaceCullingEnabled>true</BackfaceCullingEnabled>
+        <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
+    </model-cell-component>
+    <position-component>
+        <translation><x>-3</x><y>0</y><z>5</z></translation>
+        <bounds><type>BOX</type><x>4.0</x><y>1.2</y><z>4.0</z></bounds>
+        <scale><x>4.0</x><y>1.2</y><z>4.0</z></scale>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+    <placemark-component><placemarkName>Exam Room 2 Waiting</placemarkName></placemark-component>
+</model-cell>
