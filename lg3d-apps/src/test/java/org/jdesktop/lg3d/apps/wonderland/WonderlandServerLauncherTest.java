@@ -156,6 +156,60 @@ class WonderlandServerLauncherTest {
     }
 
     @Test
+    @DisplayName("a spawned server seeds a world: without the flag the client walks into an empty one")
+    void commandCarriesTheSeed() {
+        Path jar = Path.of("/tmp/wonderland-server-1.0-app.jar");
+        // the default: the bundled clinic, seedable with no worlds directory
+        assertTrue(WonderlandServerLauncher.command(jar, 8080).contains(
+                "--wonderland.world.seed=" + WonderlandServerLauncher.DEFAULT_SEED),
+                String.valueOf(WonderlandServerLauncher.command(jar, 8080)));
+
+        // an explicit selection wins, trimmed to the bare module name
+        assertTrue(WonderlandServerLauncher.command(jar, 8080, null, " wonderland-town-world ")
+                .contains("--wonderland.world.seed=wonderland-town-world"));
+
+        // and a caller that names no seed at all leaves the flag off: the
+        // server's own default (none) is a deployment decision, not this one
+        assertFalse(WonderlandServerLauncher.command(jar, 8080, null, null).stream()
+                .anyMatch(a -> a.startsWith("--wonderland.world.seed=")));
+        assertFalse(WonderlandServerLauncher.command(jar, 8080, null, "  ").stream()
+                .anyMatch(a -> a.startsWith("--wonderland.world.seed=")));
+
+        assertEquals(WonderlandServerLauncher.DEFAULT_SEED,
+                WonderlandServerLauncher.seedFor(null));
+        assertEquals(WonderlandServerLauncher.DEFAULT_SEED,
+                WonderlandServerLauncher.seedFor(""));
+        assertEquals("m", WonderlandServerLauncher.seedFor(" m "));
+    }
+
+    @Test
+    void ensureRunningSeedsTheWorldThePanelSelected(@TempDir Path repo) throws IOException {
+        Path jar = repo.resolve("wonderland-server-app.jar");
+        Files.createFile(jar);
+        String before = System.getProperty(WonderlandServerLauncher.JAR_PROPERTY);
+        java.util.ArrayList<String> argv = new java.util.ArrayList<>();
+        try {
+            System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, jar.toString());
+            WonderlandServerLauncher launcher = new WonderlandServerLauncher(
+                    repo, recording(argv), sequence(false, true), Duration.ofSeconds(5));
+
+            WonderlandServerLauncher.Result result =
+                    launcher.ensureRunning("localhost:8080", "wonderland-town-world");
+
+            assertTrue(result.ready(), result.note());
+            assertTrue(argv.contains("--wonderland.world.seed=wonderland-town-world"),
+                    String.valueOf(argv));
+            launcher.shutdown();
+        } finally {
+            if (before == null) {
+                System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);
+            } else {
+                System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, before);
+            }
+        }
+    }
+
+    @Test
     void resolveJarWalksUpFromAModuleDirectory(@TempDir Path repo) throws IOException {
         // The desktop's working directory is lg3d-core/, one level below the
         // repository root that carries the server's build output: the search

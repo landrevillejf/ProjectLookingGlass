@@ -78,6 +78,16 @@ public final class WonderlandServerLauncher {
     /** The default Spring Boot port, when the address names none. */
     static final int DEFAULT_PORT = 8080;
 
+    /**
+     * The world a spawned server seeds when the panel names none: the bundled
+     * outpatient clinic, shipped on the server's own classpath and therefore
+     * seedable even with no worlds directory. Mirrors the server's
+     * {@code WorldSeeder.CLINIC_MODULE} wire value &mdash; the desktop must not
+     * import server classes, so the string is stated twice, and the launcher
+     * test pins the seed flag's exact spelling.
+     */
+    static final String DEFAULT_SEED = "wonderland-outpatient-clinic";
+
     /** How long to wait, after spawning, for the server to answer its REST root. */
     static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(60);
 
@@ -143,9 +153,23 @@ public final class WonderlandServerLauncher {
 
     /**
      * Ensure a server answers at {@code server}, starting a local one if none is
-     * and this machine can. Never throws; see the class boundary above.
+     * and this machine can. A server this launcher spawns seeds
+     * {@link #DEFAULT_SEED}, so a freshly started world hosts content instead
+     * of an empty Environment root. Never throws; see the class boundary above.
      */
     public Result ensureRunning(String server) {
+        return ensureRunning(server, null);
+    }
+
+    /**
+     * As {@link #ensureRunning(String)}, but the world the panel has selected
+     * is the one a spawned server seeds ({@code seedModule} null or blank falls
+     * back to {@link #DEFAULT_SEED}). A server that already answers is left
+     * exactly as its owner started it &mdash; the seed only ever applies to a
+     * spawn, because re-seeding a live world would mean killing somebody
+     * else's process.
+     */
+    public Result ensureRunning(String server, String seedModule) {
         if (server == null || server.isBlank()) {
             return new Result(false, false, "no server address given");
         }
@@ -165,7 +189,8 @@ public final class WonderlandServerLauncher {
                             + "build it or run: " + WorldCatalog.startCommand());
         }
         try {
-            Launched child = spawner.spawn(command(jar, portOf(base), worldsDirFor(jar)));
+            Launched child = spawner.spawn(command(jar, portOf(base),
+                    worldsDirFor(jar), seedFor(seedModule)));
             launched = child;
             boolean ready = awaitReady(base);
             return new Result(ready, true,
@@ -241,7 +266,7 @@ public final class WonderlandServerLauncher {
 
     /** The command line that runs the built server jar on {@code port}. */
     static List<String> command(Path jar, int port) {
-        return command(jar, port, null);
+        return command(jar, port, null, DEFAULT_SEED);
     }
 
     /**
@@ -251,6 +276,21 @@ public final class WonderlandServerLauncher {
      * classpath worlds, which is why the catalog listed just the clinic.
      */
     static List<String> command(Path jar, int port, Path worldsDir) {
+        return command(jar, port, worldsDir, DEFAULT_SEED);
+    }
+
+    /**
+     * The full spawn command. Three flags, each the answer to one empty
+     * surface: {@code --server.port} says where the server listens,
+     * {@code --wonderland.world.dir} says which installed worlds to list, and
+     * {@code --wonderland.world.seed} says which world to actually host &mdash;
+     * without it the server boots opt-in-empty (the seed's default is
+     * {@code none}) and a walking-in client sees nothing.
+     *
+     * @param seed the module to seed, or null/blank to leave the server's own
+     *             default (an empty world) in place
+     */
+    static List<String> command(Path jar, int port, Path worldsDir, String seed) {
         String javaBinary = Path.of(System.getProperty("java.home"),
                 "bin", "java").toString();
         List<String> argv = new ArrayList<>();
@@ -261,7 +301,16 @@ public final class WonderlandServerLauncher {
         if (worldsDir != null) {
             argv.add("--wonderland.world.dir=" + worldsDir.toAbsolutePath());
         }
+        if (seed != null && !seed.isBlank()) {
+            argv.add("--wonderland.world.seed=" + seed.trim());
+        }
         return argv;
+    }
+
+    /** The seed one spawn carries: the panel's selection, else the default. */
+    static String seedFor(String seedModule) {
+        return (seedModule == null || seedModule.isBlank())
+                ? DEFAULT_SEED : seedModule.trim();
     }
 
     /**

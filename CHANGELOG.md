@@ -10,6 +10,34 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The Wonderland client session went production: the world is now seen, not
+  just listed** (`wonderland-client` + `lg3d-apps`) — the port had no real
+  `WonderlandSession` past the in-JVM loopback, so the 3D world frame opened
+  empty: every HUD row stayed `PENDING` and nothing ever called `cellLoaded`.
+  `WebSocketWonderlandSession` now speaks the server's `/comms` binary wire
+  directly: every frame is one `MessagePacker` envelope, each channel's first
+  attach mints or rejoins the server session (the follow-on sockets echo it
+  under `wonderland.sessionID`, hex, so the three channel/cache/edit sockets
+  converge on one `ServerSession`), and the short the `AttachedClientMessage`
+  assigned stamps every later frame. The `java.net.http.WebSocket` transport
+  sits behind a `Transport`/`TransportFactory` seam, so the whole handshake,
+  fan-out and every failure path is headless-tested (26 cases, including one
+  real RFC 6455 round trip against a miniature server). `WonderlandWorld3D`,
+  the 3D desktop's start-menu command, walks in over it: a daemon thread
+  connects a `CellClientSession` to the panel's server as the desktop's own
+  user, and the cache listener is registered *before* the connect because the
+  server's view-cell flush begins with the `SET_VIEW` handshake itself — each
+  `cellLoaded` mounts its renderer through `WonderlandDesktop` /
+  `CellFrameBridge`, each `cellUnloaded` takes it back out, and closing the
+  HUD disconnects the session before unmounting the world. And **Start
+  Server** now seeds the world the picker holds
+  (`--wonderland.world.seed=<module>`, defaulting to the bundled clinic; a
+  server that already answers is left exactly as its owner started it) — a
+  server hosting nothing would show an empty `Environment` even to a perfect
+  client. **Verified live**: a bare `CellCacheConnection` over the production
+  session against a `java -jar` server seeded with
+  `wonderland-outpatient-clinic` received the `Environment` root, all nine
+  clinic cells and its own view cell over the sockets.
 - **The Wonderland World browser became a world picker with Start/Stop
   server control** (`wonderland-server` + `lg3d-apps`) — the panel was a reader of the
   one world a server happened to seed: it dumped `GET /api/world/cells` and,

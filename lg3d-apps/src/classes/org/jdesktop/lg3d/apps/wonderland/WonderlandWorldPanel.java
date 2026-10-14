@@ -467,14 +467,18 @@ public class WonderlandWorldPanel extends JPanel {
     /**
      * The explicit Start press: bring up (or confirm) a local
      * wonderland-server for the address in the field, then read its world
-     * catalog. The work is off the EDT and the launcher never throws, so the
-     * press always resolves into one honest status line.
+     * catalog. When the picker already holds a world, that is the world a
+     * spawned server seeds &mdash; Start is how the operator answers "which
+     * world is live?" without a terminal. The work is off the EDT and the
+     * launcher never throws, so the press always resolves into one honest
+     * status line.
      */
     private void startServer() {
         final String server = serverField.getText();
         if (launcher == null || busy || !isReadableAddress(server)) {
             return;
         }
+        final String seed = selectedWorldModule(); // EDT-only combo read
         busy = true;
         startButton.setEnabled(false);
         statusLabel.setToolTipText(null);
@@ -482,7 +486,7 @@ public class WonderlandWorldPanel extends JPanel {
                 + " \u2026");
         fetchThread.execute(() -> {
             final WonderlandServerLauncher.Result started
-                    = launcher.ensureRunning(server);
+                    = launcher.ensureRunning(server, seed);
             final WorldsOutcome outcome =
                     started.ready() ? readWorlds(server) : null;
             SwingUtilities.invokeLater(() -> renderStart(started, outcome));
