@@ -31,6 +31,24 @@ work to make it build and run on a current toolchain.
   rewrites Mandela's version and `release-check.mnd` does not look at it — the bundle
   puts the jar on a `lib/*` wildcard classpath, which does not care what the file is
   called — so a Mandela bump is its own module-scoped chore, gated by its own script.
+- **Mandela 1.1.0: the roadmap's next horizon landed whole** (`lg3d-mandela`,
+  `scripts/mandela`, `docs/mandela-language.md`) — the gates in `scripts/mandela/`
+  each hand-rolled the same scans (an `indexOf`-loop occurrence count, a first-pair
+  `key=value` split, a trim-to-empty test, a filter-then-refilter split), and the
+  browser host held a private `*`/`?` matcher no script could reach, so the language
+  grew what its own automation was repeating: string members `count`, `splitOnce`,
+  `isBlank`, `removePrefix`/`removeSuffix`, `lines` and `words`; list members `count`
+  (bare, or with a predicate) and `partition`; and `std.glob` — `matches(text,
+  pattern)` / `isMatch(pattern, text)`, a segment-scan matcher that never
+  backtracks, which is why a glob fits the step-budget sandbox while a regular
+  expression never will (guide §12 still says no regex; §9 now shows what to use
+  instead). Two scripts ship with it: `changelog-check.mnd`, the tenth repository
+  gate, proves `CHANGELOG.md` keeps the shape its three readers — help topic,
+  Pages archive, Update Manager — all parse, and `todo-scan.mnd` is a report
+  (always exit 0) inventorying the tree's open `TODO`/`FIXME` markers. The grammar
+  is untouched, so this is a jar bump alone: `mandela.version` `1.0.0 → 1.1.0`
+  with `mandela.language` still `1.0`, every copy kept in step by
+  `mandela-version.mnd`, recorded in `lg3d-mandela/CHANGELOG.md`.
 - **A release is now a page, and the page carries its test reports**
   (`scripts/mandela` + `documentation/` + `.github/workflows/`) — the changelog had
   always been rendered for one audience only: `whats-new.mnd` parsed `CHANGELOG.md`
@@ -7032,15 +7050,15 @@ work to make it build and run on a current toolchain.
   window fills the viewport on both axes (uniform 5% margin) and the normal
   window keeps screen proportions.
 
-### Known non-fatal runtime messages
-These are harmless and expected in dev mode:
-- `Executable <app> not found, ignoring taskbar item` — a sample taskbar or
-  start-menu item references an app that is not installed on the host and has no
-  available alternate (e.g. Firefox/Thunderbird). The **Terminal** item no longer
-  triggers this: it now resolves through its `alternateExec` / `alternateCommands`
-  fallback list to an installed emulator.
-- `Could not lock System prefs` — the JDK preferences backing store warning.
-- `No default preferences file found: /etc/lg3d/skel/prefs.xml` — first-run
-  defaults are created instead.
-- `PluginJ3fData` user-data `ClassNotFoundException` in `J3fLoader` — the original
-  J3dFly plugin class is not present; the model geometry still loads.
+- **Known non-fatal runtime messages** — harmless and expected in dev mode,
+  recorded here so a reader can tell noise from failure:
+  - `Executable <app> not found, ignoring taskbar item` — a sample taskbar or
+    start-menu item references an app that is not installed on the host and has no
+    available alternate (e.g. Firefox/Thunderbird). The **Terminal** item no longer
+    triggers this: it now resolves through its `alternateExec` / `alternateCommands`
+    fallback list to an installed emulator.
+  - `Could not lock System prefs` — the JDK preferences backing store warning.
+  - `No default preferences file found: /etc/lg3d/skel/prefs.xml` — first-run
+    defaults are created instead.
+  - `PluginJ3fData` user-data `ClassNotFoundException` in `J3fLoader` — the
+    original J3dFly plugin class is not present; the model geometry still loads.

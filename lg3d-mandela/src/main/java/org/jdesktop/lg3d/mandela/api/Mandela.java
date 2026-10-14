@@ -101,11 +101,11 @@ public final class Mandela {
      *
      * <p>It is the same number as {@code mandela.version} in the repository's
      * gradle.properties, which is what names the artifact
-     * ({@code lg3d-mandela-1.0.0.jar}) and fills the manifest's
+     * ({@code lg3d-mandela-1.1.0.jar}) and fills the manifest's
      * {@code Implementation-Version}. It is deliberately <em>not</em> the desktop's
      * version: this module depends on nothing, so it releases on its own clock.</p>
      */
-    public static final String IMPLEMENTATION_VERSION = "1.0.0";
+    public static final String IMPLEMENTATION_VERSION = "1.1.0";
 
     /** The file extension a Mandela source file uses, without the dot. */
     public static final String FILE_EXTENSION = "mnd";

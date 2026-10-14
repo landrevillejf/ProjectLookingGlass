@@ -17,7 +17,7 @@ names no UI toolkit runs wherever a JVM does. Five such lives are already real:
 
 | Where | What runs there | What it is granted |
 | --- | --- | --- |
-| **This repository's CI** | the nine gates in [`scripts/mandela/`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/scripts/mandela/README.md) — link checkers, version-consistency gates, a start-menu audit, an i18n contract — via `./gradlew :lg3d-mandela:repositoryChecks` | `desktop(root)`: files under the repository root, console, a step budget |
+| **This repository's CI** | the ten gates in [`scripts/mandela/`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/scripts/mandela/README.md) — link checkers, version-consistency gates, a start-menu audit, an i18n contract — via `./gradlew :lg3d-mandela:repositoryChecks` | `desktop(root)`: files under the repository root, console, a step budget |
 | **Any terminal** | the `mandela` CLI: `run`, `check`, `eval`, the REPL (`mandelaRepl`) | whatever the invocation says, `desktop(root)` by default |
 | **Any Java or Kotlin program** | the embedding API (`Mandela`, `Runtime`, `Capabilities`, `Interop`) or JSR-223 — see the [embedding guide](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/docs/mandela-embedding-api.md) | whatever the host's `Capabilities` says |
 | **Espresso** (the desktop's text editor) | the Mandela extension: run, check, disassemble, template a document | `console()`: no files, no env, 20 M steps |
@@ -83,12 +83,12 @@ its tests, its guide text and its gate in the same PR**, because a promise the
 documentation does not carry is not a promise, and the coverage floors (and
 PIT at zero survivors for this module) do not negotiate.
 
-### 3.1 Next — stdlib and tooling (a `mandela.version` bump only)
+### 3.1 Shipped in 1.1.0 — stdlib and tooling (a `mandela.version` bump only)
 
 Members and modules added to the existing vocabulary. No script that runs
-today changes behaviour, so `mandela.language` stays `1.0`: a script may
+today changes behaviour, so `mandela.language` stayed `1.0`: a script may
 assume the grammar, and the grammar is untouched. New members are things a
-shipped script currently hand-rolls:
+shipped script hand-rolled at the time this list was written:
 
 - `s.count(needle)` — the occurrence count the link checkers each scan for by
   hand with `indexOf` in a loop.
@@ -143,7 +143,8 @@ How the two numbers move is policy, not mood — written in full in
 [`lg3d-mandela/CHANGELOG.md`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/lg3d-mandela/CHANGELOG.md) and gated by
 [`scripts/mandela/mandela-version.mnd`](https://github.com/landrevillejf/ProjectLookingGlass/blob/main/scripts/mandela/mandela-version.mnd):
 
-- A §3.1 item bumps `mandela.version` (the jar) alone: `1.0.0 → 1.1.0`.
+- A §3.1 item bumps `mandela.version` (the jar) alone: `1.0.0 → 1.1.0`, the
+  way the whole of §3.1 shipped.
 - A §3.2 item bumps both axes: a script that *can* use it lives in a world
   where `LANGUAGE_VERSION` says so.
 - A bug fix bumps the patch: `1.1.0 → 1.1.1`.

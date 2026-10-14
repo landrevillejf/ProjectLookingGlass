@@ -69,11 +69,12 @@ written.
 | 2026-10-12 | `9aa99ca3` | The two remaining core seams hardened: `legacy-j3d.mnd` and `scripts-hygiene.mnd` as gates, and the interpreter's limits (`padStart`, `padEnd`, `text.repeat`) made to honour the same text ceiling. |
 | 2026-10-12 | `4d1f7366` | `whats-new.mnd` - the language now writes a page of the desktop's own Help Center, generating a JavaHelp topic from `CHANGELOG.md` and failing the build when the shipped topic goes stale. |
 | 2026-10-13 | `3ed4fd5e` (#378) | The same script gains a second audience: `CHANGELOG.md` now also draws the release archive under `documentation/releases/`, one page per released version plus its index, so one document answers the Update Manager's dialog, the Help Center's topic and the Pages site - with the gate proving every page still matches the changelog it came from. |
-| 2026-10-13 | this PR | Mandela's own version identity: `mandela.version` and `mandela.language` in `gradle.properties`, the same two numbers in the jar manifest, this module's changelog filled in from the record above, and `mandela-version.mnd` gating the eight places they are written - because a zero-dependency language releases on its own clock, and `1.69.0-dev` says nothing a host needs to know. |
+| 2026-10-13 | `a9b8f1b2` (#379) | Mandela's own version identity: `mandela.version` and `mandela.language` in `gradle.properties`, the same two numbers in the jar manifest, this module's changelog filled in from the record above, and `mandela-version.mnd` gating the eight places they are written - because a zero-dependency language releases on its own clock, and `1.69.0-dev` says nothing a host needs to know. |
+| 2026-10-13 | this PR | The language **1.1.0** - the first release on that own clock, and the whole of the roadmap's next horizon: string members (`count`, `splitOnce`, `isBlank`, `removePrefix` / `removeSuffix`, `lines`, `words`), list members (`count`, `partition`) and `std.glob`, each one a scan a shipped gate was hand-rolling, plus two new programs - `changelog-check.mnd`, the tenth gate, guarding the shape `CHANGELOG.md` must keep for the three readers that parse it, and `todo-scan.mnd`, a report of the tree's open markers. The grammar is untouched, so only the jar's version moved. |
 
 Measured on the day this page was written, the module is 45 Java files and
-18,584 lines in `src/main/java`, and the repository's automation is 11 shipped
-scripts in [`scripts/mandela/`](../../scripts/mandela/README.md), 9 of them
+18,885 lines in `src/main/java`, and the repository's automation is 13 shipped
+scripts in [`scripts/mandela/`](../../scripts/mandela/README.md), 10 of them
 wired gates. Every date above is `git log`, and every count is the tree; none
 of it is remembered.
 
@@ -83,7 +84,7 @@ of it is remembered.
 - **The Web Browser** - userscripts, authored with `userscript-new.mnd` and
   gated by the security model described in the
   [embedding guide](../../docs/mandela-embedding-api.md).
-- **The repository's own CI** - the nine gates in
+- **The repository's own CI** - the ten gates in
   [`scripts/mandela/README.md`](../../scripts/mandela/README.md) run on every
   push in [`.github/workflows/build.yml`](../../.github/workflows/build.yml).
 - **The Help Center** - `whats-new.mnd` generates the guide's What's New topic.

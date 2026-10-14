@@ -127,7 +127,50 @@ class StandardLibraryTest {
                 Arguments.of("\"7\".padStart(4)", "   7"),
                 Arguments.of("\"abc\".padStart(2, \"x\")", "abc"),
                 Arguments.of("\"\".padStart(3, \"\")", ""),
-                Arguments.of("\"abc\".padEnd(6, \"xy\")", "abcxyx"));
+                Arguments.of("\"abc\".padEnd(6, \"xy\")", "abcxyx"),
+                // count is the scan every shipped gate hand-rolled with indexOf
+                // in a loop: non-overlapping left to right, an absent needle at
+                // every position and one at the end (n + 1, the way split("")
+                // reads the characters), and no match at zero, never a refusal.
+                Arguments.of("\"a-b-c\".count(\"-\")", "2"),
+                Arguments.of("\"aaaa\".count(\"aa\")", "2"),
+                Arguments.of("\"abc\".count(\"z\")", "0"),
+                Arguments.of("\"abc\".count(\"\")", "4"),
+                Arguments.of("\"\".count(\"\")", "1"),
+                Arguments.of("\"key = value extra\".splitOnce(\" = \").join(\"|\")",
+                        "key|value extra"),
+                // An absent separator is the whole text and no remainder; the
+                // empty one is the characters, the first and the rest, the way
+                // split("") already spells them.
+                Arguments.of("\"key\".splitOnce(\"=\").join(\"|\")", "key|"),
+                Arguments.of("\"abc\".splitOnce(\"\").join(\"|\")", "a|bc"),
+                // The empty text split on the empty separator is the pair of
+                // nothing the characters would have been: no first, no rest.
+                Arguments.of("\"\".splitOnce(\"\").join(\"|\")", "|"),
+                Arguments.of("\" \".isBlank() && \"\\t\\n\".isBlank()", "true"),
+                Arguments.of("\"a b\".isBlank()", "false"),
+                Arguments.of("\"\".isBlank()", "true"),
+                // The strip pair reads as startsWith/endsWith already do: no
+                // match hands the text back untouched, and an empty suffix is
+                // every text's own ending - removing it removes nothing.
+                Arguments.of("\"/etc/hosts\".removePrefix(\"/etc/\")", "hosts"),
+                Arguments.of("\"hosts\".removePrefix(\"/etc/\")", "hosts"),
+                Arguments.of("\"report.mnd\".removeSuffix(\".mnd\")", "report"),
+                Arguments.of("\"report.md\".removeSuffix(\".mnd\")", "report.md"),
+                Arguments.of("\"a\".removeSuffix(\"\")", "a"),
+                // Line ends are not one character in a tree edited on three
+                // platforms: CRLF is one end, a lone CR ends a line, and text
+                // that ends in its terminator answers no trailing empty line.
+                Arguments.of("\"a\\nb\\n\".lines().join(\",\")", "a,b"),
+                Arguments.of("\"a\\r\\nb\\rc\".lines().join(\",\")", "a,b,c"),
+                // A CR that is not followed by a LF still ends the line it is
+                // on - the pair is one end, a lone carriage is its own.
+                Arguments.of("\"a\\rb\".lines().join(\",\")", "a,b"),
+                // A carriage return as the text's very last character has no
+                // next byte to look at, and still ends the line it is on.
+                Arguments.of("\"a\\r\\nb\\r\".lines().join(\",\")", "a,b"),
+                Arguments.of("\"\".lines().length", "0"),
+                Arguments.of("\"a  b \".words().join(\",\")", "a,b"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -218,7 +261,19 @@ class StandardLibraryTest {
                         + "[1, 2].map(pick).join(\",\")", "10,21"),
                 Arguments.of("[1, 2].map(\"a\".upper).join(\",\")", "A,A"),
                 Arguments.of("[5, 5, 1].min()", "1"),
-                Arguments.of("[1, 5, 5].max()", "5"));
+                Arguments.of("[1, 5, 5].max()", "5"),
+                // count answers the size of the filter the caller would build
+                // to throw the values away; bare, it reads the truthiness any()
+                // and all() already answer for, and the two-arity callback is
+                // indexed like map's.
+                Arguments.of("[1, 2, 3].count({ x -> x > 1 })", "2"),
+                Arguments.of("[0, 1, \"\", \"a\"].count()", "2"),
+                Arguments.of("[1, 2, 3].count({ x, i -> i == 0 })", "1"),
+                // partition is the same walk in halves: each in its original
+                // order, both lists present even when one is empty.
+                Arguments.of("[1, 2, 3, 4].partition({ x -> x % 2 == 0 })"
+                        + ".map({ h -> h.join(\"-\") }).join(\"|\")", "2-4|1-3"),
+                Arguments.of("[1].partition({ x -> true })[1].length", "0"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -465,7 +520,60 @@ class StandardLibraryTest {
                 // The host's own identity, as Str whatever the machine answers.
                 Arguments.of("use std.env\ntypeOf(env.user())", "Str"),
                 Arguments.of("use std.env\ntypeOf(env.os())", "Str"),
-                Arguments.of("use std.env\nenv.pathRoots().length > 0", "true"));
+                Arguments.of("use std.env\nenv.pathRoots().length > 0", "true"),
+                // Glob: the browser's `// @match` vocabulary as a script call, not
+                // a host translation. `*` is any run (including none), `?` is
+                // exactly one character, everything else is literal, and the
+                // match is of the whole text - an unanchored tail is no match.
+                Arguments.of("use std.glob\nglob.matches(\"http://example.com/\", \"http://*\")",
+                        "true"),
+                Arguments.of("use std.glob\nglob.matches(\"http://x.io\", \"https://*\")",
+                        "false"),
+                Arguments.of("use std.glob\nglob.matches(\"ab\", \"a*b\")", "true"),
+                Arguments.of("use std.glob\nglob.matches(\"abc\", \"a?c\")", "true"),
+                Arguments.of("use std.glob\nglob.matches(\"ac\", \"a?c\")", "false"),
+                Arguments.of("use std.glob\nglob.matches(\"\", \"*\")", "true"),
+                Arguments.of("use std.glob\nglob.matches(\"a\", \"\")", "false"),
+                Arguments.of("use std.glob\nglob.matches(\"a.b.c\", \"*.*.*\")", "true"),
+                // Two stars, and the segments they separate need ground of
+                // their own: `*a*a` names "aa" - one a per segment - and no
+                // more, where a greedy one-pointer matcher would let the
+                // first `a` of "ba" stand in for both.
+                Arguments.of("use std.glob\nglob.matches(\"ba\", \"*a*a\")", "false"),
+                Arguments.of("use std.glob\nglob.matches(\"aa\", \"*a*a\")", "true"),
+                Arguments.of("use std.glob\nglob.matches(\"banana\", \"*a*a\")", "true"),
+                // A `?` in a middle segment costs a scan, not a retry: the
+                // wildcard stands for exactly the one character it covers.
+                Arguments.of("use std.glob\nglob.matches(\"xxa1bxx\", \"*a?b*\")", "true"),
+                Arguments.of("use std.glob\nglob.matches(\"xxabxx\", \"*a?b*\")", "false"),
+                // Consecutive stars are one star - a pattern with a run of
+                // them matches exactly what one of them does.
+                Arguments.of("use std.glob\nglob.matches(\"abc\", \"a**c\")", "true"),
+                // The matcher is literal: `?` is not optional and a dot is not
+                // a class, which is the whole argument for a glob over a
+                // pattern - what you wrote is exactly what matches.
+                Arguments.of("use std.glob\nglob.matches(\"axbc\", \"a.c\")", "false"),
+                Arguments.of("use std.glob\nglob.matches(\"a\", \"a?\")", "false"),
+                // isMatch reads the same way round as matches(text, pattern):
+                // the pattern first, like a file name before its candidate -
+                // both spellings are the matcher, never two matchers.
+                Arguments.of("use std.glob\nglob.isMatch(\"*.mnd\", \"gate.mnd\")", "true"),
+                Arguments.of("use std.glob\nglob.isMatch(\"*.mnd\", \"gate.md\")", "false"),
+                // The starless pattern is the exact shape, so same length and a
+                // literal mismatch is a refusal of the character, not of the
+                // length - the arm a length check alone would answer wrong.
+                Arguments.of("use std.glob\nglob.matches(\"ab\", \"ac\")", "false"),
+                // A head longer than the candidate is no match and not an
+                // index out of the text: the pattern is cut by its own first
+                // star, which knows nothing about how long the text is.
+                Arguments.of("use std.glob\nglob.matches(\"a\", \"abc*\")", "false"),
+                // The tail is anchored before the middle is read, so a tail
+                // whose ground the head already consumed answers false rather
+                // than scanning past the end of the text.
+                Arguments.of("use std.glob\nglob.matches(\"a\", \"a*ab\")", "false"),
+                // Consecutive stars collapse wherever they sit, not only at
+                // the ends: the empty segment between them asks for nothing.
+                Arguments.of("use std.glob\nglob.matches(\"axbxc\", \"a**b*c\")", "true"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -544,7 +652,18 @@ class StandardLibraryTest {
                 // A fold of nothing has no answer to read; the bare call is the
                 // one that has to say so.
                 Arguments.of("min()", "ValueError"),
-                Arguments.of("max()", "ValueError"));
+                Arguments.of("max()", "ValueError"),
+                // The new vocabulary refuses like the old: a shape it cannot
+                // read names the shape, a predicate that is not callable names
+                // the call, and a module function missing an argument says how
+                // many it needs.
+                Arguments.of("1.count(\"a\")", "TypeError"),
+                Arguments.of("\"a\".count(1)", "TypeError"),
+                Arguments.of("[1].count(3)", "TypeError"),
+                Arguments.of("[1].partition(3)", "TypeError"),
+                Arguments.of("\"a\".splitOnce(1)", "TypeError"),
+                Arguments.of("use std.glob\nglob.matches(\"a\")", "ValueError"),
+                Arguments.of("use std.glob\nglob.matches(1, \"a\")", "TypeError"));
     }
 
     @ParameterizedTest(name = "{0}")

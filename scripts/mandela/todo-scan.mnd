@@ -1,0 +1,148 @@
+#!/usr/bin/env mandela
+// todo-scan.mnd — inventory the tree's open markers, without failing anything.
+//
+// This is a report, not a gate: like asset-report.mnd it always exits 0, and
+// the reader decides what the list means. It answers the question a maintainer
+// actually asks before a release — what did we say we would do, and where does
+// the saying live — across the two places a marker is a promise rather than
+// prose: the markdown at the repository root (the todo*.md files the project
+// keeps as working notes) and the Java sources under each module's src tree.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/todo-scan.mnd -s .
+//
+// Deliberately not scanned: build output (a copy of someone's source is not a
+// second todo), vendored jars and the vendored ANTLR generator, the two trees
+// no build compiles (the historical lg3d-docs samples and the retired
+// lg3d-awt toolkit), and .md files deeper in the tree — documentation
+// prose says TODO far more often as description than as promise, and a report
+// that mixes the two stops being a count anyone trusts. A file that does not
+// decode as text (a legacy Latin-1 source) is skipped and named at the end:
+// a skipped file is a blind spot, and a blind spot stays on the page.
+//
+// The scan reads every line of every file it accepts, which is 860k lines of
+// this tree, and the desktop profile counts instructions - so the marker test
+// is written for the budget rather than for elegance, as markerOf() explains.
+
+use std.fs
+
+let MARKERS = ["TODO", "FIXME"]
+
+// Directories never worth walking: generated output and vendored binaries.
+// `antlr-2.7.4` is the parser generator vendored inside lg3d-escher - its
+// markers are upstream's, not this project's. Dot-directories (a checkout's
+// .git included) are skipped by prefix.
+let SKIP_DIRS = ["build", "build-gradle", "node_modules", "libs", "ext", "target", "out", "antlr-2.7.4"]
+
+// Top-level trees that hold no promise this project keeps, named by the same
+// argument legacy-j3d.mnd uses for its exemptions: the historical, do-not-edit
+// documentation samples and the retired AWT toolkit are sources no build ever
+// compiles, so a TODO in them is a note about a file nobody runs.
+let SKIP_TREES = ["lg3d-docs", "lg3d-awt"]
+
+fun isSkipped(name) {
+    name in SKIP_DIRS || name.startsWith(".")
+}
+
+fun isExemptTree(path) {
+    return SKIP_TREES.any { t -> path == t || path.startsWith("${t}/") }
+}
+
+// Is this a top-level markdown file? Only the root's notes are promises; a
+// guide three directories down is prose.
+fun isRootNote(path) {
+    path.indexOf("/") < 0 && path.endsWith(".md")
+}
+
+fun isSource(path) {
+    path.endsWith(".java")
+}
+
+// Walk like doc-links.mnd does: names sorted, so the report is reproducible
+// byte for byte between runs. An exempt tree is never entered, so the files
+// under it are never read.
+fun collect(dir, found) {
+    for (name in fs.list(dir)) {
+        if (isSkipped(name)) { continue }
+        let path = if (dir == ".") name else "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            if (!isExemptTree(path)) { collect(path, found) }
+        } else if (isSource(path) || (dir == "." && isRootNote(path))) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// The marker's own word, and the delimiter that makes it a promise rather
+// than prose: `TODO:` or `TODO ` counts, a `TODOlist` does not.
+//
+// The shape of the test is the step budget's, not the reader's. Asking each
+// line whether it `contains(marker + ":")` is the same question and four
+// string allocations per line - which is what spent this walk of the tree's
+// 860k source lines past the 50M the desktop profile grants, on the first run
+// of this script. Two `contains` of literals is the cheap form of the same
+// test, and the occurrences are only enumerated on the few hundred lines that
+// mention a marker at all.
+fun markerOf(line) {
+    for (marker in MARKERS) {
+        if (!line.contains(marker)) { continue }
+        var at = 0
+        loop {
+            at = line.indexOf(marker, at)
+            if (at < 0) { break }
+            let after = at + marker.length
+            let next = if (after < line.length) line.charAt(after) else ""
+            if (next == ":" || next == " ") { return marker }
+            at = after
+        }
+    }
+    return ""
+}
+
+// The marker's own line: trimmed text, cut at the end of the sentence it
+// lives in is not attempted - a todo's own prose is the reader's business.
+fun markerLine(line) {
+    var t = line.trim()
+    if (t.startsWith("//")) { t = t.substring(2).trim() }
+    if (t.startsWith("*")) { t = t.substring(1).trim() }
+    if (t.startsWith("<!--")) { t = t.substring(4).trim() }
+    return t
+}
+
+var hits = []
+var perFile = {}
+var unreadable = []
+var lines = 0
+var read = 0
+for (path in collect(".", [])) {
+    var n = 0
+    // A file the reader cannot decode as text (a legacy Latin-1 source, say)
+    // is skipped and named - the same blind-spot honesty i18n-keys.mnd uses.
+    try {
+        for (line in fs.lines(path)) {
+            n = n + 1
+            let marker = markerOf(line)
+            if (marker.length > 0) {
+                hits.push([path, n, marker, markerLine(line)])
+                perFile.put(path, perFile.get(path, 0) + 1)
+            }
+        }
+        lines = lines + n
+        read = read + 1
+    } catch (e) {
+        unreadable.push(path)
+    }
+}
+
+println("todo-scan: ${hits.length} open marker(s) across ${perFile.length} file(s)"
+        + " - ${lines} lines read in ${read} file(s)")
+for (h in hits) {
+    let text = h[3]
+    let shown = if (text.length > 72) text.substring(0, 72) + "…" else text
+    println("  ${h[0]}:${h[1]}  ${h[2]}  ${shown}")
+}
+if (unreadable.length > 0) {
+    println("  skipped ${unreadable.length} unreadable file(s):")
+    for (p in unreadable) { println("    ${p}") }
+}

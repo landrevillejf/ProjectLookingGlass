@@ -23,7 +23,7 @@
 // CI. Exits 2 on any mismatch.
 //
 //     ./gradlew :lg3d-mandela:mandelaVersionCheck
-//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.0.0.jar \
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
 //         run scripts/mandela/mandela-version.mnd -s .
 
 use std.fs

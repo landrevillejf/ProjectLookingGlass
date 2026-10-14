@@ -17,10 +17,10 @@
 | Depends on | **Nothing** — no repo module, no third-party jar. `java.base` + `javax.script` only. |
 | Depended on by | `lg3d-apps` (Espresso's `MandelaTools`, the Web Browser's `MandelaUserscriptsExtension`); its jar is also resolved onto `lg3d-core`'s `run` classpath and copied into the release bundle. |
 | Jar | `build-gradle/libs/lg3d-mandela-<version>.jar`, `Main-Class: …mandela.cli.MandelaCli` |
-| Version | **Its own**, not the desktop's: `mandela.version` (the jar, `1.0.0`) and `mandela.language` (the grammar, `1.0`) in [`../gradle.properties`](../gradle.properties), mirrored in `api.Mandela`'s two constants and the jar manifest. `mandela-version.mnd` gates all eight copies; the policy and the release record are in [CHANGELOG.md](CHANGELOG.md). |
+| Version | **Its own**, not the desktop's: `mandela.version` (the jar, `1.1.0`) and `mandela.language` (the grammar, `1.0`) in [`../gradle.properties`](../gradle.properties), mirrored in `api.Mandela`'s two constants and the jar manifest. `mandela-version.mnd` gates all eight copies; the policy and the release record are in [CHANGELOG.md](CHANGELOG.md). |
 | Build | `./gradlew :lg3d-mandela:build` |
 | Run | `./gradlew :lg3d-mandela:mandelaRun -Pscript=hello.mnd` · `:lg3d-mandela:mandelaRepl` |
-| Tests | `./gradlew :lg3d-mandela:test` — 1142 headless JUnit 5 tests (`java.awt.headless=true`) |
+| Tests | `./gradlew :lg3d-mandela:test` — 1259 headless cases (`java.awt.headless=true`): 1075 JUnit 5 tests plus the 184-scenario Cucumber `MandelaSuite` |
 | Mutation | `./gradlew :lg3d-mandela:pitest` (report-only, on-demand, **not** in `check`) |
 | Docs | [`../docs/mandela-language.md`](../docs/mandela-language.md) (the grammar and the library) · [`../docs/mandela-embedding-api.md`](../docs/mandela-embedding-api.md) (the host contract) |
 
@@ -137,9 +137,9 @@ never silently in code.
   header conventions (shebang, one-line purpose, the `-s` sandbox it must be run
   with) that keep that directory usable. The scripts themselves run in CI as
   `:lg3d-mandela:repositoryChecks` (`docLinksCheck`, `htmlLinksCheck`,
-  `releaseCheck`, `mandelaVersionCheck`, `startMenuAudit`, `i18nKeysCheck`,
-  `legacyJ3dCheck`, `scriptsHygieneCheck`, `whatsNewCheck`), which are
-  intentionally *not* part of
+  `releaseCheck`, `mandelaVersionCheck`, `changelogCheck`, `startMenuAudit`,
+  `i18nKeysCheck`, `legacyJ3dCheck`, `scriptsHygieneCheck`, `whatsNewCheck`),
+  which are intentionally *not* part of
   `check`: they audit the whole tree, so their failures belong to the step that
   ran them, not to this module's build. `whatsNewCheck` is the one of them that
   compares a **committed generated file** (the Help Center's `whats-new.html`
@@ -154,7 +154,8 @@ never silently in code.
 - Coverage and mutation: the 100% JaCoCo / 0-PIT-mutant targets in the root file
   are **not** enforced (report-only). Do not claim untested success; report what
   ran. The campaign is package by package, and `values` is done: **809 of 809
-  lines**, with the module at 89.3%. A package that reaches every line keeps it —
+  lines**, with the module at 91.49 % line / 81.86 % branch. A package that
+  reaches every line keeps it —
   retire what no script and no host can reach instead of testing it, and say in
   the PR what stayed unreachable and why (the `cli` REPL's terminal handling is
   the current example). Scene-graph rules do not apply — nothing here needs a live
