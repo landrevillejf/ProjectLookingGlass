@@ -11,7 +11,13 @@ package org.jdesktop.wonderland.server.web;
 
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
 import org.jdesktop.wonderland.common.cell.CellChannelConnectionType;
 import org.jdesktop.wonderland.common.cell.CellID;
@@ -26,11 +32,14 @@ import org.jdesktop.wonderland.server.world.WorldCatalog;
 import org.jdesktop.wonderland.server.world.WorldModel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -125,5 +134,83 @@ class WorldRestControllerTest {
         mvc.perform(get("/api/world/cells"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[1].id").value(content.toString()));
+    }
+
+    // ---- Stage 2: the deployed-model URL on the descriptor, and the HTTP asset
+    // ---- endpoint that serves a cell's wla:// art -- both without the wire.
+
+    @Test
+    void aModelCellDescriptorCarriesItsDeployedModelUrl() throws Exception {
+        CellID model = world.newCellID();
+        world.addCell(model, "some.client.Cell", "cube", new CellTransform(),
+                new CellClientState(), "wla://mod/cube.kmz/cube.dep");
+        CellID plain = world.newCellID();
+        world.addCell(plain, "some.client.Cell", "plain", new CellTransform(),
+                new CellClientState());
+
+        mvc.perform(get("/api/world/cells/" + model))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deployedModelURL")
+                        .value("wla://mod/cube.kmz/cube.dep"));
+        // a cell with no model keeps the descriptor exactly as before -- no null key
+        mvc.perform(get("/api/world/cells/" + plain))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deployedModelURL").doesNotExist());
+    }
+
+    @Test
+    void assetServesBytesFromAnInstalledWorldJar(@TempDir Path dir) throws Exception {
+        String module = "wonderland-town-world";
+        Path jar = dir.resolve(module + ".jar");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            put(out, module + ".kmz/room.ldr", "LDR-BYTES");
+        }
+        MockMvc jarMvc = MockMvcBuilders.standaloneSetup(new WorldRestController(
+                new WorldModel(), new WorldCatalog(dir.toString()))).build();
+
+        jarMvc.perform(get("/api/world/asset")
+                        .param("module", module).param("path", module + ".kmz/room.ldr"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("LDR-BYTES".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void assetServesBytesFromABundledClasspathWorld() throws Exception {
+        // the clinic ships on the classpath; its module.xml is a real asset the
+        // catalog reads through the classpath branch of openAssetBytes
+        mvc.perform(get("/api/world/asset")
+                        .param("module", "wonderland-outpatient-clinic")
+                        .param("path", "module.xml"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("wonderland-outpatient-clinic")));
+    }
+
+    @Test
+    void assetReturnsNotFoundForAnAbsentAsset(@TempDir Path dir) throws Exception {
+        String module = "wonderland-town-world";
+        Path jar = dir.resolve(module + ".jar");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            put(out, "module.xml", "<wonderland-module/>");
+        }
+        MockMvc jarMvc = MockMvcBuilders.standaloneSetup(new WorldRestController(
+                new WorldModel(), new WorldCatalog(dir.toString()))).build();
+
+        jarMvc.perform(get("/api/world/asset")
+                        .param("module", module).param("path", "missing.ldr"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assetRejectsAPathThatEscapesTheModuleRoot() throws Exception {
+        mvc.perform(get("/api/world/asset")
+                        .param("module", "wonderland-outpatient-clinic")
+                        .param("path", "../../etc/passwd"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private static void put(JarOutputStream jar, String name, String body) throws IOException {
+        jar.putNextEntry(new JarEntry(name));
+        jar.write(body.getBytes(StandardCharsets.UTF_8));
+        jar.closeEntry();
     }
 }

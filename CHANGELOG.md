@@ -101,6 +101,36 @@ work to make it build and run on a current toolchain.
   chain, the `world-index.txt` a classpath world needs and the `BUNDLED`
   registration) and world access (extraction, the directory knob, the catalog
   endpoint), and is indexed from the root `AGENTS.md` module table.
+- **The world's art is served over HTTP — the first Stage-2 walk pieces
+  (`wonderland-server`)** — the world library could list and seed cells, but a
+  cell named its model only as a `wla://` reference the renderer had no way to
+  fetch, so nothing downstream could actually load a room. Two isolated, safe
+  pieces close that over plain HTTP while the shared wire format stays untouched.
+  `WorldSeeder` now captures each model cell's `wla://<module>/<path>` deployed-model
+  URL from the decoded `ModelCellComponentServerState` and stores it on the
+  `WorldCell` (a new immutable field, defaulted `null` so the existing 7-arg form
+  and every caller is unchanged), and `GET /api/world/cells` puts it in the
+  descriptor only for a cell that carries one — the environment root's JSON is
+  byte-for-byte what it was. `WorldCatalog.openAssetBytes` resolves one asset's
+  bytes from whichever store backs the module (the classpath for a bundled world,
+  its jar for an installed one), reading and closing the jar per call so no file
+  handle outlives a request and degrading to empty on any miss rather than
+  throwing; `GET /api/world/asset?module=&path=` serves those bytes, rejecting a
+  path that escapes the module root (`..`, leading `/`, backslash) as a 400 before
+  the store is consulted, and an absent asset as a 404 — a broken reference is
+  never a 500. Deliberately **server-side and HTTP only**: folding the URL into
+  `ModelCellClientState` would be the shared-wire-format change this stage defers
+  (there is no loadable client model component yet), so a walk host can enumerate
+  `/cells` and pull each cell's whole model chain over `/asset` with no socket
+  change. **11 new headless cases** (3 in `WorldSeederTest` proving the URL is
+  captured on a model cell and absent on a non-model one; 4 in
+  `WorldRestControllerTest` proving the descriptor URL, a jar asset's bytes, the
+  real bundled clinic `module.xml` served over the classpath branch, the 404 and
+  the 400; 3 in `WorldCatalogTest` on `openAssetBytes`) plus the classpath/jar
+  resolution seams. **Verified live**: seeding the clinic fills
+  `deployedModelURL` on all nine model cells, and `/api/world/asset` returns the
+  referenced `clinic-box.dep` (1046 B) and `clinic-box.dae` (2357 B) as `200`, a
+  missing path as `404` and a `../` traversal as `400`.
 - **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
   `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
   own identity while its real version was two hard-coded `"1.0"` strings nobody

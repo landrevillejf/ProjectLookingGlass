@@ -102,6 +102,44 @@ public class WorldCatalog {
                 .findFirst();
     }
 
+    /**
+     * Resolve one asset's bytes for {@code module} from whichever store backs it --
+     * the classpath for a bundled world, its jar for an installed one (Stage 2: the
+     * HTTP asset endpoint uses this to serve a cell's {@code wla://} art to a walk
+     * host). The whole read is defensive: an absent module, a missing path or an
+     * unreadable jar all return empty, never a throw -- a failed asset is a 404, so
+     * a broken reference cannot turn a browse into a 500. A jar is opened, read and
+     * closed per call, so no store (and no file handle) outlives the request.
+     */
+    public Optional<byte[]> openAssetBytes(String module, String path) {
+        if (module == null || module.isBlank() || path == null || path.isBlank()) {
+            return Optional.empty();
+        }
+        if (BUNDLED.contains(module)) {
+            return readBytes(new ManifestClasspathWorldStore()::open, module, path);
+        }
+        Optional<Path> jar = worldJar(module);
+        if (jar.isEmpty()) {
+            return Optional.empty();
+        }
+        try (JarWorldStore store = new JarWorldStore(jar.get())) {
+            return readBytes(store::open, module, path);
+        } catch (IOException ex) {
+            LOG.warn("world jar {} for asset '{}' could not be opened ({})",
+                    jar.get().getFileName(), path, ex.toString());
+            return Optional.empty();
+        }
+    }
+
+    /** Read a store's {@code open(module, path)} fully, closing the stream; empty on any miss. */
+    private static Optional<byte[]> readBytes(OpenFunction open, String module, String path) {
+        try (InputStream in = open.open(module, path).orElse(null)) {
+            return in == null ? Optional.empty() : Optional.of(in.readAllBytes());
+        } catch (IOException | RuntimeException ex) {
+            return Optional.empty();
+        }
+    }
+
     /** The directory's world jars, sorted; empty when no worlds directory is configured. */
     List<Path> worldJars() {
         if (worldsDir == null || !Files.isDirectory(worldsDir)) {

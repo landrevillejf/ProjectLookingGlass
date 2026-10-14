@@ -217,6 +217,34 @@ curl -s localhost:8080/api/world/worlds | python3 -m json.tool
 
 `GET /api/world/cells` then lists the *seeded* world's hierarchy, exactly as before.
 
+### The cell model URL and the HTTP asset endpoint (Stage 2)
+
+A seeded model cell now also carries its `wla://<module>/<path>` deployed-model
+URL as **server-side data**: `WorldSeeder` reads it off the decoded
+`ModelCellComponentServerState` and stores it on the `WorldCell`, and
+`GET /api/world/cells` puts it in the descriptor **only** for a cell that has one
+(the environment root's JSON is unchanged).
+
+`GET /api/world/asset?module=<module>&path=<path>` serves the bytes that URL
+names, resolved through `WorldCatalog.openAssetBytes` — the classpath for a
+bundled world, its jar for an installed one (the jar is opened, read and closed
+per call, so no handle outlives the request). A path that escapes the module
+root (`..`, leading `/`, backslash) is a **400** before the store is consulted;
+an absent asset is a **404**; a broken reference is never a 500.
+
+```bash
+curl -s 'localhost:8080/api/world/cells' | python3 -m json.tool   # deployedModelURL per cell
+curl -s 'localhost:8080/api/world/asset?module=wonderland-outpatient-clinic&path=clinic-box.kmz/clinic-box.dep' -o box.dep
+```
+
+Together these let a walk host enumerate `/cells`, read each cell's `wla://` URL,
+and pull that cell's whole model chain (`.dep` → `.ldr` → `.dae`) over plain HTTP
+— **deliberately without touching the shared wire format.** The `wonderland-client`
+socket path (`ModelCellClientState`) still has no field for the URL and no loadable
+client model component; carrying it there is the *next*, riskier increment. Do not
+fold the URL into the client state as a shortcut — that is the wire change this
+stage defers.
+
 ## Engineer / Developer
 
 - **A cell is inert data on the server.** Never import a renderer class to seed
@@ -224,6 +252,11 @@ curl -s localhost:8080/api/world/worlds | python3 -m json.tool
 - **Never rewrite a vendored asset.** To make a stock jar readable, add a
   read-side fallback in a store (like `JarWorldStore`'s `art/` bridge), not a
   transform of the committed/jar bytes.
+- **The model URL is server-side / HTTP only (Stage 2).** It rides
+  `WorldCell.getDeployedModelURL()` → the REST descriptor → `GET /asset`; it is
+  **not** folded into `ModelCellClientState` / the `LOAD_CELL` wire, because the
+  native client has no loadable model-component class to receive it. Moving it
+  onto the wire is the deferred shared-wire-format step.
 - **`JarFile.getEntry` returns `ZipEntry`, not `JarEntry`** — type the
   `findEntry` seam as `ZipEntry` (jar natives still resolve `getInputStream`).
 - **`@Autowired` a multi-constructor Spring bean explicitly.** `WorldSeeder` has

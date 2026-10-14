@@ -158,4 +158,44 @@ class WorldCatalogTest {
         assertThat(bare.title()).isEqualTo("wonderland-bare-xml-world");
         assertThat(bare.description()).isEmpty();
     }
+
+    // ---- Stage 2: openAssetBytes, the seam the HTTP asset endpoint reads through.
+
+    @Test
+    void openAssetResolvesBytesFromAnInstalledWorldJar() throws IOException {
+        Path jar = dir.resolve("wonderland-town-world.jar");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            put(out, "town.kmz/room.ldr", "LDR-DATA");
+        }
+        assertThat(new WorldCatalog(dir.toString())
+                .openAssetBytes("wonderland-town-world", "town.kmz/room.ldr"))
+                .hasValue("LDR-DATA".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void openAssetResolvesBytesFromABundledClasspathWorld() {
+        // the clinic ships on the classpath; the bundled branch reads it directly
+        assertThat(new WorldCatalog("").openAssetBytes(CLINIC, "module.xml"))
+                .isPresent();
+    }
+
+    @Test
+    void openAssetIsDefensiveForBlankInputAnAbsentModuleAndACorruptJar()
+            throws IOException {
+        WorldCatalog empty = new WorldCatalog("");
+        // the null/blank guard short-circuits before any store is touched
+        assertThat(empty.openAssetBytes(null, "a")).isEmpty();
+        assertThat(empty.openAssetBytes("", "a")).isEmpty();
+        assertThat(empty.openAssetBytes(CLINIC, null)).isEmpty();
+        assertThat(empty.openAssetBytes(CLINIC, "")).isEmpty();
+        // a module that is neither bundled nor installed resolves to nothing
+        assertThat(empty.openAssetBytes("no-such-world", "a.ldr")).isEmpty();
+
+        // a file that claims to be a world jar but is not a zip degrades to empty,
+        // never a throw -- the same never-500 contract the listing already keeps
+        Path bad = dir.resolve("wonderland-broken.jar");
+        Files.write(bad, "not a jar".getBytes(StandardCharsets.UTF_8));
+        assertThat(new WorldCatalog(dir.toString())
+                .openAssetBytes("wonderland-broken", "any.ldr")).isEmpty();
+    }
 }

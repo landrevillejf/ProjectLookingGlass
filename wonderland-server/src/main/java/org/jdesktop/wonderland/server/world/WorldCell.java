@@ -30,9 +30,26 @@ public final class WorldCell {
     private final BoundingVolume localBounds;
     private final CellTransform transform;
     private final CellClientState clientState;
+    private final String deployedModelURL;
 
     public WorldCell(CellID cellID, CellID parentID, String className, String name,
             BoundingVolume localBounds, CellTransform transform, CellClientState clientState) {
+        this(cellID, parentID, className, name, localBounds, transform, clientState, null);
+    }
+
+    /**
+     * Full form, adding the cell's {@code wla://} deployed-model URL (Stage 2). It
+     * is SERVER-SIDE data only: it is never folded into the {@link #toLoadMessage()
+     * wire} message -- the native client has no loadable model-component class yet,
+     * so shipping it over the socket would be the shared-wire-format change this
+     * stage deliberately defers. Instead it is exposed over the read-only REST
+     * surface (the cell descriptor) and consumed by the HTTP asset endpoint, so a
+     * walk host can drive entirely off HTTP without the wire. Null for a cell that
+     * carries no model (the environment root, a non-model cell).
+     */
+    public WorldCell(CellID cellID, CellID parentID, String className, String name,
+            BoundingVolume localBounds, CellTransform transform, CellClientState clientState,
+            String deployedModelURL) {
         this.cellID = cellID;
         this.parentID = parentID;
         this.className = className;
@@ -40,6 +57,7 @@ public final class WorldCell {
         this.localBounds = localBounds;
         this.transform = transform == null ? new CellTransform() : transform;
         this.clientState = clientState;
+        this.deployedModelURL = deployedModelURL;
     }
 
     public CellID getCellID() {
@@ -68,6 +86,11 @@ public final class WorldCell {
 
     public CellClientState getClientState() {
         return clientState;
+    }
+
+    /** The cell's {@code wla://} deployed-model URL, or null when it has no model. */
+    public String getDeployedModelURL() {
+        return deployedModelURL;
     }
 
     /** The wire form the router pushes over the cell-cache connection. */

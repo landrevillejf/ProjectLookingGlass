@@ -15,9 +15,13 @@
  * {@link ManifestClasspathWorldStore} for a bundled classpath module -- and for
  * each cell mints a CellID and stores a
  * WorldCell carrying the client class name (inert data, so the server never
- * imports the renderer), the human name, and the transform lifted from the
- * position component. The REST surface then lists it and the wire fan-out pushes
- * it -- the same WorldModel the router and controllers already read.
+ * imports the renderer), the human name, the transform lifted from the position
+ * component, and the cell's {@code wla://} deployed-model URL. The URL is kept
+ * SERVER-SIDE only -- it rides the read-only REST descriptor and the HTTP asset
+ * endpoint, never the wire -- so a walk host can enumerate cells and fetch their
+ * art over HTTP without a shared-wire-format change (see {@link WorldCell}). The
+ * REST surface then lists it and the wire fan-out pushes the cell -- the same
+ * WorldModel the router and controllers already read.
  *
  * Seeding is OPT-IN and OFF by default (wonderland.world.seed=none): the M3b
  * socket integration test asserts an empty world fans out exactly the environment
@@ -164,11 +168,17 @@ public class WorldSeeder implements ApplicationRunner {
         if (state == null || state.getName() == null || state.getName().isEmpty()) {
             return false;
         }
-        boolean isModel = state.getComponentServerState(
-                ModelCellComponentServerState.class) != null;
+        ModelCellComponentServerState model = (ModelCellComponentServerState) state.getComponentServerState(
+                ModelCellComponentServerState.class);
+        boolean isModel = model != null;
         String className = isModel ? MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS;
+        // Capture the wla:// model URL SERVER-SIDE only (Stage 2): it rides the
+        // read-only REST descriptor and the HTTP asset endpoint, not the wire --
+        // folding it into the client state would be the shared-wire-format change
+        // this stage defers (there is no loadable client model component yet).
+        String modelURL = isModel ? model.getDeployedModelURL() : null;
         world.addCell(world.newCellID(), className, state.getName(),
-                transformOf(state), new CellClientState());
+                transformOf(state), new CellClientState(), modelURL);
         return true;
     }
 
