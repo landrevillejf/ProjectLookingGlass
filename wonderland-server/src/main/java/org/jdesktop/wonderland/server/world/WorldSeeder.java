@@ -16,10 +16,12 @@
  * each cell mints a CellID and stores a
  * WorldCell carrying the client class name (inert data, so the server never
  * imports the renderer), the human name, the transform lifted from the position
- * component, and the cell's {@code wla://} deployed-model URL. The URL is kept
- * SERVER-SIDE only -- it rides the read-only REST descriptor and the HTTP asset
- * endpoint, never the wire -- so a walk host can enumerate cells and fetch their
- * art over HTTP without a shared-wire-format change (see {@link WorldCell}). The
+ * component, and the cell's {@code wla://} deployed-model URL. The URL is carried
+ * on two surfaces on purpose: the WorldCell field feeds the read-only REST
+ * descriptor and the HTTP asset endpoint, while a ModelCellClientState folds the
+ * same URL into the shared wire format so a client walking in over the socket
+ * receives it in the LOAD_CELL message (the renderer's WonderlandModelCell reads
+ * it back in setClientState()). See {@link WorldCell}. The
  * REST surface then lists it and the wire fan-out pushes the cell -- the same
  * WorldModel the router and controllers already read.
  *
@@ -38,6 +40,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
@@ -172,13 +175,22 @@ public class WorldSeeder implements ApplicationRunner {
                 ModelCellComponentServerState.class);
         boolean isModel = model != null;
         String className = isModel ? MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS;
-        // Capture the wla:// model URL SERVER-SIDE only (Stage 2): it rides the
-        // read-only REST descriptor and the HTTP asset endpoint, not the wire --
-        // folding it into the client state would be the shared-wire-format change
-        // this stage defers (there is no loadable client model component yet).
+        // The wla:// model URL is carried on BOTH surfaces: the WorldCell field
+        // feeds the read-only REST descriptor + HTTP asset endpoint, while a
+        // ModelCellClientState folds it into the shared wire format so a client
+        // walking in over the socket receives it in the LOAD_CELL message (the
+        // renderer's WonderlandModelCell reads it back in setClientState()).
         String modelURL = isModel ? model.getDeployedModelURL() : null;
+        CellClientState clientState;
+        if (isModel) {
+            ModelCellClientState modelState = new ModelCellClientState();
+            modelState.setDeployedModelURL(modelURL);
+            clientState = modelState;
+        } else {
+            clientState = new CellClientState();
+        }
         world.addCell(world.newCellID(), className, state.getName(),
-                transformOf(state), new CellClientState(), modelURL);
+                transformOf(state), clientState, modelURL);
         return true;
     }
 

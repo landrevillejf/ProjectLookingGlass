@@ -217,7 +217,7 @@ curl -s localhost:8080/api/world/worlds | python3 -m json.tool
 
 `GET /api/world/cells` then lists the *seeded* world's hierarchy, exactly as before.
 
-### The cell model URL and the HTTP asset endpoint (Stage 2)
+### The cell model URL: HTTP, the wire, and the asset endpoint (Stage 2)
 
 A seeded model cell now also carries its `wla://<module>/<path>` deployed-model
 URL as **server-side data**: `WorldSeeder` reads it off the decoded
@@ -238,12 +238,18 @@ curl -s 'localhost:8080/api/world/asset?module=wonderland-outpatient-clinic&path
 ```
 
 Together these let a walk host enumerate `/cells`, read each cell's `wla://` URL,
-and pull that cell's whole model chain (`.dep` → `.ldr` → `.dae`) over plain HTTP
-— **deliberately without touching the shared wire format.** The `wonderland-client`
-socket path (`ModelCellClientState`) still has no field for the URL and no loadable
-client model component; carrying it there is the *next*, riskier increment. Do not
-fold the URL into the client state as a shortcut — that is the wire change this
-stage defers.
+and pull that cell's whole model chain (`.dep` → `.ldr` → `.dae`) over plain HTTP.
+The **same URL also crosses the shared wire format** (Stage 2's final step):
+`WorldSeeder` puts a model cell's URL into a `ModelCellClientState` carried as the
+cell's client state, so the `LOAD_CELL` the router pushes delivers it to a native
+client, whose `WonderlandModelCell` reads it back in `setClientState()` — the
+`(CellID, CellCache)` constructor the cell cache reflects open by class name, then
+the applied state fills in the URL. Keeping it on **both** surfaces is deliberate:
+the `WorldCell` field is the HTTP view, the client state is the socket view of one
+URL. What the wire still does **not** do is build a renderer — an on-screen room
+needs a live Java 3D canvas and the production WebSocket `WonderlandSession`, and
+the server test classpath never imports the renderer (the class name stays inert
+data).
 
 ## Engineer / Developer
 
@@ -252,11 +258,15 @@ stage defers.
 - **Never rewrite a vendored asset.** To make a stock jar readable, add a
   read-side fallback in a store (like `JarWorldStore`'s `art/` bridge), not a
   transform of the committed/jar bytes.
-- **The model URL is server-side / HTTP only (Stage 2).** It rides
-  `WorldCell.getDeployedModelURL()` → the REST descriptor → `GET /asset`; it is
-  **not** folded into `ModelCellClientState` / the `LOAD_CELL` wire, because the
-  native client has no loadable model-component class to receive it. Moving it
-  onto the wire is the deferred shared-wire-format step.
+- **The model URL rides two surfaces (Stage 2 complete).** It is exposed as
+  `WorldCell.getDeployedModelURL()` → the REST descriptor → `GET /asset`, **and**
+  folded into `ModelCellClientState` / the `LOAD_CELL` wire for model cells so a
+  native client learns which model to render. Both carry the same `wla://` string
+  on purpose; a non-model cell keeps a plain `CellClientState` and no URL. The
+  wire type is frozen with an explicit `serialVersionUID` — adding a field there
+  is a conscious wire change, not a silent deserialisation break. Folding the URL
+  onto the wire is done *because* `WonderlandModelCell` now reads it back in
+  `setClientState()`; never ship a wire field no receiver consumes.
 - **`JarFile.getEntry` returns `ZipEntry`, not `JarEntry`** — type the
   `findEntry` seam as `ZipEntry` (jar natives still resolve `getInputStream`).
 - **`@Autowired` a multi-constructor Spring bean explicitly.** `WorldSeeder` has

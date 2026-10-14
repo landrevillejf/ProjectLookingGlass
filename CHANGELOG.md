@@ -131,6 +131,39 @@ work to make it build and run on a current toolchain.
   `deployedModelURL` on all nine model cells, and `/api/world/asset` returns the
   referenced `clinic-box.dep` (1046 B) and `clinic-box.dae` (2357 B) as `200`, a
   missing path as `404` and a `../` traversal as `400`.
+- **The model URL now crosses the shared wire format — Stage 2 complete
+  (`wonderland-common` + `wonderland-renderer` + `wonderland-server`)** — the
+  safe pieces above kept the `wla://` reference server-side, reachable only over
+  HTTP; a native client walking in over the socket still received a bare
+  `CellClientState` and could not learn which model to render. That deferral is
+  now closed on purpose. `ModelCellClientState`, an empty name-only stub, gains a
+  `deployedModelURL` field (plain `Serializable` state on the existing wire type,
+  with an explicit `serialVersionUID` so a future field is a conscious wire
+  change, not a silent deserialisation break); `WorldSeeder` folds a model cell's
+  captured URL into a `ModelCellClientState` carried as the cell's client state,
+  so the `LOAD_CELL` message the router pushes delivers it to a client, while the
+  `WorldCell` field stays the HTTP-descriptor copy — one URL, two surfaces on
+  purpose. On the receiving side the renderer's `WonderlandModelCell` gains the
+  `(CellID, CellCache)` constructor the client cache reflects open by class name
+  and a `setClientState` override that reads the URL back — exactly the
+  "`ModelCellClientState` carrying a `wla://` reference" design its own file
+  header described, now wired end to end; a null URL leaves any loader-supplied
+  value in place. **7 new headless cases** (2 in `CellMessagesCodecTest` proving
+  the URL survives Java serialisation inside both a `CellClientStateMessage` and
+  the real `CellHierarchyMessage` `LOAD_CELL` setup data; 2 in `WorldSeederTest`
+  proving a model cell's client state is a `ModelCellClientState` with the URL
+  and a non-model cell keeps a plain state; 3 in `WonderlandModelCellTest` on the
+  cache constructor and the `setClientState` read plus its two null guards) on
+  top of the existing suite, and the in-JVM `LoopbackClientServerTest`
+  (`everyHopRodeTheRealCodec`) still passes — proof the new client state packs and
+  unpacks over the real codec, not an object reference. **Verified live**: seeding
+  the clinic still fills `deployedModelURL` on all nine model cells over
+  `/api/world/cells` and `/api/world/asset` still serves them (`200`/`400`/`404`),
+  so the wire change is additive to the HTTP surface, not a regression of it. What
+  this still does **not** claim is an on-screen 3D room: rendering needs a live
+  Java 3D canvas and the production WebSocket `WonderlandSession`, and the server
+  test classpath deliberately never imports the renderer (the class name stays
+  inert data), so the walk's visual half remains the next, separate surface.
 - **Mandela got a version of its own** (`lg3d-mandela`, `gradle.properties`,
   `scripts/mandela`) — the language module carried the desktop's `1.69.0-dev` as its
   own identity while its real version was two hard-coded `"1.0"` strings nobody

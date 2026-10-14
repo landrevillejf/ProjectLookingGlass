@@ -25,6 +25,7 @@ import java.util.jar.JarOutputStream;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
@@ -163,6 +164,13 @@ class WorldSeederTest {
         assertThat(only(world, "Exam Room 9").getDeployedModelURL())
                 .as("the wla:// url is stored on the cell for REST + the asset endpoint")
                 .isEqualTo("wla://" + CLINIC + "/exam-room.kmz/exam-room.dep");
+        // ... and folded into the shared wire format: the client state a model
+        // cell carries is a ModelCellClientState holding the same URL, so the
+        // LOAD_CELL the router pushes delivers it to a walking-in client.
+        assertThat(only(world, "Exam Room 9").getClientState())
+                .isInstanceOfSatisfying(ModelCellClientState.class,
+                        ms -> assertThat(ms.getDeployedModelURL())
+                                .isEqualTo("wla://" + CLINIC + "/exam-room.kmz/exam-room.dep"));
     }
 
     @Test
@@ -175,6 +183,10 @@ class WorldSeederTest {
         seeder.seedCell(avatar);
 
         assertThat(only(world, "Avatar").getDeployedModelURL()).isNull();
+        // a non-model cell keeps a plain client state -- the wire does not gain a
+        // model URL for a cell that has no model
+        assertThat(only(world, "Avatar").getClientState())
+                .isNotInstanceOf(ModelCellClientState.class);
     }
 
     @Test

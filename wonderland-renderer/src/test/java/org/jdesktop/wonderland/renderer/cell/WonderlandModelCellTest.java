@@ -25,10 +25,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import org.jdesktop.wonderland.client.cell.Cell;
+import org.jdesktop.wonderland.client.cell.CellCache;
 import org.jdesktop.wonderland.client.cell.CellRenderer;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.common.cell.state.CellClientState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.modules.asset.ModelLoadResult;
 import org.jdesktop.wonderland.modules.asset.ModelLoader;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
@@ -168,5 +171,52 @@ class WonderlandModelCellTest {
         WonderlandModelCell cell = new WonderlandModelCell(new CellID(5L), "wla://M/x.dep");
 
         assertThat(cell.createCellRenderer(Cell.RendererType.RENDERER_JME)).isNull();
+    }
+
+    // ---- Stage 2: the deployed-model URL now arrives over the shared wire
+    // ---- format, not just the loader constructor. The client cache reflects a
+    // ---- Cell open with (CellID, CellCache) and then calls setClientState; a
+    // ---- model cell must pick the wla:// reference up from that state.
+
+    @Test
+    void theCacheConstructorOpensWithoutAUrlAndSetClientStateReadsItOffTheWire() {
+        // exactly the shape CellCacheBasicImpl.instantiateCell reflects open
+        WonderlandModelCell cell = new WonderlandModelCell(new CellID(9L), (CellCache) null);
+        assertThat(cell.getDepUrl()).as("not known at construction").isNull();
+
+        ModelCellClientState wire = new ModelCellClientState();
+        wire.setName("Exam Room 1");
+        wire.setDeployedModelURL("wla://wonderland-outpatient-clinic/exam-room.kmz/exam-room.dep");
+        cell.setClientState(wire);
+
+        assertThat(cell.getDepUrl())
+                .isEqualTo("wla://wonderland-outpatient-clinic/exam-room.kmz/exam-room.dep");
+        assertThat(cell.getName()).isEqualTo("Exam Room 1");
+    }
+
+    @Test
+    void aPlainClientStateLeavesTheLoaderUrlInPlace() {
+        // a non-model client state carries no URL -- the loader-supplied value
+        // must not be blanked out by the base setClientState call
+        WonderlandModelCell cell = new WonderlandModelCell(new CellID(10L), "wla://M/pre.dep");
+        CellClientState plain = new CellClientState();
+        plain.setName("some-cell");
+
+        cell.setClientState(plain);
+
+        assertThat(cell.getDepUrl()).isEqualTo("wla://M/pre.dep");
+    }
+
+    @Test
+    void aModelClientStateWithoutAUrlKeepsTheLoaderValue() {
+        // the null-guard branch: a model state whose URL is unresolved must not
+        // overwrite an already-known reference
+        WonderlandModelCell cell = new WonderlandModelCell(new CellID(11L), "wla://M/pre.dep");
+        ModelCellClientState wire = new ModelCellClientState();
+        wire.setName("y");
+
+        cell.setClientState(wire);
+
+        assertThat(cell.getDepUrl()).isEqualTo("wla://M/pre.dep");
     }
 }
