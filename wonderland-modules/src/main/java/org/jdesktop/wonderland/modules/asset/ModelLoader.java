@@ -65,25 +65,40 @@ public final class ModelLoader {
         // artifact is an {@code .mtg} handed to {@code MtgLoader}, and reading its
         // bytes as a document is what printed
         // "Content is not allowed in prolog" into the sweep log: the answer was
-        // never a broken model, it is an art format this port has no reader for.
-        // Refuse it on the document's own evidence -- see {@link #readsCollada},
-        // which records the time refusing on the loader's <em>name</em> scrapped
-        // ten real models -- so the cell is skipped with a reason rather than a
-        // stack trace, exactly as the 2006 client skipped a module it lacked.
-        if (!readsCollada(model.modelLoaderClassname(), modelRef.path())) {
-            return ModelLoadResult.error("no reader for loader "
-                    + model.modelLoaderClassname() + " ("
-                    + WlaRef.baseName(modelRef.path()) + ")");
-        }
+        // never a broken model, it is an art format the plain COLLADA path cannot
+        // read. MTGame is the one such format this port does support -- folded to a
+        // single compound COLLADA document by {@link MtgSceneReader}, so the whole
+        // downstream pipeline (placement, the renderer seam, the texture inventory
+        // below) sees one model on one cell exactly as a .dae would, and the .dep's
+        // own background transform still seats it. Any other non-COLLADA artifact is
+        // then refused on the document's own evidence -- see {@link #readsCollada},
+        // which records the time refusing on the loader's <em>name</em> scrapped ten
+        // real models -- so the cell is skipped with a reason rather than a stack
+        // trace, exactly as the 2006 client skipped a module it lacked.
         byte[] modelBytes = read(store, modelRef.module(), modelRef.path());
         if (modelBytes == null) {
-            return ModelLoadResult.error("collada not found: " + model.modelURL());
+            return ModelLoadResult.error("model not found: " + model.modelURL());
         }
         ColladaDocument document;
-        try {
-            document = colladaParser.parse(inflate(modelBytes));
-        } catch (IOException | RuntimeException ex) {
-            return ModelLoadResult.error("bad collada: " + ex.getMessage());
+        if (isMtg(model.modelLoaderClassname(), modelRef.path())) {
+            String mtgText = new String(modelBytes, java.nio.charset.StandardCharsets.UTF_8);
+            document = new MtgSceneReader().read(store, modelRef.module(),
+                    modelRef.path(), mtgText);
+            if (document == null) {
+                return ModelLoadResult.error("mtg scene named no readable instance: "
+                        + model.modelURL());
+            }
+        } else {
+            if (!readsCollada(model.modelLoaderClassname(), modelRef.path())) {
+                return ModelLoadResult.error("no reader for loader "
+                        + model.modelLoaderClassname() + " ("
+                        + WlaRef.baseName(modelRef.path()) + ")");
+            }
+            try {
+                document = colladaParser.parse(inflate(modelBytes));
+            } catch (IOException | RuntimeException ex) {
+                return ModelLoadResult.error("bad collada: " + ex.getMessage());
+            }
         }
 
         Set<String> present = new LinkedHashSet<>();
@@ -130,6 +145,20 @@ public final class ModelLoader {
         }
         return loaderClassname != null
                 && loaderClassname.toLowerCase(java.util.Locale.ROOT).contains("collada");
+    }
+
+    /**
+     * Whether the artifact is an MTGame {@code .mtg} scene rather than a COLLADA
+     * document. The {@code .mtg} extension is the authority; the loader class name
+     * ({@code ...mtgloader.client.MtgLoader}) is the backstop for a scene file that
+     * was deployed without its extension, so the meeting complex is read either way.
+     */
+    static boolean isMtg(String loaderClassname, String modelPath) {
+        if (modelPath != null && modelPath.toLowerCase(java.util.Locale.ROOT).endsWith(".mtg")) {
+            return true;
+        }
+        return loaderClassname != null
+                && loaderClassname.toLowerCase(java.util.Locale.ROOT).contains("mtgloader");
     }
 
     private LoaderData loadLoaderData(WorldStore store, String loaderUrl) {

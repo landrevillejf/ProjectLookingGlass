@@ -897,12 +897,14 @@ public final class WorldScene {
      * that is not there.
      *
      * <p>The {@code v} runs <em>downwards</em> in the card's own space: 1 at its
-     * bottom edge, 0 at its top. That is the direction Java 3D lays an image out
-     * in -- {@code ImageComponent2D.set(BufferedImage)} copies the picture's first
-     * row into the texture's row 0, and the texture's row 0 is sampled at
-     * {@code v = 0}, so a card that wants to read upright has to put the image's
-     * first row at its <em>top</em>, which is {@code v = 0}. Writing it the other
-     * way is a vertical mirror: measured off a rendered clinic, the name over a
+     * bottom edge, 0 at its top. That is the direction the upload runs the image:
+     * {@code J3dMeshFactory.toComponent} hands the texture to Java 3D with its
+     * origin at the upper left ({@code yUp = false}), so the picture's first row is
+     * sampled at {@code v = 0}, and a card that wants to read upright has to put
+     * that first row at its <em>top</em>, which is {@code v = 0}. Reading the image
+     * the other way up -- the default-constructed {@code set(BufferedImage)}, which
+     * copied the first row to the texture's LAST row and sampled it at {@code v = 1}
+     * -- is a vertical mirror: measured off a rendered clinic, the name over a
      * resident's head read as {@code Waltlng Patlent}, and the same inversion put
      * the sky's zenith underfoot -- see {@link SkyArt#rowOf}, which is the other
      * half of this one convention.</p>

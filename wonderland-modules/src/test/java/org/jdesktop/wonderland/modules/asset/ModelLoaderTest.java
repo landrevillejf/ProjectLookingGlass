@@ -154,7 +154,7 @@ class ModelLoaderTest {
     void anAbsentColladaIsAnError() {
         String dep = "<deployed-model><modelURL>wla://M/absent.dae</modelURL></deployed-model>";
         MapStore store = new MapStore().put("dir/m.dep", bytes(dep));
-        assertThat(LOADER.load(store, "wla://M/dir/m.dep").error()).contains("collada not found");
+        assertThat(LOADER.load(store, "wla://M/dir/m.dep").error()).contains("model not found");
     }
 
     @Test
@@ -240,10 +240,73 @@ class ModelLoaderTest {
     }
 
     @Test
-    void aNonColladaDeployedModelIsSkippedWithAReasonRatherThanAParseFailure() {
-        // End to end over the real .dep vocabulary: the cell must cost itself and not
-        // the world, and the message must name both the loader and the artifact, since
-        // that message is the only record a maintainer gets of a format still missing.
+    void aGenuinelyUnsupportedFormatIsSkippedWithAReasonRatherThanAParseFailure() {
+        // A format with no reader at all -- not MTGame, which is now supported --
+        // must still cost itself and not the world, and the message must name both
+        // the loader and the artifact, since that message is the only record a
+        // maintainer gets of a format still missing. An .ogre mesh is the honest
+        // stand-in: no loader in the shipped worlds produces it, and reading its
+        // bytes as a document is what used to print "prolog" into the sweep log.
+        String dep = "<deployed-model>"
+                + "<modelURL>wla://M/models/mesh.ogre</modelURL>"
+                + "<modelLoaderClassname>org.example.SomeOgreLoader</modelLoaderClassname>"
+                + "</deployed-model>";
+        MapStore store = new MapStore()
+                .put("dir/m.dep", bytes(dep))
+                .put("models/mesh.ogre", new byte[]{0x00, 0x01, 0x02, (byte) 0xff});
+        ModelLoadResult result = LOADER.load(store, "wla://M/dir/m.dep");
+
+        assertThat(result.isLoaded()).isFalse();
+        assertThat(result.error())
+                .contains("no reader for loader")
+                .contains("SomeOgreLoader")
+                .contains("mesh.ogre")
+                .as("never the parser's own complaint about a binary")
+                .doesNotContain("prolog");
+    }
+
+    @Test
+    void anMtgSceneDispatchesToItsReaderAndFoldsItsColladaInstances() {
+        // The meeting complex's whole ground lives in one OrientationWorld.mtg, so
+        // this is the cell that used to leave the world empty. The .dep names the
+        // MtgLoader and points at the .mtg; a reader is now expected to interpret
+        // the scene, fold each ColladaInstance's own .dae into one compound document
+        // and land it loaded rather than refused.
+        String dep = "<deployed-model>"
+                + "<modelURL>wla://M/OrientationWorld.mtg</modelURL>"
+                + "<modelLoaderClassname>"
+                + "org.jdesktop.wonderland.modules.mtgloader.client.MtgLoader"
+                + "</modelLoaderClassname>"
+                + "</deployed-model>";
+        String scene = "DataDir\n"
+                + "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0.0 0.0 0.0 0.0 1.0 0.0 0.0 1.0 1.0 1.0 terrain.dae.gz\n"
+                + "Instance Building org.jdesktop.mtgame.ColladaInstance "
+                + "10.0 0.0 5.0 0.0 1.0 0.0 0.8 1.0 1.0 1.0 building.dae.gz\n";
+        MapStore store = new MapStore()
+                .put("OrientationWorld.dep", bytes(dep))
+                .put("OrientationWorld.mtg", bytes(scene))
+                .put("terrain.dae.gz", gzip(bytes(MINIMAL_DAE)))
+                .put("building.dae.gz", gzip(bytes(MINIMAL_DAE)));
+        ModelLoadResult result = LOADER.load(store, "wla://M/OrientationWorld.dep");
+
+        assertThat(result.isLoaded()).isTrue();
+        assertThat(result.document()).isNotNull();
+        assertThat(result.document().geometryCount())
+                .as("the two instance files folded under their own namespaces")
+                .isEqualTo(2);
+        assertThat(result.document().worldMatrices())
+                .as("one placed node per instance, transform intact")
+                .isNotEmpty();
+    }
+
+    @Test
+    void anMtgWithNoReadableInstanceErrorsRatherThanLoadingAnEmptyWorld() {
+        // The failure the meeting complex showed before the reader existed, now
+        // re-worded honestly: the scene dispatched to the reader but named no object
+        // it could fold (here, garbage bytes with no Instance records at all). The
+        // message says the scene had no readable instance, not the parser's complaint
+        // about a binary, and the cell costs itself rather than aborting the world.
         String dep = "<deployed-model>"
                 + "<modelURL>wla://M/OrientationWorld.mtg</modelURL>"
                 + "<modelLoaderClassname>"
@@ -252,16 +315,24 @@ class ModelLoaderTest {
                 + "</deployed-model>";
         MapStore store = new MapStore()
                 .put("OrientationWorld.dep", bytes(dep))
-                // the bytes are there, and they are not XML: reading them is the bug
                 .put("OrientationWorld.mtg", new byte[]{0x00, 0x01, 0x02, (byte) 0xff});
         ModelLoadResult result = LOADER.load(store, "wla://M/OrientationWorld.dep");
 
         assertThat(result.isLoaded()).isFalse();
         assertThat(result.error())
-                .contains("no reader for loader")
-                .contains("MtgLoader")
-                .contains("OrientationWorld.mtg")
-                .as("never the parser's own complaint about a binary")
+                .contains("mtg scene named no readable instance")
                 .doesNotContain("prolog");
     }
+
+    private static final String MINIMAL_DAE =
+            "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+            + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
+            + "<float_array id=\"a\" count=\"3\">0 0 0</float_array>"
+            + "<technique_common><accessor source=\"#a\" count=\"1\" stride=\"3\">"
+            + "<param name=\"X\" type=\"float\"/><param name=\"Y\" type=\"float\"/>"
+            + "<param name=\"Z\" type=\"float\"/></accessor></technique_common></source>"
+            + "</mesh></geometry></library_geometries>"
+            + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"n\">"
+            + "<instance_geometry url=\"#g\"/></node></visual_scene></library_visual_scenes>"
+            + "</COLLADA>";
 }

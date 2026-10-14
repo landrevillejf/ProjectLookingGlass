@@ -124,16 +124,19 @@ public final class SkyArt {
      * trick, and a face whose corners are all at the same height is a face of one
      * colour.
      *
-     * <p>The direction is the renderer's, not the image's. {@code ImageComponent2D}
-     * lays a picture out with its first row at {@code v = 0} -- the same fact that
-     * decides which way up a name tag reads, see {@code WorldScene.tagQuad} -- so
-     * the ramp's zenith, written at the top of the image, has to be sampled at
-     * {@code v = 0}, which is the top of the box. Mapping it the other way is a sky
-     * with its horizon on its ceiling and its zenith underfoot: the "ciel à
-     * l'envers" a person sees the moment a world has no ground of its own to look
-     * at, because then the frame fills with the box's own faces and their order is
-     * all there is to read (measured off the meeting complex, whose lower half came
-     * back as exactly {@code ZENITH}).</p>
+     * <p>The direction is the renderer's, not the image's. The upload in
+     * {@code J3dMeshFactory.toComponent} hands every texture to Java 3D with its
+     * origin at the upper left ({@code yUp = false}), so a picture's first row is
+     * sampled at {@code v = 0} -- the same fact, and the same one seam, that decides
+     * which way up a name tag reads, see {@code WorldScene.tagQuad}. The ramp's
+     * zenith, written at the top of the image, is therefore sampled at
+     * {@code v = 0}, which is the top of the box. Mapping it the other way -- or
+     * uploading {@code set(img)} bottom-up, the default-constructed behaviour that
+     * put the first row at {@code v = 1} -- is a sky with its horizon on its ceiling
+     * and its zenith underfoot: the "ciel a l'envers" a person sees the moment a
+     * world has no ground of its own to look at, because then the frame fills with
+     * the box's own faces and their order is all there is to read (measured off the
+     * meeting complex, whose lower half came back as exactly {@code ZENITH}).</p>
      *
      * <p>The two ends are pulled in by {@link #SEAM_INSET} rather than landing on
      * 0 and 1, because a whole face pinned to {@code v = 1} is a whole face that
