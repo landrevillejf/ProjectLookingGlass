@@ -351,6 +351,19 @@ public final class WorldCatalog {
         return normalizeServer(server) + CELLS_PATH;
     }
 
+    /**
+     * The command that boots a local {@code wonderland-server} serving the
+     * bundled outpatient-clinic world. The panel names it when a read fails:
+     * the single most common reason a first launch shows "cannot reach" is that
+     * no server is running, and the desktop deliberately leaves
+     * {@code wonderland-server} a separate process (it never starts one). One
+     * source of truth so the face and its test name the same command.
+     */
+    public static String startCommand() {
+        return "./gradlew :wonderland-server:bootRun "
+                + "--args='--wonderland.world.seed=wonderland-outpatient-clinic'";
+    }
+
     // ------------------------------------------------------------------
     // Load + parse
     // ------------------------------------------------------------------

@@ -57,8 +57,11 @@ public class CellTransform implements Serializable {
          this.scale = 0.0F;
       } else {
          this.scale = scale.x;
+         // The warning is the real message (this constructor keeps only scale.x,
+         // so a non-uniform Vector3f is silently flattened); the Thread.dumpStack()
+         // that the 2006 original paired with it is a debug aid that only spams a
+         // full stack trace per call -- e.g. once per seeded cell on server boot.
          Logger.getLogger(CellTransform.class.getName()).warning("Non uniform scale is not supported, please use another CellTransform constructor");
-         Thread.dumpStack();
       }
 
    }

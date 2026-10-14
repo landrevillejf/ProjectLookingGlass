@@ -299,8 +299,18 @@ public class WonderlandWorldPanel extends JPanel {
             cellModel.clear();
             showDetail(null);
             String message = loaded.failure.getMessage();
-            statusLabel.setText("Cannot reach " + safeUrl(loaded.server)
-                    + (message == null ? "" : " (" + message + ")"));
+            String reach = "Cannot reach " + safeUrl(loaded.server)
+                    + (message == null ? "" : " (" + message + ")");
+            // The usual cause is not a wrong address but no server: the desktop
+            // deliberately leaves wonderland-server a separate process, so name
+            // the command that brings one up instead of dead-ending on a bare
+            // transport error. The strip carries it; the tooltip repeats it in
+            // full so a narrow window still shows the whole line.
+            statusLabel.setText(reach + "  \u2014  start it: " + WorldCatalog.startCommand());
+            statusLabel.setToolTipText("<html>No <code>wonderland-server</code> answered "
+                    + safeUrl(loaded.server) + ". The desktop does not start one; run this "
+                    + "in a terminal at the repository root:<br><tt>"
+                    + WorldCatalog.startCommand() + "</tt></html>");
             return;
         }
         WorldCatalog.WorldView world = loaded.world;
@@ -309,6 +319,7 @@ public class WonderlandWorldPanel extends JPanel {
             cellModel.addElement(
                     new Row(cell, world.depthOf(cell.id), world.pathOf(cell.id)));
         }
+        statusLabel.setToolTipText(null);
         statusLabel.setText(world.summary() + " \u00B7 " + safeUrl(loaded.server));
         if (cellModel.isEmpty()) {
             showDetail(null);

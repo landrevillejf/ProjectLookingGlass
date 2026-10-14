@@ -5,7 +5,7 @@
   places it with its own <scale>/<translation> in the position-component, so
   the floor is the box flattened to 24x0.05x18, an exam room is the box scaled
   to a 4x3x4 shell, the reception desk a small block, the directory sign a
-  thin tall panel. One geometry, many roles -- the 2006 worlds worked the same
+  thin tall panel. One geometry, many roles — the 2006 worlds worked the same
   way. Clean-room authored; no binaries from the retired installer.
 -->
 <COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">

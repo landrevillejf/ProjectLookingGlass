@@ -149,8 +149,13 @@ class WonderlandWorldPanelTest {
         panel.render(panel.read("localhost:8080"));
 
         assertTrue(panel.rows().isEmpty());
-        assertEquals("Cannot reach http://localhost:8080/api/world/cells"
-                + " (Connection refused)", panel.statusText());
+        // The strip names the server that refused AND the command that starts
+        // one, because the usual reason for the refusal is that none is running.
+        assertTrue(panel.statusText().startsWith("Cannot reach "
+                        + "http://localhost:8080/api/world/cells (Connection refused)"),
+                panel.statusText());
+        assertTrue(panel.statusText().contains(WorldCatalog.startCommand()),
+                panel.statusText());
         assertNull(panel.selectedRow());
         panel.close();
     }
