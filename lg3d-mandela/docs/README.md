@@ -46,6 +46,7 @@ org.jdesktop.lg3d.mandela
 - **[Mandela at Work](USAGE.md)** - The language in daily use: one program that walks, scans, classifies and answers, the four hosts that run it, and transcripts of the real tools
 - **[Functional Analysis](FUNCTIONAL_ANALYSIS.md)** - Functional requirements, use cases, and specifications
 - **[History of the Language](HISTORY.md)** - Why the name, who created it, and the record of how it landed in Project Looking Glass
+- **[Roadmap](ROADMAP.md)** - The language's life outside the desktop, probing a running JVM, and what comes next on both version axes
 
 ### Language and API Documentation
 
@@ -140,7 +141,8 @@ Pre-configured profiles:
 ## Version
 
 - Language version: 1.0
-- Implementation version: 1.68.0-dev
+- Implementation version: the jar's own — `lg3d-mandela-<version>.jar`, the
+  `mandela.version` property, gated by `scripts/mandela/mandela-version.mnd`
 - Requires JDK 21
 
 ## License
