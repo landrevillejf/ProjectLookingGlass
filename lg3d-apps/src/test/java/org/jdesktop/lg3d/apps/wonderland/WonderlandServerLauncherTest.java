@@ -111,6 +111,46 @@ class WonderlandServerLauncherTest {
     }
 
     @Test
+    void resolveJarWalksUpFromAModuleDirectory(@TempDir Path repo) throws IOException {
+        // The desktop's working directory is lg3d-core/, one level below the
+        // repository root that carries the server's build output: the search
+        // must climb to find it (this is the :lg3d-core:run launch layout).
+        Path libs = repo.resolve("wonderland-server").resolve("build-gradle").resolve("libs");
+        Files.createDirectories(libs);
+        Path app = libs.resolve("wonderland-server-1.69.0-dev-app.jar");
+        Files.createFile(app);
+        WonderlandServerLauncher fromModuleDir = new WonderlandServerLauncher(
+                repo.resolve("lg3d-core").resolve("build-gradle"),
+                argv -> null, server -> false, Duration.ZERO);
+
+        assertEquals(app, fromModuleDir.resolveJar());
+    }
+
+    @Test
+    void resolveJarFindsTheAppJarInABundleLayout(@TempDir Path installLibs) throws IOException {
+        // The release bundle packs every module jar flat, so the server's
+        // -app.jar sits beside the desktop's own code, not under a module tree.
+        Path bundled = installLibs.resolve("wonderland-server-1.69.0-dev-app.jar");
+        Files.createFile(bundled);
+        WonderlandServerLauncher fromBundle = new WonderlandServerLauncher(
+                installLibs, argv -> null, server -> false, Duration.ZERO);
+
+        assertEquals(bundled, fromBundle.resolveJar());
+        assertEquals(bundled, WonderlandServerLauncher.findAppJarBeside(installLibs));
+    }
+
+    @Test
+    void ancestorsOfWalksUpButStaysBounded(@TempDir Path repo) {
+        List<Path> fromDeep = WonderlandServerLauncher.ancestorsOf(
+                repo.resolve("a").resolve("b").resolve("c").resolve("d").resolve("e"));
+        assertEquals(6, fromDeep.size(), String.valueOf(fromDeep));
+        assertEquals(repo.resolve("a").resolve("b").resolve("c").resolve("d").resolve("e")
+                .toAbsolutePath().normalize(), fromDeep.get(0));
+        assertTrue(fromDeep.contains(repo.toAbsolutePath().normalize()), String.valueOf(fromDeep));
+        assertTrue(WonderlandServerLauncher.ancestorsOf(null).isEmpty());
+    }
+
+    @Test
     void resolveJarHonoursTheNamedJarProperty(@TempDir Path repo) throws IOException {
         Path named = repo.resolve("explicit-app.jar");
         Files.createFile(named);

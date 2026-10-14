@@ -12,6 +12,7 @@ package org.jdesktop.lg3d.apps.wonderland;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -58,9 +59,12 @@ import java.util.stream.Stream;
 public final class WonderlandServerLauncher {
 
     /**
-     * System property naming the repository root the launcher searches for the
-     * built server jar. Defaults to the JVM's working directory, which is the
-     * repository root under {@code :lg3d-core:run} and {@code ./run-lg3d.sh}.
+     * System property naming a repository root to search <em>first</em> for
+     * the built server jar. Unset, the search starts at the JVM's working
+     * directory and walks up its ancestors, then this class's own code
+     * location and its ancestors &mdash; which is what lets a desktop started
+     * inside {@code lg3d-core/} by {@code :lg3d-core:run}, or running from
+     * an installed release bundle, still find the server.
      */
     public static final String REPO_PROPERTY = "lg.wonderland.repo";
 
@@ -106,7 +110,14 @@ public final class WonderlandServerLauncher {
     public record Result(boolean ready, boolean launched, String note) {
     }
 
-    private final Path repoRoot;
+    /**
+     * The directories the jar search walks, in priority order: the launch
+     * root and its ancestors (a desktop started from a module directory
+     * still finds the build output one level up), and, in production, this
+     * class's own code location and <em>its</em> ancestors (the release
+     * bundle keeps the server jar beside the desktop's own jars).
+     */
+    private final List<Path> roots;
     private final Spawner spawner;
     private final Probe probe;
     private final Duration timeout;
@@ -115,11 +126,16 @@ public final class WonderlandServerLauncher {
 
     /** The production launcher: real {@link ProcessBuilder} + real HTTP probe. */
     public WonderlandServerLauncher() {
-        this(repoRoot(), new ProcessSpawner(), new HttpProbe(), DEFAULT_START_TIMEOUT);
+        this(productionRoots(), new ProcessSpawner(), new HttpProbe(), DEFAULT_START_TIMEOUT);
     }
 
     WonderlandServerLauncher(Path repoRoot, Spawner spawner, Probe probe, Duration timeout) {
-        this.repoRoot = repoRoot;
+        this(ancestorsOf(repoRoot), spawner, probe, timeout);
+    }
+
+    private WonderlandServerLauncher(List<Path> roots, Spawner spawner, Probe probe,
+            Duration timeout) {
+        this.roots = roots;
         this.spawner = spawner;
         this.probe = probe;
         this.timeout = timeout;
@@ -144,8 +160,9 @@ public final class WonderlandServerLauncher {
         Path jar = resolveJar();
         if (jar == null) {
             return new Result(false, false,
-                    "no wonderland-server jar found; build it or run: "
-                            + WorldCatalog.startCommand());
+                    "no wonderland-server jar found (looked under "
+                            + (roots.isEmpty() ? "nowhere" : roots.get(0)) + "); "
+                            + "build it or run: " + WorldCatalog.startCommand());
         }
         try {
             Launched child = spawner.spawn(command(jar, portOf(base)));
@@ -236,9 +253,10 @@ public final class WonderlandServerLauncher {
 
     /**
      * Locate the built Spring Boot application jar, honouring
-     * {@link #JAR_PROPERTY} first, then searching
-     * {@code <repoRoot>/wonderland-server/build-gradle/libs} for the
-     * {@code -app.jar}. Returns {@code null} when nothing matches &mdash; a
+     * {@link #JAR_PROPERTY} first, then walking {@link #roots}: each is tried
+     * as a repository layout ({@code <root>/wonderland-server/build-gradle/
+     * libs/*-app.jar}) and as a bundle layout (the app jar sitting directly
+     * in the directory). Returns {@code null} when nothing matches &mdash; a
      * never-built tree, or a repository the launcher was not pointed at.
      */
     Path resolveJar() {
@@ -247,7 +265,38 @@ public final class WonderlandServerLauncher {
             Path named = Path.of(direct.trim());
             return Files.isReadable(named) ? named : null;
         }
-        return findServerJar(repoRoot);
+        for (Path root : roots) {
+            Path jar = findServerJar(root);
+            if (jar == null) {
+                jar = findAppJarBeside(root);
+            }
+            if (jar != null) {
+                return jar;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A {@code wonderland-server-*-app.jar} lying directly in {@code dir}:
+     * the release bundle's flat layout, where the server ships beside the
+     * desktop's own jars rather than under a module build directory.
+     */
+    static Path findAppJarBeside(Path dir) {
+        if (dir == null || !Files.isDirectory(dir)) {
+            return null;
+        }
+        try (Stream<Path> jars = Files.list(dir)) {
+            return jars.filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String n = p.getFileName().toString();
+                        return n.startsWith("wonderland-server-") && n.endsWith("-app.jar");
+                    })
+                    .findFirst()
+                    .orElse(null);
+        } catch (IOException unreadable) {
+            return null;
+        }
     }
 
     /** Search a repository root's {@code wonderland-server} build output for the app jar. */
@@ -272,13 +321,60 @@ public final class WonderlandServerLauncher {
         }
     }
 
-    /** The repository root: {@link #REPO_PROPERTY} when set, else the working directory. */
-    private static Path repoRoot() {
+    /**
+     * {@code start} and its parents up to the filesystem root (capped, so a
+     * deep working directory cannot search the whole machine). Empty for a
+     * null start &mdash; the tests that pin "no jar under this root" stay
+     * honest because no ancestor of a temp or absent directory carries a
+     * {@code wonderland-server} build.
+     */
+    static List<Path> ancestorsOf(Path start) {
+        List<Path> out = new ArrayList<>();
+        Path p = (start == null) ? null : start.toAbsolutePath().normalize();
+        for (int hops = 0; p != null && hops < 6; hops++, p = p.getParent()) {
+            out.add(p);
+        }
+        return out;
+    }
+
+    /**
+     * The production search: {@link #REPO_PROPERTY} when set, the working
+     * directory and its ancestors (a {@code :lg3d-core:run} desktop starts
+     * inside the module, one level below the repository root), and this
+     * class's own code location and its ancestors (the release bundle runs
+     * from an installed tree whose layout no working directory names).
+     */
+    static List<Path> productionRoots() {
+        List<Path> out = new ArrayList<>();
         String configured = System.getProperty(REPO_PROPERTY);
         if (configured != null && !configured.isBlank()) {
-            return Path.of(configured.trim()).toAbsolutePath().normalize();
+            out.add(Path.of(configured.trim()).toAbsolutePath().normalize());
         }
-        return Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (Path p : ancestorsOf(Path.of(System.getProperty("user.dir")))) {
+            if (!out.contains(p)) {
+                out.add(p);
+            }
+        }
+        Path code = codeSourceDir();
+        if (code != null) {
+            for (Path p : ancestorsOf(code)) {
+                if (!out.contains(p)) {
+                    out.add(p);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The directory this class was loaded from: its jar's home or its classes root. */
+    static Path codeSourceDir() {
+        try {
+            Path here = Path.of(WonderlandServerLauncher.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI());
+            return Files.isDirectory(here) ? here : here.getParent();
+        } catch (URISyntaxException | RuntimeException unavailable) {
+            return null;                        // e.g. an in-memory loader
+        }
     }
 
     // ------------------------------------------------------------------
