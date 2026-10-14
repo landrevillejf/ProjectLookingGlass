@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  wonderland-outpatient-clinic: a clean-room re-authoring of the community
+  "TMS Medical Center / Outpatient Clinic" world, rebuilt for the JDK 21 +
+  Jogamp Wonderland port. The layout mirrors the reference screenshot's
+  directory sign -- a central waiting area ringed by exam rooms, a patient
+  education room, an observation room and a reception desk -- authored as
+  simple COLLADA volumes (no binaries from the retired 400 MB installer).
+-->
+<wonderland-module>
+    <name>wonderland-outpatient-clinic</name>
+    <version>
+        <major>0</major>
+        <minor>1</minor>
+        <mini>0</mini>
+    </version>
+    <description>Outpatient clinic world: waiting area, exam rooms, patient education, observation, reception.</description>
+</wonderland-module>

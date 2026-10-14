@@ -17,8 +17,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jdesktop.wonderland.common.cell.CellID;
+import org.jdesktop.wonderland.server.world.WorldCatalog;
 import org.jdesktop.wonderland.server.world.WorldCell;
 import org.jdesktop.wonderland.server.world.WorldModel;
+import org.jdesktop.wonderland.server.world.WorldSummary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,9 +33,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorldRestController {
 
     private final WorldModel world;
+    private final WorldCatalog catalog;
 
-    public WorldRestController(WorldModel world) {
+    public WorldRestController(WorldModel world, WorldCatalog catalog) {
         this.world = world;
+        this.catalog = catalog;
+    }
+
+    /**
+     * Every world the server can serve -- the bundled classpath worlds (the
+     * outpatient clinic) plus the world jars in the configured worlds directory.
+     * This is the "access to all existing worlds" surface: the catalog is read
+     * independently of the seeded one, so a browser can list what is available
+     * even before (or without) any world being loaded into {@link #world}.
+     */
+    @GetMapping("/worlds")
+    public List<WorldSummary> worlds() {
+        return catalog.available();
     }
 
     @GetMapping("/cells")

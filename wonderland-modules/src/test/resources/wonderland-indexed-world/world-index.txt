@@ -1,0 +1,7 @@
+# wonderland-indexed-world: a minimal catalog for ManifestClasspathWorldStore's
+# listAssets test. Blank lines and '#' comments are ignored; only the -wlc.xml
+# cells should be discovered by WorldLoader, and the sorted order is asserted.
+wfs/indexed-wfs/gamma-wlc.xml
+wfs/indexed-wfs/alpha-wlc.xml
+assets/readme.txt
+wfs/indexed-wfs/beta-wlc.xml

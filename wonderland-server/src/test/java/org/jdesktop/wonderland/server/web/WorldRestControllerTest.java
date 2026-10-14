@@ -22,6 +22,7 @@ import org.jdesktop.wonderland.common.messages.MessagePacker;
 import org.jdesktop.wonderland.server.comms.ProtocolRouter;
 import org.jdesktop.wonderland.server.comms.ServerSession;
 import org.jdesktop.wonderland.server.comms.SessionRegistry;
+import org.jdesktop.wonderland.server.world.WorldCatalog;
 import org.jdesktop.wonderland.server.world.WorldModel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,8 +47,22 @@ class WorldRestControllerTest {
         registry = new SessionRegistry();
         router = new ProtocolRouter(world, registry);
         mvc = MockMvcBuilders
-                .standaloneSetup(new WorldRestController(world))
+                .standaloneSetup(new WorldRestController(world, new WorldCatalog("")))
                 .build();
+    }
+
+    @Test
+    void worldsListsTheBundledClinicEvenWithNoWorldsDirectory() throws Exception {
+        // the catalog is read independently of the (empty) seeded world: the bundled
+        // outpatient clinic is always offered, sourced from the classpath
+        mvc.perform(get("/api/world/worlds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')]")
+                        .exists())
+                .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].source")
+                        .value("classpath"))
+                .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].cellCount")
+                        .value(9));
     }
 
     @Test

@@ -1,0 +1,16 @@
+# wonderland-outpatient-clinic world cell catalog.
+# One module-root-relative path per line; blank lines and '#' comments ignored.
+# The ManifestClasspathWorldStore reads this to answer listAssets(module, "-wlc.xml")
+# because classpath directories cannot be enumerated reliably across exploded and
+# jar-packaged layouts (the same fixed-catalog approach wonderland-avatars uses).
+# Order is not significant: WorldLoader sorts, and the server seeds the hierarchy
+# with the environment root first regardless.
+wfs/outpatient_clinic-wfs/floor-wlc.xml
+wfs/outpatient_clinic-wfs/exam-room-1-wlc.xml
+wfs/outpatient_clinic-wfs/exam-room-1-waiting-wlc.xml
+wfs/outpatient_clinic-wfs/exam-room-2-wlc.xml
+wfs/outpatient_clinic-wfs/exam-room-2-waiting-wlc.xml
+wfs/outpatient_clinic-wfs/patient-education-wlc.xml
+wfs/outpatient_clinic-wfs/observation-room-wlc.xml
+wfs/outpatient_clinic-wfs/reception-wlc.xml
+wfs/outpatient_clinic-wfs/directory-sign-wlc.xml

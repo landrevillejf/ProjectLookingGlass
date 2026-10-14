@@ -69,3 +69,9 @@ lg3d-perf-*.log
 # Anchor the pattern to the repo root (/wonderland/) so it does not also hide
 # the package directory wonderland-common/src/main/java/org/jdesktop/wonderland/.
 /wonderland/
+
+# The stock world module jars (:wonderland-server:extractWorlds unpacks them from
+# the local installer into wonderland-server/wonderland-worlds/ for the world
+# catalog / seeder to read). They are generated from a vendored artifact, not
+# authored, so they are never committed -- re-extract with the task at any time.
+wonderland-worlds/

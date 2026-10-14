@@ -580,6 +580,7 @@ rulebook**. When a module file and this root file conflict, the root file wins.
 | `update-manager` | [`update-manager/AGENTS.md`](update-manager/AGENTS.md) | 2D Swing |
 | `db-manager` | [`db-manager/AGENTS.md`](db-manager/AGENTS.md) | 2D Swing |
 | `ftp-client` | [`ftp-client/AGENTS.md`](ftp-client/AGENTS.md) | 2D Swing |
+| `wonderland-server` | [`wonderland-server/AGENTS.md`](wonderland-server/AGENTS.md) | none (headless Spring Boot host; it owns the Wonderland **world library** — authoring + access across `wonderland-modules`) |
 
 **Shared role model.** Every module `AGENTS.md` uses the same fixed template so
 all roles read each other's guidance coherently:
