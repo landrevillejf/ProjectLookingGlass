@@ -1279,6 +1279,31 @@ work to make it build and run on a current toolchain.
   can see: a gate pointing at a missing script, a registered task the `repositoryChecks`
   aggregate silently omits, or a shipped `.mnd` absent from the scripts README (and
   vice versa). Both were proven to bite on a planted defect before shipping green.
+- **Two Mandela scripts now police the desktop's own runtime configuration
+  (`scripts/mandela`, `lg3d-mandela/build.gradle`, root `AGENTS.md`)** — the
+  automation had checked documents and versions, but two kinds of hand-written
+  configuration that fail only at run time went unguarded, so the language was
+  pointed at them. `accelerators.mnd` joins the gates: it reads the 2D desktop's
+  global shortcut table straight from its source of truth
+  (`ShortcutMap.defaultBindings`, expanding the `alt shift 1..9` workspace loop
+  against the real `WorkspaceModel.MAX_COUNT`) and scans every production source
+  for a keystroke-spec literal, then fails on the three chords that are written
+  correctly yet can never fire — a window-manager grab (a Super/Meta chord, or
+  Ctrl+Alt+arrow, which Mutter/Xwayland eats before the JVM sees it), a binding
+  that shadows the window switcher's Alt+`` ` `` which `ShortcutMap` must leave
+  unbound, and two shell bindings that normalise to one stroke; an application
+  chord that merely overlaps a live shell chord, or that two apps both bind, is
+  printed for a human to weigh but never red-lines the build. It ships green and
+  names 11 such overlaps to review. `startmenu-categories.mnd` is its report
+  sibling (always exit 0, like `todo-scan.mnd`): it reads each live `.lgcfg`
+  descriptor's name and description, scores them against a keyword vocabulary for
+  the eight groups the menu uses, and flags the items whose declared `menuGroup`
+  is beaten by a different group's own evidence — today Image Studio and Paint
+  read as Media while filed under Utilities — a suggestion a maintainer weighs,
+  never a failure, because category is a judgement. `acceleratorsCheck` is wired
+  into `:lg3d-mandela:repositoryChecks` (now eleven gates) and
+  `startmenuCategories` stands alone as a reporting task; `scripts-hygiene.mnd`
+  proves both are documented and the gate is in the aggregate.
 
 ### Fixed
 - **The Update Manager's What's New had nothing to show, because its parser did not

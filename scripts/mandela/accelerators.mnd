@@ -1,0 +1,357 @@
+#!/usr/bin/env mandela
+// accelerators.mnd — catch a keyboard shortcut that can never fire.
+//
+// The 2D desktop installs a KeyEventDispatcher (see Desktop2D) that claims the
+// global chords in ShortcutMap.defaultBindings() BEFORE the focused application
+// ever sees the key, and the host window manager (GNOME/Mutter, Xwayland) grabs
+// Super+key and Ctrl+Alt+arrow before the JVM sees those at all. Two chords can
+// therefore be written into the code and still be dead: one the shell eats first,
+// and one the window manager eats entirely. Nothing in the compiler or the
+// JaCoCo gate can see either, because both are runtime-plumbing facts about a
+// string that only becomes a key at run time — which is exactly the gap the
+// desktop's own automation language is for.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.69.0-dev.jar \
+//         run scripts/mandela/accelerators.mnd -s .
+//
+// The single source of truth is ShortcutMap.java: the gate parses its
+// defaultBindings() table (expanding the "alt shift " + n workspace loop over
+// WorkspaceModel.MAX_COUNT) and then scans every production source for a string
+// literal that reads as a keystroke spec — KeyStroke.getKeyStroke("…"), a
+// setAccelerator(…, "…"), or a tool's own accelerator tuple. Three rules are
+// hard (exit 2 on any of them), because each names a chord that is provably
+// dead, not merely debatable:
+//   1. a global shell chord, or an application accelerator, that the window
+//      manager reserves (a Super/Meta chord, or Ctrl+Alt+arrow) can never reach
+//      its handler;
+//   2. the window switcher's Alt+` and Alt+Shift+` must stay OUT of the shell
+//      table, so the dispatcher never claims them and Alt+Tab keeps working —
+//      the invariant ShortcutMap's own header documents;
+//   3. two global specs that normalise to the same stroke, where a LinkedHashMap
+//      .put silently drops the first.
+// What an application binds that is also a live global chord, or that two
+// applications both bind, is printed for a human to judge but never fails the
+// run: those overlaps are real, but a menu item's own WHEN_IN_FOCUSED_WINDOW
+// binding outside the shell is a legitimate pattern, and red-lining every app's
+// chord would turn the gate into noise. The script states the shadow, it does
+// not decide it is a defect — that reading is the maintainer's.
+
+use std.fs
+
+let SHORTCUT = "lg3d-core/src/classes/org/jdesktop/lg3d/displayserver/desktop2d/ShortcutMap.java"
+let WORKSPACE = "lg3d-core/src/classes/org/jdesktop/lg3d/displayserver/desktop2d/WorkspaceModel.java"
+
+// The trees whose build compiles production sources. Anything outside these —
+// vendored jars, build output, the do-not-edit lg3d-docs samples, the retired
+// lg3d-awt toolkit — binds no accelerator anyone runs.
+let SOURCE_ROOTS = ["lg3d-core/src", "lg3d-apps/src", "lg3d-incubator/src",
+    "lg3d-widgets/src", "lpm-console", "db-manager", "update-manager", "ftp-client"]
+
+// Generated output, vendored binaries and dot directories are never walked.
+let SKIP_DIRS = ["build", "build-gradle", "node_modules", "libs", "ext",
+    "target", "out", "antlr-2.7.4"]
+
+// Character classes a spec key may be, tested by indexOf so no string is ever
+// compared with a relational operator — Mandela orders values, but a gate should
+// not lean on a character's collation to decide a key name.
+let LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+let DIGITS = "0123456789"
+
+// The words that mean a modifier in a KeyStroke spec, and the canonical name
+// each folds to. "meta"/"super"/"windows" are the same key on different
+// keyboards; "ctrl" is the short spelling of "control".
+let MODIFIER_CANON = {
+    "control": "control", "ctrl": "control",
+    "alt": "alt", "shift": "shift",
+    "meta": "super", "super": "super", "windows": "super"
+}
+
+// A named key token, beyond a single letter or digit or an F-key. These are the
+// punctuation and navigation names Swing's KeyStroke accepts as a spec's last
+// word; anything else in that position means the string was prose, not a chord.
+let NAMED_KEYS = ["ENTER", "BACK_QUOTE", "PAGE_UP", "PAGE_DOWN", "LEFT", "RIGHT",
+    "UP", "DOWN", "SLASH", "EQUALS", "MINUS", "PLUS", "SPACE", "TAB", "ESCAPE",
+    "HOME", "END", "INSERT", "DELETE", "BACK_SPACE", "COMMA", "PERIOD",
+    "SEMICOLON", "QUOTE", "OPEN_BRACKET", "CLOSE_BRACKET", "BACK_SLASH"]
+
+// ---------------------------------------------------------------------------
+// keystroke-spec reading
+// ---------------------------------------------------------------------------
+
+// Every double-quoted literal inside one line, in order, quotes not included.
+// Accelerator specs carry neither an embedded quote nor an escape, so a scan of
+// the quote pairs is enough and needs no Java lexer — the same shortcut
+// scripts-hygiene.mnd takes over Groovy quotes.
+fun quotedLiterals(line) {
+    var out = []
+    var rest = line
+    loop {
+        let open = rest.indexOf("\"")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("\"")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// True when a token is all digits (so toInt is safe to call on it).
+fun allDigits(s) {
+    if (s.length == 0) { return false }
+    var i = 0
+    loop {
+        if (i >= s.length) { break }
+        if (DIGITS.indexOf(s.charAt(i)) < 0) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+// True when a word is a spec's key: one A-Z letter, one digit, Fn (1..24), or a
+// named key. The last token of a real chord is always one of these.
+fun isKeyToken(word) {
+    let up = word.upper()
+    if (up.length == 1) {
+        return LETTERS.indexOf(up) >= 0 || DIGITS.indexOf(up) >= 0
+    }
+    if (NAMED_KEYS.contains(up)) { return true }
+    if (up.startsWith("F") && allDigits(up.substring(1))) {
+        let fn = up.substring(1).toInt()
+        return fn >= 1 && fn <= 24
+    }
+    return false
+}
+
+// True when a string reads as a keystroke spec: at least one modifier followed
+// by exactly one key token. This is what keeps prose like "control characters
+// and delimiters are stripped" out — its interior words are not modifiers and
+// its last word is not a key.
+fun looksLikeSpec(lit) {
+    let tokens = lit.trim().words()
+    let count = tokens.length
+    if (count < 2) { return false }
+    var i = 0
+    loop {
+        if (i >= count - 1) { break }
+        if (!MODIFIER_CANON.has(tokens.get(i).lower())) { return false }
+        i = i + 1
+    }
+    return isKeyToken(tokens.get(count - 1))
+}
+
+// Fold a spec to a canonical "mods|KEY" so "Ctrl+Alt+T", "control alt T" and
+// "alt control t" all compare equal regardless of order, case or spelling.
+fun normalizeSpec(lit) {
+    let tokens = lit.trim().words()
+    var mods = []
+    for (tok in tokens) {
+        let low = tok.lower()
+        if (MODIFIER_CANON.has(low)) {
+            let canon = MODIFIER_CANON.get(low)
+            if (!mods.contains(canon)) { mods.push(canon) }
+        }
+    }
+    let key = tokens.get(tokens.length - 1).upper()
+    return mods.sorted().join("+") + "|" + key
+}
+
+// The two chords the host window manager is documented (in ShortcutMap's own
+// header) to grab before the JVM runs: anything with Super/Meta, and Ctrl+Alt+
+// arrow. Deliberately narrow — Ctrl+Alt+letter is often reserved on Linux too,
+// but the project's stated invariant is arrows and Super, and the gate encodes
+// the claim the code actually makes.
+fun isWindowManagerReserved(canon) {
+    let parts = canon.split("|")
+    let mods = parts.get(0).split("+")
+    let key = parts.get(1)
+    if (mods.contains("super")) { return true }
+    return mods.contains("control") && mods.contains("alt") &&
+        (key == "LEFT" || key == "RIGHT" || key == "UP" || key == "DOWN")
+}
+
+// ---------------------------------------------------------------------------
+// the global shell table, read from its source of truth
+// ---------------------------------------------------------------------------
+
+// The integer a "NAME = <digits>" line assigns, used to honour the real
+// WorkspaceModel.MAX_COUNT rather than trusting a copy of it here.
+fun readIntConst(text, name) {
+    let at = text.indexOf("${name} =")
+    if (at < 0) { return -1 }
+    let rest = text.substring(at + name.length() + 2)
+    var digits = ""
+    var i = 0
+    loop {
+        if (i >= rest.length) { break }
+        let ch = rest.charAt(i)
+        if (DIGITS.indexOf(ch) >= 0) { digits = digits + ch }
+        else if (digits.length > 0) { break }
+        i = i + 1
+    }
+    return if (digits.length > 0) digits.toInt() else -1
+}
+
+if (!fs.exists(SHORTCUT)) {
+    error("${SHORTCUT} not found — the shell table moved and this gate did not follow", "ViolationError")
+}
+
+let maxWorkspace = readIntConst(fs.read(WORKSPACE), "MAX_COUNT")
+if (maxWorkspace < 0) {
+    error("${WORKSPACE}: MAX_COUNT is unreadable, so the workspace chords cannot be enumerated", "ViolationError")
+}
+
+// Isolate defaultBindings()'s own body: the anchor names the definition (a
+// "{@link}" or a bare call ends differently), and the scan stops at the return
+// so mergeBindings() is never read. A put whose literal ends in a space is the
+// "alt shift " + n workspace loop, expanded over the real MAX_COUNT.
+let shortcutText = fs.read(SHORTCUT)
+let defAt = shortcutText.indexOf("defaultBindings() {")
+if (defAt < 0) { error("no defaultBindings() table in ${SHORTCUT}", "ViolationError") }
+let tableBody = shortcutText.substring(defAt)
+let stopAt = tableBody.indexOf("return Collections")
+let tableText = if (stopAt < 0) tableBody else tableBody.substring(0, stopAt)
+
+var globalSpecs = []
+for (tline in tableText.lines()) {
+    if (!tline.contains("map.put(")) { continue }
+    let lits = quotedLiterals(tline)
+    if (lits.length == 0) { continue }
+    let first = lits.get(0)
+    if (first.endsWith(" ") && tline.contains("+ n")) {
+        var n = 1
+        loop {
+            if (n > maxWorkspace) { break }
+            globalSpecs.push("${first}${n}")
+            n = n + 1
+        }
+    } else if (looksLikeSpec(first)) {
+        globalSpecs.push(first)
+    }
+}
+
+// The switcher chords that must stay unbound, normalised for comparison.
+let switcherAlt = normalizeSpec("alt BACK_QUOTE")
+let switcherAltShift = normalizeSpec("alt shift BACK_QUOTE")
+
+var violations = []
+var globalCanon = []
+for (spec in globalSpecs) {
+    let gCanon = normalizeSpec(spec)
+    globalCanon.push(gCanon)
+    if (isWindowManagerReserved(gCanon)) {
+        violations.push("shell: '${spec}' is a window-manager grab; the JVM never receives it")
+    }
+    if (gCanon == switcherAlt || gCanon == switcherAltShift) {
+        violations.push("shell: '${spec}' shadows the window switcher, which ShortcutMap must leave unbound")
+    }
+}
+if (globalCanon.length != globalCanon.distinct().length) {
+    for (dup in globalCanon.distinct()) {
+        if (globalCanon.count { c -> c == dup } > 1) {
+            violations.push("shell: two default bindings normalise to the same stroke (${dup})")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// application accelerators, scanned from the production sources
+// ---------------------------------------------------------------------------
+
+// A comment line binds nothing: the {@code "…"} in a javadoc and the // note
+// under a binding are prose about a chord, not a registration.
+fun isComment(line) {
+    let t = line.trim()
+    return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")
+}
+
+// Cheap gate before the per-line work, written for the step budget the same way
+// todo-scan.mnd's markerOf() is: six literal contains() on the few lines that
+// mention any modifier, so the 200k-line walk never builds a token list on a
+// line that could not carry a chord.
+fun mentionsModifier(line) {
+    return line.contains("control") || line.contains("ctrl") || line.contains("alt") ||
+        line.contains("shift") || line.contains("meta") || line.contains("super")
+}
+
+// A .java file under a built root. Tests are excluded (they assert the shell
+// table, they do not add to it); build output is never entered.
+fun walkJava(dir, found) {
+    for (name in fs.list(dir)) {
+        if (SKIP_DIRS.contains(name) || name.startsWith(".")) { continue }
+        let path = "${dir}/${name}"
+        if (fs.isDirectory(path)) {
+            walkJava(path, found)
+        } else if (name.endsWith(".java")) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// canon -> the distinct files that bind it, and canon -> one literal to show, so
+// an overlap names a place a reader can open.
+var appFilesByCanon = {}
+var appDisplayByCanon = {}
+var scannedFiles = 0
+for (root in SOURCE_ROOTS) {
+    if (!fs.isDirectory(root)) { continue }
+    for (fpath in walkJava(root, [])) {
+        if (fpath.contains("/test/") || fpath == SHORTCUT) { continue }
+        var text = ""
+        try { text = fs.read(fpath) } catch (e) { continue }   // legacy Latin-1: skip, never fail the run
+        scannedFiles = scannedFiles + 1
+        for (fline in text.lines()) {
+            if (isComment(fline) || !mentionsModifier(fline)) { continue }
+            for (lit in quotedLiterals(fline)) {
+                if (!looksLikeSpec(lit)) { continue }
+                let aCanon = normalizeSpec(lit)
+                if (!appDisplayByCanon.has(aCanon)) { appDisplayByCanon.put(aCanon, lit.trim()) }
+                if (!appFilesByCanon.has(aCanon)) { appFilesByCanon.put(aCanon, []) }
+                let files = appFilesByCanon.get(aCanon)
+                if (!files.contains(fpath)) { files.push(fpath) }
+            }
+        }
+    }
+}
+
+// Hard: an application chord the window manager will eat. Soft (printed only):
+// a chord the shell already claims, and a chord two applications both claim.
+var shadows = []
+var shared = []
+for (canon in keys(appDisplayByCanon)) {
+    let display = appDisplayByCanon.get(canon)
+    let files = appFilesByCanon.get(canon)
+    if (isWindowManagerReserved(canon)) {
+        violations.push("app: '${display}' (${files.join(", ")}) is a window-manager grab the app will never see")
+    }
+    if (globalCanon.contains(canon)) {
+        shadows.push("  shadowed by the shell  ${display}  in ${files.join(", ")}")
+    }
+    if (files.length > 1) {
+        shared.push("  bound by ${files.length} files  ${display}  in ${files.join(", ")}")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// the report
+// ---------------------------------------------------------------------------
+
+println("accelerators: ${globalSpecs.length} global shell chord(s), " +
+        "${appDisplayByCanon.length} application accelerator spec(s) " +
+        "read from ${scannedFiles} source(s)")
+for (sh in shadows.sorted()) { println(sh) }
+for (s in shared.sorted()) { println(s) }
+
+var overlaps = shadows.length + shared.length
+if (violations.length == 0) {
+    if (overlaps == 0) {
+        println("no dead chord: every global binding reaches its handler")
+    } else {
+        println("no dead chord; ${overlaps} overlap(s) printed above for review, none fatal")
+    }
+} else {
+    for (v in violations) { println("  DEAD  ${v}") }
+    error("${violations.length} dead accelerator binding(s)", "ViolationError")
+}

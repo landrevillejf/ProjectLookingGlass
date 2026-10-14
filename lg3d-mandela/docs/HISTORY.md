@@ -84,7 +84,7 @@ of it is remembered.
 - **The Web Browser** - userscripts, authored with `userscript-new.mnd` and
   gated by the security model described in the
   [embedding guide](../../docs/mandela-embedding-api.md).
-- **The repository's own CI** - the ten gates in
+- **The repository's own CI** - the eleven gates in
   [`scripts/mandela/README.md`](../../scripts/mandela/README.md) run on every
   push in [`.github/workflows/build.yml`](../../.github/workflows/build.yml).
 - **The Help Center** - `whats-new.mnd` generates the guide's What's New topic.

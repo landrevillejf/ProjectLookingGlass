@@ -17,7 +17,7 @@ names no UI toolkit runs wherever a JVM does. Five such lives are already real:
 
 | Where | What runs there | What it is granted |
 | --- | --- | --- |
-| **This repository's CI** | the ten gates in [`scripts/mandela/`](../../scripts/mandela/README.md) — link checkers, version-consistency gates, a start-menu audit, an i18n contract — via `./gradlew :lg3d-mandela:repositoryChecks` | `desktop(root)`: files under the repository root, console, a step budget |
+| **This repository's CI** | the eleven gates in [`scripts/mandela/`](../../scripts/mandela/README.md) — link checkers, version-consistency gates, a start-menu audit, an accelerator-conflict gate, an i18n contract — via `./gradlew :lg3d-mandela:repositoryChecks` | `desktop(root)`: files under the repository root, console, a step budget |
 | **Any terminal** | the `mandela` CLI: `run`, `check`, `eval`, the REPL (`mandelaRepl`) | whatever the invocation says, `desktop(root)` by default |
 | **Any Java or Kotlin program** | the embedding API (`Mandela`, `Runtime`, `Capabilities`, `Interop`) or JSR-223 — see the [embedding guide](../../docs/mandela-embedding-api.md) | whatever the host's `Capabilities` says |
 | **Espresso** (the desktop's text editor) | the Mandela extension: run, check, disassemble, template a document | `console()`: no files, no env, 20 M steps |
