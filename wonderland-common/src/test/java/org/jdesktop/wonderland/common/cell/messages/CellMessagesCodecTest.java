@@ -412,11 +412,16 @@ class CellMessagesCodecTest {
         CellID id = new CellID(15L);
         ModelCellClientState state = new ModelCellClientState();
         state.setName("client-side-model");
+        state.setDeployedModelURL("wla://wonderland-outpatient-clinic/box.kmz/box.dep");
         CellClientStateMessage msg = new CellClientStateMessage(id, state);
         CellClientStateMessage back = (CellClientStateMessage) rt(msg);
         assertThat(back.getCellID()).isEqualTo(id);
         assertThat(back.getClientState()).isInstanceOf(ModelCellClientState.class);
         assertThat(back.getClientState().getName()).isEqualTo("client-side-model");
+        // Stage 2: the deployed-model URL is now part of the wire payload, so a
+        // model cell's wla:// reference survives serialization to the client.
+        assertThat(((ModelCellClientState) back.getClientState()).getDeployedModelURL())
+                .isEqualTo("wla://wonderland-outpatient-clinic/box.kmz/box.dep");
     }
 
     @Test
@@ -449,6 +454,7 @@ class CellMessagesCodecTest {
         CellTransform t = new CellTransform(new Quaternion(), new Vector3f(1f, 0f, 0f), 1f);
         ModelCellClientState setup = new ModelCellClientState();
         setup.setName("hier");
+        setup.setDeployedModelURL("wla://wonderland-outpatient-clinic/box.kmz/box.dep");
         CellHierarchyMessage msg = new CellHierarchyMessage(
                 CellHierarchyMessage.ActionType.LOAD_CELL,
                 "org.jdesktop.wonderland.client.cell.ModelCell",
@@ -461,6 +467,10 @@ class CellMessagesCodecTest {
                 .isEqualTo("org.jdesktop.wonderland.client.cell.ModelCell");
         assertThat(back.getSetupData()).isInstanceOf(ModelCellClientState.class);
         assertThat(back.getSetupData().getName()).isEqualTo("hier");
+        // the LOAD_CELL the seeder's WorldCell.toLoadMessage() produces carries the
+        // model URL inside its setup data -- this is the whole wire contract.
+        assertThat(((ModelCellClientState) back.getSetupData()).getDeployedModelURL())
+                .isEqualTo("wla://wonderland-outpatient-clinic/box.kmz/box.dep");
         assertThat(back.getCellName()).isEqualTo("lamp-post");
     }
 

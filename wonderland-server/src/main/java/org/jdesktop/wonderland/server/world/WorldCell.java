@@ -38,14 +38,16 @@ public final class WorldCell {
     }
 
     /**
-     * Full form, adding the cell's {@code wla://} deployed-model URL (Stage 2). It
-     * is SERVER-SIDE data only: it is never folded into the {@link #toLoadMessage()
-     * wire} message -- the native client has no loadable model-component class yet,
-     * so shipping it over the socket would be the shared-wire-format change this
-     * stage deliberately defers. Instead it is exposed over the read-only REST
-     * surface (the cell descriptor) and consumed by the HTTP asset endpoint, so a
-     * walk host can drive entirely off HTTP without the wire. Null for a cell that
-     * carries no model (the environment root, a non-model cell).
+     * Full form, adding the cell's {@code wla://} deployed-model URL (Stage 2).
+     * This field is the SERVER-SIDE copy that feeds the read-only REST descriptor
+     * and the HTTP asset endpoint. The same URL also reaches the native client,
+     * but through {@code clientState}: for a model cell the seeder passes a
+     * {@code ModelCellClientState} carrying it, which {@link #toLoadMessage()}
+     * sends over the wire (the renderer's WonderlandModelCell reads it back in
+     * setClientState()). Keeping both is deliberate -- the field is the HTTP
+     * surface's view, the clientState is the socket surface's view of one URL.
+     * Null for a cell that carries no model (the environment root, a non-model
+     * cell), whose clientState stays a plain CellClientState.
      */
     public WorldCell(CellID cellID, CellID parentID, String className, String name,
             BoundingVolume localBounds, CellTransform transform, CellClientState clientState,

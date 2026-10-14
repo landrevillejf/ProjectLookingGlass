@@ -27,13 +27,15 @@ import org.jdesktop.wonderland.client.cell.Cell;
 import org.jdesktop.wonderland.client.cell.CellCache;
 import org.jdesktop.wonderland.client.cell.CellRenderer;
 import org.jdesktop.wonderland.common.cell.CellID;
+import org.jdesktop.wonderland.common.cell.state.CellClientState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.modules.asset.ModelLoadResult;
 import org.jdesktop.wonderland.renderer.seam.ModelRendererFactory;
 
 /** A {@link Cell} that renders a loaded Collada model through the seam. */
 public class WonderlandModelCell extends Cell {
 
-    private final String depUrl;
+    private String depUrl;
     private ModelLoadResult modelResult;
     private ModelRendererFactory rendererFactory = ModelRendererFactory.liveFactory();
 
@@ -47,14 +49,48 @@ public class WonderlandModelCell extends Cell {
         this.depUrl = depUrl;
     }
 
+    /**
+     * The constructor the client cell cache reflects open by class name
+     * ({@code getConstructor(CellID, CellCache)}); the deployed model URL is
+     * not known at construction time, so it arrives through
+     * {@link #setClientState} a moment later when the cache applies the
+     * server's ModelCellClientState. This is the wire-fed path a walked-in
+     * cell takes, as opposed to the loader-fed 3-arg constructor above.
+     */
+    public WonderlandModelCell(CellID cellID, CellCache cellCache) {
+        this(cellID, cellCache, null);
+    }
+
     /** Convenience for tests and standalone cells: cache-less constructor. */
     public WonderlandModelCell(CellID cellID, String depUrl) {
         this(cellID, null, depUrl);
     }
 
-    /** The reference this cell was created with, so callers can trace it. */
+    /**
+     * The {@code wla://} reference this cell renders. It is set either at
+     * construction (loader path) or when the wire's ModelCellClientState is
+     * applied (client-cache path); null until one of those happens.
+     */
     public String getDepUrl() {
         return depUrl;
+    }
+
+    /**
+     * Apply the server's client state. Beyond the base wiring (name, cell
+     * components), a model cell pulls its deployed-model URL out of a
+     * {@link ModelCellClientState} so the URL crosses the shared wire format
+     * rather than being hard-coded at construction. A null URL leaves any
+     * loader-supplied value in place.
+     */
+    @Override
+    public void setClientState(CellClientState configData) {
+        super.setClientState(configData);
+        if (configData instanceof ModelCellClientState model) {
+            String url = model.getDeployedModelURL();
+            if (url != null) {
+                this.depUrl = url;
+            }
+        }
     }
 
     /**
