@@ -271,7 +271,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the ten gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the eleven gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -294,6 +294,15 @@ the exit codes and how to add a tool.
 - `startmenu-audit.mnd` - every `resource:///...` and `java <class>` reference in
   the `.lgcfg` start-menu descriptors resolves from the assembled classpath, and
   the live menu inventory is printed (a gate, with a report).
+- `accelerators.mnd` - the keyboard-shortcut gate: it parses the shell's own global
+  table (`ShortcutMap.defaultBindings`, expanding the `alt shift 1..9` loop against
+  the real `WorkspaceModel.MAX_COUNT`) and scans every production source for a
+  keystroke-spec literal, failing only on a chord that provably cannot fire - a
+  window-manager grab (Super/Meta, or Ctrl+Alt+arrow), a binding that shadows the
+  switcher's Alt+`` ` `` that `ShortcutMap` must leave unbound, or two shell
+  bindings that normalise to one stroke. An app chord that merely overlaps a live
+  shell chord, or that two apps both bind, is printed for review but never fails
+  (a CI gate).
 - `i18n-keys.mnd` - the shell bundle contract: every `Messages.tr("...")` literal
   in a production source exists in `messages.properties`, the French bundle
   carries the same keys, and each key's `{n}` placeholders agree (a CI gate).
@@ -331,8 +340,10 @@ the exit codes and how to add a tool.
   from three surfaces at once (a CI gate; a changelog edit without `whatsNewRefresh`
   fails `whatsNewCheck` anyway, this gate catches what neither renders prove).
 - `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
-  `TODO`/`FIXME` markers, always exit 0) and `userscript-new.mnd` (a Web Browser userscript
-  generator) are not gates: the first two always exit 0, the third only writes the
+  `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
+  start-menu items whose description reads like a different category than their
+  group, always exit 0) and `userscript-new.mnd` (a Web Browser userscript
+  generator) are not gates: the first three always exit 0, the last only writes the
   one file it names.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole

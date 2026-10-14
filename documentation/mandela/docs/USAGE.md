@@ -139,8 +139,8 @@ mandela run build-gradle/scratch/mandela-at-work.mnd -s .
    gate and generator  <-  whats-new.mnd
 
 == the same facts as JSON ==
-   {"programs":13,"gates":10,"runBy":"refused by the host (PermissionError)","at":"2026-10-13 20:09"}
-   parsed back: 13 programs, 10 gates
+   {"programs":15,"gates":11,"runBy":"refused by the host (PermissionError)","at":"2026-10-13 20:09"}
+   parsed back: 15 programs, 11 gates
 ```
 
 Read that last block twice, because it is the whole security model in one field:
@@ -211,11 +211,11 @@ for still land, because the delivery is in a `finally`.
 
 ### The repository's own CI
 
-Thirteen programs ship in `scripts/mandela/`; the ten gates among them are what
+Fifteen programs ship in `scripts/mandela/`; the eleven gates among them are what
 the build ran above wires:
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks     # all ten
+./gradlew :lg3d-mandela:repositoryChecks     # all eleven
 ./gradlew :lg3d-mandela:docLinksCheck        # one of them
 ```
 
