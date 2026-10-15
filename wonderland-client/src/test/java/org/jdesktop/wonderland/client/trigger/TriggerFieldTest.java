@@ -72,5 +72,64 @@ class TriggerFieldTest {
         TriggerField field = new TriggerField(0f, 0f, 0f);
         assertThatThrownBy(() -> field.addZone(null))
                 .isInstanceOf(IllegalArgumentException.class);
+        // The refusal did not half-register: the field still holds nothing.
+        assertThat(field.zoneCount()).isZero();
+        field.addZone(TriggerZone.open("room", 0f, 0f, 1f, 1f));
+        assertThat(field.zoneCount()).isEqualTo(1);
+    }
+
+    @Test
+    void aWalkerUnderneathABandedZoneIsNotInsideIt() {
+        // The other band edge: above the ceiling was proven; a podium whose
+        // band is y -1..1 must not fire for a walker standing under it (a
+        // mezzanine visitor) either -- contains() is a volume, not a column.
+        TriggerField field = new TriggerField(0f, 0f, 0f);
+        field.addZone(TriggerZone.of("podium", 10f, 0f, 0f, 2f, 1f, 2f));
+
+        assertThat(field.moveTo(10f, -5f, 0f).entered()).isEmpty();
+        assertThat(field.moveTo(10f, -0.5f, 0f).entered())
+                .as("wading up into the band from below enters on the crossing")
+                .containsExactly("podium");
+    }
+
+    @Test
+    void theBoundaryOfAZoneIsInsideIt() {
+        // contains() is closed: standing exactly on the authored min-x face
+        // (or any other face) is inside, so an enter fires the moment the
+        // walker touches the threshold rather than one step later.
+        TriggerZone doorway = TriggerZone.open("door", 0f, 0f, 1f, 1f); // x -1..1, z -1..1
+
+        assertThat(doorway.contains(-1f, 0f, 1f)).isTrue();
+        assertThat(doorway.contains(-1.01f, 0f, 1f)).isFalse();
+        // Every other rejection face, in the operator's own short-circuit
+        // order: east, north, south -- an open zone is a column, so no y
+        // answer is made here -- and then both y faces of a closed box.
+        assertThat(doorway.contains(1.01f, 0f, 0f)).isFalse();
+        assertThat(doorway.contains(0f, 0f, -1.01f)).isFalse();
+        assertThat(doorway.contains(0f, 0f, 1.01f)).isFalse();
+        TriggerZone room = TriggerZone.of("room", 0f, 0f, 0f, 1f, 1f, 1f); // y -1..1
+        assertThat(room.contains(0f, -1.01f, 0f)).isFalse();
+        assertThat(room.contains(0f, 1.01f, 0f)).isFalse();
+        assertThat(room.contains(0f, 0f, 0f)).isTrue();
+    }
+
+    @Test
+    void transitionsKnowAPureExitIsNotEmpty() {
+        // isEmpty()'s second operand: a move that only leaves a zone still
+        // happened, and a host that asks "anything to report?" must be told
+        // yes on the exit side too, not just the enter side.
+        TriggerField field = new TriggerField(0f, 0f, 0f);
+        field.addZone(TriggerZone.open("room", 0f, 0f, 1f, 1f));
+
+        TriggerField.Transitions exitOnly = field.moveTo(10f, 0f, 0f);
+
+        assertThat(exitOnly.entered()).isEmpty();
+        assertThat(exitOnly.exited()).containsExactly("room");
+        assertThat(exitOnly.isEmpty()).isFalse();
+
+        var reEnter = field.moveTo(0f, 0f, 0f);
+        assertThat(reEnter.isEmpty())
+                .as("the short-circuit side: an enter is not nothing either")
+                .isFalse();
     }
 }

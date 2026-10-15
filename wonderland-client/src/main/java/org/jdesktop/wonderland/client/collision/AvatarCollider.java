@@ -82,10 +82,9 @@ public final class AvatarCollider {
      * @return the last obstacle that refused part of the move, or null if none did
      */
     public String clamp(CellTransform requested) {
+        // getTranslation(null) answers a fresh Vector3f and CellTransform never
+        // holds a null translation, so there is no "no place" case to branch on.
         Vector3f t = requested.getTranslation(null);
-        if (t == null) {
-            return null;
-        }
         float toX = t.x;
         float toZ = t.z;
         if (obstacles.isEmpty()) {

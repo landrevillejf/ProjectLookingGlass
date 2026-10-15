@@ -105,4 +105,42 @@ class OctantCullerTest {
         assertThat(culler.query(0f, 0f, 0f, 1f).contains("p")).isTrue();
         assertThat(culler.query(3f, 0f, 0f, 1f).contains("p")).isFalse();
     }
+
+    @Test
+    void aZeroRadiusSightIsAPinpointNotASquareRootOfNothing() {
+        // The r2 == 0 side of the overlap maths: an eye that sees literally
+        // nothing still sees the volume it is standing inside, and reaches
+        // no further than that -- no sqrt, no epsilon drift.
+        OctantCuller culler = new OctantCuller(10f);
+        culler.register("here", 0f, 0f, 0f, 1f);
+        culler.register("there", 2f, 0f, 0f, 0.5f);
+
+        var pvs = culler.query(0f, 0f, 0f, 0f);
+
+        assertThat(pvs.contains("here")).isTrue();
+        assertThat(pvs.contains("there")).isFalse();
+    }
+
+    @Test
+    void aWideSightWalksPastTheBucketsThatHoldNothing() {
+        // The empty-bucket branch: one known cell in a coarse grid, a sight
+        // sphere spanning a mile of it -- the walk visits every bucket in
+        // range, and only the populated one can answer. This is the grid's
+        // whole point: empty space costs a map miss, never an overlap test.
+        OctantCuller culler = new OctantCuller(4f);
+        culler.register("hut", 0f, 0f, 0f, 1f);
+
+        var pvs = culler.query(0f, 0f, 0f, 60f);
+
+        assertThat(pvs.ids()).containsExactly("hut");
+        assertThat(pvs.total()).isEqualTo(1);
+    }
+
+    @Test
+    void aVolumeWithoutANameIsNotARegistration() {
+        OctantCuller culler = new OctantCuller(10f);
+        assertThatThrownBy(() -> culler.register(null, 0f, 0f, 0f, 1f))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(culler.size()).isZero();
+    }
 }

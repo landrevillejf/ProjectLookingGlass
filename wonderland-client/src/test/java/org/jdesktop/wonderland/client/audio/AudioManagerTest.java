@@ -107,6 +107,24 @@ class AudioManagerTest {
     }
 
     @Test
+    void unregisteringAPlayingSourceStopsItOnceAsItGoes() {
+        // The detach path of a live sound: the mixer must hear exactly one
+        // stop at unregister time -- not wait for the next update (the frame
+        // after a cell unloads may never come), and not double-stop.
+        RecordingBackend backend = new RecordingBackend();
+        AudioManager manager = new AudioManager(backend);
+        manager.register("bell", at(2));
+        assertThat(manager.update()).isEqualTo(1);
+
+        manager.unregister("bell");
+
+        assertThat(backend.calls).containsExactly("start bell", "pose bell 0.50 0.00",
+                "stop bell");
+        assertThat(manager.size()).isZero();
+        assertThat(manager.update()).isZero();
+    }
+
+    @Test
     void theListenerMovesTheVerdictsWithoutAnySourceMoving() {
         RecordingBackend backend = new RecordingBackend();
         AudioManager manager = new AudioManager(backend);

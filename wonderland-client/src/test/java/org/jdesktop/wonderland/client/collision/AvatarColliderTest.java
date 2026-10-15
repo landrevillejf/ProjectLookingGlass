@@ -62,4 +62,35 @@ class AvatarColliderTest {
         collider.clamp(at(9f, 0f, 0f));
         assertThat(collider.x()).isEqualTo(4.15f);
     }
+
+    @Test
+    void aMoveBlockedOnlyOnZRewritesOnlyZ() {
+        // The per-axis rewrite the slide contract rests on: a wall crossing
+        // the z lane must leave an untouched x both in the transform and in
+        // the remembered position.
+        AvatarCollider collider = new AvatarCollider(0f, -10f);
+        collider.setObstacles(List.of(Obstacle.of("gate", 0f, 0.85f, 5f, 0.5f, 0.85f, 2f)));
+
+        String hit = collider.clamp(at(0f, 0f, 5f)); // straight +z into the gate's lane
+
+        assertThat(hit).isEqualTo("gate");
+        assertThat(collider.x()).as("x was never asked to move").isEqualTo(0f);
+        assertThat(collider.z()).isEqualTo(2.65f); // minZ 3 grown by the 0.35 disc
+    }
+
+    @Test
+    void clearingTheWorldLetsTheWalkerWalkAgain() {
+        // setObstacles(null) is the unregister-all an unloading cell calls:
+        // after it the collider is empty and every request passes through.
+        AvatarCollider collider = new AvatarCollider(0f, 0f);
+        collider.setObstacles(List.of(Obstacle.of("wall", 5f, 0.85f, 0f, 0.5f, 0.85f, 2f)));
+        collider.clamp(at(6f, 0f, 0f));
+        assertThat(collider.x()).isEqualTo(4.15f);
+
+        collider.setObstacles(null);
+
+        assertThat(collider.isEmpty()).isTrue();
+        assertThat(collider.clamp(at(9f, 0f, 0f))).isNull();
+        assertThat(collider.x()).isEqualTo(9f);
+    }
 }

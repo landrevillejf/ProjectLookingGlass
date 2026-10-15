@@ -105,5 +105,11 @@ class CameraPathTest {
         assertThatThrownBy(() -> p(0, Float.NaN, 0))
                 .as("a waypoint that is not a place")
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> p(Float.NaN, 0, 0))
+                .as("the same refusal on the first axis")
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> p(0, 0, Float.NEGATIVE_INFINITY))
+                .as("and on the last, an infinity being no place either")
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

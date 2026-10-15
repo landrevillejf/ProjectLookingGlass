@@ -113,8 +113,8 @@ public final class WalkerCollision {
             float radius, float feetY, float headY, boolean alongX) {
         Sweep s = new Sweep();
         s.landed = to;
-        float bestLo = Float.NEGATIVE_INFINITY; // +axis travel: largest near-face
-        float bestHi = Float.POSITIVE_INFINITY; // -axis travel: smallest near-face
+        float nearestLo = Float.POSITIVE_INFINITY; // +axis travel: smallest near-face ahead
+        float nearestHi = Float.NEGATIVE_INFINITY; // -axis travel: largest far-face behind
         String loHit = null;
         String hiHit = null;
         for (Obstacle o : world) {
@@ -136,22 +136,27 @@ public final class WalkerCollision {
             float segLo = Math.min(from, to);
             float segHi = Math.max(from, to);
             if (segHi > bLo && segLo < bHi) { // segment crosses the open interval
-                if (to > from && bLo > bestLo) {
-                    bestLo = bLo;
+                // The FIRST face met is the one that stops the walker: forward
+                // travel keeps the smallest near-face, backward the largest
+                // far-face. A lane of two walls then refuses at the near one --
+                // stopping at the far wall's face would be a tunnel through
+                // the first, the very defect the sweep exists to kill.
+                if (to > from && bLo < nearestLo) {
+                    nearestLo = bLo;
                     loHit = o.id();
-                } else if (to < from && bHi < bestHi) {
-                    bestHi = bHi;
+                } else if (to < from && bHi > nearestHi) {
+                    nearestHi = bHi;
                     hiHit = o.id();
                 }
             }
         }
-        if (to > from && bestLo > from) {
+        if (to > from && loHit != null) {
             s.blocked = true;
-            s.landed = bestLo;
+            s.landed = nearestLo;
             s.hitId = loHit;
-        } else if (to < from && bestHi < from) {
+        } else if (to < from && hiHit != null) {
             s.blocked = true;
-            s.landed = bestHi;
+            s.landed = nearestHi;
             s.hitId = hiHit;
         }
         return s;

@@ -145,4 +145,36 @@ class FollowRigTest {
         assertThat(pose.dirZ()).as("the documented +Z hold beats a NaN normalise")
                 .isEqualTo(1f);
     }
+
+    @Test
+    void aBrokenPoseSubjectSnapsAndTheNextRealFrameRecoversExactly() {
+        // A NaN subject position makes the gap NaN, and every NaN comparison
+        // is false -- a smoothing step would fold the NaN into the eye's
+        // history and the rig would be blind FOREVER. The isFinite guard
+        // routes it through the snap instead: the frame is lost, the camera
+        // is not, and one sane pose later the seat is exact again.
+        FollowRig rig = rig();
+        rig.update(0, 0, 0, 1f / 60f);
+
+        float[] broken = rig.update(Float.NaN, 0, 0, 1f / 60f);
+        assertThat(broken[0]).as("the seat inherited the broken number, once").isNaN();
+
+        assertThat(rig.update(3, 0, 3, 1f / 60f))
+                .as("one real pose later the eye is back on the seat exactly")
+                .containsExactly(3f, 2f, -1f);
+    }
+
+    @Test
+    void theHudLineTellsTheTruthBeforeAndAfterTheFirstFrame() {
+        // toString is the shell's one-line diagnostic; both of its states are
+        // promises -- an unplaced rig says so rather than printing (0,0,0),
+        // and a placed one prints the eye the next frame will start from.
+        FollowRig rig = rig();
+        assertThat(rig.toString()).contains("unplaced");
+
+        rig.update(0, 0, 10, 1f / 60f);
+
+        assertThat(rig.toString())
+                .isEqualTo("FollowRig[eye=(0.0, 2.0, 6.0) lag=1.0s]");
+    }
 }

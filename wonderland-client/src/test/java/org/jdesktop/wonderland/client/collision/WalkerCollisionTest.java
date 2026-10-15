@@ -5,6 +5,7 @@ package org.jdesktop.wonderland.client.collision;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,5 +90,180 @@ class WalkerCollisionTest {
         assertThat(WalkerCollision.clear(4.0f, 0f, world, 0.35f, 0f, 1.7f)).isTrue();
         // ...and reaching past 4.15 is refused before the body would touch it.
         assertThat(WalkerCollision.clear(4.2f, 0f, world, 0.35f, 0f, 1.7f)).isFalse();
+    }
+
+    @Test
+    void aLaneOfTwoWallsRefusesAtTheNearOneNotTheFarOne() {
+        // The multi-obstacle swept contract: the FIRST face met stops the
+        // walker. Landing on the far wall's face would be a tunnel through
+        // the near one -- the same defect the single-wall gate above kills,
+        // one box further along. Registration order tests the chooser from
+        // both directions: the far wall arrives first here.
+        Obstacle far = Obstacle.of("farwall", 8f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        Obstacle near = Obstacle.of("wall", 5f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 9, 0, List.of(far, near), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.hitId()).isEqualTo("wall");
+        assertThat(r.x()).isEqualTo(4.15f);
+    }
+
+    @Test
+    void walkingBackwardStopsAtTheFaceNearestTheWalker() {
+        // The -axis travel: the walker east of the wall (grown 4.15..5.85)
+        // stepping west lands tangent to its far face, never past it.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(10, 0, 0, 0, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.hitId()).isEqualTo("wall");
+        assertThat(r.x()).isEqualTo(5.85f);
+    }
+
+    @Test
+    void aBackwardStepAlongZSweepsTheOtherAxisToo() {
+        // Travelling -z down the wall's own lane (x=5 is inside its grown
+        // x-range): the z sweep refuses at z = 2 + 0.35.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(5, 10, 5, 0, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.z()).isEqualTo(2.35f);
+        assertThat(r.hitId()).isEqualTo("wall");
+    }
+
+    @Test
+    void aWalkerStartingInsideTheGrownBoxCanStepOutOfItRatherThanBeingWelded() {
+        // The overlap escape hatch: beginning inside a box (center x=5 is
+        // inside the grown 4.15..5.85) is the caller's emergency, not a
+        // life sentence -- the step out is free rather than refused.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(5, 0, 7, 0, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(7f);
+    }
+
+    @Test
+    void aBoxBesideTheLaneIsNotInTheWay() {
+        // Same wall, but the walker's fixed z=10 is outside its grown z-span
+        // (-2.35..2.35): the lane test skips it before any face maths.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 10, 5, 10, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(5f);
+    }
+
+    @Test
+    void aNullEntryInTheWorldIsSkippedNotFatal() {
+        // The collection is the caller's; a hole must not decide the walk.
+        List<Obstacle> holey = Arrays.asList(wallAtX5().get(0), null);
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 5, 0, holey, 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.x()).isEqualTo(4.15f);
+    }
+
+    @Test
+    void aBandThatMissesTheBodyIsFurnitureNotAWall() {
+        // The blocksHeight false side INSIDE the sweep: a ceiling slab at
+        // y 3..4 is above a 1.7 m head, so the walk passes under it.
+        List<Obstacle> ceiling =
+                List.of(Obstacle.of("slab", 5f, 3.5f, 0f, 0.5f, 0.5f, 2f));
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 9, 0, ceiling, 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(9f);
+    }
+
+    @Test
+    void aStepWhoseNoseJustTouchesTheGrownFaceIsNotACrossing() {
+        // The segment [0, 4.15] meets the box interval only at its endpoint;
+        // tangent contact is standing next to a wall, not inside one.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 4.15f, 0, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(4.15f);
+    }
+
+    @Test
+    void theNearWallWinsWhicheverOrderTheWorldRegisters() {
+        // The chooser's rejection side: with the near wall seen FIRST, the
+        // far wall's face must be refused as a candidate (a smaller bLo is
+        // already the answer) -- and the verdict must not depend on the
+        // cell-load order of an unordered world.
+        Obstacle near = Obstacle.of("wall", 5f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        Obstacle far = Obstacle.of("farwall", 8f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 9, 0, List.of(near, far), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.hitId()).isEqualTo("wall");
+        assertThat(r.x()).isEqualTo(4.15f);
+    }
+
+    @Test
+    void walkingBackwardMeetsTheSameLaneFromBehind() {
+        // The segment [0, -10] never crosses the wall's grown interval
+        // (4.15..5.85): stepping away from a wall is free, and the backward
+        // chooser answers no-hit rather than welding the walker to the wall
+        // they just turned away from.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, -10, 0, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(-10f);
+    }
+
+    @Test
+    void theLargestFarFaceIsTheBackwardStopsignEvenAmongMany() {
+        // Travelling -x past two walls: the FIRST face met is the EAST wall's
+        // far face (8 + 0.5 + 0.35 = 8.85), not the deeper one -- and
+        // registering the deep wall second must not steal the decision, the
+        // mirror of the forward two-wall gate.
+        Obstacle east = Obstacle.of("eastwall", 8f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        Obstacle west = Obstacle.of("wall", 5f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(12, 0, 0, 0, List.of(east, west), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.hitId()).isEqualTo("eastwall");
+        assertThat(r.x()).isEqualTo(8.85f);
+    }
+
+    @Test
+    void aDiagonalIntoACornerNamesTheFirstRefusalAndSlidesIntoNeither() {
+        // Both axes refused: the x answer keeps the hit name (the z answer
+        // does not overwrite it -- the first wall met is what a behaviour
+        // script is told about), and each axis lands at its own face.
+        Obstacle wall = Obstacle.of("wall", 5f, 0.85f, 0f, 0.5f, 0.85f, 2f);
+        Obstacle gate = Obstacle.of("gate", 4.7f, 0.85f, 5f, 0.5f, 0.85f, 2f);
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, 0, 6, 6, List.of(wall, gate), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isTrue();
+        assertThat(r.hitId()).as("the x sweep spoke first").isEqualTo("wall");
+        assertThat(r.x()).isEqualTo(4.15f);
+        assertThat(r.z()).isEqualTo(2.65f); // gate minZ 3 grown by the disc
+    }
+
+    @Test
+    void theLaneRejectsOnBothSidesOfTheSpan() {
+        // The z=+10 side was proven outside; the -10 side must also walk
+        // free -- one comparison, two failure directions, both = no wall.
+        WalkerCollision.Resolution r =
+                WalkerCollision.resolve(0, -10, 5, -10, wallAtX5(), 0.35f, 0f, 1.7f);
+        assertThat(r.blocked()).isFalse();
+        assertThat(r.x()).isEqualTo(5f);
+    }
+
+    @Test
+    void clearKnowsANullWorldIsVacantAndANearMissIsNotAContact() {
+        // The standing-pose query, side by side with the sweep's own verdicts:
+        // no world is clear by definition, a null entry is skipped, a band
+        // that misses the body is furniture, and a footprint one disc-width
+        // to the north is empty space.
+        assertThat(WalkerCollision.clear(0f, 0f, null, 0.35f, 0f, 1.7f)).isTrue();
+        assertThat(WalkerCollision.clear(5f, 0f, Arrays.asList(null, wallAtX5().get(0)),
+                0.35f, 0f, 1.7f)).isFalse();
+        List<Obstacle> ceiling =
+                List.of(Obstacle.of("slab", 5f, 3.5f, 0f, 0.5f, 0.5f, 2f));
+        assertThat(WalkerCollision.clear(5f, 0f, ceiling, 0.35f, 0f, 1.7f)).isTrue();
+        assertThat(WalkerCollision.clear(5f, 5f, wallAtX5(), 0.35f, 0f, 1.7f))
+                .as("x inside the grown span, z 1.65 outside it")
+                .isTrue();
     }
 }
