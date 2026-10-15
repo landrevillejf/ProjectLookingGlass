@@ -10,6 +10,35 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The remaining roadmap kernels walk into the live desktop — wiring pass,
+  P0.2 / P1.1 / P3.1 / P4.1 / P5.1, connected** (`wonderland-renderer`,
+  `lg3d-apps`) — the P0.1 pass named five features still unreachable from a
+  running world because the frame path produced no eye or bounds to feed them;
+  this pass produces them. `WorldScene` builds a `WorldInventory` of every
+  mounted cell (id, centre, footprint, blocking height) and wraps each cell's
+  `Link` in a `Switch` gate, so `cullTo(eye)` (P0.2) opens what the world's own
+  `WorldPVS` says is visible and shuts the rest each time the eye moves, and
+  `blockStep(...)` (P1.1) seeds an `AvatarCollider` over the inventory's
+  obstacles so a wall stops a step and slides the walker along its face instead
+  of passing through it. `WorldViewer` is where the frame meets them: every eye
+  write culls and re-points the audio listener, the arrow keys and WASD resolve
+  through `blockStep`, `FollowRig` (P3.1) glides the eye toward its target with
+  the rig's frame-rate-independent smoothing rather than teleporting, and
+  `AudioManager`/`JavaSoundBackend` (P4.1) put the ear at that same pose —
+  silent where a machine has no device. P5.1 was already live: `WorldRender`
+  reads one behaviour script per world through the cached store and lets it
+  re-word each cell's name over the real `Mandela.eval`, falling back to the
+  authored label on any failure. All four consult `WorldFeatures` once per use,
+  so `-Dlg.wonderland.features=off` returns the window to exactly the pre-wiring
+  keyboard-and-void walk, byte for byte. **8 new headless cases**
+  (`WorldInventoryTest`) prove the arithmetic the live path runs on — the PVS
+  keeps a near cell and drops one on the far side of the world, a wall stops a
+  walker and names itself, an unauthored cell is a room not a degenerate zero,
+  and an empty world is the identity for every question. The cull/light pixel
+  delta on a real card stays a WlProbe sentence — the scene-graph `Switch` and
+  baked colour need a live GL context no headless CI has — and this pass claims
+  no pixel it cannot prove; what it proves is that the kernels now stand on the
+  path a person walks.
 - **The lighting rig is wired into the live desktop, and the world is no longer
   one flat colour — roadmap P0.1, connected** (`wonderland-common`,
   `wonderland-renderer`, `wonderland-desktop`) — the kernels this roadmap shipped
