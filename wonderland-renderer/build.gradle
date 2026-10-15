@@ -25,9 +25,12 @@
 jar { archiveBaseName = 'wonderland-renderer' }
 
 dependencies {
-    // The pure data model (CellTransform, CellStatus, CellID) the renderer consumes.
+    // The pure data model (CellTransform, CellStatus, CellID) the renderer consumes,
+    // and WorldFeatures -- the one vocabulary the roadmap's kill switches speak.
     implementation project(':wonderland-common')
-    // The CellRenderer contract + RendererType enum + the Cell the renderer hangs on.
+    // The CellRenderer contract + RendererType enum + the Cell the renderer hangs on,
+    // and the P0.2/P1.1/P3.1/P4.1 kernels (WorldPVS, AvatarCollider, FollowRig,
+    // AudioManager) this module's live path now consults every frame.
     implementation project(':wonderland-client')
     // The M5 Collada model the renderer turns into geometry (ColladaDocument, ...).
     implementation project(':wonderland-modules')

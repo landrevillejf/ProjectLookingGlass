@@ -74,6 +74,11 @@ much visible value each unlocks per unit of risk.
   trusted from a headless test (it needs a live render context to prove the
   scene still looks right as cells drop in and out). Kept on the list for that
   reason, not dropped; scheduled as a live-verified PR, not a pure one.
+  **Now wired** (`WorldScene`): the built graph wraps each cell's `Link` in a
+  `Switch` gate driven per eye-move by `WorldScene.cullTo`, whose visibility set
+  comes from the world's own `WorldPVS` over a `WorldInventory`; the `Switch`
+  write needs a live GL context, so the set arithmetic is headless-proven
+  (`WorldInventoryTest`) and the pixel delta stays a `WlProbe` sentence.
 
 ### P1 - Real physical interaction
 
@@ -87,7 +92,9 @@ much visible value each unlocks per unit of risk.
   unit-tested against boxes supplied by the caller, but populating it with real
   per-cell heights is a live/render-path concern. Plan: pure kernel first (its
   box inputs are injected), geometry-population wired where bounds are already
-  computed.
+  computed. **Now wired** (`WorldScene.blockStep` seeds an `AvatarCollider` over
+  the inventory's obstacles so a step into a wall is refused and slides along its
+  face; the horizontal clamp is headless-proven, the walk needs a live window).
 - **P1.2 Trigger volumes.** `onEnter`/`onExit` zones (room doorways, a stage) -
   the substrate for scripted behaviours (P5).
 
@@ -169,7 +176,9 @@ much visible value each unlocks per unit of risk.
   overshoots rather than throwing on the render thread. Letterboxing and
   re-seating `WorldViewer`'s live `Transform3D` are pipeline-bound wiring the
   probe owns, not claimed here; the 16 headless cases prove the curves, not
-  the ride.
+  the ride. **Now wired** (`WorldViewer`): the eye glides toward its target
+  through `FollowRig`'s smoothing on a frame timer instead of teleporting, and
+  `-Dlg.wonderland.camera=off` restores the instant-step walk.
 - **P3.2 Post-processing - delivered at the documented ceiling (stretch).** A
   bloom/HDR pass via `Canvas3D` offscreen buffer. **Marked stretch**: bounded
   by the Java 3D 1.7.2 ceiling above. Delivered in `wonderland-renderer/post`:
@@ -198,7 +207,11 @@ much visible value each unlocks per unit of risk.
   first backend; a JOAL one can drop behind the same seam later. The kernel and
   the manager's bookkeeping are fully headless-tested (21 cases); the mixer
   itself -- opening a `Clip` on a real device -- cannot be verified by a
-  headless runner and belongs to a machine with speakers.
+  headless runner and belongs to a machine with speakers. **Now wired**
+  (`WorldViewer.installAudio`/`updateAudio`): each eye write points the
+  `AudioManager` listener at the live pose; with no shipped world audio and no
+  device the manager is silent, so the wiring changes nothing a user hears until
+  a world ships sound.
 
 ### P5 - Mandela scripting layer
 

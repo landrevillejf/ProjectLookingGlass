@@ -48,6 +48,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.jdesktop.wonderland.client.collision.AvatarCollider;
+import org.jdesktop.wonderland.client.cull.WorldPVS;
+import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.modules.asset.ModelLoadResult;
 import org.jdesktop.wonderland.renderer.j3d.J3dMeshFactory;
@@ -63,6 +67,7 @@ import org.jogamp.java3d.DirectionalLight;
 import org.jogamp.java3d.Link;
 import org.jogamp.java3d.SharedGroup;
 import org.jogamp.java3d.Shape3D;
+import org.jogamp.java3d.Switch;
 import org.jogamp.java3d.Transform3D;
 import org.jogamp.java3d.TransformGroup;
 import org.jogamp.vecmath.Color3f;
@@ -122,6 +127,16 @@ public final class WorldScene {
     private static final float SKY_FACTOR = 3f;
 
     /**
+     * The floor on the culler's view radius, in metres. A small world must not
+     * be culled to a tunnel: the clinic is 30 m across and a visitor standing in
+     * its lobby should still see the far wall, so the radius never drops below
+     * a room-and-a-half in every direction. Only worlds bigger than twice this
+     * (the combined town is 4 km across) actually lose cells at the edge of the
+     * answer -- which is precisely where losing them is free.
+     */
+    private static final float MIN_VIEW_RADIUS_M = 60f;
+
+    /**
      * One cell to place: its loaded model, where the world puts it in metres
      * (y up), how it is turned and stretched, how wide its footprint is for
      * framing, and where its textures come from. A null or unloaded model is
@@ -178,6 +193,27 @@ public final class WorldScene {
 
         private static boolean isSane(float v) {
             return !Float.isNaN(v) && !Float.isInfinite(v) && v != 0f;
+        }
+    }
+
+    /**
+     * One placed cell's visibility gate: the name the PVS answers with and the
+     * {@link Switch} that decides whether the cell's geometry is traversed this
+     * frame. The switch is built with {@code ALLOW_SWITCH_WRITE} and one child
+     * ({@code index 0 = the cell's Link}), so {@link Switch#setWhichChild(int)}
+     * is the whole of what {@link #cullTo} does to the scene graph -- and what it
+     * cannot do is corrupt a pose, a texture or another cell.
+     */
+    public record Gate(String name, Switch swing) {
+
+        /** Open: draw the cell. */
+        void show() {
+            swing.setWhichChild(0);
+        }
+
+        /** Shut: the traverser never reaches the cell under this gate. */
+        void hide() {
+            swing.setWhichChild(Switch.CHILD_NONE);
         }
     }
 
@@ -320,11 +356,34 @@ public final class WorldScene {
     private final List<NameTag> nameTags;
     private final int shadowCount;
     private final Point3d entryPoint;
+    private final WorldInventory inventory;
+    private final List<Gate> gates;
+
+    /**
+     * The PVS built from {@link #inventory} on the first {@link #cullTo}; null
+     * until a frame actually asks for one, because a world that is only browsed
+     * in a preview image never pays for the grid.
+     */
+    private volatile WorldPVS pvs;
+
+    /** The last cull's answer, for the HUD and the probe's evidence line. */
+    private volatile int visibleLastFrame;
+
+    /** Where the collider thinks the walker stands; {@link #blockStep}'s memory. */
+    private float walkerX;
+    private float walkerZ;
+
+    /** Whether the collider above has ever been seeded at a real pose. */
+    private boolean walkerSeeded;
+
+    /** The collider {@link #blockStep} remembers through, built on first step. */
+    private AvatarCollider walker;
 
     private WorldScene(BranchGroup root, int placedCount, int skippedCount,
             Point3d center, Vector3d halfExtent, float radius, float reach,
             Point3d entryPoint,
-            List<NameTag> nameTags, int shadowCount, int pictureCount) {
+            List<NameTag> nameTags, int shadowCount, int pictureCount,
+            WorldInventory inventory, List<Gate> gates) {
         this.root = root;
         this.placedCount = placedCount;
         this.skippedCount = skippedCount;
@@ -336,6 +395,8 @@ public final class WorldScene {
         this.entryPoint = entryPoint;
         this.nameTags = List.copyOf(nameTags);
         this.shadowCount = shadowCount;
+        this.inventory = (inventory == null) ? WorldInventory.empty() : inventory;
+        this.gates = List.copyOf((gates == null) ? List.of() : gates);
     }
 
     /**
@@ -385,6 +446,8 @@ public final class WorldScene {
         List<Box> standing = new ArrayList<>();
         List<Tag> tags = new ArrayList<>();
         List<Box> shaded = new ArrayList<>();
+        List<WorldInventory.Placement> placements = new ArrayList<>();
+        List<Gate> gates = new ArrayList<>();
         for (Entry entry : entries) {
             if (entry == null || entry.model() == null || !entry.model().isLoaded()) {
                 skipped++;
@@ -441,7 +504,15 @@ public final class WorldScene {
             // "SharedGroup must be referenced through a link node". One Link per
             // cell is what lets the same model be placed several times, which is
             // exactly what a world of repeated rooms is.
-            place.addChild(new Link(mount));
+            //
+            // The Link goes through a Switch, not straight into the pose: this is
+            // the gate a potential-visible set writes to. CHILD_ALL is what every
+            // cell ships with, so a world nobody culls draws exactly as it did
+            // before the gate existed.
+            Switch gate = new Switch(Switch.CHILD_ALL);
+            gate.setCapability(Switch.ALLOW_SWITCH_WRITE);
+            gate.addChild(new Link(mount));
+            place.addChild(gate);
             branch.addChild(place);
             placed.add(entry);
             // The world's reach is measured off the volume the .dep recorded for
@@ -451,6 +522,18 @@ public final class WorldScene {
             Box cell = extentOf(entry, pose);
             extent = union(extent, cell.sphere());
             spread = (spread == null) ? cell : spread.union(cell);
+            // The same volume the framing is measured off, recorded as arithmetic
+            // so the collision and culling kernels get a world to reason about.
+            // footprint is the wider horizontal half-extent: a long room blocks a
+            // walker along its short axis too, and the smaller one would leave a
+            // door in the wall.
+            Point3d at = cell.center();
+            Vector3d half = cell.half();
+            float footprint = (float) Math.max(half.x, half.z);
+            placements.add(new WorldInventory.Placement(entry.name(),
+                    (float) at.x, (float) at.y, (float) at.z,
+                    footprint, (float) Math.max(half.y, 0.5)));
+            gates.add(new Gate(entry.name(), gate));
             if (standsUp(cell)) {
                 standing.add(cell);
             }
@@ -500,7 +583,8 @@ public final class WorldScene {
         return new WorldScene(branch, placed.size(), skipped, focus.center(),
                 focus.half(), (float) focus.sphere().getRadius(),
                 (float) extent.getRadius(), crowdEntry(shaded, focus), tagsBuilt,
-                shaded.size(), hungCount);
+                shaded.size(), hungCount,
+                new WorldInventory(placements), gates);
     }
 
     /**
@@ -1596,5 +1680,179 @@ public final class WorldScene {
      */
     public Point3d entryPoint() {
         return (entryPoint == null) ? null : new Point3d(entryPoint);
+    }
+
+    // ------------------------------------------------------------------
+    // The wired kernels (roadmap P0.2 culling, P1.1 collision)
+    // ------------------------------------------------------------------
+
+    /**
+     * The placed cells as arithmetic -- the input the culling and collision
+     * kernels were written for and never had. Built inside {@link #build} from
+     * the same volumes the framing is measured off, so it cannot disagree with
+     * what is on screen.
+     */
+    public WorldInventory inventory() {
+        return inventory;
+    }
+
+    /** How many visibility gates the scene holds; equals the placed-cell count. */
+    public int gateCount() {
+        return gates.size();
+    }
+
+    /**
+     * The cells an eye at this pose should be shown, decided by the world's own
+     * {@link WorldPVS} (roadmap P0.2). Purely functional with respect to the
+     * scene graph -- it answers, it does not write -- which is what lets the
+     * drop-the-far-cells claim be asserted headless while {@link #cullTo} is the
+     * half that needs a live canvas.
+     *
+     * <p>The grid and the radius both come from the world rather than a magic
+     * number: a cell of the walk's reach means every cell is registered in the
+     * kernel's own vocabulary, and the promise that decides visibility is the
+     * padded-sphere one {@link WorldPVS} documents -- conservative, so a far
+     * cell may be kept, a near one is never dropped.</p>
+     */
+    public java.util.Set<String> visibleFrom(float eyeX, float eyeY, float eyeZ) {
+        if (!WorldFeatures.enabled(WorldFeatures.CULLING) || inventory.size() == 0) {
+            // Off is the pre-P0.2 world: every cell visible, exactly as before.
+            return gates.stream().map(Gate::name)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
+        return pvs().visibleFrom(eyeX, eyeY, eyeZ).ids();
+    }
+
+    /** The PVS, built once from the inventory on first use. */
+    private WorldPVS pvs() {
+        WorldPVS local = pvs;
+        if (local == null) {
+            // The view radius is a person's reach in a world, not the world's
+            // own diagonal: an eye should be spared what it cannot resolve
+            // anyway, and the clinic's 30 m span still keeps every room it
+            // borders. Worlds larger than that (the combined town is 4 km
+            // across) are exactly where the answer stops being "everything".
+            // The grid buckets by the world's reach: the answer is identical
+            // for any cell size (OctantCuller's own promise), so this number
+            // only chooses the work.
+            local = inventory.pvs(inventory.reach(),
+                    Math.max(MIN_VIEW_RADIUS_M, inventory.reach() / 2f));
+            pvs = local;
+        }
+        return local;
+    }
+
+    /**
+     * Write one frame's cull answer into the scene graph: open the gate of every
+     * cell the eye can reach, shut the rest (roadmap P0.2's painted half).
+     *
+     * <p>Called from the viewer wherever the eye is written -- the same seam
+     * {@link #aimTags} uses -- and just as forgiving: a switch that refuses a
+     * write (a node handed to a universe without its capability, say) leaves
+     * that one cell open rather than dropping the frame. A world that fails to
+     * cull is a world that renders a little further; a world that throws on a
+     * per-frame write is a world that disappears.</p>
+     *
+     * @return how many gates were shut this frame -- the number the probe
+     *         reports as the evidence that cells actually drop
+     */
+    public int cullTo(float eyeX, float eyeY, float eyeZ) {
+        java.util.Set<String> visible = visibleFrom(eyeX, eyeY, eyeZ);
+        visibleLastFrame = visible.size();
+        int dropped = 0;
+        for (Gate gate : gates) {
+            try {
+                if (visible.contains(gate.name())) {
+                    gate.show();
+                } else {
+                    gate.hide();
+                    dropped++;
+                }
+            } catch (RuntimeException gateRefused) {
+                try {
+                    gate.show();
+                } catch (RuntimeException stillRefused) {
+                    // Nothing left to do: the cell is either drawn or the canvas
+                    // is gone. Neither is a reason to throw across a frame.
+                }
+            }
+        }
+        return dropped;
+    }
+
+    /** How many cells the last {@link #cullTo} kept visible (0 before the first). */
+    public int visibleLastFrame() {
+        return visibleLastFrame;
+    }
+
+    /**
+     * Resolve one requested walk step against the world's own volumes (roadmap
+     * P1.1's painted half): the place the walls allow, remembered as the walker's
+     * position so the next step slides from there.
+     *
+     * <p>The first call seeds the walker where they actually stand -- the entry
+     * pose, not the origin. From then on the answer comes from
+     * {@link AvatarCollider}, which holds the swept per-axis slide: a step into
+     * a wall stops at its face and slides along it rather than teleporting
+     * through or stopping dead. With the feature off, or with a world that
+     * authored no volumes, the request passes straight through -- the pre-P1.1
+     * behaviour, byte for byte.</p>
+     *
+     * @param fromX     the walker's current x, in world metres
+     * @param fromZ     the walker's current z
+     * @param toX       the requested landing x
+     * @param toZ       the requested landing z
+     * @param feetY     the walker's floor height (a band that misses it is furniture)
+     * @param headY     the walker's head height
+     * @param landInto  receives the allowed landing in {@code [0]} and {@code [1]}
+     * @return the name of the cell that refused the step, or null when it went through
+     */
+    public String blockStep(float fromX, float fromZ, float toX, float toZ,
+            float feetY, float headY, float[] landInto) {
+        if (!WorldFeatures.enabled(WorldFeatures.COLLISION)) {
+            landInto[0] = toX;
+            landInto[1] = toZ;
+            walkerX = toX;
+            walkerZ = toZ;
+            return null;
+        }
+        if (!walkerSeeded) {
+            // Seed at the pose the viewer starts from, so the first step is a
+            // step from where the visitor stands rather than from the origin.
+            walkerX = fromX;
+            walkerZ = fromZ;
+            walkerSeeded = true;
+        }
+        if (walker == null) {
+            // The collider is the stateful half of P1.1 -- it remembers the
+            // walker and sweeps each step -- and is banded by the walker's own
+            // floor-to-head height the caller measures off the eye, so a wall
+            // blocks a person standing anywhere in the world, not just at y = 0.
+            walker = new AvatarCollider(walkerX, walkerZ,
+                    org.jdesktop.wonderland.client.collision.WalkerCollision.WALKER_RADIUS_M,
+                    feetY, headY);
+            walker.setObstacles(inventory.obstacles());
+        }
+        if (walker.isEmpty()) {
+            landInto[0] = toX;
+            landInto[1] = toZ;
+            walkerX = toX;
+            walkerZ = toZ;
+            return null;
+        }
+        walkerX = fromX;
+        walkerZ = fromZ;
+        CellTransform requested = new CellTransform();
+        requested.setTranslation(new com.jme.math.Vector3f(toX, 0f, toZ));
+        // clamp() rewrites the transform's horizontal pair with the swept answer
+        // and remembers it as the new current position; the y it leaves alone is
+        // ours to keep, since the eye's height is the viewer's business (PageUp).
+        String hit = walker.clamp(requested);
+        com.jme.math.Vector3f landed = requested.getTranslation(null);
+        walkerX = landed.x;
+        walkerZ = landed.z;
+        landInto[0] = walkerX;
+        landInto[1] = walkerZ;
+        return hit;
     }
 }

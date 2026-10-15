@@ -28,6 +28,18 @@
  * standing in front of you the way the 2009 client showed it -- which is what
  * the browser's Enter World button is for, and what Home returns to.
  *
+ * <p>Since the wiring phase this window is also where the roadmap's kernels
+ * meet the frame: every write of the eye ({@link #apply()}) now culls the scene
+ * through the world's own {@link WorldScene#cullTo} (P0.2), resolves walking
+ * through {@link WorldScene#blockStep} so a wall stops a step and slides along
+ * it (P1.1), glides the eye toward its target through
+ * {@code client.rig.FollowRig}'s frame-rate-independent smoothing (P3.1), and
+ * points {@code client.audio.AudioManager}'s ear at the same pose (P4.1). All
+ * four consult {@code WorldFeatures} once per use, so
+ * {@code -Dlg.wonderland.features=off} returns this window to exactly the
+ * keyboard-and-void walk it was, and {@link #close()} stops the glide and the
+ * mixer with it.</p>
+ *
  * {@link #capture} is the same read the desktop's own {@code ScreenCaptureBehavior}
  * performs -- a {@code GraphicsContext3D.readRaster} posted to a Behavior, because
  * a raster read belongs on the scene-graph thread -- which is what lets the world
@@ -54,6 +66,12 @@ import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
+import javax.swing.Timer;
+import org.jdesktop.wonderland.client.audio.AudioManager;
+import org.jdesktop.wonderland.client.audio.JavaSoundBackend;
+import org.jdesktop.wonderland.client.audio.SpatialAudio;
+import org.jdesktop.wonderland.client.rig.FollowRig;
+import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
 import org.jogamp.java3d.BranchGroup;
@@ -179,6 +197,29 @@ public final class WorldViewer implements AutoCloseable {
     /** How far above the tallest thing in the world a walking eye may rise. */
     private static final double WALK_CEILING_M = 3.0;
 
+    /**
+     * The walker's blocking height in metres, from their feet up: the same
+     * door-frame tall figure {@code WalkerCollision.WALKER_HEIGHT_M} documents.
+     * Spelled here so the collision band the viewer asks for is a number this
+     * window owns rather than a cross-module constant it must re-read.
+     */
+    private static final double WALKER_HEIGHT_M = 1.7;
+
+    /**
+     * The camera rig's lag in seconds (P3.1). Deliberately short: this is a
+     * first-person window, and a rig that lags half a second feels like moving
+     * through syrup, while at 0.18 s a step still arrives as a glide rather
+     * than a teleport. The rig's answer is frame-rate independent either way --
+     * that is the property the headless suite proves, not this constant.
+     */
+    private static final float RIG_LAG_SEC = 0.18f;
+
+    /** A gap this small is "arrived": the glide timer stops instead of jittering. */
+    private static final double RIG_SETTLED_M = 0.01;
+
+    /** How often the glide ticks when the camera feature is live: about 60 fps. */
+    private static final int GLIDE_PERIOD_MS = 16;
+
     private final String title;
     private final WorldScene scene;
     private final Frame frame;
@@ -191,6 +232,28 @@ public final class WorldViewer implements AutoCloseable {
     private Vector3d eye = new Vector3d();
     private double yaw;
     private double pitch;
+
+    /**
+     * Where the walker asked to be (P3.1). The keyboard and the framer write
+     * this; the eye follows it through {@link #rig} instead of teleporting, and
+     * the two coincide the moment the rig is off or the gap has closed.
+     */
+    private Vector3d target = new Vector3d();
+
+    /** The follow rig, or null when the camera feature is off for this window. */
+    private FollowRig rig;
+
+    /** Drives the glide between key presses; null until the first step asks. */
+    private Timer glide;
+
+    /** The audio ear's mixer, or null when the audio feature is off. */
+    private JavaSoundBackend mixer;
+
+    /** The world's sounds and one listener; the listener is this window's eye. */
+    private AudioManager audio;
+
+    /** How many gates the last frame's cull shut, for the HUD and the probe. */
+    private volatile int droppedLastFrame;
 
     /**
      * Whether this window was opened to walk in rather than to look at. Set
@@ -285,6 +348,20 @@ public final class WorldViewer implements AutoCloseable {
         capture = new CaptureBehavior(canvas);
         root.addChild(capture);
         universe.addBranchGraph(root);
+        // Install the camera rig and the audio ear only once the graph is live:
+        // the gates the cull writes belong to a compiled scene, and a rig built
+        // here cannot smear a pose the framing has not chosen yet.
+        if (WorldFeatures.enabled(WorldFeatures.CAMERA)) {
+            // A locked seat relative to the subject: in this first-person window
+            // the subject IS the target pose, so the rig's job is purely the
+            // arrival curve, with the walk's own step distance well inside the
+            // teleport radius (a framing jump from 2.6 km out must SNAP, exactly
+            // as FollowRig documents).
+            rig = new FollowRig(0f, 0f, 0f, RIG_LAG_SEC,
+                    (float) Math.max(scene.reach() * 2.0, 100.0),
+                    (float) EYE_HEIGHT_M);
+        }
+        installAudio();
         if (walkMode) {
             frameWalk();
         } else {
@@ -408,15 +485,36 @@ public final class WorldViewer implements AutoCloseable {
         final SimpleUniverse dead = universe;
         universe = null;
         capture = null;
+        final AudioManager deadAudio = audio;
+        final JavaSoundBackend deadMixer = mixer;
+        audio = null;
+        mixer = null;
         java.util.List<Runnable> hooks = new java.util.ArrayList<>(onClose);
         onClose.clear();
         java.awt.EventQueue.invokeLater(() -> {
+            // Stop the glide before the universe goes, so no tick writes a
+            // transform into a torn-down view platform.
+            if (glide != null) {
+                glide.stop();
+            }
             if (dead != null) {
                 try {
                     dead.cleanup();
                 } catch (RuntimeException | Error ignored) {
                     // A universe that will not clean up is a leaked context, not a
                     // reason to leave a window on the screen.
+                }
+            }
+            // Silence the world and release every clip line it held (P4.1); a
+            // mixer that will not close is a leaked line, never a stuck window.
+            if (deadAudio != null) {
+                deadAudio.clear();
+            }
+            if (deadMixer != null) {
+                try {
+                    deadMixer.close();
+                } catch (RuntimeException | Error ignored) {
+                    // The window is going away regardless.
                 }
             }
             frame.dispose();
@@ -489,6 +587,7 @@ public final class WorldViewer implements AutoCloseable {
         double dz = center.z - eye.z;
         yaw = Math.atan2(-dx, -dz);
         pitch = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        seatRigAtEye();
         apply();
     }
 
@@ -569,6 +668,7 @@ public final class WorldViewer implements AutoCloseable {
         atWalkPose = true;
         yaw = 0.0;
         pitch = 0.0;
+        seatRigAtEye();
         apply();
     }
 
@@ -588,12 +688,12 @@ public final class WorldViewer implements AutoCloseable {
         Vector3d forward = direction(0, 0, -1);
         Vector3d right = direction(1, 0, 0);
         switch (code) {
-            case KeyEvent.VK_UP, KeyEvent.VK_W -> move(forward, STEP_M);
-            case KeyEvent.VK_DOWN, KeyEvent.VK_S -> move(forward, -STEP_M);
-            case KeyEvent.VK_A -> move(right, -STEP_M);
-            case KeyEvent.VK_D -> move(right, STEP_M);
-            case KeyEvent.VK_PAGE_UP -> eye.y += STEP_M;
-            case KeyEvent.VK_PAGE_DOWN -> eye.y -= STEP_M;
+            case KeyEvent.VK_UP, KeyEvent.VK_W -> stepTowards(forward, STEP_M);
+            case KeyEvent.VK_DOWN, KeyEvent.VK_S -> stepTowards(forward, -STEP_M);
+            case KeyEvent.VK_A -> stepTowards(right, -STEP_M);
+            case KeyEvent.VK_D -> stepTowards(right, STEP_M);
+            case KeyEvent.VK_PAGE_UP -> riseAndFall(STEP_M);
+            case KeyEvent.VK_PAGE_DOWN -> riseAndFall(-STEP_M);
             case KeyEvent.VK_LEFT, KeyEvent.VK_Q -> yaw += TURN_RAD;
             case KeyEvent.VK_RIGHT, KeyEvent.VK_E -> yaw -= TURN_RAD;
             case KeyEvent.VK_HOME -> {
@@ -609,6 +709,39 @@ public final class WorldViewer implements AutoCloseable {
             }
         }
         apply();
+    }
+
+    /**
+     * Ask for a horizontal step and let the world answer where it lands.
+     *
+     * <p>The request goes through {@link WorldScene#blockStep} -- P1.1's wired
+     * half -- so a step into a wall stops at its face and slides along it rather
+     * than crossing it, and a world with the collision feature off (or no authored
+     * volumes) hands the request straight back unchanged, which is exactly the
+     * pre-P1.1 glide. The vertical part of a pitched forward step is the viewer's
+     * own and is kept; the collider never touches it.</p>
+     */
+    private void stepTowards(Vector3d unit, double amount) {
+        double rx = eye.x + unit.x * amount;
+        double ry = eye.y + unit.y * amount;
+        double rz = eye.z + unit.z * amount;
+        float[] land = new float[2];
+        // The walker's body straddles the eye: its feet are one eye-height below
+        // the lens and its head just above it, so a wall blocks the person rather
+        // than a point. The collider reads this band once, when it is first built.
+        double floor = eye.y - EYE_HEIGHT_M;
+        scene.blockStep((float) eye.x, (float) eye.z, (float) rx, (float) rz,
+                (float) floor, (float) (floor + WALKER_HEIGHT_M), land);
+        target = new Vector3d(land[0], ry, land[1]);
+        keepInside(target);
+        glideOrSnap();
+    }
+
+    /** Rise or sink: the eye's height is the look-around control, no collision. */
+    private void riseAndFall(double amount) {
+        target = new Vector3d(eye.x, eye.y + amount, eye.z);
+        keepInside(target);
+        glideOrSnap();
     }
 
     /** The world direction of a local vector under the current yaw/pitch. */
@@ -639,41 +772,144 @@ public final class WorldViewer implements AutoCloseable {
         return t;
     }
 
-    private void move(Vector3d unit, double amount) {
-        eye.x += unit.x * amount;
-        eye.y += unit.y * amount;
-        eye.z += unit.z * amount;
-    }
-
     /**
-     * Keep a walking eye inside the world it was given.
+     * Keep a walking pose inside the world's own volume.
      *
-     * <p>There is no collision here -- walls are not honoured, and neither are the
-     * people standing in them. What is honoured is the world's own volume, inflated
-     * by a metre. That is not a cosmetic guard: the first walk-through of the clinic
-     * stepped forward twice and came out over open ground with nothing in the frame
-     * but sky, which reads to the visitor as a broken renderer rather than as a
-     * world they have walked off the edge of. Being unable to leave is the
-     * difference between a place and a void.</p>
+     * <p>This is the outer fence, not the walls: it bounds the eye to the world's
+     * box inflated by a doorstep so it can never stand over the open void past the
+     * property line (the first walk-through stepped forward twice and left the
+     * clinic entirely, which reads as a broken renderer rather than as walking off
+     * the edge). The walls themselves are honoured one pose earlier, in
+     * {@link WorldScene#blockStep}, which is why a step into a room's side is
+     * refused before it ever reaches this box.</p>
      *
      * <p>The vertical clamp lets the eye sink to just above the floor and rise a
      * storey above the roof, so PageUp still works as a look-around control while
      * "fly straight up and out of the world" does not.</p>
      */
-    private void keepInside() {
+    private void keepInside(Vector3d pose) {
         if (!atWalkPose) {
             return;
         }
         Point3d center = scene.center();
         Vector3d half = scene.halfExtent();
         double margin = WALK_BOUND_MARGIN_M;
-        eye.x = Math.max(center.x - half.x - margin,
-                Math.min(center.x + half.x + margin, eye.x));
-        eye.z = Math.max(center.z - half.z - margin,
-                Math.min(center.z + half.z + margin, eye.z));
+        pose.x = Math.max(center.x - half.x - margin,
+                Math.min(center.x + half.x + margin, pose.x));
+        pose.z = Math.max(center.z - half.z - margin,
+                Math.min(center.z + half.z + margin, pose.z));
         double floor = center.y - half.y;
-        eye.y = Math.max(floor + WALK_MIN_EYE_M,
-                Math.min(floor + half.y * 2.0 + WALK_CEILING_M, eye.y));
+        pose.y = Math.max(floor + WALK_MIN_EYE_M,
+                Math.min(floor + half.y * 2.0 + WALK_CEILING_M, pose.y));
+    }
+
+    /**
+     * Send the current {@link #target} to the eye: a locked rig (camera feature
+     * off) arrives instantly, exactly the pre-P3.1 teleport; a live rig starts a
+     * glide and the eye trails the target until it settles.
+     */
+    private void glideOrSnap() {
+        if (rig == null) {
+            eye = new Vector3d(target);
+            apply();
+            return;
+        }
+        ensureGlideRunning();
+    }
+
+    /** Park the rig and both poses on the eye, so a framing view does not smear. */
+    private void seatRigAtEye() {
+        target = new Vector3d(eye);
+        if (rig != null) {
+            rig.place((float) eye.x, (float) eye.y, (float) eye.z);
+        }
+    }
+
+    /** Start the glide timer if it is not already running; harmless to re-call. */
+    private void ensureGlideRunning() {
+        if (glide != null && glide.isRunning()) {
+            return;
+        }
+        if (glide == null) {
+            glide = new Timer(GLIDE_PERIOD_MS, event -> glideTick());
+            glide.setRepeats(true);
+            glide.setCoalesce(true);
+        }
+        lastGlideNanos = 0L;
+        glide.start();
+    }
+
+    /** One glide frame: pull the eye toward the target, write it, stop when done. */
+    private void glideTick() {
+        long now = System.nanoTime();
+        float dt = (lastGlideNanos == 0L)
+                ? GLIDE_PERIOD_MS / 1000f
+                : (now - lastGlideNanos) / 1_000_000_000f;
+        lastGlideNanos = now;
+        float[] next = rig.update((float) target.x, (float) target.y,
+                (float) target.z, dt);
+        eye = new Vector3d(next[0], next[1], next[2]);
+        apply();
+        double gap = Math.sqrt(sq(eye.x - target.x) + sq(eye.y - target.y)
+                + sq(eye.z - target.z));
+        if (gap <= RIG_SETTLED_M) {
+            eye = new Vector3d(target); // land exactly, no residual sub-centimetre drift
+            apply();
+            if (glide != null) {
+                glide.stop();
+            }
+        }
+    }
+
+    /** The clock the glide measures its steps against; 0 means "next tick is first". */
+    private long lastGlideNanos;
+
+    private static double sq(double v) {
+        return v * v;
+    }
+
+    /**
+     * Install the world's audio ear (P4.1). Off when the feature is disabled or
+     * the mixer refuses to open -- a world without sound, never a world without
+     * a view, so every failure here is swallowed to silence.
+     */
+    private void installAudio() {
+        if (!WorldFeatures.enabled(WorldFeatures.AUDIO)) {
+            return;
+        }
+        try {
+            mixer = new JavaSoundBackend();
+            audio = new AudioManager(mixer);
+        } catch (RuntimeException | Error refused) {
+            mixer = null;
+            audio = null;
+        }
+    }
+
+    /** Point the ear at the eye and let the manager start, pose and stop sounds. */
+    private void updateAudio() {
+        AudioManager manager = audio;
+        if (manager == null) {
+            return;
+        }
+        manager.setListener(new SpatialAudio.Listener(
+                (float) eye.x, (float) eye.y, (float) eye.z, (float) yaw));
+        manager.update();
+    }
+
+    /**
+     * Write one frame's cull answer into the scene (P0.2), from the eye this
+     * frame is drawn at. Silent when the feature is off -- {@link
+     * WorldScene#visibleFrom} then keeps every gate open.
+     */
+    private void updateCull() {
+        droppedLastFrame = scene.cullTo(
+                (float) eye.x, (float) eye.y, (float) eye.z);
+    }
+
+    /** How many far cells the last frame shut; the probe's evidence that cull is live. */
+    public int droppedLastFrame() {
+        return droppedLastFrame;
     }
 
     /** Write the eye position and orientation into the view platform. */
@@ -682,13 +918,17 @@ public final class WorldViewer implements AutoCloseable {
         if (tg == null) {
             return;
         }
-        keepInside();
+        keepInside(eye);
         Transform3D view = rotated();
         view.setTranslation(eye);
         tg.setTransform(view);
-        // The name tags face whoever reads them, and this is the only place the
-        // eye is ever written -- so this is the only place they need to be aimed.
-        scene.aimTags(new Point3d(eye.x, eye.y, eye.z));
+        Point3d at = new Point3d(eye.x, eye.y, eye.z);
+        // The name tags face whoever reads them, the cull drops what that eye
+        // cannot reach and the ear turns with it -- and this is the only place
+        // the eye is ever written, so this is the only place any of them update.
+        scene.aimTags(at);
+        updateCull();
+        updateAudio();
     }
 
     // ------------------------------------------------------------------
