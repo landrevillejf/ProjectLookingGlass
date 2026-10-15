@@ -96,27 +96,85 @@ much visible value each unlocks per unit of risk.
 - **P2.1 Multi-layer materials.** Extend `MaterialAppearance` /
   `TextureBindingPlan` with a normal map (and specular map); `J3dMeshFactory`
   binds the extra stages.
-- **P2.2 Shaders.** A GLSL `ShaderProgram` on `Shape3D`s, with a documented
-  fixed-function fallback where Java 3D 1.7.2 cannot express the effect.
-- **P2.3 Water shading.** Re-honour the `JMEWaterInstance` records
-  `MtgSceneReader` currently drops, as an animated water material.
-- **P2.4 Real shadows / occlusion.** Replace `ShadowArt` decals with projected
-  or shadow-map shadows; occlusion via the PVS from P0.2.
+- **P2.2 Shaders - reframed after reading the fork.** A GLSL `ShaderProgram` on
+  `Shape3D`s, with a documented fixed-function fallback where Java 3D 1.7.2
+  cannot express the effect. The measured ceiling: this repo's Jogamp fork moved
+  the shader entry point off upstream 1.6's `Appearance.setShaderProgram` onto a
+  `ShaderAppearance` subclass (`setShaderProgram`/`setShaderAttributeSet`, read
+  off the 1.7.2 jar), and a program validates only against a live GL context.
+  Delivered: `ShaderAppearancePlan` - the headless decision (FIXED vs SHADER),
+  the named-layer fallback, and the GLSL 1.20 pair - with `J3dMeshFactory`'s
+  wiring deliberately unapplied until a `WlProbe` run validates the fork's API;
+  until then every material takes the FIXED route and pixels are unchanged.
+- **P2.3 Water shading - delivered as re-honoured data + a scrollable look.**
+  Re-honour the `JMEWaterInstance` records `MtgSceneReader` currently drops, as
+  an animated water material. Delivered: `WaterInstance` parses the fifteen-
+  token record (`MtgSceneReader.readWaterInstances`, carried to the renderer on
+  `ModelLoadResult.waterInstances`), and `WaterArt` supplies the honest fixed-
+  pipeline stand-in for jME's water shader -- a headless-rasterised seamless
+  tile with per-axis scroll-offset maths (`planeOf` folds the record's plane).
+  Placing the pond quad and driving `TexCoordGeneration` from a frame clock are
+  the probe-side step, not yet a painted pixel.
+- **P2.4 Real shadows / occlusion - delivered as projector maths + a PVS owner.**
+  Replace `ShadowArt` decals with projected or shadow-map shadows; occlusion via
+  the PVS from P0.2. Delivered: `ShadowProjector` - parallel-light box
+  projection as pure arithmetic (the pool travels in the direction the light
+  travels, low sun lengthens, horizon sun caps at `MAX_STRETCH`, a vertical or
+  absent light answers `null` so the round `ShadowArt` pool stays the physically
+  right fallback) - and `WorldPVS`, the lifecycle owner that turns P0.2's
+  stateless `OctantCuller` answer into a per-frame consultation: cells register
+  and detach, a re-attached cell replaces rather than doubles, and padded
+  bounding spheres keep the promise (conservative for drawing - a far cell may
+  be kept, a near cell is never dropped). Re-pointing `WorldScene.addShadows`
+  at the projector's yawed quad, and any true shadow-map occlusion, need a live
+  GL context - probe-side, not yet a painted pixel.
 
 ### P3 - Cinematic system
 
-- **P3.1 Camera rig.** Move `WorldViewer` from fixed-eye framing to a
-  spline-follow avatar, smooth transitions, and letterboxing where the pipeline
-  allows.
-- **P3.2 Post-processing.** A bloom/HDR pass via `Canvas3D` offscreen buffer.
-  **Marked stretch**: bounded by the Java 3D 1.7.2 ceiling above.
+- **P3.1 Camera rig - delivered as kernels.** Move `WorldViewer` from
+  fixed-eye framing to a spline-follow avatar, smooth transitions, and
+  letterboxing where the pipeline allows. Delivered in
+  `wonderland-client/rig`: `FollowRig` - frame-rate-independent exponential
+  smoothing toward a seat behind the subject (one lag time constant folds
+  `dt` through `1 - e^(-dt/tau)`, so 60 fps and a one-second stall converge
+  identically), a teleport radius that SNAPS instead of smearing, and an
+  output that IS an `EyeProbe.EyePose` - the framing probe grades the rig
+  with no adapter, and `headingYaw()` speaks `SpatialAudio`'s yaw so the
+  audio ear rides the camera in one call - plus `CameraPath`, a Catmull-Rom
+  tour that passes exactly through its waypoints and clamps a clock that
+  overshoots rather than throwing on the render thread. Letterboxing and
+  re-seating `WorldViewer`'s live `Transform3D` are pipeline-bound wiring the
+  probe owns, not claimed here; the 16 headless cases prove the curves, not
+  the ride.
+- **P3.2 Post-processing - delivered at the documented ceiling (stretch).** A
+  bloom/HDR pass via `Canvas3D` offscreen buffer. **Marked stretch**: bounded
+  by the Java 3D 1.7.2 ceiling above. Delivered in `wonderland-renderer/post`:
+  `BloomKernel` - the three operations every bloom is (smooth-kneed bright
+  pass, separable clamped box blur, saturating add) as pure arithmetic on
+  packed ARGB pixels -- and `PostProcessPlan`, which states the live-3D truth
+  as a checked decision: the fork has no scene-to-texture post pipeline, so
+  the per-frame `OFFSCREEN_READBACK` route is probe-gated on a MEASURED
+  readback cost, and until a `WlProbe` run produces that measurement the
+  route is `SOFTWARE_CAPTURE` -- blooming probe captures and 2D composites,
+  headless, today. The ceiling is the deliverable's shape, not an apology:
+  the kernel is the reference any future GPU pass must match pixel for pixel.
 
 ### P4 - Spatial audio (build, not re-wire)
 
-- **P4.1 Audio engine.** `AudioManager` / `AudioNode` / `AudioListener` with
-  position/distance/attenuation driven by cell transforms, on the JOAL natives
-  already in the dependency set. This is a from-scratch port of the 2006 audio
-  subsystem, not a wiring job.
+- **P4.1 Audio engine - delivered as kernel + JavaSound backend.** `AudioManager`
+  / `AudioNode` / `AudioListener` with position/distance/attenuation driven by
+  cell transforms, on the JOAL natives already in the dependency set. This is a
+  from-scratch port of the 2006 audio subsystem, not a wiring job. Delivered in
+  `wonderland-client/audio`: `SpatialAudio` (the OpenAL inverse-distance gain
+  and the ear-radius pan as pure arithmetic), `AudioManager` (the lifecycle
+  owner in the `WorldPVS` shape -- register/move/unregister sources, one ear,
+  per-frame `update()` that starts, poses and stops what the kernel says), and
+  `JavaSoundBackend` behind an `AudioBackend` seam. Reframed on the JOAL point:
+  JavaSound ships in the JDK and needs no natives or module rules, so it is the
+  first backend; a JOAL one can drop behind the same seam later. The kernel and
+  the manager's bookkeeping are fully headless-tested (21 cases); the mixer
+  itself -- opening a `Clip` on a real device -- cannot be verified by a
+  headless runner and belongs to a machine with speakers.
 
 ### P5 - Mandela scripting layer
 
@@ -127,7 +185,7 @@ layer (Mandela must not import AWT/Swing/Java 3D/lg3d-core). The renderer/app
 that the renderer applies to Java 3D nodes. This keeps the dependency direction
 legal and the engine embeddable.
 
-- **P5.1 Cell behaviours - reframed after reading the API.** There is no
+- **P5.1 Cell behaviours** *(this PR)*. Reframed after reading the API. There is no
   "register these packages as Mandela modules" step and no host-type import: by
   design a Mandela script sees only `java.base` + `javax.script` and the values
   its host hands it. The real surface is `Mandela.eval(source, Map<String,Object>)`
@@ -141,14 +199,52 @@ legal and the engine embeddable.
   userscript bridge embeds Mandela today. This is fully headless-testable (the
   engine runs without a display); only the *effect* of a behaviour on the live
   scene needs a screen.
-- **P5.2 Shipped scripts.** Behaviours under `scripts/mandela/`, compiled by
-  `ShippedScriptsTest`.
-- **P5.3 Probe harness.** Formalise the in-JVM `WorldViewer` eye probe as
-  Mandela-driven checks of framing/behaviour, so more of the renderer becomes
-  verifiable without a hand.
-- **P5.4 Multiplayer depth.** Interest management + persistence + auth on the
-  (already real) server session layer; Mandela scripts drive the networked
-  events.
+
+  Delivered as `WorldBehavior` in `lg3d-apps`: a world ships one
+  `behaviour.mnd` beside its art, read through the same cached store and the
+  same `/api/world/asset` endpoint the models already use (the server serves
+  any module-root file, and an absent behaviour is the normal case, not an
+  error). For each model cell the host binds its plain facts (`label`, `name`,
+  `cellType`, `x/y/z`, `width/depth`, `hasModel`, `isAvatar`, `isGui` - a
+  missing number binds as `0.0` so script arithmetic never trips), runs
+  `Mandela.eval(source, Map)`, and reads back one string: the cell's
+  annotation, which replaces the label floating over it. A null, blank,
+  throwing or empty-valued script all collapse to the label the cell was
+  authored with - no exception ever reaches the render path. The decision and
+  the safety are the 14 headless cases of `WorldBehaviorTest`; the effect of
+  an annotation on the live scene stays the walk-in probe's job, exactly as
+  P0.1 left its on-screen shading to the `WorldViewer` probe.
+- **P5.2 Shipped scripts - delivered.** Behaviours under `scripts/mandela/`,
+  compiled by `ShippedScriptsTest`. The first real world behaviour ships as
+  `wonderland-outpatient-clinic/behaviour.mnd`, beside the clinic art and read
+  through the same `/api/world/asset` endpoint the models already use; the
+  shipped file's compile gate keeps it honest and `ClinicBehaviourTest` asserts
+  what each kind of cell gets annotated as.
+- **P5.3 Probe harness - delivered headless-side.** Formalise the in-JVM
+  `WorldViewer` eye probe as Mandela-driven checks of framing/behaviour, so more
+  of the renderer becomes verifiable without a hand. `EyeProbe` is the framing
+  kernel (where the eye points, what a rig would see), fully tested in-JVM; the
+  screencapture half that proves painted pixels still needs a live display.
+- **P5.4 Multiplayer depth - delivered as kernels.** The server session layer's
+  three missing halves now exist headless in `wonderland-server`:
+  `InterestManager` answers *who is in this event's audience* (per-session
+  watch of place + radius, union-of-radii reach, replace-not-double on a move,
+  NaN refused) — deliberately its own O(n) scan over sessions rather than a
+  `WorldPVS` import, because the module depends on neither `wonderland-client`
+  nor `lg3d-core`. `CellSnapshot` saves/restores each cell's translation as
+  text — `Float.toHexString` so `0.1f` round-trips bit-identical, the
+  environment root never written, orientation and scale left untouched because
+  the snapshot only claims to know *where*, a missing file is a first boot and
+  a torn or foreign one is refused rather than half-applied.
+  `PasscodeAuthenticator` is the gate the transport was missing: a stateless
+  HMAC-SHA256 bearer token `username|hex`, constant-time verified, null (never
+  a throw) for every malformed or forged shape, called at the one seam that
+  matters — before `SessionRegistry.create(user, sink)`. What remains a
+  running server's proof: fanning audience lists onto real sockets, snapshot
+  autosave policy, token expiry/rotation, and Mandela scripts driving
+  *networked* events (P5.1 ships only local annotations). **22 new headless
+  cases** (`InterestManagerTest` 7, `CellSnapshotTest` 7,
+  `PasscodeAuthenticatorTest` 8).
 
 ## Recommended order
 

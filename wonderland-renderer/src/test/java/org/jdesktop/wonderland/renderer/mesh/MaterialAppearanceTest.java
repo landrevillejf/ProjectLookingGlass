@@ -95,4 +95,55 @@ class MaterialAppearanceTest {
         assertThat(new MaterialAppearance(1f, 1f, 1f, 1f, null,
                 true, null, null, 0f, null).toString()).contains("lit=true");
     }
+
+    // ---- roadmap P2.1: multi-layer materials -------------------------------
+
+    @Test
+    void theShortConstructorsCarryNoExtraLayers() {
+        MaterialAppearance plain = new MaterialAppearance(1f, 1f, 1f, 1f, "diffuse.png");
+        assertThat(plain.hasNormalMap()).isFalse();
+        assertThat(plain.hasSpecularMap()).isFalse();
+        assertThat(plain.normalMapPath()).isNull();
+        assertThat(plain.specularMapPath()).isNull();
+        assertThat(plain.layerCount()).isEqualTo(1);
+
+        MaterialAppearance litOnly = new MaterialAppearance(1f, 1f, 1f, 1f, null,
+                true, null, null, 0f, null);
+        assertThat(litOnly.layerCount()).as("lit flags are not texture layers")
+                .isZero();
+    }
+
+    @Test
+    void theFullConstructorKeepsEveryNamedLayer() {
+        MaterialAppearance ma = new MaterialAppearance(1f, 1f, 1f, 1f,
+                "diffuse.png", false, null, null, 0f, null,
+                "wall-normal.png", "wall-spec.png");
+
+        assertThat(ma.texturePath()).isEqualTo("diffuse.png");
+        assertThat(ma.normalMapPath()).isEqualTo("wall-normal.png");
+        assertThat(ma.specularMapPath()).isEqualTo("wall-spec.png");
+        assertThat(ma.hasNormalMap()).isTrue();
+        assertThat(ma.hasSpecularMap()).isTrue();
+        assertThat(ma.layerCount()).isEqualTo(3);
+    }
+
+    @Test
+    void aBlankLayerPathIsNoLayer() {
+        MaterialAppearance ma = new MaterialAppearance(1f, 1f, 1f, 1f, null,
+                false, null, null, 0f, null, "   ", "");
+
+        assertThat(ma.hasNormalMap()).as("whitespace is not a resolved path").isFalse();
+        assertThat(ma.hasSpecularMap()).isFalse();
+        assertThat(ma.normalMapPath()).isNull();
+    }
+
+    @Test
+    void theStringNamesTheLayersSoALogLineShowsWhatWasResolved() {
+        MaterialAppearance ma = new MaterialAppearance(1f, 1f, 1f, 1f, "d.png",
+                false, null, null, 0f, null, "n.png", null);
+
+        assertThat(ma.toString())
+                .contains("normalMap=n.png")
+                .contains("specularMap=null");
+    }
 }

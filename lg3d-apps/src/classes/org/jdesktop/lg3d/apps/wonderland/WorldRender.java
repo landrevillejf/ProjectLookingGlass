@@ -179,6 +179,10 @@ public final class WorldRender {
     static List<WorldScene.Entry> entriesOf(String server, String worldModule,
             WorldCatalog.WorldView world, WorldCatalog.ByteFetcher fetcher) {
         HttpWorldStore store = new HttpWorldStore(server, fetcher);
+        // P5.1: the world may ship one behaviour script; it is read once here,
+        // through the same cached store, so an absent behaviour costs no extra
+        // round trip and every cell's decision reuses the one source text.
+        final String behaviour = WorldBehavior.scriptOf(store, worldModule);
         ModelLoader loader = new ModelLoader();
         List<WorldScene.Entry> out = new ArrayList<>();
         for (WorldCatalog.Cell cell : modelCells(world)) {
@@ -199,8 +203,10 @@ public final class WorldRender {
                     // The name the world gave the cell floats over it, as it did in
                     // the 2009 client: a room you cannot name is a room you cannot
                     // find. WorldScene decides where it goes and skips the cells that
-                    // are ground rather than places.
-                    cell.label()));
+                    // are ground rather than places. A shipped behaviour may re-word
+                    // that name (P5.1); with no behaviour, or one that fails, the cell
+                    // keeps the label it was authored with -- the unchanged default.
+                    WorldBehavior.annotation(behaviour, cell, cell.label())));
         }
         for (WorldCatalog.Cell cell : avatarCells(world)) {
             WorldScene.Entry figure = figureOf(cell);

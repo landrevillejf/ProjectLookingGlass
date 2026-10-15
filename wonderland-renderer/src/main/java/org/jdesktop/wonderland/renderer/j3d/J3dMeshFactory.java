@@ -148,6 +148,20 @@ public final class J3dMeshFactory {
     }
 
     private Appearance buildAppearance(MaterialAppearance ma) {
+        // Roadmap P2.2, stated honestly: a material that resolved extra layers
+        // (P2.1) is NOT given a GLSL program here yet. This repo's Jogamp fork
+        // moved the shader entry point off upstream Java 3D 1.6's
+        // Appearance.setShaderProgram onto a ShaderAppearance subclass, a
+        // program compiles only against a live GL context, and the fixed-
+        // function fallback the roadmap demands is exactly what the code below
+        // already draws -- byte-identical to every probe run so far. The
+        // headless decision seam is ShaderAppearancePlan.decide(ma, capability);
+        // its SHADER path names the layer slots and carries the GLSL 1.20 pair,
+        // and its FIXED path names the layers the platform drops so a log says
+        // so. Until a WlProbe run validates a real program against the fork's
+        // API (the one evidence a capability=true answer may rest on), the
+        // capability stays FIXED_FUNCTION_ONLY and every material below takes
+        // the layered-but-unapplied route: pixels unchanged, layers recorded.
         Appearance app = new Appearance();
         app.setCapability(Appearance.ALLOW_TEXTURE_READ);
         app.setCapability(Appearance.ALLOW_TEXTURE_WRITE);

@@ -80,10 +80,17 @@ public final class ModelLoader {
             return ModelLoadResult.error("model not found: " + model.modelURL());
         }
         ColladaDocument document;
+        java.util.List<WaterInstance> water = List.of();
         if (isMtg(model.modelLoaderClassname(), modelRef.path())) {
             String mtgText = new String(modelBytes, java.nio.charset.StandardCharsets.UTF_8);
-            document = new MtgSceneReader().read(store, modelRef.module(),
+            MtgSceneReader reader = new MtgSceneReader();
+            document = reader.read(store, modelRef.module(),
                     modelRef.path(), mtgText);
+            // Roadmap P2.3: the ponds travel with the fold instead of being
+            // dropped by it. Read even when the fold is empty -- a water-only
+            // scene still says the complex HAS water, and the renderer can
+            // honour that verdict once the document question is settled.
+            water = reader.readWaterInstances(mtgText);
             if (document == null) {
                 return ModelLoadResult.error("mtg scene named no readable instance: "
                         + model.modelURL());
@@ -112,7 +119,7 @@ public final class ModelLoader {
             (store.present(ref.module(), resolved) ? present : missing).add(resolved);
         }
         return ModelLoadResult.loaded(model, loaderData, document, List.copyOf(present),
-                List.copyOf(missing));
+                List.copyOf(missing), water);
     }
 
     /**

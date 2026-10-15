@@ -362,15 +362,151 @@ class MtgSceneReaderTest {
 
     @Test
     void aSceneNamingNoColladaInstanceYieldsNoDocument() {
-        // A water instance and a comment line carry no .dae to fold; a scene made only
-        // of those is the "nothing readable" answer the loader turns into its error
-        // rather than an empty document that renders a blank world.
+        // A comment line and a water record carry no .dae to fold; a scene made
+        // only of those is the "nothing readable" answer the loader turns into
+        // its error rather than an empty document that renders a blank world.
+        // P2.3 reframed the other half of this line: the water is no longer
+        // DROPPED with the fold -- it surfaces through readWaterInstances, and
+        // the assertion below pins both halves of that contract at once.
         String mtg = "# a comment\n"
                 + "Instance Water org.jdesktop.mtgame.JMEWaterInstance "
                 + "0 -1 0 0 1 0 0 1 1 1 100 100 Terrain\n";
         MapStore store = new MapStore();
 
         assertThat(read(mtg, store)).isNull();
+        assertThat(new MtgSceneReader().readWaterInstances(mtg))
+                .as("the fold's absence does not erase the pond from the read")
+                .hasSize(1);
+    }
+
+    // ---- roadmap P2.3: the water records survive the read ------------------
+
+    @Test
+    void aWaterRecordParsesItsPlaceSpinScaleAndExtent() {
+        // The shipped-shape line: fifteen tokens, the twelve numbers after the
+        // class in fixed order, the ground name trailing where a ColladaInstance
+        // would carry its .dae.
+        String mtg = "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "4 -1 7 0 1 0 0.3 2 1 2 60 40 Ground\n";
+
+        WaterInstance water = new MtgSceneReader().readWaterInstances(mtg).get(0);
+
+        assertThat(water.name()).isEqualTo("Pond");
+        assertThat(water.tx()).isEqualTo(4.0);
+        assertThat(water.ty()).isEqualTo(-1.0);
+        assertThat(water.tz()).isEqualTo(7.0);
+        assertThat(water.axisY()).isEqualTo(1.0);
+        assertThat(water.angleRad()).isEqualTo(0.3);
+        assertThat(water.hasRotation()).isTrue();
+        assertThat(water.scaleX()).isEqualTo(2.0);
+        assertThat(water.width()).isEqualTo(60.0);
+        assertThat(water.length()).isEqualTo(40.0);
+        assertThat(water.halfWidth()).isEqualTo(30.0);
+        assertThat(water.halfLength()).isEqualTo(20.0);
+        assertThat(water.groundName()).isEqualTo("Ground");
+    }
+
+    @Test
+    void aWaterLineBesideColladaInstancesIsSeenWithoutDisturbingTheFold() {
+        // The real complex: terrain and shelter fold, the pond does not, and
+        // neither scan may confuse the other -- a water line must not reach
+        // the fold's file resolution, and folding must not swallow the record.
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n"
+                + "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 100 100 Terrain\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Terrain")).isNotNull();
+        assertThat(nodeNamed(doc, "Pond")).as("water is no .dae to fold")
+                .isNull();
+        assertThat(new MtgSceneReader().readWaterInstances(mtg)).hasSize(1);
+    }
+
+    @Test
+    void aMalformedWaterLineCostsThePondNotTheScene() {
+        // "one bad line, one dropped object", the fold's own rule: a water
+        // record whose numbers do not parse (or whose extent is missing) is
+        // skipped, and a well-formed neighbour still surfaces.
+        String mtg = "Instance Broken org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 not-a-number 0 0 1 0 0 1 1 1 100 100 Terrain\n"
+                + "Instance Truncated org.jdesktop.mtgame.JMEWaterInstance 0 0 0\n"
+                + "Instance Fine org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 0 0 0 1 0 0 1 1 1 10 10 Ground\n";
+
+        java.util.List<WaterInstance> waters = new MtgSceneReader().readWaterInstances(mtg);
+
+        assertThat(waters).extracting(WaterInstance::name).containsExactly("Fine");
+    }
+
+    @Test
+    void aColladaInstanceIsNeverMisreadAsWater() {
+        // The class token is the discriminator; a scene of pure COLLADA reads
+        // as pure water-free, so no renderer ever draws a pond over the
+        // gallery's floor tiles.
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+
+        assertThat(new MtgSceneReader().readWaterInstances(mtg)).isEmpty();
+        assertThat(read(mtg, store)).isNotNull(); // the fold itself is unaffected
+    }
+
+    @Test
+    void aNullOrEmptySceneReadsAsNoWaterRatherThanThrowing() {
+        MtgSceneReader reader = new MtgSceneReader();
+
+        assertThat(reader.readWaterInstances(null)).isEmpty();
+        assertThat(reader.readWaterInstances("")).isEmpty();
+    }
+
+    @Test
+    void anotherMtgRecordOfTheWaterArityIsStillRefusedByItsClassToken() {
+        // Fifteen tokens is necessary, never sufficient: the arity test alone
+        // would read a particle system as a pond. A record as long as a water
+        // line but naming a different MTGame class is refused on the SECOND
+        // half of the guard, the half a short Collada line (thirteen tokens)
+        // never reaches because the length test short-circuits in front of it.
+        String mtg = "Instance Fountain org.jdesktop.mtgame.JMEParticleInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 10 10 Terrain\n"
+                + "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 10 10 Terrain\n";
+
+        assertThat(new MtgSceneReader().readWaterInstances(mtg))
+                .as("the class token discriminates, not the column count")
+                .extracting(WaterInstance::name).containsExactly("Pond");
+    }
+
+    @Test
+    void aWaterRecordSeparatedByTabsSurvivesTheScan() {
+        // The shipped .mtg files are space-separated, but the fold's own scan
+        // accepts a tab after the keyword, and the water scan is the same rule
+        // applied to a different record type: whatever the fold tolerates, the
+        // pond scan must tolerate too, or an author's whitespace silently dries
+        // up one water plane.
+        String mtg = "Instance\tPond\torg.jdesktop.mtgame.JMEWaterInstance\t"
+                + "0\t-1\t0\t0\t1\t0\t0\t1\t1\t1\t10\t10\tTerrain\n";
+
+        assertThat(new MtgSceneReader().readWaterInstances(mtg))
+                .extracting(WaterInstance::name).containsExactly("Pond");
+    }
+
+    @Test
+    void aFlatPondReportsNoSpinBecauseEveryShippedWaterPlaneLiesFlat() {
+        // hasRotation() is the renderer's shortcut for "skip the <rotate>", and
+        // the shipped complex's ponds all carry angle 0; only the turned case
+        // was pinned, so the identity answer -- the one the real worlds take --
+        // went unasserted.
+        String mtg = "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 100 100 Terrain\n";
+
+        WaterInstance water = new MtgSceneReader().readWaterInstances(mtg).get(0);
+
+        assertThat(water.angleRad()).isEqualTo(0.0);
+        assertThat(water.hasRotation()).isFalse();
+        assertThat(water.toString()).contains("Pond").contains("100.0x100.0");
     }
 
     @Test

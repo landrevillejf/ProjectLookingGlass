@@ -50,11 +50,25 @@ public final class MaterialAppearance {
     private final float emissiveGreen;
     private final float emissiveBlue;
 
+    // ---- multi-layer materials (roadmap P2.1) ----------------------------
+    //
+    // A COLLADA effect's common profile can name more than a diffuse image: a
+    // normal map and a specular map ride alongside it. Java 3D 1.7.2's fixed
+    // pipeline has no slot for either -- a normal map only becomes pixels under a
+    // GLSL program (roadmap P2.2) -- so these paths are CARRIED and RESOLVED here
+    // (which layer is present, headless and testable) and APPLIED only on the
+    // shader path. Recording them costs a pre-lit world no pixel and lets the
+    // binding plan tell a normal sampler apart from a diffuse one, which it could
+    // not before: the old first-present scan would happily bind a normal map as
+    // the colour texture. Null means the world named no such layer.
+    private final String normalMapPath;
+    private final String specularMapPath;
+
     /** An unlit (pre-lit-art) material: the faithful default, no shading. */
     public MaterialAppearance(float red, float green, float blue, float alpha,
                               String texturePath) {
         this(red, green, blue, alpha, texturePath, false,
-                null, null, 0f, null);
+                null, null, 0f, null, null, null);
     }
 
     /**
@@ -68,6 +82,22 @@ public final class MaterialAppearance {
                               String texturePath, boolean lit,
                               float[] ambient, float[] specular,
                               float shininess, float[] emissive) {
+        this(red, green, blue, alpha, texturePath, lit,
+                ambient, specular, shininess, emissive, null, null);
+    }
+
+    /**
+     * The full material: the shading fields above plus the roadmap P2.1 extra
+     * texture layers. {@code normalMapPath} and {@code specularMapPath} are the
+     * resolved store paths of those images when the effect names one the model
+     * actually ships, else null. They are inert until the shader path applies
+     * them (a fixed-pipeline Java 3D cannot), but resolving them is pure data.
+     */
+    public MaterialAppearance(float red, float green, float blue, float alpha,
+                              String texturePath, boolean lit,
+                              float[] ambient, float[] specular,
+                              float shininess, float[] emissive,
+                              String normalMapPath, String specularMapPath) {
         this.red = red;
         this.green = green;
         this.blue = blue;
@@ -75,6 +105,8 @@ public final class MaterialAppearance {
         this.texturePath = texturePath;
         this.lit = lit;
         this.shininess = Math.max(0f, shininess);
+        this.normalMapPath = blankToNull(normalMapPath);
+        this.specularMapPath = blankToNull(specularMapPath);
         float[] amb = orDefault(ambient, red, green, blue);
         this.ambientRed = amb[0];
         this.ambientGreen = amb[1];
@@ -87,6 +119,11 @@ public final class MaterialAppearance {
         this.emissiveRed = emis[0];
         this.emissiveGreen = emis[1];
         this.emissiveBlue = emis[2];
+    }
+
+    /** A blank or whitespace path is no layer, so it stores as null. */
+    private static String blankToNull(String path) {
+        return path == null || path.isBlank() ? null : path;
     }
 
     /** The array's first three values, or the fallback when it is null/short. */
@@ -152,9 +189,51 @@ public final class MaterialAppearance {
         return new float[] {emissiveRed, emissiveGreen, emissiveBlue};
     }
 
+    /** The resolved normal-map store path, or null when the effect names none. */
+    public String normalMapPath() {
+        return normalMapPath;
+    }
+
+    /** The resolved specular-map store path, or null when the effect names none. */
+    public String specularMapPath() {
+        return specularMapPath;
+    }
+
+    /** Whether the material carries a normal-map layer (inert until P2.2 applies it). */
+    public boolean hasNormalMap() {
+        return normalMapPath != null;
+    }
+
+    /** Whether the material carries a specular-map layer (inert until P2.2 applies it). */
+    public boolean hasSpecularMap() {
+        return specularMapPath != null;
+    }
+
+    /**
+     * How many texture layers the effect resolved: 0 (solid colour), 1 (diffuse
+     * only -- everything a fixed-pipeline Java 3D can draw) up to 3 with a normal
+     * and specular map. A layer count above 1 is the headless, testable proof
+     * that a multi-layer material was read correctly; the extra layers only
+     * become pixels on the shader path (roadmap P2.2).
+     */
+    public int layerCount() {
+        int layers = 0;
+        if (texturePath != null) {
+            layers++;
+        }
+        if (normalMapPath != null) {
+            layers++;
+        }
+        if (specularMapPath != null) {
+            layers++;
+        }
+        return layers;
+    }
+
     @Override
     public String toString() {
         return "MaterialAppearance{rgba=(" + red + ", " + green + ", " + blue + ", "
-                + alpha + "), texture=" + texturePath + ", lit=" + lit + "}";
+                + alpha + "), texture=" + texturePath + ", lit=" + lit
+                + ", normalMap=" + normalMapPath + ", specularMap=" + specularMapPath + "}";
     }
 }

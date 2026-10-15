@@ -50,6 +50,9 @@ class AssetResultTypesTest {
         assertThat(result.error()).isNull();
         assertThat(result.presentTextures()).containsExactly("a.png");
         assertThat(result.missingTextures()).containsExactly("b.png");
+        // P2.3: a load that named no water carries the empty list, never null
+        // -- every non-.mtg artifact reaches the result through this form.
+        assertThat(result.waterInstances()).isEmpty();
     }
 
     @Test
