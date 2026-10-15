@@ -146,4 +146,57 @@ class MaterialAppearanceTest {
                 .contains("normalMap=n.png")
                 .contains("specularMap=null");
     }
+
+    // ---- roadmap P2.5: environment reflection / refraction ----------------
+
+    @Test
+    void theShortAndTwelveArgConstructorsCarryNoEnvironment() {
+        // Adding P2.5 must not disturb a pre-P2.5 material: no cube map, no
+        // bend, no environment weight, whatever constructor the caller used.
+        MaterialAppearance plain = new MaterialAppearance(1f, 1f, 1f, 1f, "diffuse.png");
+        MaterialAppearance layered = new MaterialAppearance(1f, 1f, 1f, 1f, "d.png",
+                false, null, null, 0f, null, "n.png", "s.png");
+
+        for (MaterialAppearance ma : new MaterialAppearance[] {plain, layered}) {
+            assertThat(ma.hasEnvironmentMap()).isFalse();
+            assertThat(ma.environmentMapPath()).isNull();
+            assertThat(ma.hasRefraction()).as("ior 1 bends nothing").isFalse();
+            assertThat(ma.refractionIor()).isCloseTo(1f, within(0f));
+            assertThat(ma.reflectivity()).isZero();
+        }
+    }
+
+    @Test
+    void theFullConstructorKeepsEveryEnvironmentField() {
+        MaterialAppearance ma = new MaterialAppearance(1f, 1f, 1f, 1f, "pond.png",
+                false, null, null, 0f, null, null, null, "sky.png", 0.6f, 1.33f);
+
+        assertThat(ma.environmentMapPath()).isEqualTo("sky.png");
+        assertThat(ma.hasEnvironmentMap()).isTrue();
+        assertThat(ma.reflectivity()).isCloseTo(0.6f, within(0f));
+        assertThat(ma.refractionIor()).isCloseTo(1.33f, within(0f));
+        assertThat(ma.hasRefraction()).isTrue();
+        // the environment is not one of the diffuse/normal/spec texture layers:
+        assertThat(ma.layerCount()).as("env is a cube, not a stacked texture layer")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void reflectivityIsClampedAndANonPositiveIorReadsAsNoBend() {
+        MaterialAppearance over = new MaterialAppearance(1f, 1f, 1f, 1f, null,
+                false, null, null, 0f, null, null, null, "sky.png", 2.5f, 0f);
+        assertThat(over.reflectivity()).as("clamped into [0,1]").isCloseTo(1f, within(0f));
+        assertThat(over.refractionIor()).as("ior <= 0 means no refraction").isCloseTo(1f, within(0f));
+        assertThat(over.hasRefraction()).isFalse();
+    }
+
+    @Test
+    void aBlankEnvironmentPathIsNoEnvironment() {
+        MaterialAppearance ma = new MaterialAppearance(1f, 1f, 1f, 1f, null,
+                false, null, null, 0f, null, null, null, "   ", 0.5f, 1.5f);
+
+        assertThat(ma.hasEnvironmentMap()).as("whitespace is not a resolved path").isFalse();
+        assertThat(ma.environmentMapPath()).isNull();
+        assertThat(ma.toString()).contains("environmentMap=null");
+    }
 }

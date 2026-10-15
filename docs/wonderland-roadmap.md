@@ -128,6 +128,30 @@ much visible value each unlocks per unit of risk.
   be kept, a near cell is never dropped). Re-pointing `WorldScene.addShadows`
   at the projector's yawed quad, and any true shadow-map occlusion, need a live
   GL context - probe-side, not yet a painted pixel.
+- **P2.5 Environment reflection / refraction - delivered as kernel + a
+  probe-gated plan (added scope).** Reflection and refraction were never in the
+  original P0..P5 list; they name later as the missing "modern 3D" beat on the
+  water (P2.3) and any glossy surface. Delivered in `wonderland-renderer/shade`:
+  `EnvMapKernel` - the five operations an environment pass is built from, as
+  pure arithmetic on `float[]` vectors and packed ARGB pixels with nothing but
+  `java.base` (the reflect vector; Snell refraction with its
+  total-internal-reflection refusal answered `null`; the Schlick fresnel between
+  `F0` and a grazing mirror; the canonical cube-map face-and-uv a direction
+  samples; and two `mix`/`composite` blends whose `coverage == 0` is the exact
+  base pixel, the mirror of `BloomKernel.combine`'s strength-zero identity) -
+  and `EnvironmentPlan`, which repeats P2.2's shape: a fixed Java 3D 1.7.2
+  pipeline can bind a cube texture but cannot compute a per-fragment fresnel
+  blend or a bent lookup, so an environment material takes SHADER **only** when
+  a probe validated the fork's shader API; otherwise it takes FIXED *with the
+  lost effects named*, and the plan reuses `ShaderAppearancePlan.Capability` so
+  one host answers "is the shader path live" for both features. The GLSL 1.20
+  environment fragment (`samplerCube envMap`, `reflect`/`refract`, Schlick
+  fresnel, TIR fallback) ships beside the decision and asserts it names the same
+  operators the kernel computes. A material with no cube map and `ior == 1`
+  requests nothing, so no pre-P2.5 world changes a pixel. Binding a live cube map
+  and running the program on `WorldScene`'s glossy cells is the probe-side step -
+  the ceiling is the deliverable's shape, the same as P2.2 and P3.2, not an
+  apology.
 
 ### P3 - Cinematic system
 
