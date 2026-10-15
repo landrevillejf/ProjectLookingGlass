@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The clinic's hall is furnished: six wall cards, authored as GUI cells**
+  (`wonderland-server`) — the 2009 view is a *room*, and the ported hall was an
+  empty box: the reference's health notice board, its two windows and its three
+  framed prints existed nowhere in the world. They arrive as `<poster-cell>`
+  GUI cells rather than as models, which is what the format's own picture cell
+  carries — a name, a `wla://` image and a measure in pixel scale, with no
+  `.dae`, no `.dep` and no lighting to author — and the difference is not
+  styling: hung as a model cell, each one would also arrive *signed*, because
+  the renderer reads any cell over 0.6 m tall as a room and puts its name near
+  the ceiling, and a notice board does not need a name when it is already
+  covered in one. Three maps carry the art (`art/`): `notices.png` is the
+  four-quadrant board (Health / Clinic Hours / Wash Hands / Exam Room) at 512 px
+  and 3.4 mm per pixel, which is the 1.74 m board a person reads from three
+  metres; `picture.png` is the 0.9 m framed print at 3.5 mm, small on purpose —
+  a wall-sized version of the same image is a mural, which is a different thing
+  to have paid for; and `glass.png` is the window pane. The hall goes from 18
+  cells to 24, with no Java change and no new model. Two gates hold it: the
+  server's REST surface now publishes the six cards with their type, asset and
+  measure, and
+  `WorldCatalogTest.everyWallArtCardClearsThePlasterItHangsOn()` walks every
+  wall-art card and asserts it stands 10–30 cm off the wall it illustrates —
+  the hall's inner faces measured off `clinic-room.dae`'s own vertices (|x| =
+  11.0, |z| = 8.0) rather than off the `.dep` bounding box, whose 0.506 is the
+  outer edge of the wall's *thickness*. A card hung at 11.0 exactly is hung
+  inside the wall it shows, and the wall wins the depth test.
 - **The world browser can now start the world it shows — and shows what it
   starts** (`wonderland-server` + `lg3d-apps`) — the picker listed every
   catalog world, but **Start Server** against a stale or foreign server
@@ -1441,6 +1466,29 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **Every cell heading in every world was silently dropped, so a turned object
+  drew facing north and a poster read as missing art** (`wonderland-renderer`) —
+  `WorldScene` built both of its yaw matrices as `new AxisAngle4f(yaw, 0, 1, 0)`,
+  but vecmath's four-argument constructor is `(x, y, z, angle)`: the heading
+  landed in the axis slot and the angle became zero. Nothing threw, nothing
+  failed to load, and the cell was still seated exactly where its world put it,
+  which is what makes this the quietest defect in the port — the placement is
+  right, only the direction is gone. Read back out of the clinic's own scene
+  graph, all six wall cards and the three residents whose headings the world
+  wrote came back `m00 = 1, m02 = 0`: a print authored a quarter-turn to hang
+  flat against the east wall drew facing the north one instead, so from the hall's
+  centre a visitor got 8 px of a 0.9 m picture at 13 m — present, textured, and
+  indistinguishable from art that had failed to load — while every avatar stared
+  down the camera rather than at the person it was pointed at. (The two places
+  that already passed the axis first, `backgroundTransform`'s `.dep` rotation and
+  `NameTag`'s billboard, were never affected, which is why the tags turned and
+  the furniture did not.) `WorldScene.yawTurn(float)` is now the only place a
+  heading becomes a matrix, both call sites go through it, and `WorldSceneTest`
+  asserts the matrix *and* the two vectors that matter — a card's +Z front normal
+  must end up along −X, its width along Z — because the bug raised no exception
+  and a screenshot test needs a display. Re-rendered through the walk-in probe,
+  the two east prints now read as framed landscapes 82 px and 77 px wide from the
+  hall's centre, which is the projection their 0.9 m at 13.3 m predicts.
 - **The clinic's hall had no ceiling, because its faces looked the wrong way and
   nothing asked** (`wonderland-server`) — the shipped room shell is a unit cube
   whose index lists were hand-edited, and the raster keeps the side a face's

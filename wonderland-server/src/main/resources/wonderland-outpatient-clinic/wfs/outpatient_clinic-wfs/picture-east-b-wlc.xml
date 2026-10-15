@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The second picture on the hall's right-hand wall, past the reception
+     resident who stands in front of it. Same print, same measure, hung three
+     metres along: a lone framed picture reads as something that fell off a
+     wall, a pair reads as a waiting room. 15 cm off the plaster for the reason
+     its neighbour states: the hall's inner face is at x = 11.0. -->
+<poster-cell>
+    <name>Framed Picture</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/picture.png</image-uri>
+    <pixelScaleX>0.0035</pixelScaleX>
+    <pixelScaleY>0.0035</pixelScaleY>
+    <position-component>
+        <translation><x>10.85</x><y>1.7</y><z>2.5</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>-1.5707963</angle></rotation>
+    </position-component>
+</poster-cell>

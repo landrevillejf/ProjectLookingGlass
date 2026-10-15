@@ -90,9 +90,11 @@ class WorldSeederTest {
                 // the hall, the three sofas and the residents the world grew
                 // to read like the 2009 lobby rather than a strip of empty rooms
                 "Outpatient Clinic Hall", "Waiting Sofa A", "Waiting Sofa B",
-                "Observation Sofa", "Receptionist", "Waiting Patient");
-        // environment + the eighteen authored cells
-        assertThat(world.hierarchy()).hasSize(19);
+                "Observation Sofa", "Receptionist", "Waiting Patient",
+                // the wall art: GUI cells, seeded as placed cells like any other
+                "Health Notices", "Clinic Window", "Framed Picture");
+        // environment + the twenty-four authored cells
+        assertThat(world.hierarchy()).hasSize(25);
         // every seeded cell is a child of the environment root
         assertThat(world.hierarchy())
                 .filteredOn(c -> !"Environment".equals(c.getName()))

@@ -20,6 +20,8 @@
 
   <h3>Added</h3>
   <ul>
+    <li><strong>The clinic's hall is furnished: six wall cards, authored as GUI cells</strong> (<code>wonderland-server</code>)
+    </li>
     <li><strong>The world browser can now start the world it shows &mdash; and shows what it starts</strong> (<code>wonderland-server</code> + <code>lg3d-apps</code>)
     </li>
     <li><strong>The Wonderland client session went production: the world is now seen, not just listed</strong> (<code>wonderland-client</code> + <code>lg3d-apps</code>)
@@ -110,6 +112,8 @@
 
   <h3>Fixed</h3>
   <ul>
+    <li><strong>Every cell heading in every world was silently dropped, so a turned object drew facing north and a poster read as missing art</strong> (<code>wonderland-renderer</code>)
+    </li>
     <li><strong>The clinic's hall had no ceiling, because its faces looked the wrong way and nothing asked</strong> (<code>wonderland-server</code>)
     </li>
     <li><strong>A world's own text read upside down over every head, because one upload inverted and only half the cards were told</strong> (<code>wonderland-renderer</code>)

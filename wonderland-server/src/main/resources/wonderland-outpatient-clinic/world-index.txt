@@ -28,3 +28,13 @@ wfs/outpatient_clinic-wfs/resident-waiting-1-wlc.xml
 wfs/outpatient_clinic-wfs/resident-waiting-2-wlc.xml
 wfs/outpatient_clinic-wfs/resident-corridor-wlc.xml
 wfs/outpatient_clinic-wfs/resident-education-wlc.xml
+# The hall's wall art: GUI cells, not model cells. A poster, a pane and a print
+# are flat rectangles whose whole content is an image, and the format carries
+# that as a cell naming a file and a pixel measure rather than a .dae. They come
+# last because they hang on a room that has to exist first.
+wfs/outpatient_clinic-wfs/notice-north-wlc.xml
+wfs/outpatient_clinic-wfs/window-north-a-wlc.xml
+wfs/outpatient_clinic-wfs/window-north-b-wlc.xml
+wfs/outpatient_clinic-wfs/picture-east-a-wlc.xml
+wfs/outpatient_clinic-wfs/picture-east-b-wlc.xml
+wfs/outpatient_clinic-wfs/picture-south-wlc.xml

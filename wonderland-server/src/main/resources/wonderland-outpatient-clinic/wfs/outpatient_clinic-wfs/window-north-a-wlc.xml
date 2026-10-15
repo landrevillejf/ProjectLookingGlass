@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Daylight on the hall's far wall, to the right of the notice board, as it is
+     in the 2009 view: a wide white window with a mullion grid, low enough that a
+     person standing in the room reads it as an opening rather than a frieze.
+
+     The pane is drawn, not cut: the scene is unlit (WorldScene creates no light
+     and every cell sets LightingEnabled false), so a hole in the shell would
+     show the exam rooms behind the wall at full brightness and a painted pane
+     shows the sky. The frame is in the map for the same reason. -->
+<poster-cell>
+    <name>Clinic Window</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/glass.png</image-uri>
+    <!-- The map is 256 px square and the pane is not: 11 mm across, 6.2 mm high,
+         which is the 2.8 x 1.6 m window the reference shows. -->
+    <pixelScaleX>0.011</pixelScaleX>
+    <pixelScaleY>0.0062</pixelScaleY>
+    <position-component>
+        <translation><x>3.2</x><y>1.75</y><z>-7.85</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+</poster-cell>

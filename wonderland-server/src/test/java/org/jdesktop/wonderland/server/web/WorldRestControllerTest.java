@@ -71,7 +71,7 @@ class WorldRestControllerTest {
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].source")
                         .value("classpath"))
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].cellCount")
-                        .value(18));
+                        .value(24));
     }
 
     /**
@@ -130,8 +130,9 @@ class WorldRestControllerTest {
         // readable through ?module= -- this is the "pick any world" surface
         mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(18)))
+                .andExpect(jsonPath("$", hasSize(24)))
                 .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')]").exists())
+                .andExpect(jsonPath("$[?(@.cellType == 'poster-cell')]").exists())
                 .andExpect(jsonPath("$[0].parent").doesNotExist());
     }
 

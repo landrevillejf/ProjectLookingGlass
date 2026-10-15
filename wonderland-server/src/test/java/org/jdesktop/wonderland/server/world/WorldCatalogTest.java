@@ -68,7 +68,7 @@ class WorldCatalogTest {
 
         assertThat(clinic.source()).isEqualTo(WorldSummary.SOURCE_CLASSPATH);
         assertThat(clinic.title()).isEqualTo(CLINIC);
-        assertThat(clinic.cellCount()).isEqualTo(18);
+        assertThat(clinic.cellCount()).isEqualTo(24);
     }
 
     @Test
@@ -208,12 +208,13 @@ class WorldCatalogTest {
     void describeCellsReadsEveryNamedCellOfTheBundledClinic() {
         List<Map<String, Object>> cells = new WorldCatalog("").describeCells(CLINIC);
 
-        // the eighteen authored cells (rooms, furniture and residents), without
-        // the environment root the seeder adds
-        assertThat(cells).hasSize(18);
+        // the twenty-four authored cells (rooms, furniture, residents and the
+        // wall art hung in them), without the environment root the seeder adds
+        assertThat(cells).hasSize(24);
         assertThat(cells).extracting(c -> c.get("name")).contains(
                 "Floor", "Exam Room 1", "Reception", "Clinic Directory",
-                "Receptionist", "Waiting Patient");
+                "Receptionist", "Waiting Patient",
+                "Health Notices", "Clinic Window", "Framed Picture");
         // a module's cells are siblings: every parent is null
         assertThat(cells).allSatisfy(c -> assertThat(c.get("parent")).isNull());
         // a room/furniture cell carries a model and reads as the renderer's model
@@ -242,6 +243,93 @@ class WorldCatalogTest {
         // grown by the cell's own stretch (2 * 4.0 half-extent * 4.0 scale)
         assertThat(exam1.get("width")).isEqualTo(32.0);
         assertThat(exam1.get("depth")).isEqualTo(32.0);
+    }
+
+    @Test
+    void theClinicsWallArtNamesAPictureThatTheAssetStoreCanActuallyServe() {
+        // The hall's posters, panes and prints are GUI cells: they carry no model,
+        // so everything a viewer has to draw them is in the descriptor -- the type
+        // it was written as, the file it shows, and the measure of one of its
+        // pixels. A mistyped art/ path is the failure this guards: the cell still
+        // loads, still places, and silently arrives as a blank card, which is the
+        // same nothing a missing model would have made of it.
+        WorldCatalog catalog = new WorldCatalog("");
+        List<Map<String, Object>> art = catalog.describeCells(CLINIC).stream()
+                .filter(c -> c.containsKey("cellType"))
+                .toList();
+
+        assertThat(art).as("the hall's wall art").hasSize(6);
+        assertThat(art).allSatisfy(cell -> {
+            assertThat(cell.get("cellType")).isEqualTo("poster-cell");
+            assertThat(cell.get("assetURL").toString())
+                    .startsWith("wla://" + CLINIC + "/art/");
+            assertThat(cell).containsKey("planeScale");
+            // hung on a wall, so it is placed and turned but not stretched: the
+            // pixel scale is the whole of its measure
+            assertThat(cell).containsKeys("x", "y", "z", "yaw");
+            assertThat((List<?>) cell.get("planeScale")).allSatisfy(
+                    scale -> assertThat((Double) scale).isGreaterThan(0.0));
+            // the file it names must exist in the module it names
+            String path = cell.get("assetURL").toString()
+                    .substring(("wla://" + CLINIC + "/").length());
+            assertThat(catalog.openAssetBytes(CLINIC, path))
+                    .as("%s serves %s", CLINIC, path).isPresent();
+        });
+        // two windows on the far wall, and they are the wide ones
+        assertThat(art).filteredOn(c -> "Clinic Window".equals(c.get("name")))
+                .hasSize(2)
+                .allSatisfy(c -> {
+                    List<?> scale = (List<?>) c.get("planeScale");
+                    assertThat((Double) scale.get(0)).isGreaterThan(
+                            (Double) scale.get(1));
+                });
+    }
+
+    /**
+     * The hall's inner wall faces, in metres from its centre. Measured off
+     * {@code clinic-room.dae}'s own vertices -- 22 of them sit at exactly
+     * |x| = 0.5 and |z| = 0.5, which the cell's 22 x 16 m scale turns into 11.0
+     * and 8.0 -- and not off the {@code .dep} bounding box, whose 0.506 is the
+     * outer edge of the wall's thickness. Both numbers were tried, and the one
+     * taken from the box hung two framed prints exactly coplanar with the
+     * plaster, where the wall wins the depth test and the print is simply not
+     * drawn: no error, no blank card, nothing in the frame.
+     */
+    private static final double HALL_HALF_X = 11.0;
+    private static final double HALL_HALF_Z = 8.0;
+
+    @Test
+    void everyWallArtCardClearsThePlasterItHangsOn() {
+        // A card is one flat face, so hanging it means standing it off a wall by
+        // more than a depth buffer and less than a hand's width. This is the
+        // geometric half of the guard above: a file that exists and a plane that
+        // loads are both still invisible if the plane is inside its own wall.
+        WorldCatalog catalog = new WorldCatalog("");
+        List<Map<String, Object>> art = catalog.describeCells(CLINIC).stream()
+                .filter(c -> c.containsKey("cellType"))
+                .toList();
+        assertThat(art).hasSize(6);
+        for (Map<String, Object> cell : art) {
+            // The placement travels as the float the resolver handed back, so it
+            // is read as a Number rather than assumed to be a Double.
+            double x = ((Number) cell.get("x")).doubleValue();
+            double z = ((Number) cell.get("z")).doubleValue();
+            double yaw = (Double) cell.get("yaw");
+            // The card's front normal is its local +Z turned by the yaw; the wall
+            // it hangs on is the one that normal points away from.
+            double normalX = Math.sin(yaw);
+            double normalZ = Math.cos(yaw);
+            double gap;
+            if (Math.abs(normalX) > Math.abs(normalZ)) {
+                gap = (normalX > 0) ? x + HALL_HALF_X : HALL_HALF_X - x;
+            } else {
+                gap = (normalZ > 0) ? z + HALL_HALF_Z : HALL_HALF_Z - z;
+            }
+            assertThat(gap)
+                    .as("%s stood off its wall by more than a depth buffer",
+                            cell.get("name"))
+                    .isBetween(0.10, 0.30);
+        }
     }
 
     @Test

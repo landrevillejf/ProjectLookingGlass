@@ -385,11 +385,8 @@ public final class WorldScene {
             moved.setTranslation(new Vector3f(entry.x(), entry.y(), entry.z()));
             Transform3D pose = moved;
             if (entry.yaw() != 0f) {
-                Transform3D turn = new Transform3D();
-                turn.setRotation(new org.jogamp.vecmath.AxisAngle4f(entry.yaw(),
-                        0f, 1f, 0f));
                 pose = new Transform3D();
-                pose.mul(moved, turn); // place, then turn: T·R
+                pose.mul(moved, yawTurn(entry.yaw())); // place, then turn: T·R
             }
             if (entry.scaleX() != 1f || entry.scaleY() != 1f || entry.scaleZ() != 1f) {
                 Transform3D stretch = new Transform3D();
@@ -637,11 +634,8 @@ public final class WorldScene {
                     picture.z()));
             Transform3D seat = moved;
             if (picture.yaw() != 0f) {
-                Transform3D turn = new Transform3D();
-                turn.setRotation(new org.jogamp.vecmath.AxisAngle4f(
-                        picture.yaw(), 0f, 1f, 0f));
                 seat = new Transform3D();
-                seat.mul(moved, turn); // hang, then turn: T·R
+                seat.mul(moved, yawTurn(picture.yaw())); // hang, then turn: T·R
             }
             TransformGroup placed = new TransformGroup(seat);
             placed.setCapability(TransformGroup.ALLOW_TRANSFORM_READ);
@@ -655,6 +649,29 @@ public final class WorldScene {
 
     /** The prefix of each picture's entry in the shared art map. */
     private static final String PICTURE_PATH_PREFIX = "lg3d:picture";
+
+    /**
+     * The turn a cell's heading describes: that yaw about the world's vertical
+     * axis.
+     *
+     * <p>The axis comes first, because that is the order {@code AxisAngle4f}'s
+     * four-argument constructor takes -- {@code (x, y, z, angle)}. Writing the
+     * heading first, which is what every other angle-first API in this stack
+     * invites, is not a compile error, not a throw and not even a wrong-looking
+     * object: the axis becomes {@code (yaw, 0, 1)} and the angle becomes
+     * {@code 0}, so the cell is seated where the world put it and then never
+     * turned. Read off a rendered clinic, that is what every poster and every
+     * turned model had been doing: a print authored a quarter-turn to hang on
+     * the east wall drew as a card facing the north one, so from the door it was
+     * 8 px of picture at 13 m -- present, textured, and indistinguishable from
+     * art that failed to load. Both call sites go through here for that reason,
+     * and the test is on this method's matrix rather than on a screenshot.</p>
+     */
+    static Transform3D yawTurn(float yaw) {
+        Transform3D turn = new Transform3D();
+        turn.setRotation(new org.jogamp.vecmath.AxisAngle4f(0f, 1f, 0f, yaw));
+        return turn;
+    }
 
     /**
      * Where a visitor is put when they enter: a few metres in front of the group of

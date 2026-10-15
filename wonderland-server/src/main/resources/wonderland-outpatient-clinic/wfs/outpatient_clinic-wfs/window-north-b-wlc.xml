@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The second pane of the hall's window pair. Two panes rather than one wide
+     one because the reference's daylight is broken by a pier of plaster, and a
+     single 6 m card of sky on a wall is the thing that makes a rendered room
+     look like a screensaver. Same map, same measure, same height as
+     window-north-a; the store reads the file once for both. -->
+<poster-cell>
+    <name>Clinic Window</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/glass.png</image-uri>
+    <pixelScaleX>0.011</pixelScaleX>
+    <pixelScaleY>0.0062</pixelScaleY>
+    <position-component>
+        <translation><x>7.2</x><y>1.75</y><z>-7.85</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+</poster-cell>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- One print on the wall behind the door, so the room does not end the moment
+     a visitor turns around. Turned half about the vertical axis: the card's +Z
+     normal then points at -Z, into the hall rather than into the corridor it
+     hangs over. -->
+<poster-cell>
+    <name>Framed Picture</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/picture.png</image-uri>
+    <pixelScaleX>0.0035</pixelScaleX>
+    <pixelScaleY>0.0035</pixelScaleY>
+    <position-component>
+        <translation><x>-6.0</x><y>1.7</y><z>7.85</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>3.1415927</angle></rotation>
+    </position-component>
+</poster-cell>

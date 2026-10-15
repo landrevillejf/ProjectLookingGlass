@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- A framed picture on the hall's right-hand wall, where the 2009 view has one
+     between the window and the door. Small on purpose: at 0.9 m it is the size
+     of a hung print, and a wall-sized version of the same image is a mural,
+     which is a different thing to have paid for.
+
+     Turned by a quarter turn about the vertical axis, so the card's +Z normal
+     points at -X, into the room a visitor crosses in front of it. That turn is
+     the whole of this card's authorship and the reason it is worth saying so:
+     the renderer used to drop every heading it was handed (it built its
+     rotation with the angle where vecmath wants the axis, which is an angle of
+     zero), so a print authored against the east wall drew facing the north one
+     instead, so a 0.9 m card seen along its own face is eight pixels of it on
+     screen at thirteen metres. Present, textured, and indistinguishable from
+     missing art, which is what this file was blamed for.
+
+     x = 10.85 is 15 cm off the plaster, the same stand-off the north wall's
+     notice board and the window have. The hall's inner faces are at |x| = 11.0
+     and |z| = 8.0, measured off the mesh's own vertices rather than off the
+     .dep bounding box, whose 0.506 is the outer edge of the wall's thickness.
+     A card hung at 11.0 exactly is hung inside the wall it illustrates, and the
+     wall, being coplanar and drawn after it, wins the depth test.
+
+     (An XML comment may not carry a double hyphen, which is also the story of
+     how this file once vanished from the world outright: an unparseable cell is
+     not an error, it is one fewer cell.) -->
+<poster-cell>
+    <name>Framed Picture</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/picture.png</image-uri>
+    <pixelScaleX>0.0035</pixelScaleX>
+    <pixelScaleY>0.0035</pixelScaleY>
+    <position-component>
+        <translation><x>10.85</x><y>1.7</y><z>-1.5</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>-1.5707963</angle></rotation>
+    </position-component>
+</poster-cell>

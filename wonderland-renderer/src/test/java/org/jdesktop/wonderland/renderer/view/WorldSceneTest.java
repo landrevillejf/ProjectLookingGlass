@@ -31,6 +31,7 @@ import org.jdesktop.wonderland.renderer.view.WorldScene.Box;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Entry;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Picture;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Tag;
+import org.jogamp.java3d.Transform3D;
 import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Vector3d;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -243,6 +244,55 @@ class WorldSceneTest {
                 .isGreaterThan(0f);
         assertThat(card.normals()).containsExactly(0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f,
                 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f);
+    }
+
+    // ---- the turn a heading is -------------------------------------------
+
+    @Test
+    void aHeadingTurnsTheCellRatherThanMerelySeatingIt() {
+        // AxisAngle4f's four arguments are (x, y, z, angle), and the call reads
+        // like an angle-first API. Passing the heading first is not a compile
+        // error, not a throw and not a wrong number anywhere: the axis becomes
+        // (yaw, 0, 1) and the angle becomes 0, so the cell is seated where the
+        // world put it and never turned. Measured off the clinic's scene graph,
+        // that is what every poster and every turned model had been doing -- the
+        // east wall's prints, authored a quarter-turn to hang flat against it,
+        // drew facing the north wall instead, 8 px of picture at 13 m, which a
+        // visitor reads as art that failed to load because it is not there.
+        Transform3D quarter = WorldScene.yawTurn((float) -Math.toRadians(90));
+        org.jogamp.vecmath.Matrix4d m = new org.jogamp.vecmath.Matrix4d();
+        quarter.get(m);
+        assertThat(m.m00).as("a quarter-turn is not the identity")
+                .isCloseTo(0.0, within(1e-6));
+        assertThat(m.m02).as("the angle survives into the matrix")
+                .isCloseTo(-1.0, within(1e-6));
+
+        // The two conventions the renderer's own comments state, checked on the
+        // vectors rather than on matrix cells: a card's front normal is its local
+        // +Z, and a poster on the east wall has to end up facing -X, into the room.
+        Vector3d normal = new Vector3d(0f, 0f, 1f);
+        quarter.transform(normal);
+        assertThat(normal.x).as("the turned face points -X").isCloseTo(-1.0, within(1e-6));
+        assertThat(normal.z).as("and no longer +Z").isCloseTo(0.0, within(1e-6));
+
+        Vector3d width = new Vector3d(1f, 0f, 0f);
+        quarter.transform(width);
+        assertThat(width.z).as("the card's width runs along Z, across the wall")
+                .isCloseTo(1.0, within(1e-6));
+        assertThat(width.x).as("and not along the sight line of anyone walking in")
+                .isCloseTo(0.0, within(1e-6));
+    }
+
+    @Test
+    void aHeadingOfZeroLeavesTheCellFacingItsWall() {
+        // The north cards are authored at yaw 0 and must stay facing +Z; the
+        // call sites skip this turn entirely, so the method only has to be
+        // honest about what "no turn" means when somebody asks it directly.
+        Transform3D straight = WorldScene.yawTurn(0f);
+        Vector3d normal = new Vector3d(0f, 0f, 1f);
+        straight.transform(normal);
+        assertThat(normal.z).as("a card with no heading still faces the walker")
+                .isCloseTo(1.0, within(1e-6));
     }
 
     // ---- what is a name, what is a file ----------------------------------
