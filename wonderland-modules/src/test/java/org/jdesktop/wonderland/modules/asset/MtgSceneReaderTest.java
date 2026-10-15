@@ -463,6 +463,53 @@ class MtgSceneReaderTest {
     }
 
     @Test
+    void anotherMtgRecordOfTheWaterArityIsStillRefusedByItsClassToken() {
+        // Fifteen tokens is necessary, never sufficient: the arity test alone
+        // would read a particle system as a pond. A record as long as a water
+        // line but naming a different MTGame class is refused on the SECOND
+        // half of the guard, the half a short Collada line (thirteen tokens)
+        // never reaches because the length test short-circuits in front of it.
+        String mtg = "Instance Fountain org.jdesktop.mtgame.JMEParticleInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 10 10 Terrain\n"
+                + "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 10 10 Terrain\n";
+
+        assertThat(new MtgSceneReader().readWaterInstances(mtg))
+                .as("the class token discriminates, not the column count")
+                .extracting(WaterInstance::name).containsExactly("Pond");
+    }
+
+    @Test
+    void aWaterRecordSeparatedByTabsSurvivesTheScan() {
+        // The shipped .mtg files are space-separated, but the fold's own scan
+        // accepts a tab after the keyword, and the water scan is the same rule
+        // applied to a different record type: whatever the fold tolerates, the
+        // pond scan must tolerate too, or an author's whitespace silently dries
+        // up one water plane.
+        String mtg = "Instance\tPond\torg.jdesktop.mtgame.JMEWaterInstance\t"
+                + "0\t-1\t0\t0\t1\t0\t0\t1\t1\t1\t10\t10\tTerrain\n";
+
+        assertThat(new MtgSceneReader().readWaterInstances(mtg))
+                .extracting(WaterInstance::name).containsExactly("Pond");
+    }
+
+    @Test
+    void aFlatPondReportsNoSpinBecauseEveryShippedWaterPlaneLiesFlat() {
+        // hasRotation() is the renderer's shortcut for "skip the <rotate>", and
+        // the shipped complex's ponds all carry angle 0; only the turned case
+        // was pinned, so the identity answer -- the one the real worlds take --
+        // went unasserted.
+        String mtg = "Instance Pond org.jdesktop.mtgame.JMEWaterInstance "
+                + "0 -1 0 0 1 0 0 1 1 1 100 100 Terrain\n";
+
+        WaterInstance water = new MtgSceneReader().readWaterInstances(mtg).get(0);
+
+        assertThat(water.angleRad()).isEqualTo(0.0);
+        assertThat(water.hasRotation()).isFalse();
+        assertThat(water.toString()).contains("Pond").contains("100.0x100.0");
+    }
+
+    @Test
     void theSameFileReusedByManyInstancesIsParsedOnceAndPlacedManyTimes() {
         // The complex repeats shelters and trees from one .dae. Every instance still
         // lands as its own placed node (each at its own transform); the shared parse
