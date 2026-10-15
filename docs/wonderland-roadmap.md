@@ -131,9 +131,21 @@ much visible value each unlocks per unit of risk.
 
 ### P3 - Cinematic system
 
-- **P3.1 Camera rig.** Move `WorldViewer` from fixed-eye framing to a
-  spline-follow avatar, smooth transitions, and letterboxing where the pipeline
-  allows.
+- **P3.1 Camera rig - delivered as kernels.** Move `WorldViewer` from
+  fixed-eye framing to a spline-follow avatar, smooth transitions, and
+  letterboxing where the pipeline allows. Delivered in
+  `wonderland-client/rig`: `FollowRig` - frame-rate-independent exponential
+  smoothing toward a seat behind the subject (one lag time constant folds
+  `dt` through `1 - e^(-dt/tau)`, so 60 fps and a one-second stall converge
+  identically), a teleport radius that SNAPS instead of smearing, and an
+  output that IS an `EyeProbe.EyePose` - the framing probe grades the rig
+  with no adapter, and `headingYaw()` speaks `SpatialAudio`'s yaw so the
+  audio ear rides the camera in one call - plus `CameraPath`, a Catmull-Rom
+  tour that passes exactly through its waypoints and clamps a clock that
+  overshoots rather than throwing on the render thread. Letterboxing and
+  re-seating `WorldViewer`'s live `Transform3D` are pipeline-bound wiring the
+  probe owns, not claimed here; the 16 headless cases prove the curves, not
+  the ride.
 - **P3.2 Post-processing.** A bloom/HDR pass via `Canvas3D` offscreen buffer.
   **Marked stretch**: bounded by the Java 3D 1.7.2 ceiling above.
 
