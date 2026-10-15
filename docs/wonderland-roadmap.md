@@ -225,9 +225,26 @@ legal and the engine embeddable.
   of the renderer becomes verifiable without a hand. `EyeProbe` is the framing
   kernel (where the eye points, what a rig would see), fully tested in-JVM; the
   screencapture half that proves painted pixels still needs a live display.
-- **P5.4 Multiplayer depth.** Interest management + persistence + auth on the
-  (already real) server session layer; Mandela scripts drive the networked
-  events.
+- **P5.4 Multiplayer depth - delivered as kernels.** The server session layer's
+  three missing halves now exist headless in `wonderland-server`:
+  `InterestManager` answers *who is in this event's audience* (per-session
+  watch of place + radius, union-of-radii reach, replace-not-double on a move,
+  NaN refused) — deliberately its own O(n) scan over sessions rather than a
+  `WorldPVS` import, because the module depends on neither `wonderland-client`
+  nor `lg3d-core`. `CellSnapshot` saves/restores each cell's translation as
+  text — `Float.toHexString` so `0.1f` round-trips bit-identical, the
+  environment root never written, orientation and scale left untouched because
+  the snapshot only claims to know *where*, a missing file is a first boot and
+  a torn or foreign one is refused rather than half-applied.
+  `PasscodeAuthenticator` is the gate the transport was missing: a stateless
+  HMAC-SHA256 bearer token `username|hex`, constant-time verified, null (never
+  a throw) for every malformed or forged shape, called at the one seam that
+  matters — before `SessionRegistry.create(user, sink)`. What remains a
+  running server's proof: fanning audience lists onto real sockets, snapshot
+  autosave policy, token expiry/rotation, and Mandela scripts driving
+  *networked* events (P5.1 ships only local annotations). **22 new headless
+  cases** (`InterestManagerTest` 7, `CellSnapshotTest` 7,
+  `PasscodeAuthenticatorTest` 8).
 
 ## Recommended order
 
