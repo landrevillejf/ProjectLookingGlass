@@ -17,6 +17,7 @@
  */
 package org.jdesktop.wonderland.renderer.mesh;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -259,5 +260,118 @@ class TextureBindingPlanTest {
 
         assertThat(ap.rgba()).containsExactly(0.5f, 0.5f, 0.5f, 1.0f);
         assertThat(ap.isTextured()).isFalse();
+    }
+
+    // ---- roadmap P2.1: sampler classification into texture layers ----------
+
+    /** Ordered samplers: Map.of() would make "which one is diffuse" a coin flip. */
+    private static Map<String, String> samplers(String... imageNameIdPairs) {
+        Map<String, String> map = new LinkedHashMap<>();
+        for (int i = 0; i < imageNameIdPairs.length; i += 2) {
+            map.put(imageNameIdPairs[i], imageNameIdPairs[i + 1]);
+        }
+        return map;
+    }
+
+    @Test
+    void aNormalSamplerIsRecordedAsALayerAndNotBoundAsColour() {
+        ColladaImage diffuse = new ColladaImage("imgD", "./wall.png");
+        ColladaImage normal = new ColladaImage("imgN", "./wall-normal.png");
+        ColladaEffect e = new ColladaEffect("fx", "fx", "phong",
+                new double[]{1, 1, 1, 1}, 1.0,
+                samplers("sampler-wall", "imgD", "sampler-normal", "imgN"));
+        ColladaMaterial m = new ColladaMaterial("mat0", "mat0", "fx");
+        ColladaDocument d = doc(Map.of("mat0", m), Map.of("fx", e),
+                Map.of("imgD", diffuse, "imgN", normal));
+
+        MaterialAppearance ap = new TextureBindingPlan(d,
+                Set.of("./wall.png", "./wall-normal.png")).forMaterial("mat0");
+
+        assertThat(ap.texturePath()).as("the colour layer is the ordinary sampler")
+                .isEqualTo("./wall.png");
+        assertThat(ap.normalMapPath()).isEqualTo("./wall-normal.png");
+        assertThat(ap.hasSpecularMap()).isFalse();
+        assertThat(ap.layerCount()).isEqualTo(2);
+    }
+
+    @Test
+    void aSpecularSamplerFeedsTheSpecularLayer() {
+        ColladaImage diffuse = new ColladaImage("imgD", "./floor.png");
+        ColladaImage spec = new ColladaImage("imgS", "./floor-spec.png");
+        ColladaEffect e = new ColladaEffect("fx", "fx", "phong",
+                new double[]{1, 1, 1, 1}, 1.0,
+                samplers("sampler-floor", "imgD", "sampler-spec", "imgS"));
+        ColladaMaterial m = new ColladaMaterial("mat0", "mat0", "fx");
+        ColladaDocument d = doc(Map.of("mat0", m), Map.of("fx", e),
+                Map.of("imgD", diffuse, "imgS", spec));
+
+        MaterialAppearance ap = new TextureBindingPlan(d,
+                Set.of("./floor.png", "./floor-spec.png")).forMaterial("mat0");
+
+        assertThat(ap.texturePath()).isEqualTo("./floor.png");
+        assertThat(ap.specularMapPath()).isEqualTo("./floor-spec.png");
+        assertThat(ap.layerCount()).isEqualTo(2);
+    }
+
+    @Test
+    void theThreeLayerMaterialCarriesEveryPathAtOnce() {
+        ColladaImage diffuse = new ColladaImage("imgD", "./panel.png");
+        ColladaImage normal = new ColladaImage("imgN", "./panel-bump.png");
+        ColladaImage spec = new ColladaImage("imgS", "./panel-spec.png");
+        ColladaEffect e = new ColladaEffect("fx", "fx", "phong",
+                new double[]{1, 1, 1, 1}, 1.0,
+                samplers("s0", "imgD", "s1-normal", "imgN", "s2-spec", "imgS"));
+        ColladaMaterial m = new ColladaMaterial("mat0", "mat0", "fx");
+        ColladaDocument d = doc(Map.of("mat0", m), Map.of("fx", e),
+                Map.of("imgD", diffuse, "imgN", normal, "imgS", spec));
+
+        MaterialAppearance ap = new TextureBindingPlan(d,
+                Set.of("./panel.png", "./panel-bump.png", "./panel-spec.png"))
+                        .forMaterial("mat0");
+
+        assertThat(ap.layerCount()).isEqualTo(3);
+        assertThat(ap.texturePath()).isEqualTo("./panel.png");
+        assertThat(ap.normalMapPath()).isEqualTo("./panel-bump.png");
+        assertThat(ap.specularMapPath()).isEqualTo("./panel-spec.png");
+    }
+
+    @Test
+    void aMissingLayerImageSimplyLeavesThatLayerUnresolved() {
+        ColladaImage diffuse = new ColladaImage("imgD", "./wall.png");
+        ColladaImage normal = new ColladaImage("imgN", "./wall-normal.png");
+        ColladaEffect e = new ColladaEffect("fx", "fx", "phong",
+                new double[]{1, 1, 1, 1}, 1.0,
+                samplers("sampler-wall", "imgD", "sampler-normal", "imgN"));
+        ColladaMaterial m = new ColladaMaterial("mat0", "mat0", "fx");
+        ColladaDocument d = doc(Map.of("mat0", m), Map.of("fx", e),
+                Map.of("imgD", diffuse, "imgN", normal));
+
+        // the store holds the diffuse only -- the normal map failed to deploy
+        MaterialAppearance ap = new TextureBindingPlan(d, Set.of("./wall.png"))
+                .forMaterial("mat0");
+
+        assertThat(ap.texturePath()).isEqualTo("./wall.png");
+        assertThat(ap.hasNormalMap()).as("a named layer the store lacks is null, not an error")
+                .isFalse();
+    }
+
+    @Test
+    void aWorldWhoseOnlyTextureIsNamedNormalStillRendersLikeBefore() {
+        // Backward-compat gate: an exporter that ships ONE texture and names it
+        // "normal" must not leave the shape untextured where the pre-P2.1
+        // first-present scan drew it. The path serves double duty -- colour for
+        // the fixed pipeline, recorded layer for the shader path.
+        ColladaImage normal = new ColladaImage("imgN", "./sculpt-normal.png");
+        ColladaEffect e = new ColladaEffect("fx", "fx", "lambert",
+                new double[]{1, 1, 1, 1}, 1.0, samplers("sampler-normal", "imgN"));
+        ColladaMaterial m = new ColladaMaterial("mat0", "mat0", "fx");
+        ColladaDocument d = doc(Map.of("mat0", m), Map.of("fx", e), Map.of("imgN", normal));
+
+        MaterialAppearance ap = new TextureBindingPlan(d, Set.of("./sculpt-normal.png"))
+                .forMaterial("mat0");
+
+        assertThat(ap.isTextured()).isTrue();
+        assertThat(ap.texturePath()).isEqualTo("./sculpt-normal.png");
+        assertThat(ap.normalMapPath()).isEqualTo("./sculpt-normal.png");
     }
 }

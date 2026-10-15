@@ -62,11 +62,67 @@ public final class TextureBindingPlan {
             return defaultAppearance();
         }
         float[] rgba = diffuseRgba(effect);
-        String texture = firstPresentTexture(effect);
-        if (texture != null) {
-            return new MaterialAppearance(rgba[0], rgba[1], rgba[2], rgba[3], texture);
+        // Roadmap P2.1: one walk over the samplers, but each one is CLASSIFIED by
+        // its own name before its image is consulted. A sampler named *normal/
+        // bump/offset becomes the normal layer, *spec the specular layer, and only
+        // the rest compete to be the diffuse colour. Before this, the plain
+        // first-present scan would happily bind a normal map as the colour
+        // texture -- pixels of a tangent-space map modulating a surface looks
+        // like nothing the author ever intended.
+        String diffuse = null;
+        String normal = null;
+        String spec = null;
+        for (Map.Entry<String, String> sampler : effect.samplers().entrySet()) {
+            String imageId = sampler.getValue();
+            if (imageId == null) {
+                continue;
+            }
+            ColladaImage image = document.image(imageId);
+            String served = servedPath(image == null ? null : image.normalizedPath());
+            if (served == null) {
+                continue;
+            }
+            if (isNormalLayer(sampler.getKey())) {
+                if (normal == null) {
+                    normal = served;
+                }
+            } else if (isSpecularLayer(sampler.getKey())) {
+                if (spec == null) {
+                    spec = served;
+                }
+            } else if (diffuse == null) {
+                diffuse = served;
+            }
         }
-        return new MaterialAppearance(rgba[0], rgba[1], rgba[2], rgba[3], null);
+        if (diffuse == null && normal != null) {
+            // No ordinary sampler was present: an exporter that shipped ONE
+            // texture and named it "normal" (or the common COLLADA id pattern
+            // "sampler-imageN-normal") should not leave the shape untextured
+            // where the old first-present scan rendered it. Bind it as diffuse
+            // AND record it as the normal layer, so the shader path knows both
+            // jobs while the fixed pipeline keeps drawing what it drew before.
+            diffuse = normal;
+        }
+        if (diffuse == null && spec != null) {
+            diffuse = spec; // same reasoning, one layer to the other name
+        }
+        if (diffuse == null && normal == null && spec == null) {
+            return new MaterialAppearance(rgba[0], rgba[1], rgba[2], rgba[3], null);
+        }
+        return new MaterialAppearance(rgba[0], rgba[1], rgba[2], rgba[3], diffuse,
+                false, null, null, 0f, null, normal, spec);
+    }
+
+    /** A sampler whose name says it feeds tangent-space normals, not colour. */
+    private static boolean isNormalLayer(String samplerName) {
+        String name = samplerName == null ? "" : samplerName.toLowerCase();
+        return name.contains("normal") || name.contains("bump") || name.contains("offset");
+    }
+
+    /** A sampler whose name says it feeds the specular/gloss layer, not colour. */
+    private static boolean isSpecularLayer(String samplerName) {
+        String name = samplerName == null ? "" : samplerName.toLowerCase();
+        return name.contains("spec");
     }
 
     /**
@@ -112,7 +168,15 @@ public final class TextureBindingPlan {
         return new float[] {r, g, b, a};
     }
 
-    /** The first sampler whose image resolves to a path the store actually holds. */
+    /**
+     * The first sampler whose image resolves to a path the store actually holds.
+     *
+     * <p>Roadmap P2.1 retired the use of this scan inside {@link #forMaterial}
+     * -- classification came first -- but the helper stays: it is the honest
+     * answer to "does this effect ship any present texture at all", and a
+     * caller that does not care which layer it is can ask without re-walking
+     * the chase.</p>
+     */
     private String firstPresentTexture(ColladaEffect effect) {
         if (document == null) {
             return null;
