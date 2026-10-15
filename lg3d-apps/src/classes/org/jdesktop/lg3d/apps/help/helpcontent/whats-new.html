@@ -20,6 +20,10 @@
 
   <h3>Added</h3>
   <ul>
+    <li><strong>A walk-in that talks: text chat on the cell channel</strong> (<code>wonderland-common</code> + <code>wonderland-server</code> + <code>wonderland-client</code>)
+    </li>
+    <li><strong>The walk-in window gains a sidebar, and the world stops stealing the keyboard</strong> (<code>wonderland-renderer</code> + <code>lg3d-apps</code>)
+    </li>
     <li><strong>The clinic's hall is furnished: six wall cards, authored as GUI cells</strong> (<code>wonderland-server</code>)
     </li>
     <li><strong>The world browser can now start the world it shows &mdash; and shows what it starts</strong> (<code>wonderland-server</code> + <code>lg3d-apps</code>)
@@ -112,6 +116,10 @@
 
   <h3>Fixed</h3>
   <ul>
+    <li><strong>A live walk-in crashed the desktop on entering any world, because the server broadcast an abstract class as the environment root</strong> (<code>wonderland-client</code> + <code>wonderland-server</code>)
+    </li>
+    <li><strong>A cell's <code>width</code> and <code>depth</code> were the square of the room, so the world browser's floor plan drew a 5.4 m exam room as a 58 m one</strong> (<code>wonderland-server</code>)
+    </li>
     <li><strong>Every cell heading in every world was silently dropped, so a turned object drew facing north and a poster read as missing art</strong> (<code>wonderland-renderer</code>)
     </li>
     <li><strong>The clinic's hall had no ceiling, because its faces looked the wrong way and nothing asked</strong> (<code>wonderland-server</code>)
@@ -180,6 +188,8 @@
 
   <h3>Changed</h3>
   <ul>
+    <li><strong>The clinic is one building, not eight boxes on a field</strong> (<code>wonderland-server</code>)
+    </li>
     <li><strong>The <code>lg3d-core</code> coverage floor is raised to <code>0.225</code> line / <code>0.310</code> branch</strong> (<code>build.gradle</code>)
     </li>
     <li><strong>The language guide now says what the machine does</strong> (<code>docs/mandela-language.md</code>)
