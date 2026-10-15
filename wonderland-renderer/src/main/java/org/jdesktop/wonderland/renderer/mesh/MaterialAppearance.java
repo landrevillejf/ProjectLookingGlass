@@ -64,11 +64,26 @@ public final class MaterialAppearance {
     private final String normalMapPath;
     private final String specularMapPath;
 
+    // ---- environment reflection / refraction (roadmap P2.5) --------------
+    //
+    // A glossy or liquid surface can name more than its own textures: an
+    // environment cube map to reflect, an index of refraction to bend the world
+    // seen through it, and how strongly that environment shows (reflectivity).
+    // Java 3D 1.7.2's fixed pipeline can bind a cube texture but cannot compute
+    // the per-fragment Schlick fresnel that weights reflection against a
+    // Snell-refracted lookup -- that is a GLSL program's job (see the
+    // EnvironmentPlan ceiling) -- so these fields are CARRIED and RESOLVED here
+    // and APPLIED only on the shader path. Defaults (no cube map, reflectivity
+    // 0, ior 1) cost a pre-P2.5 world no pixel, and resolving them is pure data.
+    private final String environmentMapPath;
+    private final float reflectivity;
+    private final float refractionIor;
+
     /** An unlit (pre-lit-art) material: the faithful default, no shading. */
     public MaterialAppearance(float red, float green, float blue, float alpha,
                               String texturePath) {
         this(red, green, blue, alpha, texturePath, false,
-                null, null, 0f, null, null, null);
+                null, null, 0f, null, null, null, null, 0f, 1f);
     }
 
     /**
@@ -83,7 +98,7 @@ public final class MaterialAppearance {
                               float[] ambient, float[] specular,
                               float shininess, float[] emissive) {
         this(red, green, blue, alpha, texturePath, lit,
-                ambient, specular, shininess, emissive, null, null);
+                ambient, specular, shininess, emissive, null, null, null, 0f, 1f);
     }
 
     /**
@@ -98,6 +113,27 @@ public final class MaterialAppearance {
                               float[] ambient, float[] specular,
                               float shininess, float[] emissive,
                               String normalMapPath, String specularMapPath) {
+        this(red, green, blue, alpha, texturePath, lit,
+                ambient, specular, shininess, emissive, normalMapPath, specularMapPath,
+                null, 0f, 1f);
+    }
+
+    /**
+     * The complete material: the P2.1 texture layers above plus the roadmap P2.5
+     * environment. {@code environmentMapPath} is the resolved store path of the
+     * cube map the effect names (null for none); {@code reflectivity} is clamped
+     * to [0,1] and is how much of the environment shows over the diffuse; a
+     * {@code refractionIor} of 1 (or a non-positive value, which reads as 1)
+     * means the surface bends nothing. None of it becomes pixels on a fixed
+     * pipeline -- recording it is pure data, applying it is the shader path.
+     */
+    public MaterialAppearance(float red, float green, float blue, float alpha,
+                              String texturePath, boolean lit,
+                              float[] ambient, float[] specular,
+                              float shininess, float[] emissive,
+                              String normalMapPath, String specularMapPath,
+                              String environmentMapPath, float reflectivity,
+                              float refractionIor) {
         this.red = red;
         this.green = green;
         this.blue = blue;
@@ -107,6 +143,9 @@ public final class MaterialAppearance {
         this.shininess = Math.max(0f, shininess);
         this.normalMapPath = blankToNull(normalMapPath);
         this.specularMapPath = blankToNull(specularMapPath);
+        this.environmentMapPath = blankToNull(environmentMapPath);
+        this.reflectivity = Math.max(0f, Math.min(1f, reflectivity));
+        this.refractionIor = refractionIor > 0f ? refractionIor : 1f;
         float[] amb = orDefault(ambient, red, green, blue);
         this.ambientRed = amb[0];
         this.ambientGreen = amb[1];
@@ -209,6 +248,31 @@ public final class MaterialAppearance {
         return specularMapPath != null;
     }
 
+    /** The resolved environment cube-map path, or null when the effect names none. */
+    public String environmentMapPath() {
+        return environmentMapPath;
+    }
+
+    /** Whether the material carries an environment cube map (inert until P2.5 applies it). */
+    public boolean hasEnvironmentMap() {
+        return environmentMapPath != null;
+    }
+
+    /** How strongly the environment shows over the diffuse, clamped to [0,1]. */
+    public float reflectivity() {
+        return reflectivity;
+    }
+
+    /** The index of refraction; 1 means the surface bends nothing. */
+    public float refractionIor() {
+        return refractionIor;
+    }
+
+    /** Whether the material asks for refraction, i.e. a bending index (ior != 1). */
+    public boolean hasRefraction() {
+        return refractionIor != 1f;
+    }
+
     /**
      * How many texture layers the effect resolved: 0 (solid colour), 1 (diffuse
      * only -- everything a fixed-pipeline Java 3D can draw) up to 3 with a normal
@@ -234,6 +298,8 @@ public final class MaterialAppearance {
     public String toString() {
         return "MaterialAppearance{rgba=(" + red + ", " + green + ", " + blue + ", "
                 + alpha + "), texture=" + texturePath + ", lit=" + lit
-                + ", normalMap=" + normalMapPath + ", specularMap=" + specularMapPath + "}";
+                + ", normalMap=" + normalMapPath + ", specularMap=" + specularMapPath
+                + ", environmentMap=" + environmentMapPath + ", reflectivity=" + reflectivity
+                + ", ior=" + refractionIor + "}";
     }
 }

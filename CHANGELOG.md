@@ -10,6 +10,36 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Environment reflection and refraction, as arithmetic and a probe-gated plan —
+  roadmap P2.5 (added scope)** (`wonderland-renderer`) — reflection and refraction
+  were never in the original roadmap; they name beside the water (P2.3) and every
+  glossy surface as the missing "modern 3D" beat. `EnvMapKernel` is that beat as
+  arithmetic on `float[]` vectors and packed ARGB pixels with nothing but
+  `java.base`: the reflect vector, Snell's refraction whose total-internal-
+  reflection past the critical angle answers `null` (no transmitted ray exists —
+  the same fact the fragment program reads as a zero-length `refract()` and
+  resolves by falling back to reflection), the Schlick fresnel that walks from
+  `F0` head-on to a full mirror at the horizon (why water is a mirror in the
+  distance), the canonical cube-map face-and-uv a direction samples, and two
+  blends whose `coverage == 0` is the exact base pixel — the mirror of
+  `BloomKernel`'s strength-zero identity every "glossy toggle" will one day lean
+  on. `EnvironmentPlan` repeats P2.2's ceiling in a second feature's voice: Java
+  3D 1.7.2's fixed pipeline can bind a cube texture but cannot compute a
+  per-fragment fresnel blend or a bent lookup, so an environment material takes
+  SHADER *only* when a probe validated the fork's shader API, else FIXED with the
+  lost effects **named** — and it reuses `ShaderAppearancePlan.Capability`, so
+  one host answers "is the shader path live" for both. `MaterialAppearance` now
+  carries a cube-map path, a reflectivity and an index of refraction through a
+  full 15-argument constructor (the 5-, 10- and 12-arg forms delegate unchanged,
+  `reflectivity` clamps to [0,1], a non-positive `ior` reads as no bend and blank
+  paths store null), so a material with no cube map and `ior == 1` asks for
+  nothing and no pre-P2.5 world loses a pixel. The GLSL 1.20 environment fragment
+  ships with the decision and asserts it names the same `reflect`/`refract`/
+  Schlick operators the kernel computes. **21 new headless cases**
+  (`EnvMapKernelTest` 10, `EnvironmentPlanTest` 7, `MaterialAppearanceTest` +4);
+  binding a live cube map and running the program on `WorldScene`'s glossy cells
+  stays a WlProbe sentence on a real card, and this commit claims no pixel it
+  cannot prove.
 - **The server session layer gains its three missing judgements — roadmap P5.4**
   (`wonderland-server`) — the wire is real and the session table is real, but a
   transport cannot answer three questions for itself: who should hear this event,
