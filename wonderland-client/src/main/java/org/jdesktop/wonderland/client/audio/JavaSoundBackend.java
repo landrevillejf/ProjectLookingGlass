@@ -11,11 +11,13 @@
  * A future JOAL backend can drop behind the same AudioBackend seam with real
  * EFX; nothing in the kernel would notice, which was the point of the seam.
  *
- * The honesty clause, load-bearing: THIS CLASS IS NOT VERIFIED BY CI. Every
- * line below compiles and its pure helpers (gainToDb, clamp) are unit-tested,
- * but opening a Clip needs an output device, and a headless runner has none.
- * "The pond splashes when you walk by it" is a statement about a machine with
- * speakers, proven by running the desktop there -- not a green test suite.
+ * The honesty clause, load-bearing: THIS CLASS'S AIR IS NOT VERIFIED BY CI. Its
+ * pure helpers (gainToDb, clamp) and its whole verb contract -- open, start, loop,
+ * pose, stop, close, the re-load that replaces -- are now unit-tested headless
+ * through the {@link ClipSource} seam below with a fake {@link Clip}, so a
+ * headless runner proves the mixer logic without a sound card. What a fake cannot
+ * prove is that a real Clip moves real air: "the pond splashes when you walk by
+ * it" still belongs to a machine with speakers, not to a green suite.
  *
  * Failure policy: the mixer degrades to silence, never to an exception. The
  * audio path must not kill the shell any more than the crash reporter may;
@@ -39,8 +41,33 @@ public final class JavaSoundBackend implements AudioBackend {
     /** The floor JavaSound mixers accept, and the number -inf gain means here. */
     static final float MIN_DB = -80f;
 
+    /**
+     * A source of fresh {@link Clip}s. This is the seam that makes the mixer
+     * testable without a sound card: production hands it {@link AudioSystem#getClip()}
+     * -- exactly the call the no-arg constructor uses today -- while a headless
+     * test injects a fake so the clip-present code path (open, start, loop, the
+     * per-control pose, stop and close) runs identically on CI, where no device
+     * exists. It is declared to throw the checked exceptions the real factory
+     * throws, so a test can also reproduce "the device refused the line."
+     */
+    @FunctionalInterface
+    interface ClipSource {
+        Clip get() throws LineUnavailableException, IOException;
+    }
+
     private final Map<String, Clip> clips = new LinkedHashMap<>();
     private final Map<String, Boolean> loopFlags = new LinkedHashMap<>();
+    private final ClipSource clipSource;
+
+    /** The production mixer: every clip comes from {@link AudioSystem#getClip()}. */
+    public JavaSoundBackend() {
+        this(AudioSystem::getClip);
+    }
+
+    /** The testable mixer: clips come from the injected {@code clipSource}. */
+    JavaSoundBackend(ClipSource clipSource) {
+        this.clipSource = clipSource;
+    }
 
     /**
      * Hand the mixer the bytes one id sounds like, before any world registers
@@ -52,7 +79,7 @@ public final class JavaSoundBackend implements AudioBackend {
     public void load(String id, AudioInputStream stream, boolean loop) {
         Objects.requireNonNull(stream, "load wants the bytes, not a promise of them");
         try {
-            Clip clip = AudioSystem.getClip();
+            Clip clip = clipSource.get();
             clip.open(stream);
             Clip previous = clips.put(id, clip);
             loopFlags.put(id, loop);

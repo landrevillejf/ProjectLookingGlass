@@ -1783,6 +1783,21 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The sound mixer's covered air depended on the runner's sound card —
+  P4.1 follow-up** (`wonderland-client`) — `JavaSoundBackend`'s clip-present
+  path (open, start, loop, the per-control pose, stop, close, the re-load that
+  replaces) ran only when `AudioSystem.getClip()` succeeded: 98.4 % on a dev
+  box with speakers, 97.3 % on a headless CI with no mixer, which let the
+  module's 0.980 floor — calibrated against the first — go red on the second.
+  The gap is closed with tests, not by lowering the floor: a package-private
+  `ClipSource` seam now feeds the backend its clips from anywhere — production
+  passes exactly `AudioSystem::getClip`, unchanged — and **7 new
+  `JavaSoundBackendMixerTest` cases** drive the whole verb contract through a
+  recording fake `Clip`, on CI and on a desktop identically, while the
+  "device refused the line" catch is reproduced deterministically instead of
+  left to the runner's luck. The class measures 100 % lines and branches.
+  What no fake can prove keeps its clause in the class header: a real `Clip`
+  must still move real air before "the pond splashes" is claimed.
 - **The meeting complex's pond vanished between the `.mtg` and the renderer —
   roadmap P2.3** (`wonderland-modules` + `wonderland-renderer`) — a water record
   names no `.dae`, so the world fold skipped it and nothing else ever looked:
