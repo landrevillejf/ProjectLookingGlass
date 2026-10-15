@@ -68,6 +68,19 @@ public final class InterestManager {
     }
 
     /**
+     * Whether a session has registered a watch yet. This is the router's
+     * default-open key: a session that has never moved its avatar is untracked,
+     * and an untracked session must still receive every event -- presence has to
+     * survive the moments before the first move lands, and a login that was
+     * never spatially filtered cannot be silently starved. Spatial filtering
+     * engages only once a session is tracked, so wiring the audience in changes
+     * nothing until avatars actually move.
+     */
+    public boolean isTracked(BigInteger sessionId) {
+        return sessionId != null && watches.containsKey(sessionId);
+    }
+
+    /**
      * The audience for one event: every session whose watch sphere (its own
      * radius) reaches within {@code eventRadius} of the event's place --
      * distances are compared squared, because this runs per update and a

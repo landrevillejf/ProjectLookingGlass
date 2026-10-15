@@ -10,6 +10,27 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The server fans a move to its audience, not the whole world — roadmap
+  P5.4, wired** (`wonderland-server`) — `InterestManager` had shipped as a
+  tested kernel that nothing consulted: `ProtocolRouter.broadcastMove` fanned to
+  `registry.all()`, so every connected session learned every event. A
+  `MovableMessage` on a session's OWN view cell now re-homes that session's
+  watch (`interest.watch(id, x, y, z, WATCH_RADIUS)`), and `broadcastMove` fans
+  to `audienceFor(eventPlace, cellReach)` instead — the moved cell's event radius
+  comes from its authored spherical bounds when it has them, else a documented
+  default. The gate is deliberately conservative: the mover always receives its
+  own echo (client-side suppression depends on it), and a session with **no
+  registered watch still receives everything**, so before any avatar has walked
+  the fan-out is byte-identical to the pre-P5.4 broadcast and every existing
+  multiplayer, loopback and socket-integration test stands untouched; spatial
+  filtering engages only once avatars move. A cache detach `forget`s the departed
+  watch, so a ghost is never a recipient. World chat is deliberately **not**
+  filtered — it is addressed to the environment cell every session listens on,
+  so it is a global relay by design, not an interest event. **5 new headless
+  cases** (`ProtocolRouterInterestTest`): the default-open rule, an avatar walk
+  tracking its watch while an unrelated furniture move does not, a move near one
+  avatar reaching it but not a tracked one a kilometre away, a tracked avatar
+  walking into range and starting to hear, and a departure stopping the tracking.
 - **Per-pixel GPU lighting reaches the screen — roadmap P2.2 / P0.1, connected
   and measured** (`wonderland-renderer`) — an earlier pass filed GLSL lighting
   as a platform impossibility and left `J3dMeshFactory`'s shader wiring

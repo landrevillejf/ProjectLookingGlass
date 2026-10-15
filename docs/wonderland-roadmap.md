@@ -310,13 +310,23 @@ legal and the engine embeddable.
   of the renderer becomes verifiable without a hand. `EyeProbe` is the framing
   kernel (where the eye points, what a rig would see), fully tested in-JVM; the
   screencapture half that proves painted pixels still needs a live display.
-- **P5.4 Multiplayer depth - delivered as kernels.** The server session layer's
-  three missing halves now exist headless in `wonderland-server`:
+- **P5.4 Multiplayer depth - kernels + the audience now wired.** The server
+  session layer's three missing halves exist in `wonderland-server`, and the
+  first is now on the live path:
   `InterestManager` answers *who is in this event's audience* (per-session
   watch of place + radius, union-of-radii reach, replace-not-double on a move,
   NaN refused) — deliberately its own O(n) scan over sessions rather than a
   `WorldPVS` import, because the module depends on neither `wonderland-client`
-  nor `lg3d-core`. `CellSnapshot` saves/restores each cell's translation as
+  nor `lg3d-core`. **Now wired** (`ProtocolRouter`): a `MovableMessage` on a
+  session's OWN view cell re-homes that session's watch, and `broadcastMove`
+  fans to `audienceFor(eventPlace, cellReach)` rather than `registry.all()` --
+  the mover always gets its echo, and a session with no registered watch still
+  receives everything (the default-open rule: `isTracked` gates filtering, so
+  before any avatar walks this is byte-identical to the pre-P5.4 broadcast and
+  every existing multiplayer test stands). World chat stays a global relay --
+  it is addressed to the environment cell every session listens on, so it is
+  not an interest event by design. A cache detach `forget`s the departed watch
+  so a ghost is never a recipient. `CellSnapshot` saves/restores each cell's translation as
   text — `Float.toHexString` so `0.1f` round-trips bit-identical, the
   environment root never written, orientation and scale left untouched because
   the snapshot only claims to know *where*, a missing file is a first boot and
@@ -325,10 +335,11 @@ legal and the engine embeddable.
   HMAC-SHA256 bearer token `username|hex`, constant-time verified, null (never
   a throw) for every malformed or forged shape, called at the one seam that
   matters — before `SessionRegistry.create(user, sink)`. What remains a
-  running server's proof: fanning audience lists onto real sockets, snapshot
+  running server's proof: snapshot
   autosave policy, token expiry/rotation, and Mandela scripts driving
-  *networked* events (P5.1 ships only local annotations). **22 new headless
-  cases** (`InterestManagerTest` 7, `CellSnapshotTest` 7,
+  *networked* events (P5.1 ships only local annotations). **5 new headless
+  cases** (`ProtocolRouterInterestTest`) prove the audience wiring engages; the
+  kernels keep their **22** (`InterestManagerTest` 7, `CellSnapshotTest` 7,
   `PasscodeAuthenticatorTest` 8).
 
 ## Recommended order
