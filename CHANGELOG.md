@@ -10,6 +10,33 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Per-pixel GPU lighting reaches the screen — roadmap P2.2 / P0.1, connected
+  and measured** (`wonderland-renderer`) — an earlier pass filed GLSL lighting
+  as a platform impossibility and left `J3dMeshFactory`'s shader wiring
+  "deliberately unapplied." Four probes on the repo's live X:0 / GL 4.6 radeonsi
+  context proved otherwise and settled exactly what this Jogamp 1.7.2 fork can
+  and cannot do: a scene `Light` never reaches a custom program
+  (`gl_LightSource[0]` reads GL's default even with a correctly bounded
+  `DirectionalLight` — WlProbe39), so the key is handed to the program as its
+  OWN `lightDirection`/`lightColor`/`ambientColor` uniforms, which
+  `ShaderAttributeSet` + `program.setShaderAttrNames(...)` deliver alongside one
+  `TextureUnitState`-bound `sampler2D` (WlProbe40); the corrected production
+  Blinn-Phong GLSL then shades per fragment — a lit quad facing the key reads
+  `(255,255,255)`, a grazing one the `(31,31,31)` ambient floor (WlProbe41) —
+  but the fork binds exactly ONE texture per program (a second `sampler2D`
+  re-reads unit 0 — WlProbe42), so a material lights from its diffuse and the
+  normal/spec stages stay compiled and unapplied until a direct-JOGL pass binds
+  its own samplers. `buildShaderAppearance` is now live behind a
+  triply-conservative gate — the `lg.wonderland.shader` switch (OFF by default),
+  `MaterialAppearance.lit()`, and a resolved diffuse texture — so a pre-lit world
+  stays byte-identical to every prior run; **WlProbe43 drove the shipping
+  `createShape` and measured the grading through the production path, not a
+  hand-rolled program**. `J3dMeshFactory.setLightRig` lets `WorldScene` push its
+  key so the CPU bake and the GPU route answer to one light, and refuses a
+  degenerate (zero/NaN) direction rather than blacking out every lit surface.
+  **3 new headless cases** (`J3dMeshFactoryShaderGateTest`) pin the safety of the
+  gate — the route off-by-default and the rig refusal — the pixels themselves
+  being the probe's claim.
 - **The remaining roadmap kernels walk into the live desktop — wiring pass,
   P0.2 / P1.1 / P3.1 / P4.1 / P5.1, connected** (`wonderland-renderer`,
   `lg3d-apps`) — the P0.1 pass named five features still unreachable from a
