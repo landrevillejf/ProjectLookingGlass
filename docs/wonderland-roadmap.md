@@ -115,8 +115,19 @@ much visible value each unlocks per unit of risk.
   tile with per-axis scroll-offset maths (`planeOf` folds the record's plane).
   Placing the pond quad and driving `TexCoordGeneration` from a frame clock are
   the probe-side step, not yet a painted pixel.
-- **P2.4 Real shadows / occlusion.** Replace `ShadowArt` decals with projected
-  or shadow-map shadows; occlusion via the PVS from P0.2.
+- **P2.4 Real shadows / occlusion - delivered as projector maths + a PVS owner.**
+  Replace `ShadowArt` decals with projected or shadow-map shadows; occlusion via
+  the PVS from P0.2. Delivered: `ShadowProjector` - parallel-light box
+  projection as pure arithmetic (the pool travels in the direction the light
+  travels, low sun lengthens, horizon sun caps at `MAX_STRETCH`, a vertical or
+  absent light answers `null` so the round `ShadowArt` pool stays the physically
+  right fallback) - and `WorldPVS`, the lifecycle owner that turns P0.2's
+  stateless `OctantCuller` answer into a per-frame consultation: cells register
+  and detach, a re-attached cell replaces rather than doubles, and padded
+  bounding spheres keep the promise (conservative for drawing - a far cell may
+  be kept, a near cell is never dropped). Re-pointing `WorldScene.addShadows`
+  at the projector's yawed quad, and any true shadow-map occlusion, need a live
+  GL context - probe-side, not yet a painted pixel.
 
 ### P3 - Cinematic system
 
@@ -171,11 +182,17 @@ legal and the engine embeddable.
   the safety are the 14 headless cases of `WorldBehaviorTest`; the effect of
   an annotation on the live scene stays the walk-in probe's job, exactly as
   P0.1 left its on-screen shading to the `WorldViewer` probe.
-- **P5.2 Shipped scripts.** Behaviours under `scripts/mandela/`, compiled by
-  `ShippedScriptsTest`.
-- **P5.3 Probe harness.** Formalise the in-JVM `WorldViewer` eye probe as
-  Mandela-driven checks of framing/behaviour, so more of the renderer becomes
-  verifiable without a hand.
+- **P5.2 Shipped scripts - delivered.** Behaviours under `scripts/mandela/`,
+  compiled by `ShippedScriptsTest`. The first real world behaviour ships as
+  `wonderland-outpatient-clinic/behaviour.mnd`, beside the clinic art and read
+  through the same `/api/world/asset` endpoint the models already use; the
+  shipped file's compile gate keeps it honest and `ClinicBehaviourTest` asserts
+  what each kind of cell gets annotated as.
+- **P5.3 Probe harness - delivered headless-side.** Formalise the in-JVM
+  `WorldViewer` eye probe as Mandela-driven checks of framing/behaviour, so more
+  of the renderer becomes verifiable without a hand. `EyeProbe` is the framing
+  kernel (where the eye points, what a rig would see), fully tested in-JVM; the
+  screencapture half that proves painted pixels still needs a live display.
 - **P5.4 Multiplayer depth.** Interest management + persistence + auth on the
   (already real) server session layer; Mandela scripts drive the networked
   events.
