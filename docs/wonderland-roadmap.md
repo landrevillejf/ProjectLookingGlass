@@ -106,8 +106,15 @@ much visible value each unlocks per unit of risk.
   the named-layer fallback, and the GLSL 1.20 pair - with `J3dMeshFactory`'s
   wiring deliberately unapplied until a `WlProbe` run validates the fork's API;
   until then every material takes the FIXED route and pixels are unchanged.
-- **P2.3 Water shading.** Re-honour the `JMEWaterInstance` records
-  `MtgSceneReader` currently drops, as an animated water material.
+- **P2.3 Water shading - delivered as re-honoured data + a scrollable look.**
+  Re-honour the `JMEWaterInstance` records `MtgSceneReader` currently drops, as
+  an animated water material. Delivered: `WaterInstance` parses the fifteen-
+  token record (`MtgSceneReader.readWaterInstances`, carried to the renderer on
+  `ModelLoadResult.waterInstances`), and `WaterArt` supplies the honest fixed-
+  pipeline stand-in for jME's water shader -- a headless-rasterised seamless
+  tile with per-axis scroll-offset maths (`planeOf` folds the record's plane).
+  Placing the pond quad and driving `TexCoordGeneration` from a frame clock are
+  the probe-side step, not yet a painted pixel.
 - **P2.4 Real shadows / occlusion.** Replace `ShadowArt` decals with projected
   or shadow-map shadows; occlusion via the PVS from P0.2.
 

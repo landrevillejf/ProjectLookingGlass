@@ -31,10 +31,14 @@
  * model is; that is why folding to a document, not to a dozen synthetic cells, is
  * the faithful shape here.
  *
- * A record this reader cannot honour -- a water instance, a missing .dae, a
- * malformed line -- is skipped, not fatal: a complex that renders its terrain and
- * building without its pond or a stray shelter is the honest partial load the
- * 2006 client produced for a module it could not fully open.
+ * A record this reader cannot honour -- a missing .dae, a malformed line -- is
+ * skipped, not fatal: a complex that renders its terrain and building without
+ * a stray shelter is the honest partial load the 2006 client produced for a
+ * module it could not fully open. A WATER record is no longer among them: the
+ * engine's pond carries no .dae to fold into a document, but it must not leave
+ * the read with nothing said about it, so {@link #readWaterInstances} surfaces
+ * every {@code JMEWaterInstance} the scene names (roadmap P2.3) and the loader
+ * carries them to the renderer beside the document.
  */
 package org.jdesktop.wonderland.modules.asset;
 
@@ -122,6 +126,33 @@ public final class MtgSceneReader {
         // so the aggregate carries the neutral identity asset.
         return new ColladaDocument(new ColladaAsset(null, 1.0, null, null, null),
                 geometries, materials, effects, images, scenes, "mtg-root");
+    }
+
+    /**
+     * The {@code JMEWaterInstance} planes a scene places (roadmap P2.3). A
+     * water record names no .dae, so it can never join the folded document --
+     * dropping it on that argument is what let the meeting complex load with
+     * dry ground. This scan is the re-honour: every pond, fountain or canal an
+     * author placed survives the read as data, and the renderer decides what
+     * water it can draw. A scene with no water yields an empty list, never
+     * null; a malformed water line costs that pond only, the same rule the
+     * fold follows for a bad Instance line.
+     */
+    public java.util.List<WaterInstance> readWaterInstances(String mtgText) {
+        java.util.List<WaterInstance> out = new ArrayList<>();
+        if (mtgText == null || mtgText.isEmpty()) {
+            return out;
+        }
+        for (String raw : mtgText.split("\r?\n")) {
+            String line = raw.trim();
+            if (line.startsWith("Instance ") || line.startsWith("Instance\t")) {
+                WaterInstance water = WaterInstance.parse(line);
+                if (water != null) {
+                    out.add(water);
+                }
+            }
+        }
+        return out;
     }
 
     /**

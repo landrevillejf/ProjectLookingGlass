@@ -8,8 +8,9 @@
  * reference: the parsed {@code .dep}, {@code .ldr} and Collada document, the
  * texture dependencies split into those the store actually holds and those it
  * does not (the 2006 loader treated a missing texture as a warning, not a
- * failure), and the {@link AssetLoadStatus}. Immutable; built by
- * {@link ModelLoader}.
+ * failure), the water planes an {@code .mtg} scene placed beside the fold
+ * (roadmap P2.3 -- empty for every non-MTGame artifact), and the {@link
+ * AssetLoadStatus}. Immutable; built by {@link ModelLoader}.
  */
 package org.jdesktop.wonderland.modules.asset;
 
@@ -28,10 +29,12 @@ public final class ModelLoadResult {
     private final ColladaDocument document;
     private final List<String> presentTextures;
     private final List<String> missingTextures;
+    private final List<WaterInstance> waterInstances;
 
     private ModelLoadResult(AssetLoadStatus status, String error, DeployedModel model,
                             LoaderData loaderData, ColladaDocument document,
-                            List<String> presentTextures, List<String> missingTextures) {
+                            List<String> presentTextures, List<String> missingTextures,
+                            List<WaterInstance> waterInstances) {
         this.status = status;
         this.error = error;
         this.model = model;
@@ -39,14 +42,29 @@ public final class ModelLoadResult {
         this.document = document;
         this.presentTextures = List.copyOf(presentTextures);
         this.missingTextures = List.copyOf(missingTextures);
+        this.waterInstances = List.copyOf(waterInstances);
     }
 
     /** A successful load result. */
     static ModelLoadResult loaded(DeployedModel model, LoaderData loaderData,
                                   ColladaDocument document,
                                   List<String> presentTextures, List<String> missingTextures) {
+        return loaded(model, loaderData, document, presentTextures, missingTextures,
+                List.of());
+    }
+
+    /**
+     * A successful load that also surfaced water planes (roadmap P2.3). Only
+     * an {@code .mtg} scene can carry any; every other artifact goes through
+     * the five-argument form above with the empty list, so the contract "no
+     * water unless the scene named water" holds by construction.
+     */
+    static ModelLoadResult loaded(DeployedModel model, LoaderData loaderData,
+                                  ColladaDocument document,
+                                  List<String> presentTextures, List<String> missingTextures,
+                                  List<WaterInstance> waterInstances) {
         return new ModelLoadResult(AssetLoadStatus.LOADED, null, model, loaderData,
-                document, presentTextures, missingTextures);
+                document, presentTextures, missingTextures, waterInstances);
     }
 
     /**
@@ -62,13 +80,13 @@ public final class ModelLoadResult {
      */
     public static ModelLoadResult bare(ColladaDocument document) {
         return new ModelLoadResult(AssetLoadStatus.LOADED, null, null, null,
-                document, List.of(), List.of());
+                document, List.of(), List.of(), List.of());
     }
 
     /** A failed load with the reason the pipeline stopped. */
     static ModelLoadResult error(String message) {
         return new ModelLoadResult(AssetLoadStatus.ERROR, message, null, null, null,
-                List.of(), List.of());
+                List.of(), List.of(), List.of());
     }
 
     public AssetLoadStatus status() {
@@ -102,5 +120,15 @@ public final class ModelLoadResult {
 
     public List<String> missingTextures() {
         return missingTextures;
+    }
+
+    /**
+     * The water planes an {@code .mtg} fold placed beside the document (empty
+     * otherwise). They are not part of the Collada -- a water record names no
+     * .dae -- which is exactly why they used to vanish; the renderer's water
+     * path (WaterArt, roadmap P2.3) is their reader now.
+     */
+    public List<WaterInstance> waterInstances() {
+        return waterInstances;
     }
 }
