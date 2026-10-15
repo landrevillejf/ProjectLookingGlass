@@ -1,0 +1,26 @@
+// wonderland-outpatient-clinic behaviour.mnd — how the clinic labels its own cells.
+//
+// This is the world's opinion about its cells, run by the walk-in renderer
+// (WorldBehavior in lg3d-apps) once per cell. The host binds the cell's plain
+// facts and reads back the single value this script leaves: the annotation that
+// floats over the cell. The names below (label, name, cellType, x, y, z, width,
+// depth, hasModel, isAvatar, isGui) are supplied by the host, NOT declared here
+// -- which is why a world behaviour lives beside the art it describes, not in
+// scripts/mandela/ (those are self-contained programs and ShippedScriptsTest
+// would reject an undeclared name). See docs/wonderland-roadmap.md, P5.1/P5.2.
+//
+// The contract is safety first: a missing fact binds as 0.0/false, a thrown
+// value falls back to the authored label, and a null/blank result changes
+// nothing -- so this script may only ever refine a cell the world already
+// named, never invent one or erase it. It touches no scene graph and holds no
+// Java 3D handle; what to do with the annotation is the renderer's decision.
+
+// A person the world seeded is a visitor, not furniture; a picture is a notice;
+// a model cell is a room the author named. Everything else keeps its label.
+let kind = if (isAvatar) "a visitor" else if (isGui) "a notice on the wall" else if (hasModel) "the " + label else label
+
+// The clinic is single-storey, so a cell above the floor slab is a fixture
+// raised on it; say which, so the reader knows what the walk-in is looking at.
+let floorNote = if (y > 0.5) "  (raised ${y}m)" else ""
+
+kind + floorNote
