@@ -17,7 +17,7 @@
              not studied from across the room. Its wide axis runs across that
              sightline, which is why the reference's board reads as text and a board
              turned edge-on to the door would not. -->
-        <bounds><type>BOX</type><x>1.4</x><y>1.0</y><z>0.08</z></bounds>
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
         <scale><x>1.4</x><y>1.0</y><z>0.08</z></scale>
         <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
     </position-component>

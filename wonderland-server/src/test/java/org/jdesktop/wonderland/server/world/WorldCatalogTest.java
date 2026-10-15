@@ -237,12 +237,21 @@ class WorldCatalogTest {
         Map<String, Object> exam1 = cells.stream()
                 .filter(c -> "Exam Room 1".equals(c.get("name")))
                 .findFirst().orElseThrow();
-        assertThat(exam1.get("x")).isEqualTo(-8.0f);
-        assertThat(exam1.get("z")).isEqualTo(-12.3f);
-        // bounds are stored as half-extents; the descriptor carries the footprint
-        // grown by the cell's own stretch (2 * 4.0 half-extent * 4.0 scale)
-        assertThat(exam1.get("width")).isEqualTo(32.0);
-        assertThat(exam1.get("depth")).isEqualTo(32.0);
+        assertThat(exam1.get("x")).isEqualTo(-8.25f);
+        assertThat(exam1.get("z")).isEqualTo(-11.0f);
+        // bounds are the MODEL's half-extents and the descriptor reports the
+        // PLACED footprint, so width is 2 * half-extent * stretch. The clinic's
+        // room is a 1.012 m unit cube (0.506 half-extent, from its own .dep)
+        // stretched across a 5.4 m bay and 5.9 m deep.
+        //
+        // This is the assertion that keeps the two views of a world agreeing. A
+        // cell that authors bounds as though they were the placed size makes the
+        // product come out squared, and the 2D plan draws a 5.4 m exam room as a
+        // 58 m one -- a floor plan of overlapping blobs, while the 3D view, which
+        // reads the .dep and never looks at bounds, is correct. The two readers
+        // of one world disagreeing is the defect; the number is only how it shows.
+        assertThat((Double) exam1.get("width")).isEqualTo(2 * 0.506 * 5.4, within(1e-3));
+        assertThat((Double) exam1.get("depth")).isEqualTo(2 * 0.506 * 5.9, within(1e-3));
     }
 
     @Test

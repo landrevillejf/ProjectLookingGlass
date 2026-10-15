@@ -15,7 +15,7 @@
              the 2009 view: low enough to see a receptionist over, long enough to be
              the desk of a clinic rather than a lectern. -->
         <translation><x>-8.5</x><y>0</y><z>3.0</z></translation>
-        <bounds><type>BOX</type><x>3.0</x><y>1.1</y><z>1.0</z></bounds>
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
         <scale><x>3.0</x><y>1.1</y><z>1.0</z></scale>
         <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
     </position-component>

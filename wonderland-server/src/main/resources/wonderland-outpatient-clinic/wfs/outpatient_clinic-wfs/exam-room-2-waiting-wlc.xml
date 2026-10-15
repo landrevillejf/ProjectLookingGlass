@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Exam Room 2 Waiting: the anteroom behind Exam Room 2 and the Observation
+     Room, second bay of the second range. See exam-room-1-wlc.xml for the grid
+     and the 5 cm inset, and exam-room-1-waiting-wlc.xml for the height. -->
 <model-cell>
     <name>Exam Room 2 Waiting</name>
     <metadata/>
@@ -11,10 +14,25 @@
         <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
     </model-cell-component>
     <position-component>
-        <translation><x>0</x><y>0</y><z>-21</z></translation>
-        <bounds><type>BOX</type><x>4.0</x><y>1.2</y><z>4.0</z></bounds>
-        <scale><x>4.0</x><y>1.2</y><z>4.0</z></scale>
-        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+        <translation>
+            <x>5.5</x>
+            <y>0.0</y>
+            <z>-17.0</z>
+        </translation>
+        <bounds><type>BOX</type><x>0.506</x><y>0.5</y><z>0.506</z></bounds>
+        <scale>
+            <x>10.9</x>
+            <y>3.4</y>
+            <z>5.9</z>
+        </scale>
+        <rotation>
+            <x>0.0</x>
+            <y>1.0</y>
+            <z>0.0</z>
+            <angle>0.0</angle>
+        </rotation>
     </position-component>
-    <placemark-component><placemarkName>Exam Room 2 Waiting</placemarkName></placemark-component>
+    <placemark-component>
+        <placemarkName>Exam Room 2 Waiting</placemarkName>
+    </placemark-component>
 </model-cell>

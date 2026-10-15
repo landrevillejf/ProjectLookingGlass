@@ -36,6 +36,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +51,15 @@ class WorldRestControllerTest {
     private SessionRegistry registry;
     private ProtocolRouter router;
     private MockMvc mvc;
+
+    /**
+     * {@code clinic-room}'s own half-extent in x and z. Its interior vertices
+     * sit at exactly |0.5| and the {@code .dep} box reads 0.506, so the model's
+     * walls add six millimetres of thickness per side -- which is why the half-
+     * extent is read off the model rather than guessed from the bay it is
+     * stretched across.
+     */
+    private static final double ROOM_HALF_EXTENT = 0.506;
 
     @BeforeEach
     void setUp() {
@@ -95,15 +106,30 @@ class WorldRestControllerTest {
                         .value(true));
     }
 
-    /** A catalog world's cells carry their authored placement for a preview. */
+    /**
+     * A catalog world's cells carry their authored placement for a preview.
+     *
+     * <p>Exam Room 1 is authored as a 5.4 x 5.9 m bay (its 1.012 m room cube
+     * stretched across one), sitting at the bay centre the tiled floorplan gives
+     * it. The footprint is asserted with a tolerance because it is a PRODUCT, not
+     * a number an author typed: the descriptor reports the placed size, which is
+     * twice the model's own half-extent times the stretch, so a cell that authors
+     * its bounds as metres gets a squared footprint out of it. {@code
+     * WorldCatalogTest} pins the same product on the map the catalog builds; this
+     * pins it on the JSON the browser actually reads -- see that test for why the
+     * two readers of one world must agree. The filter path answers a one-element
+     * array, so the tolerance matcher runs inside {@code contains}.</p>
+     */
     @Test
     void cellsForAModuleCarryTheAuthoredPlacement() throws Exception {
         mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].x").value(-8.0))
-                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].z").value(-12.3))
-                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].width").value(32.0))
-                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].depth").value(32.0));
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].x").value(-8.25))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].z").value(-11.0))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].width")
+                        .value(contains(closeTo(2 * ROOM_HALF_EXTENT * 5.4, 0.01))))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].depth")
+                        .value(contains(closeTo(2 * ROOM_HALF_EXTENT * 5.9, 0.01))));
     }
 
     @Test

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The clinic's ground. It is the building's footprint plus 20 cm, not an open
+     field: the previous cut was 24 x 34 m centred on the lobby, so from inside
+     the lobby the carpet ran out past the walls and ended in mid-air, and the
+     horizon through a room's doorway was empty ground rather than the next
+     room's plaster. A floor that is bigger than the building standing on it is
+     the single clearest tell that the rooms were placed rather than built.
+
+     The building spans x -11..+11 and z -20..+8 (see exam-room-1-wlc.xml for
+     the grid), so this covers x -11.2..+11.2 and z -20.2..+8.2. -->
 <model-cell>
     <name>Floor</name>
     <metadata/>
@@ -14,18 +23,13 @@
         <translation>
             <x>0</x>
             <y>0.0</y>
-            <z>-8</z>
+            <z>-6.0</z>
         </translation>
-        <bounds>
-            <type>BOX</type>
-            <x>24.0</x>
-            <y>0.05</y>
-            <z>34.0</z>
-        </bounds>
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
         <scale>
-            <x>24.0</x>
+            <x>22.4</x>
             <y>0.05</y>
-            <z>34.0</z>
+            <z>28.4</z>
         </scale>
         <rotation>
             <x>0.0</x>

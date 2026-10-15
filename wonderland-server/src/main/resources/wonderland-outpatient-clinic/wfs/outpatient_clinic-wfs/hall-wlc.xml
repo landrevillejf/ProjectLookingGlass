@@ -32,12 +32,7 @@
             <y>0.0</y>
             <z>0</z>
         </translation>
-        <bounds>
-            <type>BOX</type>
-            <x>22.0</x>
-            <y>3.4</y>
-            <z>16.0</z>
-        </bounds>
+        <bounds><type>BOX</type><x>0.506</x><y>0.5</y><z>0.506</z></bounds>
         <scale>
             <x>22.0</x>
             <y>3.4</y>

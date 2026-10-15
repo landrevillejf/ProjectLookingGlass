@@ -12,7 +12,7 @@
     </model-cell-component>
     <position-component>
         <translation><x>0</x><y>0</y><z>-7.3</z></translation>
-        <bounds><type>BOX</type><x>1.0</x><y>0.25</y><z>0.4</z></bounds>
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
         <scale><x>2.0</x><y>0.55</y><z>0.8</z></scale>
         <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
     </position-component>
