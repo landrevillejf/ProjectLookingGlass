@@ -139,10 +139,20 @@ much visible value each unlocks per unit of risk.
 
 ### P4 - Spatial audio (build, not re-wire)
 
-- **P4.1 Audio engine.** `AudioManager` / `AudioNode` / `AudioListener` with
-  position/distance/attenuation driven by cell transforms, on the JOAL natives
-  already in the dependency set. This is a from-scratch port of the 2006 audio
-  subsystem, not a wiring job.
+- **P4.1 Audio engine - delivered as kernel + JavaSound backend.** `AudioManager`
+  / `AudioNode` / `AudioListener` with position/distance/attenuation driven by
+  cell transforms, on the JOAL natives already in the dependency set. This is a
+  from-scratch port of the 2006 audio subsystem, not a wiring job. Delivered in
+  `wonderland-client/audio`: `SpatialAudio` (the OpenAL inverse-distance gain
+  and the ear-radius pan as pure arithmetic), `AudioManager` (the lifecycle
+  owner in the `WorldPVS` shape -- register/move/unregister sources, one ear,
+  per-frame `update()` that starts, poses and stops what the kernel says), and
+  `JavaSoundBackend` behind an `AudioBackend` seam. Reframed on the JOAL point:
+  JavaSound ships in the JDK and needs no natives or module rules, so it is the
+  first backend; a JOAL one can drop behind the same seam later. The kernel and
+  the manager's bookkeeping are fully headless-tested (21 cases); the mixer
+  itself -- opening a `Clip` on a real device -- cannot be verified by a
+  headless runner and belongs to a machine with speakers.
 
 ### P5 - Mandela scripting layer
 
