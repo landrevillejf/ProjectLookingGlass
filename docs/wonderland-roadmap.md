@@ -96,8 +96,16 @@ much visible value each unlocks per unit of risk.
 - **P2.1 Multi-layer materials.** Extend `MaterialAppearance` /
   `TextureBindingPlan` with a normal map (and specular map); `J3dMeshFactory`
   binds the extra stages.
-- **P2.2 Shaders.** A GLSL `ShaderProgram` on `Shape3D`s, with a documented
-  fixed-function fallback where Java 3D 1.7.2 cannot express the effect.
+- **P2.2 Shaders - reframed after reading the fork.** A GLSL `ShaderProgram` on
+  `Shape3D`s, with a documented fixed-function fallback where Java 3D 1.7.2
+  cannot express the effect. The measured ceiling: this repo's Jogamp fork moved
+  the shader entry point off upstream 1.6's `Appearance.setShaderProgram` onto a
+  `ShaderAppearance` subclass (`setShaderProgram`/`setShaderAttributeSet`, read
+  off the 1.7.2 jar), and a program validates only against a live GL context.
+  Delivered: `ShaderAppearancePlan` - the headless decision (FIXED vs SHADER),
+  the named-layer fallback, and the GLSL 1.20 pair - with `J3dMeshFactory`'s
+  wiring deliberately unapplied until a `WlProbe` run validates the fork's API;
+  until then every material takes the FIXED route and pixels are unchanged.
 - **P2.3 Water shading.** Re-honour the `JMEWaterInstance` records
   `MtgSceneReader` currently drops, as an animated water material.
 - **P2.4 Real shadows / occlusion.** Replace `ShadowArt` decals with projected
