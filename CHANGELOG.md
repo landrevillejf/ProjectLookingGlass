@@ -1441,6 +1441,29 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The clinic's hall had no ceiling, because its faces looked the wrong way and
+  nothing asked** (`wonderland-server`) — the shipped room shell is a unit cube
+  whose index lists were hand-edited, and the raster keeps the side a face's
+  geometric normal points at: wound face-up, a ceiling is *culled* from inside
+  the room. Standing in the hall therefore meant looking at the far wall's top
+  edge with sky above it, and the twelve light panels overhead were missing the
+  same way; the floor was its own half-defect, one of its two quads wound
+  face-down so the carpet under a visitor's feet was not drawn at all. The
+  comment in `hall-wlc.xml` asserted the ceiling "is drawn facing down" while
+  the bytes did the opposite, and `ClinicRoomArtTest` stayed green throughout
+  because every case it had asks what the shell *contains* — the accessor count,
+  the index range, the five materials, the panel grid — and none asks which way
+  it looks. `clinic-room.dae` now winds the ceiling and every light panel
+  face-down and both carpet quads face-up (walls and dado already carry a quad
+  on each side, so they read from inside and from the map view), the comment
+  states the rule the bytes now obey, and
+  `ClinicRoomArtTest.everySurfaceFacesThePersonStandingInside()` walks every
+  triangle of the shell and asserts the sign of its normal per material —
+  including that each material contributed faces, since an empty walk is exactly
+  how this file could pass with no ceiling. Proven both ways: the new case fails
+  against the previously shipped bytes and passes against these, and re-rendered
+  through the walk-in probe the hall closes overhead, the cream panels are seen at
+  the top of the frame, and the carpet is continuous under the avatars.
 - **A world's own text read upside down over every head, because one upload
   inverted and only half the cards were told** (`wonderland-renderer`) — the
   shared Java 3D texture upload now hands a picture over with its origin at the

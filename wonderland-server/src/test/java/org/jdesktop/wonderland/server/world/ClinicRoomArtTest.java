@@ -12,12 +12,23 @@
  * room in it at once, which is exactly what one stray "--" inside a comment did
  * the first time the ceiling was added. The frames prove the art looks right;
  * this proves it is still loadable tomorrow.
+ *
+ * <p>Loadable is not the same as visible. The raster keeps the face whose
+ * geometric normal points at the eye, so the winding of a hand-edited index list
+ * decides whether a surface exists at all: the ceiling and its light panels were
+ * wound face-up and a person standing in the hall saw sky over the wall, with
+ * every test here green because they asked what the shell contains and never
+ * which way it looks. {@link #everySurfaceFacesThePersonStandingInside()} is the
+ * question that was missing.
  */
 package org.jdesktop.wonderland.server.world;
 
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import static java.lang.Math.abs;
 import org.jdesktop.wonderland.modules.collada.ColladaDocument;
 import org.jdesktop.wonderland.modules.collada.ColladaGeometry;
 import org.jdesktop.wonderland.modules.collada.ColladaParser;
@@ -91,5 +102,98 @@ class ClinicRoomArtTest {
         assertThat(lights.count())
                 .as("a fixture stretched to a 22 m hall is a glowing ceiling, not a light")
                 .isGreaterThanOrEqualTo(6);
+    }
+
+    @Test
+    void everySurfaceFacesThePersonStandingInside() {
+        // The shell is a unit cube, so "which way does it look" is a sign on one
+        // component of the cross product of a triangle's edges. Walls and dado are
+        // boxes with a quad on each side of every face, so they must cover all
+        // four horizontal directions; a missing one is a wall you see through
+        // from inside the room.
+        ColladaGeometry.Mesh mesh = mesh();
+        ColladaGeometry.Source positions = mesh.sourceById("clinic-room-positions");
+        assertThat(positions.data()).as("the vertices the faces are wound from").isNotEmpty();
+        Set<String> horizontals = new HashSet<>();
+        Map<String, Integer> seen = new HashMap<>();
+        for (ColladaGeometry.Primitive p : mesh.primitives()) {
+            String material = p.material();
+            int stride = p.stride();
+            long[] index = p.indices();
+            for (int t = 0; t * 3 * stride + 2 * stride < index.length; t++) {
+                double[] n = normal(p, positions, t);
+                if (n == null) {
+                    continue; // degenerate: no facing to assert
+                }
+                seen.merge(material, 1, Integer::sum);
+                switch (material) {
+                    case "carpet":
+                        assertThat(n[1])
+                                .as("the floor is seen from above, by whoever stands on it")
+                                .isGreaterThan(0f);
+                        break;
+                    case "ceiling":
+                    case "light":
+                        assertThat(n[1])
+                                .as("'%s' is seen from below, by a person inside the room;"
+                                        + " wound face-up it is culled and the hall has no"
+                                        + " ceiling", material)
+                                .isLessThan(0f);
+                        break;
+                    default:
+                        horizontals.add(direction(n));
+                        break;
+                }
+            }
+        }
+        // A material that answered nothing proves nothing, and an empty vertex
+        // walk used to be exactly how this file stayed green without a ceiling.
+        assertThat(seen.keySet())
+                .as("every surface of the shell was wound-checked")
+                .contains("carpet", "wall", "dado", "ceiling", "light");
+        assertThat(horizontals)
+                .as("every wall and dado face is drawn on both sides, so the hall reads"
+                        + " from inside and from the map view")
+                .containsExactlyInAnyOrder("+x", "-x", "+z", "-z");
+    }
+
+    /**
+     * The unit geometric normal of triangle {@code t} of {@code p}, from the order
+     * its three vertices are listed in. That order is the winding, and the winding
+     * is the only thing that says which side of the face the raster keeps.
+     */
+    private static double[] normal(ColladaGeometry.Primitive p,
+            ColladaGeometry.Source positions, int t) {
+        double[] a = vertex(p, positions, t, 0);
+        double[] b = vertex(p, positions, t, 1);
+        double[] c = vertex(p, positions, t, 2);
+        double[] u = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+        double[] v = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+        double[] n = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
+            u[0] * v[1] - u[1] * v[0]};
+        double longest = abs(n[0]);
+        longest = Math.max(longest, abs(n[1]));
+        longest = Math.max(longest, abs(n[2]));
+        if (longest < 1e-9) {
+            return null;
+        }
+        return new double[] {n[0] / longest, n[1] / longest, n[2] / longest};
+    }
+
+    /** The {@code k}th vertex of triangle {@code t}, as xyz in model space. */
+    private static double[] vertex(ColladaGeometry.Primitive p,
+            ColladaGeometry.Source positions, int t, int k) {
+        // A <p> list packs one group of stride() tokens per vertex, the VERTEX
+        // input at offset 0; the facet count is triangles, not vertices.
+        long at = (long) (t * 3 + k) * p.stride();
+        int vertex = (int) p.indices()[(int) at];
+        double[] data = positions.data();
+        int index = vertex * positions.stride();
+        return new double[] {data[index], data[index + 1], data[index + 2]};
+    }
+
+    /** The axis a mostly-horizontal normal points along, signed. */
+    private static String direction(double[] n) {
+        return abs(n[0]) > abs(n[2]) ? (n[0] > 0 ? "+x" : "-x") : (n[2] > 0 ? "+z" : "-z");
     }
 }
