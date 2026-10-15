@@ -54,9 +54,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import com.jme.bounding.BoundingSphere;
+import com.jme.math.Vector3f;
 import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellTransform;
@@ -78,6 +82,7 @@ import org.jdesktop.wonderland.common.messages.MessagePacker.PackerException;
 import org.jdesktop.wonderland.common.messages.MessagePacker.ReceivedMessage;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
+import org.jdesktop.wonderland.server.net.InterestManager;
 import org.jdesktop.wonderland.server.world.WorldCell;
 import org.jdesktop.wonderland.server.world.WorldModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,8 +101,24 @@ public class ProtocolRouter {
     public static final String VIEW_CELL_CLASS =
             "org.jdesktop.wonderland.client.cell.view.ViewCell";
 
+    /**
+     * How far a moving avatar's watch reaches (roadmap P5.4 interest). Generous
+     * by the same rule as the InterestManager's own comment -- an omitted
+     * recipient is a person who cannot see the world change, an extra one is a
+     * packet, and the server picks packets. A deployment that wants tighter
+     * interest passes its own InterestManager to the constructor.
+     */
+    public static final float WATCH_RADIUS = 100f;
+
+    /**
+     * The reach attributed to a moved cell's event when its own bounds carry no
+     * radius. Combined with a viewer's {@link #WATCH_RADIUS} by the union rule.
+     */
+    public static final float DEFAULT_EVENT_RADIUS = 10f;
+
     private final WorldModel world;
     private final SessionRegistry registry;
+    private final InterestManager interest;
     private final String viewCellClass;
     private final Map<BigInteger, CellID> viewCells = new ConcurrentHashMap<>();
     /** Per-session frames the transport must deliver AFTER its reply list (see flush). */
@@ -109,9 +130,22 @@ public class ProtocolRouter {
     }
 
     public ProtocolRouter(WorldModel world, SessionRegistry registry, String viewCellClass) {
+        this(world, registry, viewCellClass, new InterestManager());
+    }
+
+    /**
+     * The interest-aware form: a deployment injects the InterestManager whose
+     * watches it maintains (a shared one lets the REST layer and the transport
+     * consult one audience table). A fresh, empty InterestManager reproduces the
+     * pre-P5.4 behaviour exactly, because an untracked session is a full-audience
+     * recipient (see {@link InterestManager#isTracked}).
+     */
+    public ProtocolRouter(WorldModel world, SessionRegistry registry,
+            String viewCellClass, InterestManager interest) {
         this.world = world;
         this.registry = registry;
         this.viewCellClass = viewCellClass;
+        this.interest = interest;
     }
 
     /**
@@ -127,6 +161,9 @@ public class ProtocolRouter {
         registry.detach(session, type);
         if (CellCacheConnectionType.CLIENT_TYPE.equals(type)) {
             deferred.remove(session.getID());
+            // a departed session's watch goes with it, so its ghost is never a
+            // recipient of a move it can no longer see
+            interest.forget(session.getID());
             CellID viewCellID = viewCells.remove(session.getID());
             if (viewCellID != null && world.find(viewCellID) != null) {
                 world.removeCell(viewCellID);
@@ -256,7 +293,17 @@ public class ProtocolRouter {
         out.add(pack(MovableMessageResponse.newMoveModifiedMessage(move.getMessageID(),
                 transform.getTranslation(null), transform.getRotation(null),
                 transform.getScaling()), session, CellChannelConnectionType.CLIENT_TYPE));
-        // broadcast the accepted transform to every channel-connected session; the
+        // Roadmap P5.4: an avatar move is also the session's new watch point.
+        // The moved cell is the mover's OWN view cell exactly when the id the
+        // client dragged matches the one its SET_VIEW minted -- a furniture move
+        // is not the person walking, so it must not re-home the mover's eye.
+        if (cellID.equals(viewCells.get(session.getID()))) {
+            Vector3f at = transform.getTranslation(null);
+            if (at != null) {
+                interest.watch(session.getID(), at.x, at.y, at.z, WATCH_RADIUS);
+            }
+        }
+        // broadcast the accepted transform to the sessions that can see it; the
         // senderID is the mover's session id, which the mover's own component
         // compares to itself and drops (echo suppression)
         broadcastMove(session.getID(), cellID, transform);
@@ -356,12 +403,49 @@ public class ProtocolRouter {
                 transform.getTranslation(null), transform.getRotation(null),
                 transform.getScaling());
         moved.setSenderID(senderID);
+        // Roadmap P5.4: fan to the audience, not the whole server. The event
+        // happens where the cell now is; a session hears it when the union of
+        // its watch radius and this cell's reach covers that place. The mover
+        // always receives its own echo (client-side suppression depends on it),
+        // and an UNTRACKED session always receives everything -- so before any
+        // avatar has moved, this is byte-identical to the pre-P5.4 broadcast.
+        Vector3f at = transform.getTranslation(null);
+        Set<BigInteger> audience = at == null ? Set.of()
+                : new HashSet<>(interest.audienceFor(at.x, at.y, at.z,
+                        eventRadiusOf(cellID)));
         for (ServerSession target : registry.all()) {
-            if (target.isAttached(CellChannelConnectionType.CLIENT_TYPE)) {
+            if (!target.isAttached(CellChannelConnectionType.CLIENT_TYPE)) {
+                continue;
+            }
+            BigInteger id = target.getID();
+            boolean hears = id.equals(senderID)
+                    || !interest.isTracked(id)
+                    || audience.contains(id);
+            if (hears) {
                 target.deliver(CellChannelConnectionType.CLIENT_TYPE,
                         pack(moved, target, CellChannelConnectionType.CLIENT_TYPE));
             }
         }
+    }
+
+    /**
+     * The reach a moved cell's event is credited with. A cell whose authored
+     * bounds carry a radius broadcasts at least that far; one without answers
+     * the documented default, so a bare transform never shrinks interest to a
+     * point.
+     */
+    private float eventRadiusOf(CellID cellID) {
+        WorldCell cell = world.find(cellID);
+        if (cell != null && cell.getLocalBounds() instanceof BoundingSphere sphere) {
+            float radius = sphere.getRadius();
+            if (radius > 0f && !Float.isNaN(radius)) {
+                return radius;
+            }
+        }
+        // a cell with no authored spherical bounds (a box, or none at all) still
+        // happens somewhere, so it broadcasts at the documented default reach
+        // rather than collapsing interest to a dimensionless point.
+        return DEFAULT_EVENT_RADIUS;
     }
 
     private void broadcastConfigure(CellID cellID) {
