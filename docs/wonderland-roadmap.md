@@ -13,17 +13,18 @@ and the per-module `AGENTS.md`.
 
 | Capability | State | Evidence |
 |---|---|---|
-| Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast. Missing: interest management, persistence, auth. |
-| Collision | **Message stub only** | `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger`. A notification, not detection/resolution. `com.jme.bounding.BoundingVolume` is used for cell *bounds*, not collision. |
-| Ambient lighting | **Per-material ambient, no rig** | No `Light` node is created in the renderer; `AvatarRenderer` sets `Material.setAmbientColor`. `J3dMeshFactory.buildAppearance` deliberately omits a `Material` for shipped art. |
-| Culling | **Delegated to Java 3D** | No Wonderland culler; relies on the scene-graph's automatic culling. No PVS. |
-| Shaders | **Absent** | `MaterialAppearance` = one diffuse RGBA + one `texturePath`, fixed-function `Appearance`. |
-| Water shading | **Degraded/removed** | `MtgSceneReader` skips `JMEWaterInstance` records. |
-| Normal mapping | **Absent** | Single `texturePath` per material; no second texture stage. |
-| Occlusion | **Absent** | No occlusion query, no PVS, no SSAO. |
+| Multiplayer / sessions | **Real, wired; server depth delivered headless** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter` broadcast cells/transforms; P5.4 added `InterestManager` (audience), `CellSnapshot` (persistence) and `PasscodeAuthenticator` (auth). Fanning an audience onto real sockets and token expiry remain a running server's proof. |
+| Collision | **Real, wired** | `wonderland-client` `collision/AvatarCollider` clamps a step against a `WorldInventory` of obstacles through `WorldScene.blockStep`, so a wall stops the walker in `WorldViewer`; the horizontal clamp is headless-proven (`WorldInventoryTest`). The legacy `AvatarCell.triggerCollision` notification still exists but is no longer the live path. |
+| Ambient lighting | **CPU-baked rig, wired (opt-in)** | `wonderland-renderer` `mesh/BakedRig` writes a light factor into `GeometryArray.COLOR_3` under `MODULATE`; `WlProbe32/33` measured that a scene-graph `Light` changes no pixel on this fork, so shading is baked per-vertex, not a `Light` node. With the feature off the pre-lit `ColoringAttributes` path is byte-identical. |
+| Culling / PVS | **Kernel + live gate, wired** | `wonderland-client` `cull/OctantCuller` + `cull/WorldPVS`; `WorldScene.cullTo` opens/shuts each cell's `Switch` gate on every eye move. The set arithmetic is headless-proven; the `Switch` pixel delta needs a live GL context. |
+| Shaders | **Decision + GLSL shipped; live binding probe-gated** | `wonderland-renderer` `mesh/ShaderAppearancePlan` (FIXED vs SHADER) and the GLSL 1.20 pair exist; `J3dMeshFactory` applies them only once a `WlProbe` validates the fork's `ShaderAppearance` API — until then every material takes FIXED and pixels are unchanged. |
+| Water shading | **Data re-honoured + fixed-pipeline look; pond quad probe-side** | `wonderland-modules` `asset/WaterInstance` parses the `JMEWaterInstance` record `MtgSceneReader` once dropped (carried on `ModelLoadResult.waterInstances`); `wonderland-renderer` `view/WaterArt` supplies the seamless scroll tile. Placing the quad and driving `TexCoordGeneration` from a frame clock is the live step. |
+| Normal / specular mapping | **Appearance carries the maps; binding on the SHADER route** | `wonderland-renderer` `mesh/MaterialAppearance` holds normal- and specular-map paths and `mesh/TextureBindingPlan` classifies each sampler; the extra stage binds only on the SHADER route (see Shaders), so no FIXED world changes a pixel. |
+| Occlusion / shadows | **PVS owner + projector maths; shadow-map probe-side** | `cull/WorldPVS` is the visibility owner; `view/ShadowProjector` computes the parallel-light pool as pure arithmetic (a vertical or absent light answers `null`, so the `ShadowArt` round pool stays the physically right fallback). True shadow-map occlusion needs a live GL context. |
+| Environment reflection / refraction | **Kernel + probe-gated plan (added scope)** | `wonderland-renderer` `shade/EnvMapKernel` (reflect, Snell + TIR, Schlick fresnel, cube face/uv, blends) and `shade/EnvironmentPlan`; a live cube map binds on the SHADER route only after a probe validates the fork. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partly delivered; live GPU pass probe-gated** | Spline camera is **wired** (`wonderland-client` `rig/FollowRig` + `rig/CameraPath` glide the `WorldViewer` eye, P3.1); bloom runs as `post/BloomKernel` + `post/PostProcessPlan` on probe captures and 2D composites today, with per-frame `OFFSCREEN_READBACK` gated on a measured readback cost. PBR, HDR and DOF stay outside the Java 3D 1.7.2 fixed pipeline (see *Platform ceiling*). |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Absent** | `WorldViewer` fixed-eye framing; `ShadowArt` ellipse decals; `SkyArt` textured box. |
-| Audio | **Absent from the port** | No audio/sound class in `wonderland-*`. The 2006 client's spatial audio was **not carried over**; it must be built fresh, not re-wired. |
+| Audio | **Engine built + wired; silent without assets** | `wonderland-client` `audio/SpatialAudio`, `audio/AudioManager` and `audio/JavaSoundBackend`; `WorldViewer.installAudio`/`updateAudio` point the ear at the live pose on every write. The 2006 audio was rebuilt fresh, not re-wired; no shipped world names a sound yet and a device-less machine is silent. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
 
@@ -58,13 +59,15 @@ much visible value each unlocks per unit of risk.
 
 ### P0 - Rendering foundations
 
-- **P0.1 Opt-in lighting rig** *(this PR)*. A pure `WorldScene.Lighting` value
-  and a `MaterialAppearance` lighting model; `J3dMeshFactory` builds a Java 3D
-  `Material` only when a material opts in; `WorldScene.build(entries, pictures,
-  lighting)` installs an `AmbientLight` + `DirectionalLight` scoped to the
-  world when a caller asks. The faithful pre-lit default path is unchanged.
-  Verified headless for the pure model; the on-screen shading is verified with
-  the live `WorldViewer` probe (a display is required).
+- **P0.1 Opt-in lighting rig - delivered and wired.** The measured truth (see
+  *The pre-lit constraint* and `WlProbe32/33`) is that a scene-graph `Light`
+  changes no pixel on this Jogamp fork, so the rig is CPU-baked, not installed:
+  `mesh/BakedRig` writes a light factor into `GeometryArray.COLOR_3` for every
+  shape `J3dMeshFactory` builds and puts a textured surface under `MODULATE`
+  instead of `DECAL`. The faithful pre-lit default path is byte-identical with
+  the feature off. The baked arithmetic is proven headless, and the shading is
+  proven with pixels in `WlProbe34` (2 colours off, 39 grading across the same
+  face on).
 - **P0.2 Culling / PVS - reframed after reading the code.** A proximity
   selector already exists: `WorldScene.focusWithin` picks the cells near a focus
   point and unions them (it is how framing picks the subject), so a second
