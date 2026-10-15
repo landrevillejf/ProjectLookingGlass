@@ -56,8 +56,10 @@ import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.MaterialAppearance;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
 import org.jdesktop.wonderland.renderer.transform.WorldTransformMath;
+import org.jogamp.java3d.AmbientLight;
 import org.jogamp.java3d.BoundingSphere;
 import org.jogamp.java3d.BranchGroup;
+import org.jogamp.java3d.DirectionalLight;
 import org.jogamp.java3d.Link;
 import org.jogamp.java3d.SharedGroup;
 import org.jogamp.java3d.Shape3D;
@@ -355,6 +357,21 @@ public final class WorldScene {
      *                 {@link Picture}
      */
     public static WorldScene build(List<Entry> entries, List<Picture> pictures) {
+        return build(entries, pictures, Lighting.NONE);
+    }
+
+    /**
+     * Build the world with an optional light rig. The two-argument
+     * {@link #build(List, List)} passes {@link Lighting#NONE} and renders the
+     * shipped pre-lit art exactly as before; a caller that wants its
+     * {@link MaterialAppearance} materials shaded hands a {@link Lighting} and
+     * gets an {@code AmbientLight} + {@code DirectionalLight} scoped to the
+     * world. Java 3D ignores a Light for an {@code Appearance} that carries no
+     * {@code Material}, so installing the rig cannot dim a pre-lit surface --
+     * the faithful default stays byte-identical (docs/wonderland-roadmap.md P0.1).
+     */
+    public static WorldScene build(List<Entry> entries, List<Picture> pictures,
+            Lighting lighting) {
         BranchGroup branch = new BranchGroup();
         branch.setCapability(BranchGroup.ALLOW_DETACH);
 
@@ -479,6 +496,7 @@ public final class WorldScene {
         // The subject is therefore the cluster a person would be standing in: the
         // group's room when there is a group, else the busiest corner.
         Box focus = focusOn(standing, spread, shaded);
+        installLights(branch, lighting);
         return new WorldScene(branch, placed.size(), skipped, focus.center(),
                 focus.half(), (float) focus.sphere().getRadius(),
                 (float) extent.getRadius(), crowdEntry(shaded, focus), tagsBuilt,
@@ -708,6 +726,93 @@ public final class WorldScene {
         double back = Math.min(nearest + ENTRY_DISTANCE_M,
                 focus.center.z + focus.half.z - ENTRY_WALL_INSET_M);
         return new Point3d(sumX / figures.size(), floor, back);
+    }
+
+    /**
+     * A world's light rig as pure data: an ambient floor and one directional key
+     * light. The Java 3D {@code Light} nodes are built from it in
+     * {@link #installLights}, and a disabled rig installs none. Keeping the
+     * description here -- rather than the nodes -- is what lets the whole
+     * lighting decision be unit-tested headless, without a native render stack.
+     *
+     * <p>Components are the accessors Java 3D wants directly (no arrays escape),
+     * and {@link #of} normalises/validates its inputs so a caller cannot hand a
+     * NaN colour or a zero-length sun: a degenerate value falls back to a sane
+     * one, the same warning-not-failure every missing artefact gets.</p>
+     */
+    public record Lighting(boolean enabled, float ambientRed, float ambientGreen,
+            float ambientBlue, float lightRed, float lightGreen, float lightBlue,
+            float directionX, float directionY, float directionZ) {
+
+        /** No rig: the shipped pre-lit world renders exactly as before. */
+        public static final Lighting NONE =
+                new Lighting(false, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f);
+
+        /** The default daytime key: a soft grey ambient floor and a zenith sun. */
+        private static final float[] DEFAULT_AMBIENT = {0.3f, 0.3f, 0.3f};
+        private static final float[] DEFAULT_COLOUR = {1f, 1f, 1f};
+        private static final float[] SUN_DOWN = {0f, -1f, 0f};
+
+        /**
+         * An enabled rig: {@code ambient} fills the shadows, {@code colour} is
+         * the key light's brightness and {@code direction} the way it shines. A
+         * null/degenerate triple falls back to the daytime default, and a
+         * zero-length direction (no sun at all) falls back to straight down.
+         */
+        public static Lighting of(float[] ambient, float[] colour,
+                float[] direction) {
+            float[] amb = triple(ambient, DEFAULT_AMBIENT);
+            float[] col = triple(colour, DEFAULT_COLOUR);
+            float[] dir = triple(direction, SUN_DOWN);
+            double length = Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]
+                    + dir[2] * dir[2]);
+            if (!Double.isFinite(length) || length <= 1e-6) {
+                dir = SUN_DOWN;
+            } else if (Math.abs(length - 1.0) > 1e-3) {
+                dir = new float[] {(float) (dir[0] / length),
+                        (float) (dir[1] / length), (float) (dir[2] / length)};
+            }
+            return new Lighting(true, amb[0], amb[1], amb[2], col[0], col[1],
+                    col[2], dir[0], dir[1], dir[2]);
+        }
+
+        private static float[] triple(float[] value, float[] fallback) {
+            if (value != null && value.length >= 3 && isSane(value[0])
+                    && isSane(value[1]) && isSane(value[2])) {
+                return new float[] {value[0], value[1], value[2]};
+            }
+            return fallback.clone();
+        }
+
+        private static boolean isSane(float v) {
+            return !Float.isNaN(v) && !Float.isInfinite(v);
+        }
+    }
+
+    /**
+     * Hang the light rig on the branch. A no-op unless {@code lighting} is
+     * enabled. Java 3D leaves a {@code ColoringAttributes} (pre-lit) surface
+     * untouched no matter what lights are in scope, which is why installing this
+     * cannot regress a shipped world; it acts only on the {@code Material}s that
+     * {@link MaterialAppearance#lit()} opted in.
+     *
+     * <p>A {@code Light} with no explicit scope reaches the whole scene, which is
+     * what a fixed daytime rig wants -- and this fork's {@code Light} offers only
+     * {@code setScope(Group, int)}, no bounds overload, so the rig rides the
+     * branch rather than a per-light volume.</p>
+     */
+    private static void installLights(BranchGroup branch, Lighting lighting) {
+        if (lighting == null || !lighting.enabled()) {
+            return;
+        }
+        AmbientLight ambient = new AmbientLight(new Color3f(lighting.ambientRed(),
+                lighting.ambientGreen(), lighting.ambientBlue()));
+        DirectionalLight key = new DirectionalLight(new Color3f(lighting.lightRed(),
+                lighting.lightGreen(), lighting.lightBlue()),
+                new Vector3f(lighting.directionX(), lighting.directionY(),
+                        lighting.directionZ()));
+        branch.addChild(ambient);
+        branch.addChild(key);
     }
 
     /** One name to float in the world: the text, the point its centre hangs at, its height. */

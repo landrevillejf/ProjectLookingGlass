@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Opt-in lighting for the renderer, and the Wonderland 3D roadmap**
+  (`wonderland-renderer` + `docs`) — `docs/wonderland-roadmap.md` now records
+  what the port actually carries (multiplayer and sessions are *real*; collision
+  is a message stub; audio was never ported) and phases the work forward. Its
+  first step is honest about the renderer's load-bearing constraint, proved by
+  `build-gradle/scratch/WlProbe7`: the shipped COLLADA art is **pre-lit**, so a
+  `Material` is deliberately absent and turning Java 3D lighting on over it dims
+  every surface to ~18 % of its authored colour. So lighting is **additive,
+  never global**: `MaterialAppearance` gained an opt-in shading model
+  (`lit` plus ambient/specular/emissive/shininess, each falling back to a sane
+  value and defensively copied), `J3dMeshFactory` builds a Java 3D `Material`
+  — and a `MODULATE` texture — only when a material asks to be lit, and
+  `WorldScene` gained a pure `Lighting` value and a `build(entries, pictures,
+  lighting)` overload that installs an `AmbientLight` + `DirectionalLight`
+  scoped to the world. A `Light` changes nothing for an `Appearance` with no
+  `Material`, so the two-argument `build` (which passes `Lighting.NONE`) renders
+  a pre-lit world byte-identically to before, and the whole lighting *decision*
+  lives in pure values that need no native stack: **12 new headless cases**
+  (7 `MaterialAppearanceTest` — the unlit default, the round-tripped channels,
+  the defensive copy, the null/short/negative fallbacks — and 5 `Lighting` in
+  `WorldSceneTest` — `NONE` disabled, colour/direction round-trip, non-unit and
+  zero-length suns normalised, a NaN colour replaced). What is *not* verified
+  here is the on-screen shading itself: a `Material`/`Light` needs a live render
+  context, so the raster is left to the `WorldViewer` display probe rather than
+  claimed green.
 - **A walk-in that talks: text chat on the cell channel** (`wonderland-common`
   + `wonderland-server` + `wonderland-client`) — the ported wire carries moves,
   seats and views, and nothing else, so two visitors in the same room were two

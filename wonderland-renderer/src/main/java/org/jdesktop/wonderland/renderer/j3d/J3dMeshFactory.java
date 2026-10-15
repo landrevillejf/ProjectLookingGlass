@@ -32,6 +32,7 @@ import org.jogamp.java3d.Appearance;
 import org.jogamp.java3d.GeometryArray;
 import org.jogamp.java3d.ImageComponent2D;
 import org.jogamp.java3d.IndexedTriangleArray;
+import org.jogamp.java3d.Material;
 import org.jogamp.java3d.ColoringAttributes;
 import org.jogamp.java3d.Shape3D;
 import org.jogamp.java3d.Texture;
@@ -154,20 +155,41 @@ public final class J3dMeshFactory {
         app.setCapability(Appearance.ALLOW_TRANSPARENCY_ATTRIBUTES_READ);
         app.setCapability(Appearance.ALLOW_TRANSPARENCY_ATTRIBUTES_WRITE);
 
-        // No Material at all, on purpose. Java 3D enables lighting as soon as an
-        // Appearance carries a Material, and this build answers a full-white
-        // ambient light with about 18 % of the authored colour (measured:
-        // (0.9,0.1,0.1) came back as (46,5,5), while the same quad drawn with no
-        // Material came back as (229,25,25)). Wonderland's shipped art is
-        // pre-lit -- the 2006 client baked its light into the textures, which is
-        // why the reference screenshot is flat and evenly coloured -- so the
-        // faithful port is a flat ColoringAttributes, not a shading model.
+        // No Material on the faithful path, on purpose. Java 3D enables lighting
+        // as soon as an Appearance carries a Material, and this build answers a
+        // full-white ambient light with about 18 % of the authored colour
+        // (measured: (0.9,0.1,0.1) came back as (46,5,5), while the same quad
+        // drawn with no Material came back as (229,25,25)). Wonderland's shipped
+        // art is pre-lit -- the 2006 client baked its light into the textures,
+        // which is why the reference screenshot is flat and evenly coloured -- so
+        // the faithful port is a flat ColoringAttributes, not a shading model.
         // See build-gradle/scratch/WlProbe7 for the run that proved it.
-        ColoringAttributes color = new ColoringAttributes();
-        color.setColor(new Color3f(ma.red(), ma.green(), ma.blue()));
-        color.setCapability(ColoringAttributes.ALLOW_COLOR_READ);
-        color.setCapability(ColoringAttributes.ALLOW_COLOR_WRITE);
-        app.setColoringAttributes(color);
+        //
+        // A caller that wants real shading opts in per material (see
+        // MaterialAppearance#lit and docs/wonderland-roadmap.md P0.1); only then
+        // is a Material built, and only then does a WorldScene light rig have
+        // anything to act on -- a Light changes no ColoringAttributes surface.
+        // The unlit branch below is byte-identical to the pre-lighting renderer.
+        if (ma.lit()) {
+            Material material = new Material();
+            float[] ambient = ma.ambient();
+            float[] specular = ma.specular();
+            float[] emissive = ma.emissive();
+            material.setAmbientColor(new Color3f(ambient[0], ambient[1], ambient[2]));
+            material.setDiffuseColor(new Color3f(ma.red(), ma.green(), ma.blue()));
+            material.setSpecularColor(new Color3f(specular[0], specular[1],
+                    specular[2]));
+            material.setEmissiveColor(new Color3f(emissive[0], emissive[1],
+                    emissive[2]));
+            material.setShininess(ma.shininess());
+            app.setMaterial(material);
+        } else {
+            ColoringAttributes color = new ColoringAttributes();
+            color.setColor(new Color3f(ma.red(), ma.green(), ma.blue()));
+            color.setCapability(ColoringAttributes.ALLOW_COLOR_READ);
+            color.setCapability(ColoringAttributes.ALLOW_COLOR_WRITE);
+            app.setColoringAttributes(color);
+        }
 
         // Java 3D models opacity at the Appearance level via
         // TransparencyAttributes; the pure TextureBindingPlan already folded the
@@ -199,8 +221,19 @@ public final class J3dMeshFactory {
                 // is then honoured by the blend below. Measured, not assumed --
                 // see the probe run that turned the tags' card off.
                 TextureAttributes txa = new TextureAttributes();
-                txa.setTextureMode(served.translucent()
-                        ? TextureAttributes.REPLACE : TextureAttributes.DECAL);
+                // A lit material has a diffuse to modulate the texture against, so
+                // the texture multiplies it; the unlit pre-lit path keeps DECAL
+                // (there is no diffuse to multiply), and a translucent card keeps
+                // REPLACE so its own alpha survives -- as measured for the tags.
+                int mode;
+                if (served.translucent()) {
+                    mode = TextureAttributes.REPLACE;
+                } else if (ma.lit()) {
+                    mode = TextureAttributes.MODULATE;
+                } else {
+                    mode = TextureAttributes.DECAL;
+                }
+                txa.setTextureMode(mode);
                 txa.setCapability(TextureAttributes.ALLOW_MODE_WRITE);
                 app.setTextureAttributes(txa);
                 if (served.translucent() && alpha >= 1.0f) {
