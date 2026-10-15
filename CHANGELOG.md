@@ -1441,6 +1441,26 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **A world's own text read upside down over every head, because one upload
+  inverted and only half the cards were told** (`wonderland-renderer`) — the
+  shared Java 3D texture upload now hands a picture over with its origin at the
+  upper left (`yUp = false`), which samples the image's **first row at
+  `v = 1`** — the convention the shipped COLLADA exports are authored for, which
+  is why their wall signs and posters read upright. The three cards this file
+  writes by hand still mapped `v = 0` to their top edge, so every name tag over
+  every resident, every hung picture card and the sky's own ramp arrived
+  vertically inverted while the art behind them was correct — measured off a
+  rendered clinic, where `Waiting Patient` and the lobby's `Directory` came back
+  upside down and the band above the wall got *paler* the higher it rose
+  (177,202,229 overhead against 168,194,225 lower down: a gradient running
+  downhill). `WorldScene.tagQuad` and `WorldScene.flatQuad` now carry `v = 1` at
+  the top of a card and `SkyArt.rowOf` puts the ramp's zenith at the box's
+  ceiling, so one stated convention governs every textured primitive the
+  renderer builds; the comments that claimed the opposite — and the
+  `WorldSceneTest` / `SkyArtTest` assertions that pinned that claim as CI truth —
+  now state the measured one. Re-rendered: the clinic's names read, the sky
+  deepens overhead (123,159,209 at the top of the frame against 133,167,212 at
+  the horizon), and the combined world's COLLADA grass and paving are unchanged.
 - **The Wonderland World panel dead-ended on "Cannot reach", and a seeded world
   spammed the boot log** (`lg3d-apps` + `wonderland-common` + `wonderland-server`)
   — the desktop deliberately leaves `wonderland-server` a separate process, so a

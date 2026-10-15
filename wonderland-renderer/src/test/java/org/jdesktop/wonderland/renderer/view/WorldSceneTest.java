@@ -12,11 +12,14 @@
  * for the room it labels rather than the eye, a pool under a sofa, an entry pose
  * with a head filling the window, a world framed from its own property line.
  *
- * <p>The card mapping is here for the same reason and cost more: Java 3D lays an
- * image out with its first row at {@code v = 0}, so a card that maps {@code v = 1}
- * to its top edge renders its text mirrored. Measured off a rendered clinic, a
- * resident's name read as {@code Waltlng Patlent}. The sky's ramp is the other half
- * of that one convention, asserted in {@link SkyArtTest}.</p>
+ * <p>The card mapping is here for the same reason and cost more: the renderer's
+ * one texture upload samples a picture's first row at {@code v = 1} -- the
+ * convention the shipped COLLADA art is authored for, which is why its wall signs
+ * read upright -- so a card that maps {@code v = 0} to its top edge renders its
+ * text upside down. Measured off a rendered clinic, every name over every
+ * resident's head came back inverted while the walls behind them were right, which
+ * is what localises the defect to this array rather than to the upload. The sky's
+ * ramp is the other half of that one convention, asserted in {@link SkyArtTest}.</p>
  */
 package org.jdesktop.wonderland.renderer.view;
 
@@ -186,18 +189,27 @@ class WorldSceneTest {
         }
         assertThat(quad.normals()).containsExactly(0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f,
                 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f);
-        assertThat(quad.texCoords()).as("the card is mapped corner to corner").hasSize(12);
+        float[] uv = quad.texCoords();
+        assertThat(uv).as("the card is mapped corner to corner").hasSize(12);
+        // The pool is symmetric, so no pixel turns on this; the mapping is pinned
+        // because it is the one convention every card in the file shares, and the
+        // day someone draws an asymmetric ground decal is the day it matters.
+        for (int i = 0; i < 6; i++) {
+            assertThat(uv[i * 2 + 1]).as("v at vertex " + i)
+                    .isEqualTo(c[i * 3 + 2] < 0f ? 1f : 0f);
+        }
     }
 
     // ---- how a card is mapped --------------------------------------------
 
     @Test
     void aCardCarriesTheImagesFirstRowAtItsTopEdge() {
-        // The convention the whole renderer turns on. ImageComponent2D.set() copies
-        // a picture's first row into the texture's row 0, and row 0 is sampled at
-        // v = 0 -- so the top of a card must be v = 0 or the text comes out
-        // mirrored. Asserted on the geometry rather than a render because a render
-        // needs a display and this needs only the array.
+        // The convention the whole renderer turns on. The shared upload hands a
+        // picture to Java 3D origin-at-upper-left, which samples its first row at
+        // v = 1 -- the same convention the shipped COLLADA exports are authored
+        // against -- so the top of a hand-written card must be v = 1 or its text
+        // comes out upside down. Asserted on the geometry rather than a render
+        // because a render needs a display and this needs only the array.
         ColladaMeshData card = WorldScene.tagQuad(2.0, 1.0);
         float[] c = card.coordinates();
         float[] uv = card.texCoords();
@@ -207,9 +219,9 @@ class WorldSceneTest {
             float y = c[i * 3 + 1];
             float v = uv[i * 2 + 1];
             if (y > 0f) {
-                assertThat(v).as("the card's top edge at vertex " + i).isEqualTo(0f);
+                assertThat(v).as("the card's top edge at vertex " + i).isEqualTo(1f);
             } else if (y < 0f) {
-                assertThat(v).as("the card's bottom edge at vertex " + i).isEqualTo(1f);
+                assertThat(v).as("the card's bottom edge at vertex " + i).isEqualTo(0f);
             }
         }
         // And the u runs with x, or the word reads backwards rather than upside-down.

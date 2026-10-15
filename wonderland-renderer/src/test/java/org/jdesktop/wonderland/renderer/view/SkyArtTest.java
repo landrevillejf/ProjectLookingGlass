@@ -7,22 +7,22 @@
  *
  * Two claims live here, and both were paid for in renders rather than in reading.
  *
- * <p>The first is <b>direction</b>. {@code ImageComponent2D.set(BufferedImage)}
- * copies a picture's first row into the texture's row 0, and row 0 is sampled at
- * {@code v = 0}; that is the renderer's layout, not a choice this port makes, and it
- * is the same fact that decides which way up a name tag reads. So the zenith, which
- * the ramp paints at the top of its image, must be sampled at {@code v = 0}, which is
- * the top of the box. Mapping it the other way is a sky with its horizon on its
- * ceiling and its zenith underfoot.</p>
+ * <p>The first is <b>direction</b>. The renderer's one texture upload hands a
+ * picture to Java 3D origin-at-upper-left, which samples its first row at
+ * {@code v = 1}; that is the layout every card here is authored against, and it is
+ * the same fact that decides which way up a name tag reads. So the zenith, which
+ * the ramp paints at the top of its image, must be sampled at {@code v = 1}, which
+ * is the top of the box. Mapping it the other way is a sky with its ground haze on
+ * its ceiling and its zenith under its floor.</p>
  *
  * <p>The second is <b>the seam</b>. Java 3D's default wrap mode is REPEAT, which
  * makes {@code v = 1} the very same texel as {@code v = 0}. The box's floor card is
- * the degenerate case: every one of its six corners sits at exactly {@code v = 1}, so
- * the whole card came back the ramp's first row -- the sky's own zenith painted on
- * the ground. That is what a person sees as a world whose sky is upside down, and it
- * is why the two ends are inset rather than landing on 0 and 1: measured off the
- * meeting complex, whose lower half was a flat (56,107,184) and is now the ramp's
- * ground haze at (158,168,174).</p>
+ * the degenerate case: every one of its six corners sits at one ramp end, so the
+ * whole card came back that end's colour -- and with the ceiling on the seam, that
+ * end was the zenith. That is what a person sees as a world whose sky is upside
+ * down, and it is why the two ends are inset rather than landing on 0 and 1:
+ * measured off the meeting complex, whose lower half was a flat (56,107,184) and is
+ * now the ramp's ground haze at (158,168,174).</p>
  *
  * <p>Neither is visible in a world with ground of its own, which is exactly why one
  * survived a full sweep unnoticed: the frame fills with the box's own faces only when
@@ -49,13 +49,13 @@ class SkyArtTest {
     void theCeilingIsTheTopOfTheRampAndTheFloorIsItsBottom() {
         assertThat(SkyArt.rowOf(10f, 10f))
                 .as("the box's ceiling takes the ramp's first rows, where the zenith is")
-                .isCloseTo(INSET, within(1e-6f));
+                .isGreaterThan(0.99f);
         assertThat(SkyArt.rowOf(0f, 10f))
                 .as("the box's middle is the horizon")
                 .isCloseTo(0.5f, within(1e-6f));
         assertThat(SkyArt.rowOf(-10f, 10f))
                 .as("the box's floor takes the ramp's last rows, where the haze is")
-                .isGreaterThan(0.99f);
+                .isCloseTo(INSET, within(1e-6f));
     }
 
     @Test
@@ -77,13 +77,15 @@ class SkyArtTest {
     }
 
     @Test
-    void theRampRunsDownwardsAsTheBoxRises() {
-        // Monotonic, because a face whose corners go the wrong way is a face with the
-        // gradient reversed on it, and the side cards are what a person reads as sky.
-        float previous = Float.POSITIVE_INFINITY;
+    void theRampRunsUpwardsAsTheBoxRises() {
+        // Monotonic, and in the upload's direction: the shared texture upload
+        // samples a picture's first row at v = 1, so v must grow with height or the
+        // side cards show the gradient running downhill -- a sky whose haze sits
+        // overhead. The side cards are what a person reads as sky.
+        float previous = Float.NEGATIVE_INFINITY;
         for (float y = -10f; y <= 10f; y += 1f) {
             float v = SkyArt.rowOf(y, 10f);
-            assertThat(v).as("rowOf(" + y + ", 10)").isLessThan(previous);
+            assertThat(v).as("rowOf(" + y + ", 10)").isGreaterThan(previous);
             previous = v;
         }
     }

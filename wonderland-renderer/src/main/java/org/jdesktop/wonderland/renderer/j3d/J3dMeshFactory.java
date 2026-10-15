@@ -294,20 +294,22 @@ public final class J3dMeshFactory {
     }
 
     private static ImageComponent2D toComponent(BufferedImage img) {
-        // Upload with the image's origin at the UPPER LEFT (yUp=false). This is
-        // not a guess about Java 3D -- it is the one convention every textured
-        // consumer in this renderer already documents and is authored against:
-        // SkyArt.rowOf, WorldScene.tagQuad and WorldScene.flatQuad each state
-        // that "the image's first row is sampled at v = 0", and the shipped
-        // COLLADA exports author their V coordinate top-down the same way. A
-        // default-constructed ImageComponent2D + set(img) instead reads
-        // bottom-up (v = 0 lands on the image's LAST row), so that single
-        // mismatch inverted the sky ("ciel a l'envers") and every sign, poster
-        // and name tag in every world at once. Constructing the component from
-        // the image with yUp=false is the proven path lg3d's own upright text
-        // already uses (GlassyTextTextureGenerator) and, because it sits on the
-        // one shared upload, it corrects the orientation for every textured
-        // primitive in every stock world rather than one world at a time.
+        // Upload with the image's origin at the UPPER LEFT (yUp=false), which is
+        // what puts a picture's FIRST row at the texture's {@code v = 1} end --
+        // the OpenGL/.dae convention the shipped COLLADA art is authored for, and
+        // the reason its signs read upright. Measured off a rendered clinic, not
+        // reasoned out: with this upload the .dae walls and posters read right
+        // side up while a card that maps {@code v = 0} to its top edge comes back
+        // inverted. So every card this renderer writes by hand --
+        // {@code WorldScene.tagQuad}, {@code WorldScene.flatQuad},
+        // {@code SkyArt.rowOf} -- carries {@code v = 1} at its top, and a change
+        // here turns all of them at once.
+        //
+        // The default-constructed component + {@code set(img)} reads the other way
+        // (first row at {@code v = 0}), which is what inverted every sign, poster
+        // and name tag in every world at once -- "ciel a l'envers" among them.
+        // Constructing the component from the image with yUp=false is the proven
+        // path lg3d's own upright text already uses (GlassyTextTextureGenerator).
         ImageComponent2D comp = new ImageComponent2D(
                 ImageComponent2D.FORMAT_RGBA, img,
                 /*byReference*/ false, /*yUp*/ false);

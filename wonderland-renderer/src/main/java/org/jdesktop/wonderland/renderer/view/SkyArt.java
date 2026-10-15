@@ -57,7 +57,7 @@ public final class SkyArt {
      * where the sky meets the ground and it is the band a person actually reads a
      * world against. The top of the image is the zenith and the bottom this, which
      * is the same order the sky cards' texture coordinates run in -- the image's
-     * first row is sampled at {@code v = 0}, and {@code v = 0} is the top of the
+     * first row is sampled at {@code v = 1}, and {@code v = 1} is the top of the
      * box; see {@link #rowOf}.
      */
     private static final Color HORIZON = new Color(0.78f, 0.86f, 0.93f);
@@ -71,8 +71,8 @@ public final class SkyArt {
      * <p>The ramp is not a tile, but Java 3D's default wrap mode is REPEAT, which
      * makes {@code v = 1} the very same texel as {@code v = 0}. The box's floor card
      * is the degenerate case that exposes it: every one of its corners is at exactly
-     * {@code v = 1}, so the whole card came back the ramp's first row -- the sky's
-     * own zenith, painted on the ground. That is the second, and real, "ciel à
+     * one end of the ramp, so the whole card came back that end's colour -- the
+     * sky's own zenith, painted on the ground. That is the second, and real, "ciel à
      * l'envers": the meeting complex's lower half was a flat (56,107,184) because
      * the card under everything was reading the top of the gradient. One row in
      * from each end clears the seam and every bilinear tap that reaches past it, and
@@ -118,29 +118,31 @@ public final class SkyArt {
     }
 
     /**
-     * The texture row one sky-card corner sits on: 0 at the box's ceiling, where
-     * the zenith is, and 1 at its floor. Public and pure so the mapping is
-     * asserted in CI -- a corner's height, not its place on the face, is the whole
-     * trick, and a face whose corners are all at the same height is a face of one
-     * colour.
+     * The texture row one sky-card corner sits on: the ramp's top end (1) at the
+     * box's ceiling, where the zenith is, and its bottom end (0) at the floor.
+     * Public and pure so the mapping is asserted in CI -- a corner's height, not
+     * its place on the face, is the whole trick, and a face whose corners are all
+     * at the same height is a face of one colour.
      *
      * <p>The direction is the renderer's, not the image's. The upload in
      * {@code J3dMeshFactory.toComponent} hands every texture to Java 3D with its
      * origin at the upper left ({@code yUp = false}), so a picture's first row is
-     * sampled at {@code v = 0} -- the same fact, and the same one seam, that decides
+     * sampled at {@code v = 1} -- the same fact, and the same one seam, that decides
      * which way up a name tag reads, see {@code WorldScene.tagQuad}. The ramp's
      * zenith, written at the top of the image, is therefore sampled at
-     * {@code v = 0}, which is the top of the box. Mapping it the other way -- or
-     * uploading {@code set(img)} bottom-up, the default-constructed behaviour that
-     * put the first row at {@code v = 1} -- is a sky with its horizon on its ceiling
-     * and its zenith underfoot: the "ciel a l'envers" a person sees the moment a
-     * world has no ground of its own to look at, because then the frame fills with
-     * the box's own faces and their order is all there is to read (measured off the
-     * meeting complex, whose lower half came back as exactly {@code ZENITH}).</p>
+     * {@code v = 1}, which is the top of the box. Mapping it the other way --
+     * putting the ceiling on {@code v = 0}, where that upload samples the ramp's
+     * LAST row -- is a sky with its ground haze overhead and its zenith pooling at
+     * its feet: measured off a rendered clinic, the band above the lobby wall came
+     * back paler the higher it rose (177,202,229 at the top of the frame against
+     * 168,194,225 lower down), which is the gradient running downhill. Uploading
+     * {@code set(img)} on a default-constructed component inverts it the other way
+     * (the first row at {@code v = 0}) and is the "ciel a l'envers" a person sees
+     * the moment a world has no ground of its own to look at.</p>
      *
      * <p>The two ends are pulled in by {@link #SEAM_INSET} rather than landing on
      * 0 and 1, because a whole face pinned to {@code v = 1} is a whole face that
-     * REPEAT hands back to {@code v = 0} -- the sky's zenith on the ground.</p>
+     * REPEAT hands back to {@code v = 0} -- one ramp end painted on the other.</p>
      *
      * @param y the corner's height relative to the box centre
      * @param half the box's half-height, so the answer is in {@code [-1, 1]}
@@ -150,7 +152,7 @@ public final class SkyArt {
         if (!(half > 0f) || !Float.isFinite(half)) {
             return 0.5f; // a box with no height is one colour, and that colour is the horizon
         }
-        float ratio = (1f - y / half) / 2f;
+        float ratio = (1f + y / half) / 2f;
         if (ratio < SEAM_INSET) {
             return SEAM_INSET;
         }

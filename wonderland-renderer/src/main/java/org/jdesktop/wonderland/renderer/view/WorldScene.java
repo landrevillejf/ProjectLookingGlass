@@ -896,18 +896,20 @@ public final class WorldScene {
      * because this fork culls back faces and a card wound the other way is a card
      * that is not there.
      *
-     * <p>The {@code v} runs <em>downwards</em> in the card's own space: 1 at its
-     * bottom edge, 0 at its top. That is the direction the upload runs the image:
+     * <p>The {@code v} runs <em>upwards</em> in the card's own space: 0 at its
+     * bottom edge, 1 at its top. That is the direction the upload runs the image:
      * {@code J3dMeshFactory.toComponent} hands the texture to Java 3D with its
      * origin at the upper left ({@code yUp = false}), so the picture's first row is
-     * sampled at {@code v = 0}, and a card that wants to read upright has to put
-     * that first row at its <em>top</em>, which is {@code v = 0}. Reading the image
-     * the other way up -- the default-constructed {@code set(BufferedImage)}, which
-     * copied the first row to the texture's LAST row and sampled it at {@code v = 1}
-     * -- is a vertical mirror: measured off a rendered clinic, the name over a
-     * resident's head read as {@code Waltlng Patlent}, and the same inversion put
-     * the sky's zenith underfoot -- see {@link SkyArt#rowOf}, which is the other
-     * half of this one convention.</p>
+     * sampled at {@code v = 1} -- the same convention the shipped COLLADA exports
+     * are authored against, which is why a .dae wall sign reads upright on the same
+     * upload -- and a card that wants to read upright has to put that first row at
+     * its <em>top</em>, which is {@code v = 1}. Mapping the picture's first row to
+     * {@code v = 0} instead is a vertical mirror: measured off a rendered clinic,
+     * every name over every resident's head -- {@code Waiting Patient} and the
+     * lobby's {@code Directory} among them -- came back upside down while the
+     * walls behind them read correctly, which is what pins the difference to this
+     * one array rather than to the upload. {@link SkyArt#rowOf} is the other half
+     * of this one convention.</p>
      */
     static ColladaMeshData tagQuad(double width, double height) {
         float hx = (float) (width / 2.0);
@@ -921,8 +923,8 @@ public final class WorldScene {
             0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f,
         };
         float[] texCoords = {
-            0f, 1f, 1f, 1f, 1f, 0f,
-            0f, 1f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f, 0f, 1f, 1f,
+            0f, 0f, 1f, 1f, 0f, 1f,
         };
         int[] triangles = {0, 1, 2, 3, 4, 5};
         return new ColladaMeshData(coordinates, normals, texCoords, triangles, null);
@@ -936,7 +938,7 @@ public final class WorldScene {
      * that is not there.
      *
      * <p>The {@code v} runs the same way {@link #tagQuad}'s does -- the image's
-     * first row at {@code v = 0}, which is the -Z end of a face -- so one
+     * first row at {@code v = 1}, which is the -Z end of a face -- so one
      * convention governs every card this file builds. The pool is radially
      * symmetric, so nothing visible turns on it; stating it is what keeps the next
      * card written here from being mirrored.</p>
@@ -953,8 +955,8 @@ public final class WorldScene {
             0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f,
         };
         float[] texCoords = {
-            0f, 0f, 0f, 1f, 1f, 1f,
-            0f, 0f, 1f, 1f, 1f, 0f,
+            0f, 1f, 0f, 0f, 1f, 0f,
+            0f, 1f, 1f, 0f, 1f, 1f,
         };
         int[] triangles = {0, 1, 2, 3, 4, 5};
         return new ColladaMeshData(coordinates, normals, texCoords, triangles, null);
