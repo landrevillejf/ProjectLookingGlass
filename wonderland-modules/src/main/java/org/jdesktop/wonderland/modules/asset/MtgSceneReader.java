@@ -276,9 +276,17 @@ public final class MtgSceneReader {
         return out;
     }
 
-    /** A store asset's bytes, or null when absent. */
+    /** A store asset's bytes, or null when absent or unreadable. */
     private static byte[] readBytes(WorldStore store, String module, String path) {
-        Optional<InputStream> in = store.open(module, path);
+        Optional<InputStream> in;
+        try {
+            in = store.open(module, path);
+        } catch (RuntimeException ex) {
+            // A store fault (a corrupt jar entry, a closed handle) is the same
+            // "this file is unusable" answer as a missing one: it costs the
+            // instance that names it, never the whole scene read.
+            return null;
+        }
         if (in.isEmpty()) {
             return null;
         }

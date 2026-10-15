@@ -41,6 +41,25 @@ class MtgSceneReaderTest {
 
     private static final String MODULE = "M";
 
+    /**
+     * The minimal COLLADA every synthetic Instance points at: one triangle mesh
+     * in one visual-scene node. Small on purpose -- the reader's job is the fold
+     * (indexing, placement, namespacing), not the mesh, so the geometry only has
+     * to be parseable for a placed node to appear.
+     */
+    private static final String DAE =
+            "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+            + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
+            + "<float_array id=\"a\" count=\"9\">0 0 0 1 0 0 0 1 0</float_array>"
+            + "<technique_common><accessor source=\"#a\" count=\"3\" stride=\"3\">"
+            + "<param name=\"X\" type=\"float\"/><param name=\"Y\" type=\"float\"/>"
+            + "<param name=\"Z\" type=\"float\"/></accessor></technique_common></source>"
+            + "<triangles count=\"1\"><p>0 1 2</p></triangles>"
+            + "</mesh></geometry></library_geometries>"
+            + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"n\">"
+            + "<instance_geometry url=\"#g\"/></node></visual_scene></library_visual_scenes>"
+            + "</COLLADA>";
+
     private static byte[] bytes(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
     }
@@ -57,21 +76,145 @@ class MtgSceneReaderTest {
         }
     }
 
-    private static final String DAE =
-            "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
-            + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
-            + "<float_array id=\"a\" count=\"9\">0 0 0 1 0 0 0 1 0</float_array>"
-            + "<technique_common><accessor source=\"#a\" count=\"3\" stride=\"3\">"
-            + "<param name=\"X\" type=\"float\"/><param name=\"Y\" type=\"float\"/>"
-            + "<param name=\"Z\" type=\"float\"/></accessor></technique_common></source>"
-            + "<triangles count=\"1\"><p>0 1 2</p></triangles>"
-            + "</mesh></geometry></library_geometries>"
-            + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"n\">"
-            + "<instance_geometry url=\"#g\"/></node></visual_scene></library_visual_scenes>"
-            + "</COLLADA>";
+    /** A store whose open always fails, to reach the reader's I/O-fault catch. */
+    private static final class ThrowingStore extends MapStore {
+        @Override
+        public Optional<InputStream> open(String module, String path) {
+            throw new IllegalStateException("simulated store fault");
+        }
+    }
+
+    @Test
+    void anEmptyOrNullSceneYieldsNoDocument() {
+        MapStore store = new MapStore();
+        assertThat(new MtgSceneReader().read(store, MODULE, "o.mtg", null)).isNull();
+        assertThat(new MtgSceneReader().read(store, MODULE, "o.mtg", "")).isNull();
+    }
+
+    @Test
+    void aMalformedOrTruncatedInstanceLineIsSkippedNotFatal() {
+        // One bad author line costs one object, never the scene: a record whose
+        // transform is not numeric, and one that stops short of the file token, are
+        // both dropped by the parser's null answer while the well-formed line folds.
+        String mtg = "Instance Bad org.jdesktop.mtgame.ColladaInstance "
+                + "x y z 0 1 0 0 1 1 1 terrain.dae\n"
+                + "Instance Short org.jdesktop.mtgame.ColladaInstance 0 0 0 0 1\n"
+                + "Instance Good org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Good")).isNotNull();
+        assertThat(nodeNamed(doc, "Bad")).isNull();
+        assertThat(nodeNamed(doc, "Short")).isNull();
+    }
+
+    @Test
+    void aMissingInstanceFileDropsThatInstanceNotTheScene() {
+        String mtg = "Instance Gone org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 absent.dae\n"
+                + "Instance Here org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Here")).isNotNull();
+        assertThat(nodeNamed(doc, "Gone")).isNull();
+    }
+
+    @Test
+    void aCorruptInstanceFileDropsThatInstanceNotTheScene() {
+        // A gzip stream that cannot inflate (or COLLADA the parser rejects) is caught
+        // per-file; the rest of the scene still folds rather than aborting the world.
+        String mtg = "Instance Corrupt org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 bad.dae.gz\n"
+                + "Instance Good org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore()
+                .put("bad.dae.gz", new byte[]{0x1f, (byte) 0x8b, 0x00, 0x00, 0x00})
+                .put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Good")).isNotNull();
+        assertThat(nodeNamed(doc, "Corrupt")).isNull();
+    }
+
+    @Test
+    void aZeroLengthRotationAxisCarriesNoRotate() {
+        // A degenerate axis (all three components zero) has no direction to turn by;
+        // the reader omits the rotate rather than dividing by zero, keeping translation.
+        String mtg = "Instance Flat org.jdesktop.mtgame.ColladaInstance "
+                + "4 5 6 0 0 0 1.5 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        Matrix4d m = worldOf(doc, "Flat");
+        assertThat(m.getElement(0, 3)).isEqualTo(4.0);
+        assertThat(rotationFromIdentity(m)).isLessThan(1e-9);
+    }
+
+    @Test
+    void aScaleIsCarriedIntoThePlacedTransform() {
+        // The tree wall is authored at 1.4 across to stretch it; the scale must reach
+        // the transform (and a non-unit scale is what makes the <scale> element appear).
+        String mtg = "Instance Wall org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1.4 1.0 1.4 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(worldOf(doc, "Wall").getElement(0, 0)).isEqualTo(1.4);
+    }
+
+    @Test
+    void everyLibraryReferenceIsRewrittenUnderTheNamespace() {
+        // The merge is only correct if a material's effect ref, an effect's sampler
+        // image ref and the image id itself are all re-keyed to the same prefixed
+        // vocabulary the libraries now carry -- a bare (un-prefixed) reference would
+        // dangle at render time once two source files are folded together.
+        String dae =
+                "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+                + "<library_effects><effect id=\"effA\"><profile_COMMON>"
+                + "<technique_common><lambert><diffuse><texture texture=\"s0\"/>"
+                + "</diffuse></lambert></technique_common></profile_COMMON></effect></library_effects>"
+                + "<library_materials><material id=\"matA\"><instance_effect url=\"#effA\"/>"
+                + "</material></library_materials>"
+                + "<library_images><image id=\"imgA\"><init_from>./a.png</init_from></image>"
+                + "</library_images>"
+                + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
+                + "<float_array id=\"a\" count=\"9\">0 0 0 1 0 0 0 1 0</float_array>"
+                + "<technique_common><accessor source=\"#a\" count=\"3\" stride=\"3\">"
+                + "<param name=\"X\" type=\"float\"/></accessor></technique_common></source>"
+                + "<triangles count=\"1\" material=\"m\"><p>0 1 2</p></triangles>"
+                + "</mesh></geometry></library_geometries>"
+                + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"n\">"
+                + "<instance_geometry url=\"#g\"><bind_material><technique_common>"
+                + "<instance_material symbol=\"m\" target=\"#matA\"/>"
+                + "</technique_common></bind_material></instance_geometry></node>"
+                + "</visual_scene></library_visual_scenes></COLLADA>";
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(dae));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(doc.materialIds()).anyMatch(id -> id.startsWith("terrain__")
+                && id.endsWith("matA"));
+        assertThat(doc.effectIds()).anyMatch(id -> id.startsWith("terrain__")
+                && id.endsWith("effA"));
+        assertThat(doc.imageIds()).anyMatch(id -> id.startsWith("terrain__")
+                && id.endsWith("imgA"));
+    }
+
+    @Test
+    void aStoreReadFaultDropsTheInstanceRatherThanThrowing() {
+        // The reader degrades a store fault to a missing file, so one unreadable asset
+        // costs its own instance and never aborts the whole scene read.
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        assertThat(read(mtg, new ThrowingStore())).isNull();
+    }
 
     /** A store whose single module is a map of path -> bytes. */
-    private static final class MapStore implements WorldStore {
+    private static class MapStore implements WorldStore {
         private final Map<String, byte[]> files = new HashMap<>();
 
         MapStore put(String path, byte[] content) {
@@ -249,5 +392,84 @@ class MtgSceneReaderTest {
         assertThat(nodeNamed(doc, "S2")).isNotNull();
         assertThat(worldOf(doc, "S1").getElement(0, 3)).isEqualTo(8.0);
         assertThat(worldOf(doc, "S2").getElement(2, 3)).isEqualTo(6.0);
+    }
+
+    @Test
+    void aNestedNodeAndItsInstanceNodeAreBothRewrittenUnderTheNamespace() {
+        // The fold prefixes a whole node tree, not just a scene's top level: a real
+        // export nests geometry under a child node and cross-links nodes with an
+        // <instance_node>. A material carrying no <instance_effect> exercises the
+        // null-reference branch of the re-keying (nothing to prefix stays null).
+        String dae =
+                "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+                + "<library_materials><material id=\"matA\" name=\"Mat A\"/></library_materials>"
+                + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
+                + "<float_array id=\"a\" count=\"9\">0 0 0 1 0 0 0 1 0</float_array>"
+                + "<technique_common><accessor source=\"#a\" count=\"3\" stride=\"3\">"
+                + "<param name=\"X\" type=\"float\"/></accessor></technique_common></source>"
+                + "<triangles count=\"1\"><p>0 1 2</p></triangles>"
+                + "</mesh></geometry></library_geometries>"
+                + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"root\" name=\"Root\">"
+                + "<node id=\"leaf\"><instance_geometry url=\"#g\"/></node>"
+                + "<instance_node url=\"#root\"/></node>"
+                + "</visual_scene></library_visual_scenes></COLLADA>";
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(dae));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(doc).isNotNull();
+        assertThat(nodeNamed(doc, "Terrain")).isNotNull();
+        assertThat(doc.materialIds()).anyMatch(id -> id.startsWith("terrain__"));
+    }
+
+    @Test
+    void aSourceFileWithNoVisualSceneDropsThatInstanceNotTheScene() {
+        // Geometry with nowhere to be placed (no <visual_scene>) cannot render, so the
+        // reader treats it as unusable and folds nothing -- the whole scene is empty
+        // only if EVERY instance file is like this, which the null answer records.
+        String dae =
+                "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+                + "<library_geometries><geometry id=\"g\"><mesh/></geometry>"
+                + "</library_geometries></COLLADA>";
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(dae));
+
+        assertThat(read(mtg, store)).isNull();
+    }
+
+    @Test
+    void aStreamThatFailsMidReadDropsTheInstanceRatherThanThrowing() {
+        // A present-but-unreadable asset (the store opens it, then the bytes fault) is
+        // the same "this file is unusable" answer as a missing one; the reader's read
+        // catch turns the IOException into a dropped instance, not an aborted world.
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+
+        assertThat(read(mtg, new FaultyStreamStore())).isNull();
+    }
+
+    /** A store whose asset opens fine but throws IOException as it is read. */
+    private static final class FaultyStreamStore implements WorldStore {
+        @Override
+        public Optional<InputStream> open(String module, String path) {
+            return Optional.of(new InputStream() {
+                @Override
+                public int read() throws IOException {
+                    throw new IOException("simulated mid-read fault");
+                }
+            });
+        }
+
+        @Override
+        public boolean present(String module, String path) {
+            return true;
+        }
+
+        @Override
+        public List<String> listAssets(String module, String suffix) {
+            return List.of();
+        }
     }
 }

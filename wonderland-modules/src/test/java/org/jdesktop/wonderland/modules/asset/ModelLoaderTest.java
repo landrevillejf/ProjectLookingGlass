@@ -240,6 +240,21 @@ class ModelLoaderTest {
     }
 
     @Test
+    void mtgIsDecidedByExtensionFirstAndTheLoaderNameAsABackstop() {
+        // The .mtg extension is the authority (case-insensitive, like the COLLADA
+        // test above); the MtgLoader class name only backstops a scene deployed
+        // without its extension. A COLLADA-named artifact under neither signal is
+        // not an MTG, and neither null argument may throw.
+        assertThat(ModelLoader.isMtg(null, "scene.mtg")).isTrue();
+        assertThat(ModelLoader.isMtg(null, "dir/SCENE.MTG")).isTrue();
+        assertThat(ModelLoader.isMtg(null, "scene.dae")).isFalse();
+        assertThat(ModelLoader.isMtg(
+                "org.jdesktop.wonderland.modules.mtgloader.client.MtgLoader", "scene")).isTrue();
+        assertThat(ModelLoader.isMtg("org.example.ColladaLoader", "scene.dae")).isFalse();
+        assertThat(ModelLoader.isMtg(null, null)).isFalse();
+    }
+
+    @Test
     void aGenuinelyUnsupportedFormatIsSkippedWithAReasonRatherThanAParseFailure() {
         // A format with no reader at all -- not MTGame, which is now supported --
         // must still cost itself and not the world, and the message must name both
