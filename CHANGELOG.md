@@ -10,6 +10,24 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Mandela cell behaviours for Wonderland — roadmap P5.1** (`lg3d-apps`) —
+  a world can now have one opinion about its own cells without a rebuild: it
+  ships a single `behaviour.mnd` beside its art, and the walk-in renderer
+  reads it through the same cached world store (and the same asset endpoint
+  the models already use). `WorldBehavior` binds each model cell's plain
+  facts — `label`, `name`, `cellType`, position, footprint, and whether it
+  is a model, an avatar or a picture, with a missing number bound as `0.0`
+  so script arithmetic never trips — runs the script through
+  `Mandela.eval(source, Map)`, and reads back exactly one thing: an
+  annotation floating over that cell. A script never sees the scene graph
+  and the bridge never throws onto the render path — a null, blank, throwing
+  or empty-valued behaviour, and one the world simply does not ship, all
+  collapse to the label the cell was authored with, so every bundled world
+  renders exactly as it did before the feature existed. **14 new headless
+  cases** (`WorldBehaviorTest`) prove the decision and the safety without a
+  display; showing an annotation on a live cell remains the walk-in probe's
+  job, the same division the lighting rig above accepted for its shading.
+  Grounded in `docs/wonderland-roadmap.md`.
 - **Opt-in lighting for the renderer, and the Wonderland 3D roadmap**
   (`wonderland-renderer` + `docs`) — `docs/wonderland-roadmap.md` now records
   what the port actually carries (multiplayer and sessions are *real*; collision

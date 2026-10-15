@@ -127,7 +127,7 @@ layer (Mandela must not import AWT/Swing/Java 3D/lg3d-core). The renderer/app
 that the renderer applies to Java 3D nodes. This keeps the dependency direction
 legal and the engine embeddable.
 
-- **P5.1 Cell behaviours - reframed after reading the API.** There is no
+- **P5.1 Cell behaviours** *(this PR)*. Reframed after reading the API. There is no
   "register these packages as Mandela modules" step and no host-type import: by
   design a Mandela script sees only `java.base` + `javax.script` and the values
   its host hands it. The real surface is `Mandela.eval(source, Map<String,Object>)`
@@ -141,6 +141,21 @@ legal and the engine embeddable.
   userscript bridge embeds Mandela today. This is fully headless-testable (the
   engine runs without a display); only the *effect* of a behaviour on the live
   scene needs a screen.
+
+  Delivered as `WorldBehavior` in `lg3d-apps`: a world ships one
+  `behaviour.mnd` beside its art, read through the same cached store and the
+  same `/api/world/asset` endpoint the models already use (the server serves
+  any module-root file, and an absent behaviour is the normal case, not an
+  error). For each model cell the host binds its plain facts (`label`, `name`,
+  `cellType`, `x/y/z`, `width/depth`, `hasModel`, `isAvatar`, `isGui` - a
+  missing number binds as `0.0` so script arithmetic never trips), runs
+  `Mandela.eval(source, Map)`, and reads back one string: the cell's
+  annotation, which replaces the label floating over it. A null, blank,
+  throwing or empty-valued script all collapse to the label the cell was
+  authored with - no exception ever reaches the render path. The decision and
+  the safety are the 14 headless cases of `WorldBehaviorTest`; the effect of
+  an annotation on the live scene stays the walk-in probe's job, exactly as
+  P0.1 left its on-screen shading to the `WorldViewer` probe.
 - **P5.2 Shipped scripts.** Behaviours under `scripts/mandela/`, compiled by
   `ShippedScriptsTest`.
 - **P5.3 Probe harness.** Formalise the in-JVM `WorldViewer` eye probe as
