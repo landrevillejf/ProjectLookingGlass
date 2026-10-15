@@ -79,7 +79,16 @@ public class ViewCell extends Cell {
     @Override
     public void setClientState(CellClientState cellClientState) {
         super.setClientState(cellClientState);
-        this.identity = ((ViewCellClientState) cellClientState).getIdentity();
+        // Read the identity only when the wire actually carries a
+        // ViewCellClientState. A seeded resident (an AvatarCell the seeder gave a
+        // plain CellClientState) or any foreign frame must not abort the whole
+        // load -- a blind cast here threw ClassCastException, which the client
+        // cache logged SEVERE and the desktop surfaced as its crash dialog. The
+        // identity simply stays unset, exactly as a view cell before it is
+        // configured; a name label is not worth a second failure on the user's.
+        if (cellClientState instanceof ViewCellClientState viewState) {
+            this.identity = viewState.getIdentity();
+        }
     }
 
     public WonderlandIdentity getIdentity() {

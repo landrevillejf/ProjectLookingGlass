@@ -116,6 +116,8 @@
 
   <h3>Fixed</h3>
   <ul>
+    <li><strong>Walking into the clinic crashed on every resident, because a seeded <code>AvatarCell</code> was put on the wire as a plain <code>CellClientState</code></strong> (<code>wonderland-server</code> + <code>wonderland-client</code>)
+    </li>
     <li><strong>A live walk-in crashed the desktop on entering any world, because the server broadcast an abstract class as the environment root</strong> (<code>wonderland-client</code> + <code>wonderland-server</code>)
     </li>
     <li><strong>A cell's <code>width</code> and <code>depth</code> were the square of the room, so the world browser's floor plan drew a 5.4 m exam room as a 58 m one</strong> (<code>wonderland-server</code>)

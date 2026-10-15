@@ -29,6 +29,7 @@ import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.junit.jupiter.api.Test;
@@ -228,6 +229,12 @@ class WorldSeederTest {
         // inert environment geometry -- this is what puts people in the lobby
         assertThat(only(world, "Avatar").getClassName())
                 .isEqualTo(WorldSeeder.AVATAR_CELL_CLASS);
+        // ... and the wire state must be the type the client's ViewCell cast
+        // demands. Before this the non-model branch gave a plain CellClientState,
+        // so a walking-in client loading the AvatarCell threw ClassCastException
+        // in loadCell -> a SEVERE the desktop surfaced as its crash dialog.
+        assertThat(only(world, "Avatar").getClientState())
+                .isInstanceOf(ViewCellClientState.class);
     }
 
     @Test

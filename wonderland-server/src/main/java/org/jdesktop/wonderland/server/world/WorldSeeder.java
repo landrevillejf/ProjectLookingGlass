@@ -44,6 +44,7 @@ import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.CellServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
 import org.jdesktop.wonderland.modules.asset.ManifestClasspathWorldStore;
 import org.jdesktop.wonderland.modules.asset.MultiWorldStore;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
@@ -190,7 +191,8 @@ public class WorldSeeder implements ApplicationRunner {
         ModelCellComponentServerState model = (ModelCellComponentServerState) state.getComponentServerState(
                 ModelCellComponentServerState.class);
         boolean isModel = model != null;
-        String className = (state instanceof AvatarCellServerState)
+        boolean isAvatar = state instanceof AvatarCellServerState;
+        String className = isAvatar
                 ? AVATAR_CELL_CLASS
                 : isModel ? MODEL_CELL_CLASS : WorldModel.ENVIRONMENT_CLASS;
         // The wla:// model URL is carried on BOTH surfaces: the WorldCell field
@@ -204,6 +206,15 @@ public class WorldSeeder implements ApplicationRunner {
             ModelCellClientState modelState = new ModelCellClientState();
             modelState.setDeployedModelURL(modelURL);
             clientState = modelState;
+        } else if (isAvatar) {
+            // An AvatarCell IS a ViewCell, and ViewCell.setClientState reads a
+            // ViewCellClientState identity -- so a resident must travel as that
+            // type, not the plain CellClientState the non-model branch would
+            // otherwise hand it. That mismatch made a walking-in client throw
+            // ClassCastException inside loadCell, which the desktop logged SEVERE
+            // and surfaced as its crash dialog. A resident has no session
+            // identity, so the state is the empty one; the CLASS is what matters.
+            clientState = new ViewCellClientState();
         } else {
             clientState = new CellClientState();
         }

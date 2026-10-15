@@ -1517,6 +1517,26 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **Walking into the clinic crashed on every resident, because a seeded
+  `AvatarCell` was put on the wire as a plain `CellClientState`**
+  (`wonderland-server` + `wonderland-client`) — the same live walk-in this branch
+  adds, one layer past the environment root. The clinic seeds named residents
+  (Receptionist, Waiting Patient…), and `WorldSeeder.seedCell` maps an
+  `AvatarCellServerState` to the client's `AvatarCell` — which *is* a `ViewCell`,
+  whose `setClientState` reads a `ViewCellClientState` identity. But a resident is
+  not a model cell, so it fell through to the non-model branch and got a plain
+  `CellClientState`. A walking-in client loading cell after cell hit
+  `ClassCastException: CellClientState cannot be cast to ViewCellClientState` in
+  `loadCell`, each one logged `SEVERE` and fed to the crash reporter — a dialog
+  per resident. The seeder now gives an avatar cell the `ViewCellClientState` its
+  client class demands (an empty one — a resident has no session identity), so the
+  wire matches the cell's contract the way the router already does for live view
+  cells. `ViewCell.setClientState` additionally guards the cast: a foreign or
+  legacy frame carrying some other state now leaves the identity unset instead of
+  aborting the whole load, because a name label is not worth a second failure on
+  top of the user's. `WorldSeederTest` pins the seeded state type, and
+  `MovableAvatarComponentTest.plainClientStateDoesNotBreakTheViewCellCast` loads
+  an `AvatarCell` from a plain `CellClientState` and asserts it does not throw.
 - **A live walk-in crashed the desktop on entering any world, because the server
   broadcast an abstract class as the environment root** (`wonderland-client` +
   `wonderland-server`) — the same walk-in this branch adds. `WorldModel` is a
