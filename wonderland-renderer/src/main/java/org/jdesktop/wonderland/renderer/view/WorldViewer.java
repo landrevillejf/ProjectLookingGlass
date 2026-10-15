@@ -38,6 +38,7 @@
 package org.jdesktop.wonderland.renderer.view;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Frame;
 import java.awt.GraphicsConfiguration;
 import java.awt.event.KeyAdapter;
@@ -208,6 +209,17 @@ public final class WorldViewer implements AutoCloseable {
     private boolean atWalkPose;
 
     /**
+     * The panel docked on the window's right, or {@code null}. Kept for two
+     * reasons: {@link #setSidebar} replaces one panel with another instead of
+     * stacking them, and {@link #keyboardIsForTheWorld()} has to know that the
+     * window now holds a text field -- which is full of the very keys the walker
+     * uses, since W A S D Q E are letters before they are commands. AWT hands a
+     * frame its children's unconsumed {@code KEY_PRESSED} events, so without
+     * that test typing "water" into a chat box walked the eye west five times.
+     */
+    private volatile Component sidebar;
+
+    /**
      * Builds the window but does not show it; {@link #show()} attaches the scene.
      *
      * @param title  the window title, normally the world's name
@@ -227,7 +239,9 @@ public final class WorldViewer implements AutoCloseable {
         frame.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent event) {
-                handleKey(event.getKeyCode());
+                if (keyboardIsForTheWorld()) {
+                    handleKey(event.getKeyCode());
+                }
             }
         });
         // Drag to look: the mouse is the natural "turn my head" on this platform,
@@ -309,6 +323,52 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Dock a panel on the window's right -- the roster, the transcript, the
+     * inventory, whatever the walk needs beside the view. Pass {@code null} to
+     * take it back off.
+     *
+     * <p>Callable before or after {@link #show()}: the frame's layout is
+     * revalidated either way, so a visitor who joins a world mid-session gets
+     * the panel and the canvas gives back the width. The panel is a plain AWT
+     * {@code Component} rather than this module's type because the walk-in's
+     * window belongs here while what it shows belongs to whoever opened it --
+     * the same seam {@code TitledSwingWindow} is for the 3D desktop.</p>
+     *
+     * @param panel the component to dock, or {@code null} to undock
+     */
+    public void setSidebar(Component panel) {
+        Component previous = sidebar;
+        if (previous != null) {
+            frame.remove(previous);
+        }
+        sidebar = panel;
+        if (panel != null) {
+            frame.add(panel, BorderLayout.EAST);
+        }
+        frame.validate();
+    }
+
+    /** The docked panel, or {@code null}. */
+    public Component getSidebar() {
+        return sidebar;
+    }
+
+    /**
+     * Whether the keystroke belongs to the walker rather than to a widget.
+     *
+     * <p>The frame itself and its canvas are the world's own keyboard; anything
+     * else that holds focus -- a chat field, a roster row being selected -- is
+     * not, and its keys must reach it alone. A null focus owner (a window that
+     * has not been clicked yet) reads as the world's, which is what the visitor
+     * expects of arrow keys on a freshly opened window.</p>
+     */
+    private boolean keyboardIsForTheWorld() {
+        Component owner = frame.getFocusOwner();
+        return owner == null || owner == frame || owner == canvas
+                || owner == sidebar;
+    }
+
+    /**
      * Raise the window and hand it the keyboard. A viewer the desktop already
      * opened is not a reason to open a second one, and a window that cannot see
      * its own key events is a window nobody can walk.
@@ -320,15 +380,24 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
-     * Register the one hook that runs when this window goes away, whoever closed
-     * it. The panel needs it because its Enter World button must come back when
-     * the visitor shuts the window from the title bar, which is the usual way.
+     * Register a hook that runs when this window goes away, whoever closed it.
+     * The panel needs it because its Enter World button must come back when the
+     * visitor shuts the window from the title bar, which is the usual way.
+     *
+     * <p>Hooks accumulate rather than replace: the window is one object but it
+     * has more than one owner -- the browser that opened it, and whatever that
+     * opening started beside it (a live session, a transcript) -- and a second
+     * registration used to switch the first one off, which left a visitor who
+     * closed the window holding sockets nobody would ever close.</p>
      */
     public void setOnClose(Runnable hook) {
-        onClose = hook;
+        if (hook != null) {
+            onClose.add(hook);
+        }
     }
 
-    private volatile Runnable onClose;
+    private final java.util.List<Runnable> onClose =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
      * Tear the window down: detach the scene, then dispose the frame. Safe to
@@ -339,8 +408,8 @@ public final class WorldViewer implements AutoCloseable {
         final SimpleUniverse dead = universe;
         universe = null;
         capture = null;
-        Runnable hook = onClose;
-        onClose = null;
+        java.util.List<Runnable> hooks = new java.util.ArrayList<>(onClose);
+        onClose.clear();
         java.awt.EventQueue.invokeLater(() -> {
             if (dead != null) {
                 try {
@@ -351,11 +420,12 @@ public final class WorldViewer implements AutoCloseable {
                 }
             }
             frame.dispose();
-            if (hook != null) {
+            for (Runnable hook : hooks) {
                 try {
                     hook.run();
                 } catch (RuntimeException | Error listenerThrew) {
-                    // The window is gone; a host that failed to notice is its own bug.
+                    // The window is gone; a host that failed to notice is its own
+                    // bug, and one listener throwing must not silence the rest.
                 }
             }
         });

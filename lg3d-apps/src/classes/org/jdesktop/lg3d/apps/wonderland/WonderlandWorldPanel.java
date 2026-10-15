@@ -253,6 +253,20 @@ public class WonderlandWorldPanel extends JPanel {
                 WorldCatalog.ByteFetcher assets, int width, int height) {
             org.jdesktop.wonderland.renderer.view.WorldViewer viewer =
                     WorldRender.open(server, module, world, assets, width, height);
+            // The visit, not only the view: a window into a world that lists no
+            // one and hears nothing is a render, and the reference picture of
+            // this project is a room with a "Users (9)" window on it. The scene
+            // is already on screen when this runs, so a world that will not
+            // connect costs the visitor nothing they had.
+            WorldVisitPanel sidebar = new WorldVisitPanel();
+            WorldVisit visit = new WorldVisit(server, null, sidebar);
+            viewer.setSidebar(sidebar);
+            visit.start();
+            // Whoever closes the window ends the visit with it: the sockets, the
+            // chat receiver and the roster all belong to this frame, and a
+            // session outliving its window is a name on someone else's roster
+            // after the person has gone home.
+            viewer.setOnClose(visit::close);
             return new WorldHandle() {
                 @Override
                 public void focus() {
@@ -261,6 +275,7 @@ public class WonderlandWorldPanel extends JPanel {
 
                 @Override
                 public void close() {
+                    visit.close();
                     viewer.close();
                 }
 
@@ -342,7 +357,9 @@ public class WonderlandWorldPanel extends JPanel {
         // a list of rooms you cannot walk into is an inventory, not a browser.
         enterButton.setToolTipText("Open the selected world in its own 3D window "
                 + "and walk it: arrows or W/S move, A/D strafe, Q/E or the mouse "
-                + "turn, PageUp/PageDown rise and sink, Home reframes the view.");
+                + "turn, PageUp/PageDown rise and sink, Home reframes the view. "
+                + "The panel at the right is the world's company: who is here, and "
+                + "what they say \u2014 type there and the walker's keys stay put.");
         enterButton.addActionListener(e -> enterWorld());
         // The explicit server controls: the auto-start on a failed read is a
         // convenience, but the panel must also let the operator bring Spring
