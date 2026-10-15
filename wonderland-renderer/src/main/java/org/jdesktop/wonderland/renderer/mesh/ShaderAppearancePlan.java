@@ -92,49 +92,59 @@ public final class ShaderAppearancePlan {
     /**
      * The one-light Blinn-Phong GLSL 1.20 pair for a layered material.
      *
-     * <p>Bound exactly to what this renderer can supply: the eye-space vertex
-     * pipeline Java 3D already computes (inPosition/inNormal/inTexCoord), up to
-     * three texture layers on units 0..2, and the five uniforms the lighting
-     * rig (P0.1) already owns. The normal map is read as a tangent-space
-     * perturbation and the specular map scales the Blinn highlight when the
-     * effect named one. It is a compiled string here -- asserted to exist and
-     * to name its samplers consistently -- and it becomes a live program only
-     * in a probe run, never in a headless test.</p>
+     * <p>Bound to what this fork's live GL context was MEASURED to expose, not to
+     * what upstream Java 3D documents. Three probes settled the shape (build-
+     * gradle/scratch, run on the repo's X:0 / GL 4.6 radeonsi context):
+     * <ul>
+     *   <li>WlProbe39: the scene graph's {@code Light} does NOT reach a custom
+     *       program -- {@code gl_LightSource[0]} read back its OpenGL default for a
+     *       facing and a grazing normal alike, even with a properly bounded
+     *       {@code DirectionalLight}. So the light is passed as the program's OWN
+     *       {@code lightDirection / lightColor / ambientColor} uniforms, which
+     *       WlProbe40 proved {@code ShaderAttributeSet} delivers and WlProbe41
+     *       proved shade per fragment (facing 255,255,255 vs grazing 31,31,31).</li>
+     *   <li>WlProbe40: one {@code sampler2D} bound through {@code TextureUnitState}
+     *       samples correctly.</li>
+     *   <li>WlProbe42: this fork binds exactly ONE texture per program -- a second
+     *       {@code sampler2D} reads the first unit's image, not its own. So the
+     *       normal- and specular-map stages are present and correct, but a host
+     *       that can supply only the diffuse texture leaves {@code hasNormalMap /
+     *       hasSpecMap} at 0 and they are never sampled; the multi-layer effect
+     *       needs a direct-JOGL program that binds its own samplers (the roadmap's
+     *       Platform ceiling), which is out of this fixed-pipeline pass.</li>
+     * </ul>
+     * The specular half-vector is therefore the eye-space view direction
+     * ({@code vViewDir}), not {@code gl_LightSource[0].halfVector}.</p>
      */
     public static final String VERTEX_GLSL = """
             #version 120
-            // P2.2 layered-material vertex stage: the standard Java 3D eye-space
-            // pipeline, with the three vectors the fragment stage needs.
+            // P2.2 layered-material vertex stage: the eye-space pipeline Java 3D
+            // already computes, plus the two vectors the fragment needs that it
+            // cannot recompute there (gl_NormalMatrix is vertex-only).
+            varying vec3 vEyeNormal;
+            varying vec3 vViewDir;
             void main() {
                 gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-                vec3 eyeNormal = normalize(gl_NormalMatrix * gl_Normal);
-                // the tangent frame is derived here rather than shipped
-                // per-vertex, because ColladaMeshData carries no tangents and
-                // inventing a vertex attribute needs the probe's geometry-array
-                // agreement.
-                vec3 tangent = normalize(gl_Vertex.xyz - gl_Normal);
-                vec3 binormal = cross(eyeNormal, tangent);
-                gl_FrontColor = gl_Color;
                 gl_TexCoord[0] = gl_MultiTexCoord0;
-                // the fog distance the fixed pipeline would have computed, in
-                // eye space (gl_FogFragCoord is a vertex-shader INPUT -- an
-                // assignment to it is exactly the kind of compile error only a
-                // live context can catch, which is why this string is written
-                // against the spec and validated by a probe, never by a test).
-                gl_FogFragCoord = length((gl_ModelViewMatrix * gl_Vertex).xyz);
-                // pass the eye-space basis through per-face varyings
-                gl_FrontSecondaryColor = vec4(tangent, dot(eyeNormal, binormal) > 0.0 ? 1.0 : -1.0);
+                vEyeNormal = normalize(gl_NormalMatrix * gl_Normal);
+                vec3 eyePos = (gl_ModelViewMatrix * gl_Vertex).xyz;
+                vViewDir = normalize(-eyePos);
             }
             """;
 
     /** The fragment half of {@link #VERTEX_GLSL}. */
     public static final String FRAGMENT_GLSL = """
             #version 120
-            // P2.2 layered-material fragment stage: one directional light,
-            // Blinn-Phong, tangent-space normal map on unit 1, optional
-            // specular map on unit 2. Uniform names mirror the P0.1 rig; a
-            // world without a spec map passes HAS_SPEC_MAP 0 and unit 2 is
-            // simply never sampled.
+            // P2.2 layered-material fragment stage: one directional light supplied
+            // as OUR OWN uniforms (the scene Light is inert here -- see the class
+            // note), Blinn-Phong against the eye-space view vector, tangent-space
+            // normal on unit 1 and a specular mask on unit 2 only when the host
+            // actually bound those layers (hasNormalMap / hasSpecMap). A host that
+            // can bind just the diffuse texture -- which is this fork's measured
+            // single-texture ceiling -- passes 0 for both and gets per-pixel
+            // lighting, not a broken multi-sampler read.
+            varying vec3 vEyeNormal;
+            varying vec3 vViewDir;
             uniform sampler2D diffuseMap;
             uniform sampler2D normalMap;
             uniform sampler2D specMap;
@@ -143,23 +153,30 @@ public final class ShaderAppearancePlan {
             uniform vec3 ambientColor;
             uniform float shininess;
             uniform int hasSpecMap;
+            uniform int hasNormalMap;
 
             void main() {
                 vec4 base = texture2D(diffuseMap, gl_TexCoord[0].st);
-                // Unpack the tangent-space normal (the 0.5..1.0 encoding every
-                // authoring tool writes) and perturb the interpolated normal.
-                vec3 mapNormal = texture2D(normalMap, gl_TexCoord[0].st).xyz * 2.0 - 1.0;
-                vec3 eyeNormal = normalize(gl_NormalMatrix * mapNormal);
+                vec3 N = normalize(vEyeNormal);
+                if (hasNormalMap != 0) {
+                    // Unpack the 0.5..1.0 tangent-space encoding every authoring
+                    // tool writes and perturb the interpolated normal.
+                    vec3 mapN = texture2D(normalMap, gl_TexCoord[0].st).xyz * 2.0 - 1.0;
+                    vec3 up = abs(N.z) < 0.99 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+                    vec3 T = normalize(cross(up, N));
+                    vec3 B = normalize(cross(N, T));
+                    N = normalize(T * mapN.x + B * mapN.y + N * max(mapN.z, 0.1));
+                }
                 vec3 L = normalize(-lightDirection);
-                float ndl = max(dot(eyeNormal, L), 0.0);
+                float ndl = max(dot(N, L), 0.0);
                 vec3 diffuse = base.rgb * (ambientColor + lightColor * ndl);
                 if (hasSpecMap != 0) {
                     float specMask = texture2D(specMap, gl_TexCoord[0].st).r;
-                    vec3 V = normalize(gl_LightSource[0].halfVector.xyz);
-                    float spec = pow(max(dot(eyeNormal, V), 0.0), max(shininess, 1.0));
-                    diffuse += lightColor * spec * specMask;
+                    vec3 H = normalize(L + vViewDir);
+                    float spec = pow(max(dot(N, H), 0.0), max(shininess, 1.0)) * specMask;
+                    diffuse += lightColor * spec;
                 }
-                gl_FragColor = vec4(diffuse, base.a);
+                gl_FragColor = vec4(min(diffuse, vec3(1.0)), base.a);
             }
             """;
 

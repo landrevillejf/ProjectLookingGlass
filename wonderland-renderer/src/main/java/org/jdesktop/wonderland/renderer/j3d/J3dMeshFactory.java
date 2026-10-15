@@ -28,19 +28,28 @@ import javax.imageio.ImageIO;
 import org.jdesktop.wonderland.renderer.mesh.BakedRig;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.MaterialAppearance;
+import org.jdesktop.wonderland.renderer.mesh.ShaderAppearancePlan;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
 import org.jogamp.java3d.Appearance;
+import org.jogamp.java3d.GLSLShaderProgram;
 import org.jogamp.java3d.GeometryArray;
 import org.jogamp.java3d.ImageComponent2D;
 import org.jogamp.java3d.IndexedTriangleArray;
 import org.jogamp.java3d.Material;
 import org.jogamp.java3d.ColoringAttributes;
 import org.jogamp.java3d.Shape3D;
+import org.jogamp.java3d.Shader;
+import org.jogamp.java3d.ShaderAppearance;
+import org.jogamp.java3d.ShaderAttributeSet;
+import org.jogamp.java3d.ShaderAttributeValue;
+import org.jogamp.java3d.SourceCodeShader;
 import org.jogamp.java3d.Texture;
 import org.jogamp.java3d.Texture2D;
 import org.jogamp.java3d.TextureAttributes;
+import org.jogamp.java3d.TextureUnitState;
 import org.jogamp.java3d.TransparencyAttributes;
 import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Vector3f;
 
 /** Turns one {@link ColladaMeshData} plus its resolved appearance into a {@link Shape3D}. */
 public final class J3dMeshFactory {
@@ -67,6 +76,86 @@ public final class J3dMeshFactory {
     /** The factory that reads textures through {@code textures} (null: as before). */
     public J3dMeshFactory(TextureSource textures) {
         this.textures = textures;
+        this.shaderRoute = Boolean.getBoolean("lg.wonderland.shader");
+    }
+
+    /**
+     * Roadmap P2.2/P0.1, connected: whether a lit material is drawn by a real GLSL
+     * program (per-pixel Blinn-Phong) or the fixed pipeline. <b>OFF by default</b>
+     * so a pre-lit world is byte-identical to every prior probe run; {@code
+     * -Dlg.wonderland.shader=true} turns the validated route on. The decision rests
+     * on measurement, not assumption (build-gradle/scratch/WlProbe39..42, run on the
+     * repo's live X:0 / GL 4.6 context): a {@code ShaderAppearance}'s OWN uniforms
+     * shade per fragment because the scene {@code Light} does NOT reach a custom
+     * program, and one {@code TextureUnitState} binds one {@code sampler2D} -- this
+     * fork exposes exactly one texture per program, so a lit material lights from
+     * its diffuse while the normal/spec stages stay recorded and unapplied.
+     */
+    private final boolean shaderRoute;
+
+    /**
+     * The single directional key the GPU program shades against. A scene that
+     * installs a rig (WorldScene) pushes its own direction and colour through
+     * {@link #setLightRig} so the baked CPU rig and this GPU route answer to one
+     * light; the defaults are a head-front key that shades with no scene wiring at
+     * all, which is what lets a probe drive the factory stand-alone.
+     */
+    private volatile float lightDirX;
+    private volatile float lightDirY;
+    private volatile float lightDirZ;
+    private volatile float lightRed;
+    private volatile float lightGreen;
+    private volatile float lightBlue;
+    private volatile float ambientRed;
+    private volatile float ambientGreen;
+    private volatile float ambientBlue;
+
+    {
+        // A default key travelling down and into the screen lights a front-facing
+        // wall fully and grazes a floor, so the grading is visible with no rig.
+        lightDirX = 0f;
+        lightDirY = -0.35f;
+        lightDirZ = -0.87f;
+        lightRed = 1f;
+        lightGreen = 1f;
+        lightBlue = 1f;
+        ambientRed = 0.15f;
+        ambientGreen = 0.15f;
+        ambientBlue = 0.15f;
+    }
+
+    /** Whether this factory would put a lit material on the GPU shader route. */
+    public boolean shaderRouteActive() {
+        return shaderRoute;
+    }
+
+    /**
+     * Point the GPU key at a scene rig: the direction the light travels (need not
+     * be normalised) plus its colour and the ambient floor. Called by WorldScene
+     * when a world installs a rig, so a lit material shades to the same key the
+     * CPU bake uses. Never throws; a NaN component is refused and the prior rig
+     * stays, so a misconfigured scene cannot black out every lit surface.
+     */
+    public void setLightRig(float dirX, float dirY, float dirZ,
+            float colorR, float colorG, float colorB,
+            float ambR, float ambG, float ambB) {
+        if (!Float.isFinite(dirX) || !Float.isFinite(dirY) || !Float.isFinite(dirZ)
+                || (dirX == 0f && dirY == 0f && dirZ == 0f)) {
+            return;
+        }
+        lightDirX = dirX;
+        lightDirY = dirY;
+        lightDirZ = dirZ;
+        if (Float.isFinite(colorR) && Float.isFinite(colorG) && Float.isFinite(colorB)) {
+            lightRed = colorR;
+            lightGreen = colorG;
+            lightBlue = colorB;
+        }
+        if (Float.isFinite(ambR) && Float.isFinite(ambG) && Float.isFinite(ambB)) {
+            ambientRed = ambR;
+            ambientGreen = ambG;
+            ambientBlue = ambB;
+        }
     }
 
     /**
@@ -217,6 +306,20 @@ public final class J3dMeshFactory {
         // API (the one evidence a capability=true answer may rest on), the
         // capability stays FIXED_FUNCTION_ONLY and every material below takes
         // the layered-but-unapplied route: pixels unchanged, layers recorded.
+        //
+        // That note is now superseded by measurement. A WlProbe run validated the
+        // fork's shader API (WlProbe39..42), so a lit material that actually
+        // carries a texture goes to a real per-pixel Blinn-Phong ShaderAppearance
+        // built by buildShaderAppearance below. The gate is triply conservative --
+        // the shaderRoute flag (off by default), ma.lit() (a pre-lit material never
+        // asks to be shaded), and a resolved texture (the program needs a diffuse
+        // to sample) -- so any one failing leaves the fixed path byte-identical.
+        if (shaderRoute && ma.lit() && ma.isTextured()) {
+            Served litTexture = loadTexture(ma.texturePath());
+            if (litTexture != null) {
+                return buildShaderAppearance(ma, litTexture);
+            }
+        }
         Appearance app = new Appearance();
         app.setCapability(Appearance.ALLOW_TEXTURE_READ);
         app.setCapability(Appearance.ALLOW_TEXTURE_WRITE);
@@ -325,6 +428,64 @@ public final class J3dMeshFactory {
             // -- the same "warning not failure" the 2006 loader treated.
         }
         return app;
+    }
+
+    /**
+     * The GPU route for one lit material (roadmap P2.2/P0.1). Builds the corrected
+     * P2.2 Blinn-Phong program, hands it the scene key as the program's OWN
+     * uniforms (the scene Light is inert here -- WlProbe39), and binds the one
+     * texture this fork exposes to {@code diffuseMap}. The normal/spec stages are
+     * switched off because a second {@code sampler2D} would read the same unit
+     * (WlProbe42), so the material lights per pixel from its diffuse and nothing
+     * samples an unbound unit.
+     */
+    private Appearance buildShaderAppearance(MaterialAppearance ma, Served diffuse) {
+        ShaderAppearance sa = new ShaderAppearance();
+        sa.setCapability(Appearance.ALLOW_TEXTURE_UNIT_STATE_WRITE);
+        sa.setCapability(ShaderAppearance.ALLOW_SHADER_PROGRAM_WRITE);
+        sa.setCapability(ShaderAppearance.ALLOW_SHADER_ATTRIBUTE_SET_WRITE);
+
+        SourceCodeShader vert = new SourceCodeShader(
+                SourceCodeShader.SHADING_LANGUAGE_GLSL,
+                SourceCodeShader.SHADER_TYPE_VERTEX, ShaderAppearancePlan.VERTEX_GLSL);
+        SourceCodeShader frag = new SourceCodeShader(
+                SourceCodeShader.SHADING_LANGUAGE_GLSL,
+                SourceCodeShader.SHADER_TYPE_FRAGMENT, ShaderAppearancePlan.FRAGMENT_GLSL);
+        GLSLShaderProgram program = new GLSLShaderProgram();
+        program.setShaders(new Shader[] {vert, frag});
+        program.setCapability(GLSLShaderProgram.ALLOW_SHADERS_READ);
+        // The fork rejects any uniform the program has not named first (WlProbe40).
+        program.setShaderAttrNames(new String[] {
+            "lightDirection", "lightColor", "ambientColor", "shininess",
+            "hasSpecMap", "hasNormalMap"});
+        sa.setShaderProgram(program);
+
+        ShaderAttributeSet uniforms = new ShaderAttributeSet();
+        uniforms.put(new ShaderAttributeValue("lightDirection",
+                new Vector3f(lightDirX, lightDirY, lightDirZ)));
+        uniforms.put(new ShaderAttributeValue("lightColor",
+                new Color3f(lightRed, lightGreen, lightBlue)));
+        uniforms.put(new ShaderAttributeValue("ambientColor",
+                new Color3f(ambientRed, ambientGreen, ambientBlue)));
+        uniforms.put(new ShaderAttributeValue("shininess",
+                Float.valueOf(ma.shininess())));
+        uniforms.put(new ShaderAttributeValue("hasSpecMap", Integer.valueOf(0)));
+        uniforms.put(new ShaderAttributeValue("hasNormalMap", Integer.valueOf(0)));
+        sa.setShaderAttributeSet(uniforms);
+
+        // One texture, unit 0, reached by the program's diffuseMap sampler.
+        sa.setTextureUnitState(new TextureUnitState[] {
+            new TextureUnitState(diffuse.texture(), null, null)});
+
+        float alpha = ma.alpha();
+        if (alpha < 1.0f) {
+            TransparencyAttributes ta = new TransparencyAttributes(
+                    TransparencyAttributes.BLENDED, 1.0f - alpha);
+            ta.setCapability(TransparencyAttributes.ALLOW_VALUE_WRITE);
+            ta.setCapability(TransparencyAttributes.ALLOW_MODE_WRITE);
+            sa.setTransparencyAttributes(ta);
+        }
+        return sa;
     }
 
     /**

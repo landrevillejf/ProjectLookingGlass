@@ -17,9 +17,9 @@ and the per-module `AGENTS.md`.
 | Collision | **Message stub only** | `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger`. A notification, not detection/resolution. `com.jme.bounding.BoundingVolume` is used for cell *bounds*, not collision. |
 | Ambient lighting | **Per-material ambient, no rig** | No `Light` node is created in the renderer; `AvatarRenderer` sets `Material.setAmbientColor`. `J3dMeshFactory.buildAppearance` deliberately omits a `Material` for shipped art. |
 | Culling | **Delegated to Java 3D** | No Wonderland culler; relies on the scene-graph's automatic culling. No PVS. |
-| Shaders | **Absent** | `MaterialAppearance` = one diffuse RGBA + one `texturePath`, fixed-function `Appearance`. |
+| Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
 | Water shading | **Degraded/removed** | `MtgSceneReader` skips `JMEWaterInstance` records. |
-| Normal mapping | **Absent** | Single `texturePath` per material; no second texture stage. |
+| Normal mapping | **Kernel live, layer ceiling** | The GLSL normal/spec stages compile and shade, but `WlProbe42` measured this fork binding exactly ONE texture per program (a second `sampler2D` re-reads unit 0), so a lit material lights from its diffuse and `hasNormalMap`/`hasSpecMap` stay 0. Multi-layer needs a direct-JOGL program that binds its own samplers. |
 | Occlusion | **Absent** | No occlusion query, no PVS, no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
 | Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Absent** | `WorldViewer` fixed-eye framing; `ShadowArt` ellipse decals; `SkyArt` textured box. |
@@ -50,6 +50,32 @@ post pass. The fork has already hit Java 3D quirks (`Background` paints nothing,
 back-face culling, `PolygonAttributes` semantics). A roadmap that ignores this
 ceiling would promise results the stack cannot deliver; the phases below mark
 those items explicitly.
+
+That ceiling is no longer a guess -- four probes measured it on the repo's live
+X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
+
+- **WlProbe39** - a scene `Light` does NOT reach a custom program:
+  `gl_LightSource[0]` read back its OpenGL default for a facing and a grazing
+  normal alike, even with a correctly bounded `DirectionalLight`
+  (`setInfluencingBounds`, not the `setSchedulingBounds` upstream documents -
+  this fork renamed the setter). A GLSL program must therefore be handed its
+  light as its OWN uniforms.
+- **WlProbe40** - `ShaderAttributeSet` + `program.setShaderAttrNames(...)`
+  delivers named uniforms to the program, and one `TextureUnitState` binds one
+  `sampler2D` that samples correctly. A uniform must be named on the program
+  before it is set, and `ShaderAttributeValue` refuses `float[]` - pass a
+  vecmath `Tuple` or a boxed `Float`/`Integer`.
+- **WlProbe41** - the corrected production GLSL shades per fragment through
+  those custom uniforms + `gl_NormalMatrix`: a lit quad facing the key read
+  `(255,255,255)`, a grazing one the `(31,31,31)` ambient floor.
+- **WlProbe42** - this fork binds exactly ONE texture per program: a second
+  `sampler2D` reads the first unit's image, not its own. Per-material
+  normal/spec/env layers therefore need a direct-JOGL pass that binds its own
+  samplers - out of this fixed-era `ShaderAppearance` route.
+
+What this buys: real GPU per-pixel lighting was earlier (wrongly) filed as a
+platform impossibility; it is now live and wired. What it still costs: a
+layered material can light from one texture, not three.
 
 ## Roadmap
 
@@ -100,19 +126,35 @@ much visible value each unlocks per unit of risk.
 
 ### P2 - Materials, shaders, water, shadows
 
-- **P2.1 Multi-layer materials.** Extend `MaterialAppearance` /
-  `TextureBindingPlan` with a normal map (and specular map); `J3dMeshFactory`
-  binds the extra stages.
-- **P2.2 Shaders - reframed after reading the fork.** A GLSL `ShaderProgram` on
-  `Shape3D`s, with a documented fixed-function fallback where Java 3D 1.7.2
-  cannot express the effect. The measured ceiling: this repo's Jogamp fork moved
-  the shader entry point off upstream 1.6's `Appearance.setShaderProgram` onto a
-  `ShaderAppearance` subclass (`setShaderProgram`/`setShaderAttributeSet`, read
-  off the 1.7.2 jar), and a program validates only against a live GL context.
-  Delivered: `ShaderAppearancePlan` - the headless decision (FIXED vs SHADER),
-  the named-layer fallback, and the GLSL 1.20 pair - with `J3dMeshFactory`'s
-  wiring deliberately unapplied until a `WlProbe` run validates the fork's API;
-  until then every material takes the FIXED route and pixels are unchanged.
+- **P2.1 Multi-layer materials - kernel delivered, layer binding at the measured
+  ceiling.** `MaterialAppearance` carries a `normalMapPath` and a
+  `specularMapPath`, `TextureBindingPlan` classifies each authored sampler into
+  the diffuse / normal / specular layer it names, and `ShaderAppearancePlan`'s
+  GLSL has a tangent-space normal stage and a specular-mask stage. What the
+  platform will not do is bind all three to one program: `WlProbe42` measured
+  this fork exposing exactly one texture per GLSL program, so
+  `J3dMeshFactory.buildShaderAppearance` binds the diffuse and leaves
+  `hasNormalMap`/`hasSpecMap` at 0. The extra layers are parsed, named and
+  compiled; a host that can drive a direct-JOGL program binding its own samplers
+  is what flips them on - not a missing plan.
+- **P2.2 Shaders - wired and measured (was: probe-gated).** A GLSL `ShaderProgram`
+  on `Shape3D`s, with a documented fixed-function fallback where Java 3D 1.7.2
+  cannot express the effect. This repo's Jogamp fork moved the shader entry point
+  off upstream 1.6's `Appearance.setShaderProgram` onto a `ShaderAppearance`
+  subclass (`setShaderProgram`/`setShaderAttributeSet`), and a program validates
+  only against a live GL context. That validation is now done: `WlProbe39..42`
+  settled what the fork's `ShaderAppearance` can and cannot do (see *Platform
+  ceiling*), and `WlProbe43` drove the shipping `J3dMeshFactory.createShape` and
+  measured per-pixel Blinn-Phong reach the screen - a lit textured material reads
+  `(255,255,255)` facing the key and the `(31,31,31)` ambient floor grazing it.
+  The wiring is no longer "deliberately unapplied": `buildShaderAppearance` is
+  live behind a triply-conservative gate - the `lg.wonderland.shader` switch (off
+  by default), `MaterialAppearance.lit()` (a pre-lit material never asks to be
+  shaded), and a resolved diffuse texture (the program needs one to sample) - so
+  any one failing leaves the fixed-function path byte-identical to every prior
+  probe run. The scene key reaches the program as its OWN `lightDirection /
+  lightColor / ambientColor` uniforms (the scene `Light` is inert here), pushed
+  from `WorldScene`'s rig through `J3dMeshFactory.setLightRig`.
 - **P2.3 Water shading - delivered as re-honoured data + a scrollable look.**
   Re-honour the `JMEWaterInstance` records `MtgSceneReader` currently drops, as
   an animated water material. Delivered: `WaterInstance` parses the fifteen-
@@ -148,8 +190,14 @@ much visible value each unlocks per unit of risk.
   base pixel, the mirror of `BloomKernel.combine`'s strength-zero identity) -
   and `EnvironmentPlan`, which repeats P2.2's shape: a fixed Java 3D 1.7.2
   pipeline can bind a cube texture but cannot compute a per-fragment fresnel
-  blend or a bent lookup, so an environment material takes SHADER **only** when
-  a probe validated the fork's shader API; otherwise it takes FIXED *with the
+  blend or a bent lookup, so an environment material takes SHADER only when
+  `ShaderAppearancePlan.Capability` reports the shader path live -- a probe has
+  since validated the fork's shader API (P2.2 above), so that gate can now open.
+  The live ceiling that keeps env probe-side is the same single-texture limit
+  `WlProbe42` measured: a program that already samples a diffuse `sampler2D`
+  cannot also bind a `samplerCube envMap` on this fork, so an env-only glossy
+  surface (no diffuse) is what a live program can paint today. Otherwise the
+  material takes FIXED *with the
   lost effects named*, and the plan reuses `ShaderAppearancePlan.Capability` so
   one host answers "is the shader path live" for both features. The GLSL 1.20
   environment fragment (`samplerCube envMap`, `reflect`/`refract`, Schlick
