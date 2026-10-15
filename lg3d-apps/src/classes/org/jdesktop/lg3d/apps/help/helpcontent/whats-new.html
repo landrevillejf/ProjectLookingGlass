@@ -20,6 +20,26 @@
 
   <h3>Added</h3>
   <ul>
+    <li><strong>The server session layer gains its three missing judgements &mdash; roadmap P5.4</strong> (<code>wonderland-server</code>)
+    </li>
+    <li><strong>Bloom maths, and the post-processing ceiling stated as a decision &mdash; roadmap P3.2</strong> (<code>wonderland-renderer</code>)
+    </li>
+    <li><strong>A follow rig and a spline tour, as frame-rate-independent maths &mdash; roadmap P3.1</strong> (<code>wonderland-client</code>)
+    </li>
+    <li><strong>Spatial audio, with a backend that degrades when there is no device &mdash; roadmap P4.1</strong> (<code>wonderland-client</code>)
+    </li>
+    <li><strong>Shadow maths gets its projector, and the culler gets its owner &mdash; roadmap P2.4</strong> (<code>wonderland-renderer</code> + <code>wonderland-client</code>)
+    </li>
+    <li><strong>The shader-vs-fixed decision as data, and a measured platform ceiling &mdash; roadmap P2.2</strong> (<code>wonderland-renderer</code>)
+    </li>
+    <li><strong>Normal and specular maps have a place to live in the appearance &mdash; roadmap P2.1</strong> (<code>wonderland-renderer</code>)
+    </li>
+    <li><strong>The eye probe, formalised &mdash; roadmap P5.3</strong> (<code>wonderland-client</code> + <code>lg3d-apps</code>)
+    </li>
+    <li><strong>The clinic ships its first real behaviour script &mdash; roadmap P5.2</strong> (<code>wonderland-server</code> resources + <code>lg3d-apps</code>)
+    </li>
+    <li><strong>The scene goes physical: PVS culling, real collision, trigger zones &mdash; roadmap P0.2 / P1.1 / P1.2</strong> (<code>wonderland-client</code>)
+    </li>
     <li><strong>Mandela cell behaviours for Wonderland &mdash; roadmap P5.1</strong> (<code>lg3d-apps</code>)
     </li>
     <li><strong>Opt-in lighting for the renderer, and the Wonderland 3D roadmap</strong> (<code>wonderland-renderer</code> + <code>docs</code>)
@@ -120,6 +140,8 @@
 
   <h3>Fixed</h3>
   <ul>
+    <li><strong>The meeting complex's pond vanished between the <code>.mtg</code> and the renderer &mdash; roadmap P2.3</strong> (<code>wonderland-modules</code> + <code>wonderland-renderer</code>)
+    </li>
     <li><strong>Walking into the clinic crashed on every resident, because a seeded <code>AvatarCell</code> was put on the wire as a plain <code>CellClientState</code></strong> (<code>wonderland-server</code> + <code>wonderland-client</code>)
     </li>
     <li><strong>A live walk-in crashed the desktop on entering any world, because the server broadcast an abstract class as the environment root</strong> (<code>wonderland-client</code> + <code>wonderland-server</code>)

@@ -10,6 +10,199 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The server session layer gains its three missing judgements — roadmap P5.4**
+  (`wonderland-server`) — the wire is real and the session table is real, but a
+  transport cannot answer three questions for itself: who should hear this event,
+  where things were before the reboot, and may this caller be that person at all.
+  `InterestManager` keeps one watch per session — place plus a radius of ear — and
+  answers `audienceFor(place, eventRadius)` with the union rule: an event's own
+  footprint widens a listener's reach, never narrows it; squared-distance
+  compares, a moved session *replaces* its watch (an avatar that walked away
+  stops hearing the room it left), a departed one is gone from the next audience,
+  and NaN places are refused loudly because a NaN comparison silently excludes
+  everyone. Deliberately an O(n) scan over sessions, not a `WorldPVS` import: the
+  module rule says server code depends on `wonderland-common` and
+  `wonderland-modules` and does *not* import `wonderland-client` or `lg3d-core`.
+  `CellSnapshot` is the memory of where furniture was, as text — one line per
+  cell, its id then three `Float.toHexString` translations, so `0.1f`, the float
+  every naive `%.2f` format betrays, comes back bit-identical and the round trip
+  needs no tolerance; the environment root is never written, orientation and
+  scale survive untouched because the snapshot only claims to know *where*, a
+  missing file is a first boot that restores 0, and a foreign or torn file is
+  refused with an `IOException` before the model is touched rather than
+  half-applied. `PasscodeAuthenticator` is the gate the transport was missing in
+  front of `SessionRegistry.create` (which accepts whatever identity the caller
+  hands it): a stateless HMAC-SHA256 bearer token `username|hex`, constant-time
+  verified, refusal always a null and never an error that distinguishes
+  "malformed" from "wrong signature", and the bearer-replay limitation stated in
+  its own header rather than half-lifecycled — it is deliberately not an account
+  system. **22 new headless cases** (`InterestManagerTest` 7, `CellSnapshotTest`
+  7, `PasscodeAuthenticatorTest` 8); the fan-out of audience lists onto real
+  sockets, the snapshot's autosave schedule and the transport wiring that calls
+  `verify()` remain a running server's proof, not claimed here.
+- **Bloom maths, and the post-processing ceiling stated as a decision — roadmap
+  P3.2** (`wonderland-renderer`) — Java 3D 1.7.2 has no post pipeline: the fork's
+  offscreen answer is `Canvas3D` render-to-image with readback, not a
+  scene-to-texture a shader samples back, so a per-frame GPU bloom on the live
+  3D canvas is a missing architecture, not a missing flag. `BloomKernel` is the
+  bloom as arithmetic on packed ARGB ints with nothing but `java.base`: a bright
+  pass with a smoothstep knee (a raw threshold prints a ring; the knee is why
+  this one does not), a separable box blur with clamped edges (wrap-around glows
+  the opposite edge into the frame), and a saturating add — bloom adds light,
+  never transparency, and strength 0 is the exact identity a future cinematic
+  toggle will lean on. Deliberately not fast: it is the definition a faster pass
+  gets checked against. `PostProcessPlan` repeats P2.2's pattern — wanting bloom
+  is necessary but never sufficient for the live route; `OFFSCREEN_READBACK`
+  opens only on a *measured* probe cost, and until then the answer is
+  `SOFTWARE_CAPTURE`, blooming probe captures and the 2D desktop's composites —
+  and the `Decision` carries its reason in its own words, because a silently
+  chosen slow path gets re-litigated every release. **9 new headless cases**; a
+  glowing *live* scene stays a WlProbe sentence on a real card, which this plan
+  refuses to decide without.
+- **A follow rig and a spline tour, as frame-rate-independent maths — roadmap
+  P3.1** (`wonderland-client`) — `FollowRig` chases a moving seat with
+  exponential smoothing whose blend is `1 − e^(−dt/τ)`, so 30 fps and 300 fps
+  produce the same lag; a gap over the teleport radius snaps instead of swim
+  (an avatar that blinked across the map must not drag the camera through the
+  walls), the first frame places rather than interpolates from the origin, and
+  `dt ≤ 0` freezes. Its outputs are the vocabulary the other phases already
+  speak: `eyePose(fov)` is the `EyeProbe.EyePose` P5.3's framing kernel reads,
+  and `headingYaw()` matches `SpatialAudio`'s convention. `CameraPath` is a
+  uniform Catmull-Rom through authored waypoints — passes exactly through the
+  keys, holds the end tangents with duplicated phantoms, clamps `t` — and the
+  straight-line test asserts the geometric truth a spline can actually promise
+  (on the line, in span, the keys hit within 1e-5) rather than parameter
+  linearity, which uniform Catmull-Rom does not have between evenly-spaced keys.
+  **18 new headless cases** (`FollowRigTest` 11, `CameraPathTest` 7); driving a
+  live `ViewerInputEngine` with the rig is the walk-in's own wiring.
+- **Spatial audio, with a backend that degrades when there is no device —
+  roadmap P4.1** (`wonderland-client`) — audio was never ported from 2006; this
+  phase delivers its judgement headless. `SpatialAudio` is the kernel:
+  `Listener`/`Source` records, OpenAL's inverse-distance gain — whole base gain
+  inside a source's reference distance, `ref/d` beyond, silent at `maxDistance`,
+  and `maxDistance ≤ 0` meaning no cut-off at all — and an ear-radius (0.1 m)
+  pan model whose right vector agrees with the shadow projector's and the follow
+  rig's yaw convention, so one heading vocabulary serves three phases.
+  `AudioManager` is the `WorldPVS`-shaped owner: register/replace, unregister
+  stops only what was playing, and `update()` returns the audible count after
+  starting and stopping the backend. `JavaSoundBackend` is the first real
+  output — one `Clip` per id, gain as dB (`20·log₁₀`, floored at −80), `PAN`
+  applied only when the mixer supports it — and a machine with no audio device
+  is a loaded silent system, not a crashed desktop: a refused
+  `LineUnavailableException` on load costs that sound, nothing else. The class
+  header says outright it is not verified by CI, because a speaker claim needs
+  a speaker. **22 new headless cases** (`SpatialAudioTest` 8,
+  `AudioManagerTest` 10, `JavaSoundBackendTest` 4).
+- **Shadow maths gets its projector, and the culler gets its owner — roadmap
+  P2.4** (`wonderland-renderer` + `wonderland-client`) — `ShadowProjector`
+  answers where a parallel light puts a caster's shadow pool: the pool travels
+  the way the light travels, a low sun lengthens the run, a horizon sun caps at
+  `MAX_STRETCH` instead of bandaging the campus, and a vertical or absent light
+  answers `null` — which keeps the round `ShadowArt` blob as the physically
+  right fallback rather than an unfinished stand-in. Box, not point, projection:
+  the feet stay put, the top of a height-h box travels `h/tan(elevation)`, and
+  the pool centre sits halfway so the shadow starts *at* the caster.
+  `WorldPVS` is the consultation P0.2 deliberately left unwired: cells register
+  as they attach and unregister as they detach, a frame asks `visibleFrom` once,
+  and because the kernel's contract is that registering the same id twice adds
+  two volumes, a placement mirror rebuilt on every mutation makes a re-attached
+  moved cell replace rather than double — bounding spheres padded by a frame of
+  slack, conservative for drawing: a far cell may be kept, a near cell is never
+  dropped. **13 new headless cases** (`ShadowProjectorTest` 7,
+  `WorldPVSTest` 6); re-pointing `WorldScene.addShadows` at the projector's
+  yawed quad needs a live GL context and true depth occlusion remains the
+  shadow-map upgrade — no painted pixel claimed.
+- **The shader-vs-fixed decision as data, and a measured platform ceiling —
+  roadmap P2.2** (`wonderland-renderer`) — `ShaderAppearancePlan` decides in
+  pure data which pipeline a layered material runs on: a material with nothing
+  beyond the diffuse layer never leaves `FIXED` (the pre-lit pixels survive on
+  every platform), and an extra normal/specular layer takes `SHADER` only when
+  the capability says a program would actually validate — otherwise the
+  documented fixed-function fallback, *with the dropped layers named*, so a log
+  says what the platform could not apply instead of the world silently looking
+  flat. The ceiling is measured, not assumed: this repo's Jogamp fork moved the
+  shader entry point off upstream Java 3D's `Appearance.setShaderProgram` onto a
+  `ShaderAppearance` subclass, and a GLSL program compiles only against a live
+  context — so `J3dMeshFactory` carries the decision seam and the note but not
+  yet a program, and the GLSL 1.20 pair (one-light Blinn-Phong, tangent-space
+  normal map, optional specular mask, P0.1 rig uniform names) ships with its
+  sampler slots asserted to match the slots the plan binds. **7 new headless
+  cases**; attaching a program waits for a WlProbe run, and this commit claims
+  no pixel it cannot prove.
+- **Normal and specular maps have a place to live in the appearance — roadmap
+  P2.1** (`wonderland-renderer`) — `MaterialAppearance` now carries the
+  resolved normal- and specular-map paths beside the diffuse one (a full
+  12-argument constructor while the 5- and 10-arg forms delegate unchanged, and
+  blank paths store as null), and `hasNormalMap`/`hasSpecularMap`/
+  `layerCount()` make the layer inventory headless-assertable.
+  `TextureBindingPlan.forMaterial` CLASSIFIES each sampler by name —
+  normal/bump/offset to the normal layer, `spec` to the specular mask — *before*
+  its image is consulted, so the old first-present scan can no longer bind
+  tangent-space pixels as a colour texture; a world whose only texture is named
+  "normal" still renders exactly as before, through the double-duty binding.
+  The layers are inert until P2.2's path applies them — the fixed pipeline has
+  no normal-map slot — and this claims no pixel. **31 headless cases**
+  (`MaterialAppearanceTest` 11, `TextureBindingPlanTest` 20).
+- **The eye probe, formalised — roadmap P5.3** (`wonderland-client` +
+  `lg3d-apps`) — every visual phase defers to "verified by the eye probe", which
+  is true but not CI. `EyeProbe` is the framing kernel, pure: given an `EyePose`
+  (position, look direction, field of view) and each cell's bounding sphere it
+  decides in-frame vs out with a dot-product + angle test, generous at the edge
+  so a sliver is never dropped and safe on the degenerate cases (target at the
+  eye, zero-length look); `frame()` returns the whole verdict as ordered data,
+  no Java 3D and no display involved. `ProbeHarness` hands that verdict to a
+  Mandela probe script as bound scalars — in-frame/off-frame id lists, counts,
+  fov, eye position — and reads back the script's value under exactly
+  `WorldBehavior`'s fail-safe contract, so a broken or absent probe is a missing
+  report, never a throw onto a caller. Together they make a later rig or
+  renderer change assertable in CI ("after the rig turns, exactly these cells
+  are in frame"); the scripting half stays in `lg3d-apps` because Mandela must
+  not enter `wonderland-client`. **14 new headless cases** (`EyeProbeTest` 8,
+  `ProbeHarnessTest` 6); painted pixels remain the live capture's proof.
+- **The clinic ships its first real behaviour script — roadmap P5.2**
+  (`wonderland-server` resources + `lg3d-apps`) — P5.1 gave every walk-in world
+  a behaviour hook; this ships the first one worth reading. The outpatient
+  clinic's `behaviour.mnd` sits beside its art
+  (`wonderland-outpatient-clinic/behaviour.mnd`) and the walk-in reads it
+  through the same `/api/world/asset` endpoint the models already use — no new
+  server code. The script refines each cell the way its own class says it
+  should: a seeded `AvatarCell` becomes "a visitor", a pinned picture "a notice
+  on the wall", a model cell "the *label*" (its height noted when it rises over
+  the floor slab), and anything else keeps the label its author wrote; it binds
+  only host-supplied cell facts and holds no scene-graph handle, so it can only
+  ever annotate a cell, never invent or erase one. `ClinicBehaviourTest` (6
+  cases) reads the shipped file by repository path and pins what each kind of
+  cell becomes, including that an unplaced cell degrades to its own label
+  rather than a crash. The script deliberately does *not* live under
+  `scripts/mandela/` — those are self-contained programs compiled without host
+  bindings — so this test, not `ShippedScriptsTest`, is its gate.
+- **The scene goes physical: PVS culling, real collision, trigger zones —
+  roadmap P0.2 / P1.1 / P1.2** (`wonderland-client`) — three headless pure
+  kernels, each the object the renderer will one day drive, proven in CI with no
+  display and no Java 3D import. `OctantCuller` is a regular-grid spatial hash
+  over cell bounding spheres: `register`/`query(eye, radius)` walk only the
+  buckets a sight sphere touches and return a `PotentialVisibleSet` carrying a
+  `cullRatio`, so "a culler that returns everything" is a failing assertion
+  rather than a silent win — and the answer is *provably independent of bucket
+  size*, asserted, so `cellSize` is only ever a work knob (11 cases). Collision
+  existed only as a `(height, boolean)` message with no decider behind it, so
+  the walker went wherever it asked: `Obstacle` is decision-made data (an AABB
+  plus a height band), `WalkerCollision` the pure walk-step resolver, and
+  `AvatarCollider` the stateful adapter `ViewCell.localMoveRequest` now uses —
+  one that SWEPTS each axis instead of point-testing the endpoint, so a fast
+  step cannot tunnel through a thin wall by landing on its far side — and when
+  two walls share one lane, the wall that stops the walker is the one met
+  FIRST: the near face wins, whichever order the world registered its obstacles
+  in. That near-face rule is itself a defect found and fixed while pinning the
+  sweep's branches — a single-wall test could never have disproved the swept
+  lane choosing the farthest stopping face. The collider is an optional
+  collaborator: unset, it forwards the move untouched, and a world that has not
+  authored collision behaves byte-for-byte as before (32 cases). `TriggerZone`
+  (a footprint plus an optional height band) and `TriggerField` remember the
+  inside-set and emit only membership *edges* per move — once per crossing,
+  silent while loitering — returned as a value its host decides what to do
+  with (9 cases). No new server code, no new wire format. **52 new headless
+  cases** across five suites.
 - **Mandela cell behaviours for Wonderland — roadmap P5.1** (`lg3d-apps`) —
   a world can now have one opinion about its own cells without a rebuild: it
   ships a single `behaviour.mnd` beside its art, and the walk-in renderer
@@ -1560,6 +1753,25 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The meeting complex's pond vanished between the `.mtg` and the renderer —
+  roadmap P2.3** (`wonderland-modules` + `wonderland-renderer`) — a water record
+  names no `.dae`, so the world fold skipped it and nothing else ever looked:
+  `JMEWaterInstance` carried fifteen tokens that no reader read. Re-honoured in
+  both halves the port can prove headless. `WaterInstance` parses the record —
+  place, spin, scale, width/length, ground name — and never throws: a malformed
+  line costs one pond, the fold's own rule; `MtgSceneReader.readWaterInstances`
+  scans them beside the fold and `ModelLoadResult.waterInstances` carries them
+  to the renderer (an empty list, never null, for every non-MTG artifact).
+  `WaterArt` supplies the honest fixed-pipeline stand-in for jME's water shader:
+  a seamless procedural tile — integer wave periods across, a dividing band
+  family down, wrapped copies at both edges, so the seam tests are assertions a
+  scrolling texture cannot pass by luck — plus per-axis scroll-offset maths that
+  wrap every tile and hold a broken clock still rather than NaN, and `planeOf`
+  folding a record into the five numbers its quad is built from. Placing the
+  pond and driving `TexCoordGeneration` from a frame clock are Java 3D/probe
+  work and are NOT asserted painted here, the same rule P2.2 set. **7 new
+  `WaterArtTest` cases and the water parsing in `MtgSceneReaderTest`** (suite
+  of 23) green.
 - **Walking into the clinic crashed on every resident, because a seeded
   `AvatarCell` was put on the wire as a plain `CellClientState`**
   (`wonderland-server` + `wonderland-client`) — the same live walk-in this branch
