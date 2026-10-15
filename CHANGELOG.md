@@ -10,6 +10,38 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The lighting rig is wired into the live desktop, and the world is no longer
+  one flat colour — roadmap P0.1, connected** (`wonderland-common`,
+  `wonderland-renderer`, `wonderland-desktop`) — the kernels this roadmap shipped
+  over the past weeks were real, tested and reachable only from a probe, so a
+  person launching Wonderland saw exactly what they always saw. This is the first
+  of the wiring passes that puts them in the running path, starting with the one
+  whose pixels can be argued about. `J3dMeshFactory` now writes a light factor
+  into `GeometryArray.COLOR_3` for every shape it builds and puts a textured
+  surface under `MODULATE` instead of `DECAL`, because the two measurements in
+  `build-gradle/scratch/WlProbe32/33` proved the alternative is not a preference:
+  on this fork a scene-graph `Light` changes no pixel at all (a red `Material`
+  answered `(46,5,5)` with a full-white `AmbientLight` and the same `(46,5,5)`
+  with no light in the universe — that is GL's own `0.2` global ambient, and the
+  diffuse term contributes nothing), while a vertex colour *is* honoured and
+  `DECAL` throws it away. `BakedRig` holds that arithmetic as a pure class with
+  the calibration recorded in it, defaulting to a gentle `0.72` ambient + `0.28`
+  key rather than an offline renderer's deeper rig, because the shipped textures
+  already carry the server's own bake and a deeper rig would darken the whole
+  world by half; the brightest face is authored-exact by construction. **Proven
+  with pixels, not a test count** (`WlProbe34`, one textured quad built through
+  the production `createShape` with a real image served through `TextureSource`):
+  with the feature off the surface reads back as **2** colours — flat, the
+  complaint itself — and with it on, **39** distinct colours grading `229 → 199`
+  across the same face, nothing brighter than authored and nothing blackened.
+  `WorldFeatures` (`lg.wonderland.lighting|culling|collision|audio|camera|behaviour|water`,
+  master `lg.wonderland.features`) is the single vocabulary every wiring pass
+  consults, defaulting to ON so a wired feature is actually reachable, and
+  `WonderlandDesktop.installRenderer()` logs what it read, so the console is
+  evidence rather than a guess. **19 new headless cases** (`BakedRigTest` 13,
+  `WorldFeaturesTest` 6). Still not wired, and now stated as such rather than
+  implied: culling, collision, audio, camera and behaviour each need an eye or a
+  bounds source the live path does not yet produce.
 - **Environment reflection and refraction, as arithmetic and a probe-gated plan —
   roadmap P2.5 (added scope)** (`wonderland-renderer`) — reflection and refraction
   were never in the original roadmap; they name beside the water (P2.3) and every
