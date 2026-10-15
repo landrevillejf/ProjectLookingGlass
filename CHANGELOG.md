@@ -10,6 +10,32 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The world writes itself down — roadmap P5.4, autosave wired** (`wonderland-server`) —
+  `CellSnapshot` shipped as save/restore that nothing called: a memory of where a
+  chair was slid that only a hand could invoke, because the `WorldModel` re-seeds
+  from its module art every boot and every `applyMove` since then lived only in
+  RAM. `WorldAutosaver` is the policy that runs it without one — it polls a new
+  `WorldModel.revision()` counter (a monotonic `AtomicLong` bumped by every
+  add/graft/move/remove and never by a read, so a busy-but-unchanged world costs
+  no disk traffic and an untouched world writes no file at all) and, once the world
+  has settled for one quiet interval, writes the snapshot; a failed write (disk
+  full, read-only mount) is logged and leaves the world dirty so the next tick
+  retries rather than silently forgetting where anything is, because an autosave
+  that takes the running server down over its own bookkeeping is worse than a noisy
+  retry. The whole judgement — dirty?, settled?, did it land? — is decided against
+  an injected instant, so it is unit-tested headlessly; the thin
+  `WorldSnapshotService` bean is the only half that reads a real clock, giving the
+  saver a `@Scheduled` beat (`@EnableScheduling`) plus a restore-on-boot, and it
+  stays inert until an operator names `wonderland.server.snapshot.path` — the blank
+  default means no restore, no beat, no file, exactly the pre-P5.4 server, so the
+  empty-world socket test and every existing boot stand untouched. A torn snapshot
+  on boot is logged and skipped, not fatal. **9 new headless cases**
+  (`WorldAutosaverTest` 6, `WorldSnapshotServiceTest` 3): an untouched world writes
+  nothing, a change waits for the quiet interval, a `0.1f` move round-trips
+  bit-identical through the snapshot, a failed write leaves the world dirty for
+  retry, a shutdown `flush` ignores the throttle, the revision counts only
+  mutations never reads, and the bean itself is inert on a blank path, restores and
+  rewrites on a named one, and forgives a torn snapshot on boot.
 - **The server fans a move to its audience, not the whole world — roadmap
   P5.4, wired** (`wonderland-server`) — `InterestManager` had shipped as a
   tested kernel that nothing consulted: `ProtocolRouter.broadcastMove` fanned to

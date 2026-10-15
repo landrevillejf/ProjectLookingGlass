@@ -49,6 +49,15 @@ public class WorldModel {
     private final CellID environmentCellID = CellID.getEnvironmentCellID();
 
     /**
+     * A monotonic count of every world mutation -- the fact an autosave polls
+     * instead of a listener list it has to keep in sync. A move, a graft, a
+     * removal and a content add each bump it; a read never does. Two snapshots
+     * taken with an unchanged revision describe the same world, so autosave can
+     * skip the write entirely rather than rewrite a file no one changed. (P5.4)
+     */
+    private final AtomicLong revision = new AtomicLong(0);
+
+    /**
      * The module whose cells were seeded into this world, or {@code null} when
      * nothing was seeded. The world is a bag of cells and does not otherwise
      * know where they came from; the REST catalog needs that one fact to tell
@@ -113,12 +122,14 @@ public class WorldModel {
                 transform == null ? new CellTransform() : transform, clientState,
                 deployedModelURL);
         cells.put(cellID, cell);
+        revision.incrementAndGet();
         return cell;
     }
 
     /** Replace a descriptor wholesale (used to graft a view cell under the root). */
     public void putCell(WorldCell cell) {
         cells.put(cell.getCellID(), cell);
+        revision.incrementAndGet();
     }
 
     /** Drop a cell (a departed session's view cell); the environment root stays. */
@@ -126,12 +137,21 @@ public class WorldModel {
         if (environmentCellID.equals(cellID)) {
             return null;
         }
-        return cells.remove(cellID);
+        WorldCell dropped = cells.remove(cellID);
+        if (dropped != null) {
+            revision.incrementAndGet();
+        }
+        return dropped;
     }
 
     /** Look up a cell descriptor by id; null when the world does not host it. */
     public WorldCell find(CellID cellID) {
         return cells.get(cellID);
+    }
+
+    /** The current mutation count; see {@link #revision} for what it is for. */
+    public long revision() {
+        return revision.get();
     }
 
     public boolean contains(CellID cellID) {
@@ -151,6 +171,7 @@ public class WorldModel {
         cells.put(cellID, new WorldCell(existing.getCellID(), existing.getParentID(),
                 existing.getClassName(), existing.getName(), existing.getLocalBounds(),
                 transform, existing.getClientState(), existing.getDeployedModelURL()));
+        revision.incrementAndGet();
         return true;
     }
 
