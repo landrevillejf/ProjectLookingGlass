@@ -69,6 +69,15 @@ public final class WonderlandDesktop {
             return;
         }
         WonderlandRendererBootstrap.install();
+        // Say out loud which roadmap features this JVM decided to run, and read
+        // it through the same class the renderer consults -- so the line cannot
+        // claim something the pixels do not. A person who finds the world looks
+        // wrong should be able to see which switches were read without opening
+        // the source, which is the difference between a wired feature and a
+        // rumor about one.
+        java.util.logging.Logger.getLogger(WonderlandDesktop.class.getName())
+                .info(() -> org.jdesktop.wonderland.common.features.WorldFeatures
+                        .summary(System::getProperty));
         installed = true;
     }
 

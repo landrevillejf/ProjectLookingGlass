@@ -25,6 +25,7 @@ import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
+import org.jdesktop.wonderland.renderer.mesh.BakedRig;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.MaterialAppearance;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
@@ -78,8 +79,16 @@ public final class J3dMeshFactory {
         if (mesh == null || mesh.triangleCount() == 0) {
             return null;
         }
-        GeometryArray geometry = buildGeometry(mesh);
-        Appearance app = buildAppearance(appearance == null ? fallback() : appearance);
+        MaterialAppearance ma = appearance == null ? fallback() : appearance;
+        // Whether a named texture actually resolved decides where the authored
+        // colour has to live, so this is asked once here -- before the geometry
+        // is built -- rather than guessed from ma.isTextured(). A material that
+        // names a file which is not there falls back to the flat colour path in
+        // buildAppearance, and a bake that had put its colour only in the
+        // texture would have drawn that surface in greyscale.
+        boolean textureOn = ma.isTextured() && loadTexture(ma.texturePath()) != null;
+        GeometryArray geometry = buildGeometry(mesh, ma, textureOn);
+        Appearance app = buildAppearance(ma);
         return new Shape3D(geometry, app);
     }
 
@@ -90,7 +99,8 @@ public final class J3dMeshFactory {
      * texcoord index arrays are the identity 0..vertexCount-1 -- no dedup step
      * is needed here and the shape draws exactly what the builder walked.
      */
-    private static GeometryArray buildGeometry(ColladaMeshData mesh) {
+    private static GeometryArray buildGeometry(ColladaMeshData mesh, MaterialAppearance ma,
+            boolean textureOn) {
         int vertexCount = mesh.vertexCount();
         int indexCount = mesh.triangleIndices().length;
 
@@ -102,6 +112,33 @@ public final class J3dMeshFactory {
         }
         if (hasTex) {
             format |= GeometryArray.TEXTURE_COORDINATE_2;
+        }
+        // Roadmap P0.1, connected. The per-vertex colour carries the baked rig
+        // (see BakedRig for the two measurements that ruled the scene-graph
+        // Light out and this carrier in). Textured surfaces carry the FACTOR
+        // alone -- their colour is the texture, and multiplying a server-baked
+        // texture by the material colour again would darken it twice -- while a
+        // surface with no texture carries authored x factor.
+        //
+        // What it changes, measured rather than asserted (build-gradle/
+        // scratch/WlProbe34, one textured quad built through THIS method with a
+        // real image served through TextureSource, read back with readRaster):
+        // with lg.wonderland.lighting=off the surface came back as exactly two
+        // colours, one of them the unpainted raster -- flat, which is the
+        // complaint P0.1 exists to answer. With the bake on the same surface
+        // came back as 39 distinct colours grading 229 down to 199, the darkest
+        // step where the normal turns away from the key. No authored pixel got
+        // brighter (the factor tops out at 1.0), and nothing went black.
+        // The whole branch stays behind BakedRig.active() so those two readings
+        // remain available to anyone who wants the old pixels back.
+        float[] colors = null;
+        if (BakedRig.active()) {
+            float[] authored = textureOn ? null
+                    : replicate(ma.red(), ma.green(), ma.blue(), vertexCount);
+            colors = BakedRig.vertexColors(hasNormals ? mesh.normals() : null, authored);
+            if (colors != null) {
+                format |= GeometryArray.COLOR_3;
+            }
         }
 
         // This fork's IndexedTriangleArray is not the Java 3D 1.6 signature the
@@ -134,6 +171,10 @@ public final class J3dMeshFactory {
             arr.setTextureCoordinateIndices(0, /*texCoordSetIndex*/ 0, identity);
             arr.setTextureCoordinates(0, /*texCoordSetIndex*/ 0, mesh.texCoords());
         }
+        if (colors != null) {
+            arr.setColorIndices(0, identity);
+            arr.setColors(0, colors);
+        }
 
         // Capability bits the lg3d-core SceneGraphView / pick / collision paths
         // expect on any attached geometry; without these a live universe will
@@ -144,7 +185,21 @@ public final class J3dMeshFactory {
         arr.setCapability(GeometryArray.ALLOW_TEXCOORD_READ);
         arr.setCapability(GeometryArray.ALLOW_FORMAT_READ);
         arr.setCapability(GeometryArray.ALLOW_COUNT_READ);
+        if (colors != null) {
+            arr.setCapability(GeometryArray.ALLOW_COLOR_READ);
+        }
         return arr;
+    }
+
+    /** The same authored colour per vertex, in the stride COLOR_3 expects. */
+    private static float[] replicate(float r, float g, float b, int vertexCount) {
+        float[] out = new float[vertexCount * 3];
+        for (int i = 0; i < vertexCount; i++) {
+            out[i * 3] = r;
+            out[i * 3 + 1] = g;
+            out[i * 3 + 2] = b;
+        }
+        return out;
     }
 
     private Appearance buildAppearance(MaterialAppearance ma) {
@@ -242,7 +297,13 @@ public final class J3dMeshFactory {
                 int mode;
                 if (served.translucent()) {
                     mode = TextureAttributes.REPLACE;
-                } else if (ma.lit()) {
+                } else if (ma.lit() || BakedRig.active()) {
+                    // MODULATE is what lets the bake reach the screen at all:
+                    // WlProbe33 drew the same graded quad both ways and DECAL
+                    // returned pure white (distinct=2, the vertex colour thrown
+                    // away) while MODULATE returned the 193-colour ramp. A
+                    // translucent card keeps REPLACE for its own alpha, measured
+                    // for the name tags, and is the surface the bake leaves alone.
                     mode = TextureAttributes.MODULATE;
                 } else {
                     mode = TextureAttributes.DECAL;
