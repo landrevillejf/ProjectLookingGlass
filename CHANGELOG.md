@@ -1306,6 +1306,25 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The Wonderland World panel dead-ended on "Cannot reach", and a seeded world
+  spammed the boot log** (`lg3d-apps` + `wonderland-common` + `wonderland-server`)
+  — the desktop deliberately leaves `wonderland-server` a separate process, so a
+  first launch of the Wonderland World browser always failed with a bare
+  `Cannot reach http://localhost:8080/api/world/cells` and no way forward. The
+  panel now names the command that brings a server up —
+  `./gradlew :wonderland-server:bootRun --args='--wonderland.world.seed=wonderland-outpatient-clinic'`
+  — on the status strip and in its tooltip, from a single
+  `WorldCatalog.startCommand()` the face and its test share, so the panel is a
+  way in rather than a dead end. Two runtime-noise defects surfaced while
+  verifying it live: `CellTransform`'s non-uniform-scale branch called
+  `Thread.dumpStack()` alongside its warning, so booting a seeded world printed
+  a full stack trace per cell (the warning, which is the real message, stays);
+  and the outpatient clinic's `module.xml` and `clinic-box.dae` used ` -- ` as an
+  em dash inside an XML comment, which the spec forbids, so the COLLADA parser
+  logged `[Fatal Error] The string "--" is not permitted within comments` once per
+  cell — both comments now carry a real em dash. `WonderlandWorldPanelTest` is
+  updated to assert the strip names both the unreachable server and the start
+  command.
 - **The Update Manager's What's New had nothing to show, because its parser did not
   recognise this repository's changelog** (`update-manager`) — `ChangelogManager`
   read `## Version X.Y.Z (YYYY-MM-DD)` headers and `- [NEW]` / `- [FIX]` /
