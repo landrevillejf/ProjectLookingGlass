@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- clinic-ground: textured by build-gradle/scratch/gen_clinic_art.py; the bytes are committed, the generator is not. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset><contributor><authoring_tool>wonderland clean-room generator</authoring_tool></contributor>
+    <created>2026-10-14T00:00:00Z</created><modified>2026-10-14T00:00:00Z</modified>
+    <unit meter="1.0" name="meter"/><up_axis>Y_UP</up_axis></asset>
+  <library_images>
+    <image id="carpet_img"><init_from>carpet.png</init_from></image>
+  </library_images>
+  <library_effects>
+    <effect id="carpet-fx"><profile_COMMON>
+      <newparam sid="carpet-surface"><surface type="2D"><init_from>carpet_img</init_from></surface></newparam>
+      <newparam sid="carpet-sampler"><sampler2D><source>carpet-surface</source></sampler2D></newparam>
+      <technique sid="COMMON"><lambert><diffuse><texture texture="carpet-sampler" texcoord="UVSET0"/></diffuse></lambert></technique></profile_COMMON></effect>
+    <effect id="plinth-fx"><profile_COMMON><technique sid="COMMON"><lambert><diffuse><color>0.3500 0.3500 0.3600 1.0000</color></diffuse></lambert></technique></profile_COMMON></effect>
+  </library_effects>
+  <library_materials>
+    <material id="carpet" name="carpet"><instance_effect url="#carpet-fx"/></material>
+    <material id="plinth" name="plinth"><instance_effect url="#plinth-fx"/></material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="clinic-ground-geom" name="clinic-ground"><mesh>
+      <source id="clinic-ground-positions"><float_array id="clinic-ground-pos-a" count="144">-0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 1 0.5000 0.5000 1 0.5000 0.5000 1 -0.5000 -0.5000 1 -0.5000 -0.5000 0 0.5000 0.5000 0 0.5000 0.5000 0 -0.5000 -0.5000 0 -0.5000 -0.5000 0 -0.5000 0.5000 0 -0.5000 0.5000 0 0.5000 -0.5000 0 0.5000 -0.5000 0 -0.5000 0.5000 0 -0.5000 0.5000 1 -0.5000 -0.5000 1 -0.5000 -0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 0 -0.5000 -0.5000 0 -0.5000 0.5000 0 0.5000 -0.5000 0 0.5000 -0.5000 1 0.5000 0.5000 1 0.5000 0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 0 0.5000 0.5000 0 0.5000 -0.5000 0 0.5000 -0.5000 0 -0.5000 -0.5000 1 -0.5000 -0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 1 -0.5000 -0.5000 0 -0.5000 -0.5000 0 0.5000 0.5000 0 -0.5000 0.5000 0 0.5000 0.5000 1 0.5000 0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 1 0.5000 0.5000 0 0.5000 0.5000 0 -0.5000</float_array><technique_common><accessor count="48" source="#clinic-ground-pos-a" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common></source>
+      <source id="clinic-ground-texcoords"><float_array id="clinic-ground-tc-a" count="96">0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0</float_array><technique_common><accessor count="48" source="#clinic-ground-tc-a" stride="2"><param name="S" type="float"/><param name="T" type="float"/></accessor></technique_common></source>
+      <vertices id="clinic-ground-vertices"><input semantic="POSITION" source="#clinic-ground-positions"/></vertices>
+      <triangles count="4" material="carpet">
+        <input offset="0" semantic="VERTEX" source="#clinic-ground-vertices"/>
+        <input offset="1" semantic="TEXCOORD" source="#clinic-ground-texcoords"/>
+        <p>0 0 1 1 2 2 0 0 2 2 3 3 4 4 5 5 6 6 4 4 6 6 7 7</p>
+      </triangles>
+      <triangles count="20" material="plinth">
+        <input offset="0" semantic="VERTEX" source="#clinic-ground-vertices"/>
+        <input offset="1" semantic="TEXCOORD" source="#clinic-ground-texcoords"/>
+        <p>8 8 9 9 10 10 8 8 10 10 11 11 12 12 13 13 14 14 12 12 14 14 15 15 16 16 17 17 18 18 16 16 18 18 19 19 20 20 21 21 22 22 20 20 22 22 23 23 24 24 25 25 26 26 24 24 26 26 27 27 28 28 29 29 30 30 28 28 30 30 31 31 32 32 33 33 34 34 32 32 34 34 35 35 36 36 37 37 38 38 36 36 38 38 39 39 40 40 41 41 42 42 40 40 42 42 43 43 44 44 45 45 46 46 44 44 46 46 47 47</p>
+      </triangles>
+    </mesh></geometry>
+  </library_geometries>
+  <library_visual_scenes><visual_scene id="clinic-ground-scene" name="clinic-ground">
+    <node id="clinic-ground-node" name="clinic-ground"><instance_geometry url="#clinic-ground-geom">
+      <bind_material><technique_common>
+        <instance_material symbol="plinth" target="#plinth"><bind_vertex_input semantic="UVSET0" input_semantic="TEXCOORD" input_set="0"/></instance_material>
+        <instance_material symbol="carpet" target="#carpet"><bind_vertex_input semantic="UVSET0" input_semantic="TEXCOORD" input_set="0"/></instance_material>
+      </technique_common></bind_material>
+    </instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#clinic-ground-scene"/></scene>
+</COLLADA>

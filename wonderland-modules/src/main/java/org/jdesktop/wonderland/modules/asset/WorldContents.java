@@ -52,18 +52,42 @@ public final class WorldContents {
                 .sum();
     }
 
-    /** One world cell: its decoded server state and, for a model cell, its load result. */
+    /**
+     * One world cell: its decoded server state and, for a model cell, its load
+     * result. {@code path} and {@code parentPath} carry where the cell sat in the
+     * module's directory tree, because that is where the world recorded its
+     * parent -- see {@link WorldLoader#parentOf} and {@link WorldPlacement}.
+     */
     public static final class LoadedCell {
         private final CellServerState state;
         private final ModelLoadResult model;
+        private final String path;
+        private final String parentPath;
 
         public LoadedCell(CellServerState state, ModelLoadResult model) {
+            this(state, model, null, null);
+        }
+
+        public LoadedCell(CellServerState state, ModelLoadResult model,
+                String path, String parentPath) {
             this.state = state;
             this.model = model;
+            this.path = path;
+            this.parentPath = parentPath;
         }
 
         public CellServerState state() {
             return state;
+        }
+
+        /** The module path this cell was read from, or null when it came from nowhere. */
+        public String path() {
+            return path;
+        }
+
+        /** The path of the cell this one sits inside, or null for a world root. */
+        public String parentPath() {
+            return parentPath;
         }
 
         /** The model load result, or null for a non-model cell. */

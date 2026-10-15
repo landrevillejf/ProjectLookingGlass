@@ -3,7 +3,7 @@
     <name>Clinic Directory</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-sign.kmz/clinic-sign.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -11,9 +11,14 @@
         <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
     </model-cell-component>
     <position-component>
-        <translation><x>2</x><y>0</y><z>3</z></translation>
-        <bounds><type>BOX</type><x>0.15</x><y>2.5</y><z>3.0</z></bounds>
-        <scale><x>0.15</x><y>2.5</y><z>3.0</z></scale>
+        <translation><x>-4.5</x><y>0</y><z>2.2</z></translation>
+        <!-- Free-standing on the hall floor, to the left of the visitor who arrives
+             at the near end and faces down the room: the board is met on the way in,
+             not studied from across the room. Its wide axis runs across that
+             sightline, which is why the reference's board reads as text and a board
+             turned edge-on to the door would not. -->
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
+        <scale><x>1.4</x><y>1.0</y><z>0.08</z></scale>
         <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
     </position-component>
     <placemark-component><placemarkName>Clinic Directory</placemarkName></placemark-component>

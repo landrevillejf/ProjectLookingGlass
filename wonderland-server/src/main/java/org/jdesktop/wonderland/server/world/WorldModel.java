@@ -34,11 +34,12 @@ import org.springframework.stereotype.Service;
 public class WorldModel {
 
     /**
-     * The abstract EnvironmentCell the client cache knows the root by type. It is
-     * NOT loadable as-is (instantiateCell reflects an abstract class open and
-     * fails): the 2006 server shipped the desktop's concrete subclass name as
-     * world data. Deployment/test constructors override it below; this stays the
-     * documented default of the module vocabulary.
+     * The EnvironmentCell the client cache knows the root by type, and can now
+     * instantiate as-is: the class is concrete (like the ViewCell the router
+     * names), so instantiateCell's reflection succeeds on the default world
+     * instead of throwing InstantiationException on every live walk-in. A
+     * deployment/test constructor may still override it below with a desktop's
+     * richer subclass name, exactly as the 2006 server shipped world data.
      */
     public static final String ENVIRONMENT_CLASS =
             "org.jdesktop.wonderland.client.cell.EnvironmentCell";
@@ -46,6 +47,16 @@ public class WorldModel {
     private final Map<CellID, WorldCell> cells = new ConcurrentHashMap<>();
     private final AtomicLong nextCellID = new AtomicLong(CellID.getFirstCellID());
     private final CellID environmentCellID = CellID.getEnvironmentCellID();
+
+    /**
+     * The module whose cells were seeded into this world, or {@code null} when
+     * nothing was seeded. The world is a bag of cells and does not otherwise
+     * know where they came from; the REST catalog needs that one fact to tell
+     * a browser which listed world is actually live (the {@code hosted} flag),
+     * so a browser can decide whether the address it points at already runs
+     * the world it is about to ask for.
+     */
+    private volatile String liveModule;
 
     public WorldModel() {
         this(ENVIRONMENT_CLASS);
@@ -61,6 +72,19 @@ public class WorldModel {
 
     public CellID getEnvironmentCellID() {
         return environmentCellID;
+    }
+
+    /** The seeded module this world now hosts, or {@code null} for an empty one. */
+    public String getLiveModule() {
+        return liveModule;
+    }
+
+    /**
+     * Record which module was seeded (called by {@link WorldSeeder} on success).
+     * A null/blank module clears the mark, so an unseeded world says so.
+     */
+    public void setLiveModule(String module) {
+        liveModule = (module == null || module.isBlank()) ? null : module.trim();
     }
 
     /** Mint a fresh cell id (never the environment id, never reused). */

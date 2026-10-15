@@ -12,6 +12,7 @@
  */
 package org.jdesktop.wonderland.server.web;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.jdesktop.wonderland.server.world.WorldCatalog;
 import org.jdesktop.wonderland.server.world.WorldCell;
 import org.jdesktop.wonderland.server.world.WorldModel;
 import org.jdesktop.wonderland.server.world.WorldSummary;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -49,14 +51,31 @@ public class WorldRestController {
      * This is the "access to all existing worlds" surface: the catalog is read
      * independently of the seeded one, so a browser can list what is available
      * even before (or without) any world being loaded into {@link #world}.
+     * Exactly one entry may carry {@code hosted}: the one whose module was
+     * seeded into the live world, so a browser can ask "is the world I picked
+     * the world that is running?" in the same read that listed it.
      */
     @GetMapping("/worlds")
     public List<WorldSummary> worlds() {
-        return catalog.available();
+        String live = world.getLiveModule();
+        List<WorldSummary> out = new ArrayList<>();
+        for (WorldSummary listed : catalog.available()) {
+            out.add(new WorldSummary(listed.module(), listed.title(),
+                    listed.description(), listed.source(), listed.cellCount(),
+                    listed.module().equals(live)));
+        }
+        return out;
     }
 
     @GetMapping("/cells")
-    public List<Map<String, Object>> cells() {
+    public List<Map<String, Object>> cells(
+            @RequestParam(value = "module", required = false) String module) {
+        // No module: the live (seeded) world, exactly as before. A module: that
+        // catalog world read on demand, so a browser can pick any listed world
+        // and see its cells without the server having seeded it.
+        if (module != null && !module.isBlank()) {
+            return catalog.describeCells(module.trim());
+        }
         List<Map<String, Object>> out = new ArrayList<>();
         for (WorldCell cell : world.hierarchy()) {
             out.add(describe(cell));
@@ -71,6 +90,26 @@ public class WorldRestController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
         return ResponseEntity.ok(describe(cell));
+    }
+
+    /**
+     * Serve one world's preview image (the browser's vignette): a picture of the
+     * world rather than a diagram of it, so "what does this world look like?" is
+     * answered with the art the world itself carries. Resolution is the catalog's
+     * ({@link WorldCatalog#preview}) -- the module's own {@code preview.png} first,
+     * then the hand-verified stock-art alias table -- and the answer is a plain
+     * 404 when a world has no picture, which is the browser's cue to fall back to
+     * the floor plan. No path is taken from the caller here, so unlike
+     * {@link #asset} there is nothing to confine: the module name selects a store
+     * and the file names are the server's own constants.
+     */
+    @GetMapping("/preview")
+    public ResponseEntity<byte[]> preview(@RequestParam("module") String module) {
+        return catalog.preview(module).map(p -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(p.contentType()))
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(6)).cachePublic())
+                        .body(p.bytes()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
     /**

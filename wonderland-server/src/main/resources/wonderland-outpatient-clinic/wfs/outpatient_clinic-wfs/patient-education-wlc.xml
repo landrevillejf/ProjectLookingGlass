@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Patient Education: the third bay of the north range. See
+     exam-room-1-wlc.xml for the grid and for the 5 cm bay inset. -->
 <model-cell>
     <name>Patient Education</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -11,10 +13,25 @@
         <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
     </model-cell-component>
     <position-component>
-        <translation><x>6</x><y>0</y><z>-5</z></translation>
-        <bounds><type>BOX</type><x>5.0</x><y>3.0</y><z>5.0</z></bounds>
-        <scale><x>5.0</x><y>3.0</y><z>5.0</z></scale>
-        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+        <translation>
+            <x>2.75</x>
+            <y>0.0</y>
+            <z>-11.0</z>
+        </translation>
+        <bounds><type>BOX</type><x>0.506</x><y>0.5</y><z>0.506</z></bounds>
+        <scale>
+            <x>5.4</x>
+            <y>3.4</y>
+            <z>5.9</z>
+        </scale>
+        <rotation>
+            <x>0.0</x>
+            <y>1.0</y>
+            <z>0.0</z>
+            <angle>0.0</angle>
+        </rotation>
     </position-component>
-    <placemark-component><placemarkName>Patient Education</placemarkName></placemark-component>
+    <placemark-component>
+        <placemarkName>Patient Education</placemarkName>
+    </placemark-component>
 </model-cell>

@@ -36,6 +36,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +51,15 @@ class WorldRestControllerTest {
     private SessionRegistry registry;
     private ProtocolRouter router;
     private MockMvc mvc;
+
+    /**
+     * {@code clinic-room}'s own half-extent in x and z. Its interior vertices
+     * sit at exactly |0.5| and the {@code .dep} box reads 0.506, so the model's
+     * walls add six millimetres of thickness per side -- which is why the half-
+     * extent is read off the model rather than guessed from the bay it is
+     * stretched across.
+     */
+    private static final double ROOM_HALF_EXTENT = 0.506;
 
     @BeforeEach
     void setUp() {
@@ -71,7 +82,54 @@ class WorldRestControllerTest {
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].source")
                         .value("classpath"))
                 .andExpect(jsonPath("$[?(@.module == 'wonderland-outpatient-clinic')].cellCount")
-                        .value(9));
+                        .value(24));
+    }
+
+    /**
+     * The listed/live distinction the browser's Start button turns on: exactly
+     * the entry whose module the live world was seeded from carries
+     * {@code hosted}, and an unseeded server claims it for nobody.
+     */
+    @Test
+    void worldsMarksOnlyTheSeededModuleHosted() throws Exception {
+        mvc.perform(get("/api/world/worlds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$[?(@.module == 'wonderland-outpatient-clinic')].hosted")
+                        .value(false));
+
+        world.setLiveModule("wonderland-outpatient-clinic");
+        mvc.perform(get("/api/world/worlds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$[?(@.module == 'wonderland-outpatient-clinic')].hosted")
+                        .value(true));
+    }
+
+    /**
+     * A catalog world's cells carry their authored placement for a preview.
+     *
+     * <p>Exam Room 1 is authored as a 5.4 x 5.9 m bay (its 1.012 m room cube
+     * stretched across one), sitting at the bay centre the tiled floorplan gives
+     * it. The footprint is asserted with a tolerance because it is a PRODUCT, not
+     * a number an author typed: the descriptor reports the placed size, which is
+     * twice the model's own half-extent times the stretch, so a cell that authors
+     * its bounds as metres gets a squared footprint out of it. {@code
+     * WorldCatalogTest} pins the same product on the map the catalog builds; this
+     * pins it on the JSON the browser actually reads -- see that test for why the
+     * two readers of one world must agree. The filter path answers a one-element
+     * array, so the tolerance matcher runs inside {@code contains}.</p>
+     */
+    @Test
+    void cellsForAModuleCarryTheAuthoredPlacement() throws Exception {
+        mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].x").value(-8.25))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].z").value(-11.0))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].width")
+                        .value(contains(closeTo(2 * ROOM_HALF_EXTENT * 5.4, 0.01))))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')].depth")
+                        .value(contains(closeTo(2 * ROOM_HALF_EXTENT * 5.9, 0.01))));
     }
 
     @Test
@@ -89,6 +147,38 @@ class WorldRestControllerTest {
                 .andExpect(jsonPath("$[1].id").value(content.toString()))
                 .andExpect(jsonPath("$[1].className").value("some.client.Cell"))
                 .andExpect(jsonPath("$[1].parent").value("0"));
+    }
+
+    /** The world browser's read: any catalog world's cells, without seeding it. */
+    @Test
+    void cellsForAModuleReadsThatWorldEvenWhenTheServerSeededNothing() throws Exception {
+        // the seeded world is empty (only the environment), yet a named module is
+        // readable through ?module= -- this is the "pick any world" surface
+        mvc.perform(get("/api/world/cells").param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(24)))
+                .andExpect(jsonPath("$[?(@.name == 'Exam Room 1')]").exists())
+                .andExpect(jsonPath("$[?(@.cellType == 'poster-cell')]").exists())
+                .andExpect(jsonPath("$[0].parent").doesNotExist());
+    }
+
+    @Test
+    void cellsForAnUnknownModuleIsAnEmptyListNotAnError() throws Exception {
+        mvc.perform(get("/api/world/cells").param("module", "no-such-world"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void aBlankModuleFallsBackToTheSeededWorld() throws Exception {
+        CellID content = world.newCellID();
+        world.addCell(content, "some.client.Cell", "cube", new CellTransform(),
+                new CellClientState());
+        // an empty module parameter is "no module chosen": the live world answers,
+        // so the seeded hierarchy (environment + cube) is what the browser sees
+        mvc.perform(get("/api/world/cells").param("module", "  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)));
     }
 
     @Test
@@ -205,6 +295,40 @@ class WorldRestControllerTest {
         mvc.perform(get("/api/world/asset")
                         .param("module", "wonderland-outpatient-clinic")
                         .param("path", "../../etc/passwd"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ---- the world preview: the browser's vignette asks for a picture of the
+    // ---- world, and a world without one must answer 404, not an empty 200.
+
+    @Test
+    void previewServesTheWorldsOwnPictureWithItsMediaType(@TempDir Path dir)
+            throws Exception {
+        String module = "wonderland-town-world";
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(
+                dir.resolve(module + ".jar")))) {
+            put(out, "module.xml", "<wonderland-module><name>A Town</name></wonderland-module>");
+            put(out, "preview.png", "PNG-BYTES");
+        }
+        MockMvc jarMvc = MockMvcBuilders.standaloneSetup(new WorldRestController(
+                new WorldModel(), new WorldCatalog(dir.toString()))).build();
+
+        jarMvc.perform(get("/api/world/preview").param("module", module))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes("PNG-BYTES".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void previewIsNotFoundForAWorldThatCarriesNoPicture() throws Exception {
+        // the bundled clinic ships no preview.png, so the browser's cue to draw
+        // the floor plan is a plain 404 -- never a 200 with an empty body, which
+        // a caller would have to decode as an image to discover
+        mvc.perform(get("/api/world/preview")
+                        .param("module", "wonderland-outpatient-clinic"))
+                .andExpect(status().isNotFound());
+        // and a missing module parameter is Spring's problem, not ours to guess
+        mvc.perform(get("/api/world/preview"))
                 .andExpect(status().isBadRequest());
     }
 

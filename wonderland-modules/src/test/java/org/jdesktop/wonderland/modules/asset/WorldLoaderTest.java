@@ -104,4 +104,20 @@ class WorldLoaderTest {
         assertThat(contents.cells().get(0).model()).isNull();
         assertThat(contents.loadedModelCount()).isZero();
     }
+
+    @Test
+    void parentageIsDerivedFromTheDirectoryLayout() {
+        // The cell that owns a -wld directory is the parent of everything inside it;
+        // this is the only place the world tree is recorded, and it is what lets
+        // WorldPlacement fold a child's parent-relative numbers into world space.
+        assertThat(WorldLoader.parentOf(null)).isNull();
+        // a child filed under its parent's -wld directory names the parent file
+        assertThat(WorldLoader.parentOf(
+                "proj/OrientationWorld-18-wld/Field-2-wlc.xml"))
+                .isEqualTo("proj/OrientationWorld-18-wlc.xml");
+        // a root cell filed straight under the project directory has no parent
+        assertThat(WorldLoader.parentOf("proj/RootCell-wlc.xml")).isNull();
+        // a file that is not a cell at all is not placed in the tree
+        assertThat(WorldLoader.parentOf("proj/module.xml")).isNull();
+    }
 }

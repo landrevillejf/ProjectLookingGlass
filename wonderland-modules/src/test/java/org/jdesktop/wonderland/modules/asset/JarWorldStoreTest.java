@@ -11,8 +11,10 @@
  * deployed model stored under art/ -- and prove the three things the world loader
  * depends on: a jar IS enumerable (listAssets walks the entries, the very thing
  * the classpath store refused), a module-root wla:// reference finds the bytes the
- * jar packs under art/ (the read-side translation, so no vendored binary is ever
- * rewritten), and an absent asset degrades to "not present" without throwing.
+ * jar packs under art/ -- and the plain {@code .dae} a {@code .dep} names finds the
+ * {@code .dae.gz} the packager actually wrote, which is the difference between a
+ * stock world loading its buildings and loading nothing at all -- and an absent
+ * asset degrades to "not present" without throwing.
  */
 package org.jdesktop.wonderland.modules.asset;
 
@@ -41,6 +43,12 @@ class JarWorldStoreTest {
     static void buildAWorldJar() throws IOException {
         worldJar = dir.resolve(MODULE + ".jar");
         try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(worldJar))) {
+            // explicit directory entries, exactly as a packaged world jar carries
+            // them: a store that never met one would not know to skip it.
+            putDir(jar, "wfs/");
+            putDir(jar, "wfs/town-wfs/");
+            putDir(jar, "art/room.kmz/");
+            putDir(jar, "art/room.kmz/models/");
             put(jar, "module.xml",
                     "<wonderland-module><name>" + MODULE
                     + "</name><description>A town</description></wonderland-module>");
@@ -58,6 +66,11 @@ class JarWorldStoreTest {
     private static void put(JarOutputStream jar, String name, String body) throws IOException {
         jar.putNextEntry(new JarEntry(name));
         jar.write(body.getBytes(StandardCharsets.UTF_8));
+        jar.closeEntry();
+    }
+
+    private static void putDir(JarOutputStream jar, String name) throws IOException {
+        jar.putNextEntry(new JarEntry(name));
         jar.closeEntry();
     }
 
@@ -111,6 +124,48 @@ class JarWorldStoreTest {
             assertThat(store.present(MODULE, "no-such-asset.dep")).isFalse();
             assertThat(store.open(MODULE, null)).isEmpty();
             assertThat(store.open(MODULE, "")).isEmpty();
+            // present() guards the same null/empty spellings open() does
+            assertThat(store.present(MODULE, null)).isFalse();
+            assertThat(store.present(MODULE, "")).isFalse();
+            // a candidate that resolves to a directory entry is not an asset
+            assertThat(store.present(MODULE, "room.kmz/models")).isFalse();
+        }
+    }
+
+    @Test
+    void thePlainNameADepRecordsFindsTheGzippedBytesThePackagerWrote() throws IOException {
+        // The one spelling rule that decides whether a stock world arrives as a
+        // building or as a coloured box. Every deployed model in every one of the
+        // seven shipped worlds is stored as art/<pkg>/models/<name>.dae.gz while its
+        // .dep names it plain at the module root -- so a store that takes the
+        // reference literally finds nothing, loads nothing, and says nothing about it.
+        // Measured: 23 of 23 distinct models, 0 of them readable by exact name.
+        try (JarWorldStore store = new JarWorldStore(worldJar)) {
+            assertThat(store.present(MODULE, "room.kmz/models/room.dae"))
+                    .as("the reference the author typed, not the name the jar carries")
+                    .isTrue();
+            try (InputStream in = store.open(MODULE, "room.kmz/models/room.dae")
+                    .orElseThrow()) {
+                assertThat(new String(in.readAllBytes(), StandardCharsets.UTF_8))
+                        .isEqualTo("collada bytes");
+            }
+        }
+    }
+
+    @Test
+    void bothConventionsApplyTogetherAndNeitherImpliesTheOther() throws IOException {
+        // art/ and .gz are independent dimensions: a texture may sit uncompressed
+        // under art/, and a model may sit compressed at the root. Asserting the pair
+        // together is what keeps a future "just add art/" fix from loading the seven
+        // worlds and still missing every one of their COLLADA documents.
+        try (JarWorldStore store = new JarWorldStore(worldJar)) {
+            assertThat(store.present(MODULE, "room.kmz/models/room.dae")).isTrue();
+            assertThat(store.present(MODULE, "room.kmz/models/room.dae.gz")).isTrue();
+            assertThat(store.present(MODULE, "art/room.kmz/models/room.dae.gz")).isTrue();
+            // the .dep is packed under art/ and uncompressed, so only one of the two
+            // conventions applies to it -- and it still resolves
+            assertThat(store.present(MODULE, "room.kmz/room.kmz.dep")).isTrue();
+            assertThat(store.present(MODULE, "room.kmz/room.kmz.dep.gz")).isFalse();
         }
     }
 }

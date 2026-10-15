@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -33,21 +34,21 @@ public final class DirectoryWorldStore implements WorldStore {
 
     @Override
     public Optional<InputStream> open(String module, String path) {
-        Path resolved = confine(module, path);
-        if (resolved == null || !Files.isRegularFile(resolved)) {
-            return Optional.empty();
+        for (Path resolved : resolve(module, path)) {
+            if (Files.isRegularFile(resolved)) {
+                try {
+                    return Optional.of(Files.newInputStream(resolved));
+                } catch (IOException ex) {
+                    throw new UncheckedIOException("cannot open " + resolved, ex);
+                }
+            }
         }
-        try {
-            return Optional.of(Files.newInputStream(resolved));
-        } catch (IOException ex) {
-            throw new UncheckedIOException("cannot open " + resolved, ex);
-        }
+        return Optional.empty();
     }
 
     @Override
     public boolean present(String module, String path) {
-        Path resolved = confine(module, path);
-        return resolved != null && Files.isRegularFile(resolved);
+        return resolve(module, path).stream().anyMatch(Files::isRegularFile);
     }
 
     @Override
@@ -65,6 +66,24 @@ public final class DirectoryWorldStore implements WorldStore {
         } catch (IOException ex) {
             throw new UncheckedIOException("cannot list " + root, ex);
         }
+    }
+
+    /**
+     * The files one reference may name, in order: {@link AssetSpelling}'s
+     * spellings, each confined to the module directory. A world unpacked to disk
+     * keeps the packager's conventions -- an {@code art/} root and gzipped
+     * COLLADA -- as faithfully as a jar does, so the same read rule applies here
+     * and the two stores cannot disagree about whether an asset exists.
+     */
+    private List<Path> resolve(String module, String path) {
+        List<Path> out = new ArrayList<>(4);
+        for (String candidate : AssetSpelling.candidates(path)) {
+            Path confined = confine(module, candidate);
+            if (confined != null) {
+                out.add(confined);
+            }
+        }
+        return out;
     }
 
     /** Resolve a module+path and confirm it stays inside that module's directory. */

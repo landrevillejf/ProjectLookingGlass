@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model-cell>
+    <name>Waiting Sofa B</name>
+    <metadata/>
+    <model-cell-component>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-sofa.kmz/clinic-sofa.dep</deployedModelURL>
+        <PickingEnabled>true</PickingEnabled>
+        <CollisionEnabled>true</CollisionEnabled>
+        <LightingEnabled>false</LightingEnabled>
+        <BackfaceCullingEnabled>true</BackfaceCullingEnabled>
+        <GraphOptimizationEnabled>true</GraphOptimizationEnabled>
+    </model-cell-component>
+    <position-component>
+        <translation><x>0</x><y>0</y><z>-7.3</z></translation>
+        <bounds><type>BOX</type><x>0.5</x><y>0.5</y><z>0.5</z></bounds>
+        <scale><x>2.0</x><y>0.55</y><z>0.8</z></scale>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+    <placemark-component><placemarkName>Waiting Sofa B</placemarkName></placemark-component>
+</model-cell>

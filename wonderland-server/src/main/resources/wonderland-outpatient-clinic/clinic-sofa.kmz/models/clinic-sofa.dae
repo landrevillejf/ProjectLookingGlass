@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- clinic-sofa: textured by build-gradle/scratch/gen_clinic_art.py; the bytes are committed, the generator is not. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset><contributor><authoring_tool>wonderland clean-room generator</authoring_tool></contributor>
+    <created>2026-10-14T00:00:00Z</created><modified>2026-10-14T00:00:00Z</modified>
+    <unit meter="1.0" name="meter"/><up_axis>Y_UP</up_axis></asset>
+  <library_images>
+    <image id="sofa_img"><init_from>fabric-red.png</init_from></image>
+  </library_images>
+  <library_effects>
+    <effect id="sofa-fx"><profile_COMMON>
+      <newparam sid="sofa-surface"><surface type="2D"><init_from>sofa_img</init_from></surface></newparam>
+      <newparam sid="sofa-sampler"><sampler2D><source>sofa-surface</source></sampler2D></newparam>
+      <technique sid="COMMON"><lambert><diffuse><texture texture="sofa-sampler" texcoord="UVSET0"/></diffuse></lambert></technique></profile_COMMON></effect>
+    <effect id="plinth-fx"><profile_COMMON><technique sid="COMMON"><lambert><diffuse><color>0.3500 0.3500 0.3600 1.0000</color></diffuse></lambert></technique></profile_COMMON></effect>
+  </library_effects>
+  <library_materials>
+    <material id="sofa" name="sofa"><instance_effect url="#sofa-fx"/></material>
+    <material id="plinth" name="plinth"><instance_effect url="#plinth-fx"/></material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="clinic-sofa-geom" name="clinic-sofa"><mesh>
+      <source id="clinic-sofa-positions"><float_array id="clinic-sofa-pos-a" count="132">-0.5000 0 -0.5000 0.5000 0 -0.5000 0.5000 1 -0.5000 -0.5000 1 -0.5000 -0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 0 -0.5000 -0.5000 0 -0.5000 0.5000 0 0.5000 -0.5000 0 0.5000 -0.5000 1 0.5000 0.5000 1 0.5000 0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 0 0.5000 0.5000 0 0.5000 -0.5000 0 0.5000 -0.5000 0 -0.5000 -0.5000 1 -0.5000 -0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 1 -0.5000 -0.5000 0 -0.5000 -0.5000 0 0.5000 0.5000 0 -0.5000 0.5000 0 0.5000 0.5000 1 0.5000 0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 1 0.5000 0.5000 0 0.5000 0.5000 0 -0.5000 -0.5000 1 -0.5000 0.5000 1 -0.5000 0.5000 1 0.5000 -0.5000 1 0.5000 -0.5000 1 0.5000 0.5000 1 0.5000 0.5000 1 -0.5000 -0.5000 1 -0.5000 -0.5000 0 -0.5000 0.5000 0 -0.5000 0.5000 0 0.5000 -0.5000 0 0.5000</float_array><technique_common><accessor count="44" source="#clinic-sofa-pos-a" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common></source>
+      <source id="clinic-sofa-texcoords"><float_array id="clinic-sofa-tc-a" count="88">0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1 0 1 1 1 1 0 0 0 0 0 1 0 1 1 0 1</float_array><technique_common><accessor count="44" source="#clinic-sofa-tc-a" stride="2"><param name="S" type="float"/><param name="T" type="float"/></accessor></technique_common></source>
+      <vertices id="clinic-sofa-vertices"><input semantic="POSITION" source="#clinic-sofa-positions"/></vertices>
+      <triangles count="20" material="sofa">
+        <input offset="0" semantic="VERTEX" source="#clinic-sofa-vertices"/>
+        <input offset="1" semantic="TEXCOORD" source="#clinic-sofa-texcoords"/>
+        <p>0 0 1 1 2 2 0 0 2 2 3 3 4 4 5 5 6 6 4 4 6 6 7 7 8 8 9 9 10 10 8 8 10 10 11 11 12 12 13 13 14 14 12 12 14 14 15 15 16 16 17 17 18 18 16 16 18 18 19 19 20 20 21 21 22 22 20 20 22 22 23 23 24 24 25 25 26 26 24 24 26 26 27 27 28 28 29 29 30 30 28 28 30 30 31 31 32 32 33 33 34 34 32 32 34 34 35 35 36 36 37 37 38 38 36 36 38 38 39 39</p>
+      </triangles>
+      <triangles count="2" material="plinth">
+        <input offset="0" semantic="VERTEX" source="#clinic-sofa-vertices"/>
+        <input offset="1" semantic="TEXCOORD" source="#clinic-sofa-texcoords"/>
+        <p>40 40 41 41 42 42 40 40 42 42 43 43</p>
+      </triangles>
+    </mesh></geometry>
+  </library_geometries>
+  <library_visual_scenes><visual_scene id="clinic-sofa-scene" name="clinic-sofa">
+    <node id="clinic-sofa-node" name="clinic-sofa"><instance_geometry url="#clinic-sofa-geom">
+      <bind_material><technique_common>
+        <instance_material symbol="plinth" target="#plinth"><bind_vertex_input semantic="UVSET0" input_semantic="TEXCOORD" input_set="0"/></instance_material>
+        <instance_material symbol="sofa" target="#sofa"><bind_vertex_input semantic="UVSET0" input_semantic="TEXCOORD" input_set="0"/></instance_material>
+      </technique_common></bind_material>
+    </instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#clinic-sofa-scene"/></scene>
+</COLLADA>

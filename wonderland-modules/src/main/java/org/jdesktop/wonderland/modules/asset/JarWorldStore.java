@@ -21,9 +21,15 @@
  * its art as {@code wla://<module>/<path>} at the module ROOT, but the jar stores
  * those bytes under {@code art/<path>}. That mismatch is not a bug to fix in the
  * committed assets (they are vendored binaries that must not be rewritten); it is
- * resolved HERE, on read: {@link #open} tries the exact entry then the {@code art/}
- * sibling, so a module-root reference finds its packaged bytes. That is the whole
+ * resolved HERE, on read: {@link #open} walks {@link AssetSpelling}'s candidates,
+ * so a module-root reference finds its packaged bytes. That is the whole
  * translation a plain directory store would have had to bake into the layout.
+ *
+ * The second half of that translation is the one this port lost, and it is why the
+ * original worlds came out as empty boxes: the COLLADA document every one of the
+ * seven stock worlds deploys is gzipped in the jar while the {@code .dep} names it
+ * plain. A reader that took the reference literally found nothing to load -- 23 of
+ * 23 models, 0 rendered. See {@link AssetSpelling} for the measurement.
  *
  * The store is opened for one world jar and is {@link AutoCloseable}; the caller
  * (the server's seeder/catalog) owns its lifetime and closes it after a load.
@@ -44,12 +50,6 @@ import java.util.zip.ZipEntry;
 
 /** A {@link WorldStore} whose single module lives inside a world jar. */
 public final class JarWorldStore implements WorldStore, AutoCloseable {
-
-    /**
-     * The directory the stock worlds pack their art under, while their
-     * {@code wla://} references name it at the module root; the read-side bridge.
-     */
-    private static final String ART_PREFIX = "art/";
 
     private final JarFile jar;
 
@@ -98,17 +98,18 @@ public final class JarWorldStore implements WorldStore, AutoCloseable {
     }
 
     /**
-     * Resolve one asset path to a jar entry, trying the module-root spelling the
-     * {@code wla://} reference uses first, then the {@code art/} prefix the stock
-     * world jar actually stores it under. Null when neither is present.
+     * Resolve one asset path to a jar entry, walking the spellings a stock world's
+     * reference may arrive under -- as written, gzipped, under {@code art/}, or both
+     * -- and returning the first the jar actually holds. Null when none does.
      */
     private ZipEntry findEntry(String path) {
-        ZipEntry entry = jar.getEntry(path);
-        if (entry != null && !entry.isDirectory()) {
-            return entry;
+        for (String candidate : AssetSpelling.candidates(path)) {
+            ZipEntry entry = jar.getEntry(candidate);
+            if (entry != null && !entry.isDirectory()) {
+                return entry;
+            }
         }
-        ZipEntry underArt = jar.getEntry(ART_PREFIX + path);
-        return underArt != null && !underArt.isDirectory() ? underArt : null;
+        return null;
     }
 
     @Override

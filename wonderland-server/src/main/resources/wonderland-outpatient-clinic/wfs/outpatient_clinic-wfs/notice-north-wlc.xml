@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The health notice board on the hall's far wall: the one thing in the 2009
+     view that is not a person, a sofa or a wall, and the reason a clinic reads
+     as a public room rather than a corridor.
+
+     It is a GUI cell, not a model cell, and the difference is not styling. A
+     poster is a flat rectangle whose entire content is an image, which is what
+     the format's own picture cell carries: a name, a file and a measure, with
+     no .dae, no .dep and no lighting to author. Placed as a model it would also
+     arrive signed, because the renderer reads any cell over 0.6 m tall as a room
+     and hangs its name near the ceiling; a notice board does not need a name
+     when it is already covered in one.
+
+     The measure travels as pixel scale, the format's only size unit for a
+     picture: the map is 512 px square, so 3.4 mm per pixel is the 1.74 m board
+     a person reads from three metres away. -->
+<poster-cell>
+    <name>Health Notices</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/notices.png</image-uri>
+    <pixelScaleX>0.0034</pixelScaleX>
+    <pixelScaleY>0.0034</pixelScaleY>
+    <position-component>
+        <!-- On the wall the visitor meets on the way in, left of the hall's own
+             name sign and above the waiting sofas, which is where the reference
+             has it. The hall's inner face is at z = -8.0, so -7.85 hangs the card
+             15 cm off the plaster: coplanar with the wall it shows, and the wall
+             wins the depth test. Yaw 0 turns its +Z normal into the room. -->
+        <translation><x>-3.5</x><y>1.75</y><z>-7.85</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+</poster-cell>

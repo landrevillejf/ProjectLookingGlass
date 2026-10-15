@@ -16,6 +16,7 @@ import com.jme.math.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.AvatarMoveCell;
+import org.jdesktop.wonderland.client.cell.view.ViewCell;
 import org.jdesktop.wonderland.client.comms.CellClientSession;
 import org.jdesktop.wonderland.client.comms.ConnectionTestFixtures.PipelineSession;
 import org.jdesktop.wonderland.common.cell.CellID;
@@ -26,6 +27,7 @@ import org.jdesktop.wonderland.common.cell.messages.MovableAvatarMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableMessage;
 import org.jdesktop.wonderland.common.cell.messages.ViewCreateResponseMessage;
 import org.jdesktop.wonderland.common.cell.state.MovableAvatarComponentClientState;
+import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
 import org.jdesktop.wonderland.common.messages.Message;
 import org.junit.jupiter.api.BeforeEach;
@@ -238,5 +240,24 @@ class MovableAvatarComponentTest {
         assertThat(withHeight.getHeight()).isEqualTo(0.7f);
         assertThat(withHeight.isCollision()).isTrue();
         assertThat(withHeight.getTrigger()).isEqualTo(MovableAvatarComponent.NO_TRIGGER);
+    }
+
+    @Test
+    void plainClientStateDoesNotBreakTheViewCellCast() {
+        // A seeded resident is an AvatarCell whose wire state the seeder now
+        // gives as a ViewCellClientState -- but any foreign or legacy frame can
+        // still hand a plain CellClientState. ViewCell.setClientState once cast
+        // it blindly and threw ClassCastException inside loadCell, which the
+        // client cache logged SEVERE and the desktop surfaced as a crash dialog
+        // on walking into the clinic. The cast is now guarded: the cell loads and
+        // the identity simply stays unset -- a name label never aborts a load.
+        CellID id = CellTestFixtures.id(3);
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
+        CellClientState plain = new CellClientState();
+        plain.setName("resident");
+        Cell cell = cache.loadCell(id, AvatarMoveCell.class.getName(), null, null,
+                CellTestFixtures.translation(0f, 0f, 0f), plain, "resident");
+        assertThat(cell).isNotNull();
+        assertThat(((ViewCell) cell).getIdentity()).isNull();
     }
 }

@@ -36,6 +36,7 @@ import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage.ActionT
 import org.jdesktop.wonderland.common.cell.messages.CellReparentMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableMessageResponse;
+import org.jdesktop.wonderland.common.cell.messages.TextChatMessage;
 import org.jdesktop.wonderland.common.cell.messages.ViewCreateResponseMessage;
 import org.jdesktop.wonderland.common.cell.state.CellClientState;
 import org.jdesktop.wonderland.common.comms.ConnectionType;
@@ -283,6 +284,107 @@ class ProtocolRouterTest {
     void channelMessagesThatAreNotMovableAreIgnored() {
         assertThat(router.routeInbound(sessionA, CellChannelConnectionType.CLIENT_TYPE,
                 pack(setView()))).isEmpty();
+    }
+
+    // ---- chat ------------------------------------------------------------------
+
+    @Test
+    void chatIsRelayedToEverySessionUnderTheAuthenticatedName() {
+        // The name on the wire is a claim. Alice says she is Bob; the relay
+        // answers with who the login actually was, so a peer's transcript can
+        // never be forged by the client that typed it.
+        TextChatMessage claim = new TextChatMessage(CellID.getEnvironmentCellID(),
+                "Bob B", "hello from alice", 4242L);
+
+        assertThat(router.routeInbound(sessionA, CellChannelConnectionType.CLIENT_TYPE,
+                pack(claim))).isEmpty();
+
+        assertThat(pushedA).hasSize(1);
+        TextChatMessage toSelf = (TextChatMessage) pushedA.get(0).message();
+        assertThat(toSelf.getSenderName()).isEqualTo("Alice A");
+        assertThat(toSelf.getText()).isEqualTo("hello from alice");
+        assertThat(toSelf.getSentAt()).isEqualTo(4242L);
+        assertThat(toSelf.getSenderID()).isEqualTo(sessionA.getID());
+
+        assertThat(pushedB).hasSize(1);
+        TextChatMessage toOther = (TextChatMessage) pushedB.get(0).message();
+        assertThat(toOther.getSenderName()).isEqualTo("Alice A");
+        assertThat(toOther.getSenderID()).isEqualTo(sessionA.getID());
+        // the frame left stamped for B's own channel connection
+        assertThat(pushedB.get(0).clientID())
+                .isEqualTo(sessionB.clientID(CellChannelConnectionType.CLIENT_TYPE));
+    }
+
+    @Test
+    void chatAddressedToAnyOtherCellIsRefused() {
+        // A line addressed to some content cell has no receiver guarantee: the
+        // clients that have not loaded that cell would drop it silently. The
+        // world root is the one address every session is listening on.
+        CellID somewhereElse = world.newCellID();
+        TextChatMessage misaddressed =
+                new TextChatMessage(somewhereElse, "Alice A", "anyone there?");
+
+        List<Message> reply = messages(router.routeInbound(sessionA,
+                CellChannelConnectionType.CLIENT_TYPE, pack(misaddressed)));
+
+        assertThat(reply).hasSize(1);
+        assertThat(((ErrorMessage) reply.get(0)).getErrorMessage())
+                .contains("addressed to the world cell");
+        assertThat(pushedA).isEmpty();
+        assertThat(pushedB).isEmpty();
+    }
+
+    @Test
+    void aChatBodyThatNeverPassedTheConstructorIsRefused() throws Exception {
+        // Java serialisation runs no constructor, so the bounds in
+        // TextChatMessage are not a server-side guarantee on their own: a
+        // hand-made frame arrives with whatever fields it names. The relay
+        // rebuilds the line, which re-runs them, and a refusal is an ErrorMessage
+        // to the sender -- not a stack trace that takes the socket down.
+        TextChatMessage forged = new TextChatMessage(
+                CellID.getEnvironmentCellID(), "Alice A", "perfectly normal");
+        java.lang.reflect.Field text = TextChatMessage.class.getDeclaredField("text");
+        text.setAccessible(true);
+        text.set(forged, "   ");
+
+        List<Message> reply = messages(router.routeInbound(sessionA,
+                CellChannelConnectionType.CLIENT_TYPE, pack(forged)));
+
+        assertThat(reply).hasSize(1);
+        assertThat(((ErrorMessage) reply.get(0)).getErrorMessage()).contains("rejected");
+        assertThat(pushedA).isEmpty();
+        assertThat(pushedB).isEmpty();
+    }
+
+    @Test
+    void theRelayedNameIsTheFullNameThenTheUsernameThenGuest() {
+        // Three identities, one rule: show what the person gave, and never show
+        // nothing. A blank fullname is as unusable as a missing identity.
+        ServerSession blankFull = registry.create(
+                new WonderlandIdentity("carol", "   ", "c@example.org"),
+                recordingSink(new ArrayList<>()));
+        registry.attach(blankFull, CellChannelConnectionType.CLIENT_TYPE);
+        ServerSession anonymous = registry.create(null,
+                recordingSink(new ArrayList<>()));
+        registry.attach(anonymous, CellChannelConnectionType.CLIENT_TYPE);
+
+        List<Incoming> listeners = pushedB;
+        listeners.clear();
+
+        relayFrom(blankFull, "signed with a username");
+        assertThat(((TextChatMessage) listeners.get(0).message()).getSenderName())
+                .isEqualTo("carol");
+
+        relayFrom(anonymous, "signed with nothing");
+        assertThat(((TextChatMessage) listeners.get(1).message()).getSenderName())
+                .isEqualTo("guest");
+    }
+
+    /** One line from one session, relayed as any receiver would see it. */
+    private void relayFrom(ServerSession from, String body) {
+        router.routeInbound(from, CellChannelConnectionType.CLIENT_TYPE,
+                pack(new TextChatMessage(CellID.getEnvironmentCellID(),
+                        "whoever typed this", body)));
     }
 
     // ---- the edit connection ----------------------------------------------------

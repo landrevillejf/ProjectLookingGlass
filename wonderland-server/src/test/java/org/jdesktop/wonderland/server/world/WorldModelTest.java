@@ -73,6 +73,29 @@ class WorldModelTest {
         assertThat(world.contains(id)).isTrue();
     }
 
+    /**
+     * The hosted mark the REST catalog reads to tell "listed" from "live":
+     * blank in, blank out; padded in, trimmed out. The world itself never
+     * infers a module -- only the seeder's record is this faithful to it.
+     */
+    @Test
+    void liveModuleRecordsTheSeededWorldAndBlanksClearIt() {
+        assertThat(world.getLiveModule())
+                .as("a fresh world hosts nothing")
+                .isNull();
+
+        world.setLiveModule("  wonderland-town-world ");
+        assertThat(world.getLiveModule()).isEqualTo("wonderland-town-world");
+
+        world.setLiveModule("");
+        assertThat(world.getLiveModule())
+                .as("an empty module is no module")
+                .isNull();
+
+        world.setLiveModule(null);
+        assertThat(world.getLiveModule()).isNull();
+    }
+
     @Test
     void applyMoveRewritesOnlyTheTransform() {
         CellID id = world.newCellID();

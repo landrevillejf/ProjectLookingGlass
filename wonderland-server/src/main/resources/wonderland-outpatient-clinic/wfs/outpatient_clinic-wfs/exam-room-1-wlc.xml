@@ -1,9 +1,31 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Exam Room 1: one room of the clinic's north range.
+
+     The building is tiled, not scattered. The hall is the lobby and spans
+     x -11..+11, z -8..+8; the six named rooms are laid out behind its north
+     wall so that each room's boundary coincides with its neighbour's, which is
+     what "sharing walls" means for a renderer that draws every room as a closed
+     cube. The grid, measured in metres:
+
+       row A, z -14..-8, 5.5 m bays   Exam Room 1 | Exam Room 2 | Patient
+                                      Education | Observation Room
+       row B, z -20..-14, 11 m bays   Exam Room 1 Waiting | Exam Room 2 Waiting
+
+     Each cube is then drawn 5 cm smaller than its bay on every axis. Two
+     adjacent rooms would otherwise put their walls in exactly the same plane,
+     and two coplanar surfaces of the same colour are a z-fight: the depth
+     buffer decides per pixel which one wins, and it changes its mind as the eye
+     moves. The 5 cm gap is too small to see across a room and large enough that
+     no depth buffer on this hardware can confuse the two, and it is what a real
+     threshold between two plaster walls is made of.
+
+     The room is 3.4 m tall because the lobby is: a building whose ceilings step
+     down by 40 cm at every doorway is a set of boxes, not a building. -->
 <model-cell>
     <name>Exam Room 1</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -12,20 +34,15 @@
     </model-cell-component>
     <position-component>
         <translation>
-            <x>-8</x>
+            <x>-8.25</x>
             <y>0.0</y>
-            <z>-5</z>
+            <z>-11.0</z>
         </translation>
-        <bounds>
-            <type>BOX</type>
-            <x>4.0</x>
-            <y>3.0</y>
-            <z>4.0</z>
-        </bounds>
+        <bounds><type>BOX</type><x>0.506</x><y>0.5</y><z>0.506</z></bounds>
         <scale>
-            <x>4.0</x>
-            <y>3.0</y>
-            <z>4.0</z>
+            <x>5.4</x>
+            <y>3.4</y>
+            <z>5.9</z>
         </scale>
         <rotation>
             <x>0.0</x>

@@ -287,6 +287,24 @@ class CellCacheBasicImplTest {
     }
 
     @Test
+    void theDefaultEnvironmentClassIsInstantiableByTheCache() {
+        // The exact string a live walk-in receives: WorldModel.ENVIRONMENT_CLASS
+        // (the Spring bean's no-arg default) names EnvironmentCell directly, and
+        // instantiateCell reflects it open. When that class was abstract this
+        // threw InstantiationException on the transport thread -> a SEVERE log the
+        // desktop surfaced as its crash dialog. Every other env test loaded a
+        // concrete fixture subclass and so never exercised the production default;
+        // this pins the name the server actually broadcasts.
+        CellID envId = CellID.getEnvironmentCellID();
+        Cell env = cache.loadCell(envId, EnvironmentCell.class.getName(), null, null,
+                CellTestFixtures.translation(0f, 0f, 0f), null, "env");
+        assertThat(env).isNotNull();
+        assertThat(env).isInstanceOf(EnvironmentCell.class);
+        assertThat(cache.getEnvironmentCell()).isSameAs(env);
+        assertThat(env.getStatus()).isSameAs(CellStatus.ACTIVE);
+    }
+
+    @Test
     void hasViewWalksTheWholeTreeToVisible() {
         CellID rootId = CellTestFixtures.id(1);
         Cell root = load(rootId, CacheableCell.class.getName(), null);

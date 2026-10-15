@@ -15,15 +15,28 @@ package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.awt.image.BufferedImage;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.imageio.ImageIO;
 import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.Loaded;
 import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.Row;
+import org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel.WorldsOutcome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless tests for the face of the Wonderland World app: what the panel shows
@@ -45,6 +58,14 @@ class WonderlandWorldPanelTest {
             + "{\"id\":\"1\",\"parent\":null,\"className\":\"org.jdesktop.wonderland.modules.cell.EnvironmentCell\",\"name\":\"Environment\"},"
             + "{\"id\":\"2\",\"parent\":\"1\",\"className\":\"org.jdesktop.wonderland.modules.cell.TestCell\",\"name\":\"Room\"},"
             + "{\"id\":\"3\",\"parent\":\"2\",\"className\":\"org.jdesktop.wonderland.modules.meshmodel.MeshModelCell\",\"name\":null}"
+            + "]";
+
+    /** A placement-carrying world: environment, two placed rooms, one unplaced cell. */
+    private static final String PLACED_SAMPLE = "["
+            + "{\"id\":\"0\",\"className\":\"org.jdesktop.wonderland.modules.cell.EnvironmentCell\",\"name\":\"Environment\",\"x\":0.0,\"y\":0.0,\"z\":0.0},"
+            + "{\"id\":\"1\",\"className\":\"org.jdesktop.wonderland.renderer.cell.WonderlandModelCell\",\"name\":\"Exam Room 1\",\"x\":-8.0,\"y\":0.0,\"z\":-5.0,\"width\":8.0,\"depth\":8.0},"
+            + "{\"id\":\"2\",\"className\":\"org.jdesktop.wonderland.renderer.cell.WonderlandModelCell\",\"name\":\"Reception\",\"x\":6.0,\"y\":0.0,\"z\":4.0,\"width\":6.0,\"depth\":6.0},"
+            + "{\"id\":\"3\",\"className\":\"org.jdesktop.wonderland.renderer.cell.WonderlandModelCell\",\"name\":\"Sign\"}"
             + "]";
 
     /** A panel that does not reach out on its own, reading a fixed document. */
@@ -197,5 +218,395 @@ class WonderlandWorldPanelTest {
         WonderlandWorldPanel panel = panelReturning(SAMPLE);
         panel.close();
         assertNull(panel.selectedRow());
+    }
+
+    // ------------------------------------------------------------------
+    // The world browser: list every world, pick one, and (auto) start a server
+    // ------------------------------------------------------------------
+
+    /** Two worlds in the shape {@code /api/world/worlds} writes. */
+    private static final String WORLDS_BODY = "["
+            + "{\"module\":\"clinic\",\"title\":\"Clinic\",\"description\":\"a clinic\","
+            + "\"source\":\"classpath\",\"cellCount\":9},"
+            + "{\"module\":\"town\",\"title\":\"Town\",\"description\":\"\","
+            + "\"source\":\"jar\",\"cellCount\":2}]";
+
+    /** A launcher whose server is already answering, and one that never spawns. */
+    private static WonderlandServerLauncher launcher(String server, boolean ready) {
+        WonderlandServerLauncher.Spawner never = argv -> {
+            throw new IOException("a test launcher never spawns");
+        };
+        WonderlandServerLauncher.Probe probe = candidate -> ready;
+        return new WonderlandServerLauncher(
+                Path.of("/nonexistent-repo"), never, probe, Duration.ofMillis(1));
+    }
+
+    @Test
+    @DisplayName("a catalog read fills the picker and holds the first world")
+    void renderWorldsFillsPicker() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> WORLDS_BODY, false);
+
+        WorldsOutcome outcome = panel.readWorlds("localhost:8080");
+        assertNull(outcome.failure);
+        assertEquals(2, outcome.worlds.size());
+
+        panel.renderWorlds(outcome);
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("an unreachable server with no launcher names the start command")
+    void worldsFailureNamesTheStartCommand() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> {
+            throw new IOException("Connection refused");
+        }, false);
+
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.rows().isEmpty());
+        assertTrue(panel.statusText().startsWith(
+                "Cannot reach http://localhost:8080/api/world/cells (Connection refused)"),
+                panel.statusText());
+        assertTrue(panel.statusText().contains(WorldCatalog.startCommand()),
+                panel.statusText());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a failed auto-start explains itself instead of the manual hint")
+    void worldsFailureWithFailedAutoStartNamesTheNote() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> {
+                    throw new IOException("Connection refused");
+                },
+                launcher("localhost:8080", false), // probe never ready, repo has no jar
+                false);
+
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.statusText().contains("auto-start"), panel.statusText());
+        // no jar under the fake repo root -> the launcher says where to fall back
+        assertTrue(panel.statusText().contains("no wonderland-server jar found"),
+                panel.statusText());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("auto-start retries the catalog once the server is up")
+    void autoStartRetriesAfterTheServerComesUp() {
+        AtomicInteger calls = new AtomicInteger();
+        WorldCatalog.Fetcher flaky = url -> {
+            if (calls.getAndIncrement() == 0) {
+                throw new IOException("Connection refused");
+            }
+            return WORLDS_BODY;
+        };
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                flaky, launcher("localhost:8080", true), false);
+
+        WorldsOutcome outcome = panel.readWorlds("localhost:8080");
+        assertNull(outcome.failure);
+        assertNotNull(outcome.attemptNote);
+        assertEquals(2, outcome.worlds.size());
+
+        panel.renderWorlds(outcome);
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a remote address is never auto-started")
+    void aRemoteServerIsNotLaunchedLocally() {
+        WonderlandServerLauncher remote = launcher("example.org:8080", false);
+        WonderlandServerLauncher.Result result =
+                remote.ensureRunning("http://world.example.org:8080");
+
+        assertFalse(result.ready());
+        assertFalse(result.launched());
+        assertTrue(result.note().contains("remote server"), result.note());
+    }
+
+    @Test
+    @DisplayName("close stops a server the launcher started, but only its own")
+    void closeDoesNotStopAnUnownedServer() {
+        // a panel built with the no-auto-start constructor owns no launcher, so
+        // closing it is safe and stops nothing that it did not start
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> WORLDS_BODY, false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+        panel.close();
+        assertEquals(2, panel.worldCount());
+    }
+
+    // ------------------------------------------------------------------
+    // The explicit Start / Stop Server buttons
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("without a launcher the server buttons are dead")
+    void noLauncherDisablesTheServerButtons() {
+        WonderlandWorldPanel panel = panelReturning(SAMPLE);
+
+        assertFalse(panel.serverStartEnabled());
+        assertFalse(panel.serverStopEnabled());
+        assertEquals("no launcher", panel.stopServer());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a failed Start press shows the launcher's reason")
+    void startFailureShowsTheReason() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", false), false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        panel.renderStart(new WonderlandServerLauncher.Result(false, false,
+                "no wonderland-server jar found"), null);
+
+        assertTrue(panel.statusText().startsWith(
+                "cannot start wonderland-server \u2014 no wonderland-server jar found"),
+                panel.statusText());
+        assertEquals(0, panel.worldCount());
+        assertTrue(panel.rows().isEmpty());
+        assertTrue(panel.serverStartEnabled());   // pressable again
+        assertFalse(panel.serverStopEnabled());   // nothing was started
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a Start press that landed reads the world catalog")
+    void startSuccessReadsTheWorlds() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", true), false);
+
+        panel.renderStart(new WonderlandServerLauncher.Result(
+                        true, false, "a server already answers on http://localhost:8080"),
+                panel.readWorlds("localhost:8080"));
+
+        assertEquals(2, panel.worldCount());
+        assertEquals("clinic", panel.selectedWorldModule());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a relocated Start moves the address field to where the world went live")
+    void renderStartFollowsARelocatedServer() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", true), false);
+
+        panel.renderStart(new WonderlandServerLauncher.Result(true, true,
+                "http://localhost:8080 does not host 'town'; started ours on http://localhost:8082",
+                "http://localhost:8082"),
+                panel.readWorlds("http://localhost:8082"));
+
+        assertEquals("http://localhost:8082", panel.serverText());
+        assertEquals(2, panel.worldCount());
+        panel.close();
+    }
+
+    // ------------------------------------------------------------------
+    // The vignette: the read world seen from above
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("the vignette shows the placed rooms of the world that was read")
+    void renderPaintsTheVignette() {
+        WonderlandWorldPanel panel = panelReturning(PLACED_SAMPLE);
+
+        panel.render(panel.read("localhost:8080"));
+
+        WorldPlan plan = panel.currentPlan();
+        // the environment and the unplaced sign are not rooms on the map
+        assertEquals(List.of("Exam Room 1", "Reception"),
+                plan.items().stream().map(WorldPlan.Item::label).toList());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("a failed read clears the vignette too")
+    void failureClearsTheVignette() throws IOException {
+        WonderlandWorldPanel panel = panelReturning(PLACED_SAMPLE);
+        panel.render(panel.read("localhost:8080"));
+        assertFalse(panel.currentPlan().isEmpty());
+
+        panel.render(new Loaded("localhost:8080", null, null, new IOException("down")));
+
+        assertTrue(panel.currentPlan().isEmpty());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("Stop refuses a server this panel does not own")
+    void stopRefusesAnUnownedServer() {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> WORLDS_BODY, launcher("localhost:8080", true), false);
+        panel.renderWorlds(panel.readWorlds("localhost:8080"));
+
+        String note = panel.stopServer();
+
+        assertTrue(note.contains("only stops a server it started"), note);
+        assertEquals(2, panel.worldCount());      // the read is left standing
+        assertFalse(panel.serverStopEnabled());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("Stop reaps the child Start brought up")
+    void stopReapsTheManagedChild(@TempDir Path repo) throws IOException {
+        Path jar = repo.resolve("wonderland-server-app.jar");
+        Files.createFile(jar);
+        String before = System.getProperty(WonderlandServerLauncher.JAR_PROPERTY);
+        try {
+            System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, jar.toString());
+            AtomicInteger polls = new AtomicInteger();
+            WonderlandServerLauncher.Probe laterReady = server -> polls.getAndIncrement() > 0;
+            WonderlandServerLauncher.Spawner alive = argv ->
+                    new WonderlandServerLauncher.Launched() {
+                        @Override
+                        public boolean alive() {
+                            return true;
+                        }
+
+                        @Override
+                        public void stop() {
+                            // fake child: nothing to reap
+                        }
+                    };
+            WonderlandServerLauncher owned = new WonderlandServerLauncher(
+                    repo, alive, laterReady, Duration.ofMillis(1));
+            WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                    url -> WORLDS_BODY, owned, false);
+            // the Start flow: ensureRunning spawns (pre-check false, poll true)
+            assertTrue(owned.ensureRunning("localhost:8080").ready());
+
+            panel.renderStart(new WonderlandServerLauncher.Result(
+                            true, true, "started wonderland-server"),
+                    panel.readWorlds("localhost:8080"));
+            assertTrue(panel.serverStopEnabled());
+
+            String note = panel.stopServer();
+
+            assertTrue(note.contains("stopped"), note);
+            assertFalse(owned.isManaging());
+            assertFalse(panel.serverStopEnabled());
+            assertEquals(0, panel.worldCount());
+            panel.close();
+        } finally {
+            if (before == null) {
+                System.clearProperty(WonderlandServerLauncher.JAR_PROPERTY);
+            } else {
+                System.setProperty(WonderlandServerLauncher.JAR_PROPERTY, before);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The vignette's picture: what the world looks like, when the server can say
+    // ------------------------------------------------------------------
+
+    /** A real 4x3 PNG, encoded the way ImageIO will decode it. */
+    private static byte[] png() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(new BufferedImage(4, 3, BufferedImage.TYPE_INT_RGB),
+                "png", out));
+        return out.toByteArray();
+    }
+
+    /** A panel that reads a placement world and a scripted picture. */
+    private static WonderlandWorldPanel panelWithPreview(
+            WorldCatalog.ByteFetcher previews) {
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(
+                url -> PLACED_SAMPLE, false);
+        panel.setPreviewFetcher(previews);
+        return panel;
+    }
+
+    @Test
+    @DisplayName("a world whose server has a picture shows the picture")
+    void aWorldWithAPicturePaintsIt() throws IOException {
+        WonderlandWorldPanel panel = panelWithPreview(url -> Optional.of(png()));
+
+        panel.render(panel.read("localhost:8080", "wonderland-outpatient-clinic"));
+
+        assertNotNull(panel.currentPreview());
+        assertEquals(4, panel.currentPreview().getWidth());
+        assertEquals(3, panel.currentPreview().getHeight());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("the picture is asked for the module the picker holds")
+    void thePictureIsAskedForTheSelectedModule() throws IOException {
+        List<String> requested = new ArrayList<>();
+        WonderlandWorldPanel panel = panelWithPreview(url -> {
+            requested.add(url);
+            return Optional.empty();
+        });
+
+        panel.render(panel.read("localhost:8080", "wonderland-town-world"));
+
+        assertEquals(List.of(
+                "http://localhost:8080/api/world/preview?module=wonderland-town-world"),
+                requested);
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("no picture means the plan, and a broken picture means the same")
+    void anAbsentOrUndecodablePictureFallsBackToThePlan() throws IOException {
+        WonderlandWorldPanel absent = panelWithPreview(url -> Optional.empty());
+        WonderlandWorldPanel garbage = panelWithPreview(url ->
+                Optional.of("not an image".getBytes(StandardCharsets.UTF_8)));
+        WonderlandWorldPanel unreachable = panelWithPreview(url -> {
+            throw new IOException("connection refused");
+        });
+
+        for (WonderlandWorldPanel panel : List.of(absent, garbage, unreachable)) {
+            panel.render(panel.read("localhost:8080", "wonderland-town-world"));
+            // the world read is untouched by any of the three: the list shows
+            // every published cell and the plan the two placed rooms -- only
+            // the picture is missing, and its absence is never an error
+            assertNull(panel.currentPreview());
+            assertEquals(4, panel.rows().size());
+            assertEquals(2, panel.currentPlan().items().size());
+            assertTrue(panel.statusText().contains("4 cells"), panel.statusText());
+            panel.close();
+        }
+    }
+
+    @Test
+    @DisplayName("a failed read clears the picture as well as the plan")
+    void failureClearsThePicture() throws IOException {
+        WonderlandWorldPanel panel = panelWithPreview(url -> Optional.of(png()));
+        panel.render(panel.read("localhost:8080", "wonderland-town-world"));
+        assertNotNull(panel.currentPreview());
+
+        panel.render(new Loaded("localhost:8080", null, null, new IOException("down")));
+
+        assertNull(panel.currentPreview());
+        assertTrue(panel.currentPlan().isEmpty());
+        panel.close();
+    }
+
+    @Test
+    @DisplayName("the live-world read asks for no picture, since it names no module")
+    void theLiveReadHasNoModuleToPicture() throws IOException {
+        AtomicInteger asked = new AtomicInteger();
+        WonderlandWorldPanel panel = new WonderlandWorldPanel(url -> PLACED_SAMPLE, false);
+        panel.setPreviewFetcher(url -> {
+            asked.incrementAndGet();
+            return Optional.empty();
+        });
+
+        panel.render(panel.read("localhost:8080"));
+
+        assertEquals(0, asked.get());
+        assertNull(panel.currentPreview());
+        assertFalse(panel.currentPlan().isEmpty());
+        panel.close();
     }
 }

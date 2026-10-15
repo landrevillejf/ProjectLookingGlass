@@ -18,8 +18,8 @@ package org.jdesktop.wonderland.renderer.mesh;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,15 +39,22 @@ public final class TextureBindingPlan {
 
     public TextureBindingPlan(ColladaDocument document, Collection<String> presentTextures) {
         this.document = document;
+        // Insertion-ordered: the inventory is the loader's encounter order, and the
+        // match below scans it, so an unordered set would make the texture chosen
+        // for an ambiguous name vary between runs of the same world.
         this.presentTextures = presentTextures == null
                 ? Collections.emptySet()
-                : new HashSet<>(presentTextures);
+                : new LinkedHashSet<>(presentTextures);
     }
 
     /**
-     * The appearance for one material symbol. A material that resolves to nothing
+     * The appearance for one material. A material that resolves to nothing
      * (missing material/effect) still yields a defensible opaque grey so the shape
      * renders rather than dropping out.
+     *
+     * @param materialId a {@code <library_materials>} id; the caller has already
+     *        turned the primitive's binding symbol into its target, because that
+     *        binding is scoped to the geometry instance, not to the document
      */
     public MaterialAppearance forMaterial(String materialId) {
         ColladaEffect effect = resolveEffect(materialId);
@@ -112,15 +119,44 @@ public final class TextureBindingPlan {
         }
         for (String imageId : effect.samplers().values()) {
             ColladaImage image = document.image(imageId);
-            if (image == null) {
-                continue;
-            }
-            String path = image.normalizedPath();
-            if (path != null && presentTextures.contains(path)) {
-                return path;
+            String served = servedPath(image == null ? null : image.normalizedPath());
+            if (served != null) {
+                return served;
             }
         }
         return null;
+    }
+
+    /**
+     * The inventory entry that names this image, or null when the store has it not.
+     *
+     * <p>The two sides speak different dialects, and demanding an equal string was
+     * the bug that made every world grey: {@code <init_from>} is written relative
+     * to the .dae ("untitled/texture0.png"), while the loader hands back the path
+     * it actually fetches, resolved against the model's own directory inside the
+     * module ("JapanesePavilion7.kmz/models/untitled/texture0.png"). The image is
+     * present exactly when the inventory entry ends on it, at a directory
+     * boundary; the shortest such entry wins, since that is the one nearest the
+     * model. The inventory's own spelling is returned, because that is the key the
+     * asset store answers.</p>
+     */
+    private String servedPath(String imagePath) {
+        if (imagePath == null || imagePath.isEmpty()) {
+            return null;
+        }
+        if (presentTextures.contains(imagePath)) {
+            return imagePath;
+        }
+        String key = imagePath.startsWith("./") ? imagePath.substring(2) : imagePath;
+        String best = null;
+        for (String candidate : presentTextures) {
+            if (candidate.equals(key) || candidate.endsWith("/" + key)) {
+                if (best == null || candidate.length() < best.length()) {
+                    best = candidate;
+                }
+            }
+        }
+        return best;
     }
 
     private static MaterialAppearance defaultAppearance() {

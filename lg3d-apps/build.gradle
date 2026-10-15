@@ -196,6 +196,19 @@ tasks.named('test') {
         systemProperty 'lg3d.debug.integration',
                 System.getProperty('lg3d.debug.integration')
     }
+    // The world-render probe (WorldRenderProbeTest) is the same opt-in idiom for
+    // the same reason: it needs an X display, a GL context and a running
+    // wonderland-server, so it is skipped unless asked for -- and when it is
+    // asked for, the headless pin above has to come off, because a Java 3D
+    // canvas cannot be created in a headless JVM. CI never sets the property and
+    // never loses the pin.
+    def renderProbe = System.getProperty('lg.wonderland.probe')
+    if (renderProbe != null) {
+        systemProperty 'lg.wonderland.probe', renderProbe
+        if ('true' == renderProbe) {
+            systemProperty 'java.awt.headless', 'false'
+        }
+    }
 }
 
 dependencies {
@@ -266,10 +279,17 @@ dependencies {
     // client / common jars are named explicitly because wonderland-desktop
     // carries them as `implementation` (not exposed to consumers) and its own
     // signatures name CellRenderer and CellTransform, which the HUD's mount
-    // fixtures have to implement. wonderland-renderer / wonderland-avatars are
-    // not referenced here, only needed at runtime, and arrive transitively on
-    // the runtime classpath (and are listed on the desktop run classpath in
-    // lg3d-core/build.gradle).
+    // fixtures have to implement. wonderland-avatars is not referenced here,
+    // only needed at runtime, and arrives transitively on the runtime classpath
+    // (and is listed on the desktop run classpath in lg3d-core/build.gradle).
+    //
+    // Wonderland M8 world rendering: wonderland-renderer IS referenced here, on
+    // purpose. WorldRender builds a WorldScene and opens a WorldViewer -- the
+    // lg3d-free Java 3D path that puts a listed world on screen from the 2D
+    // desktop, which has no virtual universe to mount one in. wonderland-desktop
+    // carries the renderer as `implementation`, so naming it explicitly is what
+    // makes its view package compile; the dependency still points one way.
+    implementation project(':wonderland-renderer')
     implementation project(':wonderland-desktop')
     implementation project(':wonderland-client')
     implementation project(':wonderland-common')

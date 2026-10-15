@@ -36,6 +36,16 @@
  *   - a move for an unknown cell is refused with an ErrorMessage (a stale client
  *     cannot forge a cell); an edit (reparent) is applied and echoed as a
  *     CONFIGURE_CELL.
+ *
+ * The port adds one behaviour the 2006 server got from a module the wire never
+ * saw, and keeps it to the same discipline as the move above: a CHAT line is
+ * relayed to every channel-connected session with the sender's <em>name</em>
+ * rewritten from the authenticated identity and the sender's session id stamped
+ * as senderID. A client therefore cannot say something on someone else's
+ * behalf, and the author's own copy comes back stamped as his own, which is the
+ * same echo the move path suppresses. The line is addressed to the world's
+ * environment cell -- the one cell every session has loaded, and so the only
+ * address a client channel is guaranteed to be listening on.
  */
 package org.jdesktop.wonderland.server.comms;
 
@@ -47,6 +57,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.CellCacheConnectionType;
@@ -57,6 +68,7 @@ import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage.ActionT
 import org.jdesktop.wonderland.common.cell.messages.CellReparentMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableMessageResponse;
+import org.jdesktop.wonderland.common.cell.messages.TextChatMessage;
 import org.jdesktop.wonderland.common.cell.messages.ViewCreateResponseMessage;
 import org.jdesktop.wonderland.common.comms.ConnectionType;
 import org.jdesktop.wonderland.common.messages.ErrorMessage;
@@ -225,6 +237,9 @@ public class ProtocolRouter {
 
     private List<ByteBuffer> onChannelMessage(ServerSession session, Message message) {
         List<ByteBuffer> out = new ArrayList<>();
+        if (message instanceof TextChatMessage) {
+            return onChatMessage(session, (TextChatMessage) message, out);
+        }
         if (!(message instanceof MovableMessage)) {
             return out;
         }
@@ -263,6 +278,77 @@ public class ProtocolRouter {
                 reparent.getChildCellTransform(), existing.getClientState()));
         broadcastConfigure(reparent.getCellID());
         return out;
+    }
+
+    /**
+     * Relay one chat line. Two things are the server's to decide, not the
+     * client's: <em>who</em> the line is from, and <em>where</em> it may be sent.
+     *
+     * <p>The name is rewritten from the session's authenticated identity, so a
+     * client that claims to be someone else is simply not believed; the session
+     * id goes into {@code senderID} so every receiver, the author included, can
+     * tell its own lines from everyone else's. The address must be the world's
+     * environment cell: that is the cell every session has loaded and therefore
+     * the only one on which a broadcast reaches anybody, and a client that
+     * addressed someone else's cell is refused rather than silently ignored.</p>
+     *
+     * <p>The rebuild is also the validation. Java serialisation does not run a
+     * constructor, so a hand-made frame can arrive with a null or enormous body
+     * that no {@link TextChatMessage} factory would have produced; constructing
+     * the relayed copy runs the message's own bounds again, and a refusal is an
+     * ErrorMessage to the sender, never a stack trace on the transport thread.</p>
+     */
+    private List<ByteBuffer> onChatMessage(ServerSession session,
+            TextChatMessage chat, List<ByteBuffer> out) {
+        CellID environment = world.getEnvironmentCellID();
+        if (!environment.equals(chat.getCellID())) {
+            out.add(pack(new ErrorMessage(chat.getMessageID(),
+                    "chat must be addressed to the world cell " + environment),
+                    session, CellChannelConnectionType.CLIENT_TYPE));
+            return out;
+        }
+        TextChatMessage relayed;
+        try {
+            relayed = new TextChatMessage(environment, displayName(session),
+                    chat.getText(), chat.getSentAt());
+        } catch (IllegalArgumentException malformed) {
+            out.add(pack(new ErrorMessage(chat.getMessageID(),
+                    "rejected: " + malformed.getMessage()), session,
+                    CellChannelConnectionType.CLIENT_TYPE));
+            return out;
+        }
+        relayed.setSenderID(session.getID());
+        broadcastChat(relayed);
+        return out;
+    }
+
+    /** What a roster and a transcript call this person: the name they chose. */
+    private static String displayName(ServerSession session) {
+        WonderlandIdentity user = session.getUserID();
+        if (user == null) {
+            return "guest";
+        }
+        String full = user.getFullName();
+        if (full != null && !full.trim().isEmpty()) {
+            return full;
+        }
+        String name = user.getUsername();
+        return (name == null || name.trim().isEmpty()) ? "guest" : name;
+    }
+
+    /**
+     * Push one chat line to every channel-connected session, the author's
+     * included. Every client suppresses its own by senderID, exactly as the move
+     * broadcast above does -- one echo rule for both, so a client that
+     * understands one understands both.
+     */
+    private void broadcastChat(TextChatMessage chat) {
+        for (ServerSession target : registry.all()) {
+            if (target.isAttached(CellChannelConnectionType.CLIENT_TYPE)) {
+                target.deliver(CellChannelConnectionType.CLIENT_TYPE,
+                        pack(chat, target, CellChannelConnectionType.CLIENT_TYPE));
+            }
+        }
     }
 
     private void broadcastMove(BigInteger senderID, CellID cellID, CellTransform transform) {

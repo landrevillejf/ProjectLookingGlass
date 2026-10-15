@@ -84,6 +84,33 @@ public final class ColladaDocument {
         return geometries.keySet();
     }
 
+    /**
+     * The ids in each library, in parse order.
+     *
+     * <p>These are the read-only inventory a compound reader needs to fold
+     * several documents into one: an MTGame {@code .mtg} scene names a dozen
+     * COLLADA files whose ids (every SketchUp/Google-Earth export reuses
+     * {@code geometries_0}, {@code material0}...) collide across documents, so
+     * merging means walking every library of each source and re-keying it under
+     * a namespace. Exposing the key sets -- not the mutable maps -- keeps the
+     * aggregate's iteration-order contract (see the constructor) intact.
+     */
+    public Set<String> materialIds() {
+        return materials.keySet();
+    }
+
+    public Set<String> effectIds() {
+        return effects.keySet();
+    }
+
+    public Set<String> imageIds() {
+        return images.keySet();
+    }
+
+    public Set<String> visualSceneIds() {
+        return visualScenes.keySet();
+    }
+
     public ColladaGeometry geometry(String id) {
         return geometries.get(id);
     }

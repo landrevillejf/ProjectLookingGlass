@@ -20,6 +20,7 @@
 package org.jdesktop.wonderland.common.cell.messages;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import com.jme.bounding.BoundingVolume;
@@ -482,6 +483,54 @@ class CellMessagesCodecTest {
         ViewCreateResponseMessage back = (ViewCreateResponseMessage) rt(msg);
         assertThat(back.getMessageID()).isEqualTo(replyTo);
         assertThat(back.getViewCellID()).isEqualTo(view);
+    }
+
+    // ------------------------------------------------------------------------
+    // Chat (M9): the one cell message whose body is a person's sentence
+    // ------------------------------------------------------------------------
+
+    @Test
+    void textChatMessageRoundTripsSenderTextAndTimestamp() {
+        // The transcript renders exactly these three fields plus the sender id,
+        // so a wire that loses any of them loses the line's attribution or puts
+        // every peer's clock skew into the log.
+        CellID env = new CellID(1000L);
+        TextChatMessage msg = new TextChatMessage(env, "Alice A",
+                "meet me in exam room 2", 1234567890L);
+        msg.setSenderID(java.math.BigInteger.valueOf(7L));
+
+        TextChatMessage back = (TextChatMessage) rt(msg);
+        assertThat(back.getCellID()).isEqualTo(env);
+        assertThat(back.getSenderID()).isEqualTo(java.math.BigInteger.valueOf(7L));
+        assertThat(back.getSenderName()).isEqualTo("Alice A");
+        assertThat(back.getText()).isEqualTo("meet me in exam room 2");
+        assertThat(back.getSentAt()).isEqualTo(1234567890L);
+    }
+
+    @Test
+    void textChatMessageRefusesWhatCannotBeDisplayed() {
+        CellID env = new CellID(1001L);
+        // A blank author cannot be attributed and a blank body is a keystroke;
+        // both are refused here so no reader downstream has to guess. The
+        // bounds are the wire's, not a text field's: a hand-built client is
+        // exactly the one that would send a megabyte.
+        assertThatThrownBy(() -> new TextChatMessage(env, null, "hi"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TextChatMessage(env, "   ", "hi"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TextChatMessage(env, "Alice", "   "))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TextChatMessage(env, "Alice",
+                "x".repeat(TextChatMessage.MAX_TEXT_CHARS + 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TextChatMessage(env,
+                "A".repeat(TextChatMessage.MAX_NAME_CHARS + 1), "hi"))
+                .isInstanceOf(IllegalArgumentException.class);
+        // the boundary itself is legal -- a line of exactly the maximum is long,
+        // not malformed
+        assertThat(new TextChatMessage(env, "Alice",
+                "x".repeat(TextChatMessage.MAX_TEXT_CHARS)).getText()).hasSize(
+                TextChatMessage.MAX_TEXT_CHARS);
     }
 
     private static float component(Quaternion q, int i) {

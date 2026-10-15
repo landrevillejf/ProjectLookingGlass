@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Exam Room 1 Waiting: the anteroom behind Exam Room 1, first bay of the
+     second range. See exam-room-1-wlc.xml for the grid and the 5 cm inset.
+
+     It is 3.4 m tall, which the previous cut of this cell was not: it stood
+     1.2 m, a room nobody can enter. An anteroom is a room a patient sits in,
+     and a ceiling at throat height is the difference between a floorplan and a
+     model of one. -->
 <model-cell>
     <name>Exam Room 1 Waiting</name>
     <metadata/>
     <model-cell-component>
-        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-box.kmz/clinic-box.dep</deployedModelURL>
+        <deployedModelURL>wla://wonderland-outpatient-clinic/clinic-room.kmz/clinic-room.dep</deployedModelURL>
         <PickingEnabled>true</PickingEnabled>
         <CollisionEnabled>true</CollisionEnabled>
         <LightingEnabled>false</LightingEnabled>
@@ -12,20 +19,15 @@
     </model-cell-component>
     <position-component>
         <translation>
-            <x>-8</x>
+            <x>-5.5</x>
             <y>0.0</y>
-            <z>0</z>
+            <z>-17.0</z>
         </translation>
-        <bounds>
-            <type>BOX</type>
-            <x>4.0</x>
-            <y>1.2</y>
-            <z>4.0</z>
-        </bounds>
+        <bounds><type>BOX</type><x>0.506</x><y>0.5</y><z>0.506</z></bounds>
         <scale>
-            <x>4.0</x>
-            <y>1.2</y>
-            <z>4.0</z>
+            <x>10.9</x>
+            <y>3.4</y>
+            <z>5.9</z>
         </scale>
         <rotation>
             <x>0.0</x>

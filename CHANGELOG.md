@@ -10,6 +10,217 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A walk-in that talks: text chat on the cell channel** (`wonderland-common`
+  + `wonderland-server` + `wonderland-client`) — the ported wire carries moves,
+  seats and views, and nothing else, so two visitors in the same room were two
+  people who could not acknowledge each other. `TextChatMessage` is a
+  `CellMessage`, and that choice is the port's constraint rather than a style:
+  `CellChannelConnection` demultiplexes inbound traffic by `CellID` and casts
+  every frame to `CellMessage` without checking, so a session-level message has
+  no channel to land on without cutting a new seam into a verbatim-ported class.
+  The address is the world's environment cell — the one cell the server's
+  `SET_VIEW` fan-out guarantees every session has loaded — and the server
+  refuses any other, rather than relaying to a cell whose listeners happen to
+  include the sender. Two things stay the server's to decide: the sender's
+  *name*, rewritten from the authenticated identity so a client cannot speak for
+  somebody else, and the *bounds*, re-validated by constructing the relayed copy
+  (Java serialisation runs no constructor, so a hand-made frame can arrive with
+  a null or enormous body). The author's own line comes back around the relay
+  like anyone else's, which is why there is exactly one transcript and it is the
+  server's. `ChatChannel` is the client half — transport only, no model — and
+  the transcript stays where it belongs, in `ChatConversation`. **27 new
+  headless cases**: 2 in `CellMessagesCodecTest` (the message survives the
+  packer, and an oversized body is refused at construction), 4 in
+  `ProtocolRouterTest` (relay to peers, name rewrite, wrong-address refusal,
+  malformed body answered as an ErrorMessage rather than a stack trace on the
+  transport thread) and 21 in `ChatChannelTest` (install on cell load, tear down
+  on unload, send with the placeholder name, deliver to listeners, never throw
+  at a dead session).
+- **The walk-in window gains a sidebar, and the world stops stealing the
+  keyboard** (`wonderland-renderer` + `lg3d-apps`) — the reference photograph of
+  this world is not a picture of geometry: it shows a *Users (9)* roster and a
+  chat box on the room, so an Enter World window with neither was a clinic that
+  had been evacuated. `WorldViewer.setSidebar(Component)` docks any panel on the
+  frame's east side and works before or after `show()`, taking the width back
+  from the canvas when the panel arrives. On top of it, `WorldVisit` opens the
+  other half of a session — the same three `/comms` sockets and the same
+  `CellClientSession` the 3D desktop uses — and folds what they carry into
+  `WorldVisitPanel`: the roster is the set of *foreign view cells the server said
+  exist* (`ProtocolRouter` mints one per `SET_VIEW` and pushes it to everyone
+  else; a depart arrives as `cellUnloaded`), not a list this client invents, and
+  the transcript is `ChatChannel` on the same session. What it honestly does
+  **not** claim is another visitor's *body* in the scene — the walk-in's canvas
+  is a Java 3D graph built from a REST read, and mounting a live cell into it is
+  separate work — so a roster of three with two empty chairs is the current
+  state, and the strip says "here" rather than "standing in front of you". The
+  one line this had to add to the viewer is a guard: AWT forwards a frame's
+  children's unconsumed `KEY_PRESSED` events, so typing "water" into a chat
+  field walked the eye west five times. `keyboardIsForTheWorld()` now lets a
+  keystroke reach the walker only when the frame, the canvas or the sidebar
+  itself holds focus, and never when a text field does — `W A S D Q E` are
+  letters before they are commands. **18 new headless cases**
+  (`WorldVisitTest`, `WorldVisitPanelTest`) drive the panel from a fake session
+  and assert the roster by reading the model back.
+- **The clinic's hall is furnished: six wall cards, authored as GUI cells**
+  (`wonderland-server`) — the 2009 view is a *room*, and the ported hall was an
+  empty box: the reference's health notice board, its two windows and its three
+  framed prints existed nowhere in the world. They arrive as `<poster-cell>`
+  GUI cells rather than as models, which is what the format's own picture cell
+  carries — a name, a `wla://` image and a measure in pixel scale, with no
+  `.dae`, no `.dep` and no lighting to author — and the difference is not
+  styling: hung as a model cell, each one would also arrive *signed*, because
+  the renderer reads any cell over 0.6 m tall as a room and puts its name near
+  the ceiling, and a notice board does not need a name when it is already
+  covered in one. Three maps carry the art (`art/`): `notices.png` is the
+  four-quadrant board (Health / Clinic Hours / Wash Hands / Exam Room) at 512 px
+  and 3.4 mm per pixel, which is the 1.74 m board a person reads from three
+  metres; `picture.png` is the 0.9 m framed print at 3.5 mm, small on purpose —
+  a wall-sized version of the same image is a mural, which is a different thing
+  to have paid for; and `glass.png` is the window pane. The hall goes from 18
+  cells to 24, with no Java change and no new model. Two gates hold it: the
+  server's REST surface now publishes the six cards with their type, asset and
+  measure, and
+  `WorldCatalogTest.everyWallArtCardClearsThePlasterItHangsOn()` walks every
+  wall-art card and asserts it stands 10–30 cm off the wall it illustrates —
+  the hall's inner faces measured off `clinic-room.dae`'s own vertices (|x| =
+  11.0, |z| = 8.0) rather than off the `.dep` bounding box, whose 0.506 is the
+  outer edge of the wall's *thickness*. A card hung at 11.0 exactly is hung
+  inside the wall it shows, and the wall wins the depth test.
+- **The world browser can now start the world it shows — and shows what it
+  starts** (`wonderland-server` + `lg3d-apps`) — the picker listed every
+  catalog world, but **Start Server** against a stale or foreign server
+  already answering on the port did nothing: `ensureRunning` found the port
+  busy, "already answers" won, the chosen world was never seeded, and
+  **Stop Server** rightly refused to kill a process it did not own; and in
+  the 2D desktop there was no viewer at all, so a world had no face beyond
+  its cell rows. Two new server-side facts close that loop. `WorldModel`
+  now remembers its `liveModule` — set only when seeding succeeds — and
+  `GET /api/world/worlds` marks exactly that entry `hosted: true`, so "is
+  *my* world running" is one read, not a guess; and
+  `GET /api/world/cells?module=` describes each cell's authored placement —
+  the position component's translation as `x`/`y`/`z` and its bounds as
+  `width`/`depth` (stored half-extents, doubled on read) — purely additive
+  fields an older reader ignores. The client `WorldCatalog` parses both, and
+  a missing or non-positive footprint stays `null`, because "nowhere" and
+  "at the origin" must not read as the same number. The launcher's contract
+  is now honest: a server that answers *and hosts the chosen world* is left
+  exactly as its owner started it; one that does not (the stale case — the
+  old jar cannot even answer the hosting question) is walked past, and the
+  panel's own seeded server starts on the next free localhost port (a
+  bounded scan) with `Result.url` carrying the new address, which
+  **Start Server** then writes back into the server field so every later
+  read follows the server the press actually brought up; a remote server is
+  still never touched. And the vignette, which is the half the picker was
+  missing: the original Wonderland browser answered "what does this world
+  look like?" with a *picture*, so the server now serves one —
+  `GET /api/world/preview?module=` hands back the world's own
+  `preview.png` (`.jpg`/`.jpeg` too, and the `art/` spelling the world jars
+  already use) from the very store the models come from, and answers a
+  plain 404 when a world ships none; `WorldPreviewPanel` paints that
+  picture aspect-kept above the cell tree and falls back to a floor plan
+  only when there is no picture to show. The plan is `WorldPlan` (pure,
+  headless) folding a world's placed cells into the unit square — one
+  uniform scale so aspect survives, +z up, the environment root and
+  unplaced cells skipped, a missing footprint drawn as a unit square, a
+  degenerate all-in-one-point world inflated instead of dividing by zero —
+  plus the two rules that turned an unreadable cluster into a map: the one
+  cell covering 3/4 of the world on both axes is the *ground*, so it frames
+  the plan instead of setting its scale (the clinic's 48×36 Floor had been
+  shrinking its nine rooms to specks, and their names to mush), and a label
+  is wrapped into its own box or left out, never painted over its
+  neighbours. Stock-world art is wired only where it is true: of the seven
+  shipped world jars exactly one image is a rendered view of a world —
+  `art/Japanese-Pavilion-portal3.png`, which pictures the pavilion while
+  sitting in the combined jar — so the pavilion borrows it by name and the
+  other six worlds get the plan; the library's other poster-shaped asset,
+  `OWLDefaultWorldPoster.v2-sm.png`, is a text signboard reading "Use the
+  Placemarks menu to explore this world", and serving it as a preview would
+  lie about what the world looks like. **12
+  new headless cases** on the server (`liveModule`'s set-and-blank-clears
+  contract, a seeded world recording the module it hosts, `hosted` marking
+  only the seeded module, a module's cells carrying the authored placement,
+  the bundled clinic's `describeCells` case now asserting Exam Room 1's
+  authored −8/−5 spot and its doubled 8×8 footprint, the preview resolve
+  order — a module's own `preview.png`, then its `art/` spelling, then the
+  alias — and the endpoint's 200-with-the-right-media-type and
+  404-when-none) **and 30 on the
+  desktop side** (port rewriting that keeps everything but the port, a
+  hosted server left alone, relocation past a foreign unseeded server, the
+  every-nearby-port-taken admission, the panel following a relocated
+  server, the picture painted when the server has one and the plan when it
+  does not, an absent, undecodable or unreachable preview costing the world
+  read nothing, both cleared on a failed read, twelve `WorldPlan`
+  normalization and ground rules, and the `hosted`/geometry/preview parse). **All
+  verified live**: with a stale jar holding 8080, the real panel's **Start
+  Server** spawned seeded servers on 8081 and 8082 instead of giving up; a
+  fresh jar's `/api/world/worlds` marks only the clinic `hosted`; and
+  `/api/world/cells?module=wonderland-outpatient-clinic` returned all nine
+  named rooms with their authored placement (Exam Room 1 at x=−8 z=−5,
+  8×8; the Floor 48×36), the stock `wonderland-town-world` jar likewise.
+- **The Wonderland client session went production: the world is now seen, not
+  just listed** (`wonderland-client` + `lg3d-apps`) — the port had no real
+  `WonderlandSession` past the in-JVM loopback, so the 3D world frame opened
+  empty: every HUD row stayed `PENDING` and nothing ever called `cellLoaded`.
+  `WebSocketWonderlandSession` now speaks the server's `/comms` binary wire
+  directly: every frame is one `MessagePacker` envelope, each channel's first
+  attach mints or rejoins the server session (the follow-on sockets echo it
+  under `wonderland.sessionID`, hex, so the three channel/cache/edit sockets
+  converge on one `ServerSession`), and the short the `AttachedClientMessage`
+  assigned stamps every later frame. The `java.net.http.WebSocket` transport
+  sits behind a `Transport`/`TransportFactory` seam, so the whole handshake,
+  fan-out and every failure path is headless-tested (26 cases, including one
+  real RFC 6455 round trip against a miniature server). `WonderlandWorld3D`,
+  the 3D desktop's start-menu command, walks in over it: a daemon thread
+  connects a `CellClientSession` to the panel's server as the desktop's own
+  user, and the cache listener is registered *before* the connect because the
+  server's view-cell flush begins with the `SET_VIEW` handshake itself — each
+  `cellLoaded` mounts its renderer through `WonderlandDesktop` /
+  `CellFrameBridge`, each `cellUnloaded` takes it back out, and closing the
+  HUD disconnects the session before unmounting the world. And **Start
+  Server** now seeds the world the picker holds
+  (`--wonderland.world.seed=<module>`, defaulting to the bundled clinic; a
+  server that already answers is left exactly as its owner started it) — a
+  server hosting nothing would show an empty `Environment` even to a perfect
+  client. **Verified live**: a bare `CellCacheConnection` over the production
+  session against a `java -jar` server seeded with
+  `wonderland-outpatient-clinic` received the `Environment` root, all nine
+  clinic cells and its own view cell over the sockets.
+- **The Wonderland World browser became a world picker with Start/Stop
+  server control** (`wonderland-server` + `lg3d-apps`) — the panel was a reader of the
+  one world a server happened to seed: it dumped `GET /api/world/cells` and,
+  when nothing answered, dead-ended on a bare "cannot reach". It now does what
+  the catalog endpoint always made possible. `GET /api/world/cells?module=`
+  reads **any** catalog world's cells on demand (`WorldCatalog.describeCells`
+  loads the module through the same store the seeder would pick and classifies
+  each cell exactly as seeding would — a model cell as the renderer class, every
+  other named cell as the environment root — so the browser listing a world can
+  never disagree with what hosting it would show; a module's cells are siblings,
+  so every parent is null, and an unknown or unopenable world yields an empty
+  list, never a 500). On the desktop side `WorldCatalog` learned to read
+  `/api/world/worlds` (`loadWorlds`/`parseWorlds` → `WorldEntry`) and to ask for
+  one world's cells (`loadWorld`), and `WonderlandWorldPanel` gained a world
+  dropdown over the server host/port field: it lists every available world, opens
+  the first (or whichever you pick), and shows that world's cells. Spring Boot is
+  operated **from the panel**: a **Start Server** button brings a local
+  `wonderland-server` up on the field's address and reads its catalog when the
+  press lands, a **Stop Server** button reaps the child the panel started (and
+  honestly refuses to touch a server it does not own), and a failed read at a
+  local address also **starts the server itself** —
+  `WonderlandServerLauncher` finds the `bootJar` the build already produced
+  (`wonderland-server/build-gradle/libs/*-app.jar`, overridable by
+  `lg.wonderland.server.jar`, and found by walking up from the working
+  directory or the desktop's own code location, so a `:lg3d-core:run` desktop
+  started inside the module still finds it), passes it
+  `--wonderland.world.dir` when `extractWorlds` has unpacked the stock world
+  jars beside the build (without the flag the server sees only the bundled
+  classpath clinic), spawns `java -jar` on the field's port, and polls
+  readiness before reloading the catalog; it only ever touches a *localhost*
+  address (a remote server is somebody else's process), it never throws, and on
+  any failure the panel falls back to the same manual `bootRun` hint it showed
+  before, so auto-start is a convenience rather than a new dependency the browser
+  can hang on. **Verified live** against the freshly built jar: `/api/world/cells?module=wonderland-outpatient-clinic`
+  returns the nine clinic cells from an unseeded server, and the panel's first
+  refresh now lists and opens a world instead of an empty error strip.
 - **Wonderland server became startable** (`wonderland-server`, `gradle`, root
   `build.gradle`) — the module's `application.properties` documented `bootRun`,
   `SERVER_PORT` and `-Dserver.port`, but the Spring Boot Gradle plugin was never
@@ -1306,6 +1517,133 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **Walking into the clinic crashed on every resident, because a seeded
+  `AvatarCell` was put on the wire as a plain `CellClientState`**
+  (`wonderland-server` + `wonderland-client`) — the same live walk-in this branch
+  adds, one layer past the environment root. The clinic seeds named residents
+  (Receptionist, Waiting Patient…), and `WorldSeeder.seedCell` maps an
+  `AvatarCellServerState` to the client's `AvatarCell` — which *is* a `ViewCell`,
+  whose `setClientState` reads a `ViewCellClientState` identity. But a resident is
+  not a model cell, so it fell through to the non-model branch and got a plain
+  `CellClientState`. A walking-in client loading cell after cell hit
+  `ClassCastException: CellClientState cannot be cast to ViewCellClientState` in
+  `loadCell`, each one logged `SEVERE` and fed to the crash reporter — a dialog
+  per resident. The seeder now gives an avatar cell the `ViewCellClientState` its
+  client class demands (an empty one — a resident has no session identity), so the
+  wire matches the cell's contract the way the router already does for live view
+  cells. `ViewCell.setClientState` additionally guards the cast: a foreign or
+  legacy frame carrying some other state now leaves the identity unset instead of
+  aborting the whole load, because a name label is not worth a second failure on
+  top of the user's. `WorldSeederTest` pins the seeded state type, and
+  `MovableAvatarComponentTest.plainClientStateDoesNotBreakTheViewCellCast` loads
+  an `AvatarCell` from a plain `CellClientState` and asserts it does not throw.
+- **A live walk-in crashed the desktop on entering any world, because the server
+  broadcast an abstract class as the environment root** (`wonderland-client` +
+  `wonderland-server`) — the same walk-in this branch adds. `WorldModel` is a
+  Spring `@Service` built by its no-arg constructor, which seeds the root cell
+  with `ENVIRONMENT_CLASS` = `org.jdesktop.wonderland.client.cell.EnvironmentCell`,
+  and that class was `abstract`. `CellCacheBasicImpl.instantiateCell` reflects the
+  name the server pushes open with `Constructor.newInstance`, so on the
+  transport thread every session's first cell load threw
+  `InstantiationException`, logged it `SEVERE`, and `LogHandler` fed that to the
+  crash reporter — the desktop's "severe error" dialog on the way in the door.
+  It survived the suite because every environment test loaded a concrete fixture
+  subclass (`CacheableEnvCell`, `CacheableEnv`) and none named the production
+  default, while the router already names the *concrete* `ViewCell` directly — the
+  asymmetry was the whole bug. `EnvironmentCell` adds nothing over `Cell`, so it is
+  now concrete: `instantiateCell` succeeds on the default world, the cache's
+  `(EnvironmentCell)` type-recognition cast is unchanged, and the fixture
+  subclasses still extend it. `CellCacheBasicImplTest`
+  `.theDefaultEnvironmentClassIsInstantiableByTheCache` loads
+  `EnvironmentCell.class.getName()` — the exact string the server broadcasts —
+  and asserts a non-null ACTIVE cell, so a future re-abstracting fails here
+  rather than in a user's crash dialog.
+- **A cell's `width` and `depth` were the square of the room, so the world
+  browser's floor plan drew a 5.4 m exam room as a 58 m one**
+  (`wonderland-server`) — the position component's `<bounds>` are stored
+  **half-extents** (`putFootprint` doubles them and multiplies by the cell's
+  stretch, exactly as the `.dep` format stores a box), and the clinic's cells
+  authored them as if they were the placed metres: `hall-wlc.xml` carried
+  `bounds = scale = 22 × 16`, which the read turned into a 968 m lobby, and the
+  floor reported 1152 × 2312 m. Only one surface showed it, which is why it
+  survived so long: the 3D view never looks at cell bounds — `WorldScene.extentOf`
+  sizes every model from the `.dep`'s own `modelBounds`, falling back to the raw
+  COLLADA positions — so the rooms rendered at their right size while the 2D plan
+  preview, which reads `Entry.footprint`, drew them as overlapping blobs. Two
+  readers of one world disagreeing is the defect; the number is only how it
+  shows. All thirteen model cells now carry their model's true half-extent
+  (0.506 for `clinic-room`, 0.5 for the desk, ground, sign and sofa, read off
+  each `.dep`), and `<scale>` is left alone, because the scale *is* the metres.
+  `WorldCatalogTest` and `WorldRestControllerTest` no longer pin a magic size:
+  both assert the product — `2 × half-extent × stretch` — with the half-extent
+  named as what it is, so a future cell that authors metres fails a test instead
+  of quietly redrawing the map.
+- **Every cell heading in every world was silently dropped, so a turned object
+  drew facing north and a poster read as missing art** (`wonderland-renderer`) —
+  `WorldScene` built both of its yaw matrices as `new AxisAngle4f(yaw, 0, 1, 0)`,
+  but vecmath's four-argument constructor is `(x, y, z, angle)`: the heading
+  landed in the axis slot and the angle became zero. Nothing threw, nothing
+  failed to load, and the cell was still seated exactly where its world put it,
+  which is what makes this the quietest defect in the port — the placement is
+  right, only the direction is gone. Read back out of the clinic's own scene
+  graph, all six wall cards and the three residents whose headings the world
+  wrote came back `m00 = 1, m02 = 0`: a print authored a quarter-turn to hang
+  flat against the east wall drew facing the north one instead, so from the hall's
+  centre a visitor got 8 px of a 0.9 m picture at 13 m — present, textured, and
+  indistinguishable from art that had failed to load — while every avatar stared
+  down the camera rather than at the person it was pointed at. (The two places
+  that already passed the axis first, `backgroundTransform`'s `.dep` rotation and
+  `NameTag`'s billboard, were never affected, which is why the tags turned and
+  the furniture did not.) `WorldScene.yawTurn(float)` is now the only place a
+  heading becomes a matrix, both call sites go through it, and `WorldSceneTest`
+  asserts the matrix *and* the two vectors that matter — a card's +Z front normal
+  must end up along −X, its width along Z — because the bug raised no exception
+  and a screenshot test needs a display. Re-rendered through the walk-in probe,
+  the two east prints now read as framed landscapes 82 px and 77 px wide from the
+  hall's centre, which is the projection their 0.9 m at 13.3 m predicts.
+- **The clinic's hall had no ceiling, because its faces looked the wrong way and
+  nothing asked** (`wonderland-server`) — the shipped room shell is a unit cube
+  whose index lists were hand-edited, and the raster keeps the side a face's
+  geometric normal points at: wound face-up, a ceiling is *culled* from inside
+  the room. Standing in the hall therefore meant looking at the far wall's top
+  edge with sky above it, and the twelve light panels overhead were missing the
+  same way; the floor was its own half-defect, one of its two quads wound
+  face-down so the carpet under a visitor's feet was not drawn at all. The
+  comment in `hall-wlc.xml` asserted the ceiling "is drawn facing down" while
+  the bytes did the opposite, and `ClinicRoomArtTest` stayed green throughout
+  because every case it had asks what the shell *contains* — the accessor count,
+  the index range, the five materials, the panel grid — and none asks which way
+  it looks. `clinic-room.dae` now winds the ceiling and every light panel
+  face-down and both carpet quads face-up (walls and dado already carry a quad
+  on each side, so they read from inside and from the map view), the comment
+  states the rule the bytes now obey, and
+  `ClinicRoomArtTest.everySurfaceFacesThePersonStandingInside()` walks every
+  triangle of the shell and asserts the sign of its normal per material —
+  including that each material contributed faces, since an empty walk is exactly
+  how this file could pass with no ceiling. Proven both ways: the new case fails
+  against the previously shipped bytes and passes against these, and re-rendered
+  through the walk-in probe the hall closes overhead, the cream panels are seen at
+  the top of the frame, and the carpet is continuous under the avatars.
+- **A world's own text read upside down over every head, because one upload
+  inverted and only half the cards were told** (`wonderland-renderer`) — the
+  shared Java 3D texture upload now hands a picture over with its origin at the
+  upper left (`yUp = false`), which samples the image's **first row at
+  `v = 1`** — the convention the shipped COLLADA exports are authored for, which
+  is why their wall signs and posters read upright. The three cards this file
+  writes by hand still mapped `v = 0` to their top edge, so every name tag over
+  every resident, every hung picture card and the sky's own ramp arrived
+  vertically inverted while the art behind them was correct — measured off a
+  rendered clinic, where `Waiting Patient` and the lobby's `Directory` came back
+  upside down and the band above the wall got *paler* the higher it rose
+  (177,202,229 overhead against 168,194,225 lower down: a gradient running
+  downhill). `WorldScene.tagQuad` and `WorldScene.flatQuad` now carry `v = 1` at
+  the top of a card and `SkyArt.rowOf` puts the ramp's zenith at the box's
+  ceiling, so one stated convention governs every textured primitive the
+  renderer builds; the comments that claimed the opposite — and the
+  `WorldSceneTest` / `SkyArtTest` assertions that pinned that claim as CI truth —
+  now state the measured one. Re-rendered: the clinic's names read, the sky
+  deepens overhead (123,159,209 at the top of the frame against 133,167,212 at
+  the horizon), and the combined world's COLLADA grass and paving are unchanged.
 - **The Wonderland World panel dead-ended on "Cannot reach", and a seeded world
   spammed the boot log** (`lg3d-apps` + `wonderland-common` + `wonderland-server`)
   — the desktop deliberately leaves `wonderland-server` a separate process, so a
@@ -1608,6 +1946,30 @@ work to make it build and run on a current toolchain.
   program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
+- **The clinic is one building, not eight boxes on a field** (`wonderland-server`)
+  — see the `Fixed` entry above for the authoring bug this re-tile exposed; the
+  layout is the answer to a plainer complaint. The hall got furnished and the
+  rooms were still *placed* rather than *built*: six 4 m shells at arbitrary
+  offsets outside the lobby's own walls, with a floor the size of a parking lot
+  under them — which is what a visitor reads as a diorama of models rather than
+  as the clinic in `outpatientclinic.jpg`. The world is now tiled outward from
+  the hall, every shared boundary coincident by construction: the lobby keeps
+  `x −11..+11, z −8..+8`; row A (`z −14..−8`) holds four 5.5 m bays — Exam Room
+  1, Exam Room 2, Patient Education, Observation Room — and row B
+  (`z −20..−14`) holds the two 11 m anterooms behind them, so each waiting room
+  abuts the exam room it serves. The waiting rooms are raised from 1.2 m to the
+  same 3.4 m ceiling as the rest, and the floor is cut to the building's
+  footprint plus 20 cm: a floor bigger than the building standing on it is the
+  single clearest tell that the rooms were placed rather than built. Each room
+  cube is drawn 5 cm smaller than its bay on every axis, because two coplanar
+  surfaces of one colour are a z-fight and a seam you can see through is cheaper
+  than a shimmer you cannot stop. Proven with the in-JVM probe: a plan-view frame
+  from above the roof reads one contiguous footprint (74 distinct colours in the
+  frame, against the single flat colour a failed frame returns), and a frame from
+  the middle of Exam Room 1 shows a room with a ceiling over it rather than a
+  shell on a plain. What this does **not** yet claim is a doorway cut into the
+  shared wall — the rooms are shells, and the walk has no collision to open a
+  door against, so entering one still means walking through plaster.
 - **The `lg3d-core` coverage floor is raised to `0.225` line / `0.310` branch**
   (`build.gradle`) — it sat at `0.010 / 0.020`, a floor written when the module had
   two small suites. The measured numbers are now `22.83% / 31.56%`, and

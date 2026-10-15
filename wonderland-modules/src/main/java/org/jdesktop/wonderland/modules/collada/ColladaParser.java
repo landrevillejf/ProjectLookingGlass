@@ -78,7 +78,32 @@ public final class ColladaParser {
             f.setFeature("http://xml.org/sax/features/external-general-entities", false);
             f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             f.setExpandEntityReferences(false);
-            return f.newDocumentBuilder();
+            DocumentBuilder builder = f.newDocumentBuilder();
+            /*
+             * The parser's default error handler prints to stderr <em>and</em>
+             * throws, so a cell whose artifact is not COLLADA at all wrote
+             * "[Fatal Error] :1:1: Content is not allowed in prolog" into the
+             * desktop's terminal on top of the exception the caller already
+             * receives. The message is the loader's to report -- it is what puts
+             * the cell's name on the failure -- so here the fatal case is
+             * rethrown silently and the recoverable ones stay recoverable.
+             */
+            builder.setErrorHandler(new org.xml.sax.ErrorHandler() {
+                @Override
+                public void warning(org.xml.sax.SAXParseException ex) {
+                }
+
+                @Override
+                public void error(org.xml.sax.SAXParseException ex) {
+                }
+
+                @Override
+                public void fatalError(org.xml.sax.SAXParseException ex)
+                        throws org.xml.sax.SAXParseException {
+                    throw ex;
+                }
+            });
+            return builder;
         } catch (ParserConfigurationException ex) {
             throw new IllegalStateException("no secure DOM parser available", ex);
         }
@@ -153,11 +178,35 @@ public final class ColladaParser {
         }
         int stride = 1;
         long count = 0;
-        Element accessor = first(src, "accessor");
+        /*
+         * The accessor is not a child of <source>: 1.4.1 nests it under
+         * <technique_common>, and its count and stride are <em>attributes</em> of
+         * that element, not sub-elements. Reading a direct <accessor> that is not
+         * there left every mesh source at the default stride 1, so a vertex array
+         * of x,y,z triples was consumed one float at a time -- vertex 1 became
+         * (y0, z0, x1) -- which is why the shipped pavilion rendered as a crumpled
+         * spike whose bounds were the same number on all three axes
+         * (build-gradle/scratch/WlProbe15). A minimal export that does put the
+         * accessor directly under the source is still read.
+         */
+        Element tech = first(src, "technique_common");
+        Element accessor = tech != null
+                ? first(tech, "accessor") : first(src, "accessor");
+        if (accessor == null) {
+            accessor = first(src, "accessor");
+        }
         if (accessor != null) {
             stride = attr(accessor, "stride", 1);
-            Element countEl = first(accessor, "count");
-            count = countEl == null ? 0 : parseLong(text(countEl), 0);
+            count = attr(accessor, "count", 0);
+            if (count == 0) {
+                // The attribute is what 1.4.1 writes, but a hand-authored or
+                // pre-schema export puts the number in a <count> child, and the
+                // reader's rule is to absorb the quirk rather than drop the mesh:
+                // a source that reads as zero vertices takes the whole geometry
+                // down with it.
+                Element countEl = first(accessor, "count");
+                count = countEl == null ? 0 : parseLong(text(countEl), 0);
+            }
         }
         return new ColladaGeometry.Source(attr(src, "id"), data, stride, count);
     }
@@ -380,17 +429,60 @@ public final class ColladaParser {
                     transparency = firstTransparencyFactor(transparentEl);
                 }
             }
-            // samplers: every <texture> descendant references an image id
+            // samplers: every <texture> reference must land on an <image> id.
+            // The shipped Wonderland art comes out of the 2006-era Google Earth /
+            // SketchUp exporters, which emit the COLLADA FX chain: <texture
+            // texture="#sampler"> -> <newparam sid="sampler"><sampler2D><source>
+            // <surface sid> -> <newparam sid="surface"><surface><init_from>
+            // imageId. Later tools write the image id straight into the texture
+            // attribute. Reading only the attribute bound nothing at all -- every
+            // material fell back to the neutral grey and a textured world rendered
+            // as a flat silhouette -- so the chain is walked here, once, per effect.
+            Map<String, String> surfaces = new LinkedHashMap<>();
+            Map<String, String> samplerSources = new LinkedHashMap<>();
+            for (Element np : children(profile, "newparam")) {
+                String sid = attr(np, "sid");
+                if (sid == null) {
+                    continue;
+                }
+                Element surface = first(np, "surface");
+                Element sampler = first(np, "sampler2D");
+                if (surface != null) {
+                    String from = textOr(first(surface, "init_from"));
+                    if (from != null) {
+                        surfaces.put(sid, stripHash(from));
+                    }
+                } else if (sampler != null) {
+                    String source = textOr(first(sampler, "source"));
+                    if (source != null) {
+                        samplerSources.put(sid, stripHash(source));
+                    }
+                }
+            }
             int n = 0;
             for (Element tex : descendants(effect, "texture")) {
                 String image = attr(tex, "texture");
                 if (image != null) {
-                    samplers.put("sampler" + (n++), stripHash(image));
+                    samplers.put("sampler" + (n++),
+                            imageIdOf(stripHash(image), surfaces, samplerSources));
                 }
             }
         }
         return new ColladaEffect(attr(effect, "id"), attr(effect, "name"),
                 technique, diffuse, transparency, samplers);
+    }
+
+    /**
+     * Follow one {@code <texture>} reference through the effect's FX graph to the
+     * image it ultimately names. A reference that is already an image id (the
+     * short form, and every document with no newparams) is returned unchanged.
+     */
+    private static String imageIdOf(String ref, Map<String, String> surfaces,
+            Map<String, String> samplerSources) {
+        String surface = samplerSources.get(ref);   // sampler2D -> surface
+        String current = (surface == null) ? ref : surface;
+        String image = surfaces.get(current);       // surface -> image
+        return (image == null) ? current : image;
     }
 
     private static double firstTransparencyFactor(Element transparent) {

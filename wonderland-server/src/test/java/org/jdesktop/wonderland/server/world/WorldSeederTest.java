@@ -29,6 +29,7 @@ import org.jdesktop.wonderland.common.cell.state.ModelCellClientState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellComponentServerState;
 import org.jdesktop.wonderland.common.cell.state.ModelCellServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
 import org.jdesktop.wonderland.modules.asset.WorldContents;
 import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.junit.jupiter.api.Test;
@@ -86,13 +87,39 @@ class WorldSeederTest {
                 "Exam Room 1", "Exam Room 1 Waiting",
                 "Exam Room 2", "Exam Room 2 Waiting",
                 "Patient Education", "Observation Room",
-                "Reception", "Clinic Directory");
-        // environment + the nine authored cells
-        assertThat(world.hierarchy()).hasSize(10);
+                "Reception", "Clinic Directory",
+                // the hall, the three sofas and the residents the world grew
+                // to read like the 2009 lobby rather than a strip of empty rooms
+                "Outpatient Clinic Hall", "Waiting Sofa A", "Waiting Sofa B",
+                "Observation Sofa", "Receptionist", "Waiting Patient",
+                // the wall art: GUI cells, seeded as placed cells like any other
+                "Health Notices", "Clinic Window", "Framed Picture");
+        // environment + the twenty-four authored cells
+        assertThat(world.hierarchy()).hasSize(25);
         // every seeded cell is a child of the environment root
         assertThat(world.hierarchy())
                 .filteredOn(c -> !"Environment".equals(c.getName()))
                 .allMatch(c -> c.getParentID().equals(world.getEnvironmentCellID()));
+    }
+
+    /**
+     * A successful seed is also a claim of hosting: the world records which
+     * module it now runs, and the REST catalog marks exactly that entry
+     * {@code hosted} -- the fact a browser needs to tell "the world I picked
+     * is live" from "some world is live". A seed that never ran (none) or
+     * failed (an unloadable world) must not leave the mark set.
+     */
+    @Test
+    void aSeededWorldRecordsTheModuleItHosts() {
+        WorldModel seeded = new WorldModel();
+        new WorldSeeder(seeded, CLINIC).run(null);
+        assertThat(seeded.getLiveModule()).isEqualTo(CLINIC);
+
+        WorldModel unseeded = new WorldModel();
+        new WorldSeeder(unseeded, WorldSeeder.SEED_NONE).run(null);
+        assertThat(unseeded.getLiveModule())
+                .as("no seed -> no hosting claim")
+                .isNull();
     }
 
     @Test
@@ -190,7 +217,7 @@ class WorldSeederTest {
     }
 
     @Test
-    void aCellWithoutTheModelComponentSeedsAsTheEnvironmentClass() {
+    void anAvatarCellSeedsAsTheAvatarClass() {
         WorldModel world = new WorldModel();
         WorldSeeder seeder = new WorldSeeder(world, CLINIC);
 
@@ -198,8 +225,16 @@ class WorldSeederTest {
         avatar.setName("Avatar");
 
         assertThat(seeder.seedCell(avatar)).isTrue();
+        // a resident is walked and shown as a body with a name over it, not as
+        // inert environment geometry -- this is what puts people in the lobby
         assertThat(only(world, "Avatar").getClassName())
-                .isEqualTo(WorldModel.ENVIRONMENT_CLASS);
+                .isEqualTo(WorldSeeder.AVATAR_CELL_CLASS);
+        // ... and the wire state must be the type the client's ViewCell cast
+        // demands. Before this the non-model branch gave a plain CellClientState,
+        // so a walking-in client loading the AvatarCell threw ClassCastException
+        // in loadCell -> a SEVERE the desktop surfaced as its crash dialog.
+        assertThat(only(world, "Avatar").getClientState())
+                .isInstanceOf(ViewCellClientState.class);
     }
 
     @Test

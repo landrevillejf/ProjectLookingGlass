@@ -81,12 +81,7 @@ public final class ColladaTransform {
                     throw new IllegalArgumentException(
                             "<matrix> needs 16 values, found " + values.length);
                 }
-                // COLLADA <matrix> is column-major: token[0] is M00, token[1] is M10...
-                for (int col = 0; col < 4; col++) {
-                    for (int row = 0; row < 4; row++) {
-                        m.setElement(row, col, values[col * 4 + row]);
-                    }
-                }
+                m = matrixTokens();
                 break;
             case TRANSLATE:
                 m.setTranslation(new org.jogamp.vecmath.Vector3d(
@@ -125,6 +120,54 @@ public final class ColladaTransform {
 
     private double at(int index) {
         return index < values.length ? values[index] : 0.0;
+    }
+
+    /**
+     * The 4x4 a {@code <matrix>} token list denotes.
+     *
+     * <p>COLLADA specifies column-major tokens and the parser read them that way,
+     * until the shipped town and combined worlds were walked node by node
+     * (build-gradle/scratch/WlProbe20): <strong>468 of 468</strong> {@code <matrix>}
+     * elements across their four models carry their translation at tokens 3, 7 and
+     * 11 -- row-major -- and none carries it at 12, 13 and 14. Read per spec, the
+     * translation lands in the matrix's bottom row, the result is non-affine, and
+     * Java 3D throws {@code BadTransformException} for every such node (98 of the
+     * town's 412), which took the whole world down rather than the nodes.</p>
+     *
+     * <p>The layout is therefore chosen per matrix by the only test that separates
+     * the two readings: an affine 4x4 has 0 0 0 1 across its bottom row, and at
+     * most one reading of a given token list has it. The spec-conformant reading is
+     * tried first, so a conformant file is never second-guessed, and a matrix that
+     * is affine either way -- a pure rotation, say -- is genuinely ambiguous and
+     * keeps the column-major reading the spec mandates.</p>
+     */
+    private Matrix4d matrixTokens() {
+        Matrix4d columnMajor = readTokens(false);
+        if (isAffine(columnMajor)) {
+            return columnMajor;
+        }
+        Matrix4d rowMajor = readTokens(true);
+        return isAffine(rowMajor) ? rowMajor : columnMajor;
+    }
+
+    /** The tokens laid out one way or the other; the two differ by a transpose. */
+    private Matrix4d readTokens(boolean rowMajor) {
+        Matrix4d m = new Matrix4d();
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                m.setElement(row, col, rowMajor
+                        ? values[row * 4 + col] : values[col * 4 + row]);
+            }
+        }
+        return m;
+    }
+
+    /** Whether nothing below the 3x3 survives: the bottom row is 0 0 0 1. */
+    private static boolean isAffine(Matrix4d m) {
+        return Math.abs(m.getElement(3, 0)) < 1e-9
+                && Math.abs(m.getElement(3, 1)) < 1e-9
+                && Math.abs(m.getElement(3, 2)) < 1e-9
+                && Math.abs(m.getElement(3, 3) - 1.0) < 1e-9;
     }
 
     /**
