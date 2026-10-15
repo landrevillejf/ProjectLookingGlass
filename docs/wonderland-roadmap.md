@@ -65,16 +65,29 @@ much visible value each unlocks per unit of risk.
   world when a caller asks. The faithful pre-lit default path is unchanged.
   Verified headless for the pure model; the on-screen shading is verified with
   the live `WorldViewer` probe (a display is required).
-- **P0.2 Culling / PVS.** An explicit potential-visible-set in
-  `wonderland-client` that mounts only cells near the eye - a prerequisite for
-  occlusion (P2.4) and large multiplayer worlds.
+- **P0.2 Culling / PVS - reframed after reading the code.** A proximity
+  selector already exists: `WorldScene.focusWithin` picks the cells near a focus
+  point and unions them (it is how framing picks the subject), so a second
+  distance filter would be a duplicate, not a feature. The genuine gap is
+  *dynamic* mount/unmount while walking - the graph is built once by
+  `WorldScene.build` and the eye moves through `WorldViewer` - and that cannot be
+  trusted from a headless test (it needs a live render context to prove the
+  scene still looks right as cells drop in and out). Kept on the list for that
+  reason, not dropped; scheduled as a live-verified PR, not a pure one.
 
 ### P1 - Real physical interaction
 
-- **P1.1 Collision.** Replace the `triggerCollision` boolean with an
-  AABB/`BoundingVolume` test against the cell being approached; clamp/refuse
-  the move in `MovableAvatarComponent.localMoveRequest`. Add a per-cell
-  `CollisionComponent`.
+- **P1.1 Collision - reframed after reading the code.** The horizontal
+  separation math (does a walker-sphere overlap an approach cell) is pure and
+  headless-testable. But a real AABB needs the cell's *vertical* extent, and the
+  `Entry` handed to the renderer carries only an authored horizontal footprint
+  (`footprintMetres`); the true height comes from `WorldScene.measuredOf`, which
+  walks the model's geometry and therefore needs the Java 3D native stack - it is
+  not constructible in a headless test. So the collision kernel can be built and
+  unit-tested against boxes supplied by the caller, but populating it with real
+  per-cell heights is a live/render-path concern. Plan: pure kernel first (its
+  box inputs are injected), geometry-population wired where bounds are already
+  computed.
 - **P1.2 Trigger volumes.** `onEnter`/`onExit` zones (room doorways, a stage) -
   the substrate for scripted behaviours (P5).
 
@@ -114,9 +127,20 @@ layer (Mandela must not import AWT/Swing/Java 3D/lg3d-core). The renderer/app
 that the renderer applies to Java 3D nodes. This keeps the dependency direction
 legal and the engine embeddable.
 
-- **P5.1 Cell behaviours.** A `MandelaBehaviorEngine` in `wonderland-client`
-  (the JSR-223 engine) with per-cell `onEnter`/`onCollision`/`onChat`/`onTick`
-  callbacks; `AvatarCell`/`MovableAvatarComponent` are the hook points.
+- **P5.1 Cell behaviours - reframed after reading the API.** There is no
+  "register these packages as Mandela modules" step and no host-type import: by
+  design a Mandela script sees only `java.base` + `javax.script` and the values
+  its host hands it. The real surface is `Mandela.eval(source, Map<String,Object>)`
+  (each map entry becomes a bound name, run through `Interop.toMandela`) plus
+  `Runtime.Builder.bind(name, Interop.fn1(...))` for host functions. So a cell's
+  behaviour is: the host binds that cell's plain data (label, x/y/z, ...) and any
+  callbacks as functions, runs a script, and reads back a value the host then
+  applies. The bridge cannot live in `wonderland-client` (that module has no
+  Mandela dependency); it belongs in `lg3d-apps`, the one module already on both
+  `project(':lg3d-mandela')` and the renderer - the same place the Web Browser's
+  userscript bridge embeds Mandela today. This is fully headless-testable (the
+  engine runs without a display); only the *effect* of a behaviour on the live
+  scene needs a screen.
 - **P5.2 Shipped scripts.** Behaviours under `scripts/mandela/`, compiled by
   `ShippedScriptsTest`.
 - **P5.3 Probe harness.** Formalise the in-JVM `WorldViewer` eye probe as
