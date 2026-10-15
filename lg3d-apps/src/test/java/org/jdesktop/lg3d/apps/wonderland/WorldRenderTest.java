@@ -72,7 +72,7 @@ class WorldRenderTest {
         WorldRender.Attempt attempt = WorldRender.tryPreview("localhost:8080",
                 "some-world", signs, url -> java.util.Optional.empty());
         assertNull(attempt.frame());
-        assertEquals("no cell of this world names a model to draw",
+        assertEquals("no cell of this world names a model or a picture to draw",
                 attempt.failure());
     }
 

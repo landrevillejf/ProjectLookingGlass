@@ -146,15 +146,17 @@ public final class WorldRender {
      * <p>Both a model cell and a picture cell are asked of it: a poster's image
      * and a building's geometry are the same kind of fact -- art the world module
      * ships and the asset endpoint serves -- and living in the same module is the
-     * common case, not the exception.</p>
+     * common case, not the exception. A cell that is not there at all (a parent
+     * the world does not carry) asks of nobody: {@code null}, not a guess, and
+     * never a {@code NullPointerException} on the render path.</p>
      */
     static String assetModuleOf(WorldCatalog.Cell cell, String worldModule) {
-        return moduleOf(cell.modelUrl, worldModule);
+        return (cell == null) ? null : moduleOf(cell.modelUrl, worldModule);
     }
 
     /** {@link #assetModuleOf} for the picture a GUI cell names instead of a model. */
     static String assetModuleOfPicture(WorldCatalog.Cell cell, String worldModule) {
-        return moduleOf(cell.assetUrl, worldModule);
+        return (cell == null) ? null : moduleOf(cell.assetUrl, worldModule);
     }
 
     private static String moduleOf(String reference, String worldModule) {
