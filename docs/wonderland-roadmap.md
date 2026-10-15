@@ -13,7 +13,7 @@ and the per-module `AGENTS.md`.
 
 | Capability | State | Evidence |
 |---|---|---|
-| Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast. Missing: interest management, persistence, auth. |
+| Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast, with interest-managed move fan-out + snapshot autosave now wired. Missing: auth (a tested kernel, not yet called). |
 | Collision | **Message stub only** | `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger`. A notification, not detection/resolution. `com.jme.bounding.BoundingVolume` is used for cell *bounds*, not collision. |
 | Ambient lighting | **Per-material ambient, no rig** | No `Light` node is created in the renderer; `AvatarRenderer` sets `Material.setAmbientColor`. `J3dMeshFactory.buildAppearance` deliberately omits a `Material` for shipped art. |
 | Culling | **Delegated to Java 3D** | No Wonderland culler; relies on the scene-graph's automatic culling. No PVS. |
@@ -310,9 +310,9 @@ legal and the engine embeddable.
   of the renderer becomes verifiable without a hand. `EyeProbe` is the framing
   kernel (where the eye points, what a rig would see), fully tested in-JVM; the
   screencapture half that proves painted pixels still needs a live display.
-- **P5.4 Multiplayer depth - kernels + the audience now wired.** The server
-  session layer's three missing halves exist in `wonderland-server`, and the
-  first is now on the live path:
+- **P5.4 Multiplayer depth - audience + autosave wired; auth is a tested kernel.** The server
+  session layer's three missing halves exist in `wonderland-server`, and two
+  of them — the audience and the autosave — are now on the live path:
   `InterestManager` answers *who is in this event's audience* (per-session
   watch of place + radius, union-of-radii reach, replace-not-double on a move,
   NaN refused) — deliberately its own O(n) scan over sessions rather than a
@@ -330,15 +330,26 @@ legal and the engine embeddable.
   text — `Float.toHexString` so `0.1f` round-trips bit-identical, the
   environment root never written, orientation and scale left untouched because
   the snapshot only claims to know *where*, a missing file is a first boot and
-  a torn or foreign one is refused rather than half-applied.
-  `PasscodeAuthenticator` is the gate the transport was missing: a stateless
+  a torn or foreign one is refused rather than half-applied. `CellSnapshot` was
+  a memory nothing called; **`WorldAutosaver` is now the policy that runs it** —
+  it polls a new `WorldModel.revision()` counter (bumped by every add/graft/move/
+  remove, never by a read) and, once the world has settled for one quiet interval,
+  writes the snapshot, retrying a failed write rather than silently forgetting
+  where anything is. The thin `WorldSnapshotService` bean gives it a real
+  `@Scheduled` clock plus a restore-on-boot, and stays inert until an operator
+  names `wonderland.server.snapshot.path` (the blank default is the pre-P5.4
+  server byte-for-byte).
+  `PasscodeAuthenticator` is the gate the transport was missing — a stateless
   HMAC-SHA256 bearer token `username|hex`, constant-time verified, null (never
-  a throw) for every malformed or forged shape, called at the one seam that
-  matters — before `SessionRegistry.create(user, sink)`. What remains a
-  running server's proof: snapshot
-  autosave policy, token expiry/rotation, and Mandela scripts driving
-  *networked* events (P5.1 ships only local annotations). **5 new headless
-  cases** (`ProtocolRouterInterestTest`) prove the audience wiring engages; the
+  a throw) for every malformed or forged shape — but it is still a tested
+  **kernel only**: wiring it before `SessionRegistry.create(user, sink)` needs a
+  deployment decision on the no-token case and a configured secret, so it is
+  deliberately left uncalled rather than gated behind a half-chosen policy. What
+  remains a running server's proof: that auth-at-seam wiring, token
+  expiry/rotation, and Mandela scripts driving *networked* events (P5.1 ships
+  only local annotations). **14 new headless cases** (`ProtocolRouterInterestTest`
+  5, `WorldAutosaverTest` 6, `WorldSnapshotServiceTest` 3) prove the audience and
+  autosave wiring engage; the
   kernels keep their **22** (`InterestManagerTest` 7, `CellSnapshotTest` 7,
   `PasscodeAuthenticatorTest` 8).
 
