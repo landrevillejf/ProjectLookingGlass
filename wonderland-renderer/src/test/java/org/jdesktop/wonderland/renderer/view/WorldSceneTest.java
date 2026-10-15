@@ -29,6 +29,7 @@ import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Box;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Entry;
+import org.jdesktop.wonderland.renderer.view.WorldScene.Lighting;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Picture;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Tag;
 import org.jogamp.java3d.Transform3D;
@@ -480,5 +481,53 @@ class WorldSceneTest {
                 0.4f, 2f, 1f, null);
         assertThat(poster.hasImage()).as("bytes to show").isTrue();
         assertThat(poster.hasExtent()).as("an area to hang").isTrue();
+    }
+
+    // ---- the opt-in light rig (P0.1) ------------------------------------
+
+    @Test
+    void noRigIsTheFaithfulDefaultAndInstallsNothing() {
+        assertThat(Lighting.NONE.enabled())
+                .as("a shipped world asks for no rig and renders as before")
+                .isFalse();
+    }
+
+    @Test
+    void anEnabledRigKeepsTheColourAndDirectionTheCallerGaveIt() {
+        Lighting rig = Lighting.of(new float[] {0.2f, 0.2f, 0.2f},
+                new float[] {1f, 0.9f, 0.8f}, new float[] {0f, -1f, 0f});
+        assertThat(rig.enabled()).isTrue();
+        assertThat(rig.ambientRed()).isCloseTo(0.2f, within(1e-6f));
+        assertThat(rig.lightGreen()).as("a warm key light").isCloseTo(0.9f, within(1e-6f));
+        assertThat(rig.directionY()).isCloseTo(-1.0f, within(1e-6f));
+    }
+
+    @Test
+    void aNonUnitSunIsNormalisedWithoutChangingTheWayItShines() {
+        Lighting rig = Lighting.of(null, null, new float[] {0f, -10f, 0f});
+        double length = Math.sqrt(rig.directionX() * rig.directionX()
+                + rig.directionY() * rig.directionY()
+                + rig.directionZ() * rig.directionZ());
+        assertThat(length).as("the direction is a unit vector").isCloseTo(1.0, within(1e-6));
+        assertThat(rig.directionY()).as("still straight down").isCloseTo(-1.0f, within(1e-6f));
+    }
+
+    @Test
+    void noSunAtAllFallsBackToStraightDownRatherThanADegenerateLight() {
+        Lighting rig = Lighting.of(null, null, new float[] {0f, 0f, 0f});
+        assertThat(rig.directionY()).as("a zero-length direction is no sun: default down")
+                .isCloseTo(-1.0f, within(1e-6f));
+    }
+
+    @Test
+    void aNaNColorIsReplacedByTheDaytimeDefaultNotPropagated() {
+        Lighting rig = Lighting.of(new float[] {Float.NaN, 0f, 0f},
+                new float[] {Float.POSITIVE_INFINITY, 0f, 0f}, null);
+        assertThat(rig.ambientRed()).as("null/degenerate ambient becomes soft grey")
+                .isCloseTo(0.3f, within(1e-6f));
+        assertThat(rig.lightRed()).as("degenerate colour becomes white")
+                .isCloseTo(1.0f, within(1e-6f));
+        assertThat(rig.directionY()).as("null direction is the zenith sun")
+                .isCloseTo(-1.0f, within(1e-6f));
     }
 }
