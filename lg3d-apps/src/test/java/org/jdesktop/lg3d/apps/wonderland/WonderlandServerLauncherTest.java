@@ -515,4 +515,59 @@ class WonderlandServerLauncherTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("a hosted world with no cells is not a live world (a stale jar squatting the port)")
+    void servesWorldRequiresCells() {
+        // The zombie server this port learned about the hard way: a process built
+        // from an earlier jar marks the clinic hosted:true yet lists cellCount:0,
+        // and the desktop trusts that and never respawns -- the user sees "the
+        // world has no cells". The rule is hosted AND named AND non-empty.
+        List<WorldCatalog.WorldEntry> live = List.of(
+                new WorldCatalog.WorldEntry("wonderland-outpatient-clinic", "Clinic",
+                        "", "classpath", 18, true));
+        assertTrue(WonderlandServerLauncher.servesWorld(live,
+                "wonderland-outpatient-clinic"));
+
+        List<WorldCatalog.WorldEntry> hostedButEmpty = List.of(
+                new WorldCatalog.WorldEntry("wonderland-outpatient-clinic", "Clinic",
+                        "", "classpath", 0, true));
+        assertFalse(WonderlandServerLauncher.servesWorld(hostedButEmpty,
+                "wonderland-outpatient-clinic"),
+                "a hosted:true world that lists zero cells must not be trusted");
+
+        List<WorldCatalog.WorldEntry> seededElsewhere = List.of(
+                new WorldCatalog.WorldEntry("wonderland-town-world", "Town",
+                        "", "jar", 2, true));
+        assertFalse(WonderlandServerLauncher.servesWorld(seededElsewhere,
+                "wonderland-outpatient-clinic"), "another module's live world is not ours");
+
+        List<WorldCatalog.WorldEntry> notHosted = List.of(
+                new WorldCatalog.WorldEntry("wonderland-outpatient-clinic", "Clinic",
+                        "", "classpath", 18, false));
+        assertFalse(WonderlandServerLauncher.servesWorld(notHosted,
+                "wonderland-outpatient-clinic"), "loadable is not the same as served");
+
+        assertFalse(WonderlandServerLauncher.servesWorld(List.of(),
+                "wonderland-outpatient-clinic"));
+        assertFalse(WonderlandServerLauncher.servesWorld(live, null));
+        assertFalse(WonderlandServerLauncher.servesWorld(null, "wonderland-outpatient-clinic"));
+    }
+
+    @Test
+    @DisplayName("serverUrl follows the relocation, or keeps the asked address")
+    void resultServerUrlIsOneRuleForBothDesktops() {
+        // No relocation: the address you asked for stays the answer.
+        assertEquals("http://localhost:8080",
+                new WonderlandServerLauncher.Result(true, false, "live")
+                        .serverUrl("http://localhost:8080"));
+        // Relocated beside a foreign server: the world's new home wins.
+        assertEquals("http://localhost:8082",
+                new WonderlandServerLauncher.Result(true, true, "moved",
+                        "http://localhost:8082").serverUrl("http://localhost:8080"));
+        // A blank relocation is no relocation.
+        assertEquals("http://localhost:8080",
+                new WonderlandServerLauncher.Result(true, true, "odd", " ")
+                        .serverUrl("http://localhost:8080"));
+    }
 }

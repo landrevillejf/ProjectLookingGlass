@@ -139,6 +139,19 @@ public final class WonderlandServerLauncher {
         public Result(boolean ready, boolean launched, String note) {
             this(ready, launched, note, null);
         }
+
+        /**
+         * The address that actually serves the world: {@link #url} when the
+         * spawn had to relocate beside a foreign server, else {@code asked}.
+         * One rule for every surface that follows a relocation &mdash; the
+         * 2D panel's address field and the 3D walk-in's session alike &mdash;
+         * so neither can keep pointing at the answering-but-empty server that
+         * forced the move. Pure, so the follow-the-world rule is one tested
+         * claim instead of two hand-copied ternaries that can drift.
+         */
+        public String serverUrl(String asked) {
+            return (url == null || url.isBlank()) ? asked : url;
+        }
     }
 
     /**
@@ -438,6 +451,30 @@ public final class WonderlandServerLauncher {
     }
 
     /**
+     * Whether a server's catalog says it is <em>really</em> serving {@code module}:
+     * an entry marks it {@code hosted}, names it, AND carries a non-empty cell
+     * count. A hosted-but-empty world is a process built from an earlier jar
+     * squatting the port &mdash; the desktop spawns only when nothing answers, so
+     * a rebuild never dislodges it &mdash; and its zero cells are exactly the
+     * "the world has no cells" the browser then shows. Reading "hosted" without
+     * reading the count would trust that zombie; requiring cells is the difference
+     * between a server that claims a world and one that serves it. Pure, so the
+     * whole rule is a tested claim rather than a property of the live HTTP probe.
+     */
+    static boolean servesWorld(List<WorldCatalog.WorldEntry> worlds, String module) {
+        if (worlds == null || module == null) {
+            return false;
+        }
+        for (WorldCatalog.WorldEntry entry : worlds) {
+            if (entry.hosted() && module.equals(entry.module())
+                    && entry.cellCount() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The extracted world jars beside a built server jar: {@code extractWorlds}
      * unpacks the stock {@code *-world.jar} modules into
      * {@code <repo>/wonderland-server/wonderland-worlds}, three directories up
@@ -630,21 +667,23 @@ public final class WonderlandServerLauncher {
 
         /**
          * Ask the same catalog the browser reads: one of its entries is
-         * {@code hosted} and names {@code module}. A server too old to carry
-         * the flag answers "not hosting", which is the safe reading &mdash; a
-         * stale server is exactly the one that must not be trusted to be
-         * running the chosen world.
+         * {@code hosted}, names {@code module} AND actually carries cells. A
+         * server too old to carry the flag answers "not hosting", which is the
+         * safe reading &mdash; a stale server is exactly the one that must not be
+         * trusted to be running the chosen world. So is a server that marks the
+         * world hosted yet lists zero of them: that is a process built from an
+         * earlier jar squatting the port (the desktop only spawns when none
+         * answers, so a rebuild does not dislodge it), and its empty world is
+         * what the browser sees as "no cells". Requiring a non-empty cell count
+         * is the whole difference between "a server claims this world" and "this
+         * world is really being served", and it makes the desktop spawn a fresh,
+         * correctly-seeded server beside the zombie instead of trusting it.
          */
         @Override
         public boolean hosting(String server, String module) {
             try {
-                for (WorldCatalog.WorldEntry entry
-                        : WorldCatalog.loadWorlds(server, WorldCatalog.HTTP_FETCHER)) {
-                    if (entry.hosted() && entry.module().equals(module)) {
-                        return true;
-                    }
-                }
-                return false;
+                return servesWorld(
+                        WorldCatalog.loadWorlds(server, WorldCatalog.HTTP_FETCHER), module);
             } catch (IOException | RuntimeException unreachable) {
                 return false;
             }

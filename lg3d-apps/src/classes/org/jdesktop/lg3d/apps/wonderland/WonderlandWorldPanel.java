@@ -628,8 +628,7 @@ public class WonderlandWorldPanel extends JPanel {
                     = launcher.ensureRunning(server, seed);
             // A relocated spawn (the requested port carries somebody else's
             // unseeded server) reads from where the world actually went live.
-            final String effective = (started.url() == null || started.url().isBlank())
-                    ? server : started.url();
+            final String effective = started.serverUrl(server);
             final WorldsOutcome outcome =
                     started.ready() ? readWorlds(effective) : null;
             SwingUtilities.invokeLater(() -> renderStart(started, outcome));
