@@ -95,8 +95,27 @@ public class ViewCell extends Cell {
         return this.identity;
     }
 
+    /*
+     * Wonderland roadmap P1.1 seam: an OPTIONAL walker collider. The 2006 port
+     * accepted every localMoveRequest wherever it asked to go -- the collision
+     * field on MovableAvatarComponent was carried over the wire but decided by
+     * nothing. When the host registers a collider here (populated from the
+     * world's authored cell bounds), the requested transform is clamped to the
+     * position the collision kernel allows before it is sent. Left null -- the
+     * default, and every world that has not authored collision yet -- the move
+     * is forwarded untouched, byte-for-byte the original behaviour.
+     */
+    private org.jdesktop.wonderland.client.collision.AvatarCollider walkerCollider;
+
+    public void setWalkerCollider(org.jdesktop.wonderland.client.collision.AvatarCollider collider) {
+        this.walkerCollider = collider;
+    }
+
     public void localMoveRequest(CellTransform transform) {
         if (this.movableComp != null) {
+            if (this.walkerCollider != null) {
+                this.walkerCollider.clamp(transform);
+            }
             this.movableComp.localMoveRequest(transform, MovableAvatarComponent.NO_TRIGGER,
                     false, (String) null, (MovableComponent.CellMoveModifiedListener) null);
         }
