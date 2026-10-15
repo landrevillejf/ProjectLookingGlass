@@ -34,11 +34,12 @@ import org.springframework.stereotype.Service;
 public class WorldModel {
 
     /**
-     * The abstract EnvironmentCell the client cache knows the root by type. It is
-     * NOT loadable as-is (instantiateCell reflects an abstract class open and
-     * fails): the 2006 server shipped the desktop's concrete subclass name as
-     * world data. Deployment/test constructors override it below; this stays the
-     * documented default of the module vocabulary.
+     * The EnvironmentCell the client cache knows the root by type, and can now
+     * instantiate as-is: the class is concrete (like the ViewCell the router
+     * names), so instantiateCell's reflection succeeds on the default world
+     * instead of throwing InstantiationException on every live walk-in. A
+     * deployment/test constructor may still override it below with a desktop's
+     * richer subclass name, exactly as the 2006 server shipped world data.
      */
     public static final String ENVIRONMENT_CLASS =
             "org.jdesktop.wonderland.client.cell.EnvironmentCell";
