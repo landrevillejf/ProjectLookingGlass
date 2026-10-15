@@ -146,8 +146,18 @@ much visible value each unlocks per unit of risk.
   re-seating `WorldViewer`'s live `Transform3D` are pipeline-bound wiring the
   probe owns, not claimed here; the 16 headless cases prove the curves, not
   the ride.
-- **P3.2 Post-processing.** A bloom/HDR pass via `Canvas3D` offscreen buffer.
-  **Marked stretch**: bounded by the Java 3D 1.7.2 ceiling above.
+- **P3.2 Post-processing - delivered at the documented ceiling (stretch).** A
+  bloom/HDR pass via `Canvas3D` offscreen buffer. **Marked stretch**: bounded
+  by the Java 3D 1.7.2 ceiling above. Delivered in `wonderland-renderer/post`:
+  `BloomKernel` - the three operations every bloom is (smooth-kneed bright
+  pass, separable clamped box blur, saturating add) as pure arithmetic on
+  packed ARGB pixels -- and `PostProcessPlan`, which states the live-3D truth
+  as a checked decision: the fork has no scene-to-texture post pipeline, so
+  the per-frame `OFFSCREEN_READBACK` route is probe-gated on a MEASURED
+  readback cost, and until a `WlProbe` run produces that measurement the
+  route is `SOFTWARE_CAPTURE` -- blooming probe captures and 2D composites,
+  headless, today. The ceiling is the deliverable's shape, not an apology:
+  the kernel is the reference any future GPU pass must match pixel for pixel.
 
 ### P4 - Spatial audio (build, not re-wire)
 
