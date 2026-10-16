@@ -19,10 +19,10 @@ and the per-module `AGENTS.md`.
 | Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query, no SSAO. |
 | Water shading | **Wired: pond quad + frame-clock scroll** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records; `WorldScene.addWater` seats one flat quad per record, tiled by `WaterArt`'s seamless image and scrolled by a `TexCoordGeneration` that `WorldViewer`'s water clock rewrites every 120 ms; `scrollWater` is the live animation path. Each pond hangs behind its own PVS `Switch` gate so culling the ground shuts the water with it. `lg.wonderland.water=off` builds no pond node at all. |
 | Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
-| Normal mapping | **Kernel live, layer ceiling** | The GLSL normal/spec stages compile and shade, but `WlProbe42` measured this fork binding exactly ONE texture per program (a second `sampler2D` re-reads unit 0), so a lit material lights from its diffuse and `hasNormalMap`/`hasSpecMap` stay 0. Multi-layer needs a direct-JOGL program that binds its own samplers. |
+| Normal mapping | **Live, multi-unit** | The GLSL normal/spec stages compile, shade and are now bound: `WlProbe48` measured three distinct `sampler2D` textures (diffuse/normal/spec) live on one program once each sampler is named AND assigned its unit, and `WlProbe49` drove the shipping `createShape` and saw a normal map tilt a facing quad from `(255,255,255)` to `(56,56,56)`. `hasNormalMap`/`hasSpecMap` are set from what actually resolved, so a lit material lights from all the layers its art carries. `WlProbe42`'s earlier "ONE texture per program" was a binding omission (it never assigned the second sampler a unit), not a platform limit. |
 | Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). PBR, HDR, bloom, shadow *maps* and DOF remain absent -- `PostProcessPlan` says why, and `WlProbe42` measures the ceiling. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). PBR, HDR, bloom, shadow *maps* and DOF remain absent -- `PostProcessPlan` says why: the fork has no scene-to-texture post pipeline, so a full-frame pass is a `Canvas3D` readback, not a GPU chain. |
 | Audio | **Built, wired, silent until a world ships sound** | `wonderland-client/audio`: `SpatialAudio` (the gain and pan kernel), `AudioManager` (the lifecycle owner), `JavaSoundBackend` behind an `AudioBackend` seam; `WorldViewer.installAudio` points the listener at the live pose. The 2006 client's spatial audio was **not carried over** -- this is the fresh build, and no shipped world has audio assets to play. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
@@ -51,7 +51,7 @@ back-face culling, `PolygonAttributes` semantics). A roadmap that ignores this
 ceiling would promise results the stack cannot deliver; the phases below mark
 those items explicitly.
 
-That ceiling is no longer a guess -- four probes measured it on the repo's live
+That ceiling is no longer a guess -- a run of probes measured it on the repo's live
 X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
 
 - **WlProbe39** - a scene `Light` does NOT reach a custom program:
@@ -68,14 +68,23 @@ X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
 - **WlProbe41** - the corrected production GLSL shades per fragment through
   those custom uniforms + `gl_NormalMatrix`: a lit quad facing the key read
   `(255,255,255)`, a grazing one the `(31,31,31)` ambient floor.
-- **WlProbe42** - this fork binds exactly ONE texture per program: a second
-  `sampler2D` reads the first unit's image, not its own. Per-material
-  normal/spec/env layers therefore need a direct-JOGL pass that binds its own
-  samplers - out of this fixed-era `ShaderAppearance` route.
+- **WlProbe42 (retracted by WlProbe48)** - read this fork as binding exactly ONE
+  texture per program, because a second `sampler2D` appeared to re-read unit 0.
+  That was a binding omission in the probe, not a platform limit: WlProbe42 set
+  two `TextureUnitState`s but never assigned the second sampler a unit, so both
+  defaulted to unit 0.
+- **WlProbe48** - the correction: EVERY `TextureUnitState` binds its own
+  `sampler2D` once the sampler is named on the program (`setShaderAttrNames`) AND
+  assigned its unit through a `ShaderAttributeValue(samplerName, unitIndex)`. It
+  measured three distinct textures (diffuse/normal/spec) live on one program, so
+  per-material normal/spec layers are real on this `ShaderAppearance` route.
+- **WlProbe49** - the shipping `J3dMeshFactory.createShape` binds those units too:
+  a lit facing quad read `(255,255,255)` with its diffuse and `(56,56,56)` once a
+  tangent normal map was attached, the normal map tilting N off the key.
 
 What this buys: real GPU per-pixel lighting was earlier (wrongly) filed as a
-platform impossibility; it is now live and wired. What it still costs: a
-layered material can light from one texture, not three.
+platform impossibility; it is now live and wired, and a layered material lights
+from every texture its art carries -- diffuse, normal and specular -- not one.
 
 ## Roadmap
 
@@ -156,23 +165,25 @@ much visible value each unlocks per unit of risk.
 
 ### P2 - Materials, shaders, water, shadows
 
-- **P2.1 Multi-layer materials - kernel delivered, layer binding at the measured
-  ceiling.** `MaterialAppearance` carries a `normalMapPath` and a
-  `specularMapPath`, `TextureBindingPlan` classifies each authored sampler into
-  the diffuse / normal / specular layer it names, and `ShaderAppearancePlan`'s
-  GLSL has a tangent-space normal stage and a specular-mask stage. What the
-  platform will not do is bind all three to one program: `WlProbe42` measured
-  this fork exposing exactly one texture per GLSL program, so
-  `J3dMeshFactory.buildShaderAppearance` binds the diffuse and leaves
-  `hasNormalMap`/`hasSpecMap` at 0. The extra layers are parsed, named and
-  compiled; a host that can drive a direct-JOGL program binding its own samplers
-  is what flips them on - not a missing plan.
+- **P2.1 Multi-layer materials - wired, multi-unit.** `MaterialAppearance` carries
+  a `normalMapPath` and a `specularMapPath`, `TextureBindingPlan` classifies each
+  authored sampler into the diffuse / normal / specular layer it names, and
+  `ShaderAppearancePlan`'s GLSL has a tangent-space normal stage and a
+  specular-mask stage. `J3dMeshFactory.buildShaderAppearance` now binds all three
+  to one program: diffuse on unit 0, the normal map on the next unit, the specular
+  mask on the one after, each sampler named on the program and assigned its unit
+  through a `ShaderAttributeValue`, with `hasNormalMap`/`hasSpecMap` set from what
+  actually resolved. `WlProbe48` measured three distinct textures live on one
+  program and `WlProbe49` drove the shipping `createShape` and saw the normal map
+  tilt a facing quad from `(255,255,255)` to `(56,56,56)`. The earlier
+  "one texture per program" reading (`WlProbe42`) was a probe that never assigned
+  the second sampler a unit -- a binding omission, now corrected, not a ceiling.
 - **P2.2 Shaders - wired and measured (was: probe-gated).** A GLSL `ShaderProgram`
   on `Shape3D`s, with a documented fixed-function fallback where Java 3D 1.7.2
   cannot express the effect. This repo's Jogamp fork moved the shader entry point
   off upstream 1.6's `Appearance.setShaderProgram` onto a `ShaderAppearance`
   subclass (`setShaderProgram`/`setShaderAttributeSet`), and a program validates
-  only against a live GL context. That validation is now done: `WlProbe39..42`
+  only against a live GL context. That validation is now done: `WlProbe39..49`
   settled what the fork's `ShaderAppearance` can and cannot do (see *Platform
   ceiling*), and `WlProbe43` drove the shipping `J3dMeshFactory.createShape` and
   measured per-pixel Blinn-Phong reach the screen - a lit textured material reads
@@ -253,11 +264,14 @@ much visible value each unlocks per unit of risk.
   blend or a bent lookup, so an environment material takes SHADER only when
   `ShaderAppearancePlan.Capability` reports the shader path live -- a probe has
   since validated the fork's shader API (P2.2 above), so that gate can now open.
-  The live ceiling that keeps env probe-side is the same single-texture limit
-  `WlProbe42` measured: a program that already samples a diffuse `sampler2D`
-  cannot also bind a `samplerCube envMap` on this fork, so an env-only glossy
-  surface (no diffuse) is what a live program can paint today. Otherwise the
-  material takes FIXED *with the
+  What still keeps env probe-side is narrower than the retracted single-texture
+  claim: `WlProbe48` proved three `sampler2D` units bind side by side, but a
+  `samplerCube envMap` on its own unit *beside* a diffuse `sampler2D` is a
+  different target that no probe has bound yet, so an env program stays the
+  probe's to measure -- not because one texture is a hard ceiling, but because
+  the cube-map binding is simply unmeasured. Until a probe binds a cube beside a
+  diffuse, an env-only glossy surface (no diffuse) is what a live program can
+  paint today. Otherwise the material takes FIXED *with the
   lost effects named*, and the plan reuses `ShaderAppearancePlan.Capability` so
   one host answers "is the shader path live" for both features. The GLSL 1.20
   environment fragment (`samplerCube envMap`, `reflect`/`refract`, Schlick
