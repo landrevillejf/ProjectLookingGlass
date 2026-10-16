@@ -13,7 +13,7 @@ and the per-module `AGENTS.md`.
 
 | Capability | State | Evidence |
 |---|---|---|
-| Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast, with interest-managed move fan-out + snapshot autosave now wired. Missing: auth (a tested kernel, not yet called). |
+| Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast, with interest-managed move fan-out + snapshot autosave now wired. The passcode gate is wired too: `CommsWebSocketHandler.onAttach` calls `AuthGate.resolve(...)`, which drives `PasscodeAuthenticator`'s HMAC check before a session is minted, default-off via `wonderland.server.auth.enabled`. Missing: token expiry/rotation, still a running server's proof. |
 | Collision | **Kernel wired into the walk** | `WorldScene.blockStep` seeds an `AvatarCollider` over the inventory's obstacles, so a step into a wall is refused and slides along its face. `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger` is still the *message* path, and the vertical extent still comes from `WorldScene.measuredOf` (a live-geometry walk), not the authored footprint. |
 | Ambient lighting | **Two rigs, one of them inert** | `WorldScene.installLights` hangs an `AmbientLight` + `DirectionalLight` when a caller asks, and `WlProbe32` measured that this fork's fixed pipeline lets a scene `Light` change nothing a `ColoringAttributes` surface draws -- so the shading a person sees is `BakedRig`'s CPU per-vertex bake, on by default. `J3dMeshFactory.buildAppearance` still omits a `Material` for shipped art. |
 | Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query, no SSAO. |
@@ -84,13 +84,18 @@ much visible value each unlocks per unit of risk.
 
 ### P0 - Rendering foundations
 
-- **P0.1 Opt-in lighting rig** *(this PR)*. A pure `WorldScene.Lighting` value
+- **P0.1 Opt-in lighting rig** *(delivered)*. A pure `WorldScene.Lighting` value
   and a `MaterialAppearance` lighting model; `J3dMeshFactory` builds a Java 3D
-  `Material` only when a material opts in; `WorldScene.build(entries, pictures,
-  lighting)` installs an `AmbientLight` + `DirectionalLight` scoped to the
-  world when a caller asks. The faithful pre-lit default path is unchanged.
-  Verified headless for the pure model; the on-screen shading is verified with
-  the live `WorldViewer` probe (a display is required).
+  `Material` only when a material opts in. `WorldScene.installLights` does hang
+  an `AmbientLight` + `DirectionalLight` when a caller asks, but `WlProbe32/39`
+  measured that a scene-graph `Light` changes no pixel a `ColoringAttributes` or
+  a custom-program surface draws on this fork -- so the shading a person
+  actually sees is `BakedRig`'s CPU per-vertex bake (the default), and on the
+  opt-in shader route the key reaches the program as its OWN
+  `lightDirection`/`lightColor`/`ambientColor` uniforms (P2.2), never the scene
+  `Light`. The faithful pre-lit default path is unchanged. Verified headless for
+  the pure model; the on-screen shading is verified with the live `WorldViewer`
+  probe (a display is required).
 - **P0.2 Culling / PVS - reframed after reading the code.** A proximity
   selector already exists: `WorldScene.focusWithin` picks the cells near a focus
   point and unions them (it is how framing picks the subject), so a second
@@ -261,7 +266,13 @@ much visible value each unlocks per unit of risk.
   requests nothing, so no pre-P2.5 world changes a pixel. Binding a live cube map
   and running the program on `WorldScene`'s glossy cells is the probe-side step -
   the ceiling is the deliverable's shape, the same as P2.2 and P3.2, not an
-  apology.
+  apology. `CubeMapArt` now closes the one gap that kept the plan permanently on
+  FIXED for a material with no authored map: it is the procedural six-face
+  environment gradient (64 px faces, zenith/nadir caps plus a sky-to-horizon-to-
+  ground side ramp) that a glossy cell samples when the world's art carries no
+  cube map, rasterised headless in pure java2d and asserted in `CubeMapArtTest`;
+  wrapping its faces into a `TextureCubeMap` is the factory's live-GL half, still
+  the probe's to measure, never claimed here.
 
 ### P3 - Cinematic system
 
