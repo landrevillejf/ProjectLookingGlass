@@ -45,6 +45,8 @@ import org.jdesktop.wonderland.modules.asset.WlaRef;
 import org.jdesktop.wonderland.renderer.avatar.AvatarLoadResolver;
 import org.jdesktop.wonderland.renderer.avatar.AvatarLoadResult;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
+import org.jdesktop.wonderland.renderer.view.GlWorldBuilder;
+import org.jdesktop.wonderland.renderer.view.GlWorldViewer;
 import org.jdesktop.wonderland.renderer.view.WorldScene;
 import org.jdesktop.wonderland.renderer.view.WorldViewer;
 
@@ -60,6 +62,17 @@ public final class WorldRender {
 
     /** The pause between attempts; a frame is drawn every vsync, not every poll. */
     private static final long PREVIEW_POLL_MS = 250;
+
+    /**
+     * The opt-in switch (P2.4c) that renders the preview through the JOGL path
+     * -- {@link GlWorldBuilder} into a {@link GlWorldViewer} -- instead of the
+     * java3d {@link WorldViewer}. Off by default, so the working renderer is never
+     * swapped out from under a user mid-flight; the P2.5 probe passes
+     * {@code -Dlg.wonderland.jogl=true} to measure the JOGL path across all eight
+     * worlds, and the cutover only deletes the java3d files once that probe proves
+     * parity. Read once per preview through {@link #joglPreviewEnabled()}.
+     */
+    static final String JOGL_PREVIEW_PROPERTY = "lg.wonderland.jogl";
 
     private WorldRender() {
     }
@@ -548,6 +561,9 @@ public final class WorldRender {
      */
     static Attempt tryPreview(String server, String module,
             WorldCatalog.WorldView world, WorldCatalog.ByteFetcher assets) {
+        if (joglPreviewEnabled()) {
+            return tryPreviewJogl(server, module, world, assets);
+        }
         if (!hasGeometry(world)) {
             return new Attempt(null,
                     "no cell of this world names a model or a picture to draw");
@@ -625,6 +641,92 @@ public final class WorldRender {
     /** The world's name for a window title; the module is the last resort. */
     private static String titleOf(String module) {
         return (module == null || module.isBlank()) ? "Wonderland world" : module;
+    }
+
+    /**
+     * Whether the JOGL preview path is switched on. Off unless
+     * {@code -Dlg.wonderland.jogl=true} (the P2.5 probe), so the shipped desktop
+     * keeps rendering previews through the java3d {@link WorldViewer} and the JOGL
+     * path is measured beside it, never instead of it, until the cutover.
+     */
+    static boolean joglPreviewEnabled() {
+        return Boolean.parseBoolean(System.getProperty(JOGL_PREVIEW_PROPERTY));
+    }
+
+    /**
+     * The JOGL twin of {@link #tryPreview}: build the world into a
+     * {@link GlWorldBuilder.Result} (a java3d-free {@code GlScene} draw list and
+     * the {@code Camera} that frames it), show it in a {@link GlWorldViewer}, and
+     * poll the on-demand capture for a frame with colour in it. Same contract as
+     * the java3d path -- a missing frame is an {@link Attempt} with a reason, never
+     * an exception -- so the two are interchangeable behind the opt-in switch and
+     * the probe measures the same eight worlds through either.
+     *
+     * <p>Probe/host-only: it opens a GLCanvas window, so it needs a display and the
+     * native GL stack. The pure halves it leans on ({@code hasGeometry},
+     * {@code hasColour}, {@code GlWorldBuilder.build}) are the tested ones.</p>
+     */
+    static Attempt tryPreviewJogl(String server, String module,
+            WorldCatalog.WorldView world, WorldCatalog.ByteFetcher assets) {
+        if (!hasGeometry(world)) {
+            return new Attempt(null,
+                    "no cell of this world names a model or a picture to draw");
+        }
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            return new Attempt(null, "this JVM has no display to render into");
+        }
+        GlWorldViewer viewer = null;
+        try {
+            GlWorldBuilder.Result built = GlWorldBuilder.build(
+                    entriesOf(server, module, world, assets),
+                    picturesOf(server, module, world, assets),
+                    PREVIEW_WIDTH_PX, PREVIEW_HEIGHT_PX);
+            if (built.placed() + built.pictures() == 0) {
+                return new Attempt(null, "none of the world's " + world.size()
+                        + " cells loaded (" + built.skipped() + " skipped)");
+            }
+            viewer = new GlWorldViewer(titleOf(module) + " \u2014 preview",
+                    built.scene(), built.camera(), PREVIEW_WIDTH_PX, PREVIEW_HEIGHT_PX);
+            viewer.show();
+            long deadline = System.currentTimeMillis() + PREVIEW_TIMEOUT_MS;
+            BufferedImage shot = null;
+            BufferedImage blank = null;
+            // The GLCanvas renders asynchronously under its animator, so the first
+            // read after the window appears can legitimately come back empty -- the
+            // context is up but no frame has been presented yet. Polling for a frame
+            // with colour in it, and spending the deadline rather than taking the
+            // first answer, is the same discipline the java3d path keeps.
+            while (shot == null && System.currentTimeMillis() < deadline) {
+                BufferedImage frame = viewer.capture(PREVIEW_POLL_MS * 4);
+                if (frame != null) {
+                    blank = frame;
+                    if (hasColour(frame)) {
+                        shot = frame;
+                        break;
+                    }
+                }
+                Thread.sleep(PREVIEW_POLL_MS);
+            }
+            if (shot != null) {
+                return new Attempt(shot, null);
+            }
+            return (blank == null)
+                    ? new Attempt(null, "the render thread answered no frame in "
+                            + PREVIEW_TIMEOUT_MS + " ms")
+                    : new Attempt(null, "the canvas stayed blank for "
+                            + PREVIEW_TIMEOUT_MS + " ms \u2014 " + blank.getWidth()
+                            + "x" + blank.getHeight() + " of one colour, so the world "
+                            + "has geometry but nothing lit in view");
+        } catch (InterruptedException waited) {
+            Thread.currentThread().interrupt();
+            return new Attempt(null, "the preview wait was interrupted");
+        } catch (RuntimeException | Error notRenderable) {
+            return new Attempt(null, String.valueOf(notRenderable));
+        } finally {
+            if (viewer != null) {
+                viewer.close();
+            }
+        }
     }
 
     /**
