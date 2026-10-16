@@ -16,14 +16,14 @@ and the per-module `AGENTS.md`.
 | Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast, with interest-managed move fan-out + snapshot autosave now wired. The passcode gate is wired too: `CommsWebSocketHandler.onAttach` calls `AuthGate.resolve(...)`, which drives `PasscodeAuthenticator`'s HMAC check before a session is minted, default-off via `wonderland.server.auth.enabled`. Missing: token expiry/rotation, still a running server's proof. |
 | Collision | **Kernel wired into the walk** | `WorldScene.blockStep` seeds an `AvatarCollider` over the inventory's obstacles, so a step into a wall is refused and slides along its face. `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger` is still the *message* path, and the vertical extent still comes from `WorldScene.measuredOf` (a live-geometry walk), not the authored footprint. |
 | Ambient lighting | **Two rigs, one of them inert** | `WorldScene.installLights` hangs an `AmbientLight` + `DirectionalLight` when a caller asks, and `WlProbe32` measured that this fork's fixed pipeline lets a scene `Light` change nothing a `ColoringAttributes` surface draws -- so the shading a person sees is `BakedRig`'s CPU per-vertex bake, on by default. `J3dMeshFactory.buildAppearance` still omits a `Material` for shipped art. |
-| Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query, no SSAO. |
+| Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query; SSAO ships as a post-chain screen-space effect (P2.7), not a culling primitive. |
 | Water shading | **Wired: pond quad + frame-clock scroll** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records; `WorldScene.addWater` seats one flat quad per record, tiled by `WaterArt`'s seamless image and scrolled by a `TexCoordGeneration` that `WorldViewer`'s water clock rewrites every 120 ms; `scrollWater` is the live animation path. Each pond hangs behind its own PVS `Switch` gate so culling the ground shuts the water with it. `lg.wonderland.water=off` builds no pond node at all. |
 | Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
 | Normal mapping | **Live, multi-unit** | The GLSL normal/spec stages compile, shade and are now bound: `WlProbe48` measured three distinct `sampler2D` textures (diffuse/normal/spec) live on one program once each sampler is named AND assigned its unit, and `WlProbe49` drove the shipping `createShape` and saw a normal map tilt a facing quad from `(255,255,255)` to `(56,56,56)`. `hasNormalMap`/`hasSpecMap` are set from what actually resolved, so a lit material lights from all the layers its art carries. `WlProbe42`'s earlier "ONE texture per program" was a binding omission (it never assigned the second sampler a unit), not a platform limit. |
 | Environment (reflection / refraction) | **Live, cube beside diffuse** | `EnvironmentPlan` carries a full GLSL 1.20 vertex+fragment pair and `J3dMeshFactory.buildEnvAppearance` binds the lit diffuse on unit 0 and a `samplerCube` on unit 1, laying `reflect`/`refract` cube lookups weighted by Schlick fresnel over the lit base. `WlProbe50` proved a cube map samples its own face live (+X red / +Y green / +Z blue) once faces go on with this fork's `setImage(LEVEL, FACE, image)` order; `WlProbe51` drove the shipping `createShape` and read a red diffuse quad `(255,0,0)` become `(230,97,110)` once an environment cube was attached at half reflectivity. `CubeMapArt` is the procedural sky gradient a glossy cell samples (no shipped world names a real cube image). Opt-in like P2.2 (`lg.wonderland.shader` + `lit()` + a cube map), so a pre-P2.5 world changes no pixel. |
-| Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
+| Occlusion | **Cull + screen-space AO** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). Since P2.7 a screen-space ambient occlusion (`SsaoKernel` + `GpuSsaoPass`) darkens contact on the live canvas from the frame's own depth -- but there is still no occlusion *query* and no PVS *visibility from a surface*. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). Bloom now ships on BOTH routes (P3.2): the `BloomKernel` + `BloomPass` software seam (`WlProbe52` measured the readback round trip, ~128 ms at 640x363 / ~419 ms native, and proved it glows a captured live frame) AND a live per-frame `GpuBloomPass` -- a zero-readback GL bright-pass/blur/composite that blits the presented framebuffer into a texture and samples it back through a patched `Canvas3D.preSwap` hook, which `WlProbe56` measured visible per frame at 94 fps (7732 halo pixels lifted onto dark scene). So the old "the fork has no scene-to-texture pipeline" ceiling is retired for post-processing: the pre-swap blit IS that pipeline. PBR, HDR, shadow *maps* and DOF remain absent -- they want a light-POV / multi-target render the single post-hoc blit does not provide. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). Bloom now ships on BOTH routes (P3.2): the `BloomKernel` + `BloomPass` software seam (`WlProbe52` measured the readback round trip, ~128 ms at 640x363 / ~419 ms native, and proved it glows a captured live frame) AND a live per-frame `GpuBloomPass` -- a zero-readback GL bright-pass/blur/composite that blits the presented framebuffer into a texture and samples it back through a patched `Canvas3D.preSwap` hook, which `WlProbe56` measured visible per frame at 94 fps (7732 halo pixels lifted onto dark scene). So the old "the fork has no scene-to-texture pipeline" ceiling is retired for post-processing: the pre-swap blit IS that pipeline. Since P3.2 the chain has grown, not stayed a single bloom: HDR tone mapping (P3.3), FXAA (P3.4) and depth-of-field (P3.5) ride the same `preSwap` blit as further `GpuPostEffect` links (order `ssao -> bloom -> hdr -> dof -> fxaa`), screen-space ambient occlusion (P2.7) reconstructs a normal from the depth the defocus blits, and Cook-Torrance PBR (P2.6) ships as a pure BRDF kernel plus a probe-gated `PbrPlan`/GLSL pair in P2.2's shape. Only shadow *maps* remain absent -- they want a light-POV render-to-texture pass the single post-hoc blit does not provide. |
 | Audio | **Built, wired, silent until a world ships sound** | `wonderland-client/audio`: `SpatialAudio` (the gain and pan kernel), `AudioManager` (the lifecycle owner), `JavaSoundBackend` behind an `AudioBackend` seam; `WorldViewer.installAudio` points the listener at the live pose. The 2006 client's spatial audio was **not carried over** -- this is the fresh build, and no shipped world has audio assets to play. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
@@ -44,11 +44,16 @@ world that installs a rig get shading, while pre-lit worlds are untouched.
 ### Platform ceiling
 
 The renderer is built on **Jogamp Java 3D 1.7.2**, a fixed-function /
-vertex-program-era API, not a modern GLSL pipeline. PBR, HDR and SSAO will be
-bounded by what `ShaderProgram`/`GLSLProgram` and a `Canvas3D` readback can do,
-and some "2026 cinematic" terms require a direct-JOGL post pass -- which bloom
-now has: `GpuBloomPass` drives JOGL directly at a patched `Canvas3D.preSwap`
-hook (P3.2), so a real-time bloom is no longer bounded by the readback. The fork has already hit Java 3D quirks (`Background` paints nothing,
+vertex-program-era API, not a modern GLSL pipeline. The "2026 cinematic" terms --
+HDR, DOF, SSAO, FXAA -- require a direct-JOGL post pass rather than anything
+`ShaderProgram`/`GLSLProgram` or a `Canvas3D` readback can express, and that pass
+now exists: `GpuBloomPass` (P3.2) drives JOGL directly at a patched
+`Canvas3D.preSwap` hook, and HDR (P3.3), FXAA (P3.4), DOF (P3.5) and SSAO (P2.7)
+ride the same hook as further `GpuPostEffect` links, so a real-time post chain is
+no longer bounded by the readback. PBR (P2.6) is the exception that stays a
+per-material `ShaderAppearance` route in P2.2's shape -- a pure kernel plus a
+probe-gated GLSL pair -- because it shades surfaces, not the composited frame.
+The fork has already hit Java 3D quirks (`Background` paints nothing,
 back-face culling, `PolygonAttributes` semantics). A roadmap that ignores this
 ceiling would promise results the stack cannot deliver; the phases below mark
 those items explicitly.
@@ -332,6 +337,50 @@ much visible value each unlocks per unit of risk.
   rasterised headless in pure java2d (`CubeMapArtTest`); the factory wraps its
   faces into the shared `TextureCubeMap` the program samples. A material with no
   cube map and `ior == 1` requests nothing, so it stays FIXED and untouched.
+- **P2.6 Physically-based shading - delivered as a kernel + probe-gated plan.** A
+  metallic-roughness BRDF the lit route can run instead of Blinn-Phong. Delivered
+  in `wonderland-renderer/shade`: `PbrKernel` is Cook-Torrance in pure Java --
+  GGX/Trowbridge-Reitz normal distribution `D`, Smith-Schlick geometry `G`,
+  Schlick Fresnel `F`, the dielectric-0.04 / metal-base-colour `F0`, and the
+  assembled energy-conserving direct-light BRDF plus a `shade()` that adds ambient,
+  `java.base` only. `PbrPlan` (in `mesh`) is the headless verdict of "does this
+  material run Cook-Torrance", with a reason beside every branch, carrying the
+  GLSL 1.20 vertex+fragment pair that transcribes `PbrKernel` (same PI, same 0.04
+  `F0`, same D/G/F, same `alpha = roughness^2`). It is probe-gated exactly like
+  P2.2's `ShaderAppearancePlan` SHADER path: production keeps the validated
+  Blinn-Phong route until a `WlProbe` validates this program, and a material falls
+  back with its metallic/roughness recorded but unapplied rather than silently
+  flat. `PbrKernelTest` (10) pins the physical invariants (dielectric `F0` 0.04, a
+  metal's `F0` is its base, Fresnel head-on vs grazing, GGX sharpens as roughness
+  falls, Smith in (0,1], BRDF non-negative and zero below the horizon, a black
+  metal reflects nothing, `shade` scales by the cosine) and `PbrPlanTest` (7) pins
+  every decision branch and that the GLSL names the kernel's constants. The live
+  route is probe-gated, not asserted, exactly like P2.2.
+- **P2.7 Screen-space ambient occlusion - delivered, wired on the post chain.**
+  Contact darkening from the frame's own depth, run FIRST on the preSwap chain so
+  the scene is occluded before the cosmetic lens effects and the tone map fold it.
+  Delivered in `wonderland-renderer/post`: `SsaoKernel` is the occlusion estimate
+  in pure Java -- the symmetric-perspective unprojection (`near*far/(far -
+  d*(far-near))`), a view normal from the reconstructed position's screen-space
+  gradients flipped toward the eye, and a fixed twelve-point hemisphere sampled
+  with a deterministic per-pixel rotation, a depth range-check and a self-bias,
+  counting how many samples a nearer surface hides; it reuses `HdrKernel.Frame`,
+  and `apply()` modulates the composited RGB (the honest approximation available
+  to a pass that sees the final frame, not the direct/ambient split).
+  `GpuSsaoPass` blits FB0 colour+depth into scene textures, runs the hemisphere
+  sample and multiplies back into the swap buffer, zero readback, same GL state
+  bracket and never-throws latch; `SSAO_FRAG` is `SsaoKernel` transcribed with the
+  identical twelve literals, the identical integer rotation and a `texelFetch` per
+  depth read so a sample lands on the exact texel the kernel indexes.
+  `PostProcessPlan.decideSsao` answers the GPU route or NONE, never a half-applied
+  software darkening. `WorldViewer` prepends the pass with the camera-matched
+  `Settings` it derives from the scene's own near/far/fov and the canvas aspect
+  (front clip extracted to `FRONT_CLIP_M` so the reconstruction cannot drift from
+  the view `show()` sets). `SsaoKernelTest` (11) proves a flat field unoccluded, a
+  pit floor beside its wall occluded but its flat middle not, a raised platform
+  not, the factor in 0..1, a zero intensity the exact identity; `GpuSsaoPassTest`
+  (5) and the four `decideSsao` branches in `PostProcessPlanTest`. The GL pass is
+  probe-gated like every link on this chain (a `GLContext` needs a display).
 
 ### P3 - Cinematic system
 
@@ -392,6 +441,60 @@ much visible value each unlocks per unit of risk.
   `PostProcessPlan` decision and `GpuBloomPass.Settings` are asserted
   (`PostProcessPlanTest`, `GpuBloomPassTest`). `BloomKernel` stays the reference
   the GPU shaders match pixel for pixel.
+- **P3.3 HDR tone mapping - delivered, wired on the post chain.** Fold scene
+  radiance into display range on the live canvas. Delivered in
+  `wonderland-renderer/post`: `HdrKernel` is the pure tone-mapping reference
+  (exposure, extended Reinhard with a white point, Narkowicz ACES, Rec.709
+  luminance, gamma encode) over a packed ARGB `int[]` and `float` triples,
+  `java.base` only. `GpuPostEffect` is the one contract every GPU pass honours
+  (`render`/`dispose`/`isFailed`); `GpuBloomPass` now declares it unchanged.
+  `GpuHdrPass` captures FB0 into a scene texture, runs a fullscreen tonemap and
+  writes back into the swap buffer, zero CPU readback, same GL state bracket and
+  never-throws latch; its GLSL is `HdrKernel.curve` transcribed. `PostProcessCanvas`
+  generalizes the old single-pass `BloomCanvas` into an ordered `GpuPostEffect`
+  chain that skips any failed link inside one `preSwap` (`BloomCanvas` removed).
+  `PostProcessPlan.decideHdr` answers the GPU route or NONE, never a half-applied
+  software curve. `WorldViewer` builds the chain from both decisions and adds
+  `getHdrDecision()`. `HdrKernelTest` (12), `GpuHdrPassTest` (5) and the four
+  `decideHdr` branches in `PostProcessPlanTest`; the on-screen GL pass is
+  probe-gated like the bloom.
+- **P3.4 Fast-approximate anti-aliasing - delivered, wired on the post chain.**
+  Soften the edges of the very image the eye is shown, run LAST. Delivered in
+  `wonderland-renderer/post`: `FxaaKernel` is FXAA's published subpixel stage --
+  the local-contrast edge gate plus the subpixel blend toward the four-neighbour
+  average, using Lottes's `FXAA_SUBPIX_TRIM` 1/4 and its `1/(1-trim)` scale,
+  clamped by the subpixel quality -- reusing `HdrKernel`'s luminance and `Frame` so
+  the whole chain agrees on one definition of "how bright". It is the subpixel
+  stage only, not FXAA's directional span search, and claims no more.
+  `GpuFxaaPass` captures FB0, runs a fullscreen subpixel pass and writes back,
+  zero readback, same GL state bracket and never-throws latch; `FXAA_FRAG` is
+  `FxaaKernel` transcribed. `PostProcessPlan.decideFxaa` answers the GPU route or
+  NONE. `WorldViewer` appends the pass last and adds `getFxaaDecision()`.
+  `FxaaKernelTest` (9) -- a flat frame is byte-for-byte unchanged, the gate needs
+  both floor and luma fraction, an isolated impulse is pulled toward its average
+  by exactly the published weight and nothing else moves, alpha carried through --
+  `GpuFxaaPassTest` (5) and the four `decideFxaa` branches. Probe-gated GL pass.
+- **P3.5 Depth of field - delivered, wired on the post chain.** Defocus by depth,
+  after the tone map and before FXAA so the gather works on the display-referred
+  image and the anti-alias still runs last. Delivered in `wonderland-renderer/post`:
+  `DofKernel` is the scatter-as-gather defocus in pure Java -- the circle of
+  confusion a normalised depth implies (`clamp01` of the depth error over the
+  focus band, symmetric about the focus), the `round(coc * maxRadiusPx)` gather
+  radius, and a disc average that skips an out-of-frame or outside-the-disc sample
+  and divides by the count it kept -- reusing `HdrKernel.Frame`. `GpuDofPass` is the
+  first link to blit DEPTH beside colour (`GL_COLOR_BUFFER_BIT |
+  GL_DEPTH_BUFFER_BIT`, `GL_NEAREST` as a depth blit requires) into a paired
+  `GL_DEPTH_COMPONENT24` attachment, because at `preSwap` the depth the renderer
+  just wrote is still GPU-resident; `DOF_FRAG` is `DofKernel.gather` transcribed.
+  `PostProcessPlan.decideDof` answers the GPU route or NONE. `WorldViewer` inserts
+  the pass between the tone map and FXAA and adds `getDofDecision()`; the scene
+  depth survives bloom and the tone map (both write only colour), so DOF reads the
+  true depth wherever it sits. `DofKernelTest` (10) -- the CoC is 0 at the focus,
+  monotonic, symmetric and saturating, the radius caps, a zero max radius is the
+  exact identity, a uniform frame survives ANY depth field untouched (the invariant
+  that proves the gather invents no detail), a focus pixel stays sharp while a far
+  pixel blurs -- `GpuDofPassTest` (5) and the four `decideDof` branches. Probe-gated
+  GL pass.
 
 ### P4 - Spatial audio (build, not re-wire)
 
