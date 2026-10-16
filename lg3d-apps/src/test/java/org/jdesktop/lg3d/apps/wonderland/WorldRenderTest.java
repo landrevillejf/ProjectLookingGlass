@@ -119,23 +119,26 @@ class WorldRenderTest {
     }
 
     @Test
-    @DisplayName("the JOGL preview path is off unless the probe switches it on")
-    void joglPreviewIsOptIn() {
+    @DisplayName("the JOGL preview path is the default; only an explicit false keeps java3d")
+    void joglPreviewIsTheDefault() {
         String previous = System.getProperty(WorldRender.JOGL_PREVIEW_PROPERTY);
         try {
+            // Unset: the cutover made JOGL the shipped desktop's preview renderer,
+            // proven at parity across all eight worlds by the P2.5 probe.
             System.clearProperty(WorldRender.JOGL_PREVIEW_PROPERTY);
-            assertFalse(WorldRender.joglPreviewEnabled(),
-                    "the shipped desktop must keep the java3d preview by default");
+            assertTrue(WorldRender.joglPreviewEnabled(),
+                    "the shipped desktop now renders previews through JOGL by default");
 
+            // An explicit false (either case) is the escape hatch back to java3d,
+            // so a user can keep the old WorldViewer until the cutover deletes it.
+            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "false");
+            assertFalse(WorldRender.joglPreviewEnabled());
+            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "FALSE");
+            assertFalse(WorldRender.joglPreviewEnabled());
+
+            // Anything else -- including the probe's own "true" -- stays on JOGL.
             System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "true");
             assertTrue(WorldRender.joglPreviewEnabled());
-
-            // Anything that is not literally "true" stays off, so a stray value
-            // never silently swaps the renderer out from under a user.
-            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "yes");
-            assertFalse(WorldRender.joglPreviewEnabled());
-            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "");
-            assertFalse(WorldRender.joglPreviewEnabled());
         } finally {
             if (previous == null) {
                 System.clearProperty(WorldRender.JOGL_PREVIEW_PROPERTY);

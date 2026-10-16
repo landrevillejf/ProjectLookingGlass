@@ -64,13 +64,14 @@ public final class WorldRender {
     private static final long PREVIEW_POLL_MS = 250;
 
     /**
-     * The opt-in switch (P2.4c) that renders the preview through the JOGL path
-     * -- {@link GlWorldBuilder} into a {@link GlWorldViewer} -- instead of the
-     * java3d {@link WorldViewer}. Off by default, so the working renderer is never
-     * swapped out from under a user mid-flight; the P2.5 probe passes
-     * {@code -Dlg.wonderland.jogl=true} to measure the JOGL path across all eight
-     * worlds, and the cutover only deletes the java3d files once that probe proves
-     * parity. Read once per preview through {@link #joglPreviewEnabled()}.
+     * The switch that picks the preview's renderer: the JOGL path
+     * ({@link GlWorldBuilder} into a {@link GlWorldViewer}) or the java3d
+     * {@link WorldViewer}. JOGL is the DEFAULT now -- the P2.5 probe proved all
+     * eight worlds render at parity through it (PR #412) -- so the shipped desktop
+     * previews through JOGL and this property is the escape hatch back: set
+     * {@code -Dlg.wonderland.jogl=false} to keep the java3d {@link WorldViewer}
+     * until the cutover deletes it. Read once per preview through
+     * {@link #joglPreviewEnabled()}.
      */
     static final String JOGL_PREVIEW_PROPERTY = "lg.wonderland.jogl";
 
@@ -644,13 +645,15 @@ public final class WorldRender {
     }
 
     /**
-     * Whether the JOGL preview path is switched on. Off unless
-     * {@code -Dlg.wonderland.jogl=true} (the P2.5 probe), so the shipped desktop
-     * keeps rendering previews through the java3d {@link WorldViewer} and the JOGL
-     * path is measured beside it, never instead of it, until the cutover.
+     * Whether the JOGL preview path is on. It is the DEFAULT: the cutover made the
+     * probe-proven JOGL renderer the shipped desktop's preview path, so this is true
+     * unless the property is explicitly set to {@code false} (case-insensitive) --
+     * the escape hatch back to the java3d {@link WorldViewer} while it still exists.
+     * Any other value, including the probe's own {@code true} and an unset property,
+     * stays on JOGL.
      */
     static boolean joglPreviewEnabled() {
-        return Boolean.parseBoolean(System.getProperty(JOGL_PREVIEW_PROPERTY));
+        return !"false".equalsIgnoreCase(System.getProperty(JOGL_PREVIEW_PROPERTY));
     }
 
     /**
