@@ -13,13 +13,17 @@
  *
  *   OFFSCREEN_READBACK is the live-3D path: the scene rendered into an
  *   offscreen image, bloomed, and composited back per frame. The fork's
- *   Canvas3D can render offscreen, but a per-frame readback round trip has
- *   never been measured here, and the fork has no scene-to-texture path a
- *   shader could sample -- so this route is PROBE-GATED: it may not be
- *   enabled on an assumption, only on a WlProbe run that measured the frame
- *   cost on a real card.
+ *   Canvas3D can render offscreen, and WlProbe52 has now MEASURED the
+ *   per-frame readback round trip on the reference card (GL 4.6 Mesa
+ *   radeonsi): ~128 ms for a 640x363 capture-convert-bloom and ~419 ms for a
+ *   native 1920x1080 software bloom -- correct, and it glowed a captured live
+ *   frame (the halo around a hot quad lifted 69 -> 76), but far under a
+ *   real-time rate. The fork still has no scene-to-texture path a shader could
+ *   sample, so this route stays PROBE-GATED: it may be enabled only where that
+ *   measured cost is affordable -- a still, an on-demand snapshot or a reduced
+ *   resolution -- never per-frame at native res on an assumption.
  *
- *   SOFTWARE_CAPTURE is always available and is what BloomKernel serves
+ *   SOFTWARE_CAPTURE is always available and is what BloomPass serves
  *   today: bloom the captured probe image, bloom the 2D desktop's
  *   composites. Slower per frame, but it is the truth the eye probe can
  *   inspect NOW, headless, without a driver in the room.
@@ -73,7 +77,10 @@ public final class PostProcessPlan {
                     "a probe measured the offscreen round trip as usable");
         }
         return new Decision(Path.SOFTWARE_CAPTURE,
-                "the live route stays probe-gated: no measured readback cost exists yet "
-                        + "for this fork's per-frame offscreen round trip");
+                "the live route stays probe-gated: WlProbe52 measured this fork's "
+                        + "per-frame offscreen round trip at ~128 ms for 640x363 and "
+                        + "~419 ms for a native 1920x1080 software bloom -- it glows "
+                        + "correctly but not at a real-time rate, so it is confined to "
+                        + "stills and reduced resolution");
     }
 }

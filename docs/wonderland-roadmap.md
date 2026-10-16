@@ -23,7 +23,7 @@ and the per-module `AGENTS.md`.
 | Environment (reflection / refraction) | **Live, cube beside diffuse** | `EnvironmentPlan` carries a full GLSL 1.20 vertex+fragment pair and `J3dMeshFactory.buildEnvAppearance` binds the lit diffuse on unit 0 and a `samplerCube` on unit 1, laying `reflect`/`refract` cube lookups weighted by Schlick fresnel over the lit base. `WlProbe50` proved a cube map samples its own face live (+X red / +Y green / +Z blue) once faces go on with this fork's `setImage(LEVEL, FACE, image)` order; `WlProbe51` drove the shipping `createShape` and read a red diffuse quad `(255,0,0)` become `(230,97,110)` once an environment cube was attached at half reflectivity. `CubeMapArt` is the procedural sky gradient a glossy cell samples (no shipped world names a real cube image). Opt-in like P2.2 (`lg.wonderland.shader` + `lit()` + a cube map), so a pre-P2.5 world changes no pixel. |
 | Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). PBR, HDR, bloom, shadow *maps* and DOF remain absent -- `PostProcessPlan` says why: the fork has no scene-to-texture post pipeline, so a full-frame pass is a `Canvas3D` readback, not a GPU chain. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). Bloom is delivered as `BloomKernel` + `PostProcessPlan` + the `BloomPass` seam (P3.2): `WlProbe52` measured the readback round trip (~128 ms at 640x363, ~419 ms native) and proved it glows a captured live frame, so the software-capture route is real and tested while a per-frame native GPU chain stays absent - the fork has no scene-to-texture pipeline. PBR, HDR, shadow *maps* and DOF remain absent for that same reason. |
 | Audio | **Built, wired, silent until a world ships sound** | `wonderland-client/audio`: `SpatialAudio` (the gain and pan kernel), `AudioManager` (the lifecycle owner), `JavaSoundBackend` behind an `AudioBackend` seam; `WorldViewer.installAudio` points the listener at the live pose. The 2006 client's spatial audio was **not carried over** -- this is the fresh build, and no shipped world has audio assets to play. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
@@ -96,6 +96,17 @@ X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
   green and blue lifted by the sampled sky gradient while the diffuse kept it
   red-dominant. An unbound cube samples black and would have left green and blue
   at zero, so the tint separates "the cube bound" from "the cube read nothing".
+- **WlProbe52** - the `PostProcessPlan` gate the P3.2 live route waits on, now
+  MEASURED rather than assumed: the probe ran the fork's readback round trip on
+  the live display - `readRaster` a frame, convert to packed ARGB, bloom it
+  through the wired `BloomPass` - across two runs at ~58-167 ms for a 640x363
+  frame and ~368-419 ms for a native 1920x1080 software bloom. It proved the
+  bloom is correct on a LIVE capture, not just a synthetic array: the halo around
+  a hot white quad lifted from luminance 69 to 76, lit pixels grew 50,176 ->
+  54,644, and the wired `BloomPass` produced byte-identical pixels to the raw
+  `BloomKernel`. So the round trip WORKS - a software-capture bloom is real - and
+  its cost is the number that keeps the per-frame native `OFFSCREEN_READBACK`
+  route gated instead of shipping a desktop at 2-8 fps.
 
 What this buys: real GPU per-pixel lighting was earlier (wrongly) filed as a
 platform impossibility; it is now live and wired, and a layered material lights
@@ -324,18 +335,30 @@ much visible value each unlocks per unit of risk.
   the ride. **Now wired** (`WorldViewer`): the eye glides toward its target
   through `FollowRig`'s smoothing on a frame timer instead of teleporting, and
   `-Dlg.wonderland.camera=off` restores the instant-step walk.
-- **P3.2 Post-processing - delivered at the documented ceiling (stretch).** A
+- **P3.2 Post-processing - delivered at the measured ceiling (stretch).** A
   bloom/HDR pass via `Canvas3D` offscreen buffer. **Marked stretch**: bounded
   by the Java 3D 1.7.2 ceiling above. Delivered in `wonderland-renderer/post`:
   `BloomKernel` - the three operations every bloom is (smooth-kneed bright
   pass, separable clamped box blur, saturating add) as pure arithmetic on
-  packed ARGB pixels -- and `PostProcessPlan`, which states the live-3D truth
-  as a checked decision: the fork has no scene-to-texture post pipeline, so
-  the per-frame `OFFSCREEN_READBACK` route is probe-gated on a MEASURED
-  readback cost, and until a `WlProbe` run produces that measurement the
-  route is `SOFTWARE_CAPTURE` -- blooming probe captures and 2D composites,
-  headless, today. The ceiling is the deliverable's shape, not an apology:
-  the kernel is the reference any future GPU pass must match pixel for pixel.
+  packed ARGB pixels -- `PostProcessPlan`, which states the live-3D truth as a
+  checked decision, and now `BloomPass`, the seam a real capture calls: hand it
+  the frame a `readRaster` or a 2D composite produced plus what the host knows,
+  and it returns what the plan allows -- the exact identity for `NONE`, the
+  bloomed frame otherwise, bridging a `BufferedImage` to the kernel and back.
+  The measurement the plan was gated on now exists: `WlProbe52` ran the round
+  trip on the live display and measured ~128 ms for a 640x363
+  capture-convert-bloom and ~419 ms for a native 1920x1080 software bloom on the
+  reference card, and it PROVED the pass glows a captured LIVE frame - the halo
+  around a hot quad lifted from luminance 69 to 76, lit pixels grew by 4,468 -
+  through the wired `BloomPass`, byte-identical to the raw kernel. So the fork's
+  `OFFSCREEN_READBACK` route is real and correct but costs far more than a
+  real-time frame at native resolution, which is why `PostProcessPlan` keeps it
+  gated behind `READBACK_PROBED_USABLE` and the shipping default stays
+  `SOFTWARE_CAPTURE` -- blooming stills, on-demand snapshots, probe captures and
+  2D composites, headless, today. The ceiling is the deliverable's shape, not an
+  apology: the kernel is the reference any future GPU pass must match pixel for
+  pixel, and the measured number is what a reduced-resolution or on-demand live
+  pass would have to beat.
 
 ### P4 - Spatial audio (build, not re-wire)
 
