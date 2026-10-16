@@ -105,13 +105,15 @@ public final class ShaderAppearancePlan {
      *       proved shade per fragment (facing 255,255,255 vs grazing 31,31,31).</li>
      *   <li>WlProbe40: one {@code sampler2D} bound through {@code TextureUnitState}
      *       samples correctly.</li>
-     *   <li>WlProbe42: this fork binds exactly ONE texture per program -- a second
-     *       {@code sampler2D} reads the first unit's image, not its own. So the
-     *       normal- and specular-map stages are present and correct, but a host
-     *       that can supply only the diffuse texture leaves {@code hasNormalMap /
-     *       hasSpecMap} at 0 and they are never sampled; the multi-layer effect
-     *       needs a direct-JOGL program that binds its own samplers (the roadmap's
-     *       Platform ceiling), which is out of this fixed-pipeline pass.</li>
+     *   <li>WlProbe48: this fork binds EVERY texture unit to its own sampler once
+     *       the sampler is named on the program AND assigned its unit through a
+     *       {@code ShaderAttributeValue} -- it measured three distinct textures
+     *       (diffuse/normal/spec) live on one program. WlProbe42's earlier "one
+     *       texture only" reading was a binding omission, not a platform limit: it
+     *       set two {@code TextureUnitState}s but never assigned the second sampler
+     *       a unit, so both defaulted to unit 0. The normal- and specular-map stages
+     *       are therefore real and sampled whenever the host supplies those layers
+     *       ({@code hasNormalMap / hasSpecMap} set from what actually resolved).</li>
      * </ul>
      * The specular half-vector is therefore the eye-space view direction
      * ({@code vViewDir}), not {@code gl_LightSource[0].halfVector}.</p>
@@ -138,11 +140,13 @@ public final class ShaderAppearancePlan {
             // P2.2 layered-material fragment stage: one directional light supplied
             // as OUR OWN uniforms (the scene Light is inert here -- see the class
             // note), Blinn-Phong against the eye-space view vector, tangent-space
-            // normal on unit 1 and a specular mask on unit 2 only when the host
-            // actually bound those layers (hasNormalMap / hasSpecMap). A host that
-            // can bind just the diffuse texture -- which is this fork's measured
-            // single-texture ceiling -- passes 0 for both and gets per-pixel
-            // lighting, not a broken multi-sampler read.
+            // normal on its own unit and a specular mask on the one after, each
+            // sampled whenever the host bound that layer (hasNormalMap /
+            // hasSpecMap). WlProbe48 measured every unit binding its own sampler
+            // once the sampler is named and assigned a unit, and WlProbe49 proved
+            // the shipping factory's normal map perturbs the lighting; a host that
+            // binds just the diffuse passes 0 for both and gets per-pixel lighting
+            // off the diffuse alone.
             varying vec3 vEyeNormal;
             varying vec3 vViewDir;
             uniform sampler2D diffuseMap;

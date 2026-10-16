@@ -2610,6 +2610,39 @@ work to make it build and run on a current toolchain.
   so the refusal branch was dead code and a mutant no test could kill; the call
   sites now cast, naming the invariant in the javadoc instead of checking it.
 
+### Fixed
+- **A lit material's normal and specular maps are bound again — roadmap P2.1,
+  multi-texture** (`wonderland-renderer`) — `J3dMeshFactory.buildShaderAppearance`
+  resolved a material's `normalMapPath`/`specularMapPath` upstream, then bound
+  only the diffuse `TextureUnitState` and hard-coded `hasNormalMap =
+  hasSpecMap = 0`, so every lit surface shaded flat off its diffuse and the extra
+  layers were parsed, named and thrown away. The omission was hidden behind a
+  false platform ceiling: `WlProbe42` had "measured" this fork as binding exactly
+  one texture per program because a second `sampler2D` appeared to re-read unit 0
+  — but the probe set two `TextureUnitState`s and never assigned the second
+  sampler a unit, and an unassigned GLSL sampler defaults to unit 0. That is a
+  binding bug in the probe, not a limit in the fork. `WlProbe48` settled it: three
+  distinct textures (diffuse/normal/spec) render live on one program once each
+  sampler is named on the program (`setShaderAttrNames`) **and** assigned its unit
+  through a `ShaderAttributeValue(samplerName, unitIndex)`. `buildShaderAppearance`
+  now does exactly that — diffuse on unit 0, the normal map on the next unit, the
+  specular mask on the one after, each sampler declared and bound only for a layer
+  whose bytes actually resolved, with `hasNormalMap`/`hasSpecMap` set from what
+  resolved so a missing layer stays off and is never sampled unbound.
+  `WlProbe49` drove the shipping `createShape` on the repo's live X:0 / GL 4.6
+  radeonsi context and measured the fix: a lit facing quad read `(255,255,255)`
+  on its diffuse and `(56,56,56)` once a tangent normal map was attached, the map
+  tilting the interpolated normal off the key — identical quads, so the delta is
+  the normal unit binding and sampling, not a lighting change. The default path is
+  untouched: the shader route stays opt-in (`-Dlg.wonderland.shader=true`), a
+  pre-lit material never asks to be shaded, and a material with no extra layers
+  still binds one unit — so a world whose art carries no normal/spec map draws the
+  pixels it always drew. The retracted ceiling was also corrected where it was
+  cited: `ShaderAppearancePlan`'s GLSL notes and `docs/wonderland-roadmap.md`
+  (Normal mapping row, Platform ceiling, P2.1, and the P2.5 env basis — which now
+  honestly narrows to "a `samplerCube` beside a diffuse is unmeasured", not "one
+  texture is the max").
+
 ## [1.68.0] — 2026-10-11 — Gradle / JDK 21 modernization
 
 ### Fixed

@@ -84,12 +84,16 @@ public final class J3dMeshFactory {
      * program (per-pixel Blinn-Phong) or the fixed pipeline. <b>OFF by default</b>
      * so a pre-lit world is byte-identical to every prior probe run; {@code
      * -Dlg.wonderland.shader=true} turns the validated route on. The decision rests
-     * on measurement, not assumption (build-gradle/scratch/WlProbe39..42, run on the
+     * on measurement, not assumption (build-gradle/scratch/WlProbe39..48, run on the
      * repo's live X:0 / GL 4.6 context): a {@code ShaderAppearance}'s OWN uniforms
      * shade per fragment because the scene {@code Light} does NOT reach a custom
-     * program, and one {@code TextureUnitState} binds one {@code sampler2D} -- this
-     * fork exposes exactly one texture per program, so a lit material lights from
-     * its diffuse while the normal/spec stages stay recorded and unapplied.
+     * program, and EVERY {@code TextureUnitState} binds its own {@code sampler2D}
+     * once the sampler is named on the program and assigned its unit -- WlProbe48
+     * measured three distinct textures (diffuse/normal/spec) live on one program.
+     * WlProbe42's earlier "one texture only" reading was a binding omission, not a
+     * platform limit: it never assigned the second sampler a unit, so it defaulted
+     * to unit 0. A lit material therefore lights per pixel from its diffuse AND its
+     * normal and specular layers whenever the art carries them.
      */
     private final boolean shaderRoute;
 
@@ -308,7 +312,7 @@ public final class J3dMeshFactory {
         // the layered-but-unapplied route: pixels unchanged, layers recorded.
         //
         // That note is now superseded by measurement. A WlProbe run validated the
-        // fork's shader API (WlProbe39..42), so a lit material that actually
+        // fork's shader API (WlProbe39..49), so a lit material that actually
         // carries a texture goes to a real per-pixel Blinn-Phong ShaderAppearance
         // built by buildShaderAppearance below. The gate is triply conservative --
         // the shaderRoute flag (off by default), ma.lit() (a pre-lit material never
@@ -431,19 +435,59 @@ public final class J3dMeshFactory {
     }
 
     /**
-     * The GPU route for one lit material (roadmap P2.2/P0.1). Builds the corrected
-     * P2.2 Blinn-Phong program, hands it the scene key as the program's OWN
-     * uniforms (the scene Light is inert here -- WlProbe39), and binds the one
-     * texture this fork exposes to {@code diffuseMap}. The normal/spec stages are
-     * switched off because a second {@code sampler2D} would read the same unit
-     * (WlProbe42), so the material lights per pixel from its diffuse and nothing
-     * samples an unbound unit.
+     * The GPU route for one lit material (roadmap P2.2/P2.1/P0.1). Builds the
+     * Blinn-Phong program, hands it the scene key as the program's OWN uniforms
+     * (the scene Light is inert here -- WlProbe39), and binds EVERY resolved layer
+     * to its own texture unit by name: diffuse on unit 0, the tangent-space normal
+     * map on the next unit, the specular mask on the one after -- each sampler
+     * declared on the program (WlProbe40) and assigned its unit through a
+     * {@code ShaderAttributeValue} (the step WlProbe42 skipped, which is why it
+     * mis-read the fork as single-texture; WlProbe48 measured three units live).
+     * {@code hasNormalMap}/{@code hasSpecMap} now reflect what actually resolved,
+     * so a layer whose bytes are missing stays off and is never sampled unbound.
      */
     private Appearance buildShaderAppearance(MaterialAppearance ma, Served diffuse) {
         ShaderAppearance sa = new ShaderAppearance();
         sa.setCapability(Appearance.ALLOW_TEXTURE_UNIT_STATE_WRITE);
         sa.setCapability(ShaderAppearance.ALLOW_SHADER_PROGRAM_WRITE);
         sa.setCapability(ShaderAppearance.ALLOW_SHADER_ATTRIBUTE_SET_WRITE);
+
+        // Resolve every layer the art actually carries BEFORE naming the program's
+        // attributes, so a sampler is declared (and a unit assigned) only for a
+        // texture that is really there -- an unbound sampler2D defaults to unit 0,
+        // which is exactly the mis-binding WlProbe42 mistook for a platform limit.
+        java.util.List<String> attrNames = new java.util.ArrayList<>();
+        attrNames.add("lightDirection");
+        attrNames.add("lightColor");
+        attrNames.add("ambientColor");
+        attrNames.add("shininess");
+        attrNames.add("hasSpecMap");
+        attrNames.add("hasNormalMap");
+        attrNames.add("diffuseMap");
+
+        java.util.List<TextureUnitState> units = new java.util.ArrayList<>();
+        ShaderAttributeSet uniforms = new ShaderAttributeSet();
+        // Unit 0 is always the diffuse the caller already resolved.
+        units.add(new TextureUnitState(diffuse.texture(), null, null));
+        uniforms.put(new ShaderAttributeValue("diffuseMap", Integer.valueOf(0)));
+
+        int hasNormalMap = 0;
+        Served normal = ma.hasNormalMap() ? loadTexture(ma.normalMapPath()) : null;
+        if (normal != null) {
+            attrNames.add("normalMap");
+            uniforms.put(new ShaderAttributeValue("normalMap", Integer.valueOf(units.size())));
+            units.add(new TextureUnitState(normal.texture(), null, null));
+            hasNormalMap = 1;
+        }
+
+        int hasSpecMap = 0;
+        Served spec = ma.hasSpecularMap() ? loadTexture(ma.specularMapPath()) : null;
+        if (spec != null) {
+            attrNames.add("specMap");
+            uniforms.put(new ShaderAttributeValue("specMap", Integer.valueOf(units.size())));
+            units.add(new TextureUnitState(spec.texture(), null, null));
+            hasSpecMap = 1;
+        }
 
         SourceCodeShader vert = new SourceCodeShader(
                 SourceCodeShader.SHADING_LANGUAGE_GLSL,
@@ -454,13 +498,12 @@ public final class J3dMeshFactory {
         GLSLShaderProgram program = new GLSLShaderProgram();
         program.setShaders(new Shader[] {vert, frag});
         program.setCapability(GLSLShaderProgram.ALLOW_SHADERS_READ);
-        // The fork rejects any uniform the program has not named first (WlProbe40).
-        program.setShaderAttrNames(new String[] {
-            "lightDirection", "lightColor", "ambientColor", "shininess",
-            "hasSpecMap", "hasNormalMap"});
+        // The fork rejects any uniform the program has not named first (WlProbe40),
+        // and a sampler reads its own unit only once it is named AND assigned one
+        // (WlProbe48) -- so the resolved sampler names ride in here too.
+        program.setShaderAttrNames(attrNames.toArray(new String[0]));
         sa.setShaderProgram(program);
 
-        ShaderAttributeSet uniforms = new ShaderAttributeSet();
         uniforms.put(new ShaderAttributeValue("lightDirection",
                 new Vector3f(lightDirX, lightDirY, lightDirZ)));
         uniforms.put(new ShaderAttributeValue("lightColor",
@@ -469,13 +512,12 @@ public final class J3dMeshFactory {
                 new Color3f(ambientRed, ambientGreen, ambientBlue)));
         uniforms.put(new ShaderAttributeValue("shininess",
                 Float.valueOf(ma.shininess())));
-        uniforms.put(new ShaderAttributeValue("hasSpecMap", Integer.valueOf(0)));
-        uniforms.put(new ShaderAttributeValue("hasNormalMap", Integer.valueOf(0)));
+        uniforms.put(new ShaderAttributeValue("hasSpecMap", Integer.valueOf(hasSpecMap)));
+        uniforms.put(new ShaderAttributeValue("hasNormalMap", Integer.valueOf(hasNormalMap)));
         sa.setShaderAttributeSet(uniforms);
 
-        // One texture, unit 0, reached by the program's diffuseMap sampler.
-        sa.setTextureUnitState(new TextureUnitState[] {
-            new TextureUnitState(diffuse.texture(), null, null)});
+        // One TextureUnitState per resolved layer, each bound to its own sampler.
+        sa.setTextureUnitState(units.toArray(new TextureUnitState[0]));
 
         float alpha = ma.alpha();
         if (alpha < 1.0f) {
