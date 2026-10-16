@@ -10,6 +10,42 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A captured frame can bloom now — roadmap P3.2, the software-capture pass wired and measured** (`wonderland-renderer`) —
+  `BloomKernel` had shipped the three operations every bloom is (smooth-kneed
+  bright pass, separable clamped box blur, saturating add) as pure arithmetic on
+  packed ARGB pixels, and `PostProcessPlan` the checked decision about where a
+  bloom may run, but nothing called either: the software-capture route the plan
+  named "always available" was prose, and the live `OFFSCREEN_READBACK` route was
+  gated on a readback measurement nobody had taken. `BloomPass` is the seam that
+  makes the software route real — hand it the frame a `readRaster` or a 2D
+  composite produced plus what the host knows, and it consults the plan and
+  returns what it allows: the exact identity (the same object, not a copy) for
+  `NONE`, so a world that never asked for a glow is untouched by the pass being
+  wired, and the bloomed frame otherwise, bridging a `BufferedImage` to the kernel
+  and back. `WlProbe52` then took the measurement the live route waits on, on the
+  repo's own X:0 / GL 4.6 radeonsi display: it ran the fork's readback round trip
+  — capture the live canvas, convert to packed ARGB, bloom it through the wired
+  `BloomPass` — and timed it at ~128 ms for a 640x363 frame and ~419 ms for a
+  native 1920x1080 software bloom. It proved the bloom correct on a LIVE capture,
+  not just a synthetic array: the halo around a hot white quad lifted from
+  luminance 69 to 76, lit pixels grew 50,176 → 54,644, total luminance rose by
+  151,336, and the wired `BloomPass` produced byte-identical pixels to the raw
+  `BloomKernel`. So the round trip WORKS — a software-capture bloom is real and
+  now has a caller — but it costs far more than a real-time frame at native
+  resolution, which is the honest reason `PostProcessPlan` keeps the per-frame
+  `OFFSCREEN_READBACK` route gated behind `READBACK_PROBED_USABLE` (its reason now
+  cites the measured number rather than "no measurement exists yet") and the
+  shipping default stays `SOFTWARE_CAPTURE`: stills, on-demand snapshots, probe
+  captures and 2D composites. **11 new headless cases** (`BloomPassTest`): the
+  default settings are the ones the probe measured, every negative magnitude is
+  refused, `NONE` and a null decision are the pixel-perfect identity (same object
+  back), a null frame or image is returned null rather than invented, a bloom path
+  glows a hot spot's dark neighbour, `OFFSCREEN_READBACK` blooms identically to
+  `SOFTWARE_CAPTURE`, the capability overload decides-then-applies, null settings
+  fall back to the default, the `BufferedImage` seam carries alpha and round-trips
+  pixels exactly, and the plan's reason now cites the measurement. No shipped
+  world changes a pixel: nothing asks for bloom, so the pass is the identity until
+  a host opts in.
 - **A glossy surface now reflects the sky — roadmap P2.5, environment cube map wired and measured** (`wonderland-renderer`) —
   `EnvMapKernel`, `EnvironmentPlan` and `CubeMapArt` had shipped the maths, the
   decision and a procedural six-face gradient, but nothing bound a cube map to a
