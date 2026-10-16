@@ -72,7 +72,8 @@ class CommsWebSocketHandlerTest {
         world = new WorldModel();
         registry = new SessionRegistry();
         router = new ProtocolRouter(world, registry);
-        handler = new CommsWebSocketHandler(router, registry);
+        handler = new CommsWebSocketHandler(router, registry,
+                new org.jdesktop.wonderland.server.auth.AuthGate(false, ""));
 
         main = new MockSocket("ws-test");
         socket = main.socket;

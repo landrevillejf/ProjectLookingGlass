@@ -6,6 +6,7 @@
  */
 package org.jdesktop.wonderland.server.ws;
 
+import org.jdesktop.wonderland.server.auth.AuthGate;
 import org.jdesktop.wonderland.server.comms.ProtocolRouter;
 import org.jdesktop.wonderland.server.comms.SessionRegistry;
 import org.springframework.context.annotation.Bean;
@@ -20,15 +21,18 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ProtocolRouter router;
     private final SessionRegistry registry;
+    private final AuthGate authGate;
 
-    public WebSocketConfig(ProtocolRouter router, SessionRegistry registry) {
+    public WebSocketConfig(ProtocolRouter router, SessionRegistry registry,
+            AuthGate authGate) {
         this.router = router;
         this.registry = registry;
+        this.authGate = authGate;
     }
 
     @Bean
     public CommsWebSocketHandler commsWebSocketHandler() {
-        return new CommsWebSocketHandler(router, registry);
+        return new CommsWebSocketHandler(router, registry, authGate);
     }
 
     @Override

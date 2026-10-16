@@ -32,7 +32,8 @@ class WebSocketConfigTest {
         WorldModel world = new WorldModel();
         SessionRegistry registry = new SessionRegistry();
         ProtocolRouter router = new ProtocolRouter(world, registry);
-        WebSocketConfig config = new WebSocketConfig(router, registry);
+        WebSocketConfig config = new WebSocketConfig(router, registry,
+                new org.jdesktop.wonderland.server.auth.AuthGate(false, ""));
 
         WebSocketHandlerRegistry handlers = mock(WebSocketHandlerRegistry.class);
         WebSocketHandlerRegistration registration = mock(WebSocketHandlerRegistration.class);
@@ -57,7 +58,8 @@ class WebSocketConfigTest {
         WorldModel world = new WorldModel();
         SessionRegistry registry = new SessionRegistry();
         ProtocolRouter router = new ProtocolRouter(world, registry);
-        WebSocketConfig config = new WebSocketConfig(router, registry);
+        WebSocketConfig config = new WebSocketConfig(router, registry,
+                new org.jdesktop.wonderland.server.auth.AuthGate(false, ""));
 
         assertThat(config.commsWebSocketHandler())
                 .isInstanceOf(CommsWebSocketHandler.class);
