@@ -111,4 +111,51 @@ class EnvironmentPlanTest {
                 .contains("refract(I, N, eta)")
                 .contains("pow(1.0 - cosT, 5.0)"); // Schlick, matching EnvMapKernel.fresnel
     }
+
+    @Test
+    void theFragmentStageReadsPerVertexVaryingsNotOneUniformEyeVector() {
+        // The defect the earlier draft carried: eyeDirection / surfaceNormal as
+        // UNIFORMS give the whole surface one reflection direction, so it reads
+        // flat -- the very thing an environment pass exists to avoid. The fixed
+        // stage takes the eye vectors as the varyings ENV_VERTEX_GLSL writes and
+        // derives the incident ray from the view direction, matching the kernel's
+        // "incident travels toward the surface" convention (I = -vViewDir).
+        assertThat(EnvironmentPlan.ENV_FRAGMENT_GLSL)
+                .contains("varying vec3 vEyeNormal;")
+                .contains("varying vec3 vViewDir;")
+                .contains("normalize(-vViewDir)")
+                .doesNotContain("uniform vec3 eyeDirection")
+                .doesNotContain("uniform vec3 surfaceNormal");
+    }
+
+    @Test
+    void theFragmentStageBlendsTheEnvironmentOverASampledDiffuseBase() {
+        // A program that reads gl_FragColor before writing it is undefined: the
+        // fixed stage samples the diffuse, lights it, then lays the environment
+        // over that lit base at the material's reflectivity -- the composite
+        // EnvMapKernel.composite spells as mix(base, mix(refr, refl, fresnel),
+        // coverage). One write to gl_FragColor, at the end.
+        assertThat(EnvironmentPlan.ENV_FRAGMENT_GLSL)
+                .contains("uniform sampler2D diffuseMap;")
+                .contains("texture2D(diffuseMap, gl_TexCoord[0].st)")
+                .contains("mix(lit, env, clamp(envStrength, 0.0, 1.0))");
+        int writes = EnvironmentPlan.ENV_FRAGMENT_GLSL.split("gl_FragColor =", -1).length - 1;
+        assertThat(writes).as("gl_FragColor written exactly once, never read first").isEqualTo(1);
+        assertThat(EnvironmentPlan.ENV_FRAGMENT_GLSL)
+                .doesNotContain("mix(gl_FragColor.rgb");
+    }
+
+    @Test
+    void theVertexStageWritesTheVaryingsTheFragmentConsumes() {
+        // The fragment's vEyeNormal / vViewDir are only defined if a vertex stage
+        // writes them; a program with no vertex stage does not link. This is the
+        // same eye-space pair ShaderAppearancePlan.VERTEX_GLSL proved live, so the
+        // environment route reuses a stage a probe already validated.
+        assertThat(EnvironmentPlan.ENV_VERTEX_GLSL)
+                .contains("#version 120")
+                .contains("varying vec3 vEyeNormal;")
+                .contains("varying vec3 vViewDir;")
+                .contains("gl_NormalMatrix")
+                .contains("gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;");
+    }
 }

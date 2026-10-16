@@ -10,6 +10,44 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A glossy surface now reflects the sky — roadmap P2.5, environment cube map wired and measured** (`wonderland-renderer`) —
+  `EnvMapKernel`, `EnvironmentPlan` and `CubeMapArt` had shipped the maths, the
+  decision and a procedural six-face gradient, but nothing bound a cube map to a
+  live program: the environment fragment declared its eye and normal vectors as
+  UNIFORMS (one reflection direction for the whole surface, so it would read
+  flat), had no vertex stage to link against, and read `gl_FragColor` before
+  writing it — undefined. Two probes on the repo's live X:0 / GL 4.6 radeonsi
+  context settled the one unknown the route rested on and then drove the shipping
+  path. `WlProbe50` proved a `samplerCube` binds its own texture unit and samples
+  the correct face on this Jogamp fork — three quads each sampling one hardcoded
+  direction read +X red, +Y green, +Z blue back — once the faces go on with the
+  fork's `TextureCubeMap.setImage(LEVEL, FACE, image)` argument order: the first
+  index is the mip level (`checkImageSize` shifts the expected image size by it),
+  the second the face 0..5, so passing a face constant first reads it as a level
+  and throws "illegal image size" — the same class of binding omission that once
+  mis-read the fork as single-texture. `EnvironmentPlan` now carries a complete
+  GLSL 1.20 pair: `ENV_VERTEX_GLSL` writes the eye-space `vEyeNormal`/`vViewDir`
+  varyings P2.2 already proved live, and `ENV_FRAGMENT_GLSL` samples the diffuse,
+  lights it, then lays `reflect`/`refract` cube lookups weighted by Schlick
+  fresnel over that lit base at the material's reflectivity —
+  `EnvMapKernel.composite` spelled in shading language, so the headless kernel and
+  the program cannot disagree. `J3dMeshFactory.buildEnvAppearance` binds it: the
+  lit diffuse on unit 0, the shared procedural `TextureCubeMap` (built from
+  `CubeMapArt.gradientFaces()`, each face's pixels painted before attach) on unit
+  1, both samplers named and assigned their unit. `WlProbe51` drove the SHIPPING
+  `createShape` and read a lit red diffuse quad at `(255,0,0)` become `(230,97,110)`
+  once an environment cube was attached at half reflectivity — still red-dominant
+  (the diffuse bound) with its green and blue lifted by the sampled sky gradient
+  (the cube bound beside it); an unbound cube samples black and would have left
+  green and blue at zero, so the tint is the proof. The route is opt-in behind the
+  same triply-conservative gate as P2.2 (`lg.wonderland.shader`, `lit()`, a
+  resolved diffuse) plus `EnvironmentPlan.decide(...).appliesEnvironment()`, so a
+  material that names no cube map keeps the plain Blinn-Phong program and a
+  pre-P2.5 world changes not a pixel. **3 new headless cases**
+  (`EnvironmentPlanTest`): the fragment reads per-vertex varyings not one uniform
+  eye vector, it blends the environment over a sampled diffuse base with exactly
+  one `gl_FragColor` write, and the vertex stage writes the varyings the fragment
+  consumes.
 - **The environment has a source now — roadmap P2.5, default cube map** (`wonderland-renderer`) —
   `EnvMapKernel` and `EnvironmentPlan` had shipped the maths and the decision for
   reflection/refraction, but the first glossy material had no image to sample: no
