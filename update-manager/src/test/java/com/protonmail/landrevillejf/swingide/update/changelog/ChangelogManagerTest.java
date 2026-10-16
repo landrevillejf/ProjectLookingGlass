@@ -277,15 +277,20 @@ class ChangelogManagerTest {
     }
 
     @Test
-    void testUnreleasedSectionIsRenderedButNeverResolved() {
+    void testUnreleasedSectionIsNeitherRenderedNorResolved() {
         ChangelogManager manager = ChangelogManager.fromMarkdown(KEEP_A_CHANGELOG);
 
         // The header names itself Unreleased, so no release number resolves to it -
         // a user must not be shown work that has not shipped as their own upgrade -
-        // but the full listing still carries it.
+        // and the "what's new" listing drops it for the same reason: unreleased work
+        // is not new in any build the reader is running. The shipped release below it
+        // is still rendered, and the raw data still carries both halves.
         assertThat(manager.getEntry("1.69.0-dev")).isEmpty();
         assertThat(manager.getEntry("1.69.0")).isEmpty();
-        assertThat(manager.toHtml()).contains("Unreleased");
+        assertThat(manager.toHtml()).doesNotContain("Unreleased").contains("1.68.0");
+        assertThat(manager.getAllEntries())
+            .extracting(ChangelogManager.ChangelogEntry::getVersion)
+            .contains("Unreleased");
     }
 
     @Test
