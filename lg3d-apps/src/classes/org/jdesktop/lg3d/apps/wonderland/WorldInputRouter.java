@@ -2,7 +2,8 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c2: the desktop-side half of pick / input routing.
+ * lg3d-apps wonderland bridge (M6c2; moved out of wonderland-desktop): the
+ * desktop-side half of pick / input routing.
  *
  * lg3d owns the picking. Its PickEngine walks the canvas, and the desktop hands
  * an app a MouseEvent3D whose intersected nodes are ordered near to far -- which
@@ -14,7 +15,7 @@
  * input path that throws is an input path that kills the shell, so every failure
  * here is swallowed and the gesture stays with the desktop.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -26,6 +27,9 @@ import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMovedEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMotionEvent3D;
+import org.jdesktop.wonderland.desktop.PickDecision;
+import org.jdesktop.wonderland.desktop.PickIntent;
+import org.jdesktop.wonderland.desktop.PickRouter;
 
 /**
  * Turns the desktop's picked mouse events into {@link PickDecision}s and hands

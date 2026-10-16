@@ -1,36 +1,31 @@
-// wonderland-desktop: the M6c scene-graph bridge that mounts wonderland cells
-// into the lg3d desktop's virtual universe via Frame3D / Component3D.
+// wonderland-desktop: the PURE mount/routing half of the wonderland-in-lg3d
+// bridge -- the cell mount/unmount/transform/visibility bookkeeping (behind the
+// FrameMounter seam), the pick routing, the session feed and the HUD model.
 //
-// Depends on lg3d-core (the desktop widget wrapper API), wonderland-renderer
-// (the cell's BranchGroup to mount), wonderland-client (the Cell + session) and
-// wonderland-common (CellTransform, CellID, etc). This is the only wonderland
-// module that touches lg3d-core; the dependency is strictly one-way (lg3d-core
-// does NOT depend on any wonderland module).
+// The lg3d-coupled half (WonderlandDesktop, WonderlandWorldContainer,
+// WorldInputRouter, WonderlandDesktopPlugin -- the Component3D / Frame3D /
+// LgEventListener classes) lives in lg3d-apps' org.jdesktop.lg3d.apps.wonderland
+// package, so the dependency points the one way the architecture allows:
+// lg3d-apps -> wonderland-desktop, never wonderland -> lg3d. This module is
+// lg3d-free AND Java-3D-free: it depends only on wonderland-client (Cell +
+// session), wonderland-common (CellTransform, CellID) and wonderland-renderer
+// (WorldTransformMath's pure matrix feed -- no Java 3D type at the call site).
 //
-// Coverage model mirrors wonderland-renderer: the pure mapping / bookkeeping
-// logic is headless-tested with a FrameMounter seam; the actual Component3D /
-// Frame3D construction needs a live AppConnector + Jogamp canvas and is verified
-// by the in-JVM probe (lg3d-core/AGENTS.md), not asserted in CI.
+// Coverage model: the pure mapping / bookkeeping logic is headless-tested with a
+// FrameMounter recording stub; the live Component3D / Frame3D construction moved
+// to lg3d-apps and is verified by the in-JVM probe, not asserted in CI.
 
 jar { archiveBaseName = 'wonderland-desktop' }
 
 dependencies {
-    // The lg3d desktop widget API (Component3D, Frame3D, Container3D, Node).
-    implementation project(':lg3d-core')
     // The cell renderer seam + Cell types (Cell, CellRenderer, AvatarCell, etc).
     implementation project(':wonderland-client')
-    // The renderer's BranchGroup / ModelRenderer / AvatarRenderer / bootstrap.
+    // WorldTransformMath only: the pure node-matrix / CellTransform -> row-major
+    // double[16] feed CellFrameBridge hands its FrameMounter. The call site names
+    // no Java 3D type, so this module needs no java3d/vecmath compile dep.
     implementation project(':wonderland-renderer')
     // The pure data model (CellTransform, CellID, CellStatus, AvatarCellServerState).
     implementation project(':wonderland-common')
-    // The M4 plugin SPI (WonderlandPlugin, PluginContext).
-    implementation project(':wonderland-modules')
-
-    // Java 3D + vecmath transitively via lg3d-core; declared explicitly so the
-    // module's compile classpath is self-contained and the legacy-j3d gate
-    // recognizes org.jogamp.* imports without needing to trace transitivity.
-    implementation libs.java3d.core
-    implementation libs.vecmath
 
     // Headless JUnit 5 + AssertJ.
     testImplementation platform(libs.junit.bom)

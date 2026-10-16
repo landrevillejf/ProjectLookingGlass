@@ -24,7 +24,6 @@ import org.jdesktop.wonderland.client.comms.ConnectionFailureException;
 import org.jdesktop.wonderland.client.comms.WebSocketWonderlandSession;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.desktop.CellFrameBridge;
-import org.jdesktop.wonderland.desktop.WonderlandDesktop;
 import org.jdesktop.wonderland.desktop.WorldHudModel;
 
 /**

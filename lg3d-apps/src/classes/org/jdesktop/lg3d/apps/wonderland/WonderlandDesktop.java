@@ -2,9 +2,10 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c/M6c2: the bootstrap entry point that connects the
- * wonderland client session, installs the renderer, and mounts the world into
- * the lg3d desktop.
+ * lg3d-apps wonderland bridge (M6c/M6c2; moved out of wonderland-desktop so the
+ * only dependency points lg3d -> wonderland): the bootstrap entry point that
+ * connects the wonderland client session, installs the renderer, and mounts the
+ * world into the lg3d desktop.
  *
  * This class orchestrates the live path: it calls
  * WonderlandRendererBootstrap.install() to fill the AvatarRendererInstallers
@@ -19,7 +20,7 @@
  * scene manager as a frame, and installInputRouting(), which connects the
  * desktop's picks to the cells that want them.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import java.util.function.Consumer;
 import org.jdesktop.lg3d.wg.Frame3D;
@@ -27,6 +28,9 @@ import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.wonderland.client.cell.Cell;
 import org.jdesktop.wonderland.client.cell.CellRenderer;
 import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.desktop.CellFrameBridge;
+import org.jdesktop.wonderland.desktop.PickDecision;
+import org.jdesktop.wonderland.desktop.PickRouter;
 import org.jdesktop.wonderland.renderer.bootstrap.WonderlandRendererBootstrap;
 
 /**
