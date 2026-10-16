@@ -10,6 +10,37 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Walking through a room now says something — roadmap P1.2, triggers wired**
+  (`wonderland-common`, `wonderland-renderer`, `lg3d-apps`) — `TriggerZone` and
+  `TriggerField` had shipped as a tested enter/exit edge detector that nothing
+  drove: a walker could cross every doorway in a world and the world never learned
+  it. `WorldScene.triggerZones()` now derives one zone per placed cell straight from
+  the inventory the walk already builds — footprint as the horizontal half-extents,
+  blocking height as the vertical band — deliberately *derived* rather than authored,
+  because the 2006 `.mtg` format carries no trigger record and inventing a schema
+  nothing produces repeats the `CellSnapshot` mistake. `TriggerWatcher` is the small
+  stateful layer the renderer holds between frames: it primes the room the walker
+  starts in (so entry is not a spurious "enter" on the first frame), forwards each
+  crossed edge with the walker's real pose, and swallows a listener that throws so a
+  behaviour bug is silence, never a dropped frame. `WorldViewer` installs it once the
+  walk's first pose is chosen and drives it at the single place the eye is ever
+  written, behind the new `lg.wonderland.trigger` switch (`WorldFeatures`), walk-only,
+  and inert for a world with no volumes or no listener — so the pre-P1.2 walk is
+  byte-identical. The edge reaches P5 through the seam the dependency rule forces: the
+  renderer cannot import Mandela, so `WorldRender` — the walk-in host already running
+  the world's `behaviour.mnd` for cell labels — attaches a listener and
+  `WorldBehavior.triggerNote` binds `trigger`/`action`/`x`/`y`/`z` for one crossing,
+  its answer shown in the window title through a new `WorldViewer.setStatus`; a world
+  whose behaviour was written only for cells reads nothing here and stays silent. **13
+  new headless cases** (`TriggerWatcherTest` 5, `WorldSceneTest` `zonesOf` 2,
+  `WorldBehaviorTest` trigger crossings 6): crossing a zone fires exactly one enter
+  then one exit and never a per-frame echo, the start room is primed not fired, a
+  listener that throws cannot stop the edges after it, an empty world primes no zones,
+  every placed cell becomes one zone with its own footprint and band, and an
+  enter/exit crossing reaches a real `Mandela.eval` with its pose bound while a null,
+  blank, throwing or empty-valued script all collapse to no note. The crossing
+  decision, the priming and the behaviour note are headless-proven; the title changing
+  while a person walks is the probe-side half, exactly as P4.1 left its on-screen ear.
 - **The world writes itself down — roadmap P5.4, autosave wired** (`wonderland-server`) —
   `CellSnapshot` shipped as save/restore that nothing called: a memory of where a
   chair was slid that only a hand could invoke, because the `WorldModel` re-seeds

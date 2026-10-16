@@ -4,6 +4,7 @@
 package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -167,6 +168,52 @@ class WorldBehaviorTest {
             return new HttpWorldStore("http://s", url -> url.contains(
                     WorldBehavior.SCRIPT_PATH)
                     ? Optional.of(scriptBytes) : Optional.empty());
+        }
+    }
+
+    @Nested
+    @DisplayName("a behaviour answers a trigger crossing, or stays silent")
+    class TriggerCrossings {
+
+        @Test
+        @DisplayName("an enter edge binds the action and the zone name")
+        void enterEdgeReachesScript() {
+            assertEquals("enter:lobby", WorldBehavior.triggerNote(
+                    "action + \":\" + trigger", "lobby", "enter", 1.0, 2.0, 3.0));
+        }
+
+        @Test
+        @DisplayName("the same script answers an exit edge")
+        void exitEdgeReachesScript() {
+            assertEquals("exit:lobby", WorldBehavior.triggerNote(
+                    "action + \":\" + trigger", "lobby", "exit", 1.0, 2.0, 3.0));
+        }
+
+        @Test
+        @DisplayName("the crossing pose is bound, so a script can key on the place")
+        void poseIsBound() {
+            // x + z would throw if the pose were unbound; a value proves it reached.
+            assertNotNull(WorldBehavior.triggerNote(
+                    "x + z", "lobby", "enter", 4.0, 0.0, 6.0));
+        }
+
+        @Test
+        @DisplayName("no script and a blank script say nothing")
+        void absentScriptIsSilent() {
+            assertNull(WorldBehavior.triggerNote(null, "lobby", "enter", 0, 0, 0));
+            assertNull(WorldBehavior.triggerNote("   ", "lobby", "enter", 0, 0, 0));
+        }
+
+        @Test
+        @DisplayName("a script that throws is silence, not a failed walk")
+        void throwingScriptIsSilent() {
+            assertNull(WorldBehavior.triggerNote("1 / 0", "lobby", "enter", 0, 0, 0));
+        }
+
+        @Test
+        @DisplayName("an empty result is no note")
+        void emptyResultIsSilent() {
+            assertNull(WorldBehavior.triggerNote("\"\"", "lobby", "enter", 0, 0, 0));
         }
     }
 }

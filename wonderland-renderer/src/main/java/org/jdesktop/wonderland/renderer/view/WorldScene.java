@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import org.jdesktop.wonderland.client.collision.AvatarCollider;
 import org.jdesktop.wonderland.client.cull.WorldPVS;
+import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.common.cell.CellStatus;
@@ -1694,6 +1695,46 @@ public final class WorldScene {
      */
     public WorldInventory inventory() {
         return inventory;
+    }
+
+    /**
+     * The world's trigger volumes (roadmap P1.2) -- one per placed cell, from the
+     * same {@link #inventory} the culler and collider already read, so a doorway
+     * the walker can collide with is the very footprint they can trigger on. Each
+     * zone is the cell's horizontal footprint and blocking height, an axis-aligned
+     * box exactly like the obstacle it shares a source with.
+     *
+     * <p>Deliberately derived, not authored: the 2006 {@code .mtg} format carries
+     * no trigger record, and inventing an authoring schema for state nothing
+     * produces would be the same mistake a full-transform snapshot would have been
+     * (see {@code CellSnapshot}). The rooms the world already declares ARE its
+     * zones, and a host decides via the behaviour layer (P5) whether crossing one
+     * says anything -- a world that never wired a behaviour hears nothing.</p>
+     *
+     * <p>Empty when {@code lg.wonderland.trigger} is off, so the walk stays the
+     * pre-P1.2 walk byte-for-byte and the viewer never primes a field.</p>
+     */
+    public List<TriggerZone> triggerZones() {
+        if (!WorldFeatures.enabled(WorldFeatures.TRIGGER)) {
+            return List.of();
+        }
+        return zonesOf(inventory);
+    }
+
+    /**
+     * The zones one inventory declares, as a pure function -- so the derivation
+     * can be asserted headless (against a hand-built {@link WorldInventory})
+     * without constructing a Java 3D scene, the way every other placement-decides
+     * static in this class is. One zone per placed cell, its footprint as the
+     * horizontal half-extents and its blocking height as the vertical band.</p>
+     */
+    static List<TriggerZone> zonesOf(WorldInventory inventory) {
+        List<TriggerZone> zones = new ArrayList<>(inventory.size());
+        for (WorldInventory.Placement p : inventory.placements()) {
+            zones.add(TriggerZone.of(p.name(), p.x(), p.y(), p.z(),
+                    p.footprint(), p.height(), p.footprint()));
+        }
+        return List.copyOf(zones);
     }
 
     /** How many visibility gates the scene holds; equals the placed-cell count. */

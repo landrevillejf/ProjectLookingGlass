@@ -121,8 +121,33 @@ much visible value each unlocks per unit of risk.
   computed. **Now wired** (`WorldScene.blockStep` seeds an `AvatarCollider` over
   the inventory's obstacles so a step into a wall is refused and slides along its
   face; the horizontal clamp is headless-proven, the walk needs a live window).
-- **P1.2 Trigger volumes.** `onEnter`/`onExit` zones (room doorways, a stage) -
-  the substrate for scripted behaviours (P5).
+- **P1.2 Trigger volumes - now wired.** `onEnter`/`onExit` zones (room doorways, a
+  stage) - the substrate for scripted behaviours (P5). Delivered across three
+  layers with the same honesty as P1.1's clamp: the *edge detector* was already a
+  headless-tested kernel (`TriggerZone` an axis-aligned volume, `TriggerField`
+  remembering the previous inside-set and reporting only membership flips in
+  registration order - `TriggerFieldTest`). What was missing was anything driving
+  it. `WorldScene.triggerZones()` now derives one zone per placed cell from the
+  world's own inventory (footprint as the horizontal half-extents, blocking height
+  as the vertical band) - deliberately derived, not authored, because the 2006
+  `.mtg` format carries no trigger record and inventing an authoring schema nothing
+  produces repeats the `CellSnapshot` mistake; `zonesOf` is a pure function asserted
+  headless (`WorldSceneTest`). `TriggerWatcher` is the small stateful layer the
+  renderer holds between frames - it primes the starting room so entry is not a
+  spurious "enter", forwards each crossed edge with the walker's real pose, and
+  swallows a listener that throws so a behaviour bug is silence, never a dropped
+  frame (`TriggerWatcherTest`, 5 cases). `WorldViewer` installs it once the walk's
+  first pose is chosen and drives it at the single place the eye is ever written
+  (`apply`), behind `lg.wonderland.trigger`, walk-only, and inert for a world with
+  no volumes or no listener - so the pre-P1.2 walk stays byte-identical. The edge
+  reaches P5 through the seam the dependency rule forces: the renderer cannot
+  import Mandela, so `WorldRender` (the walk-in host that already runs the world's
+  `behaviour.mnd` for cell labels) attaches a listener and `WorldBehavior.triggerNote`
+  binds `trigger`/`action`/`x`/`y`/`z` for one crossing, its answer shown in the
+  window title via `WorldViewer.setStatus` (`WorldBehaviorTest`, 6 cases). The
+  crossing decision, the priming, the throw-safety and the behaviour note are
+  headless-proven; the title changing while a person walks is the probe-side half,
+  exactly as P4.1 left its on-screen ear.
 
 ### P2 - Materials, shaders, water, shadows
 

@@ -440,7 +440,37 @@ public final class WorldRender {
         WorldScene scene = WorldScene.build(
                 entriesOf(server, module, world, assets),
                 picturesOf(server, module, world, assets));
-        return show(scene, titleOf(module), width, height, true);
+        WorldViewer viewer = show(scene, titleOf(module), width, height, true);
+        attachTriggers(viewer, server, module, assets);
+        return viewer;
+    }
+
+    /**
+     * Connect the walk's trigger zones to the world's behaviour (roadmap P1.2 ->
+     * P5): when the walker crosses a room's volume, the shipped
+     * {@code behaviour.mnd} is asked what to say and its answer shows in the
+     * window title. The renderer cannot import Mandela, so the decision lives
+     * here -- the host that already runs the world's script for cell labels now
+     * runs it for crossings too. With no behaviour the listener is never
+     * attached and the walk is byte-identical to before P1.2; the read reuses the
+     * same cached store, so it costs no extra round trip.</p>
+     */
+    private static void attachTriggers(WorldViewer viewer, String server,
+            String module, WorldCatalog.ByteFetcher assets) {
+        final String behaviour = WorldBehavior.scriptOf(
+                new HttpWorldStore(server, assets), module);
+        if (behaviour == null) {
+            return;
+        }
+        viewer.setTriggerListener((zoneId, entered, x, y, z) -> {
+            String note = WorldBehavior.triggerNote(behaviour, zoneId,
+                    entered ? "enter" : "exit", x, y, z);
+            // A note on entry, the plain title again on exit; a behaviour with
+            // nothing to say leaves the title untouched either way.
+            if (note != null) {
+                viewer.setStatus(entered ? note : null);
+            }
+        });
     }
 
     /**

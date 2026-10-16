@@ -81,7 +81,7 @@ class WorldFeaturesTest {
         assertThat(line).contains("lg.wonderland.features=off");
         for (String name : new String[] {WorldFeatures.LIGHTING, WorldFeatures.CULLING,
                 WorldFeatures.COLLISION, WorldFeatures.AUDIO, WorldFeatures.CAMERA,
-                WorldFeatures.BEHAVIOUR, WorldFeatures.WATER}) {
+                WorldFeatures.BEHAVIOUR, WorldFeatures.WATER, WorldFeatures.TRIGGER}) {
             assertThat(line).contains(name + "=off");
         }
 
