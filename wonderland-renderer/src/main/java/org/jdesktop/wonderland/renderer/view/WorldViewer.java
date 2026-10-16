@@ -73,6 +73,8 @@ import org.jdesktop.wonderland.client.audio.SpatialAudio;
 import org.jdesktop.wonderland.client.rig.FollowRig;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
+import org.jdesktop.wonderland.renderer.post.GpuBloomPass;
+import org.jdesktop.wonderland.renderer.post.PostProcessPlan;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
 import org.jogamp.java3d.BranchGroup;
@@ -225,6 +227,16 @@ public final class WorldViewer implements AutoCloseable {
     private final WorldScene scene;
     private final Frame frame;
     private final Canvas3D canvas;
+
+    /**
+     * Which bloom route this window's canvas took (P3.2), decided once at
+     * construction from {@link WorldFeatures#BLOOM} and whether the patched
+     * preSwap() hook is present. GPU_POSTPROCESS builds a {@link BloomCanvas};
+     * any other path a plain {@link Canvas3D}. Kept so the HUD, the console and a
+     * probe can read what was decided and why, not guess from the canvas's class.
+     */
+    private final PostProcessPlan.Decision bloomDecision;
+
     private SimpleUniverse universe;
     private TransformGroup viewTransform;
     private CaptureBehavior capture;
@@ -322,7 +334,18 @@ public final class WorldViewer implements AutoCloseable {
         this.title = title;
         this.scene = scene;
         GraphicsConfiguration config = SimpleUniverse.getPreferredConfiguration();
-        this.canvas = new Canvas3D(config);
+        // P3.2: bloom the live canvas when the platform and the evidence allow it.
+        // Decided once, here, from the feature switch and whether the patched
+        // java3d-core's preSwap() hook is actually present at runtime -- so a stock
+        // jar degrades to an un-bloomed canvas instead of a crash, and a host that
+        // wants no glow turns it off with lg.wonderland.bloom=off (or the master
+        // switch). See PostProcessPlan for the whole rule and the probe evidence.
+        this.bloomDecision = PostProcessPlan.decide(bloomCapabilities());
+        if (bloomDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
+            this.canvas = new BloomCanvas(config, new GpuBloomPass());
+        } else {
+            this.canvas = new Canvas3D(config);
+        }
         this.frame = new Frame(title == null ? "Wonderland" : title);
         frame.setLayout(new BorderLayout());
         frame.add(canvas, BorderLayout.CENTER);
@@ -426,6 +449,51 @@ public final class WorldViewer implements AutoCloseable {
     /** The window's canvas, for a caller that wants to composite it elsewhere. */
     public Canvas3D getCanvas() {
         return canvas;
+    }
+
+    /**
+     * Which bloom route this window decided, and why (P3.2). A caller -- the HUD,
+     * the console, a probe -- reads this to know whether the live GPU bloom is on
+     * without inspecting the canvas's class or re-deriving the plan.
+     */
+    public PostProcessPlan.Decision getBloomDecision() {
+        return bloomDecision;
+    }
+
+    /**
+     * The capability set the bloom decision is made from: bloom is wanted when the
+     * roadmap feature is on (on by default, like every {@link WorldFeatures}
+     * switch; {@code lg.wonderland.bloom=off} or the master switch turns it off),
+     * and the GPU route is probe-usable when the patched {@code Canvas3D.preSwap()}
+     * hook is actually present -- the exact artefact WlProbe53/WlProbe55 measured.
+     * Against a stock java3d-core the hook is absent, the GPU capability is not in
+     * evidence, and the plan falls through to the software route: honest.
+     */
+    private static java.util.Set<PostProcessPlan.Capability> bloomCapabilities() {
+        java.util.Set<PostProcessPlan.Capability> caps =
+                java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
+        if (WorldFeatures.enabled(WorldFeatures.BLOOM)) {
+            caps.add(PostProcessPlan.Capability.BLOOM_WANTED);
+        }
+        if (preSwapHookPresent()) {
+            caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
+        }
+        return caps;
+    }
+
+    /**
+     * Whether the running java3d-core carries the patched {@code preSwap()} hook --
+     * a runtime detection of the exact artefact the probes measured, so the GPU
+     * route is claimed only where the hook that makes it work is genuinely present,
+     * never on the assumption that a version string implies a patch.
+     */
+    private static boolean preSwapHookPresent() {
+        try {
+            Canvas3D.class.getMethod("preSwap");
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return false;
+        }
     }
 
     /**

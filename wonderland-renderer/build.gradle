@@ -55,6 +55,16 @@ dependencies {
     testImplementation libs.assertj.core
 }
 
+// This module declares java3d-core directly and is a light leaf that does NOT
+// depend on :lg3d-core, so it does not inherit the patched-jar ordering through
+// a project dependency. Depend its compile tasks on :buildPatchedJava3dCore so
+// the local repo (which shadows the stock org.jogamp.java3d:java3d-core:1.7.2
+// with the Canvas3D.preSwap build -- see the root build.gradle) is populated
+// before this module's Java 3D classpath resolves. Up-to-date => a no-op.
+tasks.withType(JavaCompile).configureEach {
+    dependsOn rootProject.tasks.named('buildPatchedJava3dCore')
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     systemProperty 'java.awt.headless', 'true'

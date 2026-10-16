@@ -23,7 +23,7 @@ and the per-module `AGENTS.md`.
 | Environment (reflection / refraction) | **Live, cube beside diffuse** | `EnvironmentPlan` carries a full GLSL 1.20 vertex+fragment pair and `J3dMeshFactory.buildEnvAppearance` binds the lit diffuse on unit 0 and a `samplerCube` on unit 1, laying `reflect`/`refract` cube lookups weighted by Schlick fresnel over the lit base. `WlProbe50` proved a cube map samples its own face live (+X red / +Y green / +Z blue) once faces go on with this fork's `setImage(LEVEL, FACE, image)` order; `WlProbe51` drove the shipping `createShape` and read a red diffuse quad `(255,0,0)` become `(230,97,110)` once an environment cube was attached at half reflectivity. `CubeMapArt` is the procedural sky gradient a glossy cell samples (no shipped world names a real cube image). Opt-in like P2.2 (`lg.wonderland.shader` + `lit()` + a cube map), so a pre-P2.5 world changes no pixel. |
 | Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). Bloom is delivered as `BloomKernel` + `PostProcessPlan` + the `BloomPass` seam (P3.2): `WlProbe52` measured the readback round trip (~128 ms at 640x363, ~419 ms native) and proved it glows a captured live frame, so the software-capture route is real and tested while a per-frame native GPU chain stays absent - the fork has no scene-to-texture pipeline. PBR, HDR, shadow *maps* and DOF remain absent for that same reason. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). Bloom now ships on BOTH routes (P3.2): the `BloomKernel` + `BloomPass` software seam (`WlProbe52` measured the readback round trip, ~128 ms at 640x363 / ~419 ms native, and proved it glows a captured live frame) AND a live per-frame `GpuBloomPass` -- a zero-readback GL bright-pass/blur/composite that blits the presented framebuffer into a texture and samples it back through a patched `Canvas3D.preSwap` hook, which `WlProbe56` measured visible per frame at 94 fps (7732 halo pixels lifted onto dark scene). So the old "the fork has no scene-to-texture pipeline" ceiling is retired for post-processing: the pre-swap blit IS that pipeline. PBR, HDR, shadow *maps* and DOF remain absent -- they want a light-POV / multi-target render the single post-hoc blit does not provide. |
 | Audio | **Built, wired, silent until a world ships sound** | `wonderland-client/audio`: `SpatialAudio` (the gain and pan kernel), `AudioManager` (the lifecycle owner), `JavaSoundBackend` behind an `AudioBackend` seam; `WorldViewer.installAudio` points the listener at the live pose. The 2006 client's spatial audio was **not carried over** -- this is the fresh build, and no shipped world has audio assets to play. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
@@ -44,10 +44,11 @@ world that installs a rig get shading, while pre-lit worlds are untouched.
 ### Platform ceiling
 
 The renderer is built on **Jogamp Java 3D 1.7.2**, a fixed-function /
-vertex-program-era API, not a modern GLSL pipeline. PBR, HDR, bloom and SSAO
-will be bounded by what `ShaderProgram`/`GLSLProgram` and a `Canvas3D`
-readback can do, and some "2026 cinematic" terms may require a direct-JOGL
-post pass. The fork has already hit Java 3D quirks (`Background` paints nothing,
+vertex-program-era API, not a modern GLSL pipeline. PBR, HDR and SSAO will be
+bounded by what `ShaderProgram`/`GLSLProgram` and a `Canvas3D` readback can do,
+and some "2026 cinematic" terms require a direct-JOGL post pass -- which bloom
+now has: `GpuBloomPass` drives JOGL directly at a patched `Canvas3D.preSwap`
+hook (P3.2), so a real-time bloom is no longer bounded by the readback. The fork has already hit Java 3D quirks (`Background` paints nothing,
 back-face culling, `PolygonAttributes` semantics). A roadmap that ignores this
 ceiling would promise results the stack cannot deliver; the phases below mark
 those items explicitly.
@@ -107,6 +108,21 @@ X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
   `BloomKernel`. So the round trip WORKS - a software-capture bloom is real - and
   its cost is the number that keeps the per-frame native `OFFSCREEN_READBACK`
   route gated instead of shipping a desktop at 2-8 fps.
+- **WlProbe53** - the ceiling above, re-measured for bloom: a framebuffer blit of
+  the presented scene into a texture and back (`FBO-BLIT-OK`) runs on the live
+  context at 56 fps, and an inline bright-pass/blur/composite lifted a hot quad's
+  halo from 7 to 13 -- a GPU post pass is real-time on this fork and the renderer
+  is hookable, which is what retired the "no scene-to-texture" claim.
+- **WlProbe55** - the patched `java3d-core`: an overridable `public
+  Canvas3D.preSwap()` the `Renderer` calls between its sync render and the buffer
+  swap (`postRender` proven UNVIABLE - FB0 black there, ~1 s/frame). An inline
+  bloom in a `preSwap` override measured VISIBLE per frame at 71 fps, lifting 7732
+  halo pixels onto dark scene with zero CPU readback.
+- **WlProbe56** - the same measurement against the PRODUCTION `GpuBloomPass` the
+  patch enabled, not an inline copy: `PROD-BLOOM-VISIBLE`, 94 fps (10.67 ms mean /
+  11.54 ms max at 1280x763), the before/after FB0 diff lifting 7732 pixels, every
+  one onto dark background, max lift 75, the pass never latching a GL fault -- the
+  shipped chain reproduces the proven constants exactly.
 
 What this buys: real GPU per-pixel lighting was earlier (wrongly) filed as a
 platform impossibility; it is now live and wired, and a layered material lights
@@ -272,8 +288,9 @@ much visible value each unlocks per unit of risk.
   case read `sqrt(2)` -- the number the bug produced -- which is the recurring
   lesson that a test written against an implementation cannot catch it; the
   anchor is now asserted as an invariant across every elevation. What remains
-  probe-side is the shadow *map*, which needs the scene-to-texture pass P3.2
-  measures as absent.
+  probe-side is the shadow *map*, which needs a light-POV render-to-texture pass
+  -- a different thing from the single post-hoc framebuffer blit P3.2's GPU bloom
+  uses, and still absent.
 - **P2.5 Environment reflection / refraction - wired and measured (was: probe-gated).**
   Reflection and refraction were never in the original P0..P5 list; they name
   later as the missing "modern 3D" beat on the water (P2.3) and any glossy
@@ -335,17 +352,19 @@ much visible value each unlocks per unit of risk.
   the ride. **Now wired** (`WorldViewer`): the eye glides toward its target
   through `FollowRig`'s smoothing on a frame timer instead of teleporting, and
   `-Dlg.wonderland.camera=off` restores the instant-step walk.
-- **P3.2 Post-processing - delivered at the measured ceiling (stretch).** A
-  bloom/HDR pass via `Canvas3D` offscreen buffer. **Marked stretch**: bounded
-  by the Java 3D 1.7.2 ceiling above. Delivered in `wonderland-renderer/post`:
+- **P3.2 Post-processing - delivered on two routes: software capture and a live
+  per-frame GPU bloom.** A bloom/HDR pass via `Canvas3D` offscreen buffer. **Was
+  marked stretch**, bounded by the Java 3D 1.7.2 ceiling above; the GPU half is
+  what retired that bound. Delivered in `wonderland-renderer/post`:
   `BloomKernel` - the three operations every bloom is (smooth-kneed bright
   pass, separable clamped box blur, saturating add) as pure arithmetic on
   packed ARGB pixels -- `PostProcessPlan`, which states the live-3D truth as a
-  checked decision, and now `BloomPass`, the seam a real capture calls: hand it
-  the frame a `readRaster` or a 2D composite produced plus what the host knows,
+  checked decision (now with a `GPU_POSTPROCESS` path beside `SOFTWARE_CAPTURE`
+  and `OFFSCREEN_READBACK`), and `BloomPass`, the seam a real capture calls: hand
+  it the frame a `readRaster` or a 2D composite produced plus what the host knows,
   and it returns what the plan allows -- the exact identity for `NONE`, the
   bloomed frame otherwise, bridging a `BufferedImage` to the kernel and back.
-  The measurement the plan was gated on now exists: `WlProbe52` ran the round
+  The software measurement the plan was gated on exists: `WlProbe52` ran the round
   trip on the live display and measured ~128 ms for a 640x363
   capture-convert-bloom and ~419 ms for a native 1920x1080 software bloom on the
   reference card, and it PROVED the pass glows a captured LIVE frame - the halo
@@ -353,12 +372,26 @@ much visible value each unlocks per unit of risk.
   through the wired `BloomPass`, byte-identical to the raw kernel. So the fork's
   `OFFSCREEN_READBACK` route is real and correct but costs far more than a
   real-time frame at native resolution, which is why `PostProcessPlan` keeps it
-  gated behind `READBACK_PROBED_USABLE` and the shipping default stays
-  `SOFTWARE_CAPTURE` -- blooming stills, on-demand snapshots, probe captures and
-  2D composites, headless, today. The ceiling is the deliverable's shape, not an
-  apology: the kernel is the reference any future GPU pass must match pixel for
-  pixel, and the measured number is what a reduced-resolution or on-demand live
-  pass would have to beat.
+  gated behind `READBACK_PROBED_USABLE`.
+  The per-frame live route is no longer absent: `GpuBloomPass` runs the same three
+  operations as a zero-readback GL chain (blit the presented framebuffer into a
+  scene texture, bright-pass, separable Gaussian ping-pong, additive composite)
+  reached through a **patched `java3d-core`** that adds an overridable `public
+  Canvas3D.preSwap()` the `Renderer` calls between its sync render and the buffer
+  swap (`postRender` was proven UNVIABLE - FB0 reads black there and it cost
+  ~1 s/frame). `BloomCanvas` is the thin `preSwap` adapter, and `WorldViewer`
+  builds one only when the plan decides `GPU_POSTPROCESS`, gated on
+  `WorldFeatures.BLOOM` and a runtime check that the patched hook is present.
+  `WlProbe55` measured an inline chain visible per frame at 71 fps (7732 halo
+  pixels lifted onto dark scene); `WlProbe56` re-measured the PRODUCTION
+  `GpuBloomPass` at `PROD-BLOOM-VISIBLE`, 94 fps (10.67 ms mean / 11.54 ms max at
+  1280x763), the before/after FB0 diff lifting the same 7732 pixels, every one
+  onto dark background, max lift 75, with the pass never latching a GL fault. The
+  `GpuBloomPass` GL chain and `BloomCanvas` cannot be constructed headless (a
+  `GLContext` needs a display), so they are probe-verified, while the pure
+  `PostProcessPlan` decision and `GpuBloomPass.Settings` are asserted
+  (`PostProcessPlanTest`, `GpuBloomPassTest`). `BloomKernel` stays the reference
+  the GPU shaders match pixel for pixel.
 
 ### P4 - Spatial audio (build, not re-wire)
 

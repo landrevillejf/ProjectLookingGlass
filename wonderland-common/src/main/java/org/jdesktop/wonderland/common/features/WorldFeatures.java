@@ -48,6 +48,13 @@ public final class WorldFeatures {
     public static final String WATER = "water";
     public static final String TRIGGER = "trigger";
     public static final String SHADOWS = "shadows";
+    /**
+     * The P3.2 post-process bloom on the live 3D canvas. Like every switch here it
+     * is ON by default; unlike the scene kernels it is a cosmetic GPU pass, so
+     * turning it off ({@code lg.wonderland.bloom=off}) changes how a world reads
+     * without changing what it contains.
+     */
+    public static final String BLOOM = "bloom";
 
     private WorldFeatures() {
         // holder: no instances
@@ -103,7 +110,7 @@ public final class WorldFeatures {
                 .append(MASTER).append('=')
                 .append(read(reader, MASTER, "on")).append("):");
         String[] names = {LIGHTING, CULLING, COLLISION, AUDIO, CAMERA, BEHAVIOUR,
-                WATER, TRIGGER, SHADOWS};
+                WATER, TRIGGER, SHADOWS, BLOOM};
         for (String name : names) {
             out.append(' ').append(name).append('=')
                     .append(enabled(reader.apply(MASTER), reader.apply(PREFIX + name))

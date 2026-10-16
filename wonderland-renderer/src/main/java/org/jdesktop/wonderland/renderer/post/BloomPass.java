@@ -12,16 +12,21 @@
  * desktop's composites use, so neither re-derives the plan-or-kernel wiring, and
  * neither has to know a BufferedImage from a packed-ARGB Frame.
  *
- * What this does NOT do is run a per-frame glow on a live Canvas3D. WlProbe52
- * measured the fork's readback round trip on the reference card (GL 4.6 Mesa
- * radeonsi): ~128 ms for a 640x363 live capture-convert-bloom, and ~419 ms for a
- * native 1920x1080 software bloom. The pass is real and correct -- it bloomed a
+ * What this class does NOT do is run the per-frame glow itself -- BloomPass is
+ * the SOFTWARE_CAPTURE seam (the kernel's maths on captured pixels), and the
+ * live per-frame route now sits beside it in GpuBloomPass. WlProbe52 measured
+ * the fork's readback round trip on the reference card (GL 4.6 Mesa radeonsi):
+ * ~128 ms for a 640x363 live capture-convert-bloom, and ~419 ms for a native
+ * 1920x1080 software bloom. The pass is real and correct -- it bloomed a
  * captured LIVE frame, lifting the halo around a hot quad from luminance 69 to
- * 76 -- but that cost caps a per-frame native composite near 2-8 fps. So the
- * live route is confined to stills, on-demand snapshots and reduced resolution,
- * never per-frame at native res, and that measured number is exactly why
+ * 76 -- but that cost caps a CPU-readback composite near 2-8 fps, which is why
  * PostProcessPlan keeps OFFSCREEN_READBACK gated behind READBACK_PROBED_USABLE
- * rather than enabling it on a wish.
+ * rather than enabling it on a wish, and why the per-frame live bloom went to
+ * the GPU instead: GpuBloomPass runs the same three operations as a
+ * zero-readback GL chain through a patched Canvas3D.preSwap hook, and WlProbe56
+ * measured it visible per frame at 94 fps. So the software route is confined to
+ * stills, on-demand snapshots and reduced resolution by its measured cost, NOT
+ * because a per-frame native bloom is impossible -- that ships on the GPU path.
  */
 package org.jdesktop.wonderland.renderer.post;
 

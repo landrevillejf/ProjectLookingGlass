@@ -82,7 +82,7 @@ class WorldFeaturesTest {
         for (String name : new String[] {WorldFeatures.LIGHTING, WorldFeatures.CULLING,
                 WorldFeatures.COLLISION, WorldFeatures.AUDIO, WorldFeatures.CAMERA,
                 WorldFeatures.BEHAVIOUR, WorldFeatures.WATER, WorldFeatures.TRIGGER,
-                WorldFeatures.SHADOWS}) {
+                WorldFeatures.SHADOWS, WorldFeatures.BLOOM}) {
             assertThat(line).contains(name + "=off");
         }
 

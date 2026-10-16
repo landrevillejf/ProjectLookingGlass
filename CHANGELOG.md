@@ -10,6 +10,55 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **A live per-frame GPU bloom now ships — roadmap P3.2, the ceiling retired by patching the renderer** (`wonderland-renderer`, `wonderland-common`) —
+  The earlier P3.2 entries in this section bloomed a *captured* frame in software
+  and stated, honestly for their moment, that a per-frame glow on the LIVE 3D
+  canvas was "a missing architecture, not a missing flag" because the fork had no
+  scene-to-texture path a shader could sample. That claim is now **retired**, not
+  softened. `WlProbe53` first re-measured the ceiling and found it lower than the
+  prose assumed: a framebuffer blit of the presented scene into a texture and back
+  (`FBO-BLIT-OK`) runs on the live GL 4.6 radeonsi context at 56 fps, and an inline
+  bright-pass/blur/composite lifted a hot quad's halo — so a GPU post pass is
+  real-time on this fork and the renderer is hookable. The hook did not exist
+  upstream: Java 3D 1.7.2 offers `postRender`, but `WlProbe54` proved it UNVIABLE
+  (FB0 reads black there — it fires before the sync render — and it cost ~1 s/frame).
+  So the renderer is **patched**: `lg3d-core/src/patches/java3d-core-preswap` adds
+  an overridable `public Canvas3D.preSwap()` (no-op base) that `Renderer` calls
+  between its `syncRender` glFinish and `swapBuffers`, guarded against a
+  `RuntimeException`/`Error` so an app hook can never take the render thread down.
+  The patch is **built from source in CI, never committed as a binary**:
+  `:buildPatchedJava3dCore` clones upstream java3d-core 1.7.2 at a pinned SHA,
+  applies the committed `.patch`, Maven-builds it under JDK 21 and installs it into
+  a local repo declared *before* Maven Central under the *same* coordinates, so the
+  patched jar shadows stock for every consumer (`PROVENANCE.txt` + the upstream
+  license travel with it). On that hook `GpuBloomPass` runs the production
+  zero-readback GL chain — blit FB0 into a scene texture, smooth-kneed bright pass,
+  separable 9-tap Gaussian ping-pong, additive composite — with the whole GL state
+  (draw/read FBO, viewport, program, VAO, active texture, unit 0/1 bindings and the
+  blend/depth/scissor/cull enables) saved and restored around it, because leaking
+  Java 3D's state is what turned the next frame black. It never throws: any GL fault
+  latches the pass off and the desktop renders clean. `BloomCanvas` is the thin
+  `preSwap` adapter that drives it, and `WorldViewer` builds one only when
+  `PostProcessPlan.decide(...)` answers the new `GPU_POSTPROCESS` path — gated on
+  `WorldFeatures.BLOOM` (`lg.wonderland.bloom=off` disables it) AND a runtime check
+  that the patched hook is actually present, so an unpatched jar silently keeps the
+  plain `Canvas3D`. `PostProcessPlan` gained `Path.GPU_POSTPROCESS` and
+  `Capability.GPU_POSTPROCESS_PROBED_USABLE`, checked *before* the readback route so
+  the zero-readback path always wins when both are in evidence. `WlProbe55` measured
+  an inline chain VISIBLE per frame at 71 fps (7732 halo pixels lifted onto dark
+  scene); `WlProbe56` re-measured the PRODUCTION `GpuBloomPass` at
+  `PROD-BLOOM-VISIBLE`, **94 fps** (10.67 ms mean / 11.54 ms max at 1280x763), the
+  before/after FB0 diff lifting the same 7732 pixels, every one onto dark
+  background (the halo a viewer actually sees), max lift 75, `prodPassFailed=false`
+  — the shipped uniform-parameterised chain reproduces the proven constants exactly.
+  The GL chain and `BloomCanvas` cannot be constructed headless (a `GLContext` needs
+  a display), so they are probe-verified; the pure halves are asserted — **15 new
+  headless cases** (`PostProcessPlanTest` 8 on the full decision matrix including
+  the GPU branch and its preference over readback; `GpuBloomPassTest` 7 on the
+  `Settings` defaults being the exact proved constants, negative-magnitude refusal,
+  and the null-context `render`/`dispose` no-op guards), plus `WorldFeatures.BLOOM`
+  in `WorldFeaturesTest`. No shipped world changes a pixel until a host opts into
+  bloom AND runs on the patched jar.
 - **A captured frame can bloom now — roadmap P3.2, the software-capture pass wired and measured** (`wonderland-renderer`) —
   `BloomKernel` had shipped the three operations every bloom is (smooth-kneed
   bright pass, separable clamped box blur, saturating add) as pure arithmetic on
@@ -179,8 +228,9 @@ work to make it build and run on a current toolchain.
   streaks start at the feet of the person casting them — the claim no headless
   suite could make. The occlusion half is proven live too: standing in the lobby
   shuts 0 pools, standing 900 m out shuts 18 of 18 cells and 7 of 7 pools.
-  What remains probe-side: a true shadow *map*, which needs the scene-to-texture
-  pipeline this fork does not have (P3.2's measured ceiling).
+  What remains probe-side: a true shadow *map*, which needs a light-POV
+  render-to-texture pass -- a different thing from the single post-hoc framebuffer
+  blit P3.2's GPU bloom now uses, and still absent.
 - **Walking through a room now says something — roadmap P1.2, triggers wired**
   (`wonderland-common`, `wonderland-renderer`, `lg3d-apps`) — `TriggerZone` and
   `TriggerField` had shipped as a tested enter/exit edge detector that nothing

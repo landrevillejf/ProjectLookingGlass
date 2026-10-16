@@ -2,25 +2,28 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-renderer P3.2: bloom as arithmetic, not as a GPU promise.
+ * wonderland-renderer P3.2: bloom as arithmetic, and the contract the GPU pass
+ * is measured against.
  *
- * The roadmap marks this phase stretch for a reason it states out loud:
- * Java 3D 1.7.2 has no post-processing pipeline. The fork's offscreen answer
- * is Canvas3D render-to-image with pixel readback -- not a texture the scene
- * renders into and a shader samples back -- so a per-frame GPU bloom on the
- * LIVE 3D canvas is not a missing flag, it is a missing architecture, and no
- * test in this repository may claim it. What IS honest, headless and useful
- * today is the bloom MATHS on pixels: bright-pass extraction, separable box
- * blurring, additive re-composite. Those three are every bloom ever made --
- * Unreal's and a demoscene's alike are the same operations with GPU shapes --
- * and they run on an int[] with nothing but java.base.
+ * The three operations here -- bright-pass extraction, separable blurring,
+ * additive re-composite -- are every bloom ever made, Unreal's and a
+ * demoscene's alike are the same operations with GPU shapes, and they run on an
+ * int[] with nothing but java.base. That is what makes this kernel the
+ * reference a faster pass is checked against: a contract in pixels, not a
+ * placeholder.
  *
- * Two real consumers, both this side of the ceiling: the probe pipeline
- * (a captured frame gains its glow in software, so "does the clinic read as
- * emissive" becomes an answer a screenshot can show), and the 2D desktop's
- * composites. If a future probe run shows the fork's offscreen chain can
- * sustain a per-frame round trip, this kernel is the reference the GPU pass
- * must match -- a contract in pixels, not a placeholder.
+ * When this was first written the honest caveat was that Java 3D 1.7.2 had no
+ * post-processing pipeline and the fork's only offscreen answer was Canvas3D
+ * render-to-image with a CPU readback, so a per-frame GPU bloom on the LIVE
+ * canvas read as a missing architecture rather than a missing flag. That caveat
+ * is now RETIRED, not merely softened: GpuBloomPass is the production
+ * zero-readback GL chain (blit FB0 to a scene texture, bright-pass, separable
+ * Gaussian, additive composite) reached through a patched Canvas3D.preSwap hook,
+ * and WlProbe56 measured it visible per frame at 94 fps with the halo read back
+ * off the swapped framebuffer. This kernel stays the software reference those
+ * shaders are checked against, and its pure-maths consumers -- the probe
+ * pipeline's captured-frame glow and the 2D desktop's composites -- keep using
+ * it directly.
  */
 package org.jdesktop.wonderland.renderer.post;
 
