@@ -14,16 +14,16 @@ and the per-module `AGENTS.md`.
 | Capability | State | Evidence |
 |---|---|---|
 | Multiplayer / sessions | **Real, wired** | `wonderland-server` `ServerSession`, `SessionRegistry`, `ProtocolRouter`, WebSocket + chat relay; cells/transforms broadcast, with interest-managed move fan-out + snapshot autosave now wired. Missing: auth (a tested kernel, not yet called). |
-| Collision | **Message stub only** | `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger`. A notification, not detection/resolution. `com.jme.bounding.BoundingVolume` is used for cell *bounds*, not collision. |
-| Ambient lighting | **Per-material ambient, no rig** | No `Light` node is created in the renderer; `AvatarRenderer` sets `Material.setAmbientColor`. `J3dMeshFactory.buildAppearance` deliberately omits a `Material` for shipped art. |
-| Culling | **Delegated to Java 3D** | No Wonderland culler; relies on the scene-graph's automatic culling. No PVS. |
+| Collision | **Kernel wired into the walk** | `WorldScene.blockStep` seeds an `AvatarCollider` over the inventory's obstacles, so a step into a wall is refused and slides along its face. `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger` is still the *message* path, and the vertical extent still comes from `WorldScene.measuredOf` (a live-geometry walk), not the authored footprint. |
+| Ambient lighting | **Two rigs, one of them inert** | `WorldScene.installLights` hangs an `AmbientLight` + `DirectionalLight` when a caller asks, and `WlProbe32` measured that this fork's fixed pipeline lets a scene `Light` change nothing a `ColoringAttributes` surface draws -- so the shading a person sees is `BakedRig`'s CPU per-vertex bake, on by default. `J3dMeshFactory.buildAppearance` still omits a `Material` for shipped art. |
+| Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query, no SSAO. |
+| Water shading | **Data re-honoured, look not painted** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records it used to skip and carries them on `ModelLoadResult.waterInstances`; `WaterArt` rasterises the tile. The pond quad driven off a frame clock is still probe-side. |
 | Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
-| Water shading | **Degraded/removed** | `MtgSceneReader` skips `JMEWaterInstance` records. |
 | Normal mapping | **Kernel live, layer ceiling** | The GLSL normal/spec stages compile and shade, but `WlProbe42` measured this fork binding exactly ONE texture per program (a second `sampler2D` re-reads unit 0), so a lit material lights from its diffuse and `hasNormalMap`/`hasSpecMap` stay 0. Multi-layer needs a direct-JOGL program that binds its own samplers. |
-| Occlusion | **Absent** | No occlusion query, no PVS, no SSAO. |
+| Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
-| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Absent** | `WorldViewer` fixed-eye framing; `ShadowArt` ellipse decals; `SkyArt` textured box. |
-| Audio | **Absent from the port** | No audio/sound class in `wonderland-*`. The 2006 client's spatial audio was **not carried over**; it must be built fresh, not re-wired. |
+| Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). PBR, HDR, bloom, shadow *maps* and DOF remain absent -- `PostProcessPlan` says why, and `WlProbe42` measures the ceiling. |
+| Audio | **Built, wired, silent until a world ships sound** | `wonderland-client/audio`: `SpatialAudio` (the gain and pan kernel), `AudioManager` (the lifecycle owner), `JavaSoundBackend` behind an `AudioBackend` seam; `WorldViewer.installAudio` points the listener at the live pose. The 2006 client's spatial audio was **not carried over** -- this is the fresh build, and no shipped world has audio assets to play. |
 
 ### The pre-lit constraint (why lighting is opt-in, not global)
 
@@ -189,19 +189,40 @@ much visible value each unlocks per unit of risk.
   tile with per-axis scroll-offset maths (`planeOf` folds the record's plane).
   Placing the pond quad and driving `TexCoordGeneration` from a frame clock are
   the probe-side step, not yet a painted pixel.
-- **P2.4 Real shadows / occlusion - delivered as projector maths + a PVS owner.**
+- **P2.4 Real shadows / occlusion - delivered, wired, and measured on screen.**
   Replace `ShadowArt` decals with projected or shadow-map shadows; occlusion via
   the PVS from P0.2. Delivered: `ShadowProjector` - parallel-light box
   projection as pure arithmetic (the pool travels in the direction the light
-  travels, low sun lengthens, horizon sun caps at `MAX_STRETCH`, a vertical or
-  absent light answers `null` so the round `ShadowArt` pool stays the physically
-  right fallback) - and `WorldPVS`, the lifecycle owner that turns P0.2's
-  stateless `OctantCuller` answer into a per-frame consultation: cells register
-  and detach, a re-attached cell replaces rather than doubles, and padded
-  bounding spheres keep the promise (conservative for drawing - a far cell may
-  be kept, a near cell is never dropped). Re-pointing `WorldScene.addShadows`
-  at the projector's yawed quad, and any true shadow-map occlusion, need a live
-  GL context - probe-side, not yet a painted pixel.
+  travels, low sun lengthens, a horizon sun caps the run at six caster heights,
+  a vertical or absent light answers `null` so the round `ShadowArt` pool stays
+  the physically right fallback) - and `WorldPVS`, the lifecycle owner that turns
+  P0.2's stateless `OctantCuller` answer into a per-frame consultation: cells
+  register and detach, a re-attached cell replaces rather than doubles, and
+  padded bounding spheres keep the promise (conservative for drawing - a far cell
+  may be kept, a near cell is never dropped). **Now wired** (`WorldScene`): each
+  pool is the projector's yawed quad rather than the ellipse decal, seated so its
+  **near edge stays on the caster's feet** and turned by `anchoredSeat` when the
+  scene's own 12 m ceiling has to shorten it (a quad clamped about its centre is a
+  shadow lifted off the person casting it). The rig it projects along is the one
+  *in force* -- `keyInForce` reads the caller's `Lighting` when it is enabled and
+  `BakedRig`'s key otherwise, because no shipped world asks for a rig and every
+  face a person sees is already raked by the bake. Each pool hangs behind its own
+  `Switch` gate named after its caster, so `cullTo` shuts a dropped building's
+  shadow with it (`poolsHiddenLastFrame` is the number that rules the ghost out);
+  an unnamed caster is never culled. `WlProbe44` measured the painted half in six
+  runs on the live display: the bake's sun darkens 3.14 % of the frame against the
+  broken projection's 0.61 %, the mirrored sun runs the shadow the opposite way
+  (6.89 %), and an overhead key differs by **zero pixels** from the feature off --
+  the refusal proven rather than asserted.
+  Wiring it is also what found the maths wrong: the first version divided by
+  `sin(elevation)` where parallel projection says `tan`, and scaled the pool's
+  length off the footprint instead of off the run, so a 22-degree sun's shadow
+  started metres past the feet it belonged to. `ShadowProjectorTest`'s 45-degree
+  case read `sqrt(2)` -- the number the bug produced -- which is the recurring
+  lesson that a test written against an implementation cannot catch it; the
+  anchor is now asserted as an invariant across every elevation. What remains
+  probe-side is the shadow *map*, which needs the scene-to-texture pass P3.2
+  measures as absent.
 - **P2.5 Environment reflection / refraction - delivered as kernel + a
   probe-gated plan (added scope).** Reflection and refraction were never in the
   original P0..P5 list; they name later as the missing "modern 3D" beat on the

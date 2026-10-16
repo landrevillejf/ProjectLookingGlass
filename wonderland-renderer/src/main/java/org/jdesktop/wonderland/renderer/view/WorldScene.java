@@ -57,6 +57,7 @@ import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.modules.asset.ModelLoadResult;
 import org.jdesktop.wonderland.renderer.j3d.J3dMeshFactory;
 import org.jdesktop.wonderland.renderer.j3d.ModelRenderer;
+import org.jdesktop.wonderland.renderer.mesh.BakedRig;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.MaterialAppearance;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
@@ -72,6 +73,7 @@ import org.jogamp.java3d.Switch;
 import org.jogamp.java3d.Transform3D;
 import org.jogamp.java3d.TransformGroup;
 import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.AxisAngle4d;
 import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3d;
@@ -328,6 +330,16 @@ public final class WorldScene {
     private static final double SHADOW_LIFT_M = 0.03;
 
     /**
+     * The longest a projected pool may run along the light, in metres. The
+     * projector already caps its own run at six caster heights so a horizon sun
+     * cannot cast across the world; this is the scene's ceiling on the quad it
+     * seats, the same guard the round pool keeps at {@code 3.0} for its width --
+     * and {@link #anchoredSeat} is what keeps that guard from shortening a shadow
+     * out from under the feet it starts at.
+     */
+    private static final double SHADOW_MAX_LENGTH_M = 12.0;
+
+    /**
      * How far in front of the residents a visitor stands, in metres.
      *
      * <p>Far enough to see them as people rather than as faces: the 2009 view is
@@ -361,6 +373,15 @@ public final class WorldScene {
     private final List<Gate> gates;
 
     /**
+     * One visibility gate per laid shadow pool, named after the cell that casts
+     * it (roadmap P2.4's occlusion half). A pool is not a cell: it is a decal on
+     * the floor, so nothing else in the graph would ever be told to stop drawing
+     * it when the PVS drops its caster -- and a courtyard of pools belonging to
+     * buildings that are no longer rendered is exactly that ghost.
+     */
+    private final List<Gate> shadowGates;
+
+    /**
      * The PVS built from {@link #inventory} on the first {@link #cullTo}; null
      * until a frame actually asks for one, because a world that is only browsed
      * in a preview image never pays for the grid.
@@ -369,6 +390,9 @@ public final class WorldScene {
 
     /** The last cull's answer, for the HUD and the probe's evidence line. */
     private volatile int visibleLastFrame;
+
+    /** How many shadow pools the last {@link #cullTo} shut with their caster. */
+    private volatile int poolsHiddenLastFrame;
 
     /** Where the collider thinks the walker stands; {@link #blockStep}'s memory. */
     private float walkerX;
@@ -384,7 +408,7 @@ public final class WorldScene {
             Point3d center, Vector3d halfExtent, float radius, float reach,
             Point3d entryPoint,
             List<NameTag> nameTags, int shadowCount, int pictureCount,
-            WorldInventory inventory, List<Gate> gates) {
+            WorldInventory inventory, List<Gate> gates, List<Gate> shadowGates) {
         this.root = root;
         this.placedCount = placedCount;
         this.skippedCount = skippedCount;
@@ -398,6 +422,7 @@ public final class WorldScene {
         this.shadowCount = shadowCount;
         this.inventory = (inventory == null) ? WorldInventory.empty() : inventory;
         this.gates = List.copyOf((gates == null) ? List.of() : gates);
+        this.shadowGates = List.copyOf((shadowGates == null) ? List.of() : shadowGates);
     }
 
     /**
@@ -447,6 +472,7 @@ public final class WorldScene {
         List<Box> standing = new ArrayList<>();
         List<Tag> tags = new ArrayList<>();
         List<Box> shaded = new ArrayList<>();
+        List<String> shadowOwners = new ArrayList<>();
         List<WorldInventory.Placement> placements = new ArrayList<>();
         List<Gate> gates = new ArrayList<>();
         for (Entry entry : entries) {
@@ -539,7 +565,11 @@ public final class WorldScene {
                 standing.add(cell);
             }
             collectTag(tags, entry, cell);
-            collectShadow(shaded, cell);
+            if (collectShadow(shaded, cell)) {
+                // The pool is gated by the name the PVS answers with, so it is
+                // laid and forgotten in the same frame as its caster.
+                shadowOwners.add(entry.name());
+            }
         }
         // The pictures occupy space exactly like a model does: a world whose only
         // standing object is a 2 m poster still has to be framed on it, and a sky
@@ -567,7 +597,8 @@ public final class WorldScene {
         Map<String, byte[]> art = new HashMap<>();
         J3dMeshFactory factory = new J3dMeshFactory(art::get);
         addSky(branch, extent, art, factory);
-        addShadows(branch, shaded, art, factory);
+        List<Gate> shadowGates = addShadows(branch, shaded, shadowOwners, art, factory,
+                lighting);
         List<NameTag> tagsBuilt = addTags(branch, tags, art, factory);
         int hungCount = addPictures(branch, hung, art, factory);
         // The sky is built off the whole world; the camera is seated on one
@@ -585,7 +616,7 @@ public final class WorldScene {
                 focus.half(), (float) focus.sphere().getRadius(),
                 (float) extent.getRadius(), crowdEntry(shaded, focus), tagsBuilt,
                 shaded.size(), hungCount,
-                new WorldInventory(placements), gates);
+                new WorldInventory(placements), gates, shadowGates);
     }
 
     /**
@@ -991,52 +1022,204 @@ public final class WorldScene {
      * something between a footstool and a door in height, and small enough to be
      * one object rather than a room -- gets a shadow pool; a room, a floor or a
      * lawn does not, because there is nothing under it to shade.
+     *
+     * @return whether the pool was collected, so the caller can pair it with the
+     *         cell that casts it (the pool's visibility gate is named after her)
      */
-    static void collectShadow(List<Box> shaded, Box cell) {
+    static boolean collectShadow(List<Box> shaded, Box cell) {
         if (cell.half.y < TAG_MIN_HEIGHT_M || cell.half.y > TAG_FIGURE_M) {
-            return;
+            return false;
         }
         double footprint = Math.hypot(cell.half.x, cell.half.z) * 2.0;
         if (footprint > SHADOW_MAX_FOOTPRINT_M * 2.0) {
-            return;
+            return false;
         }
         shaded.add(cell);
+        return true;
     }
 
     /**
      * Lay the shadow pools. Each is one flat textured quad, lifted a few
      * centimetres off the floor it sits on so it does not fight that floor for the
-     * depth buffer, and stretched to the figure's own footprint times
-     * {@link #SHADOW_SPREAD} -- a pool exactly the size of the feet in it reads as
-     * a decal rather than a shadow.
+     * depth buffer, and hung behind its own visibility gate so the PVS that drops
+     * the caster drops her shadow with it (roadmap P2.4's occlusion half).
+     *
+     * <p>Under a key with no run the quad keeps the shape the port has drawn since
+     * M8 -- the figure's footprint times {@link #SHADOW_SPREAD}, a pool exactly the
+     * size of the feet in it reads as a decal rather than a shadow. Under a key
+     * that has one it becomes {@link ShadowProjector}'s answer: the caster's width
+     * across the ray, its full length from the feet to where the top of the ray
+     * lands, and the yaw that turns that length onto the light.</p>
+     *
+     * @param owners the cell each pool belongs to, index-parallel to {@code shaded}
+     * @return one gate per laid pool, named after its caster; empty when nothing
+     *         was laid, which is the same world the port shipped before P2.4
      */
-    private static void addShadows(BranchGroup branch, List<Box> shaded,
-            Map<String, byte[]> art, J3dMeshFactory factory) {
+    private static List<Gate> addShadows(BranchGroup branch, List<Box> shaded,
+            List<String> owners, Map<String, byte[]> art, J3dMeshFactory factory,
+            Lighting lighting) {
         if (shaded.isEmpty()) {
-            return;
+            return List.of();
         }
         byte[] texture = ShadowArt.ellipse();
         if (texture == null) {
-            return; // no pool at all, rather than a black square under everything
+            // No pool at all, rather than a black square under everything.
+            return List.of();
         }
         art.put(SHADOW_PATH, texture);
-        for (Box cell : shaded) {
-            double width = clamp(cell.half.x * 2.0 * SHADOW_SPREAD, 0.2, 3.0);
-            double depth = clamp(cell.half.z * 2.0 * SHADOW_SPREAD, 0.2, 3.0);
+        Lighting key = keyInForce(lighting);
+        List<Gate> laid = new ArrayList<>();
+        for (int i = 0; i < shaded.size(); i++) {
+            Box cell = shaded.get(i);
+            ShadowProjector.ProjectedShadow cast = projectedShadowOf(cell, key);
+            double width;
+            double depth;
+            Transform3D seat = new Transform3D();
+            if (cast == null) {
+                // Overhead or absent light, or the projector feature off: the round
+                // pool the world has always drawn, byte-identical to before P2.4.
+                width = clamp(cell.half.x * 2.0 * SHADOW_SPREAD, 0.2, 3.0);
+                depth = clamp(cell.half.z * 2.0 * SHADOW_SPREAD, 0.2, 3.0);
+                seat.setTranslation(new Vector3d(cell.center.x,
+                        cell.center.y - cell.half.y + SHADOW_LIFT_M, cell.center.z));
+            } else {
+                // A sun with a run: the footprint travels along the light, so the
+                // pool is the caster's width ACROSS the ray and its full length
+                // along it, yawed so that length points where the shadow lies, and
+                // seated so its near edge stays at the feet even when the guard
+                // below has to shorten it.
+                width = clamp(cast.halfAcross() * 2.0, 0.2, 3.0);
+                double[] seatOf = anchoredSeat(cast);
+                depth = seatOf[2];
+                seat.setRotation(new AxisAngle4d(0.0, 1.0, 0.0,
+                        Math.toRadians(cast.yawDeg())));
+                seat.setTranslation(new Vector3d(seatOf[0], cast.centerY()
+                        + SHADOW_LIFT_M, seatOf[1]));
+            }
             Shape3D pool = factory.createShape(flatQuad(width, depth),
                     new MaterialAppearance(0f, 0f, 0f, 1f, SHADOW_PATH));
             if (pool == null) {
                 continue;
             }
-            Transform3D seat = new Transform3D();
-            seat.setTranslation(new Vector3d(cell.center.x,
-                    cell.center.y - cell.half.y + SHADOW_LIFT_M, cell.center.z));
             TransformGroup placed = new TransformGroup(seat);
             placed.setCapability(TransformGroup.ALLOW_TRANSFORM_READ);
             placed.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
-            placed.addChild(pool);
+            // CHILD_ALL, exactly like a cell's gate: a pool nobody culls is drawn,
+            // so the graph this returns is the graph the port has always shown.
+            Switch gate = new Switch(Switch.CHILD_ALL);
+            gate.setCapability(Switch.ALLOW_SWITCH_WRITE);
+            gate.addChild(pool);
+            placed.addChild(gate);
             branch.addChild(placed);
+            // Registered even when the caster has no name: {@link #staysVisible}
+            // keeps an unnamed pool open rather than culling a shadow the world
+            // never asked anyone to hide.
+            laid.add(new Gate(owners.get(i), gate));
         }
+        return laid;
+    }
+
+    /**
+     * Where a projected pool's seat goes and how long it may be, as a pure
+     * function so the anchoring rule is asserted headless.
+     *
+     * <p>{@link ShadowProjector} already caps the run, so this guard is the
+     * scene's own ceiling on the quad it seats rather than the physics. When it
+     * bites it must shorten the pool from its FAR end: a shadow whose length is
+     * clamped about its own centre has been lifted off the feet of the thing
+     * casting it, which is the exact defect this phase exists to fix. So the
+     * centre walks back along the light's run by half the length lost.</p>
+     *
+     * @return {centre X, centre Z, length}, the near edge pinned to the caster
+     */
+    static double[] anchoredSeat(ShadowProjector.ProjectedShadow cast) {
+        double length = cast.halfLengthAlong() * 2.0;
+        double clamped = clamp(length, 0.2, SHADOW_MAX_LENGTH_M);
+        double shrink = (length - clamped) * 0.5;
+        double yaw = Math.toRadians(cast.yawDeg());
+        // The yaw put the quad's +Z on the light's run, so that same (sin, cos)
+        // is the direction away from the feet -- walk it back to keep them covered.
+        return new double[] {cast.centerX() - Math.sin(yaw) * shrink,
+                cast.centerZ() - Math.cos(yaw) * shrink, clamped};
+    }
+
+    /**
+     * The occlusion rule of P2.4, as a pure function: a pool is a decal on the
+     * floor, not a cell, so it is drawn exactly while the cell that casts it is --
+     * the same name the PVS already answers with, consulted for the shadow as well
+     * as the geometry. A caster with no name has no entry in that answer, and the
+     * conservative reading of "nobody told me about this cell" is to leave its
+     * shadow where it is: a shadow that survives a cull is a rendering cost, a
+     * shadow lost to one is a world with people standing in nothing.
+     */
+    static boolean staysVisible(String caster,
+            java.util.Set<String> visible) {
+        return caster == null || visible.contains(caster);
+    }
+
+    /**
+     * The key the world is really lit by, which is not always the rig it was
+     * handed (roadmap P2.4's other half, and the reason the projector is live at
+     * all rather than a kernel nothing calls).
+     *
+     * <p>Two rigs exist in this port. {@link Lighting} is the scene-graph one --
+     * installed only when a caller asks, and inert on the pre-lit art this fork
+     * measures ({@code WlProbe32}: a {@code Light} changes nothing a
+     * {@code ColoringAttributes} surface does). {@link BakedRig} is the one a
+     * person actually sees shade by: the CPU per-vertex bake, on by default, whose
+     * key is {@code (-0.231, -0.370, -0.899)} -- a low sun, not a zenith one. A
+     * pool that stays round under a key that visibly rakes every face in the world
+     * is the tell the roadmap names, so the projector reads the rig that is in
+     * force: the caller's when it is enabled, the bake's otherwise, nothing when
+     * both are off.</p>
+     *
+     * <p>The direction is read as a world-space ray, the way a
+     * {@code DirectionalLight} carries it, because the floor the pool lies on is
+     * world space. The bake applies its own key per-vertex in each model's frame
+     * (that is what {@code BakedRig} documents), so for a cell authored with a yaw
+     * the two disagree by that yaw -- a known artifact of the bake, not of the
+     * projection, and stated rather than hidden here.</p>
+     */
+    static Lighting keyInForce(Lighting requested) {
+        if (requested != null && requested.enabled()) {
+            return requested;
+        }
+        if (!BakedRig.active()) {
+            return Lighting.NONE;
+        }
+        BakedRig.Spec spec = BakedRig.spec();
+        float[] d = spec.direction();
+        return Lighting.of(new float[] {spec.ambient(), spec.ambient(), spec.ambient()},
+                new float[] {1f, 1f, 1f}, d);
+    }
+
+    /**
+     * Where one caster's shadow lies when the sun has a run (roadmap P2.4), as a
+     * pure function so the projection the scene-graph write consumes is asserted
+     * headless, without a canvas or a native render stack -- the same shape as
+     * {@link #zonesOf}: the arithmetic is the deliverable, the pixel is the probe's.
+     *
+     * <p>Returns {@code null} -- meaning "keep the round pool" -- for a world with
+     * the {@code lg.wonderland.shadows} feature off, with no key in force, or with a
+     * key that is vertical or absent; {@link ShadowProjector#project} already
+     * answers null for the last, because a pool under overhead light is the
+     * physically right answer, not a fallback.</p>
+     *
+     * @param lighting the rig as given to {@link #build}; it is passed through
+     *                 {@link #keyInForce} first, so an unlit-by-scene-graph world
+     *                 is still projected along the bake that lights it
+     */
+    static ShadowProjector.ProjectedShadow projectedShadowOf(Box cell, Lighting lighting) {
+        if (!WorldFeatures.enabled(WorldFeatures.SHADOWS)) {
+            return null;
+        }
+        Lighting key = keyInForce(lighting);
+        if (!key.enabled()) {
+            return null;
+        }
+        return ShadowProjector.project(key.directionX(), key.directionY(),
+                key.directionZ(), cell.center.x, cell.center.y - cell.half.y,
+                cell.center.z, cell.half.y * 2.0, cell.half.x, cell.half.z);
     }
 
     /** The one shadow image every pool shares. */
@@ -1785,7 +1968,12 @@ public final class WorldScene {
 
     /**
      * Write one frame's cull answer into the scene graph: open the gate of every
-     * cell the eye can reach, shut the rest (roadmap P0.2's painted half).
+     * cell the eye can reach, shut the rest (roadmap P0.2's painted half) -- and
+     * shut the shadow pool of every caster that was dropped, so a far building
+     * never leaves its shadow lying in the near ground (roadmap P2.4's occlusion
+     * half). The pools answer to the same set and the same names, so with the
+     * culling feature off every pool stays open exactly as it did before this
+     * existed.
      *
      * <p>Called from the viewer wherever the eye is written -- the same seam
      * {@link #aimTags} uses -- and just as forgiving: a switch that refuses a
@@ -1794,36 +1982,73 @@ public final class WorldScene {
      * cull is a world that renders a little further; a world that throws on a
      * per-frame write is a world that disappears.</p>
      *
-     * @return how many gates were shut this frame -- the number the probe
-     *         reports as the evidence that cells actually drop
+     * @return how many cell gates were shut this frame -- the number the probe
+     *         reports as the evidence that cells actually drop. The pools shut
+     *         alongside them are counted in {@link #poolsHiddenLastFrame()}.
      */
     public int cullTo(float eyeX, float eyeY, float eyeZ) {
         java.util.Set<String> visible = visibleFrom(eyeX, eyeY, eyeZ);
         visibleLastFrame = visible.size();
         int dropped = 0;
         for (Gate gate : gates) {
-            try {
-                if (visible.contains(gate.name())) {
-                    gate.show();
-                } else {
-                    gate.hide();
-                    dropped++;
-                }
-            } catch (RuntimeException gateRefused) {
-                try {
-                    gate.show();
-                } catch (RuntimeException stillRefused) {
-                    // Nothing left to do: the cell is either drawn or the canvas
-                    // is gone. Neither is a reason to throw across a frame.
-                }
+            if (shut(gate, staysVisible(gate.name(), visible))) {
+                dropped++;
             }
         }
+        int pools = 0;
+        for (Gate pool : shadowGates) {
+            if (shut(pool, staysVisible(pool.name(), visible))) {
+                pools++;
+            }
+        }
+        poolsHiddenLastFrame = pools;
         return dropped;
+    }
+
+    /**
+     * One gate write that cannot cost a frame. A gate whose caster is out of the
+     * PVS is shut and reported; one that refuses is left open, because half a
+     * world's content is better than none of it.
+     *
+     * @return whether this gate was actually shut this frame
+     */
+    private static boolean shut(Gate gate, boolean visibleHere) {
+        try {
+            if (visibleHere) {
+                gate.show();
+            } else {
+                gate.hide();
+                return true;
+            }
+        } catch (RuntimeException gateRefused) {
+            try {
+                gate.show();
+            } catch (RuntimeException stillRefused) {
+                // Nothing left to do: the cell is either drawn or the canvas
+                // is gone. Neither is a reason to throw across a frame.
+            }
+        }
+        return false;
     }
 
     /** How many cells the last {@link #cullTo} kept visible (0 before the first). */
     public int visibleLastFrame() {
         return visibleLastFrame;
+    }
+
+    /** How many shadow pools the last {@link #cullTo} shut with their caster. */
+    public int poolsHiddenLastFrame() {
+        return poolsHiddenLastFrame;
+    }
+
+    /**
+     * How many pools are gated, out of {@link #shadowCount()} laid. Two numbers
+     * rather than one on purpose: a pool whose caster has no name is laid but
+     * never gated, and a probe that only reports the pools it hid cannot tell
+     * "nothing was dropped" from "nothing could be dropped".
+     */
+    public int shadowGateCount() {
+        return shadowGates.size();
     }
 
     /**

@@ -47,6 +47,7 @@ public final class WorldFeatures {
     public static final String BEHAVIOUR = "behaviour";
     public static final String WATER = "water";
     public static final String TRIGGER = "trigger";
+    public static final String SHADOWS = "shadows";
 
     private WorldFeatures() {
         // holder: no instances
@@ -102,7 +103,7 @@ public final class WorldFeatures {
                 .append(MASTER).append('=')
                 .append(read(reader, MASTER, "on")).append("):");
         String[] names = {LIGHTING, CULLING, COLLISION, AUDIO, CAMERA, BEHAVIOUR,
-                WATER, TRIGGER};
+                WATER, TRIGGER, SHADOWS};
         for (String name : names) {
             out.append(' ').append(name).append('=')
                     .append(enabled(reader.apply(MASTER), reader.apply(PREFIX + name))
