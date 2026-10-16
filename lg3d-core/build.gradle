@@ -204,18 +204,6 @@ dependencies {
     testRuntimeOnly libs.junit.platform.launcher
 }
 
-// The patched java3d-core (Canvas3D.preSwap GPU post-process hook) is built from
-// upstream source + the committed patch by :buildPatchedJava3dCore into a local
-// repo that shadows the stock Maven Central artifact under the same coordinates
-// (see the root build.gradle). java3d-core is `api` here, so depend this module's
-// compile tasks on that producer: it must populate the local repo before ANY
-// Java 3D classpath in the tree resolves. lg3d-apps / lg3d-incubator /
-// lg3d-widgets and the wonderland modules inherit this ordering transitively
-// through their project dependency on :lg3d-core. Up-to-date => a no-op.
-tasks.withType(JavaCompile).configureEach {
-    dependsOn rootProject.tasks.named('buildPatchedJava3dCore')
-}
-
 tasks.named('test') {
     useJUnitPlatform()
     // The tests exercise Java 3D-free logic only; run them headless so CI

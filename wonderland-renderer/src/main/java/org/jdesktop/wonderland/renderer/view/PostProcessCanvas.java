@@ -19,16 +19,18 @@
  * framebuffer still reads black and driving GL is pathological (~1 s/frame) --
  * WlProbe54 measured exactly that, which is why the patch and so this class exist.
  *
- * The override is deliberately thin. It reads the current context once and hands it,
+ * The method is deliberately thin. It reads the current context once and hands it,
  * with the canvas size, to each link in order -- each link owns its own GL chain,
  * state bracket and failure latch, so a link that faults latches ITSELF off and the
- * next frame skips it without the canvas having to know why. A @Override that will not
- * compile against a stock java3d-core is the point: the build only resolves the
- * patched jar (see the root build.gradle's buildPatchedJava3dCore), so this class
- * compiling at all is evidence the hook the probes measured is the one shipping. At
- * runtime against a stock jar the override would simply never be called and the world
- * would render without its post chain -- never a crash, because preSwap() is public
- * and a subclass may always declare it.
+ * next frame skips it without the canvas having to know why. It is NOT annotated
+ * @Override: the build resolves the STOCK org.jogamp.java3d:java3d-core:1.7.2, whose
+ * Canvas3D declares no preSwap() to override. WorldViewer.preSwapHookPresent() reflects
+ * for that method, finds it absent, and so decides NO effect takes the GPU_POSTPROCESS
+ * route -- the chain is empty, WorldViewer builds a plain Canvas3D, and this class is
+ * never even constructed. Even were one built, a stock Renderer never calls preSwap(),
+ * so the world renders without its post chain rather than crashing. This class and the
+ * whole Gpu*Pass chain it drives stay compiled and DORMANT: Phase 2 re-hosts them on a
+ * JOGL GLEventListener, which is the per-frame seam stock java3d lacks.
  *
  * Not constructed in CI: a Canvas3D needs a display and the native GL stack, so this
  * is probe-verified (WlProbe55/56 measured the bloom chain at 71-94 fps and read the
@@ -85,18 +87,19 @@ public final class PostProcessCanvas extends Canvas3D {
     }
 
     /**
-     * Java 3D calls this on the renderer thread, in its SWAP handler, between the
-     * glFinish and the buffer swap, with the context current and the frame's pixels
-     * complete. Each link composites into the very buffer about to be swapped, in
-     * order, so the whole chain is present in the presented frame.
+     * Runs the chain against the current context. Under the patched java3d-core this
+     * was called on the renderer thread, in its SWAP handler, between the glFinish and
+     * the buffer swap, with the context current and the frame's pixels complete, so each
+     * link composited into the very buffer about to be swapped. Against the STOCK jar the
+     * build now resolves nothing calls it: {@code WorldViewer.preSwapHookPresent()} finds
+     * no such method on Canvas3D, builds an empty chain and uses a plain Canvas3D, so this
+     * class is never even constructed. It is kept -- unannotated, dormant -- for Phase 2's
+     * JOGL GLEventListener to drive the same links.
      *
-     * <p>The base {@code preSwap()} is a no-op the patch documents as "applications
-     * should not call", so this override does not call super. It also cannot throw
-     * into Java 3D: each link latches itself off on any GL fault and every later frame
-     * skips it here, and the patched renderer guards the call anyway (Issue 264). A
-     * chain that cannot run degrades to the raw frame, never a broken renderer.</p>
+     * <p>It cannot throw into a host: each link latches itself off on any GL fault and
+     * every later frame skips it here. A chain that cannot run degrades to the raw frame,
+     * never a broken renderer.</p>
      */
-    @Override
     public void preSwap() {
         if (effects.isEmpty()) {
             return;
