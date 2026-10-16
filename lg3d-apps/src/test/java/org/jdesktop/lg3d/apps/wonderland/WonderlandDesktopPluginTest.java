@@ -2,14 +2,15 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c: headless tests for the plugin entry point.
+ * lg3d-apps wonderland bridge (M6c; moved out of wonderland-desktop): headless
+ * tests for the plugin entry point.
  *
  * The plugin is pure: its initialize()/dispose() bookkeeping is a lifecycle
  * flag, and its ServiceLoader registration is a resource on the classpath. Both
  * are asserted here. The live WonderlandDesktop construction the boot triggers
  * needs a running lg3d session and is left to the desktop probe.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

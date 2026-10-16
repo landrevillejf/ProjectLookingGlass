@@ -2,8 +2,9 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c/M6c2: the top-level Component3D that hosts all
- * wonderland cell scene-graphs inside the lg3d desktop's virtual universe.
+ * lg3d-apps wonderland bridge (M6c/M6c2; moved out of wonderland-desktop): the
+ * top-level Component3D that hosts all wonderland cell scene-graphs inside the
+ * lg3d desktop's virtual universe.
  *
  * This class extends lg3d-core's Component3D, which means its constructor
  * reaches through AppConnectorPrivate + Jogamp BranchGroup instantiation and
@@ -31,7 +32,7 @@
  * bridge feeds a row-major matrix and a boolean, and neither is a CellRenderer
  * concept.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,13 +51,15 @@ import org.jdesktop.lg3d.wg.Java3DGraph;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.wonderland.client.cell.CellRenderer;
+import org.jdesktop.wonderland.desktop.FrameMounter;
 import org.jdesktop.wonderland.renderer.avatar.AvatarRenderer;
 import org.jdesktop.wonderland.renderer.j3d.ModelRenderer;
 
 /**
  * A {@link Component3D} that hosts the scene graphs of all loaded wonderland
  * world cells. Implements {@link FrameMounter} so the pure
- * {@link CellFrameBridge} drives the actual mount/unmount/transform ops.
+ * {@link org.jdesktop.wonderland.desktop.CellFrameBridge} drives the actual
+ * mount/unmount/transform ops.
  *
  * <p>Probe-only: constructing this class requires a live lg3d desktop session
  * (AppConnector + Jogamp VirtualUniverse). It is verified by the in-JVM
@@ -204,7 +207,7 @@ public final class WonderlandWorldContainer extends Component3D implements Frame
     /**
      * M6c2: the mounted cells this pick hit, nearest first, with duplicates
      * collapsed -- a cell whose geometry is a stack of Shape3Ds is one hit, not
-     * eight. Feeds {@link PickRouter#routeHits}.
+     * eight. Feeds {@link org.jdesktop.wonderland.desktop.PickRouter#routeHits}.
      *
      * @param event the desktop's picked mouse event; may be null
      * @return the cell ids under the pointer, nearest first

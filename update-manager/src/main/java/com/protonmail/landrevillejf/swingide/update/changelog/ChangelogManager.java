@@ -84,6 +84,15 @@ public class ChangelogManager {
     private static final Pattern CODE_PATTERN =
         Pattern.compile("(?<!`)(`++)((?:(?!(?<!`)\\1(?!`)).)*?)(?<!`)\\1(?!`)");
 
+    /**
+     * The version literal a Keep a Changelog {@code [Unreleased]} header parses
+     * to. It is not a release: it names work that has not shipped, so it is in no
+     * build a reader is running and a "what's new" surface must not present it as
+     * new. {@link #getAllEntries()} still carries it - the data stays complete -
+     * and only the rendering ({@link #toHtml()}) drops it.
+     */
+    private static final String UNRELEASED = "Unreleased";
+
     private final Path changelogPath;
     private List<ChangelogEntry> entries;
     
@@ -340,8 +349,9 @@ public class ChangelogManager {
      * suffix answers to the plain version it is a build of, so asking for
      * {@code 1.69.0} still finds the {@code [1.69.0-dev]} section the desktop is
      * about to be updated to. An {@code [Unreleased]} header keeps the literal
-     * version {@code Unreleased} - no release number resolves to it, and it is
-     * still rendered by {@link #toHtml()}.</p>
+     * version {@code Unreleased} - no release number resolves to it, and
+     * {@link #toHtml()} skips it too, so work that has not shipped is never
+     * handed to a reader as new.</p>
      */
     public Optional<ChangelogEntry> getEntry(String version) {
         if (version == null) {
@@ -395,11 +405,23 @@ public class ChangelogManager {
     }
     
     /**
-     * Convert changelog to HTML.
+     * Convert the changelog to HTML for a "what's new" listing.
+     *
+     * <p>The {@code [Unreleased]} section is skipped. Both callers present the
+     * result as what is new in the desktop - {@code UpdateService}'s
+     * {@code getLocalChangelogHtml(null)} for the "What's new in Project Looking
+     * Glass" dialog, and its remote-fetch fallback - and unreleased work is by
+     * definition not in the build the reader is running, so advertising it there
+     * promises a feature the desktop does not have. The work in progress lives in
+     * {@code CHANGELOG.md} alone; {@link #getAllEntries()} still returns it for a
+     * caller that wants the complete data rather than the released view.</p>
      */
     public String toHtml() {
         StringBuilder body = new StringBuilder();
         for (ChangelogEntry entry : entries) {
+            if (UNRELEASED.equalsIgnoreCase(entry.getVersion())) {
+                continue;
+            }
             body.append(entry.toHtml());
         }
         return wrapHtml(body.toString());

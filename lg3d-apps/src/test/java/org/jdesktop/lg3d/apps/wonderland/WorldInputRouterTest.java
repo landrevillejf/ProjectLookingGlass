@@ -2,8 +2,8 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c2: headless tests for the desktop-event -> intent
- * mapping.
+ * lg3d-apps wonderland bridge (M6c2; moved out of wonderland-desktop): headless
+ * tests for the desktop-event -> intent mapping.
  *
  * The listener's other half -- the picked node list -- belongs to the live
  * PickEngine and is probe-only, but the vocabulary it translates is pure, and
@@ -11,7 +11,7 @@
  * class the listener registers for must be a class it can actually read, or the
  * world layer hears nothing and no test would notice.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,6 +23,10 @@ import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMotionEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMovedEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
+import org.jdesktop.wonderland.desktop.CellFrameBridge;
+import org.jdesktop.wonderland.desktop.FrameMounter;
+import org.jdesktop.wonderland.desktop.PickIntent;
+import org.jdesktop.wonderland.desktop.PickRouter;
 import org.junit.jupiter.api.Test;
 
 /**

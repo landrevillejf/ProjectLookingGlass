@@ -146,6 +146,12 @@ class BloomKernelTest {
     void aFrameIsARealRectangleAndABlurIsADistance() {
         assertThatThrownBy(() -> new BloomKernel.Frame(0, 5, new int[0]))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new BloomKernel.Frame(5, 0, new int[0]))
+                .as("a zero height is no rectangle either")
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new BloomKernel.Frame(1, 1, null))
+                .as("a frame with no pixels is not a frame")
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new BloomKernel.Frame(2, 2, new int[3]))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> BloomKernel.blur(spot(3, 3, 1, 1, 10), -1))

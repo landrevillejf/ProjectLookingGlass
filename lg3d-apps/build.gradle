@@ -196,18 +196,22 @@ tasks.named('test') {
         systemProperty 'lg3d.debug.integration',
                 System.getProperty('lg3d.debug.integration')
     }
-    // The world-render probe (WorldRenderProbeTest) is the same opt-in idiom for
-    // the same reason: it needs an X display, a GL context and a running
-    // wonderland-server, so it is skipped unless asked for -- and when it is
-    // asked for, the headless pin above has to come off, because a Java 3D
-    // canvas cannot be created in a headless JVM. CI never sets the property and
-    // never loses the pin.
-    def renderProbe = System.getProperty('lg.wonderland.probe')
-    if (renderProbe != null) {
-        systemProperty 'lg.wonderland.probe', renderProbe
-        if ('true' == renderProbe) {
-            systemProperty 'java.awt.headless', 'false'
-        }
+    // Forward EVERY lg.wonderland.* switch the Gradle JVM was given to the forked
+    // test JVM -- the master lg.wonderland.features kill switch and each
+    // per-feature lg.wonderland.<name> the renderer reads through WorldFeatures,
+    // not just the probe gate below. Without this a `-Dlg.wonderland.features=off`
+    // (or any per-effect switch) set on the command line landed on the Gradle JVM
+    // and never reached the test JVM, so the probe silently ran with every feature
+    // at its default and a "features off" run measured features ON.
+    System.properties.stringPropertyNames().findAll { it.startsWith('lg.wonderland.') }
+            .each { key -> systemProperty key, System.getProperty(key) }
+    // The world-render probe (WorldRenderProbeTest) needs an X display, a GL
+    // context and a running wonderland-server, so it is skipped unless asked for
+    // -- and when it is asked for, the headless pin above has to come off, because
+    // a Java 3D canvas cannot be created in a headless JVM. CI never sets the
+    // property and never loses the pin.
+    if ('true' == System.getProperty('lg.wonderland.probe')) {
+        systemProperty 'java.awt.headless', 'false'
     }
 }
 
@@ -269,26 +273,28 @@ dependencies {
     // or in wonderland-modules (which keeps a hard headless floor). No cycle:
     // wonderland-modules depends only on wonderland-common.
     implementation project(':wonderland-modules')
-    // Wonderland M6c2 desktop integration: the 3D start-menu command
-    // (org.jdesktop.lg3d.apps.wonderland.WonderlandWorld3D) mounts the live
-    // world through wonderland-desktop's scene-graph bridge, and its HUD draws
-    // the rows WorldHudModel joins from that bridge. The dependency points the
-    // only way it can: lg3d-apps -> wonderland-desktop -> lg3d-core, and
-    // wonderland-desktop never looks back at lg3d-apps, so the graph stays
-    // acyclic (lg3d-apps already depends on lg3d-core). The
-    // client / common jars are named explicitly because wonderland-desktop
-    // carries them as `implementation` (not exposed to consumers) and its own
-    // signatures name CellRenderer and CellTransform, which the HUD's mount
-    // fixtures have to implement. wonderland-avatars is not referenced here,
-    // only needed at runtime, and arrives transitively on the runtime classpath
-    // (and is listed on the desktop run classpath in lg3d-core/build.gradle).
+    // Wonderland desktop integration: the lg3d-coupled bridge -- WonderlandDesktop,
+    // WonderlandWorldContainer (the Component3D that mounts each cell), WorldInputRouter
+    // and WonderlandDesktopPlugin (the ServiceLoader provider) -- lives HERE, in
+    // org.jdesktop.lg3d.apps.wonderland, beside the WonderlandWorld3D start-menu command
+    // and the HUD that draws WorldHudModel's rows. wonderland-desktop is the PURE half
+    // (the FrameMounter bookkeeping, PickRouter, SessionFeed, WorldHudModel) and is
+    // lg3d-free, so the dependency points the only way the architecture allows:
+    // lg3d-apps -> {wonderland-desktop, lg3d-core}, and no wonderland module ever looks
+    // back at lg3d. The client / common jars are named explicitly because
+    // wonderland-desktop carries them as `implementation` (not exposed to consumers) and
+    // its own signatures name CellRenderer and CellTransform, which the HUD's mount
+    // fixtures have to implement. wonderland-avatars is not referenced here, only needed
+    // at runtime, and arrives transitively on the runtime classpath (and is listed on the
+    // desktop run classpath in lg3d-core/build.gradle).
     //
     // Wonderland M8 world rendering: wonderland-renderer IS referenced here, on
     // purpose. WorldRender builds a WorldScene and opens a WorldViewer -- the
     // lg3d-free Java 3D path that puts a listed world on screen from the 2D
-    // desktop, which has no virtual universe to mount one in. wonderland-desktop
-    // carries the renderer as `implementation`, so naming it explicitly is what
-    // makes its view package compile; the dependency still points one way.
+    // desktop, which has no virtual universe to mount one in. The moved bridge's
+    // WonderlandWorldContainer also mounts the renderer's ModelRenderer / AvatarRenderer
+    // scenes, so naming it explicitly is what makes both compile; the dependency still
+    // points one way.
     implementation project(':wonderland-renderer')
     implementation project(':wonderland-desktop')
     implementation project(':wonderland-client')
@@ -348,4 +354,8 @@ dependencies {
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher
+    // AssertJ: the wonderland bridge tests moved here from wonderland-desktop
+    // (WonderlandDesktopPluginTest, WonderlandWorldContainerTest,
+    // WorldInputRouterTest) assert with assertThat / assertThatThrownBy.
+    testImplementation libs.assertj.core
 }

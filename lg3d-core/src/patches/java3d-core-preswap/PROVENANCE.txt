@@ -1,0 +1,58 @@
+Patched org.jogamp.java3d:java3d-core -- Canvas3D.preSwap() GPU post-process hook
+=================================================================================
+
+WHAT THIS IS
+------------
+preswap-hook.patch is a minimal source patch against the Jogamp Java 3D fork
+`java3d-core` that adds one overridable method, `Canvas3D.preSwap()`, and calls
+it from `Renderer`'s SWAP handler immediately after `syncRender(ctx, true)`
+(a glFinish) and immediately before `swapBuffers()`.
+
+WHY
+---
+The lg3d world renderer runs a per-frame, zero-CPU-readback GPU bloom (and any
+future screen-space post-process) at exactly the point where the frame's pixels
+are complete and resident in the drawable's render target, but before the buffer
+swap presents them. Stock java3d-core 1.7.2 exposes only `Canvas3D.postRender()`,
+which fires earlier -- in the RENDER pass, before the swap handler's
+makeCtxCurrent()+syncRender(). At postRender() the default framebuffer still
+reads black and driving GL there is pathological (~1 s/frame); this was measured,
+not assumed. preSwap() is the correct hook.
+
+The change is additive only (+42 lines, no deletions): it adds a public method
+whose base implementation does nothing, and invokes it through a private helper
+guarded exactly like the existing postRender()/postSwap() callbacks, so a defect
+in an application hook can never take down the renderer thread.
+
+UPSTREAM PROVENANCE
+-------------------
+Repository : https://github.com/Jogamp/java3d-core.git
+Pinned SHA : ee928027c1d766313eb09b8632aee8e6f934ba22  ("Moved to jogl 2.6")
+Coordinates: org.jogamp.java3d:java3d-core:1.7.2
+Files      : src/main/java/org/jogamp/java3d/Canvas3D.java
+             src/main/java/org/jogamp/java3d/Renderer.java
+
+LICENSE
+-------
+java3d-core is licensed under the GNU General Public License version 2 with the
+GCC/Classpath Exception (declared in the upstream pom.xml as "GPLv2 with
+Classpath exception"). The Classpath Exception permits linking this library into
+lg3d regardless of lg3d's own license, exactly as it already does for the
+OpenJFX runtime this project bundles. This patch is a derivative work of that
+source and is redistributed under the same GPLv2-with-Classpath-exception terms.
+
+The patched JAR IS NOT COMMITTED. It is rebuilt from upstream source + this
+patch by scripts/build-patched-java3d.sh (wired as the Gradle task
+:buildPatchedJava3dCore), so no third-party binary enters the repository. See
+the root build.gradle for how the rebuilt jar shadows the stock Maven Central
+artifact on every classpath.
+
+HOW TO REBUILD BY HAND
+----------------------
+    scripts/build-patched-java3d.sh \
+        lg3d-core/src/patches/java3d-core-preswap/preswap-hook.patch \
+        build-gradle/java3d-core-src \
+        build-gradle/java3d-patched-repo \
+        ee928027c1d766313eb09b8632aee8e6f934ba22
+with JAVA_HOME pointing at the pinned JDK 21 toolchain. Or simply:
+    ./gradlew :buildPatchedJava3dCore

@@ -1,0 +1,76 @@
+diff --git a/src/main/java/org/jogamp/java3d/Canvas3D.java b/src/main/java/org/jogamp/java3d/Canvas3D.java
+index d099f5e..b8596e3 100644
+--- a/src/main/java/org/jogamp/java3d/Canvas3D.java
++++ b/src/main/java/org/jogamp/java3d/Canvas3D.java
+@@ -1623,6 +1623,29 @@ ArrayList<TextureRetained> textureIDResourceTable = new ArrayList<TextureRetaine
+ 	// Do nothing; the user overrides this to cause some action
+     }
+ 
++    /**
++     * This routine is called by the Java 3D rendering loop after this frame's
++     * rendering has been synchronized and the drawing context made current,
++     * immediately before the buffer swap that presents the frame. Unlike
++     * {@link #postRender()}, which runs earlier in the render pass before that
++     * synchronization, the frame's pixels are complete and resident in the
++     * drawable's render target here, so an application may run a GPU
++     * post-process (for example a screen-space bloom) that reads the rendered
++     * image and composites back into the very buffer about to be presented.
++     *
++     * <p>
++     * The OpenGL context is current on the renderer thread; obtain it with
++     * <code>com.jogamp.opengl.GLContext.getCurrent()</code>. Updates to live
++     * Geometry, Texture, and ImageComponent objects in the scene graph are not
++     * allowed from this method.
++     *
++     * <p>
++     * NOTE: Applications should <i>not</i> call this method.
++     */
++    public void preSwap() {
++	// Do nothing; the user overrides this to cause some action
++    }
++
+     /**
+      * This routine is called by the Java 3D rendering loop after completing
+      * all rendering to the canvas, and all other canvases associated with
+diff --git a/src/main/java/org/jogamp/java3d/Renderer.java b/src/main/java/org/jogamp/java3d/Renderer.java
+index 3e5a384..b6dafdf 100644
+--- a/src/main/java/org/jogamp/java3d/Renderer.java
++++ b/src/main/java/org/jogamp/java3d/Renderer.java
+@@ -260,11 +260,13 @@ ArrayList<TextureRetained> textureIDResourceTable = new ArrayList<TextureRetaine
+                                             }
+                                             cv.makeCtxCurrent();
+                                             cv.syncRender(cv.ctx, true);
++                                            invokePreSwap(cv);
+                                             cv.swapBuffers(cv.ctx, cv.drawable);
+                                             cv.drawingSurfaceObject.unLock();
+                                         } else {
+                                             cv.makeCtxCurrent();
+                                             cv.syncRender(cv.ctx, true);
++                                            invokePreSwap(cv);
+                                             cv.swapBuffers(cv.ctx, cv.drawable);
+                                         }
+                                     }
+@@ -1547,6 +1549,23 @@ void shutdown() {
+     }
+ 
+ 
++    // Invokes the Canvas3D.preSwap() GPU post-process hook immediately before
++    // the buffer swap, once the frame's rendering has been synchronized and the
++    // context made current. Guarded exactly like the postRender()/postSwap()
++    // callbacks so a defect in an application hook can never take down the
++    // renderer thread (Issue 264).
++    private static void invokePreSwap(Canvas3D cv) {
++        try {
++            cv.preSwap();
++        } catch (RuntimeException e) {
++            System.err.println("Exception occurred during Canvas3D preSwap callback:");
++            e.printStackTrace();
++        } catch (Error e) {
++            System.err.println("Error occurred during Canvas3D preSwap callback:");
++            e.printStackTrace();
++        }
++    }
++
+     // This is only invoked from removeCtx()/removeAllCtxs()
+     // with drawingSurface already lock
+     final void makeCtxCurrent(Context sharedCtx, Drawable drawable) {

@@ -2,8 +2,8 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c: headless tests for WonderlandWorldContainer's pure
- * scene-extraction branch.
+ * lg3d-apps wonderland bridge (M6c; moved out of wonderland-desktop): headless
+ * tests for WonderlandWorldContainer's pure scene-extraction branch.
  *
  * The container extends lg3d's Component3D, so it CANNOT be instantiated in a
  * headless JVM -- its constructor reaches through AppConnectorPrivate. But the
@@ -13,7 +13,7 @@
  * branches (ModelRenderer / AvatarRenderer) need live Jogamp renderers and are
  * left to the in-JVM desktop probe.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,6 +21,7 @@ import org.jogamp.java3d.BranchGroup;
 import org.jdesktop.wonderland.client.cell.CellRenderer;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.CellTransform;
+import org.jdesktop.wonderland.desktop.FrameMounter;
 import org.junit.jupiter.api.Test;
 
 /**

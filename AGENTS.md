@@ -316,9 +316,10 @@ the exit codes and how to add a tool.
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
   scripts README and vice versa (a CI gate).
 - `whats-new.mnd` - the project's release notes as one self-updating artifact with
-  three readers. It renders `CHANGELOG.md` twice over: `[Unreleased]` plus the
-  three newest releases become `lg3d-apps/…/help/helpcontent/whats-new.html`
-  (headlines only, for a reader scanning a guide), and every released version gets
+  three readers. It renders `CHANGELOG.md` twice over: the three newest **released**
+  versions become `lg3d-apps/…/help/helpcontent/whats-new.html` (headlines only, for
+  a reader scanning a guide -- never `[Unreleased]`, because a build's *What's New*
+  must name only what that build actually ships), and every released version gets
   its own page under `documentation/releases/` with a full narrative and an index
   that lists them. The same script re-renders all of it in memory and compares
   byte for byte, so the committed pages cannot fall behind the changelog

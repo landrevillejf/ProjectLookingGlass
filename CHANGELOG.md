@@ -10,6 +10,173 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Contact darkening now ships on the live canvas — roadmap P2.7, screen-space ambient occlusion on the post chain** (`wonderland-renderer`) —
+  The fifth and final link on the `preSwap` GPU post chain the P3.2 bloom proved,
+  run FIRST so the scene is occluded before the cosmetic lens effects and the tone
+  map fold it — same shipped pattern as the bloom, tone map, FXAA and DOF: a pure
+  headless-tested kernel, a probe-gated GL pass transcribing it, a plan decision, an
+  opt-in flag and the `WorldViewer` wiring, with the depth buffer the defocus
+  introduced now put to reconstructing a normal. `SsaoKernel` is the occlusion
+  estimate in pure Java: the symmetric-perspective unprojection (`near*far/(far -
+  d*(far-near))`), a view normal from the reconstructed position's screen-space
+  gradients flipped toward the eye, and a fixed twelve-point hemisphere sampled with
+  a deterministic per-pixel rotation, a depth range-check and a self-bias, counting
+  how many samples a nearer surface hides; it reuses `HdrKernel.Frame`, and
+  `apply()` modulates the composited RGB — the honest approximation available to a
+  pass that sees the final frame and not the direct/ambient split. `GpuSsaoPass`
+  blits FB0 colour+depth into scene textures, runs the hemisphere sample and
+  multiplies back into the swap buffer with zero CPU readback and the same GL state
+  bracket and never-throws latch; `SSAO_FRAG` is `SsaoKernel` transcribed with the
+  identical twelve sample literals, the identical integer per-pixel rotation and a
+  `texelFetch` for every depth read so a sample lands on the exact texel the kernel
+  indexes. `PostProcessPlan.decideSsao` answers the GPU route or NONE, never a
+  half-applied software darkening that would leave the live canvas flat-lit.
+  `WorldViewer` prepends the pass, built with the camera-matched `Settings` it
+  derives from the scene's own near/far/fov and the canvas aspect (front clip
+  extracted to `FRONT_CLIP_M` so the reconstruction cannot drift from the view
+  `show()` sets). **20 new headless cases** (`SsaoKernelTest` 11 — the linearisation
+  spans near..far and is monotonic, a flat field is unoccluded everywhere, a pit
+  floor beside its wall is occluded but its flat middle is not, a raised platform is
+  not, the factor stays in 0..1, a zero intensity is the exact identity and a
+  far-clip background is untouched; `GpuSsaoPassTest` 5 on the settings contract and
+  the null-context `render`/`dispose` no-op guards; the four `decideSsao` branches in
+  `PostProcessPlanTest`). The GL pass cannot be constructed headless (a `GLContext`
+  needs a display), so the on-screen darkening is verified by the in-JVM probe under
+  `DISPLAY`, exactly like the bloom — not asserted here.
+- **The frame now defocuses by depth — roadmap P3.5, depth of field on the post chain** (`wonderland-renderer`) —
+  The fourth link on the `preSwap` GPU post chain, after the tone map and before
+  FXAA so the defocus gathers the display-referred image and the anti-alias still
+  runs last — same shipped pattern as the bloom, tone map and FXAA, with the one
+  thing that sets this link apart: a depth buffer. `DofKernel` is the
+  scatter-as-gather defocus in pure Java — the circle of confusion a normalised
+  depth implies (`clamp01` of the depth error over the focus band, symmetric about
+  the focus), the `round(coc * maxRadiusPx)` gather radius, and a disc average that
+  skips an out-of-frame or outside-the-disc sample and divides by the count it kept
+  — reusing `HdrKernel.Frame` so the chain agrees on one frame type. `GpuDofPass` is
+  the first pass to blit DEPTH beside colour (`GL_COLOR_BUFFER_BIT |
+  GL_DEPTH_BUFFER_BIT`, `GL_NEAREST` as a depth blit requires) into a paired
+  `GL_DEPTH_COMPONENT24` attachment, because at `preSwap` the depth the renderer just
+  wrote is still resident on the GPU; `DOF_FRAG` is `DofKernel.gather` transcribed,
+  the only divergence being the sub-LSB fixed-point rounding every pass in this chain
+  has. `PostProcessPlan.decideDof` answers the GPU route or NONE, never a half-applied
+  software defocus that would leave the live canvas uniformly sharp. `WorldViewer`
+  inserts the pass between the tone map and FXAA and adds `getDofDecision()`; the
+  scene depth survives bloom and the tone map (both write only colour), so DOF reads
+  the true depth wherever it sits. **19 new headless cases** (`DofKernelTest` 10 — the
+  CoC is 0 at the focus, monotonic, symmetric and saturating, the radius caps, a zero
+  max radius is the exact identity, a uniform frame survives ANY depth field untouched
+  (the invariant that proves the gather invents no detail), and a focus pixel stays
+  sharp while a far pixel blurs; `GpuDofPassTest` 5; the four `decideDof` branches in
+  `PostProcessPlanTest`). The GL pass is probe-gated like every link on this chain.
+- **Physically-based shading has a kernel and a plan now — roadmap P2.6, Cook-Torrance metallic-roughness BRDF** (`wonderland-renderer`) —
+  A metallic-roughness BRDF the lit route can run instead of Blinn-Phong, delivered
+  in the exact shape P2.2's `ShaderAppearancePlan` shipped. `PbrKernel` (in `shade`)
+  is Cook-Torrance in pure Java — GGX/Trowbridge-Reitz normal distribution `D`,
+  Smith-Schlick geometry `G`, Schlick Fresnel `F`, the dielectric-0.04 /
+  metal-base-colour `F0`, and the assembled energy-conserving direct-light BRDF plus
+  a `shade()` that adds ambient, `java.base` only. `PbrPlan` (in `mesh`) is the
+  headless verdict of "does this material run Cook-Torrance", with a reason beside
+  every branch, carrying the GLSL 1.20 vertex+fragment pair that transcribes
+  `PbrKernel` (same PI, same 0.04 `F0`, same D/G/F, same `alpha = roughness^2`). It is
+  probe-gated exactly like P2.2's SHADER path: production keeps the validated
+  Blinn-Phong route until a `WlProbe` validates this program, and a material falls back
+  with its metallic/roughness recorded but unapplied rather than silently flat — so no
+  shipped world changes a pixel yet. **17 new headless cases** (`PbrKernelTest` 10 pin
+  the physical invariants — dielectric `F0` 0.04, a metal's `F0` is its base, Fresnel
+  head-on vs grazing, GGX sharpens as roughness falls, Smith in (0,1], BRDF
+  non-negative and zero below the horizon, a black metal reflects nothing, `shade`
+  scales by the cosine; `PbrPlanTest` 7 pin every decision branch and that the GLSL
+  names the kernel's constants). The live route is probe-gated, not asserted, exactly
+  like P2.2.
+- **The presented image now anti-aliases — roadmap P3.4, FXAA subpixel pass on the post chain** (`wonderland-renderer`) —
+  The third link on the `preSwap` GPU post chain, after the bloom and the tone map so
+  it softens the edges of the very image the eye is shown — same shipped pattern: a
+  pure headless-tested kernel, a probe-gated GL pass transcribing it, a plan decision,
+  an opt-in flag and the `WorldViewer` wiring. `FxaaKernel` is FXAA's published
+  subpixel stage — the local-contrast edge gate plus the subpixel blend toward the
+  four-neighbour average, using Lottes's `FXAA_SUBPIX_TRIM` 1/4 and its `1/(1-trim)`
+  scale, clamped by the subpixel quality — reusing `HdrKernel`'s luminance and `Frame`
+  so the whole chain agrees on one definition of "how bright". It is the subpixel
+  stage only, not FXAA's directional span search, and claims no more. `GpuFxaaPass`
+  captures FB0 into a scene texture, runs a fullscreen subpixel pass and writes back
+  into the swap buffer, zero readback, same GL state bracket and never-throws latch;
+  `FXAA_FRAG` is `FxaaKernel` transcribed. `PostProcessPlan.decideFxaa` answers the GPU
+  route or NONE, never a half-applied software anti-alias that would leave the live
+  canvas jagged. `WorldViewer` appends the pass last and adds `getFxaaDecision()`.
+  **18 new headless cases** (`FxaaKernelTest` 9 — a flat frame is byte-for-byte
+  unchanged, the gate needs both floor and luma fraction, an isolated impulse is
+  pulled toward its average by exactly the published weight and nothing else in the
+  field moves, alpha carried through; `GpuFxaaPassTest` 5; the four `decideFxaa`
+  branches in `PostProcessPlanTest`). Probe-gated GL pass.
+- **The live canvas now tone maps — roadmap P3.3, HDR on the post chain** (`wonderland-renderer`, `wonderland-common`) —
+  The second link on the `preSwap` GPU post chain the P3.2 bloom proved, following the
+  shipped pattern exactly: a pure headless-tested kernel, a probe-gated GL pass, a
+  plan decision, an opt-in feature flag and the `WorldViewer` wiring. `HdrKernel` is
+  the pure tone-mapping reference — exposure, extended Reinhard with a white point,
+  Narkowicz ACES, Rec.709 luminance and gamma encode — over a packed ARGB `int[]` and
+  `float` triples, `java.base` only. `GpuPostEffect` is the one contract every GPU pass
+  now honours (`render`/`dispose`/`isFailed`); `GpuBloomPass` declares it unchanged.
+  `GpuHdrPass` captures FB0 into a scene texture, runs a fullscreen tonemap and writes
+  back into the swap buffer, zero CPU readback, same GL state bracket and never-throws
+  latch as the bloom; its GLSL is `HdrKernel.curve` transcribed. `PostProcessCanvas`
+  generalizes the old single-pass `BloomCanvas` into an ordered `GpuPostEffect` chain
+  that skips any failed link inside one `preSwap` (`BloomCanvas` removed).
+  `PostProcessPlan.decideHdr` answers the GPU route or NONE, never a half-applied
+  software curve that would leave the live canvas lying about its own radiance.
+  `WorldFeatures` gained the HDR/FXAA/DOF/SSAO/PBR flags (ON by default like every
+  switch there), and `WorldViewer` builds the chain from both decisions and adds
+  `getHdrDecision()`. **21 new headless cases** (`HdrKernelTest` 12; `GpuHdrPassTest` 5;
+  the four `decideHdr` branches in `PostProcessPlanTest`), and the `WorldFeatures`
+  summary now names every flag. The on-screen GL pass is probe-gated like the bloom.
+- **A live per-frame GPU bloom now ships — roadmap P3.2, the ceiling retired by patching the renderer** (`wonderland-renderer`, `wonderland-common`) —
+  The earlier P3.2 entries in this section bloomed a *captured* frame in software
+  and stated, honestly for their moment, that a per-frame glow on the LIVE 3D
+  canvas was "a missing architecture, not a missing flag" because the fork had no
+  scene-to-texture path a shader could sample. That claim is now **retired**, not
+  softened. `WlProbe53` first re-measured the ceiling and found it lower than the
+  prose assumed: a framebuffer blit of the presented scene into a texture and back
+  (`FBO-BLIT-OK`) runs on the live GL 4.6 radeonsi context at 56 fps, and an inline
+  bright-pass/blur/composite lifted a hot quad's halo — so a GPU post pass is
+  real-time on this fork and the renderer is hookable. The hook did not exist
+  upstream: Java 3D 1.7.2 offers `postRender`, but `WlProbe54` proved it UNVIABLE
+  (FB0 reads black there — it fires before the sync render — and it cost ~1 s/frame).
+  So the renderer is **patched**: `lg3d-core/src/patches/java3d-core-preswap` adds
+  an overridable `public Canvas3D.preSwap()` (no-op base) that `Renderer` calls
+  between its `syncRender` glFinish and `swapBuffers`, guarded against a
+  `RuntimeException`/`Error` so an app hook can never take the render thread down.
+  The patch is **built from source in CI, never committed as a binary**:
+  `:buildPatchedJava3dCore` clones upstream java3d-core 1.7.2 at a pinned SHA,
+  applies the committed `.patch`, Maven-builds it under JDK 21 and installs it into
+  a local repo declared *before* Maven Central under the *same* coordinates, so the
+  patched jar shadows stock for every consumer (`PROVENANCE.txt` + the upstream
+  license travel with it). On that hook `GpuBloomPass` runs the production
+  zero-readback GL chain — blit FB0 into a scene texture, smooth-kneed bright pass,
+  separable 9-tap Gaussian ping-pong, additive composite — with the whole GL state
+  (draw/read FBO, viewport, program, VAO, active texture, unit 0/1 bindings and the
+  blend/depth/scissor/cull enables) saved and restored around it, because leaking
+  Java 3D's state is what turned the next frame black. It never throws: any GL fault
+  latches the pass off and the desktop renders clean. `BloomCanvas` is the thin
+  `preSwap` adapter that drives it, and `WorldViewer` builds one only when
+  `PostProcessPlan.decide(...)` answers the new `GPU_POSTPROCESS` path — gated on
+  `WorldFeatures.BLOOM` (`lg.wonderland.bloom=off` disables it) AND a runtime check
+  that the patched hook is actually present, so an unpatched jar silently keeps the
+  plain `Canvas3D`. `PostProcessPlan` gained `Path.GPU_POSTPROCESS` and
+  `Capability.GPU_POSTPROCESS_PROBED_USABLE`, checked *before* the readback route so
+  the zero-readback path always wins when both are in evidence. `WlProbe55` measured
+  an inline chain VISIBLE per frame at 71 fps (7732 halo pixels lifted onto dark
+  scene); `WlProbe56` re-measured the PRODUCTION `GpuBloomPass` at
+  `PROD-BLOOM-VISIBLE`, **94 fps** (10.67 ms mean / 11.54 ms max at 1280x763), the
+  before/after FB0 diff lifting the same 7732 pixels, every one onto dark
+  background (the halo a viewer actually sees), max lift 75, `prodPassFailed=false`
+  — the shipped uniform-parameterised chain reproduces the proven constants exactly.
+  The GL chain and `BloomCanvas` cannot be constructed headless (a `GLContext` needs
+  a display), so they are probe-verified; the pure halves are asserted — **15 new
+  headless cases** (`PostProcessPlanTest` 8 on the full decision matrix including
+  the GPU branch and its preference over readback; `GpuBloomPassTest` 7 on the
+  `Settings` defaults being the exact proved constants, negative-magnitude refusal,
+  and the null-context `render`/`dispose` no-op guards), plus `WorldFeatures.BLOOM`
+  in `WorldFeaturesTest`. No shipped world changes a pixel until a host opts into
+  bloom AND runs on the patched jar.
 - **A captured frame can bloom now — roadmap P3.2, the software-capture pass wired and measured** (`wonderland-renderer`) —
   `BloomKernel` had shipped the three operations every bloom is (smooth-kneed
   bright pass, separable clamped box blur, saturating add) as pure arithmetic on
@@ -179,8 +346,9 @@ work to make it build and run on a current toolchain.
   streaks start at the feet of the person casting them — the claim no headless
   suite could make. The occlusion half is proven live too: standing in the lobby
   shuts 0 pools, standing 900 m out shuts 18 of 18 cells and 7 of 7 pools.
-  What remains probe-side: a true shadow *map*, which needs the scene-to-texture
-  pipeline this fork does not have (P3.2's measured ceiling).
+  What remains probe-side: a true shadow *map*, which needs a light-POV
+  render-to-texture pass -- a different thing from the single post-hoc framebuffer
+  blit P3.2's GPU bloom now uses, and still absent.
 - **Walking through a room now says something — roadmap P1.2, triggers wired**
   (`wonderland-common`, `wonderland-renderer`, `lg3d-apps`) — `TriggerZone` and
   `TriggerField` had shipped as a tested enter/exit edge detector that nothing
@@ -2120,6 +2288,29 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **Neither *What's New* surface advertises unreleased work any more — both show released versions only** (`lg3d-apps`, `scripts/mandela`, `update-manager`) —
+  `[Unreleased]` is by definition work that has not shipped, so a person who
+  opened a *What's New* inside a released build read a page advertising features
+  their desktop does not have — the whole 1.69.0-dev section rendered above the
+  versions they could actually run. Two surfaces carried the bug. The Help
+  Center's topic is generated from `CHANGELOG.md` by `scripts/mandela/whats-new.mnd`,
+  and its `sectionsOf` kept `[Unreleased]` first, then the three newest releases;
+  it now renders the three newest **released** versions and never `[Unreleased]`,
+  matching the release archive beside it (`releasesOf` already skipped
+  `[Unreleased]`, so the two skins of one document had come to disagree). The
+  Update Manager's "What's new in Project Looking Glass" dialog renders the same
+  `CHANGELOG.md` through `ChangelogManager.toHtml()`, which appended every entry
+  including `[Unreleased]`; it now skips that section, so the dialog names shipped
+  work only — while `getAllEntries()` keeps the complete data and `getEntry` still
+  never resolves a release number to `[Unreleased]`. The topic's own note, the
+  archive `index.html` note, the script header, `AGENTS.md` and the scripts
+  `README.md` each said "the `[Unreleased]` section plus the three newest
+  releases"; every one now says released-only. `whatsNewCheck` still gates the
+  committed pages byte for byte, `HelpContentTest.whatsNewTopicIsGenerated` still
+  holds (the topic renders three `<h2>` version headings), and
+  `ChangelogManagerTest.testUnreleasedSectionIsNeitherRenderedNorResolved` pins
+  the dialog. The unreleased work is not lost: it stays in `CHANGELOG.md` and on
+  GitHub, which is where a reader goes to see what is coming.
 - **The sound mixer's covered air depended on the runner's sound card —
   P4.1 follow-up** (`wonderland-client`) — `JavaSoundBackend`'s clip-present
   path (open, start, loop, the per-control pose, stop, close, the re-load that

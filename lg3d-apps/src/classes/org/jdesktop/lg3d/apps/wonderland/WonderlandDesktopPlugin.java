@@ -2,7 +2,8 @@
  * Copyright (c) 2026, Jean-Francois Landreville, All Rights Reserved.
  */
 /*
- * wonderland-desktop M6c/M6c2: the M4-ServiceLoader plugin entry point.
+ * lg3d-apps wonderland bridge (M6c/M6c2; moved out of wonderland-desktop): the
+ * M4-ServiceLoader plugin entry point.
  *
  * When the WonderlandPluginLoader discovers this provider it calls
  * initialize(PluginContext), which installs the live renderer into the
@@ -15,7 +16,7 @@
  * cell loaded without it would render nothing), but a Component3D cannot exist
  * in a JVM that has no desktop to put it in.
  */
-package org.jdesktop.wonderland.desktop;
+package org.jdesktop.lg3d.apps.wonderland;
 
 import org.jdesktop.wonderland.common.modules.ModuleInfo;
 import org.jdesktop.wonderland.modules.api.PluginContext;
