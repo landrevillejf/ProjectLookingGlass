@@ -99,6 +99,14 @@ public final class PostProcessPlan {
          * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
          */
         DOF_WANTED,
+        /**
+         * The user wants screen-space ambient occlusion at all (P2.7). Necessary but never
+         * sufficient, exactly like {@link #DOF_WANTED}: the occlusion is a live GPU pass on
+         * the same patched preSwap() hook and, like the defocus, blits the frame's DEPTH
+         * beside its colour, so it additionally needs
+         * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
+         */
+        SSAO_WANTED,
         /** A probe run MEASURED the fork's readback round trip at a usable rate. */
         READBACK_PROBED_USABLE,
         /**
@@ -232,5 +240,35 @@ public final class PostProcessPlan {
                         + "(stock java3d-core), and a software readback defocus applied "
                         + "just to captures would leave the live canvas uniformly sharp, "
                         + "so nothing is claimed");
+    }
+
+    /**
+     * The P2.7 screen-space ambient-occlusion decision, shaped exactly like
+     * {@link #decideDof} because it is the same kind of pass: a live GPU link on the
+     * patched {@code Canvas3D.preSwap()} hook that blits the frame's DEPTH beside its
+     * colour, reconstructs a view position and normal from it, samples a hemisphere and
+     * multiplies the composited colour by the occlusion -- all with zero CPU readback.
+     * There is no honest software fallback: a per-frame offscreen occlusion pays the same
+     * readback WlProbe52 measured at ~419 ms native, and one applied only to captures
+     * would leave the live canvas flat-lit while claiming contact shadows it does not
+     * have. Returns {@link Path#GPU_POSTPROCESS} only when SSAO is wanted AND the hook is
+     * probe-present, {@link Path#NONE} otherwise -- never a half-applied darkening.
+     */
+    public static Decision decideSsao(Set<Capability> capabilities) {
+        if (capabilities == null || !capabilities.contains(Capability.SSAO_WANTED)) {
+            return new Decision(Path.NONE, "no ambient occlusion requested");
+        }
+        if (capabilities.contains(Capability.GPU_POSTPROCESS_PROBED_USABLE)) {
+            return new Decision(Path.GPU_POSTPROCESS,
+                    "a probe measured the patched Canvas3D.preSwap GPU pass as usable "
+                            + "per frame with zero CPU readback (WlProbe55/WlProbe56), "
+                            + "so the occlusion rides the same hook the bloom does and "
+                            + "reconstructs its normal from the depth it blits");
+        }
+        return new Decision(Path.NONE,
+                "ambient occlusion is a live GPU pass only: the preSwap() hook is absent "
+                        + "(stock java3d-core), and a software readback occlusion applied "
+                        + "just to captures would leave the live canvas flat-lit, so "
+                        + "nothing is claimed");
     }
 }

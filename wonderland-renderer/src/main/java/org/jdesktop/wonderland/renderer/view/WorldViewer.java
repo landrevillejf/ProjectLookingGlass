@@ -78,7 +78,9 @@ import org.jdesktop.wonderland.renderer.post.GpuDofPass;
 import org.jdesktop.wonderland.renderer.post.GpuFxaaPass;
 import org.jdesktop.wonderland.renderer.post.GpuHdrPass;
 import org.jdesktop.wonderland.renderer.post.GpuPostEffect;
+import org.jdesktop.wonderland.renderer.post.GpuSsaoPass;
 import org.jdesktop.wonderland.renderer.post.PostProcessPlan;
+import org.jdesktop.wonderland.renderer.post.SsaoKernel;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
 import org.jogamp.java3d.BranchGroup;
@@ -135,6 +137,13 @@ public final class WorldViewer implements AutoCloseable {
      * stack.</p>
      */
     private static final float FIELD_OF_VIEW_RAD = (float) Math.toRadians(45);
+
+    /**
+     * The front clip distance in metres {@link #show()} sets on the view, spelled once so
+     * the SSAO reconstruction (which needs the same near plane to linearise depth) cannot
+     * drift from the camera that rendered the frame.
+     */
+    private static final double FRONT_CLIP_M = 0.05;
 
     /**
      * How far back the sky dome has to be visible behind any home view, as a
@@ -269,6 +278,15 @@ public final class WorldViewer implements AutoCloseable {
      */
     private final PostProcessPlan.Decision dofDecision;
 
+    /**
+     * Which ambient-occlusion route this window's canvas took (P2.7), decided once at
+     * construction from {@link WorldFeatures#SSAO} and the same preSwap() probe. A
+     * GPU_POSTPROCESS decision contributes a {@link GpuSsaoPass} link, run FIRST (see the
+     * chain-order note in the constructor) so the scene is occluded before the cosmetic
+     * lens effects; the only other outcome is NONE.
+     */
+    private final PostProcessPlan.Decision ssaoDecision;
+
     private SimpleUniverse universe;
     private TransformGroup viewTransform;
     private CaptureBehavior capture;
@@ -377,16 +395,21 @@ public final class WorldViewer implements AutoCloseable {
         this.hdrDecision = PostProcessPlan.decideHdr(hdrCapabilities());
         this.fxaaDecision = PostProcessPlan.decideFxaa(fxaaCapabilities());
         this.dofDecision = PostProcessPlan.decideDof(dofCapabilities());
-        // The chain order is deliberate: bloom FIRST, tone map, defocus, then anti-alias
-        // LAST. The glow is added while the frame is still in scene-ish range, the filmic
-        // curve compresses the combined highlights so a hot bloom rolls off toward white
-        // instead of clipping, the defocus then gathers that tone-mapped image into bokeh
-        // (the scene depth the DOF pass blits survives bloom and the tone map untouched --
-        // both write only colour -- so it reads the true per-pixel depth wherever it sits),
-        // and FXAA finally softens the edges of the very image the eye is shown. Anti-alias
-        // before the tone map would soften a radiance the curve has not yet folded, and
-        // before the bloom or the defocus would miss those links' own edges.
+        this.ssaoDecision = PostProcessPlan.decideSsao(ssaoCapabilities());
+        // The chain order is deliberate: occlude FIRST, then bloom, tone map, defocus, and
+        // anti-alias LAST. SSAO is a scene-lighting correction (it darkens the ambient in a
+        // crevice), so it runs on the raw scene before the cosmetic lens effects and the
+        // bloom then glows an already-occluded image rather than a crevice the eye should
+        // not see lit. The glow is added while the frame is still in scene-ish range, the
+        // filmic curve compresses the combined highlights so a hot bloom rolls off toward
+        // white instead of clipping, the defocus then gathers that tone-mapped image into
+        // bokeh, and FXAA finally softens the edges of the very image the eye is shown. The
+        // scene depth both the occlusion and the defocus blit survives every link (each
+        // writes only colour), so each reads the true per-pixel depth wherever it sits.
         java.util.List<GpuPostEffect> chain = new java.util.ArrayList<>();
+        if (ssaoDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
+            chain.add(new GpuSsaoPass(ssaoSettings(width, height)));
+        }
         if (bloomDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuBloomPass());
         }
@@ -452,7 +475,7 @@ public final class WorldViewer implements AutoCloseable {
         view.setFieldOfView(FIELD_OF_VIEW_RAD);
         view.setBackClipDistance(Math.max(1000.0,
                 scene.reach() * SKY_REACH + scene.radius() * CLIP_STANDOFF));
-        view.setFrontClipDistance(0.05);
+        view.setFrontClipDistance(FRONT_CLIP_M);
         viewTransform = platform.getViewPlatformTransform();
         BranchGroup root = scene.root();
         capture = new CaptureBehavior(canvas);
@@ -545,6 +568,14 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Which ambient-occlusion route this window decided, and why (P2.7). Read by the HUD,
+     * the console or a probe to know whether the live GPU occlusion is on.
+     */
+    public PostProcessPlan.Decision getSsaoDecision() {
+        return ssaoDecision;
+    }
+
+    /**
      * The capability set the bloom decision is made from: bloom is wanted when the
      * roadmap feature is on (on by default, like every {@link WorldFeatures}
      * switch; {@code lg.wonderland.bloom=off} or the master switch turns it off),
@@ -623,6 +654,42 @@ public final class WorldViewer implements AutoCloseable {
             caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
         }
         return caps;
+    }
+
+    /**
+     * The capability set the SSAO decision is made from, the same shape as
+     * {@link #dofCapabilities()}: wanted when {@link WorldFeatures#SSAO} is on (on by
+     * default; {@code lg.wonderland.ssao=off} or the master switch turns it off), and
+     * GPU-usable when the patched {@code Canvas3D.preSwap()} hook is present.
+     */
+    private static java.util.Set<PostProcessPlan.Capability> ssaoCapabilities() {
+        java.util.Set<PostProcessPlan.Capability> caps =
+                java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
+        if (WorldFeatures.enabled(WorldFeatures.SSAO)) {
+            caps.add(PostProcessPlan.Capability.SSAO_WANTED);
+        }
+        if (preSwapHookPresent()) {
+            caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
+        }
+        return caps;
+    }
+
+    /**
+     * The occlusion parameters matched to THIS window's camera, so the pass's view
+     * reconstruction agrees with the frame it darkens: the same front clip and the same
+     * back clip {@link #show()} sets on the view, the same vertical field of view, and the
+     * canvas's own aspect. The radius, intensity and bias are the look controls (a
+     * half-metre contact reach at full strength); the near/far/fov/aspect are the geometry
+     * the reconstruction must not guess. The aspect is the constructor's requested size, so
+     * a later window reshape leaves it slightly stale, which shifts the AO's horizontal
+     * reach by that ratio and nothing else -- a soft darkening is not sensitive to it.
+     */
+    private SsaoKernel.Settings ssaoSettings(int width, int height) {
+        double far = Math.max(1000.0,
+                scene.reach() * SKY_REACH + scene.radius() * CLIP_STANDOFF);
+        float aspect = (width > 0 && height > 0) ? (float) width / height : 16f / 9f;
+        return new SsaoKernel.Settings((float) FRONT_CLIP_M, (float) far,
+                (float) Math.tan(FIELD_OF_VIEW_RAD / 2.0), aspect, 0.5f, 1f, 0.025f);
     }
 
     /**

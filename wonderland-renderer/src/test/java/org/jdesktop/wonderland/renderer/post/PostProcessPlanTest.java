@@ -220,4 +220,42 @@ class PostProcessPlanTest {
     void theDofWantedCapabilityIsAFirstClassValue() {
         assertThat(Capability.valueOf("DOF_WANTED")).isEqualTo(Capability.DOF_WANTED);
     }
+
+    // ------------------------------------------------------------- P2.7 SSAO
+
+    @Test
+    void ssaoWithNoWantedFlagIsNoneWhateverElseIsProbed() {
+        assertThat(PostProcessPlan.decideSsao(null).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideSsao(Set.of()).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideSsao(
+                Set.of(Capability.GPU_POSTPROCESS_PROBED_USABLE)).path())
+                .isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideSsao(Set.of()).reason())
+                .isEqualTo("no ambient occlusion requested");
+    }
+
+    @Test
+    void ssaoWantedAndTheHookProbedDecidesTheGpuRoute() {
+        Decision d = PostProcessPlan.decideSsao(
+                Set.of(Capability.SSAO_WANTED, Capability.GPU_POSTPROCESS_PROBED_USABLE));
+        assertThat(d.path()).isEqualTo(Path.GPU_POSTPROCESS);
+        // The reason names the hook, the zero readback AND the depth the occlusion
+        // reconstructs its normal from -- the buffer that makes screen-space AO possible.
+        assertThat(d.reason()).contains("preSwap").contains("readback").contains("depth");
+    }
+
+    @Test
+    void ssaoWantedWithoutTheHookIsNoneNotASoftwareFallback() {
+        // The whole point of decideSsao's shape: an occlusion pass has NO honest software
+        // route, so absent the patched hook it declines rather than pretending a
+        // capture-only darkening gave the live canvas contact shadows it does not have.
+        Decision d = PostProcessPlan.decideSsao(Set.of(Capability.SSAO_WANTED));
+        assertThat(d.path()).isEqualTo(Path.NONE);
+        assertThat(d.reason()).contains("live GPU pass only");
+    }
+
+    @Test
+    void theSsaoWantedCapabilityIsAFirstClassValue() {
+        assertThat(Capability.valueOf("SSAO_WANTED")).isEqualTo(Capability.SSAO_WANTED);
+    }
 }
