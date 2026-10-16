@@ -24,6 +24,20 @@
 
 jar { archiveBaseName = 'wonderland-renderer' }
 
+// Jogamp publishes its native libraries as classifier artifacts named after the
+// host platform (e.g. natives-linux-amd64). Derive the right one so the JOGL
+// runtime can load GlueGen/JOGL natives on any OS/arch. Same rule lg3d-core uses.
+def jogampNatives = {
+    def osName = System.getProperty('os.name').toLowerCase()
+    def osArch = System.getProperty('os.arch').toLowerCase()
+    if (osName.contains('mac') || osName.contains('darwin'))
+        return 'natives-macosx-universal'
+    def os = osName.contains('win') ? 'windows' : 'linux'
+    def arch = (osArch.contains('aarch64') || osArch.contains('arm64')) ? 'aarch64'
+             : osArch.contains('64') ? 'amd64' : 'i586'
+    return "natives-${os}-${arch}"
+}()
+
 dependencies {
     // The pure data model (CellTransform, CellStatus, CellID) the renderer consumes,
     // and WorldFeatures -- the one vocabulary the roadmap's kill switches speak.
@@ -47,6 +61,19 @@ dependencies {
     implementation libs.java3d.core
     implementation libs.java3d.utils
     implementation libs.vecmath
+
+    // JOGL (the modern Jogamp OpenGL binding) is the renderer's target GL
+    // framework: it supplies the per-frame GLEventListener seam that stock
+    // java3d lacks, so the Gpu*Pass post-process chain runs live without any
+    // patched java3d-core. The Java-class jars are compile deps; the
+    // platform-specific native classifier jars are runtime-only (they self-
+    // extract at GLContext creation), mirroring lg3d-core's declaration.
+    // java3d above stays ONLY until the last java3d-coupled view class is
+    // replaced by the gl/ scene core, then it is removed.
+    implementation "org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}"
+    implementation "org.jogamp.gluegen:gluegen-rt:${libs.versions.jogampNatives.get()}"
+    runtimeOnly "org.jogamp.jogl:jogl-all:${libs.versions.jogampNatives.get()}:${jogampNatives}"
+    runtimeOnly "org.jogamp.gluegen:gluegen-rt:${libs.versions.jogampNatives.get()}:${jogampNatives}"
 
     // Headless JUnit 5 + AssertJ back the pure mesh / transform / binding suites.
     testImplementation platform(libs.junit.bom)
