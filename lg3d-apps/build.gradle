@@ -205,12 +205,14 @@ tasks.named('test') {
     // at its default and a "features off" run measured features ON.
     System.properties.stringPropertyNames().findAll { it.startsWith('lg.wonderland.') }
             .each { key -> systemProperty key, System.getProperty(key) }
-    // The world-render probe (WorldRenderProbeTest) needs an X display, a GL
-    // context and a running wonderland-server, so it is skipped unless asked for
-    // -- and when it is asked for, the headless pin above has to come off, because
-    // a Java 3D canvas cannot be created in a headless JVM. CI never sets the
-    // property and never loses the pin.
-    if ('true' == System.getProperty('lg.wonderland.probe')) {
+    // The world-render probes (WorldRenderProbeTest on the java3d path,
+    // WorldRenderJoglProbeTest on the JOGL path) need an X display, a GL context
+    // and a running wonderland-server, so each is skipped unless asked for -- and
+    // when either is asked for, the headless pin above has to come off, because a
+    // Java 3D canvas and a JOGL GLCanvas alike cannot be created in a headless JVM.
+    // CI never sets either property and never loses the pin.
+    if ('true' == System.getProperty('lg.wonderland.probe')
+            || 'true' == System.getProperty('lg.wonderland.jogl.probe')) {
         systemProperty 'java.awt.headless', 'false'
     }
 }
