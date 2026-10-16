@@ -68,6 +68,25 @@ public final class GlView implements GLEventListener {
     private int height;
 
     /**
+     * The on-demand capture handshake (P2.4c). A caller on the EDT or a worker
+     * thread asks {@link #requestCapture()} for the next presented frame and then
+     * blocks in {@link #awaitCapture}; the single GL render thread fulfils it at
+     * the end of {@link #display()}, once the post-process chain has composited
+     * back into the default framebuffer, so the pixels handed back are the very
+     * ones the eye was shown -- the JOGL twin of java3d's postSwap raster read,
+     * but reachable without a source patch. These four fields are the one piece of
+     * shared state crossing the two threads, so every read and write of them holds
+     * {@code captureLock}; the rest of the view stays single-threaded as before.
+     */
+    private final Object captureLock = new Object();
+    /** A capture has been asked for and the GL thread has not answered it yet. */
+    private boolean captureWanted;
+    /** The GL thread has a fresh answer (possibly null) to hand back. */
+    private boolean captureReady;
+    /** The captured frame, or null when the readback could not produce one. */
+    private BufferedImage captureFrame;
+
+    /**
      * A view over {@code scene} from {@code camera}, running the chain the
      * {@link WorldFeatures} kill switches select.
      *
@@ -219,6 +238,65 @@ public final class GlView implements GLEventListener {
             if (!pass.isFailed()) {
                 pass.render(ctx, width, height);
             }
+        }
+        // Honour an on-demand capture now that the chain has finished: read back the
+        // presented framebuffer and hand it to whoever is waiting. Probe/host-only --
+        // it issues GL, so it runs on the render thread and never in a headless test.
+        boolean wanted;
+        synchronized (captureLock) {
+            wanted = captureWanted;
+        }
+        if (wanted) {
+            BufferedImage frame = capturePreview(drawable.getGL().getGL2(), width, height);
+            synchronized (captureLock) {
+                captureWanted = false;
+                captureFrame = frame;
+                captureReady = true;
+                captureLock.notifyAll();
+            }
+        }
+    }
+
+    /**
+     * Ask the GL thread to read back the next presented frame. Non-blocking: it
+     * only records the request, and {@link #awaitCapture} collects the answer. A
+     * second request before the first is fulfilled simply replaces it, so a slow
+     * render thread never queues a backlog of reads. Safe from any thread; the
+     * canvas's animator drives the {@link #display} that fulfils it.
+     */
+    public void requestCapture() {
+        synchronized (captureLock) {
+            captureWanted = true;
+            captureReady = false;
+            captureFrame = null;
+        }
+    }
+
+    /**
+     * Wait for the frame {@link #requestCapture()} asked the GL thread for.
+     *
+     * @param timeoutMillis how long to block; non-positive still waits one poll so
+     *                      a frame that is already on its way is not dropped
+     * @return the captured frame, or {@code null} when the render thread produced
+     *         no frame in time (the window is not live, or nothing was presented) --
+     *         a missing capture is never an exception, exactly as the java3d path
+     */
+    public BufferedImage awaitCapture(long timeoutMillis) {
+        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMillis);
+        synchronized (captureLock) {
+            while (!captureReady) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0L) {
+                    return null;
+                }
+                try {
+                    captureLock.wait(remaining);
+                } catch (InterruptedException waited) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+            return captureFrame;
         }
     }
 

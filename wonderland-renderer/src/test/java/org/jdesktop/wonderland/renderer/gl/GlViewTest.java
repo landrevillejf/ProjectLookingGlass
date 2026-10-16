@@ -113,4 +113,18 @@ class GlViewTest {
         GlView view = new GlView(new GlScene(), newCamera(), null);
         assertNull(view.capturePreview(null, 64, 64));
     }
+
+    @Test
+    @DisplayName("the capture handshake times out to null headless, where no GL thread runs")
+    void captureHandshakeTimesOutHeadless() {
+        GlView view = new GlView(new GlScene(), newCamera(), null);
+        // display() never runs headless, so nothing fulfils a capture: awaitCapture
+        // must give up by its deadline and answer null rather than block forever or
+        // throw -- a missing snapshot is never an exception, exactly as the java3d
+        // path promises. Both the un-requested wait and the requested-but-unfulfilled
+        // one return null.
+        assertNull(view.awaitCapture(15));
+        view.requestCapture();
+        assertNull(view.awaitCapture(15));
+    }
 }
