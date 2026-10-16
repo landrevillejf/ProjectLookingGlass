@@ -25,6 +25,7 @@ package org.jdesktop.wonderland.renderer.view;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Box;
@@ -529,5 +530,32 @@ class WorldSceneTest {
                 .isCloseTo(1.0f, within(1e-6f));
         assertThat(rig.directionY()).as("null direction is the zenith sun")
                 .isCloseTo(-1.0f, within(1e-6f));
+    }
+
+    // P1.2: the walk's trigger zones are derived from the world's own inventory,
+    // as a pure function -- asserted here without a scene graph or a display.
+    @Test
+    void everyPlacedCellBecomesOneZoneWithItsOwnFootprintAndBand() {
+        WorldInventory inventory = new WorldInventory(List.of(
+                new WorldInventory.Placement("lobby", 10f, 2f, -4f, 3f, 5f)));
+        List<TriggerZone> zones = WorldScene.zonesOf(inventory);
+
+        assertThat(zones).hasSize(1);
+        TriggerZone lobby = zones.get(0);
+        assertThat(lobby.id()).isEqualTo("lobby");
+        // footprint is the horizontal half-extent on both axes, height the band
+        assertThat(lobby.minX()).isCloseTo(7f, within(1e-6f));
+        assertThat(lobby.maxX()).isCloseTo(13f, within(1e-6f));
+        assertThat(lobby.minZ()).isCloseTo(-7f, within(1e-6f));
+        assertThat(lobby.maxZ()).isCloseTo(-1f, within(1e-6f));
+        assertThat(lobby.minY()).isCloseTo(-3f, within(1e-6f));
+        assertThat(lobby.maxY()).isCloseTo(7f, within(1e-6f));
+        assertThat(lobby.contains(10f, 2f, -4f)).as("the cell's centre is inside")
+                .isTrue();
+    }
+
+    @Test
+    void anEmptyWorldDeclaresNoTriggerZones() {
+        assertThat(WorldScene.zonesOf(WorldInventory.empty())).isEmpty();
     }
 }

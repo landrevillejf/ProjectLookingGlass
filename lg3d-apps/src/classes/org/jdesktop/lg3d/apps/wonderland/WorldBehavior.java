@@ -127,4 +127,53 @@ final class WorldBehavior {
     private static double orZero(Double value) {
         return value == null ? 0.0 : value;
     }
+
+    /**
+     * The facts about one trigger crossing a script may read, as the plain values
+     * {@link Mandela#eval(String, Map)} binds: the zone's name ({@code trigger}),
+     * whether the walker {@code action} is entering or leaving it, and the pose
+     * {@code x/y/z} they crossed at. A trigger script and a cell-annotation script
+     * are the same {@code behaviour.mnd} asked a different question -- bound a
+     * different set of names -- which is why a world that only annotates labels
+     * reads nothing here and changes nothing.</p>
+     */
+    static Map<String, Object> triggerBindings(String zoneId, String action,
+            double x, double y, double z) {
+        Map<String, Object> bound = new LinkedHashMap<>();
+        bound.put("trigger", zoneId == null ? "" : zoneId);
+        bound.put("action", action == null ? "" : action);
+        bound.put("x", x);
+        bound.put("y", y);
+        bound.put("z", z);
+        return bound;
+    }
+
+    /**
+     * What the behaviour says about one trigger crossing, or {@code null} when it
+     * has nothing to say -- the host then shows no note. The same safety as
+     * {@link #annotation}: a null or blank script, one that throws, one that reads
+     * a name no trigger bound, and one whose value is empty all collapse to
+     * {@code null}, so wiring a trigger can never throw onto the walk and a world
+     * whose behaviour was written only for cells stays silent as it always was.</p>
+     *
+     * @param action {@code "enter"} or {@code "exit"}, bound as the script's
+     *               {@code action} name so one file can answer both
+     */
+    static String triggerNote(String script, String zoneId, String action,
+            double x, double y, double z) {
+        if (script == null || script.isBlank()) {
+            return null;
+        }
+        Object result;
+        try {
+            result = Mandela.eval(script, triggerBindings(zoneId, action, x, y, z));
+        } catch (Throwable behaviourFailed) {
+            return null;
+        }
+        if (result == null) {
+            return null;
+        }
+        String text = String.valueOf(result).strip();
+        return text.isEmpty() ? null : text;
+    }
 }

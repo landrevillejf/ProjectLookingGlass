@@ -71,6 +71,7 @@ import org.jdesktop.wonderland.client.audio.AudioManager;
 import org.jdesktop.wonderland.client.audio.JavaSoundBackend;
 import org.jdesktop.wonderland.client.audio.SpatialAudio;
 import org.jdesktop.wonderland.client.rig.FollowRig;
+import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
@@ -252,6 +253,22 @@ public final class WorldViewer implements AutoCloseable {
     /** The world's sounds and one listener; the listener is this window's eye. */
     private AudioManager audio;
 
+    /**
+     * The walk's trigger dispatcher (P1.2): a field seeded on the world's own
+     * room volumes, fed every eye write, whose crossed edges go to a host
+     * listener. Null until a walk window with zones and a live trigger feature
+     * is shown -- a framing window or a feature-off walk never builds one.
+     */
+    private volatile TriggerWatcher triggers;
+
+    /**
+     * Who to tell when the walker crosses a zone -- the seam to the P5 behaviour
+     * layer, set by the host that owns the world's script (the renderer cannot
+     * import Mandela). Null until a host attaches one, so a bare walk dispatches
+     * nothing it has no consumer for.
+     */
+    private volatile TriggerWatcher.Listener triggerListener;
+
     /** How many gates the last frame's cull shut, for the HUD and the probe. */
     private volatile int droppedLastFrame;
 
@@ -367,6 +384,26 @@ public final class WorldViewer implements AutoCloseable {
         } else {
             frameHome();
         }
+        installTriggers();
+    }
+
+    /**
+     * Seed the walk's trigger dispatcher (P1.2) once the first pose is chosen, so
+     * the room the walker starts in is primed as "inside" rather than firing a
+     * spurious enter on the first frame. Inert for a framing window (only a walk
+     * triggers), for a feature-off world ({@link WorldScene#triggerZones()} is
+     * empty) and for a world with no volumes -- every one of which leaves the walk
+     * exactly the pre-P1.2 walk.</p>
+     */
+    private void installTriggers() {
+        if (!walkMode || !WorldFeatures.enabled(WorldFeatures.TRIGGER)) {
+            return;
+        }
+        java.util.List<TriggerZone> zones = scene.triggerZones();
+        if (!zones.isEmpty()) {
+            triggers = new TriggerWatcher(
+                    (float) eye.x, (float) eye.y, (float) eye.z, zones);
+        }
     }
 
     /** Whether the world is on screen. */
@@ -431,6 +468,35 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Attach the walk's trigger listener (P1.2) -- the seam to the P5 behaviour
+     * layer. The renderer reports only that the walker crossed a named zone
+     * (entered or exited) and never decides what that means, because it cannot
+     * import Mandela; the host that owns the world's {@code behaviour.mnd}
+     * attaches a listener here and turns the edge into whatever the script says.
+     * A null listener, or a walk with no trigger feature, fires nothing.</p>
+     *
+     * @param listener the edge consumer, or {@code null} to detach
+     */
+    public void setTriggerListener(TriggerWatcher.Listener listener) {
+        triggerListener = listener;
+    }
+
+    /**
+     * Show one line of transient status in the window's title (P1.2's visible
+     * effect): the walk-in host writes it when a behaviour has something to say
+     * about a zone the walker just entered, and passes {@code null} to clear it
+     * back to the plain world name on exit. The title is the one surface this
+     * first-person window always owns, so a trigger note is genuinely on screen
+     * without a scene-graph write that a headless CI could not verify.</p>
+     *
+     * @param note the line to append to the title, or {@code null}/blank to reset
+     */
+    public void setStatus(String note) {
+        String base = (title == null || title.isBlank()) ? "Wonderland" : title;
+        frame.setTitle((note == null || note.isBlank()) ? base : base + " — " + note);
+    }
+
+    /**
      * Whether the keystroke belongs to the walker rather than to a widget.
      *
      * <p>The frame itself and its canvas are the world's own keyboard; anything
@@ -489,6 +555,11 @@ public final class WorldViewer implements AutoCloseable {
         final JavaSoundBackend deadMixer = mixer;
         audio = null;
         mixer = null;
+        // Release the trigger dispatcher and its host hook with the window: a
+        // torn-down viewer must not keep firing edges into a listener that no
+        // longer owns a world on screen.
+        triggers = null;
+        triggerListener = null;
         java.util.List<Runnable> hooks = new java.util.ArrayList<>(onClose);
         onClose.clear();
         java.awt.EventQueue.invokeLater(() -> {
@@ -912,6 +983,20 @@ public final class WorldViewer implements AutoCloseable {
         return droppedLastFrame;
     }
 
+    /**
+     * Feed this frame's eye pose to the trigger dispatcher (P1.2). A no-op when
+     * no watcher was built (a framing window, a feature-off or volume-less world)
+     * or no listener is attached; a crossed edge reaches the host, and a host
+     * that throws is contained inside {@link TriggerWatcher} rather than here.</p>
+     */
+    private void updateTriggers() {
+        TriggerWatcher watcher = triggers;
+        if (watcher != null) {
+            watcher.onEyeAt((float) eye.x, (float) eye.y, (float) eye.z,
+                    triggerListener);
+        }
+    }
+
     /** Write the eye position and orientation into the view platform. */
     private void apply() {
         TransformGroup tg = viewTransform;
@@ -929,6 +1014,7 @@ public final class WorldViewer implements AutoCloseable {
         scene.aimTags(at);
         updateCull();
         updateAudio();
+        updateTriggers();
     }
 
     // ------------------------------------------------------------------
