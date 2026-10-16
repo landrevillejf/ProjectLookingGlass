@@ -84,6 +84,13 @@ public final class PostProcessPlan {
          * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
          */
         HDR_WANTED,
+        /**
+         * The user wants image-space anti-aliasing at all (P3.4). Necessary but never
+         * sufficient, exactly like {@link #HDR_WANTED}: FXAA is a live GPU pass on the
+         * same patched preSwap() hook, so it additionally needs
+         * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
+         */
+        FXAA_WANTED,
         /** A probe run MEASURED the fork's readback round trip at a usable rate. */
         READBACK_PROBED_USABLE,
         /**
@@ -161,5 +168,30 @@ public final class PostProcessPlan {
                         + "(stock java3d-core), and a software readback tone map "
                         + "applied just to captures would leave the live canvas "
                         + "un-tonemapped, so nothing is claimed");
+    }
+
+    /**
+     * The P3.4 FXAA decision, shaped exactly like {@link #decideHdr} for the same
+     * reason: anti-aliasing the presented frame is a live GPU pass on the patched
+     * {@code Canvas3D.preSwap()} hook with zero CPU readback, and there is no honest
+     * software fallback -- an anti-alias applied only to captures would leave the live
+     * canvas jagged while claiming otherwise. Returns {@link Path#GPU_POSTPROCESS} only
+     * when FXAA is wanted AND the hook is probe-present, {@link Path#NONE} otherwise.
+     */
+    public static Decision decideFxaa(Set<Capability> capabilities) {
+        if (capabilities == null || !capabilities.contains(Capability.FXAA_WANTED)) {
+            return new Decision(Path.NONE, "no anti-aliasing requested");
+        }
+        if (capabilities.contains(Capability.GPU_POSTPROCESS_PROBED_USABLE)) {
+            return new Decision(Path.GPU_POSTPROCESS,
+                    "a probe measured the patched Canvas3D.preSwap GPU pass as usable "
+                            + "per frame with zero CPU readback (WlProbe55/WlProbe56), "
+                            + "so the anti-alias rides the same hook the bloom does");
+        }
+        return new Decision(Path.NONE,
+                "anti-aliasing is a live GPU pass only: the preSwap() hook is absent "
+                        + "(stock java3d-core), and a software readback anti-alias "
+                        + "applied just to captures would leave the live canvas jagged, "
+                        + "so nothing is claimed");
     }
 }

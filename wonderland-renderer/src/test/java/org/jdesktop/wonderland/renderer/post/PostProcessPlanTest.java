@@ -149,4 +149,37 @@ class PostProcessPlanTest {
     void theHdrWantedCapabilityIsAFirstClassValue() {
         assertThat(Capability.valueOf("HDR_WANTED")).isEqualTo(Capability.HDR_WANTED);
     }
+
+    // ------------------------------------------------------------- P3.4 FXAA
+
+    @Test
+    void fxaaWithNoWantedFlagIsNoneWhateverElseIsProbed() {
+        assertThat(PostProcessPlan.decideFxaa(null).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideFxaa(Set.of()).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideFxaa(
+                Set.of(Capability.GPU_POSTPROCESS_PROBED_USABLE)).path())
+                .isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideFxaa(Set.of()).reason())
+                .isEqualTo("no anti-aliasing requested");
+    }
+
+    @Test
+    void fxaaWantedAndTheHookProbedDecidesTheGpuRoute() {
+        Decision d = PostProcessPlan.decideFxaa(
+                Set.of(Capability.FXAA_WANTED, Capability.GPU_POSTPROCESS_PROBED_USABLE));
+        assertThat(d.path()).isEqualTo(Path.GPU_POSTPROCESS);
+        assertThat(d.reason()).contains("preSwap").contains("readback");
+    }
+
+    @Test
+    void fxaaWantedWithoutTheHookIsNoneNotASoftwareFallback() {
+        Decision d = PostProcessPlan.decideFxaa(Set.of(Capability.FXAA_WANTED));
+        assertThat(d.path()).isEqualTo(Path.NONE);
+        assertThat(d.reason()).contains("live GPU pass only");
+    }
+
+    @Test
+    void theFxaaWantedCapabilityIsAFirstClassValue() {
+        assertThat(Capability.valueOf("FXAA_WANTED")).isEqualTo(Capability.FXAA_WANTED);
+    }
 }

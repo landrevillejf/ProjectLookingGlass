@@ -74,6 +74,7 @@ import org.jdesktop.wonderland.client.rig.FollowRig;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.renderer.post.GpuBloomPass;
+import org.jdesktop.wonderland.renderer.post.GpuFxaaPass;
 import org.jdesktop.wonderland.renderer.post.GpuHdrPass;
 import org.jdesktop.wonderland.renderer.post.GpuPostEffect;
 import org.jdesktop.wonderland.renderer.post.PostProcessPlan;
@@ -249,6 +250,14 @@ public final class WorldViewer implements AutoCloseable {
      */
     private final PostProcessPlan.Decision hdrDecision;
 
+    /**
+     * Which FXAA route this window's canvas took (P3.4), decided once at construction
+     * from {@link WorldFeatures#FXAA} and the same preSwap() probe. A GPU_POSTPROCESS
+     * decision contributes a {@link GpuFxaaPass} link, run LAST so it anti-aliases the
+     * tone-mapped image the eye is actually shown; the only other outcome is NONE.
+     */
+    private final PostProcessPlan.Decision fxaaDecision;
+
     private SimpleUniverse universe;
     private TransformGroup viewTransform;
     private CaptureBehavior capture;
@@ -355,17 +364,23 @@ public final class WorldViewer implements AutoCloseable {
         // switch). See PostProcessPlan for each whole rule and the probe evidence.
         this.bloomDecision = PostProcessPlan.decide(bloomCapabilities());
         this.hdrDecision = PostProcessPlan.decideHdr(hdrCapabilities());
-        // The chain order is deliberate: bloom FIRST, tone map LAST. The glow is
-        // added while the frame is still in scene-ish range, then the filmic curve
-        // compresses the combined highlights so a hot bloom rolls off toward white
-        // instead of clipping -- tonemapping before the bloom would let the added
-        // glow blow past 1.0 uncompressed.
+        this.fxaaDecision = PostProcessPlan.decideFxaa(fxaaCapabilities());
+        // The chain order is deliberate: bloom FIRST, tone map, then anti-alias LAST.
+        // The glow is added while the frame is still in scene-ish range, the filmic
+        // curve compresses the combined highlights so a hot bloom rolls off toward
+        // white instead of clipping, and FXAA then softens the edges of the very image
+        // the eye is shown -- anti-aliasing before the tone map would soften a radiance
+        // the curve has not yet folded, and before the bloom would miss the glow's own
+        // edges.
         java.util.List<GpuPostEffect> chain = new java.util.ArrayList<>();
         if (bloomDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuBloomPass());
         }
         if (hdrDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuHdrPass());
+        }
+        if (fxaaDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
+            chain.add(new GpuFxaaPass());
         }
         if (chain.isEmpty()) {
             this.canvas = new Canvas3D(config);
@@ -497,6 +512,14 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Which FXAA route this window decided, and why (P3.4). Read by the HUD, the
+     * console or a probe to know whether the live GPU anti-alias is on.
+     */
+    public PostProcessPlan.Decision getFxaaDecision() {
+        return fxaaDecision;
+    }
+
+    /**
      * The capability set the bloom decision is made from: bloom is wanted when the
      * roadmap feature is on (on by default, like every {@link WorldFeatures}
      * switch; {@code lg.wonderland.bloom=off} or the master switch turns it off),
@@ -531,6 +554,24 @@ public final class WorldViewer implements AutoCloseable {
                 java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
         if (WorldFeatures.enabled(WorldFeatures.HDR)) {
             caps.add(PostProcessPlan.Capability.HDR_WANTED);
+        }
+        if (preSwapHookPresent()) {
+            caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
+        }
+        return caps;
+    }
+
+    /**
+     * The capability set the FXAA decision is made from, the same shape as
+     * {@link #hdrCapabilities()}: wanted when {@link WorldFeatures#FXAA} is on (on by
+     * default; {@code lg.wonderland.fxaa=off} or the master switch turns it off), and
+     * GPU-usable when the patched {@code Canvas3D.preSwap()} hook is present.
+     */
+    private static java.util.Set<PostProcessPlan.Capability> fxaaCapabilities() {
+        java.util.Set<PostProcessPlan.Capability> caps =
+                java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
+        if (WorldFeatures.enabled(WorldFeatures.FXAA)) {
+            caps.add(PostProcessPlan.Capability.FXAA_WANTED);
         }
         if (preSwapHookPresent()) {
             caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
