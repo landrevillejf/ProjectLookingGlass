@@ -67,7 +67,7 @@ import com.jogamp.opengl.util.GLBuffers;
  * {@link #isFailed()} and returns; every later call short-circuits. Nothing this
  * class does may throw into Java 3D's renderer.</p>
  */
-public final class GpuBloomPass {
+public final class GpuBloomPass implements GpuPostEffect {
 
     /**
      * The GPU route's own parameters, in normalised 0..1 shader units -- NOT the
@@ -156,6 +156,7 @@ public final class GpuBloomPass {
      * refused it once is not asked again, and the world renders un-bloomed rather
      * than risking a second failure per frame.
      */
+    @Override
     public boolean isFailed() {
         return failed;
     }
@@ -175,6 +176,7 @@ public final class GpuBloomPass {
      * @param width  the canvas width in pixels
      * @param height the canvas height in pixels
      */
+    @Override
     public void render(GLContext ctx, int width, int height) {
         if (failed || ctx == null || width <= 0 || height <= 0) {
             return;
@@ -253,6 +255,7 @@ public final class GpuBloomPass {
      *
      * @param ctx the live GL context, or {@code null} to skip (nothing to free on)
      */
+    @Override
     public void dispose(GLContext ctx) {
         if (ctx == null || sceneFbo == 0) {
             ready = false;

@@ -111,4 +111,42 @@ class PostProcessPlanTest {
         assertThat(Capability.valueOf("GPU_POSTPROCESS_PROBED_USABLE"))
                 .isEqualTo(Capability.GPU_POSTPROCESS_PROBED_USABLE);
     }
+
+    // ------------------------------------------------------------- P3.3 HDR
+
+    @Test
+    void hdrWithNoWantedFlagIsNoneWhateverElseIsProbed() {
+        // The user's own choice is never overridden: a probe proving the hook is
+        // present is meaningless when nobody asked for a tone map.
+        assertThat(PostProcessPlan.decideHdr(null).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideHdr(Set.of()).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideHdr(
+                Set.of(Capability.GPU_POSTPROCESS_PROBED_USABLE)).path())
+                .isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideHdr(Set.of()).reason())
+                .isEqualTo("no HDR tone mapping requested");
+    }
+
+    @Test
+    void hdrWantedAndTheHookProbedDecidesTheGpuRoute() {
+        Decision d = PostProcessPlan.decideHdr(
+                Set.of(Capability.HDR_WANTED, Capability.GPU_POSTPROCESS_PROBED_USABLE));
+        assertThat(d.path()).isEqualTo(Path.GPU_POSTPROCESS);
+        assertThat(d.reason()).contains("preSwap").contains("readback");
+    }
+
+    @Test
+    void hdrWantedWithoutTheHookIsNoneNotASoftwareFallback() {
+        // The whole point of decideHdr's shape: tone mapping has NO honest software
+        // route, so absent the patched hook it declines rather than pretending a
+        // capture-only curve tonemapped the live canvas.
+        Decision d = PostProcessPlan.decideHdr(Set.of(Capability.HDR_WANTED));
+        assertThat(d.path()).isEqualTo(Path.NONE);
+        assertThat(d.reason()).contains("live GPU pass only");
+    }
+
+    @Test
+    void theHdrWantedCapabilityIsAFirstClassValue() {
+        assertThat(Capability.valueOf("HDR_WANTED")).isEqualTo(Capability.HDR_WANTED);
+    }
 }

@@ -74,6 +74,8 @@ import org.jdesktop.wonderland.client.rig.FollowRig;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.renderer.post.GpuBloomPass;
+import org.jdesktop.wonderland.renderer.post.GpuHdrPass;
+import org.jdesktop.wonderland.renderer.post.GpuPostEffect;
 import org.jdesktop.wonderland.renderer.post.PostProcessPlan;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
@@ -231,11 +233,21 @@ public final class WorldViewer implements AutoCloseable {
     /**
      * Which bloom route this window's canvas took (P3.2), decided once at
      * construction from {@link WorldFeatures#BLOOM} and whether the patched
-     * preSwap() hook is present. GPU_POSTPROCESS builds a {@link BloomCanvas};
-     * any other path a plain {@link Canvas3D}. Kept so the HUD, the console and a
-     * probe can read what was decided and why, not guess from the canvas's class.
+     * preSwap() hook is present. GPU_POSTPROCESS contributes a {@link GpuBloomPass}
+     * link to the {@link PostProcessCanvas} chain; any other path contributes
+     * nothing. Kept so the HUD, the console and a probe can read what was decided
+     * and why, not guess from the canvas's class.
      */
     private final PostProcessPlan.Decision bloomDecision;
+
+    /**
+     * Which HDR tone-mapping route this window's canvas took (P3.3), decided once at
+     * construction from {@link WorldFeatures#HDR} and the same preSwap() probe. A
+     * GPU_POSTPROCESS decision contributes a {@link GpuHdrPass} link; because tone
+     * mapping has no honest software route (see {@link PostProcessPlan#decideHdr})
+     * the only other outcome is NONE, never a half-applied curve.
+     */
+    private final PostProcessPlan.Decision hdrDecision;
 
     private SimpleUniverse universe;
     private TransformGroup viewTransform;
@@ -334,17 +346,32 @@ public final class WorldViewer implements AutoCloseable {
         this.title = title;
         this.scene = scene;
         GraphicsConfiguration config = SimpleUniverse.getPreferredConfiguration();
-        // P3.2: bloom the live canvas when the platform and the evidence allow it.
-        // Decided once, here, from the feature switch and whether the patched
-        // java3d-core's preSwap() hook is actually present at runtime -- so a stock
-        // jar degrades to an un-bloomed canvas instead of a crash, and a host that
-        // wants no glow turns it off with lg.wonderland.bloom=off (or the master
-        // switch). See PostProcessPlan for the whole rule and the probe evidence.
+        // P3.2/P3.3: build the live post-process chain when the platform and the
+        // evidence allow each effect. Each decision is made once, here, from its own
+        // feature switch and whether the patched java3d-core's preSwap() hook is
+        // actually present at runtime -- so a stock jar degrades to a plain canvas
+        // instead of a crash, and a host that wants no glow / no tone map turns one
+        // off with lg.wonderland.bloom=off or lg.wonderland.hdr=off (or the master
+        // switch). See PostProcessPlan for each whole rule and the probe evidence.
         this.bloomDecision = PostProcessPlan.decide(bloomCapabilities());
+        this.hdrDecision = PostProcessPlan.decideHdr(hdrCapabilities());
+        // The chain order is deliberate: bloom FIRST, tone map LAST. The glow is
+        // added while the frame is still in scene-ish range, then the filmic curve
+        // compresses the combined highlights so a hot bloom rolls off toward white
+        // instead of clipping -- tonemapping before the bloom would let the added
+        // glow blow past 1.0 uncompressed.
+        java.util.List<GpuPostEffect> chain = new java.util.ArrayList<>();
         if (bloomDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
-            this.canvas = new BloomCanvas(config, new GpuBloomPass());
-        } else {
+            chain.add(new GpuBloomPass());
+        }
+        if (hdrDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
+            chain.add(new GpuHdrPass());
+        }
+        if (chain.isEmpty()) {
             this.canvas = new Canvas3D(config);
+        } else {
+            this.canvas = new PostProcessCanvas(config,
+                    chain.toArray(new GpuPostEffect[0]));
         }
         this.frame = new Frame(title == null ? "Wonderland" : title);
         frame.setLayout(new BorderLayout());
@@ -461,6 +488,15 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Which HDR tone-mapping route this window decided, and why (P3.3). A caller --
+     * the HUD, the console, a probe -- reads this to know whether the live GPU tone map
+     * is on without inspecting the canvas's chain or re-deriving the plan.
+     */
+    public PostProcessPlan.Decision getHdrDecision() {
+        return hdrDecision;
+    }
+
+    /**
      * The capability set the bloom decision is made from: bloom is wanted when the
      * roadmap feature is on (on by default, like every {@link WorldFeatures}
      * switch; {@code lg.wonderland.bloom=off} or the master switch turns it off),
@@ -474,6 +510,27 @@ public final class WorldViewer implements AutoCloseable {
                 java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
         if (WorldFeatures.enabled(WorldFeatures.BLOOM)) {
             caps.add(PostProcessPlan.Capability.BLOOM_WANTED);
+        }
+        if (preSwapHookPresent()) {
+            caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
+        }
+        return caps;
+    }
+
+    /**
+     * The capability set the HDR decision is made from: tone mapping is wanted when
+     * {@link WorldFeatures#HDR} is on (on by default, like every switch;
+     * {@code lg.wonderland.hdr=off} or the master switch turns it off), and the GPU
+     * route is probe-usable when the patched {@code Canvas3D.preSwap()} hook is present
+     * -- the SAME artefact the bloom rides, since the tone map is one more link on one
+     * chain, not a second hook. Against a stock java3d-core the capability is not in
+     * evidence and {@link PostProcessPlan#decideHdr} falls through to NONE.
+     */
+    private static java.util.Set<PostProcessPlan.Capability> hdrCapabilities() {
+        java.util.Set<PostProcessPlan.Capability> caps =
+                java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
+        if (WorldFeatures.enabled(WorldFeatures.HDR)) {
+            caps.add(PostProcessPlan.Capability.HDR_WANTED);
         }
         if (preSwapHookPresent()) {
             caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);

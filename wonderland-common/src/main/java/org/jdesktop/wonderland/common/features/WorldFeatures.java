@@ -55,6 +55,34 @@ public final class WorldFeatures {
      * without changing what it contains.
      */
     public static final String BLOOM = "bloom";
+    /**
+     * The P3.3 HDR tone-mapping pass on the live 3D canvas. ON by default like every
+     * switch here; a cosmetic GPU pass that folds scene radiance into display range
+     * through {@code HdrKernel}'s curve, so turning it off
+     * ({@code lg.wonderland.hdr=off}) changes how a world reads, not what it holds.
+     */
+    public static final String HDR = "hdr";
+    /**
+     * The P3.4 fast-approximate anti-aliasing pass on the live 3D canvas. ON by
+     * default; {@code lg.wonderland.fxaa=off} removes the edge softening.
+     */
+    public static final String FXAA = "fxaa";
+    /**
+     * The P3.5 depth-of-field pass on the live 3D canvas. ON by default;
+     * {@code lg.wonderland.dof=off} keeps every depth equally sharp.
+     */
+    public static final String DOF = "dof";
+    /**
+     * The P2.7 screen-space ambient-occlusion pass on the live 3D canvas. ON by
+     * default; {@code lg.wonderland.ssao=off} removes the contact darkening.
+     */
+    public static final String SSAO = "ssao";
+    /**
+     * The P2.6 physically-based (Cook-Torrance metallic-roughness) shading route.
+     * ON by default; {@code lg.wonderland.pbr=off} falls back to the fixed-function
+     * appearance the mesh carried before the BRDF kernel.
+     */
+    public static final String PBR = "pbr";
 
     private WorldFeatures() {
         // holder: no instances
@@ -110,7 +138,7 @@ public final class WorldFeatures {
                 .append(MASTER).append('=')
                 .append(read(reader, MASTER, "on")).append("):");
         String[] names = {LIGHTING, CULLING, COLLISION, AUDIO, CAMERA, BEHAVIOUR,
-                WATER, TRIGGER, SHADOWS, BLOOM};
+                WATER, TRIGGER, SHADOWS, BLOOM, HDR, FXAA, DOF, SSAO, PBR};
         for (String name : names) {
             out.append(' ').append(name).append('=')
                     .append(enabled(reader.apply(MASTER), reader.apply(PREFIX + name))

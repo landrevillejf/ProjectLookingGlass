@@ -77,6 +77,13 @@ public final class PostProcessPlan {
     public enum Capability {
         /** The user wants the glow at all. */
         BLOOM_WANTED,
+        /**
+         * The user wants HDR tone mapping at all (P3.3). Like {@link #BLOOM_WANTED}
+         * it is necessary but never sufficient: the tone map is a live GPU pass on
+         * the same patched preSwap() hook, so it additionally needs
+         * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
+         */
+        HDR_WANTED,
         /** A probe run MEASURED the fork's readback round trip at a usable rate. */
         READBACK_PROBED_USABLE,
         /**
@@ -125,5 +132,34 @@ public final class PostProcessPlan {
                         + "~419 ms for a native 1920x1080 software bloom -- it glows "
                         + "correctly but not at a real-time rate, so it is confined to "
                         + "stills and reduced resolution");
+    }
+
+    /**
+     * The P3.3 HDR tone-mapping decision. Tone mapping has exactly one honest live
+     * route: the same patched {@code Canvas3D.preSwap()} GPU pass the bloom rides,
+     * sampling the just-rendered framebuffer into {@code HdrKernel}'s curve with zero
+     * CPU readback. There is deliberately NO software fallback branch -- a per-frame
+     * offscreen tone map pays the same readback WlProbe52 measured at ~419 ms native,
+     * and unlike a bloom (which degrades to a still) a tone map applied only to
+     * captures would leave the live canvas un-tonemapped and lying about its own
+     * radiance. So this returns {@link Path#GPU_POSTPROCESS} only when HDR is wanted
+     * AND the hook is probe-present, and {@link Path#NONE} otherwise -- never a
+     * half-applied curve.
+     */
+    public static Decision decideHdr(Set<Capability> capabilities) {
+        if (capabilities == null || !capabilities.contains(Capability.HDR_WANTED)) {
+            return new Decision(Path.NONE, "no HDR tone mapping requested");
+        }
+        if (capabilities.contains(Capability.GPU_POSTPROCESS_PROBED_USABLE)) {
+            return new Decision(Path.GPU_POSTPROCESS,
+                    "a probe measured the patched Canvas3D.preSwap GPU pass as usable "
+                            + "per frame with zero CPU readback (WlProbe55/WlProbe56), "
+                            + "so the tone map rides the same hook the bloom does");
+        }
+        return new Decision(Path.NONE,
+                "tone mapping is a live GPU pass only: the preSwap() hook is absent "
+                        + "(stock java3d-core), and a software readback tone map "
+                        + "applied just to captures would leave the live canvas "
+                        + "un-tonemapped, so nothing is claimed");
     }
 }
