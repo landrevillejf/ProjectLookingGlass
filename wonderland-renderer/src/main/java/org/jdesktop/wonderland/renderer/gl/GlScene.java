@@ -6,11 +6,13 @@
  *
  * GlScene owns the shader program and the ordered set of (mesh, model-matrix)
  * pairs that make up a world, and draws them all under a Camera. The program is
- * deliberately minimal (position/normal/texcoord in, a Lambert term and a base
- * colour out) so it links on any GL3 driver; the richer PBR / sky / shadow /
- * water shading the roadmap describes is layered on top of this same draw list
- * once the scene core is proven, and the post-process chain (the already-JOGL
- * Gpu*Pass set) runs after GlScene.draw into the same framebuffer.
+ * deliberately minimal (position/normal/texcoord in; a Lambert term, a base
+ * colour and an optional diffuse texture out) so it links on any GL3 driver; the
+ * richer PBR / sky / shadow / water shading the roadmap describes is layered on
+ * top of this same draw list once the scene core is proven, and the post-process
+ * chain (the already-JOGL Gpu*Pass set) runs after GlScene.draw into the same
+ * framebuffer. A textured shape modulates its texture by the base colour, exactly
+ * as the java3d path kept the diffuse colour as a tint over the texture.
  *
  * Attribute locations are bound explicitly (glBindAttribLocation) to the fixed
  * 0/1/2 GlMesh uploads through, so the GLSL needs no layout qualifiers and the
@@ -48,23 +50,38 @@ public final class GlScene {
             "#version 330 core\n"
           + "in vec3 vNormal;\n"
           + "in vec2 vTexCoord;\n"
-          + "uniform vec3 uBaseColor;\n"
+          + "uniform vec4 uBaseColor;\n"
+          + "uniform sampler2D uTexture;\n"
+          + "uniform int uUseTexture;\n"
           + "out vec4 fragColor;\n"
           + "void main() {\n"
           + "    vec3 n = normalize(vNormal);\n"
           + "    float lambert = clamp(dot(n, normalize(vec3(0.4, 0.8, 0.3))), 0.0, 1.0);\n"
-          + "    vec3 lit = uBaseColor * (0.35 + 0.65 * lambert);\n"
-          + "    fragColor = vec4(lit, 1.0);\n"
+          + "    vec3 base = uBaseColor.rgb;\n"
+          + "    if (uUseTexture == 1) {\n"
+          + "        base = texture(uTexture, vTexCoord).rgb * base;\n"
+          + "    }\n"
+          + "    vec3 lit = base * (0.35 + 0.65 * lambert);\n"
+          + "    fragColor = vec4(lit, uBaseColor.a);\n"
           + "}\n";
 
     private static final class Entry {
         final GlMesh mesh;
         final float[] model;
-        Entry(GlMesh mesh, float[] model) {
+        final float[] baseColor;
+        final byte[] texture;
+        int texId;
+        boolean texTried;
+        Entry(GlMesh mesh, float[] model, float[] baseColor, byte[] texture) {
             this.mesh = mesh;
             this.model = model;
+            this.baseColor = baseColor;
+            this.texture = texture;
         }
     }
+
+    /** The base colour a mesh with no material of its own is drawn in. */
+    public static final float[] DEFAULT_BASE_COLOR = {0.75f, 0.72f, 0.68f, 1.0f};
 
     private final List<Entry> entries = new ArrayList<>();
     private int program;
@@ -72,17 +89,52 @@ public final class GlScene {
     private int locView;
     private int locProjection;
     private int locBaseColor;
+    private int locTexture;
+    private int locUseTexture;
     private boolean linked;
 
-    /** Add a mesh with its world (model) matrix, column-major float[16]. */
+    /** Add a mesh with its world (model) matrix, drawn in {@link #DEFAULT_BASE_COLOR}. */
     public void add(GlMesh mesh, float[] model) {
+        add(mesh, model, null, null);
+    }
+
+    /**
+     * Add a mesh with its world (model) matrix, base colour and optional diffuse
+     * texture. The colour is the material's diffuse rgba (a MaterialAppearance's
+     * four components); the texture is the encoded diffuse image the binding plan
+     * resolved and the store fetched, or {@code null} to draw the shape untextured.
+     *
+     * @param mesh      the GPU mesh; not null
+     * @param model     the world matrix, column-major float[16]; not null
+     * @param baseColor rgba in 0..1, or {@code null} for {@link #DEFAULT_BASE_COLOR}
+     * @param texture   encoded image bytes, or {@code null} for no texture
+     */
+    public void add(GlMesh mesh, float[] model, float[] baseColor, byte[] texture) {
         if (mesh == null) {
             throw new IllegalArgumentException("mesh must not be null");
         }
         if (model == null || model.length != 16) {
             throw new IllegalArgumentException("model must be a float[16]");
         }
-        entries.add(new Entry(mesh, model.clone()));
+        entries.add(new Entry(mesh, model.clone(), sanitizeColor(baseColor), texture));
+    }
+
+    /**
+     * Coerce a caller's rgba to a non-null float[4]: {@code null} or an array
+     * shorter than three falls back to {@link #DEFAULT_BASE_COLOR}, and a missing
+     * alpha becomes opaque. Pure, so the material feed is asserted without a GL
+     * context.
+     */
+    static float[] sanitizeColor(float[] rgba) {
+        if (rgba == null || rgba.length < 3) {
+            return DEFAULT_BASE_COLOR.clone();
+        }
+        float[] out = new float[4];
+        out[0] = rgba[0];
+        out[1] = rgba[1];
+        out[2] = rgba[2];
+        out[3] = rgba.length >= 4 ? rgba[3] : 1.0f;
+        return out;
     }
 
     /** The number of meshes in the draw list. */
@@ -130,6 +182,12 @@ public final class GlScene {
         locView = gl.glGetUniformLocation(program, "uView");
         locProjection = gl.glGetUniformLocation(program, "uProjection");
         locBaseColor = gl.glGetUniformLocation(program, "uBaseColor");
+        locTexture = gl.glGetUniformLocation(program, "uTexture");
+        locUseTexture = gl.glGetUniformLocation(program, "uUseTexture");
+        // The diffuse texture is sampled from unit 0; bind the sampler once.
+        gl.glUseProgram(program);
+        gl.glUniform1i(locTexture, 0);
+        gl.glUseProgram(0);
         linked = true;
         return true;
     }
@@ -147,17 +205,47 @@ public final class GlScene {
         gl.glUseProgram(program);
         gl.glUniformMatrix4fv(locView, 1, false, camera.view(), 0);
         gl.glUniformMatrix4fv(locProjection, 1, false, camera.projection(), 0);
-        gl.glUniform3f(locBaseColor, 0.75f, 0.72f, 0.68f);
         for (Entry e : entries) {
             e.mesh.upload(gl);
             gl.glUniformMatrix4fv(locModel, 1, false, e.model, 0);
+            gl.glUniform4fv(locBaseColor, 1, e.baseColor, 0);
+            bindTexture(gl, e);
             e.mesh.draw(gl);
         }
         gl.glUseProgram(0);
     }
 
-    /** Release the program. Meshes dispose their own buffers. */
+    /**
+     * Bind an entry's diffuse texture to unit 0, uploading it once on first use,
+     * and tell the shader whether to sample it. A texture that fails to upload
+     * (GlTexture returns 0) is remembered as tried, so the shape renders
+     * untextured rather than retrying the decode every frame.
+     */
+    private void bindTexture(GL3 gl, Entry e) {
+        if (e.texture == null) {
+            gl.glUniform1i(locUseTexture, 0);
+            return;
+        }
+        if (!e.texTried) {
+            e.texId = GlTexture.upload(gl, e.texture);
+            e.texTried = true;
+        }
+        if (e.texId == 0) {
+            gl.glUniform1i(locUseTexture, 0);
+            return;
+        }
+        gl.glActiveTexture(GL2ES3.GL_TEXTURE0);
+        gl.glBindTexture(GL2ES3.GL_TEXTURE_2D, e.texId);
+        gl.glUniform1i(locUseTexture, 1);
+    }
+
+    /** Release the program and every uploaded texture. Meshes dispose their own buffers. */
     public void dispose(GL3 gl) {
+        for (Entry e : entries) {
+            GlTexture.dispose(gl, e.texId);
+            e.texId = 0;
+            e.texTried = false;
+        }
         if (linked) {
             gl.glDeleteProgram(program);
             program = 0;

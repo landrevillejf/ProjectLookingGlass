@@ -63,4 +63,39 @@ class GlSceneTest {
         scene.add(mesh(), IDENTITY);
         assertThat(scene.size()).isEqualTo(2);
     }
+
+    @Test
+    void addWithColourAndTextureGrowsTheDrawList() {
+        GlScene scene = new GlScene();
+        scene.add(mesh(), IDENTITY, new float[] {0.2f, 0.4f, 0.6f, 0.8f}, new byte[] {1, 2, 3});
+        scene.add(mesh(), IDENTITY, null, null);
+        assertThat(scene.size()).isEqualTo(2);
+    }
+
+    @Test
+    void sanitizeColourFallsBackToDefaultOnNullOrShort() {
+        float[] def = GlScene.DEFAULT_BASE_COLOR;
+        assertThat(GlScene.sanitizeColor(null)).containsExactly(def[0], def[1], def[2], def[3]);
+        assertThat(GlScene.sanitizeColor(new float[] {0.1f, 0.2f})).containsExactly(def[0], def[1], def[2], def[3]);
+    }
+
+    @Test
+    void sanitizeColourPadsMissingAlphaToOne() {
+        assertThat(GlScene.sanitizeColor(new float[] {0.1f, 0.2f, 0.3f}))
+                .containsExactly(0.1f, 0.2f, 0.3f, 1.0f);
+    }
+
+    @Test
+    void sanitizeColourKeepsAnExplicitAlpha() {
+        assertThat(GlScene.sanitizeColor(new float[] {0.1f, 0.2f, 0.3f, 0.4f}))
+                .containsExactly(0.1f, 0.2f, 0.3f, 0.4f);
+    }
+
+    @Test
+    void sanitizeColourDoesNotAliasTheCaller() {
+        float[] in = {0.1f, 0.2f, 0.3f, 0.4f};
+        float[] out = GlScene.sanitizeColor(in);
+        in[0] = 99f;
+        assertThat(out[0]).isEqualTo(0.1f);
+    }
 }

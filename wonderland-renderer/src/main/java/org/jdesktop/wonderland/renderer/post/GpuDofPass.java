@@ -35,9 +35,12 @@
  * test JVM (the repo-wide rule for Jogamp scene-graph objects), so render()/dispose()
  * are verified by the in-JVM probe under DISPLAY, NOT asserted in a headless suite. A
  * depth blit additionally needs the host framebuffer's depth to be non-multisampled and
- * format-compatible with the GL_DEPTH_COMPONENT24 attachment this pass builds; where it
- * is not, the blit faults and the pass latches off (below) rather than defocusing
- * against garbage depth. What IS pure and headless-tested (GpuDofPassTest) is the
+ * format-compatible with this pass's depth attachment; the attachment's internal format is
+ * therefore queried from the target framebuffer at init (see {@link DepthBlitFormat})
+ * rather than hardcoded, so a 32-bit-float JOGL default framebuffer blits as cleanly as
+ * the 24-bit Java 3D one. Where the blit still faults, the pass latches off (below)
+ * rather than defocusing against garbage depth. What IS pure and headless-tested
+ * (GpuDofPassTest) is the
  * Settings contract, the never-throws failure latch, and that constructing a pass
  * touches no GL and treats a null context as the no-op it is on a headless box.
  *
@@ -158,8 +161,12 @@ public final class GpuDofPass implements GpuPostEffect {
             gl.glDisable(GL.GL_CULL_FACE);
             gl.glDisable(GL.GL_BLEND);
 
+            // Resolve the target first: init() queries its depth attachment so the
+            // depth texture it builds blits from this framebuffer's actual format.
+            int targetFbo = resolveTargetFbo(ctx.getGLDrawable());
+
             if (!ready || width != initW || height != initH) {
-                init(gl, width, height);
+                init(gl, width, height, targetFbo);
                 if (failed) {
                     restoreState(gl, saved);
                     return;
@@ -168,8 +175,6 @@ public final class GpuDofPass implements GpuPostEffect {
                 initH = height;
                 ready = true;
             }
-
-            int targetFbo = resolveTargetFbo(ctx.getGLDrawable());
 
             // Capture the just-rendered scene AND its depth: Java 3D's target ->
             // sceneFbo. A depth blit mandates GL_NEAREST and identical src/dst
@@ -243,14 +248,14 @@ public final class GpuDofPass implements GpuPostEffect {
     }
 
     /** Build (or rebuild after a resize) the textures, FBO and shader program. */
-    private void init(GL2 gl, int w, int h) {
+    private void init(GL2 gl, int w, int h, int targetFbo) {
         if (sceneFbo != 0) {
             gl.glDeleteFramebuffers(1, new int[] {sceneFbo}, 0);
             gl.glDeleteTextures(1, new int[] {colorTex}, 0);
             gl.glDeleteTextures(1, new int[] {depthTex}, 0);
         }
         colorTex = makeColorTex(gl, w, h);
-        depthTex = makeDepthTex(gl, w, h);
+        depthTex = makeDepthTex(gl, w, h, targetFbo);
         sceneFbo = makeFbo(gl, colorTex, depthTex);
         dofProg = link(gl, VERT, DOF_FRAG);
         if (dofProg == 0) {
@@ -294,17 +299,21 @@ public final class GpuDofPass implements GpuPostEffect {
      * The depth attachment the colour blit's depth half lands in, and the texture
      * DOF_FRAG samples for the circle of confusion. GL_NEAREST is mandatory: a depth
      * texture is a lookup, not an image, and filtering it would interpolate between two
-     * surfaces that are not there. GL_DEPTH_COMPONENT24 is the common default-framebuffer
-     * depth size, which is what makes the paired blit's format check pass on the reference
-     * stack.
+     * surfaces that are not there. The internal format is NOT hardcoded: a depth blit
+     * faults unless the destination depth format matches the source's exactly, and the
+     * source is whatever depth the host framebuffer carries -- 24-bit under the reference
+     * Java 3D GLFBODrawable, 32-bit float under a plain JOGL GLCanvas on Mesa.
+     * {@link DepthBlitFormat#query} reads the target's own depth attachment and picks the
+     * format that blits, so the same pass works on both.
      */
-    private static int makeDepthTex(GL2 gl, int w, int h) {
+    private static int makeDepthTex(GL2 gl, int w, int h, int targetFbo) {
+        DepthBlitFormat fmt = DepthBlitFormat.query(gl, targetFbo);
         IntBuffer b = IntBuffer.allocate(1);
         gl.glGenTextures(1, b);
         int tex = b.get(0);
         gl.glBindTexture(GL.GL_TEXTURE_2D, tex);
-        gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL2.GL_DEPTH_COMPONENT24, w, h, 0,
-                GL2.GL_DEPTH_COMPONENT, GL.GL_UNSIGNED_INT, (ByteBuffer) null);
+        gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, fmt.internalFormat, w, h, 0,
+                GL2.GL_DEPTH_COMPONENT, fmt.pixelType, (ByteBuffer) null);
         gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
         gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
         gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE);

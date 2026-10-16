@@ -117,4 +117,46 @@ class WorldRenderTest {
         // and the module a model lives in is read off its own reference
         assertEquals("m", WorldRender.assetModuleOf(cell, "wonderland-town-world"));
     }
+
+    @Test
+    @DisplayName("the JOGL preview path is off unless the probe switches it on")
+    void joglPreviewIsOptIn() {
+        String previous = System.getProperty(WorldRender.JOGL_PREVIEW_PROPERTY);
+        try {
+            System.clearProperty(WorldRender.JOGL_PREVIEW_PROPERTY);
+            assertFalse(WorldRender.joglPreviewEnabled(),
+                    "the shipped desktop must keep the java3d preview by default");
+
+            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "true");
+            assertTrue(WorldRender.joglPreviewEnabled());
+
+            // Anything that is not literally "true" stays off, so a stray value
+            // never silently swaps the renderer out from under a user.
+            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "yes");
+            assertFalse(WorldRender.joglPreviewEnabled());
+            System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, "");
+            assertFalse(WorldRender.joglPreviewEnabled());
+        } finally {
+            if (previous == null) {
+                System.clearProperty(WorldRender.JOGL_PREVIEW_PROPERTY);
+            } else {
+                System.setProperty(WorldRender.JOGL_PREVIEW_PROPERTY, previous);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("a world with no geometry is refused on the JOGL path too")
+    void joglPreviewRefusesAnEmptyWorld() throws IOException {
+        // The pure guards run before any window opens, so the JOGL path answers
+        // the same "nothing to draw" as the java3d one -- headless, no GLCanvas.
+        WorldView signs = WorldCatalog.parse(
+                "[{\"id\":\"0\",\"name\":\"Sign\"},"
+                        + "{\"id\":\"1\",\"name\":\"Flower\",\"deployedModelURL\":\"\"}]");
+        WorldRender.Attempt attempt = WorldRender.tryPreviewJogl("localhost:8080",
+                "some-world", signs, url -> java.util.Optional.empty());
+        assertNull(attempt.frame());
+        assertEquals("no cell of this world names a model or a picture to draw",
+                attempt.failure());
+    }
 }
