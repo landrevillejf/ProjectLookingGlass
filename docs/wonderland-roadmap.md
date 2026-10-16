@@ -20,6 +20,7 @@ and the per-module `AGENTS.md`.
 | Water shading | **Wired: pond quad + frame-clock scroll** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records; `WorldScene.addWater` seats one flat quad per record, tiled by `WaterArt`'s seamless image and scrolled by a `TexCoordGeneration` that `WorldViewer`'s water clock rewrites every 120 ms; `scrollWater` is the live animation path. Each pond hangs behind its own PVS `Switch` gate so culling the ground shuts the water with it. `lg.wonderland.water=off` builds no pond node at all. |
 | Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
 | Normal mapping | **Live, multi-unit** | The GLSL normal/spec stages compile, shade and are now bound: `WlProbe48` measured three distinct `sampler2D` textures (diffuse/normal/spec) live on one program once each sampler is named AND assigned its unit, and `WlProbe49` drove the shipping `createShape` and saw a normal map tilt a facing quad from `(255,255,255)` to `(56,56,56)`. `hasNormalMap`/`hasSpecMap` are set from what actually resolved, so a lit material lights from all the layers its art carries. `WlProbe42`'s earlier "ONE texture per program" was a binding omission (it never assigned the second sampler a unit), not a platform limit. |
+| Environment (reflection / refraction) | **Live, cube beside diffuse** | `EnvironmentPlan` carries a full GLSL 1.20 vertex+fragment pair and `J3dMeshFactory.buildEnvAppearance` binds the lit diffuse on unit 0 and a `samplerCube` on unit 1, laying `reflect`/`refract` cube lookups weighted by Schlick fresnel over the lit base. `WlProbe50` proved a cube map samples its own face live (+X red / +Y green / +Z blue) once faces go on with this fork's `setImage(LEVEL, FACE, image)` order; `WlProbe51` drove the shipping `createShape` and read a red diffuse quad `(255,0,0)` become `(230,97,110)` once an environment cube was attached at half reflectivity. `CubeMapArt` is the procedural sky gradient a glossy cell samples (no shipped world names a real cube image). Opt-in like P2.2 (`lg.wonderland.shader` + `lit()` + a cube map), so a pre-P2.5 world changes no pixel. |
 | Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
 | Barycentric / decals | **Absent** | Hand-built triangles (`tagQuad`, `flatQuad`); no barycentric utilities. |
 | Cinematic (PBR/HDR/bloom/shadow maps/DOF/spline camera) | **Partial** | Shadows are `ShadowProjector`'s parallel projection of the caster's box, not `ShadowArt` ellipse decals alone (P2.4); the eye glides through `FollowRig`'s smoothing on a `CameraPath` (P3.1). PBR, HDR, bloom, shadow *maps* and DOF remain absent -- `PostProcessPlan` says why: the fork has no scene-to-texture post pipeline, so a full-frame pass is a `Canvas3D` readback, not a GPU chain. |
@@ -81,6 +82,20 @@ X:0 / GL 4.6 radeonsi context (all in `build-gradle/scratch`, none committed):
 - **WlProbe49** - the shipping `J3dMeshFactory.createShape` binds those units too:
   a lit facing quad read `(255,255,255)` with its diffuse and `(56,56,56)` once a
   tangent normal map was attached, the normal map tilting N off the key.
+- **WlProbe50** - a `samplerCube` binds its own texture unit and samples the
+  correct face live on this fork: three quads each sampling one hardcoded
+  direction read +X red, +Y green, +Z blue back. The gate was the fork's
+  `TextureCubeMap.setImage(LEVEL, FACE, image)` argument order - the first index
+  is the mip level (`checkImageSize` shifts the expected size by it), the second
+  the face 0..5, so passing a face constant first reads it as a level and throws
+  "illegal image size". A cube map is therefore a real second target beside a
+  diffuse, not a ceiling.
+- **WlProbe51** - the shipping `J3dMeshFactory.createShape` binds a cube beside a
+  diffuse on the environment route: a lit red quad read `(255,0,0)` and the same
+  material with an environment cube at half reflectivity read `(230,97,110)`, its
+  green and blue lifted by the sampled sky gradient while the diffuse kept it
+  red-dominant. An unbound cube samples black and would have left green and blue
+  at zero, so the tint separates "the cube bound" from "the cube read nothing".
 
 What this buys: real GPU per-pixel lighting was earlier (wrongly) filed as a
 platform impossibility; it is now live and wired, and a layered material lights
@@ -248,10 +263,10 @@ much visible value each unlocks per unit of risk.
   anchor is now asserted as an invariant across every elevation. What remains
   probe-side is the shadow *map*, which needs the scene-to-texture pass P3.2
   measures as absent.
-- **P2.5 Environment reflection / refraction - delivered as kernel + a
-  probe-gated plan (added scope).** Reflection and refraction were never in the
-  original P0..P5 list; they name later as the missing "modern 3D" beat on the
-  water (P2.3) and any glossy surface. Delivered in `wonderland-renderer/shade`:
+- **P2.5 Environment reflection / refraction - wired and measured (was: probe-gated).**
+  Reflection and refraction were never in the original P0..P5 list; they name
+  later as the missing "modern 3D" beat on the water (P2.3) and any glossy
+  surface. The arithmetic half lives in `wonderland-renderer/shade`:
   `EnvMapKernel` - the five operations an environment pass is built from, as
   pure arithmetic on `float[]` vectors and packed ARGB pixels with nothing but
   `java.base` (the reflect vector; Snell refraction with its
@@ -259,34 +274,36 @@ much visible value each unlocks per unit of risk.
   `F0` and a grazing mirror; the canonical cube-map face-and-uv a direction
   samples; and two `mix`/`composite` blends whose `coverage == 0` is the exact
   base pixel, the mirror of `BloomKernel.combine`'s strength-zero identity) -
-  and `EnvironmentPlan`, which repeats P2.2's shape: a fixed Java 3D 1.7.2
-  pipeline can bind a cube texture but cannot compute a per-fragment fresnel
-  blend or a bent lookup, so an environment material takes SHADER only when
-  `ShaderAppearancePlan.Capability` reports the shader path live -- a probe has
-  since validated the fork's shader API (P2.2 above), so that gate can now open.
-  What still keeps env probe-side is narrower than the retracted single-texture
-  claim: `WlProbe48` proved three `sampler2D` units bind side by side, but a
-  `samplerCube envMap` on its own unit *beside* a diffuse `sampler2D` is a
-  different target that no probe has bound yet, so an env program stays the
-  probe's to measure -- not because one texture is a hard ceiling, but because
-  the cube-map binding is simply unmeasured. Until a probe binds a cube beside a
-  diffuse, an env-only glossy surface (no diffuse) is what a live program can
-  paint today. Otherwise the material takes FIXED *with the
-  lost effects named*, and the plan reuses `ShaderAppearancePlan.Capability` so
-  one host answers "is the shader path live" for both features. The GLSL 1.20
-  environment fragment (`samplerCube envMap`, `reflect`/`refract`, Schlick
-  fresnel, TIR fallback) ships beside the decision and asserts it names the same
-  operators the kernel computes. A material with no cube map and `ior == 1`
-  requests nothing, so no pre-P2.5 world changes a pixel. Binding a live cube map
-  and running the program on `WorldScene`'s glossy cells is the probe-side step -
-  the ceiling is the deliverable's shape, the same as P2.2 and P3.2, not an
-  apology. `CubeMapArt` now closes the one gap that kept the plan permanently on
-  FIXED for a material with no authored map: it is the procedural six-face
-  environment gradient (64 px faces, zenith/nadir caps plus a sky-to-horizon-to-
-  ground side ramp) that a glossy cell samples when the world's art carries no
-  cube map, rasterised headless in pure java2d and asserted in `CubeMapArtTest`;
-  wrapping its faces into a `TextureCubeMap` is the factory's live-GL half, still
-  the probe's to measure, never claimed here.
+  and `EnvironmentPlan`, which repeats P2.2's shape and now carries a complete
+  GLSL 1.20 pair (`ENV_VERTEX_GLSL` + `ENV_FRAGMENT_GLSL`): the vertex stage
+  writes the same eye-space `vEyeNormal`/`vViewDir` varyings P2.2 proved live,
+  and the fragment samples the diffuse, lights it, then lays `reflect`/`refract`
+  cube lookups weighted by Schlick fresnel over that lit base at the material's
+  reflectivity - `EnvMapKernel.composite` spelled in shading language, so the
+  headless kernel and the program cannot disagree.
+  The binding is no longer unmeasured. `WlProbe50` proved a `samplerCube` binds
+  its own texture unit and samples the correct face live on this fork (+X red,
+  +Y green, +Z blue each read back their own face) once the faces go on with
+  this fork's `setImage(LEVEL, FACE, image)` argument order - passing the face
+  constant first reads it as a mip level and halves the expected image size, the
+  same class of binding omission that once mis-read the fork as single-texture.
+  `WlProbe51` then drove the SHIPPING `J3dMeshFactory.createShape`: a lit red
+  diffuse quad read `(255,0,0)`, and the same material with an environment cube
+  at half reflectivity read `(230,97,110)` - still red-dominant (the diffuse on
+  unit 0 bound) with its green and blue lifted by the sampled sky gradient (the
+  `samplerCube` on unit 1 bound beside it). An unbound cube samples black and
+  would have read a darker red with green and blue at zero, so the tint is the
+  proof. `buildEnvAppearance` is live behind the same triply-conservative gate as
+  P2.2 (`lg.wonderland.shader`, `lit()`, a resolved diffuse) plus
+  `EnvironmentPlan.decide(...).appliesEnvironment()`, so a material that names no
+  cube map keeps the plain Blinn-Phong route and a pre-P2.5 world changes not a
+  pixel. `CubeMapArt` is the procedural six-face environment gradient (64 px
+  faces, zenith/nadir caps plus a sky-to-horizon-to-ground side ramp) a glossy
+  cell samples when no shipped world's art carries a cube map - and none does,
+  the 2006 `<reflectivity>` texture reference never resolving to a real image -
+  rasterised headless in pure java2d (`CubeMapArtTest`); the factory wraps its
+  faces into the shared `TextureCubeMap` the program samples. A material with no
+  cube map and `ior == 1` requests nothing, so it stays FIXED and untouched.
 
 ### P3 - Cinematic system
 

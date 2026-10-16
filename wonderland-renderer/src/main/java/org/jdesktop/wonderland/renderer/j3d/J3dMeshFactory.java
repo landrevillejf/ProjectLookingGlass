@@ -30,6 +30,8 @@ import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.MaterialAppearance;
 import org.jdesktop.wonderland.renderer.mesh.ShaderAppearancePlan;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
+import org.jdesktop.wonderland.renderer.shade.EnvironmentPlan;
+import org.jdesktop.wonderland.renderer.view.CubeMapArt;
 import org.jogamp.java3d.Appearance;
 import org.jogamp.java3d.GLSLShaderProgram;
 import org.jogamp.java3d.GeometryArray;
@@ -46,6 +48,7 @@ import org.jogamp.java3d.SourceCodeShader;
 import org.jogamp.java3d.Texture;
 import org.jogamp.java3d.Texture2D;
 import org.jogamp.java3d.TextureAttributes;
+import org.jogamp.java3d.TextureCubeMap;
 import org.jogamp.java3d.TextureUnitState;
 import org.jogamp.java3d.TransparencyAttributes;
 import org.jogamp.vecmath.Color3f;
@@ -60,6 +63,17 @@ public final class J3dMeshFactory {
      * to more than one Appearance without this kind of sharing.
      */
     private final Map<String, Served> textureCache = new ConcurrentHashMap<>();
+
+    /**
+     * The procedural environment cube map (roadmap P2.5), built once and shared
+     * across every environment material. No shipped COLLADA world resolves its
+     * {@code <reflectivity>} texture reference to a real six-face image (see
+     * {@link CubeMapArt}), so the sky gradient is the honest source an
+     * environment material samples; Java 3D wants one Texture instance reused
+     * rather than re-added, so it is cached like the diffuse textures are. Null
+     * until the first environment material asks, and built off the live graph.
+     */
+    private volatile TextureCubeMap envCubeMap;
 
     /**
      * Where texture bytes come from. Null keeps the M6a behaviour (a path is a
@@ -321,6 +335,19 @@ public final class J3dMeshFactory {
         if (shaderRoute && ma.lit() && ma.isTextured()) {
             Served litTexture = loadTexture(ma.texturePath());
             if (litTexture != null) {
+                // Roadmap P2.5: an environment material reflects and refracts a
+                // cube map over the same lit diffuse. WlProbe50 measured a
+                // samplerCube binding its own unit and sampling the correct face
+                // live on this fork, and WlProbe51 drove this very branch through
+                // createShape, so the environment program is real, not a promise.
+                // The capability is the validated one exactly because those probe
+                // runs exist; a material that names no cube map keeps the plain
+                // per-pixel Blinn-Phong route below.
+                if (EnvironmentPlan.decide(ma,
+                        ShaderAppearancePlan.Capability.SHADER_MODEL_AVAILABLE)
+                        .appliesEnvironment()) {
+                    return buildEnvAppearance(ma, litTexture);
+                }
                 return buildShaderAppearance(ma, litTexture);
             }
         }
@@ -528,6 +555,109 @@ public final class J3dMeshFactory {
             sa.setTransparencyAttributes(ta);
         }
         return sa;
+    }
+
+    /**
+     * The GPU route for one environment material (roadmap P2.5). Binds the lit
+     * diffuse on unit 0 (a {@code sampler2D}) and the environment cube map on
+     * unit 1 (a {@code samplerCube}) -- the two-target binding WlProbe50 proved
+     * samples the correct cube face live on this fork and WlProbe51 proved
+     * through this very factory -- names both samplers on the program and
+     * assigns each its unit through a {@code ShaderAttributeValue} (the step
+     * whose omission once mis-read the fork as single-texture). The scene key
+     * rides in as the program's OWN uniforms (the scene Light is inert here --
+     * WlProbe39), and the material's index of refraction and reflectivity drive
+     * the Schlick fresnel weighting reflection against refraction, exactly as
+     * {@link org.jdesktop.wonderland.renderer.shade.EnvMapKernel} computes it.
+     */
+    private Appearance buildEnvAppearance(MaterialAppearance ma, Served diffuse) {
+        ShaderAppearance sa = new ShaderAppearance();
+        sa.setCapability(Appearance.ALLOW_TEXTURE_UNIT_STATE_WRITE);
+        sa.setCapability(ShaderAppearance.ALLOW_SHADER_PROGRAM_WRITE);
+        sa.setCapability(ShaderAppearance.ALLOW_SHADER_ATTRIBUTE_SET_WRITE);
+
+        TextureCubeMap cube = envCubeMap();
+
+        // Name every attribute the program reads before it compiles: the fork
+        // rejects an unnamed uniform (WlProbe40), and a sampler reads its own
+        // unit only once named AND assigned one (WlProbe48/50).
+        String[] attrNames = {"lightDirection", "lightColor", "ambientColor",
+            "ior", "envStrength", "diffuseMap", "envMap"};
+
+        ShaderAttributeSet uniforms = new ShaderAttributeSet();
+        // Unit 0 is the diffuse the caller already resolved; unit 1 the cube map.
+        TextureUnitState[] units = {
+            new TextureUnitState(diffuse.texture(), null, null),
+            new TextureUnitState(cube, null, null)};
+        uniforms.put(new ShaderAttributeValue("diffuseMap", Integer.valueOf(0)));
+        uniforms.put(new ShaderAttributeValue("envMap", Integer.valueOf(1)));
+
+        SourceCodeShader vert = new SourceCodeShader(
+                SourceCodeShader.SHADING_LANGUAGE_GLSL,
+                SourceCodeShader.SHADER_TYPE_VERTEX, EnvironmentPlan.ENV_VERTEX_GLSL);
+        SourceCodeShader frag = new SourceCodeShader(
+                SourceCodeShader.SHADING_LANGUAGE_GLSL,
+                SourceCodeShader.SHADER_TYPE_FRAGMENT, EnvironmentPlan.ENV_FRAGMENT_GLSL);
+        GLSLShaderProgram program = new GLSLShaderProgram();
+        program.setShaders(new Shader[] {vert, frag});
+        program.setCapability(GLSLShaderProgram.ALLOW_SHADERS_READ);
+        program.setShaderAttrNames(attrNames);
+        sa.setShaderProgram(program);
+
+        uniforms.put(new ShaderAttributeValue("lightDirection",
+                new Vector3f(lightDirX, lightDirY, lightDirZ)));
+        uniforms.put(new ShaderAttributeValue("lightColor",
+                new Color3f(lightRed, lightGreen, lightBlue)));
+        uniforms.put(new ShaderAttributeValue("ambientColor",
+                new Color3f(ambientRed, ambientGreen, ambientBlue)));
+        uniforms.put(new ShaderAttributeValue("ior", Float.valueOf(ma.refractionIor())));
+        uniforms.put(new ShaderAttributeValue("envStrength", Float.valueOf(ma.reflectivity())));
+        sa.setShaderAttributeSet(uniforms);
+
+        sa.setTextureUnitState(units);
+
+        float alpha = ma.alpha();
+        if (alpha < 1.0f) {
+            TransparencyAttributes ta = new TransparencyAttributes(
+                    TransparencyAttributes.BLENDED, 1.0f - alpha);
+            ta.setCapability(TransparencyAttributes.ALLOW_VALUE_WRITE);
+            ta.setCapability(TransparencyAttributes.ALLOW_MODE_WRITE);
+            sa.setTransparencyAttributes(ta);
+        }
+        return sa;
+    }
+
+    /**
+     * The shared procedural environment cube map, built on first use from
+     * {@link CubeMapArt#gradientFaces()}. Each face's pixels are painted into its
+     * {@link ImageComponent2D} BEFORE it is attached -- the Jogamp live-texture
+     * rule (a texture whose image data is still null at setLive throws) -- and the
+     * faces go on with {@code setImage(LEVEL, FACE, image)}, this fork's argument
+     * order that WlProbe50 pinned: the first index is the mip level (it shifts the
+     * expected image size), the second the face 0..5. Passing the face constant
+     * first reads it as a level and fails the size check.
+     */
+    private TextureCubeMap envCubeMap() {
+        TextureCubeMap cube = envCubeMap;
+        if (cube != null) {
+            return cube;
+        }
+        int size = CubeMapArt.FACE_SIZE;
+        int[] faces = CubeMapArt.gradientFaces();
+        TextureCubeMap built = new TextureCubeMap(Texture.BASE_LEVEL, Texture.RGB, size);
+        for (int face = 0; face < CubeMapArt.FACES; face++) {
+            BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+            img.setRGB(0, 0, size, size, faces, face * size * size, size);
+            ImageComponent2D comp = new ImageComponent2D(ImageComponent2D.FORMAT_RGB, img);
+            comp.setCapability(ImageComponent2D.ALLOW_IMAGE_READ);
+            built.setImage(0, face, comp);
+        }
+        built.setEnable(true);
+        built.setMinFilter(Texture.BASE_LEVEL_LINEAR);
+        built.setMagFilter(Texture.BASE_LEVEL_LINEAR);
+        built.setCapability(Texture.ALLOW_IMAGE_READ);
+        envCubeMap = built;
+        return built;
     }
 
     /**

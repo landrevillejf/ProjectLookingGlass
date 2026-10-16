@@ -11,11 +11,17 @@
  * decision is. Java 3D 1.7.2's fixed pipeline can bind a cube texture, but it
  * cannot compute a per-fragment Schlick fresnel that blends reflection against
  * a Snell-refracted lookup -- that needs the fork's ShaderAppearance program,
- * which validates only against a live GL context. So, exactly as P2.2 gates its
- * normal/spec maps, an environment material takes the SHADER route ONLY when a
- * probe has validated the fork's shader API; until then it takes FIXED and this
- * plan NAMES the effects the platform dropped, so a log line says "this world's
- * water lost its reflections" instead of the surface silently reading flat.
+ * which validates only against a live GL context. WlProbe50 settled the one
+ * unknown this route rested on: a {@code samplerCube} binds on its own texture
+ * unit and samples the correct face live on this fork (+X red, +Y green, +Z blue
+ * each read back their own face), and WlProbe51 drove the shipping factory's
+ * environment program -- a diffuse {@code sampler2D} on unit 0 beside the cube on
+ * unit 1 -- and read the sky gradient back off a facing quad. So an environment
+ * material now takes the SHADER route whenever the caller reports the validated
+ * capability, exactly as P2.2 applies its normal/spec maps; a caller that reports
+ * FIXED_FUNCTION_ONLY still takes FIXED, and this plan NAMES the effects that
+ * pipeline drops, so a log line says "this world's water lost its reflections"
+ * instead of the surface silently reading flat.
  *
  * The capability vocabulary is reused from ShaderAppearancePlan on purpose: one
  * host, one "is the shader path validated" answer, two features reading it.
@@ -86,32 +92,78 @@ public final class EnvironmentPlan {
     }
 
     /**
+     * The environment-mapping GLSL 1.20 vertex stage.
+     *
+     * <p>The same eye-space pair {@link ShaderAppearancePlan#VERTEX_GLSL} proved
+     * live (WlProbe49): the interpolated eye-space normal and the per-fragment
+     * view direction the fresnel blend needs, plus the diffuse texture
+     * coordinate. A reflection computed from ONE uniform direction for the whole
+     * surface reads flat -- the exact defect the earlier draft of this plan
+     * carried -- so the eye vectors ride in as varyings, one per vertex.</p>
+     */
+    public static final String ENV_VERTEX_GLSL = """
+            #version 120
+            // P2.5 environment vertex stage: the eye-space normal and view
+            // direction the fragment's reflect/refract/fresnel cannot recompute
+            // there (gl_NormalMatrix and the eye position are vertex-only).
+            varying vec3 vEyeNormal;
+            varying vec3 vViewDir;
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+                gl_TexCoord[0] = gl_MultiTexCoord0;
+                vEyeNormal = normalize(gl_NormalMatrix * gl_Normal);
+                vec3 eyePos = (gl_ModelViewMatrix * gl_Vertex).xyz;
+                vViewDir = normalize(-eyePos);
+            }
+            """;
+
+    /**
      * The environment-mapping GLSL 1.20 fragment stage.
      *
-     * <p>Bound to what this renderer can supply and nothing more: a cube-map
-     * sampler, the eye and normal vectors the eye rig already computes, the
-     * material's index of refraction and a fresnel power. It reads like
-     * {@link EnvMapKernel} spelled in shading language -- {@code reflect},
-     * {@code refract}, Schlick {@code fresnel}, then a {@code mix} of the two
-     * environment colours -- which is the whole point: the headless kernel and
-     * the program that would one day replace it cannot disagree. It is a
-     * compiled string here, asserted to exist and to name the sampler the plan
-     * binds; it becomes a live program only in a probe run, never in a test.</p>
+     * <p>Bound to what this renderer can supply and nothing more: a diffuse
+     * sampler and a cube-map sampler (WlProbe50 measured a {@code samplerCube}
+     * binding on its own unit and sampling the correct face live on this fork),
+     * the eye and normal vectors {@link #ENV_VERTEX_GLSL} interpolates, the scene
+     * key, the material's index of refraction and its reflectivity. It reads like
+     * {@link EnvMapKernel} spelled in shading language -- incident {@code I} is
+     * the ray travelling toward the surface ({@code -vViewDir}), {@code N} points
+     * out toward the eye, {@code reflect}, {@code refract} with its total-
+     * internal-reflection fallback, Schlick {@code fresnel}, then a {@code mix}
+     * of the two environment colours laid over the lit diffuse -- which is the
+     * whole point: the headless kernel and the program that replaces it cannot
+     * disagree. It is a compiled string here, asserted to name the sampler the
+     * plan binds; WlProbe51 drove it through the shipping factory and read the
+     * sky gradient back off a facing quad.</p>
      */
     public static final String ENV_FRAGMENT_GLSL = """
             #version 120
             // P2.5 environment reflection + refraction through a cube map,
-            // weighted by Schlick fresnel. This is the effect the fixed
-            // pipeline cannot compute; on the ShaderAppearance path only.
+            // weighted by Schlick fresnel, laid over the same lit diffuse base
+            // P2.2 shades. This is the effect the fixed pipeline cannot compute;
+            // on the ShaderAppearance path only. The eye vectors are per-vertex
+            // VARYINGS from ENV_VERTEX_GLSL, not one uniform direction for the
+            // whole surface -- a uniform eye vector reads flat, which is the bug
+            // this stage exists to avoid.
+            varying vec3 vEyeNormal;
+            varying vec3 vViewDir;
+            uniform sampler2D diffuseMap;
             uniform samplerCube envMap;
-            uniform vec3 eyeDirection;   // toward the surface, as in EnvMapKernel
-            uniform vec3 surfaceNormal;  // out of the surface, toward the eye
+            uniform vec3 lightDirection;
+            uniform vec3 lightColor;
+            uniform vec3 ambientColor;
             uniform float ior;           // the material's index of refraction
             uniform float envStrength;   // how much of the environment shows
 
             void main() {
-                vec3 N = normalize(surfaceNormal);
-                vec3 I = normalize(eyeDirection);
+                vec4 base = texture2D(diffuseMap, gl_TexCoord[0].st);
+                vec3 N = normalize(vEyeNormal);
+                vec3 L = normalize(-lightDirection);
+                float ndl = max(dot(N, L), 0.0);
+                vec3 lit = base.rgb * (ambientColor + lightColor * ndl);
+
+                // Incident points where the ray travels (toward the surface),
+                // exactly EnvMapKernel's convention: I = -vViewDir, N out to eye.
+                vec3 I = normalize(-vViewDir);
                 vec3 R = reflect(I, N);
                 float eta = 1.0 / max(ior, 1e-3);
                 vec3 refr = refract(I, N, eta);
@@ -124,7 +176,8 @@ public final class EnvironmentPlan {
                 vec3 refrColor = dot(refr, refr) > 0.0 ? textureCube(envMap, refr).rgb
                                                        : reflColor;
                 vec3 env = mix(refrColor, reflColor, fresnel);
-                gl_FragColor = vec4(mix(gl_FragColor.rgb, env, clamp(envStrength, 0.0, 1.0)), 1.0);
+                vec3 color = mix(lit, env, clamp(envStrength, 0.0, 1.0));
+                gl_FragColor = vec4(min(color, vec3(1.0)), base.a);
             }
             """;
 
