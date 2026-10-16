@@ -10,6 +10,23 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The environment has a source now — roadmap P2.5, default cube map** (`wonderland-renderer`) —
+  `EnvMapKernel` and `EnvironmentPlan` had shipped the maths and the decision for
+  reflection/refraction, but the first glossy material had no image to sample: no
+  shipped COLLADA world names a reflection map (the 2006 `<reflectivity>` channel is
+  read by `TextureBindingPlan` yet its texture reference never resolves), so the plan
+  could only ever answer FIXED with the lost effects named. `CubeMapArt` is the missing
+  source — a procedural six-face environment gradient (64 px per face, power-of-two, POS_Y
+  zenith / NEG_Y nadir / four side faces ramping sky→horizon→ground), rasterised headless
+  in pure java2d so the layout and the PNG round trip are CI-asserted, while wrapping the
+  faces into a live `TextureCubeMap` and binding it to a `ShaderAppearance` stays the
+  fork's probe-side half (Java 3D needs a GL context), exactly as P2.2/P3.2 left theirs.
+  **9 new headless cases** (`CubeMapArtTest`): the face packing and power-of-two size,
+  every pixel opaque, the two caps solid, the side ramp's exact endpoints and its
+  horizon-band middle, one row flat across, all four sides agreeing on the ramp, and a
+  face encoding to a PNG that reads back identical pixels (an out-of-range index yields
+  none). No shipped world changes a pixel: a plain material names no cube map and
+  `ior == 1`, so `EnvironmentPlan` still answers FIXED.
 - **The pond is no longer just a record — roadmap P2.3, wired** (`wonderland-renderer`) —
   `WaterInstance` and `WaterArt` shipped as a parsed record and a headless-rasterised
   seamless tile that nothing placed in the scene graph: the data survived the read

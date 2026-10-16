@@ -261,7 +261,13 @@ much visible value each unlocks per unit of risk.
   requests nothing, so no pre-P2.5 world changes a pixel. Binding a live cube map
   and running the program on `WorldScene`'s glossy cells is the probe-side step -
   the ceiling is the deliverable's shape, the same as P2.2 and P3.2, not an
-  apology.
+  apology. `CubeMapArt` now closes the one gap that kept the plan permanently on
+  FIXED for a material with no authored map: it is the procedural six-face
+  environment gradient (64 px faces, zenith/nadir caps plus a sky-to-horizon-to-
+  ground side ramp) that a glossy cell samples when the world's art carries no
+  cube map, rasterised headless in pure java2d and asserted in `CubeMapArtTest`;
+  wrapping its faces into a `TextureCubeMap` is the factory's live-GL half, still
+  the probe's to measure, never claimed here.
 
 ### P3 - Cinematic system
 
