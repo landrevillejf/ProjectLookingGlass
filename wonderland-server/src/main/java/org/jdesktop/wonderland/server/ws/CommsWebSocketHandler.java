@@ -47,6 +47,7 @@ import org.jdesktop.wonderland.common.comms.messages.AttachedClientMessage;
 import org.jdesktop.wonderland.common.comms.messages.SessionInitializationMessage;
 import org.jdesktop.wonderland.common.messages.Message;
 import org.jdesktop.wonderland.common.messages.MessagePacker;
+import org.jdesktop.wonderland.server.auth.AuthGate;
 import org.jdesktop.wonderland.server.comms.FrameSink;
 import org.jdesktop.wonderland.server.comms.ProtocolRouter;
 import org.jdesktop.wonderland.server.comms.ServerSession;
@@ -76,6 +77,7 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
 
     private final ProtocolRouter router;
     private final SessionRegistry registry;
+    private final AuthGate authGate;
 
     /**
      * Live socket per (session, connection type): the dispatch table behind every
@@ -85,9 +87,11 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
     private final Map<BigInteger, Map<ConnectionType, WebSocketSession>> channels =
             new ConcurrentHashMap<>();
 
-    public CommsWebSocketHandler(ProtocolRouter router, SessionRegistry registry) {
+    public CommsWebSocketHandler(ProtocolRouter router, SessionRegistry registry,
+            AuthGate authGate) {
         this.router = router;
         this.registry = registry;
+        this.authGate = authGate;
     }
 
     @Override
@@ -107,6 +111,22 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
 
     private void onAttach(WebSocketSession socket, AttachClientMessage attach) {
         ConnectionType clientType = attach.getClientType();
+        // P5.4: when a new session is being minted (not a follow-on channel),
+        // the gate decides whether the identity is acceptable.
+        BigInteger sessionId = parseSessionId(attach.getProperties());
+        if (sessionId == null || registry.get(sessionId) == null) {
+            WonderlandIdentity resolved = authGate.resolve(attach.getProperties());
+            if (resolved == null) {
+                logger.info("auth refused attach of channel {} on socket {}", clientType,
+                        socket.getId());
+                try {
+                    socket.close(CloseStatus.POLICY_VIOLATION);
+                } catch (IOException ignored) {
+                    // best-effort close; the connection is dead either way
+                }
+                return;
+            }
+        }
         ServerSession serverSession = resolveSession(attach, clientType);
         // register THIS socket for its type before attaching, so the session's
         // FrameSink can already route a frame of this type to a live socket
@@ -140,7 +160,7 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
                     clientType, sessionId);
         }
         FrameSink sink = (session, type, packed) -> writeToChannel(session.getID(), type, packed);
-        return registry.create(identityFrom(attach.getProperties()), sink);
+        return registry.create(authGate.resolve(attach.getProperties()), sink);
     }
 
     private void onData(WebSocketSession socket, Message msg) {
@@ -218,14 +238,6 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
             logger.warn("malformed {} attach property '{}'", SESSION_ID_KEY, raw);
             return null;
         }
-    }
-
-    private WonderlandIdentity identityFrom(Properties properties) {
-        Properties props = properties == null ? new Properties() : properties;
-        String username = props.getProperty("username", "anonymous");
-        return new WonderlandIdentity(username,
-                props.getProperty("fullname", username),
-                props.getProperty("email", username + "@wonderland.invalid"));
     }
 
     private void write(WebSocketSession socket, ByteBuffer packed) {
