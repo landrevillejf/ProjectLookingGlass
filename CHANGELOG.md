@@ -2288,6 +2288,29 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **Neither *What's New* surface advertises unreleased work any more — both show released versions only** (`lg3d-apps`, `scripts/mandela`, `update-manager`) —
+  `[Unreleased]` is by definition work that has not shipped, so a person who
+  opened a *What's New* inside a released build read a page advertising features
+  their desktop does not have — the whole 1.69.0-dev section rendered above the
+  versions they could actually run. Two surfaces carried the bug. The Help
+  Center's topic is generated from `CHANGELOG.md` by `scripts/mandela/whats-new.mnd`,
+  and its `sectionsOf` kept `[Unreleased]` first, then the three newest releases;
+  it now renders the three newest **released** versions and never `[Unreleased]`,
+  matching the release archive beside it (`releasesOf` already skipped
+  `[Unreleased]`, so the two skins of one document had come to disagree). The
+  Update Manager's "What's new in Project Looking Glass" dialog renders the same
+  `CHANGELOG.md` through `ChangelogManager.toHtml()`, which appended every entry
+  including `[Unreleased]`; it now skips that section, so the dialog names shipped
+  work only — while `getAllEntries()` keeps the complete data and `getEntry` still
+  never resolves a release number to `[Unreleased]`. The topic's own note, the
+  archive `index.html` note, the script header, `AGENTS.md` and the scripts
+  `README.md` each said "the `[Unreleased]` section plus the three newest
+  releases"; every one now says released-only. `whatsNewCheck` still gates the
+  committed pages byte for byte, `HelpContentTest.whatsNewTopicIsGenerated` still
+  holds (the topic renders three `<h2>` version headings), and
+  `ChangelogManagerTest.testUnreleasedSectionIsNeitherRenderedNorResolved` pins
+  the dialog. The unreleased work is not lost: it stays in `CHANGELOG.md` and on
+  GitHub, which is where a reader goes to see what is coming.
 - **The sound mixer's covered air depended on the runner's sound card —
   P4.1 follow-up** (`wonderland-client`) — `JavaSoundBackend`'s clip-present
   path (open, start, loop, the per-control pose, stop, close, the re-load that
