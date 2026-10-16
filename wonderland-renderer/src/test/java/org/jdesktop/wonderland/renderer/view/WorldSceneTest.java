@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
+import org.jdesktop.wonderland.modules.asset.MtgSceneReader;
+import org.jdesktop.wonderland.modules.asset.WaterInstance;
 import org.jdesktop.wonderland.renderer.mesh.BakedRig;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
@@ -580,6 +582,7 @@ class WorldSceneTest {
     @AfterEach
     void restoreTheWorldTheSuiteStartedIn() {
         System.clearProperty("lg.wonderland.shadows");
+        System.clearProperty("lg.wonderland.water");
         System.clearProperty("lg.wonderland.lighting");
         System.clearProperty("lg.wonderland.features");
         BakedRig.setSpec(rigBefore);
@@ -764,5 +767,132 @@ class WorldSceneTest {
         // only thing between an unnamed cell and a frame that died on a cull.
         assertThat(WorldScene.staysVisible(null, Set.of("nurse")))
                 .as("nobody asked to hide this cell, so its shadow stays").isTrue();
+    }
+
+    // ---- P2.3: the water a scene record named, as the decision that lays it ----
+
+    /** The shipped orientation pond: 100 units square, flat, over the Terrain. */
+    private static WaterInstance shippedPond() {
+        return new MtgSceneReader().readWaterInstances(
+                "Instance Water org.jdesktop.mtgame.JMEWaterInstance "
+                        + "0.0 -1.3 0.0 0.0 1.0 0.0 0.0 1.0 1.0 1.0 100 100 Terrain")
+                .get(0);
+    }
+
+    private static List<WorldScene.Pond> collect(WaterInstance... records) {
+        List<WorldScene.Pond> ponds = new ArrayList<>();
+        WorldScene.collectWater(ponds, "OrientationWorld", List.of(records),
+                new Transform3D());
+        return ponds;
+    }
+
+    @Test
+    void aSceneThatNamedWaterGetsAPondAndTheCellItBelongsTo() {
+        // The record survived the read (common side) and this is where something
+        // is finally built from it. The owner travels with the pond because the
+        // gate that hides a culled cell has to know which cell to ask about.
+        System.setProperty("lg.wonderland.water", "true");
+
+        List<WorldScene.Pond> ponds = collect(shippedPond());
+
+        assertThat(ponds).hasSize(1);
+        assertThat(ponds.get(0).owner()).as("the pond belongs to the cell that named it")
+                .isEqualTo("OrientationWorld");
+        double[] plane = WaterArt.planeOf(ponds.get(0).record());
+        assertThat(plane).as("100 units square, its own scale folded in")
+                .containsExactly(0.0, -1.3, 0.0, 50.0, 50.0);
+    }
+
+    @Test
+    void theWaterSwitchDecidesWhetherAnyPondIsCollectedAtAll() {
+        // Off is the pre-P2.3 graph: not a hidden pond, no pond node at all, so
+        // nothing about the world's bounds, gates or textures can change.
+        System.setProperty("lg.wonderland.water", "true");
+        assertThat(collect(shippedPond())).hasSize(1);
+
+        System.setProperty("lg.wonderland.water", "off");
+        assertThat(collect(shippedPond()))
+                .as("lg.wonderland.water=off builds no pond").isEmpty();
+
+        System.setProperty("lg.wonderland.features", "off");
+        System.setProperty("lg.wonderland.water", "true");
+        assertThat(collect(shippedPond()))
+                .as("and the master lever pulls it too").isEmpty();
+    }
+
+    @Test
+    void aPlaneWithNoAreaCostsAPondRatherThanTheFrame() {
+        System.setProperty("lg.wonderland.water", "true");
+        WaterInstance nothing = new WaterInstance("Flat", 0, 0, 0,
+                0, 1, 0, 0, 1, 1, 1, 0, 100, "Ground");
+        WaterInstance negative = new WaterInstance("Wrong", 0, 0, 0,
+                0, 1, 0, 0, 1, 1, 1, -4, 100, "Ground");
+
+        assertThat(collect(nothing, negative)).as("neither is a quad to build")
+                .isEmpty();
+        assertThat(collect(nothing, shippedPond()))
+                .as("and the bad record does not take the good one down with it")
+                .hasSize(1);
+    }
+
+    @Test
+    void thePondIsSeatedByTheCellsMatrixAndThenByItsOwnRecord() {
+        // The same composition every other placement here uses: the deployment's
+        // normalisation outside, the author's numbers inside, so a pond that
+        // lies 1.3 under its ground stays 1.3 under it whatever the cell did.
+        System.setProperty("lg.wonderland.water", "true");
+        Transform3D cell = new Transform3D();
+        cell.setTranslation(new Vector3d(10, 2, -4));
+
+        Transform3D seat = WorldScene.pondSeat(cell, shippedPond());
+
+        double[] m = new double[16];
+        seat.get(m);
+        // Row-major with a stride of four, so the place is the last COLUMN: the
+        // indices are 3, 7 and 11 rather than the 12, 13, 14 a column-major
+        // float array (or GL) would put them at.
+        assertThat(m[3]).as("the record's own place, carried by the cell's")
+                .isCloseTo(10.0, within(1e-9));
+        assertThat(m[7]).as("1.3 under a ground that moved 2 up is still 1.3 under it")
+                .isCloseTo(0.7, within(1e-9));
+        assertThat(m[11]).isCloseTo(-4.0, within(1e-9));
+    }
+
+    @Test
+    void anAngleWrittenWithoutAnAxisLeavesThePlaneFlat() {
+        // A shipped author can write an angle and a zero axis (the second water
+        // line of the complex is a commented-out record of exactly that shape).
+        // Feeding AxisAngle4d a zero-length axis is arithmetic on nothing, so the
+        // conservative reading is the one that keeps the ground horizontal.
+        WaterInstance spinner = new WaterInstance("Spun", 1, 2, 3,
+                0, 0, 0, 1.57, 1, 1, 1, 20, 20, "Ground");
+
+        double[] m = new double[16];
+        WorldScene.pondSeat(new Transform3D(), spinner).get(m);
+
+        assertThat(m[0]).as("no rotation, only the place").isCloseTo(1.0, within(1e-9));
+        assertThat(m[5]).isCloseTo(1.0, within(1e-9));
+        assertThat(m[10]).isCloseTo(1.0, within(1e-9));
+        assertThat(m[3]).isCloseTo(1.0, within(1e-9));
+        assertThat(m[7]).isCloseTo(2.0, within(1e-9));
+        assertThat(m[11]).isCloseTo(3.0, within(1e-9));
+    }
+
+    @Test
+    void aRealAxisTurnsThePlaneTheRecordSaysTo() {
+        WaterInstance tilted = new WaterInstance("Tilted", 0, 0, 0,
+                1, 0, 0, Math.PI / 2, 1, 1, 1, 20, 20, "Ground");
+
+        double[] m = new double[16];
+        WorldScene.pondSeat(new Transform3D(), tilted).get(m);
+
+        // A quarter turn about X, in the row-major convention vecmath writes:
+        // y_out = -z_in and z_out = y_in, so the plane's +Y normal lands on +Z
+        // and the lake stands up as a wall of water. That is what a record with
+        // an axis and an angle asked for, and the axis is only honoured when it
+        // is a real one -- see anAngleWrittenWithoutAnAxisLeavesThePlaneFlat.
+        assertThat(m[6]).as("the turn reached the matrix").isCloseTo(-1.0, within(1e-9));
+        assertThat(m[9]).as("and the axes stayed orthonormal").isCloseTo(1.0, within(1e-9));
+        assertThat(m[0]).as("the axis itself did not move").isCloseTo(1.0, within(1e-9));
     }
 }

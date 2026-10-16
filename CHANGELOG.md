@@ -10,7 +10,44 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
-- **The shadow leaves the feet it was cast from — roadmap P2.4, wired (and the
+- **The pond is no longer just a record — roadmap P2.3, wired** (`wonderland-renderer`) —
+  `WaterInstance` and `WaterArt` shipped as a parsed record and a headless-rasterised
+  seamless tile that nothing placed in the scene graph: the data survived the read
+  and the look existed only as arithmetic. `WorldScene.collectWater` is the new
+  decision layer — it gates on `WorldFeatures.WATER`, folds each record's plane
+  through `WaterArt.planeOf`, and refuses a degenerate extent (the same guard that
+  keeps a bad `.dep` from taking a world down) so a zero-area water record is one
+  fewer pond rather than a NaN the traverser has to carry. `WorldScene.addWater`
+  is the scene-graph half: one `flatQuad` per pond, sized by the record's own
+  half-extents, seated by `pondSeat` — the cell's composed matrix outside and the
+  record's translation and optional `AxisAngle4d` rotation inside, the same order
+  every other placement here uses; a zero-length axis is refused rather than fed
+  to `AxisAngle4d`, so an author who wrote an angle with no axis gets the plane
+  they did not ask to turn. Each pond hangs behind its own `Switch` gate named
+  after the cell that carries it, so `cullTo` shuts the water with the ground
+  under it (`pondsHiddenLastFrame` is the count the probe reads beside `pondCount`).
+  A `TexCoordGeneration` (OBJECT_LINEAR, TEXTURE_COORDINATE_2,
+  `ALLOW_PLANE_WRITE`) sits on each quad's Appearance so `WaterArt.TILE_UNITS`
+  tiles the plane's own space — a 100-unit pond gets 25 ripples whatever scale
+  the deployment put it at — and `WorldArt.planeS/planeT` are the four-number
+  planes the frame clock writes, the S offset riding in the constant component so
+  the tile size never moves with the clock. `WorldViewer.installWater` starts a
+  `javax.swing.Timer` at 120 ms that calls `scene.scrollWater(elapsedSeconds)`
+  every tick; the clock is stopped in `close()` alongside the glide timer, and is
+  never installed when the world has no pond (`scene.pondCount() == 0`) or the
+  feature is off — so a world without water costs zero timers and zero graph
+  writes. `scrollWater` catches every `RuntimeException | Error` from the
+  generator write and returns, making a torn-down universe silence the animation
+  rather than drop the EDT. **10 new headless cases** (`WorldSceneTest` 7:
+  the shipped pond collects, the feature switch gates collection to zero, a
+  zero/negative extent costs a pond not the frame, `pondSeat` composes cell-then-
+  record, a zero-length axis leaves the plane flat, a real axis reaches the
+  matrix; `WaterArtTest` 3: `planeS/planeT` tile the plane not the world, the
+  scroll is the planes' constant term alone, a whole tile later the offset has
+  wrapped to zero, and a NaN clock still hands a usable plane). What remains
+  probe-side is whether the fixed pipeline honours an object-linear generation
+  past one tile repeat and whether the ripple is visible at a real pond's depth.
+
   projection corrected)** (`wonderland-common`, `wonderland-renderer`) —
   `ShadowProjector` shipped as arithmetic nothing drew with: `WorldScene.addShadows`
   still laid the same round `ShadowArt` pool under every figure, so the world had

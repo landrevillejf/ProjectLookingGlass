@@ -17,7 +17,7 @@ and the per-module `AGENTS.md`.
 | Collision | **Kernel wired into the walk** | `WorldScene.blockStep` seeds an `AvatarCollider` over the inventory's obstacles, so a step into a wall is refused and slides along its face. `MovableAvatarComponent` -> `AvatarCell.triggerCollision(height, bool)` -> `AvatarActionTrigger` is still the *message* path, and the vertical extent still comes from `WorldScene.measuredOf` (a live-geometry walk), not the authored footprint. |
 | Ambient lighting | **Two rigs, one of them inert** | `WorldScene.installLights` hangs an `AmbientLight` + `DirectionalLight` when a caller asks, and `WlProbe32` measured that this fork's fixed pipeline lets a scene `Light` change nothing a `ColoringAttributes` surface draws -- so the shading a person sees is `BakedRig`'s CPU per-vertex bake, on by default. `J3dMeshFactory.buildAppearance` still omits a `Material` for shipped art. |
 | Culling | **Wired, per frame** | `WorldScene.cullTo` writes one `Switch` gate per cell from `WorldPVS.visibleFrom`, driven wherever the eye moves; `OctantCuller` is the stateless kernel. Java 3D's own culling still runs underneath. No occlusion query, no SSAO. |
-| Water shading | **Data re-honoured, look not painted** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records it used to skip and carries them on `ModelLoadResult.waterInstances`; `WaterArt` rasterises the tile. The pond quad driven off a frame clock is still probe-side. |
+| Water shading | **Wired: pond quad + frame-clock scroll** | `MtgSceneReader.readWaterInstances` parses the `JMEWaterInstance` records; `WorldScene.addWater` seats one flat quad per record, tiled by `WaterArt`'s seamless image and scrolled by a `TexCoordGeneration` that `WorldViewer`'s water clock rewrites every 120 ms; `scrollWater` is the live animation path. Each pond hangs behind its own PVS `Switch` gate so culling the ground shuts the water with it. `lg.wonderland.water=off` builds no pond node at all. |
 | Shaders | **Present, opt-in** | `ShaderAppearancePlan` holds a validated GLSL 1.20 Blinn-Phong pair; `J3dMeshFactory.buildShaderAppearance` runs it per pixel on a lit material's `ShaderAppearance`. `WlProbe43` drove the shipping `createShape` and measured a facing normal at `(255,255,255)` against a grazing one at the `(31,31,31)` ambient floor. **Off by default** (`-Dlg.wonderland.shader=true` to arm it), so pre-lit worlds stay a byte-identical fixed-function `Appearance`. |
 | Normal mapping | **Kernel live, layer ceiling** | The GLSL normal/spec stages compile and shade, but `WlProbe42` measured this fork binding exactly ONE texture per program (a second `sampler2D` re-reads unit 0), so a lit material lights from its diffuse and `hasNormalMap`/`hasSpecMap` stay 0. Multi-layer needs a direct-JOGL program that binds its own samplers. |
 | Occlusion | **Cull, not occlusion** | The `WorldPVS` gate above drops what the eye cannot reach, and since P2.4 it drops each dropped caster's shadow pool with it (`WorldScene.shadowGates`). There is still no occlusion query, no PVS *visibility from a surface*, and no SSAO. |
@@ -180,15 +180,24 @@ much visible value each unlocks per unit of risk.
   probe run. The scene key reaches the program as its OWN `lightDirection /
   lightColor / ambientColor` uniforms (the scene `Light` is inert here), pushed
   from `WorldScene`'s rig through `J3dMeshFactory.setLightRig`.
-- **P2.3 Water shading - delivered as re-honoured data + a scrollable look.**
+- **P2.3 Water shading - delivered and wired.**
   Re-honour the `JMEWaterInstance` records `MtgSceneReader` currently drops, as
   an animated water material. Delivered: `WaterInstance` parses the fifteen-
   token record (`MtgSceneReader.readWaterInstances`, carried to the renderer on
   `ModelLoadResult.waterInstances`), and `WaterArt` supplies the honest fixed-
   pipeline stand-in for jME's water shader -- a headless-rasterised seamless
-  tile with per-axis scroll-offset maths (`planeOf` folds the record's plane).
-  Placing the pond quad and driving `TexCoordGeneration` from a frame clock are
-  the probe-side step, not yet a painted pixel.
+  tile with per-axis scroll-offset maths (`planeOf` folds the record's plane)
+  and `planeS`/`planeT` the generation planes the scene writes every frame.
+  **Now wired** (`WorldScene`/`WorldViewer`): `collectWater` gates on
+  `WorldFeatures.WATER` and refuses a degenerate extent; `addWater` seats one
+  `flatQuad` per pond in the composed cell matrix (`pondSeat`), hangs it behind
+  its own PVS `Switch` gate, and attaches a `TexCoordGeneration` (OBJECT_LINEAR,
+  `ALLOW_PLANE_WRITE`) so the tile repeats across a plane of any size; the
+  viewer's water clock calls `scrollWater` every 120 ms, which rewrites both
+  planes from the frame's elapsed time; `cullTo` shuts each pond's gate with the
+  ground under it. `lg.wonderland.water=off` builds no pond node at all, so
+  every world that never had a water record draws exactly the pixels it drew
+  before. The painted ripple on a live display is the probe's remaining claim.
 - **P2.4 Real shadows / occlusion - delivered, wired, and measured on screen.**
   Replace `ShadowArt` decals with projected or shadow-map shadows; occlusion via
   the PVS from P0.2. Delivered: `ShadowProjector` - parallel-light box

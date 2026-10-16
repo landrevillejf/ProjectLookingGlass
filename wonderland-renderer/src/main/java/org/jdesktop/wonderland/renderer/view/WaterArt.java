@@ -19,6 +19,13 @@
  * the quad and wiring the scroll to the frame clock is the probe-side step,
  * documented at {@link #offsetAt} -- the same seam split the whole renderer
  * runs on.
+ *
+ * <p><b>P2.3 is now wired, not just kernelled.</b> {@link #planeS} and
+ * {@link #planeT} are the plane coefficients {@code WorldScene} hands to a
+ * {@code TexCoordGeneration} it writes every frame, so the scroll below is no
+ * longer arithmetic with no caller -- see {@code WorldScene#addWater} for the
+ * scene-graph half and {@link #TILE_UNITS} for why the pattern is sized off the
+ * plane rather than off the world.</p>
  */
 package org.jdesktop.wonderland.renderer.view;
 
@@ -46,6 +53,22 @@ public final class WaterArt {
 
     /** The crossing axis drifts slower, so the motion never reads as a slide. */
     public static final double SCROLL_SPEED_V = 0.017;
+
+    /**
+     * How much of the plane's OWN space one tile of art covers, in the units the
+     * {@code .mtg} record is authored in.
+     *
+     * <p>Sized off the plane and not off the world on purpose. A shipped pond is
+     * 100 units across and arrives under a cell transform that may normalise it
+     * to a few metres (see {@code WorldScene#backgroundTransform}); a tile fixed
+     * at four world metres would therefore read as 25 ripples on one world and
+     * as one ripple stretched over the whole lawn on another, because the world
+     * size is an artifact of how big the parcel was drawn, not of how big the
+     * water is. Four units of the plane's own space is 25 ripples on every pond
+     * whatever scale the deployment put it at, since the pattern lives in the
+     * same space as the geometry it tiles and shrinks together with it.</p>
+     */
+    public static final double TILE_UNITS = 4.0;
 
     private WaterArt() {
     }
@@ -160,6 +183,34 @@ public final class WaterArt {
     /** The crossing drift for a frame time. */
     public static double scrollVAt(double elapsedSeconds) {
         return offsetAt(elapsedSeconds, SCROLL_SPEED_V);
+    }
+
+    /**
+     * The S plane of the object-linear generation that tiles and scrolls a pond
+     * at {@code elapsedSeconds}: {@code s = x / TILE_UNITS + u}.
+     *
+     * <p>The four components are the plane's dot product against the vertex
+     * {@code (x, y, z, 1)}, so the tile size lives in the X coefficient and the
+     * frame's offset in the constant one: nothing about the geometry has to
+     * change to move the pattern, which is the whole reason the animation is
+     * affordable on a pond of any size. {@code y} carries no term because a
+     * water plane is flat and its height is not a texture coordinate.</p>
+     */
+    public static org.jogamp.vecmath.Vector4f planeS(double elapsedSeconds) {
+        float scale = (float) (1.0 / TILE_UNITS);
+        return new org.jogamp.vecmath.Vector4f(scale, 0f, 0f,
+                (float) scrollUAt(elapsedSeconds));
+    }
+
+    /**
+     * The T plane, which runs along Z so the tile grid follows the plane the
+     * record lies on rather than the plane's height, and drifts at the crossing
+     * speed (see {@link #scrollVAt}).
+     */
+    public static org.jogamp.vecmath.Vector4f planeT(double elapsedSeconds) {
+        float scale = (float) (1.0 / TILE_UNITS);
+        return new org.jogamp.vecmath.Vector4f(0f, 0f, scale,
+                (float) scrollVAt(elapsedSeconds));
     }
 
     /**

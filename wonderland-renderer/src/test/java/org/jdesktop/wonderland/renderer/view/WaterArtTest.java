@@ -12,6 +12,13 @@
  * and driving TexCoordGeneration from a frame clock are Java 3D calls the
  * in-JVM probe owns, and until a probe run paints one this suite reports the
  * water as re-honoured DATA, not as a verified pixel.
+ *
+ * <p>The planes below are the third claim, and the last one the kernel owed the
+ * wiring: {@code WorldScene} builds a {@code TexCoordGeneration} out of exactly
+ * these four numbers per axis, so the tiling rule and the wrap are testable
+ * even though the painted ripple is not. What remains probe-side is whether
+ * this fork's fixed pipeline honours an object-linear generation at all, and
+ * whether it repeats a tile past one -- both measured, not assumed.</p>
  */
 package org.jdesktop.wonderland.renderer.view;
 
@@ -21,6 +28,7 @@ import javax.imageio.ImageIO;
 import org.jdesktop.wonderland.modules.asset.WaterInstance;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 class WaterArtTest {
 
@@ -134,5 +142,68 @@ class WaterArtTest {
         double[] plane = WaterArt.planeOf(record);
 
         assertThat(plane).containsExactly(4, -1, 7, 60, 60);
+    }
+
+    // ---- the generation planes the scene writes to a TexCoordGeneration ----
+
+    @Test
+    void thePlanesTileThePlaneRatherThanTheWorld() {
+        // s = x / TILE_UNITS and t = z / TILE_UNITS at rest: the scale sits on
+        // the axis the plane lies along, never on Y, because a pond's height is
+        // not a texture coordinate. Off the plane's own units the count would
+        // depend on how big the deployment drew the art -- see TILE_UNITS.
+        org.jogamp.vecmath.Vector4f s = WaterArt.planeS(0.0);
+        org.jogamp.vecmath.Vector4f t = WaterArt.planeT(0.0);
+
+        assertThat(s.x).as("one tile per 4 units along X").isCloseTo(0.25f, within(1e-6f));
+        assertThat(s.y).as("and none along Y, which is the plane's height").isZero();
+        assertThat(t.z).as("the crossing axis tiles along Z").isCloseTo(0.25f, within(1e-6f));
+        assertThat(t.x).isZero();
+        assertThat(t.y).isZero();
+    }
+
+    @Test
+    void theScrollIsThePlanesConstantTermAndNothingElse() {
+        // The offset has to ride in the constant component: that is the one the
+        // frame can rewrite every tick without touching the tile size, and the
+        // reason the animation is affordable on a plane of any extent.
+        org.jogamp.vecmath.Vector4f early = WaterArt.planeS(10.0);
+        org.jogamp.vecmath.Vector4f late = WaterArt.planeS(11.0);
+
+        assertThat(early.x).as("the tile size does not move with the clock")
+                .isEqualTo(late.x);
+        assertThat(late.w).as("and the offset is the frame's own")
+                .isCloseTo((float) WaterArt.scrollUAt(11.0), within(1e-6f));
+        assertThat(late.w).isGreaterThan(early.w);
+    }
+
+    @Test
+    void oneTileLaterThePondIsExactlyItselfAgain() {
+        // The modulo is the whole of the seamlessness argument at runtime: after
+        // a full tile's travel the numbers are back where they started, so a
+        // world that has been rendering for an hour hands GL the same small
+        // coordinates it handed on frame one. Huge texture coordinates are how a
+        // long-running scroll loses its ripple to precision, and this asserts
+        // that it never gets there.
+        double tilePeriod = 1.0 / WaterArt.SCROLL_SPEED_U;
+
+        assertThat(WaterArt.planeS(tilePeriod).w)
+                .as("a whole tile later the offset has wrapped to zero")
+                .isCloseTo(0f, within(1e-6f));
+        assertThat(WaterArt.planeS(tilePeriod * 517).w)
+                .as("and still zero, half a millennium of frames later")
+                .isCloseTo(0f, within(1e-4f));
+    }
+
+    @Test
+    void aBrokenClockStillHandsAUsablePlane() {
+        // The fail-still rule holds for the planes as well as the offsets: a NaN
+        // clock must not hand the scene a NaN tile size, which would erase the
+        // water rather than freeze it.
+        org.jogamp.vecmath.Vector4f broken = WaterArt.planeS(Double.NaN);
+
+        assertThat(broken.x).as("still tiled").isCloseTo(0.25f, within(1e-6f));
+        assertThat(broken.w).as("still, not NaN-moving").isCloseTo(0f, within(1e-6f));
+        assertThat(Double.isFinite(broken.y) && Double.isFinite(broken.z)).isTrue();
     }
 }

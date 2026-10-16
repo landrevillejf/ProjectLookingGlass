@@ -247,6 +247,17 @@ public final class WorldViewer implements AutoCloseable {
     /** Drives the glide between key presses; null until the first step asks. */
     private Timer glide;
 
+    /**
+     * Drives the ponds (roadmap P2.3): one write of the texture-coordinate
+     * planes per tick, from a clock that runs whether or not anybody is walking.
+     * Null when the world named no water or the feature is off, which is the
+     * same window the port drew before this existed.
+     */
+    private Timer water;
+
+    /** When the water clock started, so its elapsed time is the scroll's input. */
+    private long waterStartNanos;
+
     /** The audio ear's mixer, or null when the audio feature is off. */
     private JavaSoundBackend mixer;
 
@@ -379,6 +390,7 @@ public final class WorldViewer implements AutoCloseable {
                     (float) EYE_HEIGHT_M);
         }
         installAudio();
+        installWater();
         if (walkMode) {
             frameWalk();
         } else {
@@ -567,6 +579,11 @@ public final class WorldViewer implements AutoCloseable {
             // transform into a torn-down view platform.
             if (glide != null) {
                 glide.stop();
+            }
+            // Same for the ponds: a tick that reaches a cleaned-up universe is a
+            // stack trace on the EDT, and the water is gone with the world anyway.
+            if (water != null) {
+                water.stop();
             }
             if (dead != null) {
                 try {
@@ -938,6 +955,64 @@ public final class WorldViewer implements AutoCloseable {
     private static double sq(double v) {
         return v * v;
     }
+
+    /**
+     * Start the water clock (P2.3). Nothing is installed when the feature is off
+     * or the world named no pond, so the ordinary world costs one skipped check
+     * per frame and no timer at all -- and a world whose art does not have a
+     * water record still cannot sprout one.
+     */
+    private void installWater() {
+        if (!WorldFeatures.enabled(WorldFeatures.WATER)
+                || scene.pondCount() == 0) {
+            return;
+        }
+        waterStartNanos = System.nanoTime();
+        water = new Timer(WATER_PERIOD_MS, event -> waterTick());
+        water.start();
+    }
+
+    /**
+     * Advance every pond to now. The scene's own write swallows a generator that
+     * refuses, so a torn-down universe stops the animation rather than the EDT;
+     * and the clock stops itself with the window, in {@link #close()}.
+     */
+    private void waterTick() {
+        scene.scrollWater(
+                (System.nanoTime() - waterStartNanos) / 1_000_000_000.0);
+    }
+
+    /** Whether this window is animating water; the probe's evidence line. */
+    public boolean waterClockRunning() {
+        Timer clock = water;
+        return clock != null && clock.isRunning();
+    }
+
+    /** How many ponds the world laid, whether or not the clock is running. */
+    public int pondCount() {
+        return scene.pondCount();
+    }
+
+    /**
+     * How many ponds the last frame's cull shut along with the ground under them
+     * (roadmap P2.3's culling half), read beside {@link #pondCount()} the same way
+     * {@link #poolsHiddenLastFrame()} is read beside the pools'.
+     */
+    public int pondsHiddenLastFrame() {
+        return scene.pondsHiddenLastFrame();
+    }
+
+    /**
+     * How often the ponds are rewritten, in milliseconds.
+     *
+     * <p>Eight writes a second is enough because the motion is not a moving
+     * object: at the tile's own speed one tick advances the pattern by half a
+     * percent of a tile, which is under a pixel on a pond at any distance a
+     * person stands at. A faster clock costs a scene-graph write and buys
+     * nothing a slower one would not have shown; a much slower one reads as a
+     * slideshow of a lake rather than as one.</p>
+     */
+    private static final int WATER_PERIOD_MS = 120;
 
     /**
      * Install the world's audio ear (P4.1). Off when the feature is disabled or
