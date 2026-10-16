@@ -182,4 +182,42 @@ class PostProcessPlanTest {
     void theFxaaWantedCapabilityIsAFirstClassValue() {
         assertThat(Capability.valueOf("FXAA_WANTED")).isEqualTo(Capability.FXAA_WANTED);
     }
+
+    // -------------------------------------------------------------- P3.5 DOF
+
+    @Test
+    void dofWithNoWantedFlagIsNoneWhateverElseIsProbed() {
+        assertThat(PostProcessPlan.decideDof(null).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideDof(Set.of()).path()).isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideDof(
+                Set.of(Capability.GPU_POSTPROCESS_PROBED_USABLE)).path())
+                .isEqualTo(Path.NONE);
+        assertThat(PostProcessPlan.decideDof(Set.of()).reason())
+                .isEqualTo("no depth of field requested");
+    }
+
+    @Test
+    void dofWantedAndTheHookProbedDecidesTheGpuRoute() {
+        Decision d = PostProcessPlan.decideDof(
+                Set.of(Capability.DOF_WANTED, Capability.GPU_POSTPROCESS_PROBED_USABLE));
+        assertThat(d.path()).isEqualTo(Path.GPU_POSTPROCESS);
+        // The reason names the hook, the zero readback AND the depth the defocus blits
+        // beside the colour -- the one thing that sets this link apart from the others.
+        assertThat(d.reason()).contains("preSwap").contains("readback").contains("depth");
+    }
+
+    @Test
+    void dofWantedWithoutTheHookIsNoneNotASoftwareFallback() {
+        // The whole point of decideDof's shape: a defocus has NO honest software route,
+        // so absent the patched hook it declines rather than pretending a capture-only
+        // blur gave the live canvas a focus it does not have.
+        Decision d = PostProcessPlan.decideDof(Set.of(Capability.DOF_WANTED));
+        assertThat(d.path()).isEqualTo(Path.NONE);
+        assertThat(d.reason()).contains("live GPU pass only");
+    }
+
+    @Test
+    void theDofWantedCapabilityIsAFirstClassValue() {
+        assertThat(Capability.valueOf("DOF_WANTED")).isEqualTo(Capability.DOF_WANTED);
+    }
 }

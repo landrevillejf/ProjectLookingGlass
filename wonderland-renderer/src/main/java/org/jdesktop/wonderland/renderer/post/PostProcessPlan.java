@@ -91,6 +91,14 @@ public final class PostProcessPlan {
          * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
          */
         FXAA_WANTED,
+        /**
+         * The user wants depth of field at all (P3.5). Necessary but never sufficient,
+         * exactly like {@link #HDR_WANTED} and {@link #FXAA_WANTED}: the defocus is a
+         * live GPU pass on the same patched preSwap() hook -- and the first that also
+         * blits the frame's DEPTH beside its colour -- so it additionally needs
+         * {@link #GPU_POSTPROCESS_PROBED_USABLE}.
+         */
+        DOF_WANTED,
         /** A probe run MEASURED the fork's readback round trip at a usable rate. */
         READBACK_PROBED_USABLE,
         /**
@@ -192,6 +200,37 @@ public final class PostProcessPlan {
                 "anti-aliasing is a live GPU pass only: the preSwap() hook is absent "
                         + "(stock java3d-core), and a software readback anti-alias "
                         + "applied just to captures would leave the live canvas jagged, "
+                        + "so nothing is claimed");
+    }
+
+    /**
+     * The P3.5 depth-of-field decision, shaped exactly like {@link #decideHdr} and
+     * {@link #decideFxaa} for the same reason, with one addition the others do not have:
+     * a defocus reads the frame's DEPTH as well as its colour, so it is the first link
+     * that blits a depth attachment beside the colour at the patched
+     * {@code Canvas3D.preSwap()} hook -- still with zero CPU readback, since the depth the
+     * renderer just wrote is resident on the GPU beside the pixels. There is no honest
+     * software fallback: a per-frame offscreen defocus pays the same readback WlProbe52
+     * measured at ~419 ms native, and one applied only to captures would leave the live
+     * canvas uniformly sharp while claiming a focus it does not have. Returns
+     * {@link Path#GPU_POSTPROCESS} only when DOF is wanted AND the hook is probe-present,
+     * {@link Path#NONE} otherwise -- never a half-applied blur.
+     */
+    public static Decision decideDof(Set<Capability> capabilities) {
+        if (capabilities == null || !capabilities.contains(Capability.DOF_WANTED)) {
+            return new Decision(Path.NONE, "no depth of field requested");
+        }
+        if (capabilities.contains(Capability.GPU_POSTPROCESS_PROBED_USABLE)) {
+            return new Decision(Path.GPU_POSTPROCESS,
+                    "a probe measured the patched Canvas3D.preSwap GPU pass as usable "
+                            + "per frame with zero CPU readback (WlProbe55/WlProbe56), "
+                            + "so the defocus rides the same hook the bloom does and "
+                            + "blits the frame's depth beside its colour");
+        }
+        return new Decision(Path.NONE,
+                "depth of field is a live GPU pass only: the preSwap() hook is absent "
+                        + "(stock java3d-core), and a software readback defocus applied "
+                        + "just to captures would leave the live canvas uniformly sharp, "
                         + "so nothing is claimed");
     }
 }

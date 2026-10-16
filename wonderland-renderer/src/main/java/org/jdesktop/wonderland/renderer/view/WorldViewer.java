@@ -74,6 +74,7 @@ import org.jdesktop.wonderland.client.rig.FollowRig;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.renderer.post.GpuBloomPass;
+import org.jdesktop.wonderland.renderer.post.GpuDofPass;
 import org.jdesktop.wonderland.renderer.post.GpuFxaaPass;
 import org.jdesktop.wonderland.renderer.post.GpuHdrPass;
 import org.jdesktop.wonderland.renderer.post.GpuPostEffect;
@@ -258,6 +259,16 @@ public final class WorldViewer implements AutoCloseable {
      */
     private final PostProcessPlan.Decision fxaaDecision;
 
+    /**
+     * Which depth-of-field route this window's canvas took (P3.5), decided once at
+     * construction from {@link WorldFeatures#DOF} and the same preSwap() probe. A
+     * GPU_POSTPROCESS decision contributes a {@link GpuDofPass} link, run after the tone
+     * map and before FXAA (see the chain-order note in the constructor); because a
+     * defocus has no honest software route (see {@link PostProcessPlan#decideDof}) the
+     * only other outcome is NONE, never a half-applied blur.
+     */
+    private final PostProcessPlan.Decision dofDecision;
+
     private SimpleUniverse universe;
     private TransformGroup viewTransform;
     private CaptureBehavior capture;
@@ -365,19 +376,25 @@ public final class WorldViewer implements AutoCloseable {
         this.bloomDecision = PostProcessPlan.decide(bloomCapabilities());
         this.hdrDecision = PostProcessPlan.decideHdr(hdrCapabilities());
         this.fxaaDecision = PostProcessPlan.decideFxaa(fxaaCapabilities());
-        // The chain order is deliberate: bloom FIRST, tone map, then anti-alias LAST.
-        // The glow is added while the frame is still in scene-ish range, the filmic
-        // curve compresses the combined highlights so a hot bloom rolls off toward
-        // white instead of clipping, and FXAA then softens the edges of the very image
-        // the eye is shown -- anti-aliasing before the tone map would soften a radiance
-        // the curve has not yet folded, and before the bloom would miss the glow's own
-        // edges.
+        this.dofDecision = PostProcessPlan.decideDof(dofCapabilities());
+        // The chain order is deliberate: bloom FIRST, tone map, defocus, then anti-alias
+        // LAST. The glow is added while the frame is still in scene-ish range, the filmic
+        // curve compresses the combined highlights so a hot bloom rolls off toward white
+        // instead of clipping, the defocus then gathers that tone-mapped image into bokeh
+        // (the scene depth the DOF pass blits survives bloom and the tone map untouched --
+        // both write only colour -- so it reads the true per-pixel depth wherever it sits),
+        // and FXAA finally softens the edges of the very image the eye is shown. Anti-alias
+        // before the tone map would soften a radiance the curve has not yet folded, and
+        // before the bloom or the defocus would miss those links' own edges.
         java.util.List<GpuPostEffect> chain = new java.util.ArrayList<>();
         if (bloomDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuBloomPass());
         }
         if (hdrDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuHdrPass());
+        }
+        if (dofDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
+            chain.add(new GpuDofPass());
         }
         if (fxaaDecision.path() == PostProcessPlan.Path.GPU_POSTPROCESS) {
             chain.add(new GpuFxaaPass());
@@ -520,6 +537,14 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * Which depth-of-field route this window decided, and why (P3.5). Read by the HUD,
+     * the console or a probe to know whether the live GPU defocus is on.
+     */
+    public PostProcessPlan.Decision getDofDecision() {
+        return dofDecision;
+    }
+
+    /**
      * The capability set the bloom decision is made from: bloom is wanted when the
      * roadmap feature is on (on by default, like every {@link WorldFeatures}
      * switch; {@code lg.wonderland.bloom=off} or the master switch turns it off),
@@ -572,6 +597,27 @@ public final class WorldViewer implements AutoCloseable {
                 java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
         if (WorldFeatures.enabled(WorldFeatures.FXAA)) {
             caps.add(PostProcessPlan.Capability.FXAA_WANTED);
+        }
+        if (preSwapHookPresent()) {
+            caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
+        }
+        return caps;
+    }
+
+    /**
+     * The capability set the DOF decision is made from, the same shape as
+     * {@link #fxaaCapabilities()}: wanted when {@link WorldFeatures#DOF} is on (on by
+     * default; {@code lg.wonderland.dof=off} or the master switch turns it off), and
+     * GPU-usable when the patched {@code Canvas3D.preSwap()} hook is present. The defocus
+     * rides the SAME hook the bloom, tone map and anti-alias do -- one more link on one
+     * chain -- and its extra depth blit reads the depth Java 3D already rendered, so no
+     * second capability gates it.
+     */
+    private static java.util.Set<PostProcessPlan.Capability> dofCapabilities() {
+        java.util.Set<PostProcessPlan.Capability> caps =
+                java.util.EnumSet.noneOf(PostProcessPlan.Capability.class);
+        if (WorldFeatures.enabled(WorldFeatures.DOF)) {
+            caps.add(PostProcessPlan.Capability.DOF_WANTED);
         }
         if (preSwapHookPresent()) {
             caps.add(PostProcessPlan.Capability.GPU_POSTPROCESS_PROBED_USABLE);
