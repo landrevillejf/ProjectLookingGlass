@@ -82,6 +82,21 @@ class FxaaKernelTest {
     }
 
     @Test
+    void aZeroContrastRangeBlendsNothingAndIsNeverADivisor() {
+        // With the absolute floor at 0 an all-black patch clears the gate (range 0 is
+        // >= max(0, 0 * threshold)), but there is no contrast to blend over: the
+        // range <= 0 guard returns 0 instead of dividing rangeL by a zero range at the
+        // subpixel step. A dark room must not shimmer, and must not yield a NaN weight.
+        Settings zeroFloor = new Settings(0.125f, 0f, 0.75f);
+        assertThat(FxaaKernel.isEdge(0f, 0f, 0f, 0f, 0f, zeroFloor))
+                .as("a zero floor lets a flat black patch through the gate")
+                .isTrue();
+        assertThat(FxaaKernel.blendWeight(0f, 0f, 0f, 0f, 0f, zeroFloor))
+                .as("but a zero contrast range has nothing to blend, and is never a divisor")
+                .isEqualTo(0f);
+    }
+
+    @Test
     void theBlendWeightIsBoundedByTheQualityCeiling() {
         for (float q : new float[] {0.25f, 0.5f, 0.75f, 1.0f}) {
             Settings s = new Settings(0.125f, 0.0312f, q);

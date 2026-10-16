@@ -149,6 +149,12 @@ class HdrKernelTest {
     void aFrameRefusesADegenerateRectangle() {
         assertThatThrownBy(() -> new Frame(0, 1, new int[1]))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Frame(1, 0, new int[1]))
+                .as("a zero height is no rectangle either")
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Frame(1, 1, null))
+                .as("a frame with no pixels is not a frame")
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Frame(2, 2, new int[3]))
                 .isInstanceOf(IllegalArgumentException.class);
     }
