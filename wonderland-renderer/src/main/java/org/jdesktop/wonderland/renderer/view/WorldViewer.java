@@ -984,6 +984,16 @@ public final class WorldViewer implements AutoCloseable {
     }
 
     /**
+     * How many shadow pools the last frame shut along with their caster (roadmap
+     * P2.4's occlusion half). Read beside {@link #droppedLastFrame()}: cells that
+     * dropped without their shadows dropping too is the ghost this number exists
+     * to rule out -- a far building with its shadow still lying in the near ground.
+     */
+    public int poolsHiddenLastFrame() {
+        return scene.poolsHiddenLastFrame();
+    }
+
+    /**
      * Feed this frame's eye pose to the trigger dispatcher (P1.2). A no-op when
      * no watcher was built (a framing window, a feature-off or volume-less world)
      * or no listener is attached; a crossed edge reaches the host, and a host

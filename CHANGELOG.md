@@ -10,6 +10,49 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **The shadow leaves the feet it was cast from — roadmap P2.4, wired (and the
+  projection corrected)** (`wonderland-common`, `wonderland-renderer`) —
+  `ShadowProjector` shipped as arithmetic nothing drew with: `WorldScene.addShadows`
+  still laid the same round `ShadowArt` pool under every figure, so the world had
+  a low sun raking every face in it and shadows that went straight down. They are
+  now the projector's answer, and getting them on screen is what found the maths
+  wrong. The first wiring divided by `sin(elevation)` where parallel projection
+  says `tan` — it reads the ray's own length as its vertical drop, 8 % off at the
+  bake's 22-degree sun and more than twice off at 5 degrees — and it scaled the
+  pool's length off the *footprint* rather than off the *run*, so the quad was
+  short and its centre sat metres past the caster: a dark oval lying on empty
+  floor, which is what the first live frame showed. The projector now computes the
+  box's actual silhouette — the top lands `h / tan(elev)` away along the light,
+  the pool spans from the near edge of the feet to the far edge of that projected
+  top, and its width is the footprint measured *across* the ray, so a sun coming in
+  from the side does not borrow the caster's other axis. `WorldSceneTest` asserts
+  the anchor in metres for the shipping key; `ShadowProjectorTest` asserts it for
+  every elevation from a crawling sun to a steep one, and its own 45-degree case
+  reads `1.0` where it used to read `sqrt(2)` — the number the bug produced, which
+  is the lesson this port keeps having to learn: a test written against an
+  implementation cannot catch it. Each pool also hangs behind its own visibility
+  `Switch` named after the cell that casts it, so the PVS that drops a building
+  drops its shadow with it — a courtyard of pools belonging to geometry that is no
+  longer drawn is the other ghost this phase had to kill. The rig the pools are
+  projected along is the one *in force*, not the one requested: no shipped world
+  hands `WorldScene` a `Lighting` (the pre-lit art asks for none), so the
+  projector reads `BakedRig`'s key when the caller's is off and nothing when both
+  are, and an overhead or absent key still answers `null` — the round pool under
+  straight-down light is the physically right shadow, not a fallback. New
+  `lg.wonderland.shadows` switch (`WorldFeatures`): off restores the round pool,
+  and the `zenith-on`/`zenith-off` probe pair is byte-identical, which is the proof
+  the refusal is real rather than a coincidence. **13 new headless cases**
+  (`WorldSceneTest` 11 on the projection, the seat guard, the culling gate and the
+  feature switches; `ShadowProjectorTest` 2 on the anchor and the azimuth, with 3 of
+  its existing cases rewritten to the trigonometry the physics demands) plus the
+  live half, measured by `WlProbe44` on the repo's own X display in six runs: the bake's
+  sun darkens 15181 px (3.14 % of the frame) where the broken projection managed
+  2932, the mirrored sun runs the shadow the *opposite* way (33266 px), and both
+  streaks start at the feet of the person casting them — the claim no headless
+  suite could make. The occlusion half is proven live too: standing in the lobby
+  shuts 0 pools, standing 900 m out shuts 18 of 18 cells and 7 of 7 pools.
+  What remains probe-side: a true shadow *map*, which needs the scene-to-texture
+  pipeline this fork does not have (P3.2's measured ceiling).
 - **Walking through a room now says something — roadmap P1.2, triggers wired**
   (`wonderland-common`, `wonderland-renderer`, `lg3d-apps`) — `TriggerZone` and
   `TriggerField` had shipped as a tested enter/exit edge detector that nothing

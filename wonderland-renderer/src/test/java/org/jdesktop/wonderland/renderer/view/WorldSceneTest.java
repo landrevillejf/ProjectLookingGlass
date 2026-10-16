@@ -25,7 +25,9 @@ package org.jdesktop.wonderland.renderer.view;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.jdesktop.wonderland.client.trigger.TriggerZone;
+import org.jdesktop.wonderland.renderer.mesh.BakedRig;
 import org.jdesktop.wonderland.renderer.mesh.ColladaMeshData;
 import org.jdesktop.wonderland.renderer.mesh.TextureSource;
 import org.jdesktop.wonderland.renderer.view.WorldScene.Box;
@@ -38,6 +40,8 @@ import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Vector3d;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class WorldSceneTest {
@@ -557,5 +561,208 @@ class WorldSceneTest {
     @Test
     void anEmptyWorldDeclaresNoTriggerZones() {
         assertThat(WorldScene.zonesOf(WorldInventory.empty())).isEmpty();
+    }
+
+    // P2.4: the shadow the scene seats is the projector's answer, as a pure
+    // function -- asserted headless, the yawed quad itself is the probe's pixel.
+    //
+    // The rig is part of the claim, not an argument to the test: this file must
+    // say what happens with the bake in force (the state every shipped world
+    // renders in) and with it off, so a setSpec that leaked into the next test
+    // would be a suite that quietly stops proving the one it claims.
+    private BakedRig.Spec rigBefore;
+
+    @BeforeEach
+    void rememberTheRig() {
+        rigBefore = BakedRig.spec();
+    }
+
+    @AfterEach
+    void restoreTheWorldTheSuiteStartedIn() {
+        System.clearProperty("lg.wonderland.shadows");
+        System.clearProperty("lg.wonderland.lighting");
+        System.clearProperty("lg.wonderland.features");
+        BakedRig.setSpec(rigBefore);
+    }
+
+    /** A resident: standing, small enough to be one object, on the floor at y = 0. */
+    private static Box figure() {
+        return cell(0, 1, 0, 0.4, 1.0, 0.4);
+    }
+
+    @Test
+    void aLowSunProjectsThePoolAlongTheLightAndLengthensIt() {
+        // A key travelling toward -Z and down: the shadow should lie at -Z.
+        Lighting lowSun = Lighting.of(null, null, new float[] {0f, -1f, -1f});
+
+        ShadowProjector.ProjectedShadow cast =
+                WorldScene.projectedShadowOf(figure(), lowSun);
+
+        assertThat(cast).as("a sun with a run projects").isNotNull();
+        assertThat(cast.centerZ()).as("the pool drifts along -Z, the way light runs")
+                .isLessThan(0.0);
+        assertThat(cast.centerX()).as("and not sideways, because the ray has no X run")
+                .isCloseTo(0.0, within(1e-9));
+        assertThat(cast.halfLengthAlong()).as("a low sun lengthens the shadow")
+                .isGreaterThan(figure().half().z);
+        assertThat(cast.centerY()).as("the pool lies on the floor the caster stands on")
+                .isCloseTo(0.0, within(1e-9));
+    }
+
+    @Test
+    void theProjectedPoolReachesFromTheFeetToWhereTheTopLands() {
+        // The claim the shipping bake has to satisfy, in metres rather than in
+        // signs: its key (-0.231, -0.370, -0.899) is a 21.7-degree sun, so the
+        // top of a 2 m resident lands 2 * 0.926 / 0.370 = 5 m down the ray, and
+        // the pool is the silhouette between the feet and that point. The first
+        // version of this wiring divided by sin(elevation) and scaled the length
+        // off the footprint instead, which left a short pool sitting with a
+        // metres-wide gap where the feet should have been -- the frame showed it
+        // and the arithmetic above is why it now cannot.
+        BakedRig.setSpec(BakedRig.Spec.none());
+        Lighting bake = Lighting.of(null, null, BakedRig.DEFAULT_KEY_DIRECTION);
+
+        ShadowProjector.ProjectedShadow cast =
+                WorldScene.projectedShadowOf(figure(), bake);
+
+        assertThat(cast).isNotNull();
+        double run = 2.0 * 0.926 / 0.370;
+        assertThat(Math.hypot(cast.centerX(), cast.centerZ()))
+                .as("the centre is halfway along the top's travel")
+                .isCloseTo(run / 2.0, within(0.05));
+        assertThat(cast.halfLengthAlong())
+                .as("and the quad covers the run plus half a footprint each end")
+                .isCloseTo(cast.halfFootAlong() + run / 2.0, within(0.05));
+        // The anchor, on the light's own axis: centre minus half-length, back off
+        // the feet, lands on the near edge of the footprint rather than past it.
+        double alongCentre = Math.hypot(cast.centerX(), cast.centerZ());
+        assertThat(alongCentre - cast.halfLengthAlong())
+                .as("the shadow starts at the caster, not near the caster")
+                .isCloseTo(-cast.halfFootAlong(), within(0.05));
+    }
+
+    @Test
+    void theScenesOwnLengthGuardStillStartsAtTheFeet() {
+        // A sun low enough to hit the projector's cap and the scene's 12 m
+        // ceiling as well. Shortening the quad about its centre would lift the
+        // shadow off the caster -- the exact defect the guard must not re-introduce
+        // -- so the seat walks back along the light and the near edge stays put.
+        BakedRig.setSpec(BakedRig.Spec.none());
+        Lighting crawling = Lighting.of(null, null, new float[] {-1f, -0.02f, 0f});
+        ShadowProjector.ProjectedShadow cast =
+                WorldScene.projectedShadowOf(figure(), crawling);
+
+        assertThat(cast).isNotNull();
+        assertThat(cast.halfLengthAlong() * 2.0)
+                .as("the projector ran past the scene's ceiling").isGreaterThan(12.0);
+
+        double[] seat = WorldScene.anchoredSeat(cast);
+        assertThat(seat[2]).as("the quad is held to 12 m").isCloseTo(12.0,
+                within(1e-9));
+        assertThat(seat[0] + seat[2] / 2.0)
+                .as("and its sunward edge still sits on the caster's own footprint")
+                .isCloseTo(cast.halfFootAlong(), within(1e-9));
+
+        // The guard that never bites must not move anything at all.
+        Lighting lowSun = Lighting.of(null, null, new float[] {0f, -1f, -1f});
+        double[] untouched = WorldScene.anchoredSeat(
+                WorldScene.projectedShadowOf(figure(), lowSun));
+        ShadowProjector.ProjectedShadow gentle =
+                WorldScene.projectedShadowOf(figure(), lowSun);
+        assertThat(untouched[0]).isCloseTo(gentle.centerX(), within(1e-9));
+        assertThat(untouched[1]).isCloseTo(gentle.centerZ(), within(1e-9));
+    }
+
+    @Test
+    void theBakeThatLightsTheWorldProjectsThePoolEvenWithNoRigRequested() {
+        // The connectivity half of P2.4, and the reason the projector is not a
+        // kernel nothing calls: no production caller hands WorldScene a Lighting
+        // (the pre-lit art asks for none), yet every face a person sees is shaded
+        // by BakedRig's key. If the pool ignored that key it would stay round
+        // under a sun that visibly rakes the whole world.
+        BakedRig.setSpec(new BakedRig.Spec(BakedRig.DEFAULT_AMBIENT,
+                BakedRig.DEFAULT_KEY, 0f, -1f, -1f));
+
+        ShadowProjector.ProjectedShadow cast =
+                WorldScene.projectedShadowOf(figure(), Lighting.NONE);
+
+        assertThat(cast).as("the rig in force is the bake's, not the caller's")
+                .isNotNull();
+        assertThat(cast.centerZ()).as("and it runs the way the bake shines")
+                .isLessThan(0.0);
+    }
+
+    @Test
+    void anExplicitRigIsUsedRatherThanTheBakeWhenTheCallerAsksForOne() {
+        BakedRig.setSpec(new BakedRig.Spec(BakedRig.DEFAULT_AMBIENT,
+                BakedRig.DEFAULT_KEY, 0f, -1f, 1f));
+        Lighting asked = Lighting.of(null, null, new float[] {0f, -1f, -1f});
+
+        assertThat(WorldScene.keyInForce(asked)).as("the caller's rig wins")
+                .isSameAs(asked);
+        assertThat(WorldScene.projectedShadowOf(figure(), asked).centerZ())
+                .as("so the shadow follows the requested sun, not the bake's")
+                .isLessThan(0.0);
+    }
+
+    @Test
+    void anUnlitWorldKeepsTheRoundPoolItShippedWith() {
+        // The one state that must answer "nothing lights this": the identity bake
+        // and no rig. That is {@code -Dlg.wonderland.lighting=off}, and it is the
+        // pre-P2.4 world, pool and all.
+        System.setProperty("lg.wonderland.lighting", "off");
+
+        assertThat(WorldScene.keyInForce(Lighting.NONE).enabled())
+                .as("with no bake there is no key in force").isFalse();
+        assertThat(WorldScene.projectedShadowOf(figure(), Lighting.NONE))
+                .as("and the pool is the one the port has always drawn").isNull();
+    }
+
+    @Test
+    void anOverheadKeyKeepsTheRoundPoolBecauseThatIsTheRightShadow() {
+        BakedRig.setSpec(BakedRig.Spec.none());
+        Lighting zenith = Lighting.of(null, null, new float[] {0f, -10f, 0f});
+        assertThat(WorldScene.projectedShadowOf(figure(), zenith))
+                .as("straight-down light has no run: a pool under the feet is right")
+                .isNull();
+    }
+
+    @Test
+    void theFeatureOffRestoresTheRoundPoolEvenUnderASun() {
+        System.setProperty("lg.wonderland.shadows", "off");
+        Lighting lowSun = Lighting.of(null, null, new float[] {0f, -1f, -1f});
+        assertThat(WorldScene.projectedShadowOf(figure(), lowSun))
+                .as("lg.wonderland.shadows=off restores the pre-P2.4 pool")
+                .isNull();
+    }
+
+    @Test
+    void theMasterSwitchOffRestoresItToo() {
+        System.setProperty("lg.wonderland.features", "off");
+        Lighting lowSun = Lighting.of(null, null, new float[] {0f, -1f, -1f});
+        assertThat(WorldScene.projectedShadowOf(figure(), lowSun))
+                .as("a person pulling the master lever wants the old renderer")
+                .isNull();
+    }
+
+    // ---- the occlusion half: a pool is culled with the cell that casts it ----
+
+    @Test
+    void aPoolIsVisibleExactlyWhileItsCasterIs() {
+        Set<String> visible = Set.of("nurse", "receptionist");
+        assertThat(WorldScene.staysVisible("nurse", visible))
+                .as("the standing nurse's pool is drawn").isTrue();
+        assertThat(WorldScene.staysVisible("far-wing", visible))
+                .as("a culled building must not leave its shadow in the near ground")
+                .isFalse();
+    }
+
+    @Test
+    void aCasterWithNoNameIsNeverCulled() {
+        // The conservative reading of a name the PVS has no answer for: the
+        // immutable set it hands back throws on a null probe, so this rule is the
+        // only thing between an unnamed cell and a frame that died on a cull.
+        assertThat(WorldScene.staysVisible(null, Set.of("nurse")))
+                .as("nobody asked to hide this cell, so its shadow stays").isTrue();
     }
 }
