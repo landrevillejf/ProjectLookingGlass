@@ -41,6 +41,15 @@
  * Not constructed in CI: the Java 3D nodes need the native rendering stack. The
  * pure part -- which entries are placeable at all -- is the caller's, and is
  * tested there.
+ *
+ * <p><strong>Roadmap P2.3, connected.</strong> An {@code .mtg} scene can name a
+ * water plane and this class now draws it: the record arrives on
+ * {@link ModelLoadResult#waterInstances()}, is seated by the same cell matrix as
+ * the geometry it belongs to, and is tiled and scrolled by a
+ * {@link TexCoordGeneration} this class writes from the frame clock
+ * ({@link #scrollWater}). Under the master switch or {@code
+ * lg.wonderland.water=off} no pond node is built at all, so every world that
+ * never had one draws exactly the pixels it drew before.</p>
  */
 package org.jdesktop.wonderland.renderer.view;
 
@@ -55,6 +64,7 @@ import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.features.WorldFeatures;
 import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.modules.asset.ModelLoadResult;
+import org.jdesktop.wonderland.modules.asset.WaterInstance;
 import org.jdesktop.wonderland.renderer.j3d.J3dMeshFactory;
 import org.jdesktop.wonderland.renderer.j3d.ModelRenderer;
 import org.jdesktop.wonderland.renderer.mesh.BakedRig;
@@ -70,6 +80,7 @@ import org.jogamp.java3d.Link;
 import org.jogamp.java3d.SharedGroup;
 import org.jogamp.java3d.Shape3D;
 import org.jogamp.java3d.Switch;
+import org.jogamp.java3d.TexCoordGeneration;
 import org.jogamp.java3d.Transform3D;
 import org.jogamp.java3d.TransformGroup;
 import org.jogamp.vecmath.Color3f;
@@ -78,6 +89,7 @@ import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3d;
 import org.jogamp.vecmath.Vector3f;
+import org.jogamp.vecmath.Vector4f;
 
 /** One world's loaded models, assembled and lit under a single attachable branch. */
 public final class WorldScene {
@@ -340,6 +352,14 @@ public final class WorldScene {
     private static final double SHADOW_MAX_LENGTH_M = 12.0;
 
     /**
+     * The smallest pond worth building, in the plane's own units across either
+     * axis. A {@code .mtg} author can write a water record of any size, and a
+     * zero-or-negative extent is one of them: a degenerate quad is not a dry
+     * pond, it is a NaN the traverser has to carry forever.
+     */
+    private static final double WATER_MIN_EXTENT_UNITS = 0.1;
+
+    /**
      * How far in front of the residents a visitor stands, in metres.
      *
      * <p>Far enough to see them as people rather than as faces: the 2009 view is
@@ -382,6 +402,27 @@ public final class WorldScene {
     private final List<Gate> shadowGates;
 
     /**
+     * One visibility gate per laid pond, named after the cell whose scene record
+     * placed it (roadmap P2.3). A pond is not a cell either: it is a plane the
+     * {@code .mtg} named, hung under the same gate the PVS uses for its caster,
+     * so culling the orientation ground cannot leave its water lying in the
+     * courtyard of a world that stopped drawing it.
+     */
+    private final List<Gate> waterGates;
+
+    /**
+     * The generator of each laid pond, written once per frame by {@link
+     * #scrollWater}. Kept as a list rather than reached through the graph
+     * because the graph is compiled and immutable by the time a clock runs: this
+     * is the handle the animation holds, and the whole reason {@link
+     * TexCoordGeneration#ALLOW_PLANE_WRITE} is set on each one.
+     */
+    private final List<TexCoordGeneration> waterSurfaces;
+
+    /** How many ponds {@link #build} laid, gated or not. */
+    private final int pondCount;
+
+    /**
      * The PVS built from {@link #inventory} on the first {@link #cullTo}; null
      * until a frame actually asks for one, because a world that is only browsed
      * in a preview image never pays for the grid.
@@ -393,6 +434,9 @@ public final class WorldScene {
 
     /** How many shadow pools the last {@link #cullTo} shut with their caster. */
     private volatile int poolsHiddenLastFrame;
+
+    /** How many ponds the last {@link #cullTo} shut with their caster. */
+    private volatile int pondsHiddenLastFrame;
 
     /** Where the collider thinks the walker stands; {@link #blockStep}'s memory. */
     private float walkerX;
@@ -408,7 +452,9 @@ public final class WorldScene {
             Point3d center, Vector3d halfExtent, float radius, float reach,
             Point3d entryPoint,
             List<NameTag> nameTags, int shadowCount, int pictureCount,
-            WorldInventory inventory, List<Gate> gates, List<Gate> shadowGates) {
+            WorldInventory inventory, List<Gate> gates, List<Gate> shadowGates,
+            List<Gate> waterGates, List<TexCoordGeneration> waterSurfaces,
+            int pondCount) {
         this.root = root;
         this.placedCount = placedCount;
         this.skippedCount = skippedCount;
@@ -423,6 +469,10 @@ public final class WorldScene {
         this.inventory = (inventory == null) ? WorldInventory.empty() : inventory;
         this.gates = List.copyOf((gates == null) ? List.of() : gates);
         this.shadowGates = List.copyOf((shadowGates == null) ? List.of() : shadowGates);
+        this.waterGates = List.copyOf((waterGates == null) ? List.of() : waterGates);
+        this.waterSurfaces = List.copyOf(
+                (waterSurfaces == null) ? List.of() : waterSurfaces);
+        this.pondCount = pondCount;
     }
 
     /**
@@ -473,6 +523,7 @@ public final class WorldScene {
         List<Tag> tags = new ArrayList<>();
         List<Box> shaded = new ArrayList<>();
         List<String> shadowOwners = new ArrayList<>();
+        List<Pond> ponds = new ArrayList<>();
         List<WorldInventory.Placement> placements = new ArrayList<>();
         List<Gate> gates = new ArrayList<>();
         for (Entry entry : entries) {
@@ -570,6 +621,7 @@ public final class WorldScene {
                 // laid and forgotten in the same frame as its caster.
                 shadowOwners.add(entry.name());
             }
+            collectWater(ponds, entry.name(), entry.model().waterInstances(), whole);
         }
         // The pictures occupy space exactly like a model does: a world whose only
         // standing object is a 2 m poster still has to be framed on it, and a sky
@@ -601,6 +653,8 @@ public final class WorldScene {
                 lighting);
         List<NameTag> tagsBuilt = addTags(branch, tags, art, factory);
         int hungCount = addPictures(branch, hung, art, factory);
+        List<TexCoordGeneration> waterSurfaces = new ArrayList<>();
+        List<Gate> waterGates = addWater(branch, ponds, art, factory, waterSurfaces);
         // The sky is built off the whole world; the camera is seated on one
         // neighbourhood of it, never on its property line. The difference is what
         // the combined world measured: its standing cells run from x = -2052 to
@@ -616,7 +670,8 @@ public final class WorldScene {
                 focus.half(), (float) focus.sphere().getRadius(),
                 (float) extent.getRadius(), crowdEntry(shaded, focus), tagsBuilt,
                 shaded.size(), hungCount,
-                new WorldInventory(placements), gates, shadowGates);
+                new WorldInventory(placements), gates, shadowGates,
+                waterGates, waterSurfaces, waterSurfaces.size());
     }
 
     /**
@@ -1224,6 +1279,202 @@ public final class WorldScene {
 
     /** The one shadow image every pool shares. */
     private static final String SHADOW_PATH = "lg3d:shadow";
+
+    /** The one water tile every pond shares. */
+    private static final String WATER_PATH = "lg3d:water";
+
+    /**
+     * One pond a loaded scene named, in the space of the cell that named it: the
+     * {@code .mtg} record and the composed cell matrix that seats its plane.
+     *
+     * <p>The record is kept rather than folded into five numbers here, because
+     * where the plane goes is a function of the record's own rotation as well as
+     * its centre, and {@link #pondSeat} is the one place that rule is stated.</p>
+     */
+    record Pond(String owner, WaterInstance record, Transform3D pose) {
+    }
+
+    /**
+     * Notice the water a loaded scene named (roadmap P2.3). This is the last
+     * half of the promise {@link WaterInstance} made when it was written: the
+     * record survived the read so that something could be built from it, and
+     * this is that something.
+     *
+     * <p>Nothing is collected when the feature is off, so a world that has
+     * ponds and a build that must not draw them differ by these few nodes and by
+     * nothing else. A plane with no extent is refused for the same reason the
+     * entry loop refuses a degenerate {@code .dep}: an author's typo costs one
+     * pond, not a NaN in the traverser.</p>
+     *
+     * <p>The water list is handed in rather than read off the entry, exactly as
+     * {@link #collectTag} takes the box rather than the model: this is the
+     * decision, and a decision this class owns is tested on its inputs without a
+     * native render stack. {@link #build} is the one caller that knows where the
+     * records came from.</p>
+     */
+    static void collectWater(List<Pond> ponds, String owner,
+            List<WaterInstance> water, Transform3D pose) {
+        if (!WorldFeatures.enabled(WorldFeatures.WATER)) {
+            return;
+        }
+        for (WaterInstance record : water) {
+            if (record == null) {
+                continue;
+            }
+            double[] plane = WaterArt.planeOf(record);
+            if (!(plane[3] >= WATER_MIN_EXTENT_UNITS)
+                    || !(plane[4] >= WATER_MIN_EXTENT_UNITS)) {
+                continue;
+            }
+            ponds.add(new Pond(owner, record, pose));
+        }
+    }
+
+    /**
+     * The matrix one pond is seated by: the cell's own composed placement, then
+     * the place and turn the record names inside it.
+     *
+     * <p>The order matters and is the same one every other placement in this
+     * class uses -- outside first, so the record's numbers stay in the model's
+     * own space and the deployment's normalisation still applies to them. The
+     * rotation is skipped when the axis is degenerate: {@code AxisAngle4d} on a
+     * zero-length axis is not an identity, it is arithmetic on nothing, and a
+     * scene author who wrote an angle without an axis meant the plane to lie
+     * where it lies.</p>
+     */
+    static Transform3D pondSeat(Transform3D pose, WaterInstance record) {
+        Transform3D local = new Transform3D();
+        double axisLength = Math.sqrt(record.axisX() * record.axisX()
+                + record.axisY() * record.axisY()
+                + record.axisZ() * record.axisZ());
+        if (record.hasRotation() && axisLength > 1e-6) {
+            local.setRotation(new AxisAngle4d(record.axisX() / axisLength,
+                    record.axisY() / axisLength, record.axisZ() / axisLength,
+                    record.angleRad()));
+        }
+        local.setTranslation(new Vector3d(record.tx(), record.ty(), record.tz()));
+        Transform3D seat = new Transform3D();
+        seat.mul(pose, local);
+        return seat;
+    }
+
+    /**
+     * Lay the ponds. Each is one flat quad of the extent the record named, tiled
+     * with {@link WaterArt}'s seamless image and scrolled by a
+     * {@link TexCoordGeneration} this scene writes from the frame clock.
+     *
+     * <p>The texture coordinates are <em>generated</em> rather than taken from
+     * the quad because the art has to repeat across a plane of any size: the
+     * shipped orientation pond is 100 units square, and UVs baked 0..1 into a
+     * flatQuad would stretch one ripple over all of it. Object-linear generation
+     * maps the plane's own coordinates through a scale (the tile size, see
+     * {@link WaterArt#TILE_UNITS}) plus an offset (the frame's scroll), and both
+     * live in four numbers that are cheap to rewrite sixty times a second.</p>
+     *
+     * <p>Like a pool, a pond is hung behind its own gate and named after the
+     * cell that carries it, so the PVS that drops the ground drops its water
+     * with it.</p>
+     *
+     * @param surfacesOut every laid pond's generator, in order, for {@link
+     *                    #scrollWater} to write
+     * @return one gate per laid pond; empty when the world named no water, which
+     *         is the same graph the port drew before P2.3
+     */
+    private static List<Gate> addWater(BranchGroup branch, List<Pond> ponds,
+            Map<String, byte[]> art, J3dMeshFactory factory,
+            List<TexCoordGeneration> surfacesOut) {
+        if (ponds.isEmpty()) {
+            return List.of();
+        }
+        byte[] tile = WaterArt.tile();
+        if (tile == null) {
+            // Dry ground, not a black rectangle where the lake was.
+            return List.of();
+        }
+        art.put(WATER_PATH, tile);
+        List<Gate> laid = new ArrayList<>();
+        for (Pond pond : ponds) {
+            double[] plane = WaterArt.planeOf(pond.record());
+            Shape3D surface = factory.createShape(
+                    flatQuad(plane[3] * 2.0, plane[4] * 2.0),
+                    new MaterialAppearance(1f, 1f, 1f, 1f, WATER_PATH));
+            if (surface == null) {
+                continue;
+            }
+            TexCoordGeneration gen = waterGeneration(0.0);
+            // Written at build time, before the branch is compiled, so no
+            // capability is needed for this one -- unlike the planes below.
+            surface.getAppearance().setTexCoordGeneration(gen);
+            surfacesOut.add(gen);
+            Transform3D seat = pondSeat(pond.pose(), pond.record());
+            TransformGroup placed = new TransformGroup(seat);
+            placed.setCapability(TransformGroup.ALLOW_TRANSFORM_READ);
+            placed.setCapability(TransformGroup.ALLOW_TRANSFORM_WRITE);
+            Switch gate = new Switch(Switch.CHILD_ALL);
+            gate.setCapability(Switch.ALLOW_SWITCH_WRITE);
+            gate.addChild(surface);
+            placed.addChild(gate);
+            branch.addChild(placed);
+            laid.add(new Gate(pond.owner(), gate));
+        }
+        return laid;
+    }
+
+    /**
+     * The generator one pond is tiled and scrolled with at one frame time, still
+     * at its authored offset.
+     */
+    private static TexCoordGeneration waterGeneration(double elapsedSeconds) {
+        TexCoordGeneration gen = new TexCoordGeneration(
+                TexCoordGeneration.OBJECT_LINEAR,
+                TexCoordGeneration.TEXTURE_COORDINATE_2,
+                WaterArt.planeS(elapsedSeconds), WaterArt.planeT(elapsedSeconds));
+        // The clock writes both planes and the probe reads them back; the first
+        // without the second opened up is a CapabilityNotSetException on the
+        // first frame after the graph goes live, which is not a failure a unit
+        // test on a live-less JVM can see.
+        gen.setCapability(TexCoordGeneration.ALLOW_PLANE_READ);
+        gen.setCapability(TexCoordGeneration.ALLOW_PLANE_WRITE);
+        return gen;
+    }
+
+    /**
+     * Scroll every pond to one frame time (roadmap P2.3's animation half).
+     *
+     * <p>Every surface shares one pair of planes: the offset is in the plane's
+     * own space, so two ponds of different sizes still scroll at the same rate
+     * per tile, which is what makes the tile's seamlessness the whole of the
+     * illusion. Called from the viewer's clock, not from {@link #cullTo}: a
+     * still camera in a world with water still has water <em>in it</em>, and a
+     * pond that only moves while somebody walks is a slideshow.</p>
+     */
+    public void scrollWater(double elapsedSeconds) {
+        if (waterSurfaces.isEmpty()) {
+            return;
+        }
+        Vector4f s = WaterArt.planeS(elapsedSeconds);
+        Vector4f t = WaterArt.planeT(elapsedSeconds);
+        for (TexCoordGeneration gen : waterSurfaces) {
+            try {
+                gen.setPlaneS(s);
+                gen.setPlaneT(t);
+            } catch (RuntimeException | Error refused) {
+                // Still water in a world that renders beats a lost frame: the
+                // pond keeps whatever offset it last showed.
+                return;
+            }
+        }
+    }
+
+    /** How many ponds the world named and this scene laid. */
+    public int pondCount() {
+        return pondCount;
+    }
+
+    /** The laid ponds' generators, in layout order; the probe's evidence handle. */
+    java.util.List<TexCoordGeneration> waterSurfaces() {
+        return waterSurfaces;
+    }
 
     private static double clamp(double v, double low, double high) {
         return Math.max(low, Math.min(high, v));
@@ -2002,6 +2253,13 @@ public final class WorldScene {
             }
         }
         poolsHiddenLastFrame = pools;
+        int dry = 0;
+        for (Gate pond : waterGates) {
+            if (shut(pond, staysVisible(pond.name(), visible))) {
+                dry++;
+            }
+        }
+        pondsHiddenLastFrame = dry;
         return dropped;
     }
 
@@ -2039,6 +2297,11 @@ public final class WorldScene {
     /** How many shadow pools the last {@link #cullTo} shut with their caster. */
     public int poolsHiddenLastFrame() {
         return poolsHiddenLastFrame;
+    }
+
+    /** How many ponds the last {@link #cullTo} shut with the ground under them. */
+    public int pondsHiddenLastFrame() {
+        return pondsHiddenLastFrame;
     }
 
     /**
