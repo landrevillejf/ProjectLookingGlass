@@ -1,98 +1,108 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ * Portions Copyright (c) 2026, Jean-Francois Landreville - Gradle/JDK 21
+ * modernization port and improvements. All Rights Reserved.
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
 package org.jdesktop.lg3d.apps.presentoire.transition;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
-
+import java.io.InputStream;
 import org.jdesktop.lg3d.apps.presentoire.PresentoireDocument;
 
 /**
- * Implements a factory for the transitions.
- * @author Pierre Ducroquet
+ * Resolves the {@link Transition} a slide names.
  *
+ * <p>A slide's {@code transition} attribute is either a built-in name
+ * ({@code rotation}, {@code scale}, {@code transparency}), the id of a
+ * document-defined script transition, or a {@code .class} path baked into the deck
+ * that is defined at runtime. This port keeps that resolution order but reads the
+ * class bytes with {@link InputStream#readAllBytes()} instead of the original's
+ * fragile {@code available()}-based loop, uses a generic {@code Class<?>} instead
+ * of a raw {@code Class}, drops the {@code System.out} trace, and returns null -
+ * never throws - for a name it cannot resolve (an empty name, a missing class, a
+ * broken script), so the caller falls back to the plain slide swap.</p>
+ *
+ * @author Pierre Ducroquet
  */
-public class TransitionFactory {
-	/**
-	 * Returns the transition from document "doc" with name "name".
-	 * It also loads the .class file if it's a Java transition in the document.
-	 * @param name the transition we're looking for
-	 * @param doc the document we're displaying
-	 * @return the transition
-	 */
-	public static Transition getTransition (String name, PresentoireDocument doc) {
-		if (name.endsWith(".class")) {
-			// Load the Transition from the specified class file...
-			// Ok that's easier said than done.
-			System.out.println("This is where the fun begins");
-			System.out.println(name);
-			String fileName = name.substring(name.lastIndexOf('/') + 1);
-			String className = name.substring(0, name.lastIndexOf('.')).replace('/', '.');
-			System.out.println(className);
-			System.out.println(fileName);
-			try {
-				// First step : load the class in this byte array.
-				byte[] classdata;
-				DataInputStream dis = new DataInputStream(doc.getZIPInputStream(fileName));
-				if (dis.available() <= 0) {
-					ByteArrayOutputStream baos = new ByteArrayOutputStream();
-					int bc = 0;
-					byte[] buf = new byte[1024];
-					while ((bc = dis.read(buf)) > 0) {
-						baos.write(buf);
-						if (bc < 1024) break;
-					}
-					baos.close();
-					classdata = baos.toByteArray();
-				} else {
-					classdata = new byte[dis.available()];
-					dis.readFully(classdata);
-				}
-				dis.close();
-				// Ok, now we can try to open this byte array as a Java class.
-                try {
-                	Class myClass = new TransitionClassLoader().getTransitionClass(className, classdata, 0, classdata.length);
-					return (Transition) myClass.newInstance();
-				} catch (InstantiationException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (IllegalAccessException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch ( java.lang.LinkageError err) {
-	                System.err.println("Linkage error loading: " + name);
-	                err.printStackTrace();
-	            }
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return null;
-			}
-		}
-		// Ok, other cases are simpler.
-		if (doc.getScriptTransition(name) != null)
-			return doc.getScriptTransition(name);
-		if ("rotation".equals(name))
-			return new RotationTransition();
-		if ("scale".equals(name))
-			return new ScaleTransition();
-		if ("transparency".equals(name))
-			return new TransparencyTransition();
-		return null;		
-	}
-	
-	/**
-	 * Implements a really really simple ClassLoader.
-	 * In fact, it's here only to expose the defineClass call.
-	 * @author Pierre Ducroquet
-	 *
-	 */
-	private static class TransitionClassLoader extends ClassLoader {
-		public TransitionClassLoader() {
-			super(TransitionFactory.class.getClassLoader());
-		}
-		
-		public Class getTransitionClass(String name, byte[] b, int off, int len) {
-			return defineClass(name, b, off, len);
-		}
-	}
+public final class TransitionFactory {
+
+    private TransitionFactory() {
+        // no instances
+    }
+
+    /**
+     * Returns the transition {@code name} refers to in {@code doc}, or null when
+     * the name is empty or cannot be resolved.
+     *
+     * @param name the transition name a slide declares
+     * @param doc  the deck being displayed
+     */
+    public static Transition getTransition(String name, PresentoireDocument doc) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        if (name.endsWith(".class")) {
+            Transition loaded = loadClassTransition(name, doc);
+            if (loaded != null) {
+                return loaded;
+            }
+            // Fall through: a deck may also define a script of the same name.
+        }
+        Transition script = doc.getScriptTransition(name);
+        if (script != null) {
+            return script;
+        }
+        return switch (name) {
+            case "rotation" -> new RotationTransition();
+            case "scale" -> new ScaleTransition();
+            case "transparency" -> new TransparencyTransition();
+            default -> null;
+        };
+    }
+
+    /**
+     * Defines a {@code Transition} subclass from a {@code .class} entry in the deck
+     * archive and instantiates it. Returns null on any failure (a missing entry,
+     * unreadable bytes, a class that is not a {@code Transition}, or one that
+     * cannot be instantiated) so the caller degrades to the plain swap.
+     */
+    private static Transition loadClassTransition(String name, PresentoireDocument doc) {
+        String fileName = name.substring(name.lastIndexOf('/') + 1);
+        String className = name.substring(0, name.lastIndexOf('.')).replace('/', '.');
+        try (InputStream in = doc.getZIPInputStream(fileName)) {
+            byte[] classData = in.readAllBytes();
+            Class<?> loaded = new TransitionClassLoader()
+                    .getTransitionClass(className, classData, 0, classData.length);
+            return loaded.asSubclass(Transition.class).getDeclaredConstructor().newInstance();
+        } catch (IOException | ReflectiveOperationException | LinkageError | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A minimal {@link ClassLoader} whose only job is to expose {@code defineClass}
+     * so a transition class shipped inside a deck can be defined at runtime.
+     *
+     * @author Pierre Ducroquet
+     */
+    private static class TransitionClassLoader extends ClassLoader {
+
+        TransitionClassLoader() {
+            super(TransitionFactory.class.getClassLoader());
+        }
+
+        Class<?> getTransitionClass(String name, byte[] b, int off, int len) {
+            return defineClass(name, b, off, len);
+        }
+    }
 }

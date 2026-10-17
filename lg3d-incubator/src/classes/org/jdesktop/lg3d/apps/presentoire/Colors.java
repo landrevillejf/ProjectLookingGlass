@@ -1,53 +1,79 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ * Portions Copyright (c) 2026, Jean-Francois Landreville - Gradle/JDK 21
+ * modernization port and improvements. All Rights Reserved.
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
 package org.jdesktop.lg3d.apps.presentoire;
 
+import org.jdesktop.lg3d.apps.presentoire.model.ModelColor;
 import org.jogamp.vecmath.Color4f;
 
 /**
- * Implement a Color "parser"...
- * Supports 5 color names (easy to extend : just add a new static color field here in the class)
- * Supports HTML-like color strings : #aaffee or #12121212 (with alpha channel)
- * @author Pierre Ducroquet
+ * The 3D-side colour bridge: it adapts the AWT-free {@link ModelColor} parser to
+ * the {@code org.jogamp.vecmath.Color4f} the scene graph wants.
  *
+ * <p>The single source of truth for what a {@code color="..."} attribute means is
+ * {@link ModelColor}, shared with the 2D panel; this class only converts its
+ * packed {@code 0xAARRGGBB} int into a {@code Color4f}. The original resolved a
+ * name by reflecting over this class's own static fields and divided each channel
+ * by {@code 254}; both are gone - the parse (names, {@code #RRGGBB},
+ * {@code #RRGGBBAA}) now lives in {@link ModelColor}, which divides by
+ * {@code 255} and never throws.</p>
+ *
+ * @author Pierre Ducroquet
  */
 public class Colors {
-	public static final Color4f RED = new Color4f(1.0f, 0.0f, 0.0f, 1.0f);
-	public static final Color4f GREEN = new Color4f(0.0f, 1.0f, 0.0f, 1.0f);
-	public static final Color4f BLUE = new Color4f(0.0f, 0.0f, 1.0f, 1.0f);
-	public static final Color4f WHITE = new Color4f(1.0f, 1.0f, 1.0f, 1.0f);
-	public static final Color4f BLACK = new Color4f(0.0f, 0.0f, 0.0f, 1.0f);
-	
-	/**
-	 * Parse a color string...
-	 * @param the color string
-	 * @return the right color, or black if color is not found. 
-	 */
-	public static Color4f getColor (String color) {
-		// A # means it's an HTML-like color.
-		if (color.startsWith("#")) {
-			float r = Integer.parseInt(color.substring(1, 3), 16)/254;
-			float g = Integer.parseInt(color.substring(3, 5), 16)/254;
-			float b = Integer.parseInt(color.substring(5, 7), 16)/254;
-			float a = 1.0f;
-			if (color.length() == 9) {
-				// There is an alpha channel in the color
-				a = Integer.parseInt(color.substring(7, 9), 16)/254;
-			}
-			return new Color4f(r, g, b, a);
-		}
-		// Ok, try to find this color in our static fields.
-		color = color.toUpperCase();
-		try {
-			return (Color4f) Colors.class.getDeclaredField(color).get(Colors.class);
-		} catch (IllegalArgumentException e) {
-			e.printStackTrace();
-		} catch (SecurityException e) {
-			e.printStackTrace();
-		} catch (IllegalAccessException e) {
-			e.printStackTrace();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
-		// Return default color.
-		return BLACK;
-	}
+
+    /** Opaque red. */
+    public static final Color4f RED = toColor4f(ModelColor.RED);
+    /** Opaque green. */
+    public static final Color4f GREEN = toColor4f(ModelColor.GREEN);
+    /** Opaque blue. */
+    public static final Color4f BLUE = toColor4f(ModelColor.BLUE);
+    /** Opaque white. */
+    public static final Color4f WHITE = toColor4f(ModelColor.WHITE);
+    /** Opaque black - the fallback for an unrecognised spec. */
+    public static final Color4f BLACK = toColor4f(ModelColor.BLACK);
+
+    private Colors() {
+        // no instances
+    }
+
+    /**
+     * Parses a Presentoire colour spec and returns it as a {@code Color4f}.
+     *
+     * @param color the colour attribute value, may be null
+     * @return the colour, or {@link #BLACK} when the spec is null, blank or
+     *         unrecognised (never null, never throws)
+     */
+    public static Color4f getColor(String color) {
+        return toColor4f(ModelColor.parse(color));
+    }
+
+    /**
+     * Converts an already-packed {@code 0xAARRGGBB} colour (as carried by the
+     * AWT-free model) into a {@code Color4f} for the scene graph.
+     *
+     * @param argb the packed colour
+     * @return the equivalent {@code Color4f}, never null
+     */
+    public static Color4f getColor(int argb) {
+        return toColor4f(argb);
+    }
+
+    /** Builds a {@code Color4f} from a packed {@code 0xAARRGGBB} int. */
+    private static Color4f toColor4f(int argb) {
+        return new Color4f(ModelColor.redFloat(argb), ModelColor.greenFloat(argb),
+                ModelColor.blueFloat(argb), ModelColor.alphaFloat(argb));
+    }
 }

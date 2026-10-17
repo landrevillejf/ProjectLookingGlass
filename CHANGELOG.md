@@ -10,6 +10,50 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Presentoire is resurrected — the 2006 slide-deck viewer ported to JDK 21 and wired into both desktops** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
+  Presentoire compiled but was a dormant prototype: its start-menu descriptor sat
+  in the incubator's own unscanned `src/config`, and — fatally on a modern JVM —
+  `PresentoireDocument` built a JavaScript `ScriptEngine` *while parsing*, so any
+  deck carrying a `language="JavaScript"` transition threw a `RuntimeException`
+  before a single slide appeared (Nashorn was removed in JDK 15), and its
+  document picker was a `"MUST DISAPPEAR AS SOON AS POSSIBLE"` modal `JDialog`
+  with a hardcoded `/home/debian/...` path. It now runs on both desktops from one
+  AWT-free model. `presentoire.model` (`PresentoireModel`, `SlideModel`,
+  `SlideElement`, `ModelColor`, `ScriptTransitionModel`) is the single parser both
+  faces read: it turns a deck ZIP (`content.xml` plus the images it names) into an
+  immutable slide tree, hardens the XML reader against entity expansion, fixes the
+  original's `/254` colour drift to `/255`, and parses a `<transition>` to inert
+  data so the JavaScript case no longer throws — the 3D `ScriptTransition` degrades
+  to a plain slide swap when no engine is present. The native-3D `Presentoire` /
+  `PresentoireDocument` / `Slide` / `elements` / `transition` classes were refactored
+  onto that model (renderers never return null; the debug `println`/`printStackTrace`
+  spam and the raw `Vector`/`Class` are gone, and the private-`runTransition` base
+  swap the 2006 code actually relied on is preserved rather than activating
+  unverified scene-graph animation). The 2D/Swing desktop gets a new idiomatic
+  document viewer, `PresentoirePanel` — a toolbar (open, first/prev/`slide n of N`/
+  next/last, zoom out/percent/zoom in/fit width), a scrollable canvas that centres
+  the slide, and a status line — which `SlideRenderer` rasterises with Java 2D from
+  the very same `SlideModel` the 3D face builds `Component3D` nodes from, so the two
+  desktops can never disagree about a deck and the panel loads no Java 3D. Both faces
+  open on a built-in three-slide demo deck (no binary blob, no hardcoded path) and
+  load a real deck through a standard `JFileChooser`; the modal `FileChooser` hack is
+  deleted. Per the hosted-panel palette rule the panel chrome wears only LAF colours
+  — the sole painted pixels are inside the rendered slide bitmap, which is document
+  content (a white page and the deck's own ink), exactly as a PDF page is. It is
+  registered in `Desktop2DAppRegistry.PANEL_APPS` against the 3D main class, and one
+  shared descriptor `lg3d-apps/src/config/presentoire.lgcfg` (Office group, the app's
+  own bundled `presentoire.png` icon resolved from the incubator jar) launches the
+  `Frame3D` in the 3D desktop and the panel as an MDI frame in the 2D desktop. The
+  port and its subsequent modifications are attributed to Jean-Francois Landreville
+  in the file headers, the `@author` tags, the commit sign-off and a new
+  `AboutInfo.PORTED_APPLICATIONS` line the About box renders on both desktops.
+  **20 new headless cases** (`PresentoireModelTest` 11 on the pure parser, the
+  `ModelColor` `/255` fix, the JavaScript-transition no-throw fix, XXE rejection and
+  a real-ZIP image round-trip; `PresentoirePanelTest` 9 on the `SlideRenderer`
+  white-page/ink raster and the panel's navigation/zoom clamps and open/reject flow),
+  plus a `Desktop2DAppRegistryTest.presentoireIsHostedPanel` mapping case. The 3D
+  scene-graph view needs a live display, so it is verified with the in-JVM probe and
+  internal screencapture rather than asserted here.
 - **Screen Snapshot now chooses *what* to grab — whole screen, every window, or a region you drag out** (`lg3d-apps`, `lg3d-core`) —
   The Screen Snapshot utility captured exactly one thing before: whatever the
   desktop's own capture path produced after a delay. It now asks the user to
