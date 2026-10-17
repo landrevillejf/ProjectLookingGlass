@@ -54,6 +54,53 @@ work to make it build and run on a current toolchain.
   plus a `Desktop2DAppRegistryTest.presentoireIsHostedPanel` mapping case. The 3D
   scene-graph view needs a live display, so it is verified with the in-JVM probe and
   internal screencapture rather than asserted here.
+- **Physics is resurrected — the 2006 rigid-body playground ported to JDK 21 and wired into both desktops as a Newton's cradle** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
+  The Physics app compiled but was a dormant prototype: its start-menu descriptor
+  sat in the incubator's own unscanned `src/config` (naming a `physics.jar` and a
+  `PhysTest` class that no longer exist), its engine inventory carried a
+  one-byte empty `RigidBodyState` stub, and — the blocker for the 2D/Swing desktop —
+  `PhysicsObject` imports `org.jogamp.java3d.*` and `Component3D` at class level, so
+  reusing the engine would drag the scene graph into a desktop that must never load
+  it. The resurrection leaves the working native-3D engine and its demos
+  (`NewtonCradleDemo`, `PhysicsTutorial1/2`) exactly as they are — they already build
+  on the Jogamp Java 3D and carry their `@author Tobias Evert` tags — and adds the
+  one thing they lacked: an AWT-free, Java 3D-free planar core,
+  `physics.model` (`Vec2`, `Particle`, `Spring`, `NewtonCradleModel`), that
+  reproduces the demo's dynamics with the same algorithm and the same physical
+  constants (seven 1.1 kg balls at restitution 0.95, `g` 5.81, damped strings at
+  `k` 205.9 / damping 206.2) over a leapfrog integrator, an iterated
+  Newton-Coulomb impulse resolver and a mass-weighted positional-correction pass —
+  the `PhysicsThread.run()` sequence reduced to synchronous planar form. On it the
+  2D/Swing desktop gets `NewtonCradlePanel`, a desk-toy viewer that paints the
+  cradle (support bar, strings, radial-gradient steel balls) with Java 2D into a
+  canvas fit to the model's static world bounds, runs on a `javax.swing.Timer`
+  started in `addNotify` and stopped in `removeNotify` (so closing the window never
+  leaks a timer and a headless host never spawns one), and re-pulls the first ball
+  on a fixed cadence once the impacts have bled the motion into a gentle
+  common-mode sway. Both desktops therefore swing the same cradle with the same
+  physics; only the renderer differs. It is registered in
+  `Desktop2DAppRegistry.PANEL_APPS` against the `NewtonCradleDemo` main class, and
+  one shared descriptor `lg3d-apps/src/config/newtonscradle.lgcfg` (Education
+  group, a generated `newtonscradle.png` glass tile from
+  `lg3d-art/tools/GenerateAppIcons.java`) launches the `Frame3D` in the 3D desktop
+  and the panel as an MDI frame in the 2D desktop. The empty `RigidBodyState` stub
+  is deleted. Per the hosted-panel palette rule the toolbar, buttons and status
+  line wear only LAF colours — the sole painted pixels are the rendered simulation
+  content, exactly as `ChessPanel`'s board is. The port and its subsequent
+  modifications are attributed to Jean-Francois Landreville in the file headers
+  (every physics source now carries the Sun + Portions banner, the original
+  `@author` tags preserved), the commit sign-off and the
+  `AboutInfo.PORTED_APPLICATIONS` line, which now names Physics beside Presentoire.
+  **21 new headless cases** (`NewtonCradleModelTest` 14 on the `Vec2`/`Particle`/
+  `Spring` primitives and the simulation — the release pose, one-ball-in-one-ball-out
+  momentum transfer through a resting chain whose middle balls stay put, energy
+  decay, balls never leaving the world bounds nor visibly interpenetrating, the
+  step clamp and reset, and determinism; `NewtonCradlePanelTest` 7 on the headless
+  build, the start/pause/toggle flags, the one-fixed-frame `tick`, the restart
+  cadence, reset, the status line and a non-blank canvas raster), plus a
+  `Desktop2DAppRegistryTest.newtonCradleIsHostedPanel` mapping case. The 3D
+  scene-graph view needs a live display, so it is verified by compile and code
+  review rather than asserted here.
 - **Screen Snapshot now chooses *what* to grab — whole screen, every window, or a region you drag out** (`lg3d-apps`, `lg3d-core`) —
   The Screen Snapshot utility captured exactly one thing before: whatever the
   desktop's own capture path produced after a delay. It now asks the user to

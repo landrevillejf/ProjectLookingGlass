@@ -25,8 +25,8 @@
 **Native-3D apps authored for the port** (live-texture pattern): Image Studio,
 Agenda 3D, the Games (tictactoe / sudoku / chess / solitaire), Mail 3D.
 **Ported legacy apps:** jmf23D (Algea3D), luncher, nlc, orgchart (Chart3D /
-Contact3D), presentoire. Their start-menu `.lgcfg` descriptors live in
-**`lg3d-apps/src/config`**, not here (see below).
+Contact3D), presentoire, physics (Newton's Cradle). Their start-menu `.lgcfg`
+descriptors live in **`lg3d-apps/src/config`**, not here (see below).
 
 > **Per-app guides.** Every application package under `src/classes` ships its own
 > condensed role-aware `AGENTS.md` next to its sources (35 in total), covering the
@@ -144,7 +144,8 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
 - **2D (Swing) UI** appears where an app needs real Swing widgets (e.g. the
   native file dialogs Image Studio uses) and as the plain Swing panels several
   apps ship for the 2D/Swing desktop (the Games, Periodic Table, Image
-  Studio's `ImageStudioPanel` and Presentoire's `PresentoirePanel`), hosted as
+  Studio's `ImageStudioPanel`, Presentoire's `PresentoirePanel` and Physics'
+  `NewtonCradlePanel`), hosted as
   MDI frames through `Desktop2DAppRegistry.PANEL_APPS` and reusing each app's
   AWT-free engine without loading Java 3D. If you host a Swing panel in the 3D
   scene, use a `SwingNode` per [`../docs/swingnode.md`](../docs/swingnode.md) —
