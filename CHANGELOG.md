@@ -33,6 +33,86 @@ work to make it build and run on a current toolchain.
   `MandelaToolsTest` assertions and the new script compiled by
   `ShippedScriptsTest`. Presentoire needs no change: its Open action already
   sniffs a `.md` as a Markdown deck.
+- **A bundled, full-featured Spring Boot web server that deploys and supervises containerized Spring Boot apps — the new `lg3d-webserver` module** (`lg3d-webserver`) —
+  The backend half of the `todo.md` *Webserver* item: a self-contained Spring Boot
+  3.5.6 (embedded Tomcat) server, built as an executable `bootJar`, exposing a
+  management REST API that **deploys and supervises containerized Spring Boot
+  applications** by shelling out to the system `docker` CLI (**no `docker-java`**,
+  matching the desktop's Docker Manager), with a daemon-free local `java -jar`
+  backend as its sibling. It follows the `wonderland-server` precedent exactly —
+  the Spring Boot plugin, a bare library `jar` beside an `-app`-classified
+  `bootJar`, and **deliberately absent from the desktop classpath** so Spring never
+  enters the desktop JVM. Three layers keep it testable: `config`
+  (`WebServerProperties`, `@ConfigurationProperties("webserver")`); `deploy` (the
+  domain records `Deployment`/`DeploymentRequest`/`AppState`/`DeploymentType`/
+  `CommandResult`, the injectable seams `ProcessLauncher` + `ChildProcessStarter` +
+  `DockerCli`, the `DockerDeploymentBackend` + `JarProcessBackend`, the Jackson
+  `DeploymentStore`, and `DeploymentRegistry` — the orchestrator that allocates the
+  id/name/context-path/host-port and reconciles recorded state against the live
+  backend); and `web` (`ServerManagementController`, `ReverseProxyFilter`,
+  `ManagementAuthGate`, `ApiExceptionHandler`). The API serves
+  `GET /api/server/{health,info,metrics}`, `GET`/`POST /api/apps`,
+  `GET /api/apps/{id}`, `GET /api/apps/{id}/logs`, `POST /api/apps/{id}/{start,stop}`
+  and `DELETE /api/apps/{id}`, and reverse-proxies each running app under its own
+  `/{contextPath}/**` on the server port. A Docker deploy is
+  `docker run -d --name <id> -p <port>:<port> -e SERVER_PORT=<port> …`, so the host
+  port, the published container port and the app's own `server.port` coincide and the
+  container name is the stable deployment handle. The contract is **never 500, never
+  leak a stack trace**: a missing daemon, a failed pull or an unbindable port becomes
+  a readable `DeploymentException` the advice maps to 400/404/503, and with no daemon
+  the server still **boots** and `/api/server/health` reports `dockerAvailable=false`.
+  No credential is ever stored or logged (the management token is config-only, blank
+  = open on loopback, compared in constant time), and deployment state persists as
+  JSON under `~/.lg3d/webserver/deployments.json` (overridable for test isolation).
+  The module ships a multi-stage `Dockerfile` + `docker-compose.yml`, an
+  `application.properties` documenting every knob with a `bootRun --args` example, and
+  a role-aware `AGENTS.md` (indexed from the root guide). **136 new headless cases** —
+  `@SpringBootTest(RANDOM_PORT)` + MockMvc over every endpoint, a `FakeDockerCli` /
+  fake `ProcessLauncher` proving the exact `docker` argv + stdout parsing and the
+  no-daemon degradation, a fake `ChildProcessStarter` proving jar deploy/track/stop,
+  the reverse proxy proved against an in-JVM `com.sun.net.httpserver` stub, and a
+  `@TempDir` JSON round-trip — with a conservative `lg3d-webserver` coverage floor
+  pinned in the root `build.gradle` and PIT report-only. Attributed to
+  Jean-Francois Landreville in the file headers, the `@author` tags and the sign-off.
+- **The Web Server Console — run and supervise that server and its deployed apps from inside the desktop** (`lg3d-apps`, `lg3d-core`) —
+  The frontend half: a new `lg3d-apps` start-menu app
+  (`org.jdesktop.lg3d.apps.webserver`, **Developers** group) that **forks the
+  `lg3d-webserver` `bootJar` as a child process** (or attaches to one already
+  running) and drives it over the management REST API with the JDK `HttpClient` +
+  Jackson — the `WonderlandWorldPanel` / `swing-ide` precedent. `lg3d-apps` does
+  **not** depend on `lg3d-webserver`: the console needs only the `bootJar` **path**
+  (`-Dwebserver.jar`) to fork it and the server **URL** to talk to it, so **Spring
+  never enters the desktop JVM**. `WebServerConsole` is the thin 3D entry point (a
+  `TitledSwingWindow` hosting the panel on a `SwingNode`, 1024×768);
+  `WebServerConsolePanel` is the main plain `JPanel` — a toolbar (Connect / Start
+  local / Stop / Refresh), a status header and three tabs (**Overview** server info +
+  JVM metrics, **Applications** a deployed-app table + an inline Deploy form +
+  Start/Stop/Undeploy/Logs, **Logs** a tail) — with every HTTP/process call on a
+  background executor landing back on the EDT and constructors that **never throw**;
+  `WebServerPanel` is the 2D host shim the registry maps to. `ManagementClient` is the
+  AWT-free REST client (an injectable `Transport` seam; a non-2xx becomes a
+  `ManagementException` carrying the server's own `{"error": …}` sentence) and
+  `ServerProcessSupervisor` forks `java -jar <bootJar> --server.port=<p>` behind an
+  injectable `Spawner`, resolving the jar from `-Dwebserver.jar` →
+  `<lg.appcodebase>/libs/lg3d-webserver-*-app.jar` →
+  `lg3d-webserver/build-gradle/libs/*-app.jar` → “unavailable” (the panel degrades to
+  a readable status line, never a throw or a modal). The `dto/*` records
+  (`HealthView`, `ServerInfoView`, `MetricsView`, `AppView`, `LogsView`,
+  `DeployRequest`) mirror the server's wire shape client-side so the console never
+  imports a server class. `lg3d-core` wiring: `Desktop2DAppRegistry` maps the command
+  to the hosted `WebServerPanel` (`Kind.PANEL`) for both desktops, a new
+  `webserver.png` start-menu icon (drawn by `lg3d-art`'s `GenerateAppIcons`), and
+  `:run` / `releaseBundle` pass `-Dwebserver.jar` — the release bundle shipping the
+  `bootJar` under `server/` (**not** the `lib/*` desktop-classpath wildcard). **43 new
+  headless cases** (the panel's non-throwing construction + graceful degradation +
+  `dispose`/`refresh`; `ManagementClient` against an in-JVM `com.sun.net.httpserver`
+  fake; `ServerProcessSupervisor` jar-resolution + start/stop through a fake
+  `Spawner`; `dto` round-trips) plus a
+  `Desktop2DAppRegistryTest.webServerConsoleIsHostedPanel` mapping case. A new design
+  note `docs/webserver.md` documents the two-process architecture. Live behaviour
+  (connect, fork/stop a local child, deploy a containerized app) needs a running
+  server, so it is verified with the in-JVM probe + internal screencapture rather than
+  asserted here.
 - **Presentoire now reads and writes Markdown decks — open a `.md` (or a set of them) and Save As `.md`, in pure Java** (`lg3d-incubator`, `lg3d-apps`) —
   A fifth format joins the `presentoire.format` layer with **no new dependency**:
   `MarkdownDeckCodec` is a line scanner over the same AWT-free `PresentoireModel`

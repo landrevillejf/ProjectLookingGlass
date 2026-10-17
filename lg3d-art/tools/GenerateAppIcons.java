@@ -135,6 +135,9 @@ public class GenerateAppIcons {
     /** Glyph name that draws a built-in six-legged bug (Bug Reporter) instead of a bundled glyph. */
     private static final String BUG_GLYPH = "BugInsect";
 
+    /** Glyph name that draws a built-in server rack (Web Server Console) instead of a bundled glyph. */
+    private static final String SERVER_RACK_GLYPH = "ServerRack";
+
     /** In-tool mark: a cube over a perspective floor grid, the "3D world" sign. */
     private static final String WORLD_GRID_GLYPH = "WorldGrid";
 
@@ -297,6 +300,12 @@ public class GenerateAppIcons {
         // tile is what tells the two start-menu entries apart, so the mark says
         // "world + control panel" rather than relying on colour alone.
         {"wonderland3d.png", IconColor.CYAN, IconCategory.GENERAL, WORLD_CUBE_HUD_GLYPH},
+        // Web Server Console (Swing management console hosted on a SwingNode / 2D
+        // MDI frame; Developers menu group): drives the lg3d-webserver Spring Boot
+        // server over its management REST API and forks it as a child process. The
+        // bundled glyph set has nothing rack shaped, so a three-unit server rack is
+        // drawn in-tool like the world cube and the marks above.
+        {"webserver.png", IconColor.GREEN, IconCategory.GENERAL, SERVER_RACK_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -306,6 +315,12 @@ public class GenerateAppIcons {
         }
         for (Object[] app : APPS) {
             String file = (String) app[0];
+            // Optional filter: with one or more filenames as arguments only those
+            // icons are (re)written, so a single new icon can be generated without
+            // touching the committed PNGs of every other app. No args = all icons.
+            if (args.length > 0 && !java.util.Arrays.asList(args).contains(file)) {
+                continue;
+            }
             IconColor color = (IconColor) app[1];
             IconCategory category = (IconCategory) app[2];
             String glyphName = (String) app[3];
@@ -367,6 +382,8 @@ public class GenerateAppIcons {
                 glyph = drawEspressoCupGlyph(GLYPH);
             } else if (BUG_GLYPH.equals(glyphName)) {
                 glyph = drawBugGlyph(GLYPH);
+            } else if (SERVER_RACK_GLYPH.equals(glyphName)) {
+                glyph = drawServerRackGlyph(GLYPH);
             } else if (WORLD_GRID_GLYPH.equals(glyphName)) {
                 glyph = drawWorldGridGlyph(GLYPH);
             } else if (WORLD_CUBE_HUD_GLYPH.equals(glyphName)) {
@@ -1351,6 +1368,36 @@ public class GenerateAppIcons {
         g.setComposite(AlphaComposite.Clear);
         g.fillRoundRect(7, 24, 11, 2, 1, 1);
         g.fillRoundRect(7, 27, 17, 2, 1, 1);
+        g.dispose();
+        return new ImageIcon(image);
+    }
+
+    /**
+     * Draws the server-rack glyph: three stacked rack units, each a white chassis
+     * with a status LED and two vent slots punched out so the tile gradient reads
+     * through them -- the conventional "server / host" mark. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing rack shaped, so it is drawn
+     * in-tool like the brick wall, the editor page and the marks above. Designed in
+     * a 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawServerRackGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        // Three stacked rack units.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(4, 4, 24, 7, 3, 3);
+        g.fillRoundRect(4, 13, 24, 7, 3, 3);
+        g.fillRoundRect(4, 22, 24, 7, 3, 3);
+        // Punch a status LED and two vent slots out of each unit so the tile shows.
+        g.setComposite(AlphaComposite.Clear);
+        g.setStroke(new BasicStroke(1.3f));
+        for (int y = 4; y <= 22; y += 9) {
+            g.fillOval(7, y + 2, 3, 3);
+            g.drawLine(14, y + 2, 25, y + 2);
+            g.drawLine(14, y + 5, 25, y + 5);
+        }
         g.dispose();
         return new ImageIcon(image);
     }

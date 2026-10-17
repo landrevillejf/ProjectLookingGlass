@@ -1,0 +1,9 @@
+# Keeps the lg3d-webserver image build context lean (see lg3d-webserver/Dockerfile,
+# whose build context is the repository root). Only VCS metadata and generated build
+# outputs are excluded; all sources stay so the Gradle build can configure every
+# module in settings.gradle.
+.git
+.github
+.gradle
+**/build-gradle/
+**/build/

@@ -41,6 +41,16 @@ include 'ftp-client'
 // and the Web Browser (the Mandela userscript extension) both call into it, and
 // :lg3d-core:run / releaseBundle put its jar on the desktop classpath.
 include 'lg3d-mandela'
+// Web Server: a self-contained Spring Boot (embedded Tomcat) web server that
+// hosts and supervises containerized Spring Boot applications. It exposes a
+// management REST API (health, server/JVM info, request metrics, deployed-app
+// inventory, deploy/start/stop/undeploy/logs) and deploys an app either as a
+// Docker container -- driven through the system docker CLI, no docker-java,
+// exactly like the Docker Manager -- or as a local child-process bootJar. Built
+// as an executable bootJar; like wonderland-server it is deliberately NOT on the
+// desktop classpath. The lg3d-apps "Web Server Console" forks it as a child
+// process and talks to it over HTTP, so Spring never enters the desktop JVM.
+include 'lg3d-webserver'
 // OpenWonderland modernization port (decompiled from the 2006-era Wonderland.jar
 // installer and rewritten for JDK 21 + Jogamp). Four projects mirror the original
 // client/common/server/module-platform split, kept separate so the pure layers
