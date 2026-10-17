@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Presentoire (presentoire, from lg3d-incubator). A
+ slide-deck viewer for Presentoire .zip decks (a content.xml plus the images it
+ names). Native-3D in the 3D desktop (Presentoire builds the slide, its text /
+ image / bullet elements and the next / previous / lower buttons as scene-graph
+ nodes in a Frame3D); in the 2D/Swing desktop the same command is hosted as an
+ MDI internal frame from the plain Swing PresentoirePanel via
+ Desktop2DAppRegistry.PANEL_APPS, which rasterises the very same AWT-free
+ PresentoireModel with Java 2D. Both faces open on a built-in demo deck and load
+ a real deck through a standard file chooser. Launched in-JVM via the
+ "java <class>" command; the incubator jar is on the :lg3d-core:run classpath.
+ Discovery only scans config/demo and config/incubator, so, following the
+ Periodic Table / Chess 3D / Agenda 3D precedent, this descriptor lives in
+ lg3d-apps/src/config (bundled to config/demo) rather than the incubator's own
+ unscanned src/config. The icon is the app's own bundled PNG, resolved from the
+ incubator jar by its absolute package path (the same way the Periodic Table
+ descriptor resolves PeriodicTable3D.png). The "Office" menuGroup is declared in
+ lg3d-core/src/etc/lg3d/startmenu.lgcfg; without that declaration the item would
+ name no known group and be appended to the menu root as an orphan. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.presentoire.Presentoire</string>
+  </void>
+  <void property="desc">
+   <string>Slide-deck viewer for Presentoire .zip decks</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///org/jdesktop/lg3d/apps/presentoire/resources/images/icon/presentoire.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Office</string>
+  </void>
+  <void property="name">
+   <string>Presentoire</string>
+  </void>
+ </object>
+</java>

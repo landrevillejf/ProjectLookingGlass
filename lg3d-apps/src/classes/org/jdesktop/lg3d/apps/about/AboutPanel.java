@@ -218,9 +218,12 @@ public class AboutPanel extends JPanel {
         box.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel credits = htmlLabel(AboutInfo.credits(twoD), null, Component.LEFT_ALIGNMENT);
+        JLabel ported = htmlLabel(AboutInfo.PORTED_APPLICATIONS, null, Component.LEFT_ALIGNMENT);
         JLabel license = htmlLabel(AboutInfo.LICENSE,
                 new Color(0x55, 0x55, 0x55), Component.LEFT_ALIGNMENT);
         box.add(credits);
+        box.add(Box.createVerticalStrut(8));
+        box.add(ported);
         box.add(Box.createVerticalStrut(8));
         box.add(license);
         return box;

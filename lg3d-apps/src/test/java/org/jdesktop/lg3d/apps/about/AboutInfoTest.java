@@ -120,6 +120,10 @@ class AboutInfoTest {
                 "the modernization port must be attributed to its author");
         assertTrue(AboutInfo.CREDITS.contains("Sun Microsystems"),
                 "the original 2004-2006 work is credited too");
+        assertTrue(AboutInfo.PORTED_APPLICATIONS.contains("Jean-Francois Landreville"),
+                "the resurrected-app ports are attributed to their author");
+        assertTrue(AboutInfo.PORTED_APPLICATIONS.contains("Presentoire"),
+                "the Presentoire port is named in the About box");
         assertEquals("lg.version", AboutInfo.VERSION_PROPERTY);
     }
 
