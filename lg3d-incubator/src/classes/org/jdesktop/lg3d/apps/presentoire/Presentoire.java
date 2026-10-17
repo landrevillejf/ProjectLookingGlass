@@ -1,9 +1,23 @@
+/**
+ * Project Looking Glass
+ *
+ * Copyright (c) 2004, Sun Microsystems, Inc., All Rights Reserved
+ * Portions Copyright (c) 2026, Jean-Francois Landreville - Gradle/JDK 21
+ * modernization port and improvements. All Rights Reserved.
+ *
+ * Redistributions in source code form must reproduce the above
+ * copyright and this condition.
+ *
+ * The contents of this file are subject to the GNU General Public
+ * License, Version 2 (the "License"); you may not use this file
+ * except in compliance with the License. A copy of the License is
+ * available at http://www.opensource.org/licenses/gpl-license.php.
+ */
 package org.jdesktop.lg3d.apps.presentoire;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.zip.ZipException;
-
+import org.jdesktop.lg3d.apps.presentoire.model.PresentoireModel;
 import org.jdesktop.lg3d.apps.presentoire.transition.Transition;
 import org.jdesktop.lg3d.apps.presentoire.transition.TransitionFactory;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
@@ -17,173 +31,188 @@ import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 /**
- * This is the presentoire main class.
- * It initializes the application, opens the document...
+ * Presentoire: a slide-deck viewer for the native 3D desktop.
+ *
+ * <p>It builds a {@code Frame3D} holding a glassy slide quad and three sphere
+ * buttons (next, previous, lower), opens a deck through the shared
+ * {@link PresentoireDocument}/{@link PresentoireModel} seam, and pre-renders the
+ * next slide so advancing is a cheap swap. This is the 3D half of the app; the
+ * plain-Swing {@code PresentoirePanel} renders the very same model in the 2D
+ * desktop.</p>
+ *
+ * <p>The 2006 original opened a modal {@code FileChooser} hardcoded to a
+ * {@code /home/debian/...} path - a self-described "HACK [that] MUST DISAPPEAR".
+ * This port resolves the deck instead from (in order) an explicit argument, the
+ * {@code lg.presentoire.document} system property, or a built-in demo deck, so the
+ * app always opens on real content and never blocks on a stray file dialog. Every
+ * {@code System.out.println} trace and {@code printStackTrace} is gone; a deck
+ * that will not open falls back to the demo with a single line on the error
+ * stream.</p>
+ *
  * @author Pierre Ducroquet
  */
 public class Presentoire {
-    
-	private GlassyPanel panel;
-	private Component3D slide, nextBtn, prevBtn, mainComponent;
-	private Frame3D frame3d;
-	private int currentPageNumber;
-	private PresentoireDocument doc;
-	
-	// Prerender next page...
-	private Component3D nextPageRendered;
-	private Transition nextTransition;
-	
-    /**
-     * Creates a new instance of Presentoire 
-     */
+
+    /** The system property naming a deck to open when no argument is supplied. */
+    public static final String DOCUMENT_PROPERTY = "lg.presentoire.document";
+
+    private final Component3D slide;
+    private final Component3D nextBtn;
+    private final Component3D prevBtn;
+    private final Component3D mainComponent;
+    private final Frame3D frame3d;
+
+    private int currentPageNumber;
+    private PresentoireDocument doc;
+
+    // Pre-rendered next slide and the transition that reveals it.
+    private Component3D nextPageRendered;
+    private Transition nextTransition;
+
+    /** Creates Presentoire on the resolved default document (property or demo). */
     public Presentoire() {
-        System.out.println("Launching Presentoire...");
+        this(null);
+    }
+
+    /**
+     * Creates Presentoire and opens {@code document}, falling back to the
+     * {@code lg.presentoire.document} property and then the built-in demo deck when
+     * {@code document} is null.
+     *
+     * @param document the deck to open, or null to resolve one
+     */
+    public Presentoire(File document) {
         currentPageNumber = 0;
         frame3d = new Frame3D();
         mainComponent = new Component3D();
         SimpleAppearance app = new SimpleAppearance(0.6f, 0.8f, 0.6f, 0.7f);
-        panel = new GlassyPanel(0.2f, 0.2f, 0.01f, app);
+        GlassyPanel panel = new GlassyPanel(0.2f, 0.2f, 0.01f, app);
         mainComponent.addChild(panel);
         slide = new Component3D();
         mainComponent.addChild(slide);
-        
-        // BUTTONS...
-       
-        nextBtn = new Component3D();
-        nextBtn.addChild(new Sphere(0.005f,Sphere.GENERATE_NORMALS,10,
-                new SimpleAppearance(0.1f,0.1f,1.0f,0.5f)));
-        nextBtn.setVisible(false); // The button will be shown later, by the preRenderNextPage
-        nextBtn.setCursor(Cursor3D.DEFAULT_CURSOR);
-        nextBtn.setTranslation(0.1f, -0.1f, 0.0f);
-        nextBtn.addListener(
-                new MouseClickedEventAdapter(
-                new ActionNoArg() {
-            public void performAction(LgEventSource source) {
-            	nextPage();
-            }
-        }));
+
+        nextBtn = newButton(0.1f, -0.1f, false, source -> nextPage());
         mainComponent.addChild(nextBtn);
-        
-        prevBtn = new Component3D();
-        prevBtn.addChild(new Sphere(0.005f,Sphere.GENERATE_NORMALS,10,
-                new SimpleAppearance(0.1f,0.1f,1.0f,0.5f)));
-        prevBtn.setVisible(false); // The button will be shown later, by nextPage
-        prevBtn.setCursor(Cursor3D.DEFAULT_CURSOR);
-        prevBtn.setTranslation(-0.1f, -0.1f, 0.0f);
-        prevBtn.addListener(
-                new MouseClickedEventAdapter(
-                new ActionNoArg() {
-            public void performAction(LgEventSource source) {
-            	currentPageNumber = currentPageNumber - 2;
-            	preRenderNextPage();
-            	nextPage();
-            }
-        }));
+
+        prevBtn = newButton(-0.1f, -0.1f, false, source -> {
+            currentPageNumber = currentPageNumber - 2;
+            preRenderNextPage();
+            nextPage();
+        });
         mainComponent.addChild(prevBtn);
-       
-        Component3D lowerBtn = new Component3D();
-        lowerBtn.addChild(new Sphere(0.005f,Sphere.GENERATE_NORMALS,10,
-                new SimpleAppearance(0.1f,0.1f,1.0f,0.5f)));
-        lowerBtn.setCursor(Cursor3D.DEFAULT_CURSOR);
-        lowerBtn.setTranslation(0.1f, 0.1f, 0.0f);
-        lowerBtn.addListener(
-                new MouseClickedEventAdapter(
-                new ActionNoArg() {
-            public void performAction(LgEventSource source) {
-            	frame3d.changeVisible(false);
-            }
-        }));
+
+        // The "lower" button hides the frame; it is always available.
+        Component3D lowerBtn = newButton(0.1f, 0.1f, true,
+                source -> frame3d.changeVisible(false));
         mainComponent.addChild(lowerBtn);
-        
+
         frame3d.addChild(mainComponent);
         frame3d.setVisible(true);
         frame3d.setEnabled(true);
 
-        
-
-
-        /*		Small test code, to know the coordonates of a point on the slide...
-         slide.addListener(new MouseClickedEventAdapter(new ActionFloat2() {
-        			public void performAction(LgEventSource source, float x, float y) {
-        				System.out.println("X : " + x);
-        				System.out.println("Y : " + y);
-        			}
-                }));*/
-        
-        /*
-         * The right fileChooser code.
-        JFileChooser chooser = new JFileChooser();
-        int retVal = chooser.showOpenDialog(null);
-        if (retVal == JFileChooser.APPROVE_OPTION) {
-        	openDocument(chooser.getSelectedFile());
-        }*/
-        new FileChooser(this).setVisible(true);
-
+        openDocument(document);
     }
-    
+
+    /** Builds one of the small translucent sphere buttons at {@code (x, y)}. */
+    private static Component3D newButton(float x, float y, boolean visible,
+            ActionNoArg action) {
+        Component3D button = new Component3D();
+        button.addChild(new Sphere(0.005f, Sphere.GENERATE_NORMALS, 10,
+                new SimpleAppearance(0.1f, 0.1f, 1.0f, 0.5f)));
+        button.setVisible(visible);
+        button.setCursor(Cursor3D.DEFAULT_CURSOR);
+        button.setTranslation(x, y, 0.0f);
+        button.addListener(new MouseClickedEventAdapter(action));
+        return button;
+    }
+
     /**
-     * Open the document specified in the argument.
-     * @param document
+     * Opens the given deck, or resolves one when {@code document} is null (the
+     * {@code lg.presentoire.document} property, else the built-in demo). A deck
+     * that cannot be opened degrades to the demo rather than leaving a blank
+     * frame.
+     *
+     * @param document the deck to open, or null to resolve one
      */
-    public void openDocument (File document) {
+    public void openDocument(File document) {
+        File target = document;
+        if (target == null) {
+            String property = System.getProperty(DOCUMENT_PROPERTY);
+            if (property != null && !property.isBlank()) {
+                target = new File(property);
+            }
+        }
+        PresentoireDocument opened;
         try {
-			doc = new PresentoireDocument(document);
-	        slide.addChild(doc.getSlide(currentPageNumber).drawPage());
-	        preRenderNextPage();
-		} catch (ZipException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+            opened = (target != null)
+                    ? new PresentoireDocument(target)
+                    : new PresentoireDocument(PresentoireModel.demo());
+        } catch (IOException e) {
+            System.err.println("Presentoire: could not open " + target + " ("
+                    + e.getMessage() + "); showing the built-in demo deck.");
+            opened = new PresentoireDocument(PresentoireModel.demo());
+        }
+        if (doc != null) {
+            doc.close();
+        }
+        doc = opened;
+        currentPageNumber = 0;
+        slide.removeAllChildren();
+        if (doc.getSlideCount() > 0) {
+            slide.addChild(doc.getSlide(currentPageNumber).drawPage());
+        }
+        prevBtn.setVisible(false);
+        preRenderNextPage();
     }
-    
-    /**
-     * Ask for the next Slide to be shown.
-     * Execute the transition if available.
-     * Launch the preRenderer for the next slide.
-     */
-    public void nextPage () {
-    	nextBtn.setVisible(false);
-    	currentPageNumber++;
 
-    	if (nextTransition == null) {
-    		if (doc.getSlide(currentPageNumber).getTransition() != null)
-    			System.err.println("WARNING : TRANSITION NOT FOUND !");
-    		slide.removeAllChildren(); 
-    		slide.addChild(nextPageRendered);
-    	} else {
-    		System.out.println("Ok, launching the transition...");
-    		nextTransition.executeTransition(mainComponent, slide, nextPageRendered);
-    	}
-    	
-    	prevBtn.setVisible(true);
-    	preRenderNextPage();
-    }
-    
     /**
-     * The prerenderer. In fact, everything is prerendered...
-     * The only drawing done is removing the current slide and adding the next slide rendered.
-     * So here we only store the next Slide in a Component3D. BTW, we show the nextBtn.. 
-     * That way, the user can ask a new Slide while the prerendering is occuring. 
+     * Advances to the pre-rendered next slide, running its transition when one was
+     * resolved and a plain swap otherwise. Does nothing at the end of the deck.
      */
-    private void preRenderNextPage () {
-    	if (currentPageNumber < doc.getSlideCount() - 1) {
-    		Slide nextSlidePrerender = doc.getSlide(currentPageNumber+1);
-    		nextPageRendered = nextSlidePrerender.drawPage();
-    		nextTransition = TransitionFactory.getTransition(nextSlidePrerender.getTransition(), doc);
-    		nextBtn.setVisible(true);
-    	} else {
-    		nextBtn.setVisible(false);
-    	}
+    public void nextPage() {
+        if (doc == null || nextPageRendered == null) {
+            return;
+        }
+        nextBtn.setVisible(false);
+        currentPageNumber++;
+        if (nextTransition == null) {
+            slide.removeAllChildren();
+            slide.addChild(nextPageRendered);
+        } else {
+            nextTransition.executeTransition(mainComponent, slide, nextPageRendered);
+        }
+        prevBtn.setVisible(true);
+        preRenderNextPage();
     }
-    
+
     /**
-     * This is the main call. Nothing interesting here.
-     * @param args
+     * Pre-renders the slide after the current one into {@link #nextPageRendered}
+     * and resolves the transition that reveals it, so {@link #nextPage()} is a
+     * cheap swap. Shows the next button only when there is a next slide.
+     */
+    private void preRenderNextPage() {
+        int next = currentPageNumber + 1;
+        if (doc != null && next >= 0 && next < doc.getSlideCount()) {
+            Slide nextSlidePrerender = doc.getSlide(next);
+            nextPageRendered = nextSlidePrerender.drawPage();
+            nextTransition =
+                    TransitionFactory.getTransition(nextSlidePrerender.getTransition(), doc);
+            nextBtn.setVisible(true);
+        } else {
+            nextPageRendered = null;
+            nextTransition = null;
+            nextBtn.setVisible(false);
+        }
+    }
+
+    /**
+     * The 3D entry point. An optional first argument names the deck to open;
+     * without one the {@code lg.presentoire.document} property and then the
+     * built-in demo deck are used.
+     *
+     * @param args an optional deck path
      */
     public static void main(String[] args) {
-        new Presentoire();
+        new Presentoire((args.length > 0) ? new File(args[0]) : null);
     }
 }

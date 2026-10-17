@@ -298,6 +298,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the Presentoire 3D app maps to its 2D Swing panel")
+    void presentoireIsHostedPanel() {
+        // Presentoire is native-3D in the 3D desktop but ships a plain Swing
+        // slide-deck viewer (in lg3d-incubator) that rasterises the same
+        // AWT-free PresentoireModel, keyed on the 3D main class so the one
+        // shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.presentoire.Presentoire"));
+        assertEquals("org.jdesktop.lg3d.apps.presentoire.PresentoirePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.presentoire.Presentoire"));
+    }
+
+    @Test
     @DisplayName("Image Studio maps to its 2D Swing panel")
     void imageStudioIsHostedPanel() {
         // Image Studio is native-3D in the 3D desktop but ships a plain Swing

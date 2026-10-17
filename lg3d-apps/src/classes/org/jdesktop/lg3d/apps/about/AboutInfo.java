@@ -100,6 +100,18 @@ public final class AboutInfo {
     public static final String CREDITS_2D =
             "Created by Jean-Francois Landreville.";
 
+    /**
+     * The applications resurrected from the retired 2006 incubator and ported to
+     * JDK 21, named explicitly so the About box credits the specific ports and
+     * not only the modernization at large. Mode-independent: both the 3D and the
+     * conventional 2D/Swing desktop show it, since a ported app runs on both.
+     * This is a running list - each further resurrection appends its name
+     * (Physics follows in its own change) rather than adding a second line.
+     */
+    public static final String PORTED_APPLICATIONS =
+            "Applications resurrected and ported to JDK 21 by Jean-Francois "
+            + "Landreville: Presentoire.";
+
     private AboutInfo() {
         // no instances
     }

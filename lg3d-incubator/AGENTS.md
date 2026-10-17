@@ -25,7 +25,7 @@
 **Native-3D apps authored for the port** (live-texture pattern): Image Studio,
 Agenda 3D, the Games (tictactoe / sudoku / chess / solitaire), Mail 3D.
 **Ported legacy apps:** jmf23D (Algea3D), luncher, nlc, orgchart (Chart3D /
-Contact3D). Their start-menu `.lgcfg` descriptors live in
+Contact3D), presentoire. Their start-menu `.lgcfg` descriptors live in
 **`lg3d-apps/src/config`**, not here (see below).
 
 > **Per-app guides.** Every application package under `src/classes` ships its own
@@ -143,12 +143,12 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
   [`../docs/lg3d-native-apps.md`](../docs/lg3d-native-apps.md).
 - **2D (Swing) UI** appears where an app needs real Swing widgets (e.g. the
   native file dialogs Image Studio uses) and as the plain Swing panels several
-  apps ship for the 2D/Swing desktop (the Games, Periodic Table and Image
-  Studio's `ImageStudioPanel`), hosted as MDI frames through
-  `Desktop2DAppRegistry.PANEL_APPS` and reusing each app's AWT-free engine
-  without loading Java 3D. If you host a Swing panel in the 3D scene, use a
-  `SwingNode` per [`../docs/swingnode.md`](../docs/swingnode.md) — but remember
-  this module cannot reuse demo-apps' `TitledSwingWindow`.
+  apps ship for the 2D/Swing desktop (the Games, Periodic Table, Image
+  Studio's `ImageStudioPanel` and Presentoire's `PresentoirePanel`), hosted as
+  MDI frames through `Desktop2DAppRegistry.PANEL_APPS` and reusing each app's
+  AWT-free engine without loading Java 3D. If you host a Swing panel in the 3D
+  scene, use a `SwingNode` per [`../docs/swingnode.md`](../docs/swingnode.md) —
+  but remember this module cannot reuse demo-apps' `TitledSwingWindow`.
 - Transparency/overlay ordering and the eye-distance sort apply exactly as in the
   core rulebook; verify occlusion with a capture, not numeric Z.
 

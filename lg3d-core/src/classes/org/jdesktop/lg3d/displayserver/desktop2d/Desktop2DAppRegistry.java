@@ -227,6 +227,15 @@ public final class Desktop2DAppRegistry {
         // panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.periodictable.PeriodicTable3D",
                 "org.jdesktop.lg3d.apps.periodictable.PeriodicTablePanel");
+        // Presentoire (lg3d-incubator) ships a plain Swing slide-deck viewer that
+        // rasterises the same AWT-free PresentoireModel the native-3D app renders
+        // into scene-graph nodes, so the one start-menu descriptor (keyed here on
+        // the 3D main class) launches the panel as an MDI frame in the 2D/Swing
+        // desktop while the 3D desktop keeps building the Frame3D. As with the
+        // games, the incubator jar is on the desktop run classpath so the
+        // reflective lookup resolves, and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.presentoire.Presentoire",
+                "org.jdesktop.lg3d.apps.presentoire.PresentoirePanel");
         // Image Studio (lg3d-incubator) ships a plain Swing editing panel that
         // reuses the same JAI-backed EditorModel/JaiProcessor engine and the
         // same OpCatalog as the native-3D app, so the one start-menu
