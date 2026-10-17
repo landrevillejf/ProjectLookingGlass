@@ -1,0 +1,84 @@
+// lg3d-webserver: a self-contained Spring Boot web server (embedded Tomcat) that
+// hosts and supervises containerized Spring Boot applications. It is the backend
+// half of the todo.md "Webserver" item; the frontend half is the lg3d-apps "Web
+// Server Console", which forks this module's bootJar as a child process and
+// drives it over the management REST API.
+//
+// It follows the wonderland-server precedent exactly: the Spring Boot Gradle
+// plugin supplies `bootRun` + an executable `bootJar`, the plain library `jar`
+// keeps its bare name (the CI "module jars" artifact resolves it there) and the
+// fat jar sits alongside under the `-app` classifier. Unlike wonderland-server
+// this module has no JAXB code, so there is no javax/jakarta force block.
+//
+// It is a plain Spring Boot module with NO lg3d-core dependency and NO Java 3D:
+// the desktop never loads it (it is a child process), so nothing here may import
+// org.jdesktop.lg3d.* scene-graph types. The toolchain (JDK 21), UTF-8 encoding,
+// build-gradle output directory, checkstyle (report-only) and jacoco are inherited
+// from the root build.gradle subprojects block. The Maven-standard source layout
+// (src/main/java, src/test/java, src/main/resources) is kept as-is.
+
+// The Spring Boot Gradle plugin (version managed once in the root plugins block).
+plugins {
+    alias(libs.plugins.springboot)
+}
+
+springBoot {
+    mainClass = 'org.jdesktop.lg3d.webserver.WebServerApplication'
+}
+
+// Keep the library jar under its bare, expected name and put the executable fat
+// jar alongside it under the `-app` classifier (mirrors wonderland-server).
+jar {
+    enabled = true
+    archiveBaseName = 'lg3d-webserver'
+    archiveClassifier = ''
+}
+
+tasks.named('bootJar') {
+    archiveClassifier = 'app'
+}
+
+dependencies {
+    // Spring Boot, version-managed by the BOM (gradle/libs.versions.toml).
+    // web -> embedded Tomcat + the REST stack + Jackson (the deployment store and
+    // the management API both speak JSON); validation -> bean validation on the
+    // deploy request body.
+    api platform(libs.spring.boot.bom)
+    implementation platform(libs.spring.boot.bom)
+    implementation libs.spring.boot.starter.web
+    implementation libs.spring.boot.starter.validation
+
+    // Headless tests: spring-boot-starter-test carries JUnit 5 + AssertJ +
+    // Mockito + MockMvc + spring-test's MockHttpServletRequest/Response.
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The whole suite is headless: MockMvc drives the controllers in-JVM, the
+    // docker CLI is a fake seam and the reverse proxy is proved against an
+    // in-JVM com.sun.net.httpserver stub, so no X display and no docker daemon
+    // are needed. Forcing headless keeps it deterministic and CI-safe.
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// ---------------------------------------------------------------------------
+// PIT mutation testing (report-only, on-demand)
+// ---------------------------------------------------------------------------
+// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
+// is NOT part of `build`/`check`, so run it explicitly:
+// `./gradlew :lg3d-webserver:pitest`. mutationThreshold=0 means surviving mutants
+// never fail the build. targetClasses is scoped to this module's own package so
+// PIT never tries to mutate the Spring framework itself.
+apply plugin: 'info.solidsoft.pitest'
+pitest {
+    pitestVersion = libs.versions.pitest.get()
+    junit5PluginVersion = libs.versions.pitestJunit5.get()
+    targetClasses = ['org.jdesktop.lg3d.webserver.*']
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    mutationThreshold = 0
+    timestampedReports = false
+}
