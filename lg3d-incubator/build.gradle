@@ -117,6 +117,18 @@ dependencies {
     // NoClassDefFoundError: jakarta/mail/Session.
     implementation libs.angus.mail
 
+    // Presentoire (org.jdesktop.lg3d.apps.presentoire) imports and exports slide
+    // decks in the Microsoft PowerPoint formats: poi-ooxml (XSLF) for the modern
+    // .pptx and poi-scratchpad (HSLF) for the legacy binary .ppt (poi, the core,
+    // comes transitively). LibreOffice .odp (OpenDocument) and Presentoire's own
+    // .zip are ZIP+XML handled in pure Java, so POI is the only new dependency.
+    // These must ALSO be resolved onto the hand-assembled :lg3d-core desktop run
+    // classpath and into the release bundle (see lg3d-core/build.gradle
+    // presentoireLibs) or the in-JVM start-menu launch dies with
+    // NoClassDefFoundError: org/apache/poi/xslf/usermodel/XMLSlideShow.
+    implementation libs.poi.ooxml
+    implementation libs.poi.scratchpad
+
     // jbusinessday logs through slf4j and its holiday utilities touch
     // org.slf4j.LoggerFactory in a static initializer, so slf4j-api MUST be on
     // the runtime classpath or the library dies with NoClassDefFoundError the
@@ -175,10 +187,23 @@ tasks.named('test') {
     // The Mail round-trip tests (GreenMail) never touch blackgoat, so drop the
     // legacy mail/activation jars from the test runtime classpath and let the
     // jakarta handlers resolve unambiguously.
+    //
+    // The bundled ext/commons-io-1.0.jar (2004; only fm3d's FileUtils.copy*/
+    // forceDelete use it) predates IOUtils.byteArray(int) -- added in commons-io
+    // 2.5 -- which Apache POI calls through FileMagic whenever Presentoire opens
+    // or exports a .pptx/.ppt. This test task reuses the FULL ext fileTree, so
+    // unlike the :lg3d-core desktop run/release classpaths (whose incubatorExtJars
+    // allow-list omits this jar, exactly as it omits xercesImpl) the ancient 1.0
+    // classes are present here and can win the classpath race over POI's
+    // transitive commons-io 2.18.0, killing every POI path with
+    //   NoSuchMethodError: 'byte[] org.apache.commons.io.IOUtils.byteArray(int)'.
+    // Drop the 1.0 jar by artifact name (same filter pattern as above); 2.18.0
+    // still supplies the FileUtils fm3d needs, and no test exercises fm3d.
     classpath = classpath.filter {
         !it.name.equals('xercesImpl.jar') \
             && !it.name.equals('mail.jar') \
-            && !it.name.equals('activation.jar')
+            && !it.name.equals('activation.jar') \
+            && !it.name.equals('commons-io-1.0.jar')
     }
 }
 

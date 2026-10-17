@@ -473,6 +473,20 @@ tasks.register('run', JavaExec) {
     def mailLibs = configurations.detachedConfiguration(
         dependencies.create("org.eclipse.angus:angus-mail:${libs.versions.angusMail.get()}"))
 
+    // Presentoire (lg3d-incubator, org.jdesktop.lg3d.apps.presentoire) imports
+    // and exports slide decks in the Microsoft PowerPoint formats through Apache
+    // POI: poi-ooxml (XSLF) for .pptx and poi-scratchpad (HSLF) for the legacy
+    // binary .ppt. Both are Maven dependencies of lg3d-incubator, but this run
+    // classpath is assembled from packaged jars rather than that module's
+    // runtimeClasspath, so resolve them here directly -- otherwise the in-JVM
+    // start-menu launch dies with NoClassDefFoundError:
+    // org/apache/poi/xslf/usermodel/XMLSlideShow. poi (the core), poi-ooxml-lite,
+    // xmlbeans, commons-* and log4j-api come in transitively. LibreOffice .odp and
+    // Presentoire's own .zip are ZIP+XML handled in pure Java, so need no library.
+    def presentoireLibs = configurations.detachedConfiguration(
+        dependencies.create("org.apache.poi:poi-ooxml:${libs.versions.poi.get()}"),
+        dependencies.create("org.apache.poi:poi-scratchpad:${libs.versions.poi.get()}"))
+
     // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) renders
     // pages with JavaFX (OpenJFX) javafx.scene.web.WebView, bridged into the
     // Swing desktop with javafx.embed.swing.JFXPanel. JavaFX is a Maven
@@ -573,7 +587,7 @@ tasks.register('run', JavaExec) {
               wonderlandRendererJar, wonderlandAvatarsJar, wonderlandDesktopJar,
               runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, archiveLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
-              javafxLibs, iconManagerLib, mailLibs, wonderlandLibs, ice4jLibs)
+              javafxLibs, iconManagerLib, mailLibs, wonderlandLibs, ice4jLibs, presentoireLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -953,7 +967,12 @@ tasks.register('releaseBundle', Zip) {
         // ice4j, the ICE/STUN/TURN engine the M7d softphone's NAT probe drives for
         // the Video Conference app (the 2006 stun.jar replacement); resolved like
         // the run classpath above.
-        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"))
+        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"),
+        // Apache POI (XSLF for .pptx, HSLF for the legacy binary .ppt) for
+        // Presentoire's PowerPoint import/export; resolved like the run classpath
+        // above (presentoireLibs). poi / xmlbeans / commons-* come transitively.
+        dependencies.create("org.apache.poi:poi-ooxml:${libs.versions.poi.get()}"),
+        dependencies.create("org.apache.poi:poi-scratchpad:${libs.versions.poi.get()}"))
 
     // The specific incubator ext jars the desktop apps touch at runtime (same
     // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl
