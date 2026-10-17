@@ -312,6 +312,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("the Newton's Cradle 3D demo maps to its 2D Swing panel")
+    void newtonCradleIsHostedPanel() {
+        // Newton's Cradle (the resurrected Physics app, in lg3d-incubator) is
+        // native-3D in the 3D desktop but ships a plain Swing desk-toy panel
+        // that drives the same AWT-free NewtonCradleModel, keyed on the 3D main
+        // class so the one shared descriptor serves both desktops.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.physics.NewtonCradleDemo"));
+        assertEquals("org.jdesktop.lg3d.apps.physics.NewtonCradlePanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.physics.NewtonCradleDemo"));
+    }
+
+    @Test
     @DisplayName("Image Studio maps to its 2D Swing panel")
     void imageStudioIsHostedPanel() {
         // Image Studio is native-3D in the 3D desktop but ships a plain Swing

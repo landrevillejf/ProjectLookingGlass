@@ -124,6 +124,8 @@ class AboutInfoTest {
                 "the resurrected-app ports are attributed to their author");
         assertTrue(AboutInfo.PORTED_APPLICATIONS.contains("Presentoire"),
                 "the Presentoire port is named in the About box");
+        assertTrue(AboutInfo.PORTED_APPLICATIONS.contains("Physics"),
+                "the Physics (Newton's Cradle) port is named in the About box");
         assertEquals("lg.version", AboutInfo.VERSION_PROPERTY);
     }
 

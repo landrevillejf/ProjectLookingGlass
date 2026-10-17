@@ -236,6 +236,16 @@ public final class Desktop2DAppRegistry {
         // reflective lookup resolves, and the panel loads no Java 3D.
         panels.put("org.jdesktop.lg3d.apps.presentoire.Presentoire",
                 "org.jdesktop.lg3d.apps.presentoire.PresentoirePanel");
+        // Newton's Cradle (lg3d-incubator, the resurrected Physics app) ships a
+        // plain Swing desk-toy panel that drives the same AWT-free,
+        // Java 3D-free NewtonCradleModel the native-3D NewtonCradleDemo renders
+        // into scene-graph nodes, so the one start-menu descriptor (keyed here
+        // on the 3D main class) launches the panel as an MDI frame in the
+        // 2D/Swing desktop while the 3D desktop keeps building the Frame3D. As
+        // with the games, the incubator jar is on the desktop run classpath so
+        // the reflective lookup resolves, and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.physics.NewtonCradleDemo",
+                "org.jdesktop.lg3d.apps.physics.NewtonCradlePanel");
         // Image Studio (lg3d-incubator) ships a plain Swing editing panel that
         // reuses the same JAI-backed EditorModel/JaiProcessor engine and the
         // same OpCatalog as the native-3D app, so the one start-menu

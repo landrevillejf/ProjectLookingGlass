@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Newton's Cradle (newtonscradle, from lg3d-incubator's
+ resurrected Physics app). A Newton's cradle desk toy - lift one ball, let it
+ strike the resting row, and the far ball swings out. Native-3D in the 3D desktop
+ (NewtonCradleDemo builds the frame, strings and spheres as scene-graph nodes in
+ a Frame3D and steps the in-package rigid-body engine on a background thread);
+ in the 2D/Swing desktop the same command is hosted as an MDI internal frame from
+ the plain Swing NewtonCradlePanel via Desktop2DAppRegistry.PANEL_APPS, which
+ drives the AWT-free, Java 3D-free NewtonCradleModel (a planar transcription of
+ the demo's dynamics over the same physical constants) and paints it with Java 2D.
+ Both faces therefore swing the same cradle with the same physics; only the
+ renderer differs. Launched in-JVM via the "java <class>" command; the incubator
+ jar is on the :lg3d-core:run classpath. Discovery only scans config/demo and
+ config/incubator, so, following the Periodic Table / Chess 3D / Presentoire
+ precedent, this descriptor lives in lg3d-apps/src/config (bundled to config/demo)
+ rather than the incubator's own unscanned src/config. The icon is a generated
+ lg3d-core glass tile (lg3d-art/tools/GenerateAppIcons.java, cradle glyph),
+ resolved from the assembled runtime resources by its icon path just as
+ the Chess descriptor resolves chess.png. The "Education" menuGroup is declared in
+ lg3d-core/src/etc/lg3d/startmenu.lgcfg; without that declaration the item would
+ name no known group and be appended to the menu root as an orphan. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.physics.NewtonCradleDemo</string>
+  </void>
+  <void property="desc">
+   <string>Newton's cradle physics demonstration</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/newtonscradle.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Education</string>
+  </void>
+  <void property="name">
+   <string>Newton's Cradle</string>
+  </void>
+ </object>
+</java>

@@ -106,11 +106,11 @@ public final class AboutInfo {
      * not only the modernization at large. Mode-independent: both the 3D and the
      * conventional 2D/Swing desktop show it, since a ported app runs on both.
      * This is a running list - each further resurrection appends its name
-     * (Physics follows in its own change) rather than adding a second line.
+     * rather than adding a second line.
      */
     public static final String PORTED_APPLICATIONS =
             "Applications resurrected and ported to JDK 21 by Jean-Francois "
-            + "Landreville: Presentoire.";
+            + "Landreville: Presentoire, Physics (Newton's Cradle).";
 
     private AboutInfo() {
         // no instances
