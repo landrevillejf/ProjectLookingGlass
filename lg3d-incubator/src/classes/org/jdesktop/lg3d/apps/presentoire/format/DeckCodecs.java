@@ -93,6 +93,21 @@ public final class DeckCodecs {
     }
 
     /**
+     * Opens several Markdown files as one deck, one slide per file, ordered by
+     * file name. This is the multi-file half of Markdown import; a single file is
+     * opened with {@link #open(File)}, which splits it on {@code ---} and
+     * top-level headings instead. Every file must be Markdown.
+     *
+     * @param files the {@code .md} files to read
+     * @return the parsed model
+     * @throws IOException if the set is empty, a file is not Markdown, or one
+     *         cannot be read
+     */
+    public static PresentoireModel openMarkdown(File[] files) throws IOException {
+        return MarkdownDeckCodec.readAll(files);
+    }
+
+    /**
      * Saves a model to a file in the given format.
      *
      * @param model  the deck to write; not closed by this call
@@ -114,6 +129,9 @@ public final class DeckCodecs {
                 break;
             case ODP:
                 OdpDeckCodec.write(model, target);
+                break;
+            case MARKDOWN:
+                MarkdownDeckCodec.write(model, target);
                 break;
             default:
                 throw new IOException("Unsupported export format: " + format);
@@ -172,6 +190,8 @@ public final class DeckCodecs {
                 return PptDeckCodec.read(file);
             case ODP:
                 return OdpDeckCodec.read(file);
+            case MARKDOWN:
+                return MarkdownDeckCodec.read(file);
             default:
                 throw new IOException("Unsupported import format: " + format);
         }

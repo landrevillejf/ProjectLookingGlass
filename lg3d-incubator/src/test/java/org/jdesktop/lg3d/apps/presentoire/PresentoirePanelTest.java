@@ -237,6 +237,43 @@ class PresentoirePanelTest {
     }
 
     @Test
+    @DisplayName("openFiles builds a multi-file Markdown deck, one slide per file")
+    void openFilesBuildsMultiFileMarkdownDeck(@TempDir File dir) throws IOException {
+        File intro = new File(dir, "01-intro.md");
+        File body = new File(dir, "02-body.md");
+        Files.writeString(intro.toPath(), "# Intro\n\nhello\n", StandardCharsets.UTF_8);
+        Files.writeString(body.toPath(), "# Body\n\n- one\n- two\n", StandardCharsets.UTF_8);
+
+        PresentoirePanel panel = new PresentoirePanel();
+        panel.showSlide(3);           // move off slide one first
+        assertTrue(panel.openFiles(new File[] {body, intro}), "opened out of selection order");
+        assertEquals(2, panel.slideCount(), "one slide per file");
+        assertEquals(0, panel.currentSlide(), "a new deck resets to the first slide");
+        assertEquals(1.0f, panel.zoom(), 1e-6f, "and resets the zoom");
+        assertTrue(panel.statusText().contains("Markdown"), panel.statusText());
+        assertTrue(panel.statusText().contains("Slide 1 of 2"), panel.statusText());
+        panel.model().close();
+    }
+
+    @Test
+    @DisplayName("openFiles refuses a null/empty set or a non-Markdown file, keeping the deck")
+    void openFilesRejectsBadInput(@TempDir File dir) throws IOException {
+        PresentoirePanel panel = new PresentoirePanel();
+        int before = panel.slideCount();
+
+        assertFalse(panel.openFiles(null));
+        assertEquals("Could not open the files", panel.statusText());
+        assertFalse(panel.openFiles(new File[0]));
+        assertEquals(before, panel.slideCount(), "the demo deck stays open");
+
+        File txt = new File(dir, "notes.txt");
+        Files.writeString(txt.toPath(), "not markdown", StandardCharsets.UTF_8);
+        assertFalse(panel.openFiles(new File[] {txt}));
+        assertEquals("Could not open 1 files", panel.statusText());
+        assertEquals(before, panel.slideCount(), "the demo deck still stays open");
+    }
+
+    @Test
     @DisplayName("saveFile writes re-openable decks in each format and reports on the status")
     void saveFileWritesReopenableDecks(@TempDir File dir) throws IOException {
         PresentoirePanel panel = new PresentoirePanel();   // the built-in demo deck
@@ -264,6 +301,24 @@ class PresentoirePanelTest {
         assertFalse(panel.saveFile(null, DeckFormat.NATIVE));
         assertEquals("Could not save the deck", panel.statusText());
         assertFalse(panel.saveFile(new File(dir, "x.zip"), null));
+    }
+
+    @Test
+    @DisplayName("saveFile writes a re-openable .md when asked for MARKDOWN")
+    void saveFileWritesMarkdown(@TempDir File dir) throws IOException {
+        PresentoirePanel panel = new PresentoirePanel();   // the built-in demo deck
+        File md = new File(dir, "saved.md");
+
+        assertTrue(panel.saveFile(md, DeckFormat.MARKDOWN));
+        assertTrue(md.length() > 0, "the export produced a file");
+        assertTrue(panel.statusText().contains("Saved saved.md"), panel.statusText());
+
+        // The written Markdown sniffs back as MARKDOWN and re-opens as a deck.
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.sniff(md));
+        try (PresentoireModel read = DeckCodecs.open(md)) {
+            assertTrue(read.getSlideCount() >= 1, "the demo deck re-opens from Markdown");
+        }
+        panel.model().close();
     }
 
     // ------------------------------------------------------------------

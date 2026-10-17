@@ -21,16 +21,18 @@ import java.util.Locale;
  * The slide-deck file formats Presentoire can open and save.
  *
  * <p>Presentoire's own {@code .zip} ({@link #NATIVE}) is the format both
- * renderers were built for; the other three let it exchange decks with the two
- * office suites a slide deck usually lives in: Microsoft PowerPoint's modern
+ * renderers were built for; three more let it exchange decks with the two office
+ * suites a slide deck usually lives in - Microsoft PowerPoint's modern
  * {@code .pptx} ({@link #PPTX}) and legacy binary {@code .ppt} ({@link #PPT})
  * through Apache POI, and LibreOffice Impress's OpenDocument {@code .odp}
- * ({@link #ODP}) parsed in pure Java. Every format both imports and exports, so
- * a deck round-trips.</p>
+ * ({@link #ODP}) parsed in pure Java - and a fifth, {@link #MARKDOWN}
+ * ({@code .md}), turns plain Markdown slides into a deck with no library at all.
+ * Every format both imports and exports, so a deck round-trips.</p>
  *
  * <p>{@link DeckCodecs} sniffs the real format from a file's magic bytes rather
  * than trusting this extension, because a mis-named file is common; the extension
- * here is only the fallback and the default a Save As dialog appends.</p>
+ * here is only the fallback and the default a Save As dialog appends. Markdown is
+ * plain text with no magic bytes, so it is recognised by its extension alone.</p>
  */
 public enum DeckFormat {
 
@@ -44,14 +46,19 @@ public enum DeckFormat {
     PPT("ppt", "PowerPoint 97-2003 (.ppt)"),
 
     /** LibreOffice / OpenOffice Impress (OpenDocument), pure Java. */
-    ODP("odp", "OpenDocument presentation (.odp)");
+    ODP("odp", "OpenDocument presentation (.odp)"),
+
+    /** Markdown slides ({@code .md}), split on {@code ---} / headings, pure Java. */
+    MARKDOWN("md", "Markdown slides (.md)", "markdown");
 
     private final String extension;
     private final String description;
+    private final String[] aliases;
 
-    DeckFormat(String extension, String description) {
+    DeckFormat(String extension, String description, String... aliases) {
         this.extension = extension;
         this.description = description;
+        this.aliases = aliases;
     }
 
     /** The lower-case file extension, with no leading dot (e.g. {@code pptx}). */
@@ -93,10 +100,27 @@ public enum DeckFormat {
         }
         String ext = fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
         for (DeckFormat format : values()) {
-            if (format.extension.equals(ext)) {
+            if (format.matches(ext)) {
                 return format;
             }
         }
         return null;
+    }
+
+    /**
+     * True when {@code ext} (already lower-case, no leading dot) is this format's
+     * extension or one of its aliases, so {@code .markdown} resolves to
+     * {@link #MARKDOWN} exactly as {@code .md} does.
+     */
+    private boolean matches(String ext) {
+        if (extension.equals(ext)) {
+            return true;
+        }
+        for (String alias : aliases) {
+            if (alias.equals(ext)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

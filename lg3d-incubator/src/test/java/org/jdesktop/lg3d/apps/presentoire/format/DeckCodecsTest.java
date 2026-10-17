@@ -64,6 +64,18 @@ class DeckCodecsTest {
     }
 
     @Test
+    @DisplayName("Markdown has no magic bytes, so sniff knows it by its extension")
+    void sniffsMarkdownByExtension(@TempDir File dir) throws IOException {
+        File md = new File(dir, "deck.md");
+        Files.writeString(md.toPath(), "# Title\n\nsome body text\n", StandardCharsets.UTF_8);
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.sniff(md),
+                "plain text is neither OLE2 nor ZIP, so the extension names it");
+        File markdown = new File(dir, "deck.markdown");
+        Files.writeString(markdown.toPath(), "# Title\n", StandardCharsets.UTF_8);
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.sniff(markdown));
+    }
+
+    @Test
     @DisplayName("an unrecognised ZIP falls back to its extension, then open still fails")
     void unknownZipFallsBackToExtension(@TempDir File dir) throws IOException {
         File fake = new File(dir, "fake.zip");
@@ -97,6 +109,9 @@ class DeckCodecsTest {
         assertEquals(DeckFormat.PPTX, DeckCodecs.formatFor(new File("a.pptx")));
         assertEquals(DeckFormat.PPT, DeckCodecs.formatFor(new File("a.ppt")));
         assertEquals(DeckFormat.ODP, DeckCodecs.formatFor(new File("a.odp")));
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.formatFor(new File("a.md")));
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.formatFor(new File("a.markdown")),
+                "the .markdown alias resolves to the same format");
         assertEquals(DeckFormat.NATIVE, DeckCodecs.formatFor(new File("a.zip")));
         assertEquals(DeckFormat.NATIVE, DeckCodecs.formatFor(new File("a.unknown")),
                 "an unknown extension defaults to Presentoire's own format");
@@ -114,7 +129,9 @@ class DeckCodecsTest {
         assertEquals("pptx", DeckFormat.PPTX.extension());
         assertEquals("ppt", DeckFormat.PPT.extension());
         assertEquals("odp", DeckFormat.ODP.extension());
+        assertEquals("md", DeckFormat.MARKDOWN.extension());
         assertTrue(DeckFormat.PPTX.description().contains("PowerPoint"));
+        assertTrue(DeckFormat.MARKDOWN.description().contains("Markdown"));
         for (DeckFormat format : DeckFormat.values()) {
             assertTrue(format.canImport(), format + " imports");
             assertTrue(format.canExport(), format + " exports");
@@ -126,6 +143,11 @@ class DeckCodecsTest {
     void fromExtension() {
         assertEquals(DeckFormat.PPTX, DeckFormat.fromExtension("Deck.PPTX"));
         assertEquals(DeckFormat.ODP, DeckFormat.fromExtension("/some/path/deck.odp"));
+        assertEquals(DeckFormat.MARKDOWN, DeckFormat.fromExtension("deck.md"));
+        assertEquals(DeckFormat.MARKDOWN, DeckFormat.fromExtension("deck.markdown"),
+                "the .markdown alias resolves to MARKDOWN");
+        assertEquals(DeckFormat.MARKDOWN, DeckFormat.fromExtension("/p/DECK.MD"),
+                "case-insensitive, path stripped");
         assertNull(DeckFormat.fromExtension("deck.xyz"));
         assertNull(DeckFormat.fromExtension("noextension"));
         assertNull(DeckFormat.fromExtension("trailingdot."));
@@ -164,5 +186,37 @@ class DeckCodecsTest {
             assertNotNull(read);
             assertEquals(1, read.getSlideCount());
         }
+    }
+
+    @Test
+    @DisplayName("export to .md then open(File) sniffs it back through the facade")
+    void markdownFacadeRoundTrips(@TempDir File dir) throws IOException {
+        byte[] png = DeckFixtures.solidPng(0xFF0000FF, 4, 4);
+        File md = new File(dir, "facade.md");
+        try (PresentoireModel model = DeckFixtures.sampleModel(png)) {
+            DeckCodecs.export(model, md, DeckFormat.MARKDOWN);
+        }
+        assertEquals(DeckFormat.MARKDOWN, DeckCodecs.sniff(md));
+        try (PresentoireModel read = DeckCodecs.open(md)) {
+            assertEquals(1, read.getSlideCount());
+            assertTrue(read.getSlide(0).elements().size() >= 2,
+                    "the title and list survive the facade round trip");
+        }
+    }
+
+    @Test
+    @DisplayName("openMarkdown routes a multi-file set to the codec and rejects a non-.md")
+    void openMarkdownRoutesMultiFile(@TempDir File dir) throws IOException {
+        File a = new File(dir, "a.md");
+        File b = new File(dir, "b.md");
+        Files.writeString(a.toPath(), "# Alpha\n", StandardCharsets.UTF_8);
+        Files.writeString(b.toPath(), "# Beta\n", StandardCharsets.UTF_8);
+        try (PresentoireModel model = DeckCodecs.openMarkdown(new File[] {a, b})) {
+            assertEquals(2, model.getSlideCount(), "one slide per file");
+        }
+        File txt = new File(dir, "notes.txt");
+        Files.writeString(txt.toPath(), "not markdown", StandardCharsets.UTF_8);
+        assertThrows(IOException.class, () -> DeckCodecs.openMarkdown(new File[] {a, txt}),
+                "a mixed set is refused");
     }
 }

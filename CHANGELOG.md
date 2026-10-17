@@ -10,6 +10,43 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Presentoire now reads and writes Markdown decks — open a `.md` (or a set of them) and Save As `.md`, in pure Java** (`lg3d-incubator`, `lg3d-apps`) —
+  A fifth format joins the `presentoire.format` layer with **no new dependency**:
+  `MarkdownDeckCodec` is a line scanner over the same AWT-free `PresentoireModel`
+  the other codecs hand both renderers. Import splits a single `.md` into slides on
+  the boundaries the popular slide dialects share — a thematic break (`---`, and the
+  CommonMark `***`/`___` forms) and a top-level `# ` heading — or, through
+  `DeckCodecs.openMarkdown`, turns a chosen set of `.md` files into one slide each,
+  ordered by name. Within a slide the first `# ` heading is the title,
+  `## `..`###### ` are sub-headings, a run of plain lines is a paragraph,
+  `-`/`*`/`+`/`1.` items are a bullet list, and a line holding only an embedded
+  image (its alt text and a file path) is a picture read from disk beside the
+  `.md` into the model's in-memory image map (a missing or remote image is
+  skipped, never fetched, never fatal); inline markup (bold, italics, code spans
+  and links) is flattened to plain text. Because Markdown
+  carries no page geometry, the codec lays each slide out itself — a top-down
+  vertical flow in the document's `-0.1..0.1` slide units, word-wrapped to a column
+  budget and uniformly scaled to fit — honouring `SlideRenderer`'s bottom-left
+  (text/list) and centre (image) anchoring, so an imported deck renders where the
+  built-in one does. Export (the 2D panel's **Save As…**) writes slides separated by
+  `---`, a slide's first text block as its `# ` title, sub-headed text as `## `,
+  list items as `- ` bullets, and every picture once into a sibling `<name>.assets/`
+  folder referenced by relative path, so a deck round-trips (colours do not survive —
+  Markdown has none; text, structure and pictures do). `DeckCodecs` sniffs
+  `.md`/`.markdown` by extension (plain text has no magic bytes), and the panel's
+  Open and Save As filters gained both with multi-select enabled, so several `.md`
+  files open as one deck. Fidelity is bounded as for the office codecs: tables,
+  reference-style links/images, nested lists (flattened to one level), an image
+  embedded mid-paragraph (reduced to its alt text) and syntax highlighting are
+  dropped. **23 new headless cases** — a new `MarkdownDeckCodecTest` (17 — split on
+  `---`/headings, chunk→elements, inline flattening, pictures from disk, the
+  fit-to-slide layout, multi-file `readAll`, the export structure and `.assets/`
+  siblings, and the round trip), plus `DeckCodecsTest` (9→12 — the `.md`-by-extension
+  sniff, `formatFor`/`fromExtension` for `.md`/`.markdown`, and `openMarkdown`
+  routing with its non-Markdown rejection) and `PresentoirePanelTest` (11→14 — the
+  multi-file `openFiles` deck, its null/empty/non-Markdown rejection, and `saveFile`
+  MARKDOWN). The 3D face is unchanged (it renders the very same model), so no
+  desktop launch is required.
 - **Presentoire now speaks PowerPoint and LibreOffice — open *and* save `.pptx`, legacy `.ppt` and `.odp`, plus a bundled Looking Glass deck** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
   Presentoire read only its own native `.zip` and opened on a three-slide
   placeholder. A new AWT-free `presentoire.format` layer round-trips four formats

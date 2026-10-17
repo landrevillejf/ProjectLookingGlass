@@ -55,10 +55,12 @@ import org.jdesktop.lg3d.apps.presentoire.model.PresentoireModel;
  *
  * <p>Open and Save As go through {@link DeckCodecs}, so the panel reads and
  * writes Presentoire's own {@code .zip} as well as PowerPoint {@code .pptx},
- * legacy {@code .ppt} and LibreOffice {@code .odp}; the format is sniffed from a
- * file's content on open and taken from the chosen extension on save, and the
- * status line names it. Export is a 2D-panel feature only - the 3D
- * {@link Presentoire} face stays view-only.</p>
+ * legacy {@code .ppt}, LibreOffice {@code .odp} and Markdown {@code .md}; the
+ * format is sniffed from a file's content on open (Markdown, having no magic
+ * bytes, by its extension) and taken from the chosen extension on save, and the
+ * status line names it. Open also accepts several {@code .md} files at once - one
+ * slide each - through {@link #openFiles(File[])}. Export is a 2D-panel feature
+ * only; the 3D {@link Presentoire} face stays view-only.</p>
  *
  * <p>It is registered in {@code Desktop2DAppRegistry.PANEL_APPS} against the
  * {@link Presentoire} main class, so the one shared start-menu descriptor opens
@@ -183,9 +185,18 @@ public class PresentoirePanel extends JPanel {
         JFileChooser chooser = new JFileChooser();
         // The accept-all "All Files" filter stays available alongside this one.
         chooser.setFileFilter(
-                new FileNameExtensionFilter("Slide decks", "zip", "pptx", "ppt", "odp"));
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            openFile(chooser.getSelectedFile());
+                new FileNameExtensionFilter("Slide decks",
+                        "zip", "pptx", "ppt", "odp", "md", "markdown"));
+        // Several .md files open as one deck (a slide each); anything else opens singly.
+        chooser.setMultiSelectionEnabled(true);
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File[] selected = chooser.getSelectedFiles();
+        if (selected.length > 1) {
+            openFiles(selected);
+        } else {
+            openFile(selected.length == 1 ? selected[0] : chooser.getSelectedFile());
         }
     }
 
@@ -194,7 +205,8 @@ public class PresentoirePanel extends JPanel {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Save deck as");
         chooser.setFileFilter(
-                new FileNameExtensionFilter("Slide decks", "zip", "pptx", "ppt", "odp"));
+                new FileNameExtensionFilter("Slide decks",
+                        "zip", "pptx", "ppt", "odp", "md", "markdown"));
         if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
@@ -218,8 +230,8 @@ public class PresentoirePanel extends JPanel {
      * the first slide. A file that is not a readable deck leaves the current one
      * in place and is reported on the status line.
      *
-     * @param file the deck to open (a {@code .zip}, {@code .pptx}, {@code .ppt} or
-     *        {@code .odp}), may be null
+     * @param file the deck to open (a {@code .zip}, {@code .pptx}, {@code .ppt},
+     *        {@code .odp} or {@code .md}), may be null
      * @return true when the deck opened
      */
     public boolean openFile(File file) {
@@ -241,6 +253,38 @@ public class PresentoirePanel extends JPanel {
             return true;
         } catch (IOException | RuntimeException e) {
             statusLabel.setText("Could not open " + file.getName());
+            return false;
+        }
+    }
+
+    /**
+     * Opens several Markdown files as one deck, one slide per file, ordered by
+     * name. This is the multi-select half of Open; a single file goes through
+     * {@link #openFile(File)} instead, which splits it on {@code ---} and
+     * headings. A failure leaves the current deck in place and is reported on the
+     * status line.
+     *
+     * @param files the {@code .md} files to open, may be null or empty
+     * @return true when the deck opened
+     */
+    public boolean openFiles(File[] files) {
+        if (files == null || files.length == 0) {
+            statusLabel.setText("Could not open the files");
+            return false;
+        }
+        try {
+            PresentoireModel opened = DeckCodecs.openMarkdown(files);
+            if (model != null) {
+                model.close();
+            }
+            model = opened;
+            sourceFormat = DeckFormat.MARKDOWN;
+            currentSlide = 0;
+            zoom = 1.0f;
+            refresh();
+            return true;
+        } catch (IOException | RuntimeException e) {
+            statusLabel.setText("Could not open " + files.length + " files");
             return false;
         }
     }

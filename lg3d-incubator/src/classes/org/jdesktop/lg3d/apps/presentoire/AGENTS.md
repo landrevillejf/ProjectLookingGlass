@@ -12,12 +12,12 @@
 | Entry point | `presentoire.Presentoire` (`public static void main`, native-3D `Frame3D`) |
 | 2D face | `presentoire.PresentoirePanel` (plain Swing slide viewer), hosted as an MDI frame via `Desktop2DAppRegistry.PANEL_APPS` keyed on the 3D main class |
 | Shared model | `presentoire.model` — the AWT-free / Java 3D-free seam (`PresentoireModel`, `SlideModel`, `SlideElement`, `ModelColor`, `ScriptTransitionModel`) both faces read; `SlideRenderer` rasterises a slide with Java 2D for the panel |
-| Formats | `presentoire.format` — `DeckCodecs` sniffs a deck by magic bytes and reads/writes four formats through the one model: native `.zip`, `.pptx` + legacy `.ppt` (Apache POI XSLF/HSLF), and pure-Java `.odp` (OpenDocument); `SlideGeometry` fits an office page inside the square `-0.1..0.1` slide |
+| Formats | `presentoire.format` — `DeckCodecs` sniffs a deck by magic bytes and reads/writes five formats through the one model: native `.zip`, `.pptx` + legacy `.ppt` (Apache POI XSLF/HSLF), pure-Java `.odp` (OpenDocument) and pure-Java Markdown `.md`/`.markdown` (a single file split on `---` and top-level `# ` headings, or one slide per file via `openMarkdown`); `SlideGeometry` fits an office page inside the square `-0.1..0.1` slide — Markdown has no page geometry, so its codec lays each slide out itself |
 | Surface | **3D slide viewer** (`Presentoire`/`PresentoireDocument`/`Slide`, `elements/` `ImageElement`/`ListElement`/`TextElement`/`ElementFactory`, `transition/` `Scale`/`Rotation`/`Transparency`/`Script` + `TransitionFactory`, `Colors`) **and** a 2D Swing document viewer (toolbar, scrollable slide canvas, status line) |
 | Start-menu name / group | Presentoire / **Office** — descriptor `presentoire.lgcfg` lives in `lg3d-apps/src/config` (→ `config/demo`, scanned); the incubator's own `src/config/presentoire.lgcfg` is a legacy unscanned stub |
 | Command | `java org.jdesktop.lg3d.apps.presentoire.Presentoire` |
 | Icon | the app's own bundled `resources/images/icon/presentoire.png`, resolved from the incubator jar by absolute package path (the Periodic Table precedent) |
-| Runtime notes | Opens on a built-in 16-slide *Looking Glass 3D and 2D* deck (`LOOKING_GLASS_XML`, text/vector-only); a real deck (`.zip`/`.pptx`/`.ppt`/`.odp`) is chosen with a standard `JFileChooser` and routed through `DeckCodecs.open` (the 2006 modal `FileChooser`/`JDialog` hack and its hardcoded `/home/debian/...` path are gone). The 2D panel's **Save As…** exports the open deck to any of the four; the 3D `Frame3D` stays view-only (no save affordance). Design docs in `lg3d-incubator/docs/presentoire/` |
+| Runtime notes | Opens on a built-in 16-slide *Looking Glass 3D and 2D* deck (`LOOKING_GLASS_XML`, text/vector-only); a real deck (`.zip`/`.pptx`/`.ppt`/`.odp`/`.md`) is chosen with a standard `JFileChooser` and routed through `DeckCodecs.open` (the 2006 modal `FileChooser`/`JDialog` hack and its hardcoded `/home/debian/...` path are gone). Open is multi-select: picking several `.md` files builds one deck, a slide each, ordered by name (`PresentoirePanel.openFiles` → `DeckCodecs.openMarkdown`). The 2D panel's **Save As…** exports the open deck to any of the five; the 3D `Frame3D` stays view-only (no save affordance). Design docs in `lg3d-incubator/docs/presentoire/` |
 | Build | `./gradlew :lg3d-incubator:build` |
 
 ## Roles
@@ -33,7 +33,7 @@
   degrades to a plain slide swap when no engine is present — it never throws.
   A second seam, `presentoire.format`, converts foreign decks to and from that
   same model: `DeckCodecs.open` sniffs the format by magic bytes (not extension)
-  and `DeckCodecs.export` writes it back, so an imported `.pptx`/`.ppt`/`.odp`
+  and `DeckCodecs.export` writes it back, so an imported `.pptx`/`.ppt`/`.odp`/`.md`
   becomes a `PresentoireModel` both faces render identically. Fidelity is bounded
   to the Presentoire vocabulary — text blocks, bullet lists and pictures; themes,
   custom fonts, animations, tables, charts and grouped/rotated shapes are dropped
@@ -48,8 +48,9 @@
   reliable behaviour rather than activating unverified scene-graph animation. Jogamp
   only; dev mode routes no keyboard focus, so the 3D face is click-driven.
   Keep `presentoire.format` headless too: the codecs are pure ZIP+DOM
-  (`.zip`/`.odp`) or Apache POI text/picture extraction returning `byte[]`
-  (`.pptx`/`.ppt`) — no rendering, so they unit-test without a display. Images
+  (`.zip`/`.odp`), Apache POI text/picture extraction returning `byte[]`
+  (`.pptx`/`.ppt`), or a pure-Java line scanner (`.md`, no new dependency) — no
+  rendering, so they unit-test without a display. Images
   ride in memory via `PresentoireModel.of(...)` + its `inlineImages` map, so an
   imported/exported deck is no longer tied to an on-disk `ZipFile`.
   `SlideGeometry` maps an office page onto the square slide fit-inside,
@@ -62,24 +63,29 @@
 - **QA** — headless: `PresentoireModelTest` (14 — the pure parser, the `ModelColor`
   `/255` fix + `toHex`, the JavaScript-transition no-throw fix, the real-ZIP image
   round-trip, the 16-slide default `LOOKING_GLASS_XML` deck and `of(...)` inline
-  images), `PresentoirePanelTest` (11 — the `SlideRenderer` white-page/ink raster,
-  navigation/zoom clamps, open/reject, and per-format open + `saveFile` export), and
-  the `presentoire.format` codec suite: `DeckCodecsTest` (9 — magic-byte sniffing +
-  routing), `NativeDeckCodecTest` (6), `PptxDeckCodecTest` (3), `PptDeckCodecTest`
-  (3), `OdpDeckCodecTest` (4) and `SlideGeometryTest` (7 — the fit-inside inverse
+  images), `PresentoirePanelTest` (14 — the `SlideRenderer` white-page/ink raster,
+  navigation/zoom clamps, open/reject, per-format open + `saveFile` export, and the
+  multi-file Markdown `openFiles` deck + `saveFile` MARKDOWN), and
+  the `presentoire.format` codec suite: `DeckCodecsTest` (12 — magic-byte sniffing +
+  routing, the `.md`-by-extension sniff and `openMarkdown`), `NativeDeckCodecTest`
+  (6), `PptxDeckCodecTest` (3), `PptDeckCodecTest`
+  (3), `OdpDeckCodecTest` (4), `MarkdownDeckCodecTest` (17 — split on `---`/headings,
+  chunk→elements, images from disk, the fit-to-slide layout, multi-file `readAll`
+  and the export round trip) and `SlideGeometryTest` (7 — the fit-inside inverse
   transform). Each codec round-trips a built deck (import→assert, export→re-open).
   The 3D view still needs the in-JVM probe + internal screencapture
   (`lg3d-core/lgscreen-*.png`); a black host capture under Wayland is not a defect.
   Report that evidence rather than claiming an untested 3D success.
 - **Business Analyst** — A slide-deck viewer that reads AND writes Microsoft
-  PowerPoint (`.pptx` and legacy `.ppt`) and LibreOffice Impress (`.odp`) beside
-  its own native `.zip`, now a reachable Office-menu productivity app on both
-  desktops rather than a dormant prototype. Opens on a built-in *Looking Glass 3D
+  PowerPoint (`.pptx` and legacy `.ppt`), LibreOffice Impress (`.odp`) and plain
+  Markdown (`.md`) beside its own native `.zip`, now a reachable Office-menu
+  productivity app on both desktops rather than a dormant prototype. Opens on a
+  built-in *Looking Glass 3D
   and 2D* deck so it is never an empty frame and ships a real presentation of the
   desktop it runs on.
 - **Functional Analyst** — Spec: document → slides → elements (text / image /
   bullet list) → transitions, plus the file-open and Save-As-export flows across
-  the four formats. Record that the descriptor lives in `lg3d-apps/src/config`
+  the five formats. Record that the descriptor lives in `lg3d-apps/src/config`
   (Office group), that the built-in Looking Glass deck is the default document,
   that a malformed/unknown deck is reported on the status line without losing the
   open one, that the status line names the detected source format, and that export
