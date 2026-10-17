@@ -1,0 +1,37 @@
+# Runs the lg3d-webserver itself in a container, publishing the management API on
+# the host's port 8080 and mounting the host Docker socket so the server can deploy
+# and supervise containerized apps as sibling containers.
+#
+# The build context is the repository root (one level up) because lg3d-webserver is
+# one module of a multi-project Gradle build. From the repo root:
+#   docker compose -f lg3d-webserver/docker-compose.yml up --build
+#
+# Then: curl http://localhost:8080/api/server/health
+
+services:
+  webserver:
+    build:
+      context: ..
+      dockerfile: lg3d-webserver/Dockerfile
+    image: lg3d-webserver:latest
+    container_name: lg3d-webserver
+    # Host networking so the reverse proxy (ReverseProxyFilter) can reach a
+    # deployed app on the port it publishes on the HOST. Under bridge networking
+    # "localhost" would be this container, not the host, and the proxy could not
+    # reach sibling apps. The API listens on SERVER_PORT below.
+    network_mode: host
+    environment:
+      SERVER_PORT: "8080"
+      # Host name handed out in each app's public URL (cosmetic; the proxy always
+      # dials localhost). Set a management token to require a bearer on /api/**:
+      #   WEBSERVER_MANAGEMENT_TOKEN: "<your-secret>"
+      WEBSERVER_PUBLIC_HOST: "localhost"
+    volumes:
+      # Let the in-container docker CLI drive the host daemon (docker-out-of-docker).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist the deployment table across restarts.
+      - webserver-state:/root/.lg3d/webserver
+    restart: unless-stopped
+
+volumes:
+  webserver-state:

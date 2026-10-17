@@ -12,7 +12,7 @@
 | --- | --- |
 | Purpose | A **grab-bag of independent experimental apps** — the community/prototype "incubator". |
 | Root package | `org.jdesktop.lg3d.apps.*` (sources under `src/classes`). |
-| Depends on | `lg3d-core` **plus** bundled third-party jars under `ext/` (`fileTree ext/**/*.jar`). |
+| Depends on | `lg3d-core` **plus** bundled third-party jars under `ext/` (`fileTree ext/**/*.jar`) and Maven deps (Angus Mail for the Mail app; Apache POI for Presentoire's PowerPoint import/export). |
 | Depended on by | Nothing. Does **not** depend on `lg3d-apps`. |
 | Jar | `build-gradle/libs/lg3d-incubator-1.0.1-dev.jar`, on the desktop classpath via `:lg3d-core:run`. |
 | Build | `./gradlew :lg3d-incubator:build`. |
@@ -66,6 +66,16 @@ versus dormant. Everyone works from this file plus the core UI/UX rulebook.
   `nanoxml-lite`, `javanlp`, `prefuse`, …). Adding a new `ext/` dependency is an
   architecture decision — check whether the runtime classpath and any
   `--add-exports` (JAI needs `java.desktop/sun.awt.image`) must change too.
+- **Maven deps are re-resolved onto the desktop by hand.** `:lg3d-core:run` /
+  `releaseBundle` assemble their classpath from packaged jars, not this module's
+  `runtimeClasspath`, so each Maven dep an app needs at runtime is resolved there
+  (`mailLibs`, `presentoireLibs`, …). Apache POI (`poi-ooxml` XSLF for `.pptx`,
+  `poi-scratchpad` HSLF for the legacy `.ppt`) backs Presentoire's Office
+  import/export; `.odp` and Presentoire's native `.zip` are pure-Java ZIP+XML, so
+  POI is the only new library. The bundled `ext/commons-io-1.0.jar` (only fm3d
+  uses it) predates `IOUtils.byteArray(int)` that POI needs, so the `test` task
+  filters it off the runtime classpath — the desktop allow-lists already omit it —
+  letting POI's transitive `commons-io` win (see `build.gradle`).
 
 ## Engineer / Developer
 

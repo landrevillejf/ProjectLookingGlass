@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Web Server Console (from lg3d-apps,
+ org.jdesktop.lg3d.apps.webserver). A plain Swing management console for the
+ lg3d-webserver Spring Boot server: it reads server health/info/metrics and the
+ deployed-application list over the management REST API (JDK HttpClient +
+ Jackson), and can fork the server bootJar as a local child process. The console
+ never puts Spring on the desktop classpath -- lg3d-apps does not depend on
+ lg3d-webserver; it only needs the bootJar path (-Dwebserver.jar) to fork it, and
+ the server URL to drive it. In the 3D desktop the WebServerConsole wrapper hosts
+ WebServerConsolePanel on a SwingNode inside a Frame3D via TitledSwingWindow (the
+ "java <class>" command); in the 2D/Swing desktop the WebServerPanel shim wraps the
+ same panel as an MDI internal frame via Desktop2DAppRegistry. The lg3d-apps jar
+ (with jackson-databind) is on the desktop run classpath. Discovery only scans
+ config/demo and config/incubator, so this descriptor lives in lg3d-apps/src/config
+ (bundled to config/demo). -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.webserver.WebServerConsole</string>
+  </void>
+  <void property="desc">
+   <string>Manage the Spring Boot web server and its deployed applications</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/webserver.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Developers</string>
+  </void>
+  <void property="name">
+   <string>Web Server Console</string>
+  </void>
+ </object>
+</java>

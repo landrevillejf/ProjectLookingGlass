@@ -29,7 +29,16 @@ jar this module produces.
 
 ## [Unreleased]
 
-_Nothing has landed here since 1.1.0 below._
+### Added
+
+- **A `deck` starter template** in `EditorServices.starterTemplates()`: a
+  console-safe program that assembles a small Presentoire slide deck as Markdown
+  in a list and prints it, so Espresso's new *Presentoire Deck* action can drop a
+  runnable deck skeleton into an empty buffer. It prints rather than writes,
+  because the language depends on nothing and Espresso runs the console profile;
+  `scripts/mandela/deck-new.mnd` is the sandboxed generator that writes the `.md`
+  file. The grammar is untouched, so `mandela.language` stays `1.0` and no version
+  copy moves.
 
 ## [1.1.0] — 2026-10-13
 

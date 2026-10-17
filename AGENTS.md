@@ -50,9 +50,10 @@ on its own clock; the desktop bundles whatever jar that version names. See
 ### Built Modules (in Gradle)
 - `lg3d-escher` - Pure-Java X11 protocol library
 - `lg3d-core` - Scene-graph / windowing / display-server SDK and desktop
-- `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`
+- `lg3d-apps` - Production-grade desktop applications (plus a few samples/tutorials); formerly `lg3d-demo-apps`. Hosts the **Web Server Console** (`org.jdesktop.lg3d.apps.webserver`), a plain-Swing start-menu app that forks and drives the `lg3d-webserver` child process over its management REST API.
 - `lg3d-incubator` - Experimental applications (some excluded due to missing dependencies)
 - `lg3d-mandela` - **Project Mandela**: the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI and REPL). No third-party and no lg3d dependency, so it embeds anywhere. It versions itself (see *Project coordinates* above and its own `CHANGELOG.md`): a Mandela bump is its own module-scoped chore PR, never part of a desktop bump.
+- `lg3d-webserver` - A self-contained **Spring Boot (embedded Tomcat) web server** exposing a management REST API that deploys and supervises containerized Spring Boot apps by shelling out to the system `docker` CLI (no `docker-java`), with a daemon-free local `java -jar` backend. It ships as an executable `bootJar` that the `lg3d-apps` **Web Server Console** forks as a **child process** and drives over HTTP; like `wonderland-server` it is deliberately **absent from the desktop classpath**, so Spring never enters the desktop JVM.
 
 ### Excluded from Build
 - `lg3d-awt` - **RETIRED** (not merely excluded): the custom AWT Toolkit/peer implementation. JDK 9+ removed the `awt.toolkit` install hook, 46 of its 79 classes implement the `java.awt.peer.*` SPI and 9 use `sun.awt.*` internals unexported in JDK 21, so it cannot be installed on stock JDK 21 and will not be resurrected. Replacement mapping: 2D-in-3D widgets -> `org.jdesktop.lg3d.wg.SwingNode` (lg3d's pure-Java Swing→offscreen-`BufferedImage`→texture bridge, no JavaFX/AWT peer; see `TitledSwingWindow` in `lg3d-apps`); foreign X11 app compositing -> `org.jdesktop.lg3d.displayserver.nativewindow.x11` (pure-Java Escher compositor). Sources remain in-tree for reference only.
@@ -343,9 +344,10 @@ the exit codes and how to add a tool.
 - `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
   `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
   start-menu items whose description reads like a different category than their
-  group, always exit 0) and `userscript-new.mnd` (a Web Browser userscript
-  generator) are not gates: the first three always exit 0, the last only writes the
-  one file it names.
+  group, always exit 0), `userscript-new.mnd` (a Web Browser userscript
+  generator) and `deck-new.mnd` (a Presentoire slide-deck generator) are not
+  gates: the first three always exit 0, the last two only write the one file each
+  names.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole
 tree, so their failures belong to the CI step that ran them and not to
@@ -358,12 +360,15 @@ verifying it by hand first - the script states a claim, it does not prove one.
 - Java 3D (Jogamp): `org.jogamp.java3d:{java3d-core,java3d-utils,vecmath}:1.7.2`
 - Jogamp natives (platform-specific): `gluegen-rt:2.6.0`, `jogl-all:2.6.0`, `joal:2.6.0` with classifier (e.g., `natives-linux-amd64`)
 - OpenJFX (GPLv2 + Classpath Exception): `org.openjfx:javafx-{base,graphics,controls,media,web,swing}:21.0.12` with the `linux` classifier — powers the Web Browser (`lg3d-apps`, `org.jdesktop.lg3d.apps.webbrowser`) via JavaFX `WebView` (WebKit), bridged into Swing with `javafx.embed.swing.JFXPanel`. Like the Jogamp natives, the classifier is applied in the consuming build files and wired onto the hand-assembled `:lg3d-core:run` / `releaseBundle` classpath; JavaFX is initialised only in the 2D desktop JVM and in the browser's own child-process JVM, never inside the Java 3D process.
+- Apache POI (Apache-2.0): `org.apache.poi:{poi,poi-ooxml,poi-scratchpad}:5.4.1` — powers Presentoire's (`lg3d-incubator`, `org.jdesktop.lg3d.apps.presentoire`) Microsoft PowerPoint import/export: `poi-ooxml` (XSLF) for the modern `.pptx` and `poi-scratchpad` (HSLF) for the legacy binary `.ppt` (`poi`, `poi-ooxml-lite`, `xmlbeans`, `commons-*` and `log4j-api` come transitively). LibreOffice `.odp` (OpenDocument) and Presentoire's own native `.zip` are ZIP+XML handled in pure Java, so POI is the only new library. Like OpenJFX it is a Maven dependency of `lg3d-incubator` re-resolved onto the hand-assembled `:lg3d-core:run` / `releaseBundle` classpath (`presentoireLibs`); the ancient `ext/commons-io-1.0.jar` is filtered off the *test* classpath so it cannot shadow POI's `commons-io` (see `lg3d-incubator/build.gradle`).
+- Spring Boot (Apache-2.0): `org.springframework.boot:spring-boot-starter-{web,validation}` (version managed by the `spring-boot` BOM in [gradle/libs.versions.toml](gradle/libs.versions.toml)) — powers the two **headless server modules**, `wonderland-server` and the new `lg3d-webserver` (embedded Tomcat, the management REST API and Jackson). Each builds an executable `bootJar` that the desktop **forks as a child process** and drives over HTTP, so — unlike OpenJFX and POI — Spring Boot is **never re-resolved onto the `:lg3d-core:run` / `releaseBundle` classpath**: the desktop only passes the `bootJar` *path* (`-Dwebserver.jar`), and Spring / embedded Tomcat never load into the Java 3D or 2D desktop JVM. `lg3d-webserver` drives Docker through the **system `docker` CLI** (`ProcessBuilder`), not `docker-java`, matching the desktop's Docker Manager.
 
 ### Internal Dependencies
 - `lg3d-core` depends on `lg3d-escher`
 - `lg3d-apps` depends on `lg3d-core` plus `lg3d-mandela` (Espresso's `MandelaTools` and the Web Browser's userscript bridge import `org.jdesktop.lg3d.mandela.api`)
 - `lg3d-incubator` depends on `lg3d-core` plus bundled jars in `ext/`
 - `lg3d-mandela` depends on **nothing** — `java.base` + `javax.script` only. That is what lets the same engine run in a headless test, inside Espresso's JVM and inside a browser page; do not add an AWT/Swing/Java 3D/lg3d-core import to it.
+- `lg3d-apps`' **Web Server Console** (`org.jdesktop.lg3d.apps.webserver`) does **not** depend on `lg3d-webserver`: it reaches the server only over the management REST API (JDK `HttpClient` + Jackson) and forks its `bootJar` by path (`-Dwebserver.jar`, set on `:lg3d-core:run` / `releaseBundle`). `lg3d-webserver` in turn depends on **no lg3d module** — it is a standalone Spring Boot service (the `wonderland-server` pattern), so nothing pulls Spring into the desktop.
 
 ## Compiler Configuration
 
@@ -593,6 +598,7 @@ rulebook**. When a module file and this root file conflict, the root file wins.
 | `db-manager` | [`db-manager/AGENTS.md`](db-manager/AGENTS.md) | 2D Swing |
 | `ftp-client` | [`ftp-client/AGENTS.md`](ftp-client/AGENTS.md) | 2D Swing |
 | `wonderland-server` | [`wonderland-server/AGENTS.md`](wonderland-server/AGENTS.md) | none (headless Spring Boot host; it owns the Wonderland **world library** — authoring + access across `wonderland-modules`) |
+| `lg3d-webserver` | [`lg3d-webserver/AGENTS.md`](lg3d-webserver/AGENTS.md) | none (headless Spring Boot host; the `lg3d-apps` **Web Server Console** forks its `bootJar` as a child process and drives it over the management REST API — design note [`docs/webserver.md`](docs/webserver.md)) |
 
 **Shared role model.** Every module `AGENTS.md` uses the same fixed template so
 all roles read each other's guidance coherently:

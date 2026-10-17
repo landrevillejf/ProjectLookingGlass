@@ -369,19 +369,30 @@ tasks.register('run', JavaExec) {
     // NoClassDefFoundError: org/jdesktop/wonderland/..., which is precisely how
     // the M6c2 bridge came to be built, tested and unreachable.
     // wonderland-server is deliberately absent -- the desktop talks to a server
-    // process over REST / WebSocket, it does not host one.
+    // process over REST / WebSocket, it does not host one. lg3d-webserver is
+    // absent for the same reason: the Web Server Console (lg3d-apps) forks its
+    // bootJar as a child process discovered via -Dwebserver.jar (set on the run
+    // task below), so Spring / embedded Tomcat never reach this classpath either.
     def wonderlandCommonJar = project(':wonderland-common').tasks.named('jar')
     def wonderlandClientJar = project(':wonderland-client').tasks.named('jar')
     def wonderlandModulesJar = project(':wonderland-modules').tasks.named('jar')
     def wonderlandRendererJar = project(':wonderland-renderer').tasks.named('jar')
     def wonderlandAvatarsJar = project(':wonderland-avatars').tasks.named('jar')
     def wonderlandDesktopJar = project(':wonderland-desktop').tasks.named('jar')
+    // lg3d-webserver's Spring Boot bootJar, built in-repo by :lg3d-webserver:bootJar
+    // (a dependsOn below). Like the swing-ide / openapi-editor / payloadman child
+    // jars it is handed to its start-menu launcher by PATH (-Dwebserver.jar, set
+    // below) and forked as a SEPARATE child process; unlike them it is built here
+    // rather than fetched into libs/. It is deliberately NOT added to `classpath`
+    // below, so Spring / embedded Tomcat never enter the desktop JVM -- the exact
+    // wonderland-server "talks to a server process, does not host one" rule above.
+    def webServerBootJar = project(':lg3d-webserver').tasks.named('bootJar')
     def runtimeResources = tasks.named('runtimeResources')
     dependsOn appsJar, incubatorJar, widgetsJar, lpmConsoleJar,
             updateManagerJar, dbManagerJar, ftpClientJar, mandelaJar,
             wonderlandCommonJar, wonderlandClientJar, wonderlandModulesJar,
             wonderlandRendererJar, wonderlandAvatarsJar, wonderlandDesktopJar,
-            runtimeResources
+            webServerBootJar, runtimeResources
 
     // The lg3d-incubator apps carry their own bundled third-party libraries in
     // lg3d-incubator/ext. Those jars are on the incubator's *compile* classpath
@@ -472,6 +483,20 @@ tasks.register('run', JavaExec) {
     // transitively.
     def mailLibs = configurations.detachedConfiguration(
         dependencies.create("org.eclipse.angus:angus-mail:${libs.versions.angusMail.get()}"))
+
+    // Presentoire (lg3d-incubator, org.jdesktop.lg3d.apps.presentoire) imports
+    // and exports slide decks in the Microsoft PowerPoint formats through Apache
+    // POI: poi-ooxml (XSLF) for .pptx and poi-scratchpad (HSLF) for the legacy
+    // binary .ppt. Both are Maven dependencies of lg3d-incubator, but this run
+    // classpath is assembled from packaged jars rather than that module's
+    // runtimeClasspath, so resolve them here directly -- otherwise the in-JVM
+    // start-menu launch dies with NoClassDefFoundError:
+    // org/apache/poi/xslf/usermodel/XMLSlideShow. poi (the core), poi-ooxml-lite,
+    // xmlbeans, commons-* and log4j-api come in transitively. LibreOffice .odp and
+    // Presentoire's own .zip are ZIP+XML handled in pure Java, so need no library.
+    def presentoireLibs = configurations.detachedConfiguration(
+        dependencies.create("org.apache.poi:poi-ooxml:${libs.versions.poi.get()}"),
+        dependencies.create("org.apache.poi:poi-scratchpad:${libs.versions.poi.get()}"))
 
     // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) renders
     // pages with JavaFX (OpenJFX) javafx.scene.web.WebView, bridged into the
@@ -573,7 +598,7 @@ tasks.register('run', JavaExec) {
               wonderlandRendererJar, wonderlandAvatarsJar, wonderlandDesktopJar,
               runtimeResourcesDir, incubatorExtJars,
               agendaLibs, javaHelpLibs, pdfboxLibs, archiveLibs, updateManagerLibs, dbManagerLibs, ftpClientLibs,
-              javafxLibs, iconManagerLib, mailLibs, wonderlandLibs, ice4jLibs)
+              javafxLibs, iconManagerLib, mailLibs, wonderlandLibs, ice4jLibs, presentoireLibs)
 
     // Run on the same JDK 21 toolchain used to compile, not the (possibly newer)
     // JVM that launched Gradle -- Main.java enforces a compile/runtime Java
@@ -673,6 +698,14 @@ tasks.register('run', JavaExec) {
     // desktop. The launcher resolves the jar from this absolute path. It is
     // fetched into libs/ (see :fetchPayloadManJar) rather than committed.
     systemProperty 'payloadman.jar', rootProject.file('libs/payloadman.jar').absolutePath
+    // The Web Server Console start-menu app (lg3d-apps,
+    // org.jdesktop.lg3d.apps.webserver) forks the lg3d-webserver Spring Boot
+    // bootJar as a SEPARATE child process, exactly like the swing-ide /
+    // openapi-editor / payloadman launchers above. The bootJar is built in-repo by
+    // :lg3d-webserver:bootJar (a dependsOn of this task) and handed to the console
+    // by PATH here; it is NEVER added to `classpath` above, so Spring / embedded
+    // Tomcat stay out of the desktop JVM (the wonderland-server rule).
+    systemProperty 'webserver.jar', webServerBootJar.get().archiveFile.get().asFile.absolutePath
     systemProperty 'java.util.logging.config.file', "${etcDir}/lg3d/logging.properties"
     systemProperty 'lg.version', project.version.toString()
     systemProperty 'j3d.sortShape3DBounds', 'true'
@@ -865,7 +898,7 @@ tasks.register('releaseLauncher') {
             '# Heap ceilings: override with LG3D_MIN_HEAP / LG3D_MAX_HEAP (e.g. LG3D_MAX_HEAP=3g).',
             'LG_MIN_HEAP="${LG3D_MIN_HEAP:-256m}"',
             'LG_MAX_HEAP="${LG3D_MAX_HEAP:-1536m}"',
-            'exec "${JAVA_BIN}" -Xms"${LG_MIN_HEAP}" -Xmx"${LG_MAX_HEAP}" -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:MetaspaceSize=128m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Dopenapieditor.jar="${HERE}/lib/openapi-editor.jar" -Dpayloadman.jar="${HERE}/lib/payloadman.jar" -Dupdate.changelog.path="${HERE}/changelog.md" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
+            'exec "${JAVA_BIN}" -Xms"${LG_MIN_HEAP}" -Xmx"${LG_MAX_HEAP}" -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:MetaspaceSize=128m --add-exports java.desktop/sun.awt.image=ALL-UNNAMED -Dlg.fws.mode=dev -Dlg.etcdir="${HERE}/etc/" -Dlg.resourcedir="${HERE}/resources/" -Dlg.configurl="file://${HERE}/etc/lg3d/${LG_CONFIG}" -Dlg.displayconfigurl="file://${HERE}/etc/lg3d/displayconfig/${DISPLAY_CONFIG}" -Dlg.appcodebase="file://${HERE}/ext/app" -Dswingide.jar="${HERE}/lib/swing-ide.jar" -Dopenapieditor.jar="${HERE}/lib/openapi-editor.jar" -Dpayloadman.jar="${HERE}/lib/payloadman.jar" -Dwebserver.jar="${HERE}/server/lg3d-webserver.jar" -Dupdate.changelog.path="${HERE}/changelog.md" -Djava.util.logging.config.file="${HERE}/etc/lg3d/logging.properties" -Dj3d.sortShape3DBounds=true -Dj3d.useFreeLists=false -cp "${HERE}/lib/*:${HERE}" org.jdesktop.lg3d.displayserver.Main "$@"'
         ]) + '\n'
         new File(dir, 'README.txt').text = String.join('\n', [
             "Project Looking Glass ${version} - release bundle".toString(),
@@ -879,6 +912,9 @@ tasks.register('releaseLauncher') {
             '',
             'Layout:',
             '    lib/        module jars + third-party runtime dependencies (the classpath)',
+            '    server/     the lg3d-webserver Spring Boot bootJar the Web Server Console',
+            '                forks as a child process (-Dwebserver.jar); kept OUT of lib/',
+            '                so Spring never lands on the desktop lib/* classpath',
             '    resources/  assembled artwork tree resolved as getResource("resources/...")',
             '    etc/        lgconfig / displayconfig / logging / start-menu config tree',
             '    ext/app/    application codebase (lg.appcodebase)',
@@ -953,7 +989,12 @@ tasks.register('releaseBundle', Zip) {
         // ice4j, the ICE/STUN/TURN engine the M7d softphone's NAT probe drives for
         // the Video Conference app (the 2006 stun.jar replacement); resolved like
         // the run classpath above.
-        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"))
+        dependencies.create("org.jitsi:ice4j:${libs.versions.ice4j.get()}"),
+        // Apache POI (XSLF for .pptx, HSLF for the legacy binary .ppt) for
+        // Presentoire's PowerPoint import/export; resolved like the run classpath
+        // above (presentoireLibs). poi / xmlbeans / commons-* come transitively.
+        dependencies.create("org.apache.poi:poi-ooxml:${libs.versions.poi.get()}"),
+        dependencies.create("org.apache.poi:poi-scratchpad:${libs.versions.poi.get()}"))
 
     // The specific incubator ext jars the desktop apps touch at runtime (same
     // allow-list as the run task; NOT the whole ext tree -- ext/axis/xercesImpl
@@ -987,6 +1028,12 @@ tasks.register('releaseBundle', Zip) {
     def wonderlandRendererJar = project(':wonderland-renderer').tasks.named('jar')
     def wonderlandAvatarsJar = project(':wonderland-avatars').tasks.named('jar')
     def wonderlandDesktopJar = project(':wonderland-desktop').tasks.named('jar')
+    // lg3d-webserver's Spring Boot bootJar: built in-repo (not fetched into libs/
+    // like the swing-ide / openapi-editor / payloadman child jars). It ships under
+    // the bundle's server/ dir -- deliberately NOT lib/, whose lib/* wildcard is
+    // the desktop classpath -- so Spring never enters the released desktop JVM.
+    // The launcher points -Dwebserver.jar at it and the console forks it.
+    def webServerBootJar = project(':lg3d-webserver').tasks.named('bootJar')
     // Jakarta XML Binding (+ its GlassFish provider) and the reflections scanner,
     // the third party the wonderland jars need; taken from wonderland-common's own
     // runtime classpath so the versions cannot drift, exactly as on the run
@@ -999,7 +1046,8 @@ tasks.register('releaseBundle', Zip) {
             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
             mandelaJar, wonderlandCommonJar, wonderlandClientJar,
             wonderlandModulesJar, wonderlandRendererJar, wonderlandAvatarsJar,
-            wonderlandDesktopJar, runtimeResources, releaseLauncher
+            wonderlandDesktopJar, runtimeResources, releaseLauncher,
+            webServerBootJar
 
     // lib/ : every module jar + every third-party runtime jar. These go inside
     // an explicit into('lib') { from(...) } child spec rather than
@@ -1041,6 +1089,18 @@ tasks.register('releaseBundle', Zip) {
         // fetched this is a no-op and the desktop reports PayloadMan as
         // unavailable.
         from(rootProject.file('libs/payloadman.jar'))
+    }
+
+    // server/ : the lg3d-webserver Spring Boot bootJar, renamed to a stable
+    // lg3d-webserver.jar and placed OUTSIDE lib/ so the launcher's lib/* desktop
+    // classpath never exposes Spring. The release lg3d.sh points -Dwebserver.jar
+    // at ${HERE}/server/lg3d-webserver.jar, and the Web Server Console forks it as
+    // a child process (java -jar), exactly the swing-ide child-process pattern but
+    // built in-repo. dependsOn webServerBootJar (above) builds it first.
+    into('server') {
+        from(webServerBootJar) {
+            rename { 'lg3d-webserver.jar' }
+        }
     }
 
     // resources/ : the assembled classpath tree. runtimeResourcesDir holds a

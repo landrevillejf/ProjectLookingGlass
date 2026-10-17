@@ -10,6 +10,186 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Mandela can now author a Presentoire deck — a shipped generator script and an Espresso starter template** (`lg3d-mandela`, `lg3d-apps`, `scripts`) —
+  The Markdown deck Presentoire opens is the one bridge between the two apps:
+  `lg3d-apps` (Espresso) depends on `lg3d-mandela` but not on `lg3d-incubator`
+  (Presentoire), and the language depends on nothing, so a deck capability in
+  Mandela can only emit text. `scripts/mandela/deck-new.mnd` is a new generator
+  beside `userscript-new.mnd`: run under a sandbox it writes a starter `.md` deck
+  — a `# ` title slide plus one slide per further argument, split on `---`
+  thematic breaks, with `- ` bullets and plain paragraph lines, exactly the shape
+  `MarkdownDeckCodec` reads back — and it refuses to overwrite a deck that
+  already exists. Espresso reaches the same idea in-editor through a fourth
+  `EditorServices` starter template, `deck`, surfaced by a fifth `MandelaTools`
+  toolbar action, *Presentoire Deck* (`mandela-deck`, deliberately unbound like
+  *Mandela Template*): it drops a console-safe program into an empty `.mnd` that
+  assembles a small slide deck in a list and prints it, because Espresso runs the
+  console profile with no filesystem, so writing the file stays the CLI script's
+  job. Both are backward-compatible additions — no `mandela.version` or
+  `mandela.language` bump and no desktop version change. **1 new headless case**
+  (`MandelaToolsTest.deckTemplateNeedsWriteAndAnEmptyBuffer` — the deck template
+  goes into an empty buffer only with WRITE, prints to the Output panel without
+  it, and never clobbers text), alongside the extended `EditorServicesTest` and
+  `MandelaToolsTest` assertions and the new script compiled by
+  `ShippedScriptsTest`. Presentoire needs no change: its Open action already
+  sniffs a `.md` as a Markdown deck.
+- **A bundled, full-featured Spring Boot web server that deploys and supervises containerized Spring Boot apps — the new `lg3d-webserver` module** (`lg3d-webserver`) —
+  The backend half of the `todo.md` *Webserver* item: a self-contained Spring Boot
+  3.5.6 (embedded Tomcat) server, built as an executable `bootJar`, exposing a
+  management REST API that **deploys and supervises containerized Spring Boot
+  applications** by shelling out to the system `docker` CLI (**no `docker-java`**,
+  matching the desktop's Docker Manager), with a daemon-free local `java -jar`
+  backend as its sibling. It follows the `wonderland-server` precedent exactly —
+  the Spring Boot plugin, a bare library `jar` beside an `-app`-classified
+  `bootJar`, and **deliberately absent from the desktop classpath** so Spring never
+  enters the desktop JVM. Three layers keep it testable: `config`
+  (`WebServerProperties`, `@ConfigurationProperties("webserver")`); `deploy` (the
+  domain records `Deployment`/`DeploymentRequest`/`AppState`/`DeploymentType`/
+  `CommandResult`, the injectable seams `ProcessLauncher` + `ChildProcessStarter` +
+  `DockerCli`, the `DockerDeploymentBackend` + `JarProcessBackend`, the Jackson
+  `DeploymentStore`, and `DeploymentRegistry` — the orchestrator that allocates the
+  id/name/context-path/host-port and reconciles recorded state against the live
+  backend); and `web` (`ServerManagementController`, `ReverseProxyFilter`,
+  `ManagementAuthGate`, `ApiExceptionHandler`). The API serves
+  `GET /api/server/{health,info,metrics}`, `GET`/`POST /api/apps`,
+  `GET /api/apps/{id}`, `GET /api/apps/{id}/logs`, `POST /api/apps/{id}/{start,stop}`
+  and `DELETE /api/apps/{id}`, and reverse-proxies each running app under its own
+  `/{contextPath}/**` on the server port. A Docker deploy is
+  `docker run -d --name <id> -p <port>:<port> -e SERVER_PORT=<port> …`, so the host
+  port, the published container port and the app's own `server.port` coincide and the
+  container name is the stable deployment handle. The contract is **never 500, never
+  leak a stack trace**: a missing daemon, a failed pull or an unbindable port becomes
+  a readable `DeploymentException` the advice maps to 400/404/503, and with no daemon
+  the server still **boots** and `/api/server/health` reports `dockerAvailable=false`.
+  No credential is ever stored or logged (the management token is config-only, blank
+  = open on loopback, compared in constant time), and deployment state persists as
+  JSON under `~/.lg3d/webserver/deployments.json` (overridable for test isolation).
+  The module ships a multi-stage `Dockerfile` + `docker-compose.yml`, an
+  `application.properties` documenting every knob with a `bootRun --args` example, and
+  a role-aware `AGENTS.md` (indexed from the root guide). **136 new headless cases** —
+  `@SpringBootTest(RANDOM_PORT)` + MockMvc over every endpoint, a `FakeDockerCli` /
+  fake `ProcessLauncher` proving the exact `docker` argv + stdout parsing and the
+  no-daemon degradation, a fake `ChildProcessStarter` proving jar deploy/track/stop,
+  the reverse proxy proved against an in-JVM `com.sun.net.httpserver` stub, and a
+  `@TempDir` JSON round-trip — with a conservative `lg3d-webserver` coverage floor
+  pinned in the root `build.gradle` and PIT report-only. Attributed to
+  Jean-Francois Landreville in the file headers, the `@author` tags and the sign-off.
+- **The Web Server Console — run and supervise that server and its deployed apps from inside the desktop** (`lg3d-apps`, `lg3d-core`) —
+  The frontend half: a new `lg3d-apps` start-menu app
+  (`org.jdesktop.lg3d.apps.webserver`, **Developers** group) that **forks the
+  `lg3d-webserver` `bootJar` as a child process** (or attaches to one already
+  running) and drives it over the management REST API with the JDK `HttpClient` +
+  Jackson — the `WonderlandWorldPanel` / `swing-ide` precedent. `lg3d-apps` does
+  **not** depend on `lg3d-webserver`: the console needs only the `bootJar` **path**
+  (`-Dwebserver.jar`) to fork it and the server **URL** to talk to it, so **Spring
+  never enters the desktop JVM**. `WebServerConsole` is the thin 3D entry point (a
+  `TitledSwingWindow` hosting the panel on a `SwingNode`, 1024×768);
+  `WebServerConsolePanel` is the main plain `JPanel` — a toolbar (Connect / Start
+  local / Stop / Refresh), a status header and three tabs (**Overview** server info +
+  JVM metrics, **Applications** a deployed-app table + an inline Deploy form +
+  Start/Stop/Undeploy/Logs, **Logs** a tail) — with every HTTP/process call on a
+  background executor landing back on the EDT and constructors that **never throw**;
+  `WebServerPanel` is the 2D host shim the registry maps to. `ManagementClient` is the
+  AWT-free REST client (an injectable `Transport` seam; a non-2xx becomes a
+  `ManagementException` carrying the server's own `{"error": …}` sentence) and
+  `ServerProcessSupervisor` forks `java -jar <bootJar> --server.port=<p>` behind an
+  injectable `Spawner`, resolving the jar from `-Dwebserver.jar` →
+  `<lg.appcodebase>/libs/lg3d-webserver-*-app.jar` →
+  `lg3d-webserver/build-gradle/libs/*-app.jar` → “unavailable” (the panel degrades to
+  a readable status line, never a throw or a modal). The `dto/*` records
+  (`HealthView`, `ServerInfoView`, `MetricsView`, `AppView`, `LogsView`,
+  `DeployRequest`) mirror the server's wire shape client-side so the console never
+  imports a server class. `lg3d-core` wiring: `Desktop2DAppRegistry` maps the command
+  to the hosted `WebServerPanel` (`Kind.PANEL`) for both desktops, a new
+  `webserver.png` start-menu icon (drawn by `lg3d-art`'s `GenerateAppIcons`), and
+  `:run` / `releaseBundle` pass `-Dwebserver.jar` — the release bundle shipping the
+  `bootJar` under `server/` (**not** the `lib/*` desktop-classpath wildcard). **43 new
+  headless cases** (the panel's non-throwing construction + graceful degradation +
+  `dispose`/`refresh`; `ManagementClient` against an in-JVM `com.sun.net.httpserver`
+  fake; `ServerProcessSupervisor` jar-resolution + start/stop through a fake
+  `Spawner`; `dto` round-trips) plus a
+  `Desktop2DAppRegistryTest.webServerConsoleIsHostedPanel` mapping case. A new design
+  note `docs/webserver.md` documents the two-process architecture. Live behaviour
+  (connect, fork/stop a local child, deploy a containerized app) needs a running
+  server, so it is verified with the in-JVM probe + internal screencapture rather than
+  asserted here.
+- **Presentoire now reads and writes Markdown decks — open a `.md` (or a set of them) and Save As `.md`, in pure Java** (`lg3d-incubator`, `lg3d-apps`) —
+  A fifth format joins the `presentoire.format` layer with **no new dependency**:
+  `MarkdownDeckCodec` is a line scanner over the same AWT-free `PresentoireModel`
+  the other codecs hand both renderers. Import splits a single `.md` into slides on
+  the boundaries the popular slide dialects share — a thematic break (`---`, and the
+  CommonMark `***`/`___` forms) and a top-level `# ` heading — or, through
+  `DeckCodecs.openMarkdown`, turns a chosen set of `.md` files into one slide each,
+  ordered by name. Within a slide the first `# ` heading is the title,
+  `## `..`###### ` are sub-headings, a run of plain lines is a paragraph,
+  `-`/`*`/`+`/`1.` items are a bullet list, and a line holding only an embedded
+  image (its alt text and a file path) is a picture read from disk beside the
+  `.md` into the model's in-memory image map (a missing or remote image is
+  skipped, never fetched, never fatal); inline markup (bold, italics, code spans
+  and links) is flattened to plain text. Because Markdown
+  carries no page geometry, the codec lays each slide out itself — a top-down
+  vertical flow in the document's `-0.1..0.1` slide units, word-wrapped to a column
+  budget and uniformly scaled to fit — honouring `SlideRenderer`'s bottom-left
+  (text/list) and centre (image) anchoring, so an imported deck renders where the
+  built-in one does. Export (the 2D panel's **Save As…**) writes slides separated by
+  `---`, a slide's first text block as its `# ` title, sub-headed text as `## `,
+  list items as `- ` bullets, and every picture once into a sibling `<name>.assets/`
+  folder referenced by relative path, so a deck round-trips (colours do not survive —
+  Markdown has none; text, structure and pictures do). `DeckCodecs` sniffs
+  `.md`/`.markdown` by extension (plain text has no magic bytes), and the panel's
+  Open and Save As filters gained both with multi-select enabled, so several `.md`
+  files open as one deck. Fidelity is bounded as for the office codecs: tables,
+  reference-style links/images, nested lists (flattened to one level), an image
+  embedded mid-paragraph (reduced to its alt text) and syntax highlighting are
+  dropped. **23 new headless cases** — a new `MarkdownDeckCodecTest` (17 — split on
+  `---`/headings, chunk→elements, inline flattening, pictures from disk, the
+  fit-to-slide layout, multi-file `readAll`, the export structure and `.assets/`
+  siblings, and the round trip), plus `DeckCodecsTest` (9→12 — the `.md`-by-extension
+  sniff, `formatFor`/`fromExtension` for `.md`/`.markdown`, and `openMarkdown`
+  routing with its non-Markdown rejection) and `PresentoirePanelTest` (11→14 — the
+  multi-file `openFiles` deck, its null/empty/non-Markdown rejection, and `saveFile`
+  MARKDOWN). The 3D face is unchanged (it renders the very same model), so no
+  desktop launch is required.
+- **Presentoire now speaks PowerPoint and LibreOffice — open *and* save `.pptx`, legacy `.ppt` and `.odp`, plus a bundled Looking Glass deck** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
+  Presentoire read only its own native `.zip` and opened on a three-slide
+  placeholder. A new AWT-free `presentoire.format` layer round-trips four formats
+  through the one shared `PresentoireModel`, so the 3D `Frame3D` and the 2D
+  `PresentoirePanel` render an imported deck identically. `DeckCodecs.open` sniffs
+  the format by magic bytes, not extension (OLE2 → `.ppt`; ZIP → read the archive:
+  `ppt/presentation.xml` → `.pptx`, a leading `mimetype` of
+  `application/vnd.oasis.opendocument.presentation` → `.odp`, else a `<document>`
+  root → native `.zip`; falling back to the extension), and `DeckCodecs.export`
+  writes any of the four. `.pptx` (XSLF) and the legacy binary `.ppt` (HSLF) go
+  through **Apache POI** — the module's one new dependency (`poi-ooxml` +
+  `poi-scratchpad`, re-resolved onto the `:lg3d-core:run` / `releaseBundle`
+  classpath as `presentoireLibs`); `.odp` (OpenDocument) and the native `.zip` stay
+  pure-Java ZIP+DOM, and the native format gains the writer it never had.
+  `SlideGeometry` maps an office page (4:3 / 16:9) onto Presentoire's square
+  `-0.1..0.1` slide fit-inside, aspect-preserving and centred — text/lists
+  bottom-left anchored, images centre anchored, mirroring `SlideRenderer` so an
+  import→export round trip lands where the renderer already draws. Fidelity is
+  deliberately bounded to the Presentoire vocabulary (text blocks, bullet lists,
+  pictures): themes, custom fonts, animations, tables, charts and grouped/rotated
+  shapes are dropped on import and never emitted on export. `PresentoireModel`
+  generalised to carry images in memory (`of(...)` + an `inlineImages` map) so a
+  deck is no longer tied to an on-disk `ZipFile`, and `ModelColor.toHex` feeds the
+  writers' solid fills. The 2D panel gains a **Save As…** button and a
+  multi-format file filter and names the detected source format on its status
+  line; the 3D viewer stays read-only. Both faces now open by default on a
+  complete 16-slide *Looking Glass 3D and 2D* presentation (`LOOKING_GLASS_XML`,
+  text/vector-only — a compiled-in constant, no binary/LFS) covering the 3D
+  scene-graph desktop, the 2D/Swing MDI desktop, the shared-model pattern, the apps
+  portfolio, Project Mandela, the build toolchain and Presentoire's own format
+  support, with the port attributed to Jean-Francois Landreville. **37 new headless
+  cases** — 32 in the new `presentoire.format` suite (`DeckCodecsTest` 9 on
+  magic-byte sniffing + routing, `NativeDeckCodecTest` 6, `PptxDeckCodecTest` 3,
+  `PptDeckCodecTest` 3, `OdpDeckCodecTest` 4 including the `mimetype`-first-
+  uncompressed ODF rule, `SlideGeometryTest` 7 on the fit-inside inverse
+  transform) plus 5 added to `PresentoireModelTest` (11→14) and
+  `PresentoirePanelTest` (9→11) for the default deck, `of(...)` inline images,
+  `toHex`, per-format open and `saveFile` export. The 3D scene-graph view needs a
+  live display, so it is verified with the in-JVM probe and internal screencapture
+  rather than asserted here.
 - **Presentoire is resurrected — the 2006 slide-deck viewer ported to JDK 21 and wired into both desktops** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
   Presentoire compiled but was a dormant prototype: its start-menu descriptor sat
   in the incubator's own unscanned `src/config`, and — fatally on a modern JVM —

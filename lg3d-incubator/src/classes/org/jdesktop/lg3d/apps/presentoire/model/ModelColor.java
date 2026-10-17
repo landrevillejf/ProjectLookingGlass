@@ -134,6 +134,28 @@ public final class ModelColor {
         return ((a & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
     }
 
+    /**
+     * Formats a packed {@code 0xAARRGGBB} colour back into a Presentoire
+     * {@code color="..."} spec - the inverse of {@link #parse(String)}, used by
+     * the deck writers (the native {@code content.xml} and the LibreOffice
+     * {@code .odp} export) so a colour survives a round trip.
+     *
+     * <p>A fully opaque colour renders as {@code #RRGGBB}; a translucent one
+     * keeps the alpha-last {@code #RRGGBBAA} form the original format documented.
+     * Hex digits are upper-case, matching the built-in demo deck.</p>
+     *
+     * @param argb the packed colour
+     * @return a {@code #RRGGBB} or {@code #RRGGBBAA} string, never null
+     */
+    public static String toHex(int argb) {
+        String rgb = String.format(java.util.Locale.ROOT, "#%02X%02X%02X",
+                red(argb), green(argb), blue(argb));
+        int a = alpha(argb);
+        return (a == 255)
+                ? rgb
+                : rgb + String.format(java.util.Locale.ROOT, "%02X", a);
+    }
+
     /** The 0..255 alpha channel of a packed ARGB colour. */
     public static int alpha(int argb) {
         return (argb >>> 24) & 0xFF;

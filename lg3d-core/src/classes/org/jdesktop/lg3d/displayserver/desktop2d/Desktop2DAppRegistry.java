@@ -528,6 +528,20 @@ public final class Desktop2DAppRegistry {
         // lookup resolves.
         panels.put("org.jdesktop.lg3d.apps.wonderland.WonderlandWorld",
                 "org.jdesktop.lg3d.apps.wonderland.WonderlandWorldPanel");
+        // Web Server Console (lg3d-apps, org.jdesktop.lg3d.apps.webserver) is a
+        // plain Swing management console for the lg3d-webserver Spring Boot
+        // server: it drives the server's management REST API with the JDK HTTP
+        // client and Jackson and can fork the server bootJar as a local child
+        // process. It deliberately does NOT depend on lg3d-webserver, so Spring
+        // never reaches the desktop classpath (the wonderland-server "separate
+        // process" precedent). In the 3D desktop its WebServerConsole wrapper
+        // hosts the very same WebServerConsolePanel on a SwingNode inside a
+        // Frame3D via TitledSwingWindow; here the WebServerPanel shim wraps that
+        // panel and opens it as an MDI internal frame, so the console is fully
+        // usable without 3D. The lg3d-apps jar (with jackson-databind) is on the
+        // desktop run classpath, so the reflective lookup resolves.
+        panels.put("org.jdesktop.lg3d.apps.webserver.WebServerConsole",
+                "org.jdesktop.lg3d.apps.webserver.WebServerPanel");
         PANEL_APPS = Collections.unmodifiableMap(panels);
 
         Set<String> withDir = new LinkedHashSet<>();

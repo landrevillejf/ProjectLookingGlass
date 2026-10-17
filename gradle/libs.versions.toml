@@ -73,6 +73,15 @@ ice4j = "3.2-21-g3d9cdaa"  # org.jitsi:ice4j (Apache-2.0; ICE/STUN/TURN)
 # further optional native codecs and RAR is proprietary, so both are out of scope.)
 commonsCompress = "1.27.1" # org.apache.commons:commons-compress (Apache-2.0)
 xz = "1.9"                # org.tukaani:xz (public domain; XZ/LZMA codec for Commons Compress)
+# Presentoire (lg3d-incubator, org.jdesktop.lg3d.apps.presentoire) imports and
+# exports slide decks in the Microsoft PowerPoint and LibreOffice Impress
+# formats. Apache POI provides the two PowerPoint backends: poi-ooxml (XSLF) for
+# the modern .pptx (OOXML) and poi-scratchpad (HSLF) for the legacy binary .ppt.
+# LibreOffice .odp (OpenDocument) and Presentoire's own .zip are ZIP+XML parsed
+# in pure Java (no ODF library), so POI is the only new dependency. It is also
+# resolved onto the lg3d-core desktop run classpath and into the release bundle
+# (see lg3d-core/build.gradle), like pdfbox / commons-compress above.
+poi = "5.4.1"             # org.apache.poi:* (Apache-2.0; PowerPoint .pptx / .ppt)
 # OpenJFX (JavaFX) powers the Web Browser (lg3d-apps,
 # org.jdesktop.lg3d.apps.webbrowser): a real WebKit engine via javafx.web.WebView.
 # It is the project's only JavaFX dependency. Licensed GPLv2 + Classpath
@@ -188,6 +197,16 @@ ice4j = { module = "org.jitsi:ice4j", version.ref = "ice4j" }
 # lg3d-core/build.gradle), so the in-JVM start-menu launch finds them.
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
+
+# Apache POI: the PowerPoint backends behind Presentoire's Office import/export
+# (see the [versions] note). poi-ooxml (XSLF) reads/writes .pptx; poi-scratchpad
+# (HSLF) reads/writes the legacy binary .ppt; poi (the core) comes transitively
+# from both. All are also resolved onto the lg3d-core desktop run classpath and
+# into the release bundle (see lg3d-core/build.gradle), so the in-JVM start-menu
+# launch finds them.
+poi = { module = "org.apache.poi:poi", version.ref = "poi" }
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+poi-scratchpad = { module = "org.apache.poi:poi-scratchpad", version.ref = "poi" }
 
 # Spring Boot (wonderland-server, M3). The BOM constrains every spring-* and
 # transitive (Tomcat, Jackson, the WebSocket + validation stacks) version, so a

@@ -633,6 +633,23 @@ class Desktop2DAppRegistryTest {
                         "java org.jdesktop.lg3d.apps.remoteviewer.RemoteViewer"));
     }
 
+    @Test
+    @DisplayName("the Web Server Console maps to its Swing panel")
+    void webServerConsoleIsHostedPanel() {
+        // The Web Server Console (lg3d-apps) is a plain Swing management console
+        // for the lg3d-webserver Spring Boot server: it forks the server bootJar
+        // as a child process (discovered via -Dwebserver.jar) and drives it over
+        // the management REST API, so the panel never loads Spring itself. Its
+        // WebServerConsole wrapper hosts the panel on a SwingNode in the 3D
+        // desktop, and here the very same panel opens as an MDI internal frame
+        // keyed on the 3D main class so the one shared descriptor serves both.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.webserver.WebServerConsole"));
+        assertEquals("org.jdesktop.lg3d.apps.webserver.WebServerPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.webserver.WebServerConsole"));
+    }
+
     // ------------------------------------------------------------------
     // External availability
     // ------------------------------------------------------------------
