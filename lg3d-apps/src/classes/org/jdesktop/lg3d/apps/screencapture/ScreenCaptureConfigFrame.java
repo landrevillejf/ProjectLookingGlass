@@ -6,14 +6,11 @@
 
 package org.jdesktop.lg3d.apps.screencapture;
 
-import java.awt.Frame;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import java.awt.Rectangle;
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.Timer;
 import java.util.TimerTask;
-import javax.imageio.ImageIO;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -22,6 +19,11 @@ import org.jdesktop.lg3d.displayserver.ScreenCaptureEvent;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 
 /**
+ * The Screen Snapshot configuration dialog. The user chooses <em>what</em> to
+ * capture &mdash; the whole screen, every window, or a region they drag out
+ * &mdash; plus a delay and a save directory; when the delayed snapshot fires
+ * the chosen {@link CaptureArea} is grabbed by {@link DesktopScreenshot} in the
+ * 2D/Swing desktop, or by a {@link ScreenCaptureEvent} in the 3D desktop.
  *
  * @author  paulby
  */
@@ -32,9 +34,6 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     
     private static WeakReference<ScreenCaptureConfigFrame> captureFrame = null;
     
-    /** Per-image counter, matching the 3D ScreenCaptureBehavior's naming. */
-    private static int imageNo = 0;
-    
     /** Creates new form ScreenCaptureConfigFrame */
     public ScreenCaptureConfigFrame() {
         initComponents();
@@ -43,7 +42,7 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         jPanel1.remove(browseButton);
         
         locationTF.setText(saveDirectory.getAbsolutePath());
-        delaySpinner.setValue(new Integer(snapshotDelay));
+        delaySpinner.setValue(Integer.valueOf(snapshotDelay));
     }
     
     public static ScreenCaptureConfigFrame getScreenCaptureFrame() {
@@ -68,6 +67,12 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         browseButton = new javax.swing.JButton();
         jLabel3 = new javax.swing.JLabel();
         delaySpinner = new javax.swing.JSpinner();
+        areaLabel = new javax.swing.JLabel();
+        areaPanel = new javax.swing.JPanel();
+        areaGroup = new javax.swing.ButtonGroup();
+        fullScreenRadio = new javax.swing.JRadioButton();
+        allWindowsRadio = new javax.swing.JRadioButton();
+        selectionRadio = new javax.swing.JRadioButton();
         titlePanel = new javax.swing.JPanel();
         jLabel1 = new javax.swing.JLabel();
         bottomPanel = new javax.swing.JPanel();
@@ -120,6 +125,37 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
         gridBagConstraints.insets = new java.awt.Insets(4, 0, 0, 0);
         jPanel1.add(delaySpinner, gridBagConstraints);
 
+        areaLabel.setText("Capture");
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 2;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
+        gridBagConstraints.insets = new java.awt.Insets(8, 0, 0, 4);
+        jPanel1.add(areaLabel, gridBagConstraints);
+
+        areaGroup.add(fullScreenRadio);
+        areaGroup.add(allWindowsRadio);
+        areaGroup.add(selectionRadio);
+        fullScreenRadio.setText(CaptureArea.FULL_SCREEN.label());
+        fullScreenRadio.setToolTipText("Composite the whole screen into one image");
+        allWindowsRadio.setText(CaptureArea.ALL_WINDOWS.label());
+        allWindowsRadio.setToolTipText("Save every open window to its own image");
+        selectionRadio.setText(CaptureArea.SELECTION.label());
+        selectionRadio.setToolTipText("Drag out a region on screen, then capture just that area");
+        fullScreenRadio.setSelected(true);
+        areaPanel.setLayout(new javax.swing.BoxLayout(areaPanel, javax.swing.BoxLayout.Y_AXIS));
+        areaPanel.setOpaque(false);
+        areaPanel.add(fullScreenRadio);
+        areaPanel.add(allWindowsRadio);
+        areaPanel.add(selectionRadio);
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 2;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.WEST;
+        gridBagConstraints.insets = new java.awt.Insets(8, 0, 0, 0);
+        jPanel1.add(areaPanel, gridBagConstraints);
+
         getContentPane().add(jPanel1, java.awt.BorderLayout.CENTER);
 
         titlePanel.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
@@ -160,30 +196,25 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     private void snapshotButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_snapshotButtonActionPerformed
         snapshotDelay = ((Integer)delaySpinner.getValue()).intValue();
         saveDirectory = new File(locationTF.getText());
+        final CaptureArea area = selectedArea();
         setVisible(false);
         dispose();
         
-        final String dir = ensureDirectory(saveDirectory).getAbsolutePath();
+        final File dir = ScreenshotFiles.ensureDirectory(saveDirectory);
         final boolean desktop2d = Boolean.getBoolean(Desktop2D.MODE_PROPERTY);
         TimerTask taskPerformer = new TimerTask() {
           public void run() {
-            if (desktop2d) {
-              // No 3D display server in the 2D/Swing desktop: posting a
-              // ScreenCaptureEvent would make AppConnectorPrivate boot Java 3D
-              // and crash. Paint the desktop window(s) to a PNG on the EDT.
-              SwingUtilities.invokeLater(new Runnable() {
+            // Every capture path runs on the EDT: the 2D engine paints Swing
+            // windows and the selection overlay is itself a Swing window.
+            SwingUtilities.invokeLater(new Runnable() {
                 public void run() {
-                  captureDesktopToPng(dir);
+                  runCapture(area, dir, desktop2d);
                 }
-              });
-            } else {
-              AppConnectorPrivate.getAppConnector().postEvent(new ScreenCaptureEvent(dir), null); 
-              System.out.println("SNAPSHOT ********************");
-            }
+            });
           }
         };
         Timer timer = new Timer();
-        timer.schedule(taskPerformer, snapshotDelay*1000);
+        timer.schedule(taskPerformer, snapshotDelay*1000L);
 
     }//GEN-LAST:event_snapshotButtonActionPerformed
 
@@ -217,61 +248,77 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
      * @return the {@code ~/Documents/Screenshots} directory (not yet created)
      */
     static File defaultScreenshotDirectory() {
-        File home = new File(System.getProperty("user.home"));
-        return new File(new File(home, "Documents"), "Screenshots");
+        return ScreenshotFiles.defaultDirectory();
     }
 
-    /**
-     * Creates {@code dir} (and any missing parents) if it does not already
-     * exist, so both capture paths — the 2D PNG writer and the 3D
-     * {@code ScreenCaptureEvent} handler — always have a writable destination.
-     * A directory that cannot be created is returned as-is; the per-image
-     * writers report the failure.
-     *
-     * @param dir the directory to ensure
-     * @return {@code dir}, for chaining
-     */
-    private static File ensureDirectory(File dir) {
-        if (dir != null && !dir.exists()) {
-            dir.mkdirs();
+    /** The {@link CaptureArea} whose radio button is currently selected. */
+    private CaptureArea selectedArea() {
+        if (allWindowsRadio.isSelected()) {
+            return CaptureArea.ALL_WINDOWS;
         }
-        return dir;
+        if (selectionRadio.isSelected()) {
+            return CaptureArea.SELECTION;
+        }
+        return CaptureArea.FULL_SCREEN;
     }
 
     /**
-     * Paints every visible top-level window to a PNG in {@code dir}, named like
-     * the 3D capture ({@code lgscreen-<i>-<n>.png}). This is the 2D/Swing
-     * desktop's capture path: there is no scene graph to read a raster from and
-     * {@code java.awt.Robot} cannot grab a rootless/Wayland display, so the
-     * desktop is rendered straight into an image. Runs on the EDT.
+     * Runs the chosen capture on the EDT. {@code desktop2d} picks the 2D/Swing
+     * engine &mdash; which paints the desktop's own windows offscreen, avoiding
+     * {@code java.awt.Robot} on a rootless/Wayland display &mdash; over the 3D
+     * path, which posts a {@link ScreenCaptureEvent} for
+     * {@code ScreenCaptureBehavior} to read back the canvas raster. For
+     * {@link CaptureArea#SELECTION} the region overlay is shown first and the
+     * capture runs once the user finishes dragging.
      */
-    private static void captureDesktopToPng(String dir) {
-        ensureDirectory(new File(dir));
-        int index = 0;
-        for (Frame window : Frame.getFrames()) {
-            if (!window.isShowing() || window.getWidth() <= 0
-                    || window.getHeight() <= 0) {
-                continue;
-            }
-            try {
-                BufferedImage image = new BufferedImage(window.getWidth(),
-                        window.getHeight(), BufferedImage.TYPE_INT_RGB);
-                Graphics2D g = image.createGraphics();
-                try {
-                    window.paint(g);
-                } finally {
-                    g.dispose();
+    private static void runCapture(CaptureArea area, File dir, boolean desktop2d) {
+        switch (area) {
+            case SELECTION:
+                RegionSelector.select(RegionSelector.defaultScreenBounds(),
+                        region -> captureSelection(dir, region, desktop2d));
+                break;
+            case ALL_WINDOWS:
+                if (desktop2d) {
+                    DesktopScreenshot.captureAllWindows(dir);
+                } else {
+                    // The 3D desktop renders every window into one canvas, so
+                    // "all windows" there is the whole scene.
+                    post3d(dir, null);
                 }
-                File out = new File(dir,
-                        "lgscreen-" + index + "-" + (imageNo++) + ".png");
-                ImageIO.write(image, "png", out);
-                System.out.println("SNAPSHOT (2D) written to "
-                        + out.getAbsolutePath());
-                index++;
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+                break;
+            case FULL_SCREEN:
+            default:
+                if (desktop2d) {
+                    DesktopScreenshot.captureFullScreen(dir);
+                } else {
+                    post3d(dir, null);
+                }
+                break;
         }
+    }
+
+    private static void captureSelection(File dir, Rectangle region,
+            boolean desktop2d) {
+        if (region == null || region.isEmpty()) {
+            return; // the user cancelled the selection
+        }
+        if (desktop2d) {
+            DesktopScreenshot.captureRegion(dir, region);
+        } else {
+            post3d(dir, region);
+        }
+    }
+
+    /**
+     * Posts the 3D capture event. A non-null {@code region} asks
+     * {@code ScreenCaptureBehavior} to crop the raster it reads back to that
+     * region; null captures the whole canvas.
+     */
+    private static void post3d(File dir, Rectangle region) {
+        ScreenCaptureEvent evt = new ScreenCaptureEvent(dir.getAbsolutePath());
+        evt.setRegion(region);
+        AppConnectorPrivate.getAppConnector().postEvent(evt, null);
+        System.out.println("SNAPSHOT ********************");
     }
     
     /**
@@ -297,6 +344,12 @@ public class ScreenCaptureConfigFrame extends javax.swing.JFrame {
     private javax.swing.JTextField locationTF;
     private javax.swing.JButton snapshotButton;
     private javax.swing.JPanel titlePanel;
+    private javax.swing.JLabel areaLabel;
+    private javax.swing.JPanel areaPanel;
+    private javax.swing.ButtonGroup areaGroup;
+    private javax.swing.JRadioButton fullScreenRadio;
+    private javax.swing.JRadioButton allWindowsRadio;
+    private javax.swing.JRadioButton selectionRadio;
     // End of variables declaration//GEN-END:variables
     
 }
