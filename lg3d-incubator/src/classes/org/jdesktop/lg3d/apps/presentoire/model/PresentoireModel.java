@@ -64,7 +64,10 @@ import org.xml.sax.SAXException;
  *
  * <p>Instances that wrap a real ZIP hold an open {@link ZipFile} for image
  * loading and must be {@link #close() closed}; the built-in {@link #demo()} deck
- * holds none and needs no closing.</p>
+ * holds none and needs no closing. A model built by {@link #of} from an imported
+ * PowerPoint / LibreOffice deck (or synthesized in memory) carries its pictures
+ * as an in-memory {@code src -> bytes} map instead of a ZIP, so it too needs no
+ * closing and {@link #loadImage(String)} resolves from that map.</p>
  */
 public final class PresentoireModel implements Closeable {
 
@@ -80,31 +83,161 @@ public final class PresentoireModel implements Closeable {
     public static final float SLIDE_HALF = 0.1f;
 
     /**
-     * A small built-in deck (text and bullet slides, no images) shown when no
-     * document is supplied, so the app and the panel open on real content rather
-     * than an empty frame and the hardcoded {@code /home/debian/...} path of the
-     * original {@code FileChooser} is gone. Authored to the bottom-left text
-     * anchoring and centred-image anchoring the renderers use, in dark ink that
-     * reads on the white slide the 2D viewer paints (and over the 3D glass).
+     * The built-in default deck: a complete, text-and-vector-only tour of
+     * Project Looking Glass - its 3D and 2D desktops, the shared-model pattern
+     * they both rest on, the applications portfolio, the toolchain and this
+     * port's attribution. It is shown when no document is supplied, so the app
+     * and the panel open on real content rather than an empty frame (and the
+     * hardcoded {@code /home/debian/...} path of the original {@code FileChooser}
+     * is gone).
+     *
+     * <p>It stays a compiled-in constant - no binary images, no Git LFS - so it
+     * is diff-reviewable, headless-testable and exportable to any format the
+     * codecs support. It is authored to the bottom-left text anchoring and
+     * centred-image anchoring the renderers use, in dark ink that reads on the
+     * white slide the 2D viewer paints (and over the 3D glass).</p>
      */
-    static final String DEMO_XML = """
+    static final String LOOKING_GLASS_XML = """
             <?xml version="1.0" encoding="UTF-8"?>
             <document>
               <slide id="title">
-                <text width="0.18" height="0.030" x="-0.09" y="0.035" color="#1A1A1A">Project Looking Glass</text>
-                <text width="0.18" height="0.016" x="-0.09" y="0.006" color="#2F5C9A">Presentoire &#183; a slide-deck viewer</text>
-                <text width="0.18" height="0.013" x="-0.09" y="-0.045" color="#6A6A6A">Ported to JDK 21 by Jean-Francois Landreville</text>
+                <text width="0.18" height="0.030" x="-0.09" y="0.028" color="#1A1A1A">Project Looking Glass</text>
+                <text width="0.18" height="0.015" x="-0.09" y="0.002" color="#2F5C9A">The 3D and 2D desktop, modernized for JDK 21</text>
+                <text width="0.18" height="0.012" x="-0.09" y="-0.060" color="#6A6A6A">Presentoire &#183; the built-in deck</text>
               </slide>
-              <slide id="about">
-                <text width="0.18" height="0.020" x="-0.09" y="0.055" color="#1A1A1A">What this is</text>
-                <ul width="0.17" height="0.09" x="-0.085" y="0.030" color="#333333">
-                  <li>Opens Presentoire .zip decks</li>
-                  <li>Text, bullet lists and images</li>
-                  <li>Runs in the 2D and the 3D desktop</li>
+              <slide id="what">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">What is Looking Glass</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>An experimental desktop from Sun Microsystems (2004-2006)</li>
+                  <li>A 3D scene-graph desktop and a plain 2D/Swing desktop</li>
+                  <li>Resurrected for today: Gradle 8.14, JDK 21, Java 3D on Jogamp</li>
+                  <li>One shared, AWT-free model drives both desktops</li>
                 </ul>
               </slide>
-              <slide id="open">
-                <text width="0.18" height="0.070" x="-0.09" y="-0.030" color="#1A1A1A">Open a deck&#10;Use the Open button to load&#10;your own Presentoire .zip deck</text>
+              <slide id="two-desktops">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">One project, two desktops</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>3D: windows live as textured quads in a scene graph</li>
+                  <li>2D: a classic Swing MDI desktop, for machines without 3D</li>
+                  <li>Applications are written once and shown in either</li>
+                  <li>The 2D desktop never loads Java 3D</li>
+                </ul>
+              </slide>
+              <slide id="3d-scenegraph">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">The 3D desktop: scene graph</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Frame3D hosts the canvas; Component3D embeds live Swing</li>
+                  <li>Windows are Texture2D quads you can move, scale and spin</li>
+                  <li>Java 3D retained mode, on the Jogamp fork (1.7.2)</li>
+                  <li>Packages org.jogamp.java3d and org.jogamp.vecmath</li>
+                </ul>
+              </slide>
+              <slide id="3d-windowing">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">The 3D desktop: windowing</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>A wonderland-style scene of floating, translucent panels</li>
+                  <li>An X11 compositor path captures real windows to textures</li>
+                  <li>Under Wayland a host capture may read black - not a defect</li>
+                  <li>The start menu launches applications in-JVM</li>
+                </ul>
+              </slide>
+              <slide id="2d-mdi">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">The 2D/Swing desktop</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>A multiple-document interface on a JDesktopPane</li>
+                  <li>Internal frames, no Java 3D, no native compositor</li>
+                  <li>Runs on modest hardware and needs no display server quirks</li>
+                  <li>The same applications, presented as Swing panels</li>
+                </ul>
+              </slide>
+              <slide id="2d-hosting">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Hosting panels in 2D</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Applications expose a plain Swing panel for the 2D desktop</li>
+                  <li>SwingNode bridges a JavaFX panel where an app needs one</li>
+                  <li>Desktop2DAppRegistry.PANEL_APPS lists the hosted panels</li>
+                  <li>The 3D desktop wraps the same panel in a Component3D</li>
+                </ul>
+              </slide>
+              <slide id="shared-model">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">The shared-model pattern</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Parse once into an AWT-free, Java 3D-free model</li>
+                  <li>Two renderers read the very same immutable data</li>
+                  <li>3D builds Component3D nodes; 2D paints with Java 2D</li>
+                  <li>Testable headlessly, with no display or scene graph</li>
+                </ul>
+              </slide>
+              <slide id="ex-presentoire">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Worked example: Presentoire</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>PresentoireModel is the single shared parser</li>
+                  <li>SlideRenderer paints slides; Slide builds 3D quads</li>
+                  <li>Now opens and saves .pptx, .ppt and .odp too</li>
+                  <li>This deck is its built-in default</li>
+                </ul>
+              </slide>
+              <slide id="ex-chess">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Worked example: Chess</text>
+                <ul width="0.175" height="0.09" x="-0.085" y="0.012" color="#333333">
+                  <li>One board model, two views</li>
+                  <li>3D pieces in the scene graph; a 2D board on a panel</li>
+                  <li>Move validation lives in the model, not the view</li>
+                </ul>
+              </slide>
+              <slide id="ex-physics">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Worked example: Physics</text>
+                <ul width="0.175" height="0.09" x="-0.085" y="0.012" color="#333333">
+                  <li>A Newton's cradle, rebuilt for JDK 21</li>
+                  <li>One simulation model; the 3D and 2D faces both render it</li>
+                  <li>The physics loop is independent of any renderer</li>
+                </ul>
+              </slide>
+              <slide id="apps">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">The applications portfolio</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Presentoire, Chess, Physics, PDF Viewer, Archive</li>
+                  <li>Mail, FTP client, Web Browser, Help Center</li>
+                  <li>DB Manager, Update Manager, WonderLAN softphone</li>
+                  <li>Each ships a 2D panel and, where it fits, a 3D face</li>
+                </ul>
+              </slide>
+              <slide id="mandela">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Project Mandela</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>The build's own scripting and release tooling</li>
+                  <li>Repository checks, a start-menu audit, what's-new pages</li>
+                  <li>Cucumber-driven acceptance scenarios</li>
+                  <li>Guards the gates every change must pass</li>
+                </ul>
+              </slide>
+              <slide id="toolchain">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Build and toolchain</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Gradle 8.14 with a version catalog (libs.versions.toml)</li>
+                  <li>A JDK 21 toolchain; Jogamp natives resolved per platform</li>
+                  <li>Modules: lg3d-core, lg3d-apps, lg3d-incubator, lg3d-mandela</li>
+                  <li>Headless tests run with no display attached</li>
+                </ul>
+              </slide>
+              <slide id="formats">
+                <text width="0.18" height="0.022" x="-0.09" y="0.055" color="#1A1A1A">Presentoire: many formats</text>
+                <ul width="0.175" height="0.10" x="-0.085" y="0.012" color="#333333">
+                  <li>Native .zip, plus PowerPoint .pptx and legacy .ppt (Apache POI)</li>
+                  <li>LibreOffice Impress .odp, parsed in pure Java</li>
+                  <li>Open and Save As, right from the 2D panel</li>
+                  <li>The format is sniffed from content, not the extension</li>
+                </ul>
+              </slide>
+              <slide id="credits">
+                <text width="0.18" height="0.022" x="-0.09" y="0.058" color="#1A1A1A">Credits and attribution</text>
+                <text width="0.18" height="0.014" x="-0.09" y="0.032" color="#2F5C9A">Ported to JDK 21 by Jean-Francois Landreville</text>
+                <ul width="0.175" height="0.085" x="-0.085" y="0.005" color="#333333">
+                  <li>Original Project Looking Glass, Sun Microsystems (2004-2006)</li>
+                  <li>Presentoire slide viewer by Pierre Ducroquet</li>
+                  <li>Gradle / JDK 21 modernization and these improvements:</li>
+                  <li>Jean-Francois Landreville</li>
+                </ul>
               </slide>
             </document>
             """;
@@ -112,12 +245,17 @@ public final class PresentoireModel implements Closeable {
     private final List<SlideModel> slides;
     private final Map<String, ScriptTransitionModel> scriptTransitions;
     private final ZipFile zip;
+    private final Map<String, byte[]> inlineImages;
 
     private PresentoireModel(List<SlideModel> slides,
-            Map<String, ScriptTransitionModel> scriptTransitions, ZipFile zip) {
+            Map<String, ScriptTransitionModel> scriptTransitions, ZipFile zip,
+            Map<String, byte[]> inlineImages) {
         this.slides = Collections.unmodifiableList(slides);
         this.scriptTransitions = Collections.unmodifiableMap(scriptTransitions);
         this.zip = zip;
+        this.inlineImages = (inlineImages == null)
+                ? Collections.emptyMap()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(inlineImages));
     }
 
     /**
@@ -142,7 +280,7 @@ public final class PresentoireModel implements Closeable {
             try (InputStream in = archive.getInputStream(entry)) {
                 parse(in, slides, scripts);
             }
-            PresentoireModel model = new PresentoireModel(slides, scripts, archive);
+            PresentoireModel model = new PresentoireModel(slides, scripts, archive, null);
             ok = true;
             return model;
         } finally {
@@ -165,7 +303,31 @@ public final class PresentoireModel implements Closeable {
         List<SlideModel> slides = new ArrayList<>();
         Map<String, ScriptTransitionModel> scripts = new LinkedHashMap<>();
         parse(contentXml, slides, scripts);
-        return new PresentoireModel(slides, scripts, null);
+        return new PresentoireModel(slides, scripts, null, null);
+    }
+
+    /**
+     * Builds an in-memory model from already-parsed slides, with no ZIP behind it:
+     * the pictures an {@code <img>} names are carried in {@code images} as a
+     * {@code src -> bytes} map. This is how the format codecs hand an imported
+     * PowerPoint / LibreOffice deck - or a freshly synthesized one - to the same
+     * renderers a native {@code .zip} deck reaches, and why {@link #loadImage}
+     * and {@link #openEntry} resolve from the map as well as the archive.
+     *
+     * @param slides           the document-ordered slides (copied)
+     * @param scriptTransitions the document-level script transitions, may be null
+     * @param images           the {@code src -> bytes} pictures, may be null
+     * @return the in-memory model; it holds no ZIP, so {@link #close()} is a no-op
+     */
+    public static PresentoireModel of(List<SlideModel> slides,
+            Map<String, ScriptTransitionModel> scriptTransitions,
+            Map<String, byte[]> images) {
+        return new PresentoireModel(
+                new ArrayList<>(slides),
+                (scriptTransitions == null)
+                        ? new LinkedHashMap<>() : new LinkedHashMap<>(scriptTransitions),
+                null,
+                images);
     }
 
     /**
@@ -177,9 +339,10 @@ public final class PresentoireModel implements Closeable {
      */
     public static PresentoireModel demo() {
         try {
-            return open(new ByteArrayInputStream(DEMO_XML.getBytes(StandardCharsets.UTF_8)));
+            return open(new ByteArrayInputStream(
+                    LOOKING_GLASS_XML.getBytes(StandardCharsets.UTF_8)));
         } catch (IOException e) {
-            return new PresentoireModel(new ArrayList<>(), new LinkedHashMap<>(), null);
+            return new PresentoireModel(new ArrayList<>(), new LinkedHashMap<>(), null, null);
         }
     }
 
@@ -255,18 +418,21 @@ public final class PresentoireModel implements Closeable {
      * @return an open stream, or null if it cannot be resolved
      */
     public InputStream openEntry(String name) {
-        if (zip == null || name == null || name.isEmpty()) {
+        if (name == null || name.isEmpty()) {
             return null;
         }
-        ZipEntry entry = zip.getEntry(name);
-        if (entry == null) {
-            return null;
+        if (zip != null) {
+            ZipEntry entry = zip.getEntry(name);
+            if (entry != null) {
+                try {
+                    return zip.getInputStream(entry);
+                } catch (IOException | RuntimeException e) {
+                    // fall through to the in-memory images, then to null
+                }
+            }
         }
-        try {
-            return zip.getInputStream(entry);
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
+        byte[] inline = inlineImages.get(name);
+        return (inline == null) ? null : new ByteArrayInputStream(inline);
     }
 
     /** Closes the backing ZIP, if any. Safe to call more than once. */

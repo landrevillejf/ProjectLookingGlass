@@ -17,6 +17,7 @@ package org.jdesktop.lg3d.apps.presentoire;
 
 import java.io.File;
 import java.io.IOException;
+import org.jdesktop.lg3d.apps.presentoire.format.DeckCodecs;
 import org.jdesktop.lg3d.apps.presentoire.model.PresentoireModel;
 import org.jdesktop.lg3d.apps.presentoire.transition.Transition;
 import org.jdesktop.lg3d.apps.presentoire.transition.TransitionFactory;
@@ -128,9 +129,13 @@ public class Presentoire {
 
     /**
      * Opens the given deck, or resolves one when {@code document} is null (the
-     * {@code lg.presentoire.document} property, else the built-in demo). A deck
-     * that cannot be opened degrades to the demo rather than leaving a blank
-     * frame.
+     * {@code lg.presentoire.document} property, else the built-in demo). The deck
+     * may be Presentoire's own {@code .zip} or an imported PowerPoint
+     * ({@code .pptx} / {@code .ppt}) or LibreOffice ({@code .odp}) file: it is
+     * resolved through {@link DeckCodecs}, so the 3D desktop shows the very same
+     * model the 2D panel would. A deck that cannot be opened degrades to the demo
+     * rather than leaving a blank frame. This 3D face stays view-only - export is
+     * a 2D-panel feature.
      *
      * @param document the deck to open, or null to resolve one
      */
@@ -145,9 +150,9 @@ public class Presentoire {
         PresentoireDocument opened;
         try {
             opened = (target != null)
-                    ? new PresentoireDocument(target)
+                    ? new PresentoireDocument(DeckCodecs.open(target))
                     : new PresentoireDocument(PresentoireModel.demo());
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             System.err.println("Presentoire: could not open " + target + " ("
                     + e.getMessage() + "); showing the built-in demo deck.");
             opened = new PresentoireDocument(PresentoireModel.demo());

@@ -9,12 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
@@ -75,38 +78,68 @@ class PresentoireModelTest {
         assertEquals(128 / 255f, ModelColor.redFloat(ModelColor.parse("#808080")), 1e-6f);
     }
 
+    @Test
+    @DisplayName("ModelColor.toHex formats opaque #RRGGBB and translucent #RRGGBBAA")
+    void colorToHex() {
+        // A fully opaque colour drops the alpha byte.
+        assertEquals("#FF0000", ModelColor.toHex(ModelColor.RED));
+        assertEquals("#FFFFFF", ModelColor.toHex(ModelColor.WHITE));
+        assertEquals("#000000", ModelColor.toHex(ModelColor.BLACK));
+        assertEquals("#1A1A1A", ModelColor.toHex(0xFF1A1A1A));
+        // A translucent colour keeps the alpha-last byte the parser reads back.
+        assertEquals("#FF000080", ModelColor.toHex(0x80FF0000));
+        assertEquals("#1A1A1A80", ModelColor.toHex(0x801A1A1A));
+        // toHex is the exact inverse of parse for both forms.
+        assertEquals(0xFF1A1A1A, ModelColor.parse(ModelColor.toHex(0xFF1A1A1A)));
+        assertEquals(0x80FF0000, ModelColor.parse(ModelColor.toHex(0x80FF0000)));
+    }
+
     // ------------------------------------------------------------------
     // Built-in demo deck
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the built-in demo deck parses to three text/bullet slides")
+    @DisplayName("the built-in demo deck is the complete Looking Glass 3D/2D tour")
     void demoDeck() {
         try (PresentoireModel model = PresentoireModel.demo()) {
-            assertEquals(3, model.getSlideCount());
-            assertEquals(List.of("title", "about", "open"), model.getSlideIds());
+            assertEquals(16, model.getSlideCount(), "the LG deck is a full tour");
             assertFalse(model.hasArchive(), "the demo holds no ZIP");
             assertNull(model.loadImage("anything.png"), "no archive means no image");
             assertNull(model.openEntry("anything"));
 
-            // Slide 0: three text blocks, no list.
-            SlideModel title = model.getSlide(0);
-            assertEquals(3, title.elements().size());
-            assertFalse(title.hasTransition());
-            assertEquals("", title.transition());
+            // The tour covers both desktops: some slide names 3D, another 2D.
+            String all = allText(model);
+            assertTrue(all.contains("3D"), "the deck presents the 3D desktop");
+            assertTrue(all.contains("2D"), "and the 2D/Swing desktop");
+            assertTrue(all.contains("scene graph"), "the 3D scene graph is described");
+            assertTrue(all.contains("JDesktopPane"), "the 2D MDI desktop is described");
 
-            // Slide 1: a heading plus a three-item bullet list.
-            SlideModel about = model.getSlide(1);
-            assertEquals(2, about.elements().size());
-            SlideElement list = about.elements().get(1);
-            assertEquals(SlideElement.Kind.LIST, list.kind());
-            assertEquals(3, ((SlideElement.ListElement) list).items().size());
+            // The closing slide carries this port's attribution.
+            assertTrue(all.contains("Jean-Francois Landreville"),
+                    "the attribution slide names the porter");
 
-            // Slide 2: one multi-line text block (three lines).
-            SlideElement openText = model.getSlide(2).elements().get(0);
-            assertEquals(SlideElement.Kind.TEXT, openText.kind());
-            assertEquals(3, ((SlideElement.Text) openText).lines().length);
+            // The deck opens on its title and closes on the credits.
+            assertEquals("title", model.getSlide(0).id());
+            assertEquals("credits", model.getSlide(model.getSlideCount() - 1).id());
+            assertFalse(model.getSlide(0).hasTransition());
         }
+    }
+
+    /** Concatenates every text block and bullet item in the deck, for scanning. */
+    private static String allText(PresentoireModel model) {
+        StringBuilder sb = new StringBuilder();
+        for (SlideModel slide : model.getSlides()) {
+            for (SlideElement element : slide.elements()) {
+                if (element instanceof SlideElement.Text text) {
+                    sb.append(text.text()).append('\n');
+                } else if (element instanceof SlideElement.ListElement list) {
+                    for (String item : list.items()) {
+                        sb.append(item).append('\n');
+                    }
+                }
+            }
+        }
+        return sb.toString();
     }
 
     @Test
@@ -286,5 +319,64 @@ class PresentoireModelTest {
             zip.closeEntry();
         }
         assertThrows(IOException.class, () -> PresentoireModel.open(deck));
+    }
+
+    // ------------------------------------------------------------------
+    // In-memory model (imported / synthesized decks)
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("of(...) builds an in-memory model whose images resolve with no ZIP")
+    void ofCarriesInlineImages() throws IOException {
+        byte[] png = solidPng(0xFFFF0000, 2, 2);
+        SlideElement.Image img = new SlideElement.Image(
+                0f, 0f, SlideElement.DEFAULT_Z, 0.1f, 0.1f, "img/red.png");
+        SlideModel slide = new SlideModel("pic", "", List.of(img));
+        Map<String, byte[]> images = new LinkedHashMap<>();
+        images.put("img/red.png", png);
+
+        try (PresentoireModel model = PresentoireModel.of(List.of(slide), null, images)) {
+            assertFalse(model.hasArchive(), "an in-memory model holds no ZIP");
+            assertEquals(1, model.getSlideCount());
+            assertEquals(List.of("pic"), model.getSlideIds());
+            // The picture resolves from the in-memory map, exactly as from a ZIP.
+            BufferedImage loaded = model.loadImage("img/red.png");
+            assertNotNull(loaded, "the inline image resolves from the map");
+            assertEquals(2, loaded.getWidth());
+            assertEquals(0xFFFF0000, loaded.getRGB(0, 0));
+            assertNotNull(model.openEntry("img/red.png"));
+            model.openEntry("img/red.png").close();
+            // An unknown src still degrades to null, never throws.
+            assertNull(model.loadImage("img/absent.png"));
+            assertNull(model.openEntry("img/absent.png"));
+        }
+    }
+
+    @Test
+    @DisplayName("of(...) tolerates null scripts and images, and copies its slides")
+    void ofIsDefensive() {
+        List<SlideModel> slides = new java.util.ArrayList<>();
+        slides.add(new SlideModel("only", "", List.of()));
+        try (PresentoireModel model = PresentoireModel.of(slides, null, null)) {
+            assertEquals(1, model.getSlideCount());
+            assertNull(model.getScriptTransition("anything"));
+            assertNull(model.loadImage("img/none.png"), "no images means no picture");
+            // Mutating the caller's list afterwards cannot change the model.
+            slides.add(new SlideModel("late", "", List.of()));
+            assertEquals(1, model.getSlideCount(), "the slides are copied at build time");
+        }
+    }
+
+    /** Encodes a solid-colour PNG and returns its bytes, for an in-memory image. */
+    private static byte[] solidPng(int argb, int w, int h) throws IOException {
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                img.setRGB(x, y, argb);
+            }
+        }
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ImageIO.write(img, "png", bos);
+        return bos.toByteArray();
     }
 }

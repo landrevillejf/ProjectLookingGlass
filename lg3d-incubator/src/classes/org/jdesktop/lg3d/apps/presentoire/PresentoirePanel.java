@@ -29,6 +29,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -36,19 +37,28 @@ import javax.swing.JToolBar;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import org.jdesktop.lg3d.apps.presentoire.format.DeckCodecs;
+import org.jdesktop.lg3d.apps.presentoire.format.DeckFormat;
 import org.jdesktop.lg3d.apps.presentoire.model.PresentoireModel;
 
 /**
  * A plain-Swing slide-deck viewer: the 2D/Swing desktop face of Presentoire.
  *
  * <p>The panel is an idiomatic document viewer, not a port of the 3D scene: a
- * toolbar (Open, first / previous / slide&nbsp;n&nbsp;of&nbsp;N / next / last,
- * zoom out / percent / zoom in / fit width), a scrollable canvas that centres the
- * rendered slide when it is smaller than the viewport, and a status line. Slides
- * are rasterised by the AWT-free {@link SlideRenderer} from the very same
- * {@link PresentoireModel} the native-3D {@link Presentoire} renders, so the panel
- * touches no Java&nbsp;3D and runs on a machine without the 3D desktop, and the
- * two desktops can never disagree about a deck's content.</p>
+ * toolbar (Open, Save As, first / previous / slide&nbsp;n&nbsp;of&nbsp;N / next /
+ * last, zoom out / percent / zoom in / fit width), a scrollable canvas that
+ * centres the rendered slide when it is smaller than the viewport, and a status
+ * line. Slides are rasterised by the AWT-free {@link SlideRenderer} from the very
+ * same {@link PresentoireModel} the native-3D {@link Presentoire} renders, so the
+ * panel touches no Java&nbsp;3D and runs on a machine without the 3D desktop, and
+ * the two desktops can never disagree about a deck's content.</p>
+ *
+ * <p>Open and Save As go through {@link DeckCodecs}, so the panel reads and
+ * writes Presentoire's own {@code .zip} as well as PowerPoint {@code .pptx},
+ * legacy {@code .ppt} and LibreOffice {@code .odp}; the format is sniffed from a
+ * file's content on open and taken from the chosen extension on save, and the
+ * status line names it. Export is a 2D-panel feature only - the 3D
+ * {@link Presentoire} face stays view-only.</p>
  *
  * <p>It is registered in {@code Desktop2DAppRegistry.PANEL_APPS} against the
  * {@link Presentoire} main class, so the one shared start-menu descriptor opens
@@ -76,10 +86,12 @@ public class PresentoirePanel extends JPanel {
     private static final float ZOOM_STEP = 1.25f;
 
     private PresentoireModel model = PresentoireModel.demo();
+    private DeckFormat sourceFormat;
     private int currentSlide;
     private float zoom = 1.0f;
 
     private final JButton openButton = new JButton("Open...");
+    private final JButton saveButton = new JButton("Save As...");
     private final JButton firstButton = new JButton("|<");
     private final JButton prevButton = new JButton("<");
     private final JButton nextButton = new JButton(">");
@@ -123,7 +135,9 @@ public class PresentoirePanel extends JPanel {
         bar.setFloatable(false);
 
         openButton.addActionListener(e -> chooseFile());
+        saveButton.addActionListener(e -> exportFile());
         bar.add(openButton);
+        bar.add(saveButton);
         bar.addSeparator();
 
         firstButton.addActionListener(e -> showSlide(1));
@@ -167,18 +181,45 @@ public class PresentoirePanel extends JPanel {
     /** Pops a chooser and opens the selected deck, if the user approves. */
     private void chooseFile() {
         JFileChooser chooser = new JFileChooser();
-        chooser.setFileFilter(new FileNameExtensionFilter("Presentoire decks", "zip"));
+        // The accept-all "All Files" filter stays available alongside this one.
+        chooser.setFileFilter(
+                new FileNameExtensionFilter("Slide decks", "zip", "pptx", "ppt", "odp"));
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             openFile(chooser.getSelectedFile());
         }
     }
 
+    /** Pops a save dialog and exports the current deck in the chosen format. */
+    private void exportFile() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Save deck as");
+        chooser.setFileFilter(
+                new FileNameExtensionFilter("Slide decks", "zip", "pptx", "ppt", "odp"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File target = chooser.getSelectedFile();
+        if (target == null) {
+            return;
+        }
+        if (target.exists()) {
+            int choice = JOptionPane.showConfirmDialog(this,
+                    "Overwrite " + target.getName() + "?", "Confirm overwrite",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (choice != JOptionPane.OK_OPTION) {
+                return;
+            }
+        }
+        saveFile(target, DeckCodecs.formatFor(target));
+    }
+
     /**
-     * Opens {@code file} as a Presentoire deck, resetting to the first slide. A
-     * file that is not a readable deck leaves the current one in place and is
-     * reported on the status line.
+     * Opens {@code file} as a slide deck in any supported format, resetting to
+     * the first slide. A file that is not a readable deck leaves the current one
+     * in place and is reported on the status line.
      *
-     * @param file the {@code .zip} deck to open, may be null
+     * @param file the deck to open (a {@code .zip}, {@code .pptx}, {@code .ppt} or
+     *        {@code .odp}), may be null
      * @return true when the deck opened
      */
     public boolean openFile(File file) {
@@ -187,17 +228,42 @@ public class PresentoirePanel extends JPanel {
             return false;
         }
         try {
-            PresentoireModel opened = PresentoireModel.open(file);
+            DeckFormat format = DeckCodecs.sniff(file);
+            PresentoireModel opened = DeckCodecs.open(file, format);
             if (model != null) {
                 model.close();
             }
             model = opened;
+            sourceFormat = format;
             currentSlide = 0;
             zoom = 1.0f;
             refresh();
             return true;
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             statusLabel.setText("Could not open " + file.getName());
+            return false;
+        }
+    }
+
+    /**
+     * Saves the current deck to {@code target} in {@code format}. A failure
+     * leaves the deck untouched and is reported on the status line.
+     *
+     * @param target the file to write, may be null
+     * @param format the format to write, may be null
+     * @return true when the deck was written
+     */
+    boolean saveFile(File target, DeckFormat format) {
+        if (target == null || format == null) {
+            statusLabel.setText("Could not save the deck");
+            return false;
+        }
+        try {
+            DeckCodecs.export(model, target, format);
+            statusLabel.setText("Saved " + target.getName());
+            return true;
+        } catch (IOException | RuntimeException e) {
+            statusLabel.setText("Could not save " + target.getName());
             return false;
         }
     }
@@ -244,6 +310,7 @@ public class PresentoirePanel extends JPanel {
         prevButton.setEnabled(open);
         nextButton.setEnabled(open);
         lastButton.setEnabled(open);
+        saveButton.setEnabled(open);
         slideField.setEnabled(open);
         zoomOutButton.setEnabled(open);
         zoomInButton.setEnabled(open);
@@ -272,7 +339,9 @@ public class PresentoirePanel extends JPanel {
         zoomLabel.setText(Math.round(zoom * 100f) + "%");
         statusLabel.setText("Slide " + (currentSlide + 1) + " of " + count
                 + "  -  " + Math.round(zoom * 100f) + "%"
-                + (model.hasArchive() ? "" : "  -  built-in demo deck"));
+                + (sourceFormat == null
+                        ? "  -  built-in demo deck"
+                        : "  -  " + sourceFormat.description()));
 
         scroll.revalidate();
         scroll.repaint();

@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.jdesktop.lg3d.apps.presentoire.format.DeckCodecs;
+import org.jdesktop.lg3d.apps.presentoire.format.DeckFormat;
 import org.jdesktop.lg3d.apps.presentoire.model.PresentoireModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,7 +100,7 @@ class PresentoirePanelTest {
     @DisplayName("the panel builds headlessly on the built-in demo deck")
     void constructionSmokeTest() {
         PresentoirePanel panel = new PresentoirePanel();
-        assertEquals(3, panel.slideCount(), "the demo deck has three slides");
+        assertEquals(16, panel.slideCount(), "the built-in deck is the full LG tour");
         assertEquals(0, panel.currentSlide());
         assertEquals(1.0f, panel.zoom(), 1e-6f);
         assertNotNull(panel.getPreferredSize());
@@ -109,7 +111,7 @@ class PresentoirePanelTest {
         // The status line names the demo deck (it holds no archive).
         assertFalse(panel.model().hasArchive());
         assertTrue(panel.statusText().contains("built-in demo deck"), panel.statusText());
-        assertTrue(panel.statusText().contains("Slide 1 of 3"), panel.statusText());
+        assertTrue(panel.statusText().contains("Slide 1 of 16"), panel.statusText());
     }
 
     // ------------------------------------------------------------------
@@ -120,17 +122,18 @@ class PresentoirePanelTest {
     @DisplayName("showSlide moves within 1..N and clamps at both ends")
     void navigationClamps() {
         PresentoirePanel panel = new PresentoirePanel();
+        int last = panel.slideCount();
         panel.showSlide(2);
         assertEquals(1, panel.currentSlide());
-        panel.showSlide(3);
-        assertEquals(2, panel.currentSlide());
+        panel.showSlide(last);
+        assertEquals(last - 1, panel.currentSlide());
 
         // Past the last slide clamps to the last; below the first clamps to 0.
-        panel.showSlide(99);
-        assertEquals(2, panel.currentSlide());
+        panel.showSlide(last + 50);
+        assertEquals(last - 1, panel.currentSlide());
         panel.showSlide(-5);
         assertEquals(0, panel.currentSlide());
-        assertTrue(panel.statusText().contains("Slide 1 of 3"), panel.statusText());
+        assertTrue(panel.statusText().contains("Slide 1 of " + last), panel.statusText());
     }
 
     // ------------------------------------------------------------------
@@ -203,6 +206,64 @@ class PresentoirePanelTest {
         assertFalse(panel.statusText().contains("built-in demo deck"), panel.statusText());
         assertTrue(panel.statusText().contains("Slide 1 of 2"), panel.statusText());
         panel.model().close();
+    }
+
+    @Test
+    @DisplayName("openFile routes each supported format and the status line names it")
+    void openRoutesEachFormat(@TempDir File dir) throws IOException {
+        PresentoirePanel panel = new PresentoirePanel();
+        try (PresentoireModel demo = PresentoireModel.demo()) {
+            File zip = new File(dir, "deck.zip");
+            File pptx = new File(dir, "deck.pptx");
+            File odp = new File(dir, "deck.odp");
+            int count = demo.getSlideCount();
+            DeckCodecs.export(demo, zip, DeckFormat.NATIVE);
+            DeckCodecs.export(demo, pptx, DeckFormat.PPTX);
+            DeckCodecs.export(demo, odp, DeckFormat.ODP);
+
+            assertTrue(panel.openFile(zip));
+            assertEquals(count, panel.slideCount());
+            assertTrue(panel.statusText().contains("Presentoire deck (.zip)"), panel.statusText());
+
+            assertTrue(panel.openFile(pptx));
+            assertEquals(count, panel.slideCount());
+            assertTrue(panel.statusText().contains("PowerPoint (.pptx)"), panel.statusText());
+
+            assertTrue(panel.openFile(odp));
+            assertEquals(count, panel.slideCount());
+            assertTrue(panel.statusText().contains("OpenDocument"), panel.statusText());
+        }
+        panel.model().close();
+    }
+
+    @Test
+    @DisplayName("saveFile writes re-openable decks in each format and reports on the status")
+    void saveFileWritesReopenableDecks(@TempDir File dir) throws IOException {
+        PresentoirePanel panel = new PresentoirePanel();   // the built-in demo deck
+        int count = panel.slideCount();
+        File zip = new File(dir, "saved.zip");
+        File pptx = new File(dir, "saved.pptx");
+        File odp = new File(dir, "saved.odp");
+
+        assertTrue(panel.saveFile(zip, DeckFormat.NATIVE));
+        assertTrue(panel.saveFile(pptx, DeckFormat.PPTX));
+        assertTrue(panel.saveFile(odp, DeckFormat.ODP));
+        assertTrue(zip.length() > 0 && pptx.length() > 0 && odp.length() > 0);
+        assertTrue(panel.statusText().contains("Saved saved.odp"), panel.statusText());
+
+        // Each saved file re-opens, through the sniffer, with the same slide count.
+        try (PresentoireModel z = DeckCodecs.open(zip);
+                PresentoireModel p = DeckCodecs.open(pptx);
+                PresentoireModel o = DeckCodecs.open(odp)) {
+            assertEquals(count, z.getSlideCount());
+            assertEquals(count, p.getSlideCount());
+            assertEquals(count, o.getSlideCount());
+        }
+
+        // A null target or a null format is refused, not thrown.
+        assertFalse(panel.saveFile(null, DeckFormat.NATIVE));
+        assertEquals("Could not save the deck", panel.statusText());
+        assertFalse(panel.saveFile(new File(dir, "x.zip"), null));
     }
 
     // ------------------------------------------------------------------

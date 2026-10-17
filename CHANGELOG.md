@@ -10,6 +10,46 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Presentoire now speaks PowerPoint and LibreOffice — open *and* save `.pptx`, legacy `.ppt` and `.odp`, plus a bundled Looking Glass deck** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
+  Presentoire read only its own native `.zip` and opened on a three-slide
+  placeholder. A new AWT-free `presentoire.format` layer round-trips four formats
+  through the one shared `PresentoireModel`, so the 3D `Frame3D` and the 2D
+  `PresentoirePanel` render an imported deck identically. `DeckCodecs.open` sniffs
+  the format by magic bytes, not extension (OLE2 → `.ppt`; ZIP → read the archive:
+  `ppt/presentation.xml` → `.pptx`, a leading `mimetype` of
+  `application/vnd.oasis.opendocument.presentation` → `.odp`, else a `<document>`
+  root → native `.zip`; falling back to the extension), and `DeckCodecs.export`
+  writes any of the four. `.pptx` (XSLF) and the legacy binary `.ppt` (HSLF) go
+  through **Apache POI** — the module's one new dependency (`poi-ooxml` +
+  `poi-scratchpad`, re-resolved onto the `:lg3d-core:run` / `releaseBundle`
+  classpath as `presentoireLibs`); `.odp` (OpenDocument) and the native `.zip` stay
+  pure-Java ZIP+DOM, and the native format gains the writer it never had.
+  `SlideGeometry` maps an office page (4:3 / 16:9) onto Presentoire's square
+  `-0.1..0.1` slide fit-inside, aspect-preserving and centred — text/lists
+  bottom-left anchored, images centre anchored, mirroring `SlideRenderer` so an
+  import→export round trip lands where the renderer already draws. Fidelity is
+  deliberately bounded to the Presentoire vocabulary (text blocks, bullet lists,
+  pictures): themes, custom fonts, animations, tables, charts and grouped/rotated
+  shapes are dropped on import and never emitted on export. `PresentoireModel`
+  generalised to carry images in memory (`of(...)` + an `inlineImages` map) so a
+  deck is no longer tied to an on-disk `ZipFile`, and `ModelColor.toHex` feeds the
+  writers' solid fills. The 2D panel gains a **Save As…** button and a
+  multi-format file filter and names the detected source format on its status
+  line; the 3D viewer stays read-only. Both faces now open by default on a
+  complete 16-slide *Looking Glass 3D and 2D* presentation (`LOOKING_GLASS_XML`,
+  text/vector-only — a compiled-in constant, no binary/LFS) covering the 3D
+  scene-graph desktop, the 2D/Swing MDI desktop, the shared-model pattern, the apps
+  portfolio, Project Mandela, the build toolchain and Presentoire's own format
+  support, with the port attributed to Jean-Francois Landreville. **37 new headless
+  cases** — 32 in the new `presentoire.format` suite (`DeckCodecsTest` 9 on
+  magic-byte sniffing + routing, `NativeDeckCodecTest` 6, `PptxDeckCodecTest` 3,
+  `PptDeckCodecTest` 3, `OdpDeckCodecTest` 4 including the `mimetype`-first-
+  uncompressed ODF rule, `SlideGeometryTest` 7 on the fit-inside inverse
+  transform) plus 5 added to `PresentoireModelTest` (11→14) and
+  `PresentoirePanelTest` (9→11) for the default deck, `of(...)` inline images,
+  `toHex`, per-format open and `saveFile` export. The 3D scene-graph view needs a
+  live display, so it is verified with the in-JVM probe and internal screencapture
+  rather than asserted here.
 - **Presentoire is resurrected — the 2006 slide-deck viewer ported to JDK 21 and wired into both desktops** (`lg3d-incubator`, `lg3d-apps`, `lg3d-core`) —
   Presentoire compiled but was a dormant prototype: its start-menu descriptor sat
   in the incubator's own unscanned `src/config`, and — fatally on a modern JVM —
