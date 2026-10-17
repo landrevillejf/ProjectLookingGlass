@@ -93,7 +93,7 @@ class AdvancedTextEditorPanelTest {
     }
 
     @Test
-    @DisplayName("the bundled extensions install their 89 toolbar actions")
+    @DisplayName("the bundled extensions install their 90 toolbar actions")
     void extensionsInstalled() {
         AdvancedTextEditorPanel panel = newPanel();
         // Text Tools 6 + Code Tools 6 + Case Tools 5 + Document Stats 1
@@ -102,9 +102,9 @@ class AdvancedTextEditorPanelTest {
         // + Spring Boot Tools 4 + Hash Tools 3 + JVM Build Tools 6
         // + Java Structure Tools 4 + Java Debugger 6 + Java Completion 1
         // + Insert & Snippets 5 + TODO Scan 2 + Comment Toggle 3
-        // + Mandela Tools 4 (run / check / bytecode / starter template)
+        // + Mandela Tools 5 (run / check / bytecode / starter template / deck)
         // + Gradle Build Tools 6 + Maven Build Tools 6
-        assertEquals(89, panel.extensionActionCount());
+        assertEquals(90, panel.extensionActionCount());
         panel.dispose();
     }
 
@@ -126,7 +126,8 @@ class AdvancedTextEditorPanelTest {
         assertTrue(panel.isAcceleratorBound("control alt shift R"));
         assertTrue(panel.isAcceleratorBound("control alt shift X"));
         // Mandela Tools claim the free letters of that same family: M run, A
-        // check, B bytecode. The fourth action (template) has no accelerator.
+        // check, B bytecode. The two starter-template actions (script, deck) have
+        // no accelerator.
         assertTrue(panel.isAcceleratorBound("control alt shift M"));
         assertTrue(panel.isAcceleratorBound("control alt shift A"));
         assertTrue(panel.isAcceleratorBound("control alt shift B"));

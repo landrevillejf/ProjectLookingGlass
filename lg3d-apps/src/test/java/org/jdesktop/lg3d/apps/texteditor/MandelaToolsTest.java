@@ -427,13 +427,13 @@ class MandelaToolsTest {
     }
 
     @Test
-    @DisplayName("four contributions, distinct ids, no accelerator reused")
+    @DisplayName("five contributions, distinct ids, no accelerator reused")
     void toolbarContributionsAreDistinct() {
         List<ToolbarContribution> bars = new MandelaTools().toolbarContributions();
-        assertEquals(4, bars.size());
+        assertEquals(5, bars.size());
         assertEquals(List.of("mandela-run", "mandela-check", "mandela-bytecode",
-                "mandela-new"), bars.stream().map(ToolbarContribution::getId)
-                .collect(Collectors.toList()));
+                "mandela-new", "mandela-deck"), bars.stream()
+                .map(ToolbarContribution::getId).collect(Collectors.toList()));
         for (ToolbarContribution c : bars) {
             assertNotNull(c.getAction(), c.getId());
             assertFalse(c.getLabel().isBlank(), c.getId());
@@ -441,7 +441,8 @@ class MandelaToolsTest {
         }
         List<String> keys = bars.stream().map(ToolbarContribution::getAccelerator)
                 .filter(k -> !k.isEmpty()).collect(Collectors.toList());
-        assertEquals(3, keys.size(), "the template action is deliberately unbound");
+        assertEquals(3, keys.size(),
+                "the two starter-template actions are deliberately unbound");
         assertEquals(keys.stream().distinct().count(), keys.size(),
                 "two actions must not claim one shortcut");
         assertTrue(keys.contains("control alt shift M"));
@@ -585,6 +586,45 @@ class MandelaToolsTest {
         StringBuilder clobbered = new StringBuilder();
         third.onDocumentOpened(doc("work.mnd", GOOD, clobbered::append));
         action(third, "mandela-new").run();
+        assertEquals(0, clobbered.length(), "a buffer with text is off limits");
+        assertTrue(full.sawMessage("only an empty document"), full.lastMessage());
+    }
+
+    @Test
+    @DisplayName("the deck template goes into an empty buffer, and only with WRITE")
+    void deckTemplateNeedsWriteAndAnEmptyBuffer() {
+        Capture cap = new Capture();
+        StringBuilder written = new StringBuilder();
+        MandelaTools ext = wired(cap, ALL_GRANTS.toArray(new TextEditorPermission[0]));
+        ext.onDocumentOpened(doc("deck.mnd", "", written::append));
+        action(ext, "mandela-deck").run();
+
+        assertTrue(written.length() > 0, "the buffer should have received the deck");
+        // The deck is Markdown Presentoire splits into slides: a top-level (# )
+        // heading and a --- rule between slides.
+        assertTrue(written.toString().contains("# "), written.toString());
+        assertTrue(written.toString().contains("---"), written.toString());
+        assertTrue(cap.sawMessage("starter deck inserted"), cap.lastMessage());
+
+        // Without WRITE a gated call is a silent no-op, so the deck goes to the
+        // Output panel instead of a success message the user could not verify.
+        Capture gated = new Capture();
+        MandelaTools ro = wired(gated, TextEditorPermission.READ,
+                TextEditorPermission.FILE_IO, TextEditorPermission.TOOLBAR,
+                TextEditorPermission.DIAGNOSE);
+        StringBuilder untouched = new StringBuilder();
+        ro.onDocumentOpened(doc("deck.mnd", "", untouched::append));
+        action(ro, "mandela-deck").run();
+        assertEquals(0, untouched.length(), "no WRITE grant means no buffer write");
+        assertTrue(String.valueOf(gated.outputs.get("mandela deck output"))
+                .contains("---"));
+
+        // A buffer with text in it is never overwritten, whatever the grants.
+        Capture full = new Capture();
+        MandelaTools third = wired(full, ALL_GRANTS.toArray(new TextEditorPermission[0]));
+        StringBuilder clobbered = new StringBuilder();
+        third.onDocumentOpened(doc("work.mnd", GOOD, clobbered::append));
+        action(third, "mandela-deck").run();
         assertEquals(0, clobbered.length(), "a buffer with text is off limits");
         assertTrue(full.sawMessage("only an empty document"), full.lastMessage());
     }
