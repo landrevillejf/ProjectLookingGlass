@@ -424,7 +424,7 @@ class EditorServicesTest {
     @DisplayName("every starter template is a program the language accepts")
     void templatesActuallyRun() {
         var templates = EditorServices.starterTemplates();
-        assertTrue(templates.keySet().containsAll(List.of("script", "function", "class")),
+        assertTrue(templates.keySet().containsAll(List.of("script", "function", "class", "deck")),
                 () -> "got " + templates.keySet());
         for (String name : templates.keySet()) {
             String body = templates.get(name);

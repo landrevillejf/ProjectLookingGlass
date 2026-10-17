@@ -158,7 +158,7 @@ page is the tour, that table is the index.
 | Host | How a script arrives | What it is granted | What it is used for |
 | --- | --- | --- | --- |
 | The CLI | `mandela run FILE -s DIR` | `desktop(root)`: console, files under `DIR`, no env, 50 M steps | the project's own automation, and any script you write |
-| Espresso | the **Mandela** extension, on the document you are editing | `console()`: the same profile as `mandela eval` - no files, no env, 20 M steps | *Run Mandela* `Ctrl+Alt+Shift+M`, *Check Mandela* `Ctrl+Alt+Shift+A`, *Mandela Bytecode* `Ctrl+Alt+Shift+B`, *Mandela Template* |
+| Espresso | the **Mandela** extension, on the document you are editing | `console()`: the same profile as `mandela eval` - no files, no env, 20 M steps | *Run Mandela* `Ctrl+Alt+Shift+M`, *Check Mandela* `Ctrl+Alt+Shift+A`, *Mandela Bytecode* `Ctrl+Alt+Shift+B`, *Mandela Template*, *Presentoire Deck* |
 | The Web Browser | `~/.lg3d/webbrowser/userscripts/*.mnd`, run on every page that commits | `webPage()`: no files, no env, no host types, 5 M steps | page logic, bound to `page`, `inject(js)` and `note(msg)` |
 | Any JVM | the engine facade or JSR-223 | whatever the host's `Capabilities` says | embedding the language in a tool |
 
@@ -211,7 +211,7 @@ for still land, because the delivery is in a `finally`.
 
 ### The repository's own CI
 
-Fifteen programs ship in `scripts/mandela/`; the eleven gates among them are what
+Sixteen programs ship in `scripts/mandela/`; the eleven gates among them are what
 the build ran above wires:
 
 ```bash

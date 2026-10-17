@@ -747,6 +747,25 @@ public final class EditorServices {
                         let c = Counter()
                         c.bump()
                         println(c.total)
+                        """,
+                "deck", """
+                        // A Presentoire slide deck as Markdown, printed to the
+                        // console. Presentoire splits a .md into slides on a `---`
+                        // rule; to write the file under a sandbox instead of
+                        // printing it, see scripts/mandela/deck-new.mnd.
+                        var deck = [
+                            "# My Deck",
+                            "",
+                            "A title slide, then one slide per topic.",
+                            "",
+                            "---",
+                            "",
+                            "# First topic",
+                            "",
+                            "- a point to make",
+                            "- another point"
+                        ]
+                        println(deck.join("\\n"))
                         """);
     }
 }
