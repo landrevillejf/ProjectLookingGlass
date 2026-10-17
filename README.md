@@ -20,10 +20,10 @@ JDK 21 install using the Jogamp OpenGL pipeline.
 ## Repository layout
 
 This is a **single repository** (no git submodules): every module is tracked
-directly here. Ten modules are part of the Gradle build (see
+directly here. Eleven modules are part of the Gradle build (see
 [`settings.gradle`](settings.gradle)) — the four ported from the original project
-plus six added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
-`db-manager`, `ftp-client` and `lg3d-mandela`:
+plus seven added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
+`db-manager`, `ftp-client`, `lg3d-mandela` and `lg3d-webserver`:
 
 | Module            | In build | Role |
 | ----------------- | :------: | ---- |
@@ -37,6 +37,7 @@ plus six added by this port: `lg3d-widgets`, `lpm-console`, `update-manager`,
 | `db-manager`      | ✅ | **New in this port:** driver-agnostic JDBC database client (DBeaver-style) — connection profiles, metadata navigator, SQL editor, results grid, CSV export. |
 | `ftp-client`      | ✅ | **New in this port:** protocol-neutral FTP/FTPS/SFTP file-transfer client (FileZilla-style) — site profiles, dual local & remote browser, transfer queue with retry/resume/cancel. |
 | `lg3d-mandela`    | ✅ | **New in this port:** *Project Mandela* — the desktop's own scripting language (lexer, parser, bytecode compiler, stack VM, capability-gated runtime, standard library, JSR-223 engine, embedding API, CLI/REPL). Zero third-party dependencies; embedded by Espresso and the Web Browser. |
+| `lg3d-webserver`  | ✅ | **New in this port:** self-contained Spring Boot (embedded Tomcat) web server exposing a management REST API that deploys and supervises containerized Spring Boot apps via the system `docker` CLI (plus a daemon-free local `java -jar` backend). Ships as an executable `bootJar` the **Web Server Console** (`lg3d-apps`) forks as a child process and drives over HTTP; deliberately **absent from the desktop classpath**, so Spring never enters the desktop JVM. |
 | `lg3d-art`        | assets | Wallpapers, splash art, 3D models, GDM theme (consumed at runtime). |
 | `lg3d-awt`        | ❌ | Optional custom AWT Toolkit/peer implementation — excluded (see below). |
 | `lg3d-x11`        | ❌ | Native X11 foundation window system scripts/binaries — not a Java module. |
@@ -79,6 +80,7 @@ lpm-console/build-gradle/libs/lpm-console-<version>.jar
 update-manager/build-gradle/libs/update-manager-<version>.jar
 db-manager/build-gradle/libs/db-manager-<version>.jar
 ftp-client/build-gradle/libs/ftp-client-<version>.jar
+lg3d-webserver/build-gradle/libs/lg3d-webserver-<version>.jar
 ```
 
 (`<version>` is the project version in [`build.gradle`](build.gradle); the jar
@@ -160,7 +162,7 @@ match. Entries are handled by kind:
 - **Panel apps** — **File Manager**, **Task Manager**, **Control Center**,
   **Calculator**, **Media Writer**, **Widget Gallery**, **Help Center**,
   **Search**, **About**, **LPM Console**, **Software Update**, **Database Manager**,
-  **FTP Client**, **Mail**, **Agenda**, **Contact**, **Chart**, the four games
+  **FTP Client**, **Web Server Console**, **Mail**, **Agenda**, **Contact**, **Chart**, the four games
   (**Chess**, **Solitaire**, **Sudoku**, **Tic-Tac-Toe**) and the **Periodic
   Table** (the same Swing panels the 3D desktop hosts on a `SwingNode`, minus
   the 3D) — open as internal frames inside the desktop window under both `-2`
