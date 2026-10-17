@@ -141,6 +141,9 @@ public class GenerateAppIcons {
     /** In-tool mark: the same cube over a list plate, the "world and its HUD" sign. */
     private static final String WORLD_CUBE_HUD_GLYPH = "WorldCubeHud";
 
+    /** In-tool mark: a Newton's cradle (a lifted ball over a resting row), the resurrected Physics app's sign. */
+    private static final String CRADLE_GLYPH = "NewtonCradle";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -297,6 +300,14 @@ public class GenerateAppIcons {
         // tile is what tells the two start-menu entries apart, so the mark says
         // "world + control panel" rather than relying on colour alone.
         {"wonderland3d.png", IconColor.CYAN, IconCategory.GENERAL, WORLD_CUBE_HUD_GLYPH},
+        // Newton's Cradle (the resurrected Physics app from lg3d-incubator; a
+        // Frame3D demo in the 3D desktop, a plain Swing NewtonCradlePanel in the
+        // 2D/Swing desktop, Education menu group). The bundled glyph set carries
+        // nothing cradle shaped, so the mark -- a support bar, five strings and
+        // five balls with the leftmost lifted out of the resting row -- is drawn
+        // in-tool like the keypad, disc and the other custom marks. Steel balls
+        // read best on a cool blue-gray tile (the same family Chess uses).
+        {"newtonscradle.png", IconColor.BLUE_GRAY, IconCategory.GENERAL, CRADLE_GLYPH},
     };
 
     public static void main(String[] args) throws Exception {
@@ -371,6 +382,8 @@ public class GenerateAppIcons {
                 glyph = drawWorldGridGlyph(GLYPH);
             } else if (WORLD_CUBE_HUD_GLYPH.equals(glyphName)) {
                 glyph = drawWorldCubeHudGlyph(GLYPH);
+            } else if (CRADLE_GLYPH.equals(glyphName)) {
+                glyph = drawCradleGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -388,6 +401,47 @@ public class GenerateAppIcons {
             IconManager.exportIcon(icon, out.getAbsolutePath(), "png");
             System.out.println("wrote " + out.getPath());
         }
+    }
+
+    /**
+     * Draws the Newton's cradle glyph: a white support bar across the top, five
+     * strings hanging from it and five steel balls, the leftmost lifted out and
+     * up from the resting row so the mark reads as the desk toy mid-swing. The
+     * bundled {@code toolbarButtonGraphics} set carries nothing cradle shaped, so
+     * it is drawn in-tool like the keypad and disc. Designed in a 32x32 space and
+     * scaled to {@code size}.
+     */
+    private static Icon drawCradleGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setStroke(new BasicStroke(1f));
+        // Anchor x of each of the five strings, and the resting ball line.
+        int[] anchorX = {6, 11, 16, 21, 26};
+        int restY = 24;
+        int radius = 3;
+        // The leftmost ball is lifted out and up from the row; the rest hang.
+        int liftedX = 4;
+        int liftedY = 14;
+        // Strings first, so the bar and balls sit on top of their ends.
+        g.setColor(new Color(0xDD, 0xDD, 0xDD));
+        for (int i = 0; i < anchorX.length; i++) {
+            int bx = (i == 0) ? liftedX : anchorX[i];
+            int by = (i == 0) ? liftedY : restY;
+            g.drawLine(anchorX[i], 5, bx, by);
+        }
+        // Support bar.
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(4, 2, 24, 3, 2, 2);
+        // Balls.
+        for (int i = 0; i < anchorX.length; i++) {
+            int bx = (i == 0) ? liftedX : anchorX[i];
+            int by = (i == 0) ? liftedY : restY;
+            g.fillOval(bx - radius, by - radius, 2 * radius, 2 * radius);
+        }
+        g.dispose();
+        return new ImageIcon(image);
     }
 
     /**
