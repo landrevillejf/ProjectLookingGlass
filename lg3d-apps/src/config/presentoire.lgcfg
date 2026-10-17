@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <java version="1.5.0" class="java.beans.XMLDecoder">
  <!-- Start Menu item: Presentoire (presentoire, from lg3d-incubator). A
- slide-deck viewer for Presentoire .zip decks (a content.xml plus the images it
- names). Native-3D in the 3D desktop (Presentoire builds the slide, its text /
+ slide-deck viewer that reads and writes Microsoft PowerPoint (.pptx and the
+ legacy binary .ppt, through Apache POI) and LibreOffice Impress (.odp,
+ OpenDocument) beside its own native Presentoire .zip format (a content.xml plus
+ the images it names); DeckCodecs sniffs which format a file is by magic bytes.
+ Native-3D in the 3D desktop (Presentoire builds the slide, its text /
  image / bullet elements and the next / previous / lower buttons as scene-graph
  nodes in a Frame3D); in the 2D/Swing desktop the same command is hosted as an
  MDI internal frame from the plain Swing PresentoirePanel via
  Desktop2DAppRegistry.PANEL_APPS, which rasterises the very same AWT-free
- PresentoireModel with Java 2D. Both faces open on a built-in demo deck and load
- a real deck through a standard file chooser. Launched in-JVM via the
+ PresentoireModel with Java 2D. Both faces open on a built-in Looking Glass 3D
+ and 2D deck and load a real deck (.zip / .pptx / .ppt / .odp) through a standard
+ file chooser; the 2D panel also exports the open deck (Save As) to any of those
+ formats, while the 3D viewer stays read-only. Launched in-JVM via the
  "java <class>" command; the incubator jar is on the :lg3d-core:run classpath.
  Discovery only scans config/demo and config/incubator, so, following the
  Periodic Table / Chess 3D / Agenda 3D precedent, this descriptor lives in
