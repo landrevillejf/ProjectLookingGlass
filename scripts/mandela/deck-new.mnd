@@ -1,0 +1,92 @@
+#!/usr/bin/env mandela
+// deck-new.mnd — write a starter Presentoire slide deck as Markdown (.md).
+//
+// Presentoire opens a Markdown deck: a .md split into slides on a horizontal
+// rule or a top-level (# ) heading, where the first heading is the slide title,
+// a run of -, *, + or "1." items is a bullet list, a run of plain lines is a
+// paragraph, and a line holding only an embedded image (its alt text and a path
+// beside the .md) is a picture read from disk. Espresso edits and runs the very
+// same .mnd, so the useful thing a scripting language can do here is author a
+// deck the desktop can present. Run it with the folder the deck should land in
+// as the sandbox:
+//
+//     mandela run scripts/mandela/deck-new.mnd my-deck -s ~/Documents
+//
+// With no sandbox it writes into the current directory, which is what the
+// repository's own smoke test does. Open the result in Presentoire.
+//
+//   args[0]   the deck's file name (without .md)   (default: my-deck)
+//   args[1]   the title slide's heading            (default: the file name)
+//   args[2..] each further word becomes its own slide heading
+
+use std.fs
+
+let NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-"
+
+// A file name the filesystem and Presentoire's Open dialog both accept: lower
+// case, digits, hyphen; a space becomes a hyphen, and anything else is dropped
+// rather than escaped, because the deck's name is what the file list will show.
+fun clean(raw) {
+    var out = ""
+    for (ch in raw.lower()) {
+        if (NAME_CHARS.contains(ch)) {
+            out += ch
+        } else if ((ch == " " || ch == "_") && !out.endsWith("-")) {
+            out += "-"
+        }
+    }
+    while (out.endsWith("-")) {
+        out = out.substring(0, out.length - 1)
+    }
+    return if (out.length == 0) "my-deck" else out
+}
+
+let name = clean(if (args.length > 0) args[0] else "my-deck")
+let title = if (args.length > 1) args[1] else name
+let target = "${name}.md"
+
+if (fs.exists(target)) {
+    error("${target} already exists; the script will not overwrite a deck " +
+          "you may have edited", "ViolationError")
+}
+
+// The deck is a list of lines joined once, which is the guide's own advice about
+// not building text with `+` in a loop, applied to the script that writes decks.
+// The shape is exactly what Presentoire's Markdown codec reads back: a `# ` title
+// slide, a horizontal rule between slides, `- ` bullets, and plain lines as a
+// paragraph. To add a picture, give it a slide of its own whose only line is an
+// embedded image (alt text, then a path beside this .md); the codec reads it from
+// disk and skips it, never fatally, if the file is missing.
+var body = [
+    "# ${title}",
+    "",
+    "Authored by deck-new.mnd - edit every slide, then open the file in Presentoire.",
+    "",
+    "---",
+    "",
+    "# First topic",
+    "",
+    "- a point to make",
+    "- another point",
+    ""
+]
+
+// Every further argument becomes its own slide, so one command scaffolds a deck
+// whose outline the caller already knows: `deck-new my-deck "My Deck" Intro Body
+// Demo` writes a title slide plus three topic slides.
+var i = 2
+while (i < args.length) {
+    let heading = args[i]
+    body.push("---")
+    body.push("")
+    body.push("# ${heading}")
+    body.push("")
+    body.push("- edit me")
+    body.push("")
+    i += 1
+}
+
+fs.write(target, body.join("\n"))
+let root = if (fs.root() == null) "." else fs.root()
+println("wrote ${root}/${target}")
+println("open it in Presentoire, or edit and run it again in Espresso")

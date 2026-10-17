@@ -343,9 +343,10 @@ the exit codes and how to add a tool.
 - `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
   `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
   start-menu items whose description reads like a different category than their
-  group, always exit 0) and `userscript-new.mnd` (a Web Browser userscript
-  generator) are not gates: the first three always exit 0, the last only writes the
-  one file it names.
+  group, always exit 0), `userscript-new.mnd` (a Web Browser userscript
+  generator) and `deck-new.mnd` (a Presentoire slide-deck generator) are not
+  gates: the first three always exit 0, the last two only write the one file each
+  names.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole
 tree, so their failures belong to the CI step that ran them and not to
