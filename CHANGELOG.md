@@ -10,6 +10,48 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Screen Snapshot now chooses *what* to grab — whole screen, every window, or a region you drag out** (`lg3d-apps`, `lg3d-core`) —
+  The Screen Snapshot utility captured exactly one thing before: whatever the
+  desktop's own capture path produced after a delay. It now asks the user to
+  pick a `CaptureArea` — **Whole screen**, **All windows** or **A region I
+  select** — as three radio buttons in the config frame, and honours that choice
+  on both desktops. The 2D/Swing desktop has no scene graph to read a raster
+  from and `java.awt.Robot` cannot grab a rootless/Wayland display, so
+  `DesktopScreenshot` renders the desktop straight into images by painting its
+  own Swing windows offscreen: `captureFullScreen` composites every visible
+  top-level window into one screen-sized PNG (MDI desktop-root frames painted
+  first so conventional app windows land on top), `captureAllWindows` writes
+  each window to its own PNG (the `JDesktopPane`'s visible internal frames, plus
+  any conventional top-level window), and `captureRegion` composites then crops
+  to the selection. The 3D desktop keeps its event seam: `FULL_SCREEN` and
+  `ALL_WINDOWS` both post a whole-canvas `ScreenCaptureEvent` (the scene graph
+  already renders every window into one canvas), and `SELECTION` posts the same
+  event carrying a crop `Rectangle`, which `ScreenCaptureBehavior` now applies to
+  the raster it reads back via the new pure `RasterCrop` before writing the file.
+  `RegionSelector` is the drag-select overlay: a full-screen `JWindow` (never a
+  `Frame`, so it is excluded from the composite and disposed before the capture
+  runs — it can never appear in its own snapshot) that punches the selection
+  clear with per-pixel translucency where supported, falls back to a uniform
+  0.45 window opacity, then to an opaque veil with instructions; Escape or a
+  sub-4px drag cancels. The selection rectangle, the window-bounds union, the
+  clamp-to-screen and the crop are all pure arithmetic in `CaptureRegions`
+  (2D) and `RasterCrop` (3D); file naming stays `lgscreen-<index>-<n>.png`, so a
+  2D and a 3D snapshot are indistinguishable in `~/Documents/Screenshots`.
+  `ScreenCaptureEvent` gained an optional, defensively-copied `region`
+  (`setRegion`/`getRegion`/`hasRegion`) that defaults to null — a whole-canvas
+  capture — so every existing caller is untouched. **30 new headless cases**
+  (`CaptureAreaTest` 3 on the labels; `CaptureRegionsTest` 8 on
+  normalise/union/clamp/crop including the disjoint and null rejections;
+  `ScreenshotFilesTest` 5 on the naming, default directory and writer;
+  `DesktopScreenshotTest` 5 on the desktop-pane search, the visible-internal-frame
+  filter and the headless empty-bounds fallback; `RasterCropTest` 4 on the 3D
+  crop's pixels/clamp/reject; `ScreenCaptureEventTest` 5 on the region
+  round-trip, defensive copy and null-clear). The paint calls, the read-back
+  raster and the live overlay need a display, so the on-screen result is verified
+  by launching the desktop and checking the produced `lgscreen-*.png` — not
+  asserted here. **Known limitation:** external native (non-Java) application
+  windows cannot be enumerated without `Robot`, so "All windows" covers the
+  desktop's own Swing/3D windows, not foreign X11 clients composited alongside.
 - **Contact darkening now ships on the live canvas — roadmap P2.7, screen-space ambient occlusion on the post chain** (`wonderland-renderer`) —
   The fifth and final link on the `preSwap` GPU post chain the P3.2 bloom proved,
   run FIRST so the scene is occluded before the cosmetic lens effects and the tone

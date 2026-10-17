@@ -21,6 +21,8 @@
  */
 package org.jdesktop.lg3d.displayserver;
 
+import java.awt.Rectangle;
+import java.awt.image.RenderedImage;
 import java.io.File;
 import java.util.logging.Logger;
 import java.util.logging.Level;
@@ -69,6 +71,7 @@ public class ScreenCaptureBehavior extends org.jogamp.java3d.Behavior implements
     
     private String format="png";
     private String dir;
+    private Rectangle region;
     
     private static final Logger logger = Logger.getLogger("lg.displayserver");
     
@@ -119,7 +122,13 @@ public class ScreenCaptureBehavior extends org.jogamp.java3d.Behavior implements
                 File file;
                 file = new File(dir+"/lgscreen-"+i+"-"+imageNo+"."+format);
                 gc[i].readRaster( readRaster );
-                ImageIO.write( readImageComponent.getRenderedImage(), format, file );
+                RenderedImage image = readImageComponent.getRenderedImage();
+                if (region != null) {
+                    RenderedImage cropped = RasterCrop.crop( image, region );
+                    if (cropped != null)
+                        image = cropped;
+                }
+                ImageIO.write( image, format, file );
                 imageNo++;
             }
         } catch(Exception ex) {
@@ -143,6 +152,7 @@ public class ScreenCaptureBehavior extends org.jogamp.java3d.Behavior implements
         
         format = sce.getFormat();
         dir = sce.getDirectory();
+        region = sce.getRegion();
         
         switch( sce.getCaptureMode() ) {
             case SINGLE :

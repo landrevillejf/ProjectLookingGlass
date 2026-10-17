@@ -21,6 +21,8 @@
  */
 package org.jdesktop.lg3d.displayserver;
 
+import java.awt.Rectangle;
+
 import org.jdesktop.lg3d.wg.event.LgEvent;
 
 /**
@@ -49,6 +51,15 @@ public class ScreenCaptureEvent extends LgEvent {
      * Directory in which to place images
      */
     private String dir;
+    
+    /**
+     * Optional crop region in screen/canvas coordinates (x, y, width, height).
+     * When set, the captured raster is cropped to this rectangle; when null the
+     * whole canvas/screen is captured. The Screen Snapshot app's "selection"
+     * area sets it so the 3D desktop can capture just the region the user
+     * dragged out.
+     */
+    private Rectangle region;
     
     /** Capture a SINGLE screen */
     public ScreenCaptureEvent(String directory) {
@@ -107,5 +118,28 @@ public class ScreenCaptureEvent extends LgEvent {
      */
     public String getDirectory() {
         return dir;
+    }
+    
+    /**
+     * Set the optional crop region; a defensive copy is taken. A null region
+     * clears it, restoring a whole-canvas capture.
+     */
+    public void setRegion( Rectangle region ) {
+        this.region = (region == null) ? null : new Rectangle(region);
+    }
+    
+    /**
+     * Return the crop region, or null for a whole-canvas capture. A defensive
+     * copy is returned.
+     */
+    public Rectangle getRegion() {
+        return (region == null) ? null : new Rectangle(region);
+    }
+    
+    /**
+     * True when a crop region has been set.
+     */
+    public boolean hasRegion() {
+        return region != null;
     }
 }
