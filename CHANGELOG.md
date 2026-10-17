@@ -3087,6 +3087,21 @@ work to make it build and run on a current toolchain.
   program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
+- **The world browser previews through JOGL by default** (`lg3d-apps`) —
+  `WorldRender.joglPreviewEnabled()` inverts from opt-in to opt-out: the JOGL
+  preview path (`GlWorldBuilder` into a `GlWorldViewer`) is now the shipped
+  desktop's default renderer for the world browser's vignette instead of the
+  java3d `WorldViewer`, which PR #412 proved at parity across all eight worlds
+  once `DepthBlitFormat` matched the framebuffer's 32-bit-float depth. Set
+  `-Dlg.wonderland.jogl=false` as the escape hatch back to the java3d viewer
+  while it still exists; both paths keep the identical `Attempt` contract (a
+  missing frame is a reason, never an exception) and both check `hasGeometry`
+  first, so only `tryPreview`'s dispatch changes. The java3d `WorldViewer` is
+  not removed here — `WorldRender.open()`'s interactive walk-in view and the 3D
+  desktop's `WonderlandWorldContainer` still need it, so the cutover continues
+  with a JOGL interactive viewer before those files and the java3d-core
+  dependency go. `WorldRenderTest.joglPreviewIsTheDefault` pins the new
+  default-on / explicit-false semantics.
 - **The clinic is one building, not eight boxes on a field** (`wonderland-server`)
   — see the `Fixed` entry above for the authoring bug this re-tile exposed; the
   layout is the answer to a plainer complaint. The hall got furnished and the
