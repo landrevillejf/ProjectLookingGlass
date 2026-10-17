@@ -5,7 +5,7 @@
  lg3d-webserver Spring Boot server: it reads server health/info/metrics and the
  deployed-application list over the management REST API (JDK HttpClient +
  Jackson), and can fork the server bootJar as a local child process. The console
- never puts Spring on the desktop classpath -- lg3d-apps does not depend on
+ never puts Spring on the desktop classpath: lg3d-apps does not depend on
  lg3d-webserver; it only needs the bootJar path (-Dwebserver.jar) to fork it, and
  the server URL to drive it. In the 3D desktop the WebServerConsole wrapper hosts
  WebServerConsolePanel on a SwingNode inside a Frame3D via TitledSwingWindow (the

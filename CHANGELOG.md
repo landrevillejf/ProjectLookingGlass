@@ -2601,6 +2601,19 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The Web Server Console no longer vanishes from both start menus** (`lg3d-apps`) —
+  `webserver.lgcfg` carried a `--` inside its XML comment ("the desktop classpath
+  -- lg3d-apps does not depend on"), and `--` is illegal within an XML comment, so
+  the descriptor was not well-formed. Both discovery paths parse descriptors with a
+  conformant parser and silently skip one that throws — the 3D desktop's
+  `DefaultConfigControl` (via `XMLDecoder`) and the 2D desktop's
+  `Desktop2DMenuConfig` (via `DocumentBuilder`, which logged
+  `SAXParseException ... The string "--" is not permitted within comments`) — so the
+  app was packaged correctly yet appeared in neither menu. The `startmenu-audit.mnd`
+  gate could not catch it because it greps the descriptor text rather than parsing
+  it. The comment prose is reworded to a colon, and a new `LgcfgWellFormedTest`
+  parses every shipped `.lgcfg` so a malformed descriptor now fails the build
+  instead of silently disappearing.
 - **Neither *What's New* surface advertises unreleased work any more — both show released versions only** (`lg3d-apps`, `scripts/mandela`, `update-manager`) —
   `[Unreleased]` is by definition work that has not shipped, so a person who
   opened a *What's New* inside a released build read a page advertising features
