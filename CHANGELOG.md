@@ -10,6 +10,29 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Mandela can now author a Presentoire deck — a shipped generator script and an Espresso starter template** (`lg3d-mandela`, `lg3d-apps`, `scripts`) —
+  The Markdown deck Presentoire opens is the one bridge between the two apps:
+  `lg3d-apps` (Espresso) depends on `lg3d-mandela` but not on `lg3d-incubator`
+  (Presentoire), and the language depends on nothing, so a deck capability in
+  Mandela can only emit text. `scripts/mandela/deck-new.mnd` is a new generator
+  beside `userscript-new.mnd`: run under a sandbox it writes a starter `.md` deck
+  — a `# ` title slide plus one slide per further argument, split on `---`
+  thematic breaks, with `- ` bullets and plain paragraph lines, exactly the shape
+  `MarkdownDeckCodec` reads back — and it refuses to overwrite a deck that
+  already exists. Espresso reaches the same idea in-editor through a fourth
+  `EditorServices` starter template, `deck`, surfaced by a fifth `MandelaTools`
+  toolbar action, *Presentoire Deck* (`mandela-deck`, deliberately unbound like
+  *Mandela Template*): it drops a console-safe program into an empty `.mnd` that
+  assembles a small slide deck in a list and prints it, because Espresso runs the
+  console profile with no filesystem, so writing the file stays the CLI script's
+  job. Both are backward-compatible additions — no `mandela.version` or
+  `mandela.language` bump and no desktop version change. **1 new headless case**
+  (`MandelaToolsTest.deckTemplateNeedsWriteAndAnEmptyBuffer` — the deck template
+  goes into an empty buffer only with WRITE, prints to the Output panel without
+  it, and never clobbers text), alongside the extended `EditorServicesTest` and
+  `MandelaToolsTest` assertions and the new script compiled by
+  `ShippedScriptsTest`. Presentoire needs no change: its Open action already
+  sniffs a `.md` as a Markdown deck.
 - **A bundled, full-featured Spring Boot web server that deploys and supervises containerized Spring Boot apps — the new `lg3d-webserver` module** (`lg3d-webserver`) —
   The backend half of the `todo.md` *Webserver* item: a self-contained Spring Boot
   3.5.6 (embedded Tomcat) server, built as an executable `bootJar`, exposing a

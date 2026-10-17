@@ -573,7 +573,8 @@ The language is the single source of truth for both hosts.
   keywords come straight from `Keywords.ALL` — and its bundled **Mandela**
   extension (`org.jdesktop.lg3d.apps.texteditor.MandelaTools`) offers
   *Run Mandela* (`Ctrl+Alt+Shift+M`), *Check Mandela* (`Ctrl+Alt+Shift+A`),
-  *Mandela Bytecode* (`Ctrl+Alt+Shift+B`) and *Mandela Template*. Diagnostics,
+  *Mandela Bytecode* (`Ctrl+Alt+Shift+B`), *Mandela Template* and *Presentoire
+  Deck*. Diagnostics,
   the outline panel and the completion strip all come from `EditorServices` in
   the language jar, so the editor cannot drift from the grammar.
 - **The Web Browser** runs `~/.lg3d/webbrowser/userscripts/*.mnd` through the

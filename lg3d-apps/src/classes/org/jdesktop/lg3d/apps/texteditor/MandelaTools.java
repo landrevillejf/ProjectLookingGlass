@@ -59,9 +59,10 @@ import org.jdesktop.lg3d.mandela.rt.Runtime;
  * goes to the editor's Output panel, never to a terminal the user is not looking
  * at. A fresh engine is built per run so a run cannot inherit globals from the
  * previous one; the check path shares its engine because checking mutates nothing.
- * The only time this extension touches the text is the one action that is asked
- * for it and only into an empty buffer, and without the {@code WRITE} grant it
- * prints the template to the Output panel instead of pretending to insert it.</p>
+ * The only time this extension touches the text is the two starter actions that
+ * are asked for it and only into an empty buffer, and without the {@code WRITE}
+ * grant they print the template to the Output panel instead of pretending to
+ * insert it.</p>
  */
 public final class MandelaTools implements TextEditorExtension {
 
@@ -216,7 +217,11 @@ public final class MandelaTools implements TextEditorExtension {
                         this::showBytecode, "control alt shift B"),
                 new ToolbarContribution("mandela-new", "Mandela Template",
                         "Replace an empty document with a starter Mandela script",
-                        this::insertTemplate));
+                        this::insertTemplate),
+                new ToolbarContribution("mandela-deck", "Presentoire Deck",
+                        "Replace an empty document with a starter Presentoire"
+                                + " slide deck (Markdown)",
+                        this::insertDeckTemplate));
     }
 
     // -- actions ------------------------------------------------------------
@@ -287,34 +292,57 @@ public final class MandelaTools implements TextEditorExtension {
     }
 
     /**
-     * Writes a starter template into the buffer. Offered only for an empty
+     * Writes a starter Mandela script into the buffer. Offered only for an empty
      * document, because replacing text a developer has written is the one thing
      * an analysis extension must never do.
      */
     private void insertTemplate() {
+        insertStarter("script", "mandela template", "Mandela Template");
+    }
+
+    /**
+     * Writes a starter Presentoire slide deck (Markdown) into the buffer, under
+     * the same empty-buffer, {@code WRITE}-gated contract as the script template.
+     * The deck it inserts prints rather than writes, because the console sandbox
+     * Espresso runs in has no filesystem; {@code scripts/mandela/deck-new.mnd} is
+     * the generator that writes the {@code .md} a Presentoire session opens.
+     */
+    private void insertDeckTemplate() {
+        insertStarter("deck", "mandela deck", "Presentoire Deck");
+    }
+
+    /**
+     * The body both starter actions share: fetch {@code key} from the language's
+     * own templates and put it into an empty buffer, or &mdash; without the
+     * {@code WRITE} grant &mdash; into the Output panel under {@code outputTool}.
+     * Every status message is prefixed with {@code label}, so the line says which
+     * of the two actions spoke, and a buffer that already holds text is left
+     * untouched whatever the grants.
+     */
+    private void insertStarter(String key, String outputTool, String label) {
         EditorContext ctx = editor;
         DocumentContext doc = currentDoc;
         if (ctx == null || doc == null) {
             return;
         }
         if (!doc.getFullText().isBlank()) {
-            msg("Mandela Template: only an empty document gets a starter script");
+            msg(label + ": only an empty document gets a starter " + key);
             return;
         }
-        String script = EditorServices.starterTemplates().get("script");
+        String script = EditorServices.starterTemplates().get(key);
         if (script == null) {
             return;
         }
         if (!ctx.has(TextEditorPermission.WRITE)) {
             // A gated write is a silent no-op, and reporting success on one would
             // be a lie the developer has to discover. Show the text instead.
-            output("mandela template", script);
-            msg("Mandela Template: WRITE was not granted, so the starter script is"
+            output(outputTool, script);
+            msg(label + ": WRITE was not granted, so the starter " + key + " is"
                     + " in the Output panel");
             return;
         }
         doc.setFullText(script);
-        msg("Mandela Template: starter script inserted");
+        msg(label + ": starter " + key + " inserted");
     }
 
     // -- analysis -----------------------------------------------------------
