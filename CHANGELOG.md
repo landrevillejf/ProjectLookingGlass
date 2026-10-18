@@ -10,6 +10,30 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`gate-new.mnd` — a Mandela generator that scaffolds the next gate in the shape the shipped ones already have** (`scripts`, `lg3d-mandela`) —
+  fifteen gates in `scripts/mandela` share five parts, and the two a person forgets
+  are not the syntax: `ShippedScriptsTest` already pins the shebang, the
+  `// name.mnd — what it is for` line and an invocation that names `-s`, so what
+  rots is the *premise* — the check that fails loudly when the file a gate reads
+  its answer from has moved, without which a vanished authority is reported as a
+  clean tree — and the prose paragraph that says why the two surfaces can drift
+  and what the mismatch costs a user. `gate-new.mnd my-check` writes
+  `scripts/mandela/my-check.mnd` with all of that in place, derives the Gradle
+  task name from the same word (`my-check` → `myCheckCheck`, so nobody is asked to
+  invent a second name for one tool), cleans a sloppy argument the way
+  `deck-new.mnd` does (`My_Bad Name_.mnd` → `my-bad-name`) and refuses to
+  overwrite a gate someone may already be editing. It is a **generator, not a
+  gate**: it writes the one file and *prints* the three edits it deliberately does
+  not make — the `mandelaCheck(...)` registration, its `repositoryChecks` entry
+  and the README row — because a tool that rewrote `lg3d-mandela/build.gradle`
+  would have `scripts-hygiene.mnd` auditing its own work rather than the author's,
+  and that gate is exactly what goes red while a scaffold sits unwired. Proven end
+  to end on this tree: the generated file compiled under the same `check` the build
+  runs, ran green, then failed with exit 2 once its `AUTHORITY` was pointed at a
+  file that does not exist, and leaving it unwired produced the single
+  `scripts-hygiene` finding its own header promises. Documented in the scripts
+  `README.md` (including in *Adding a script*, which now starts from the scaffold)
+  and in `AGENTS.md` beside the two generators of its kind.
 - **`bgconfigs.mnd` — a Mandela gate on the Background Manager's menu against the art the tree ships** (`scripts`, `lg3d-mandela`) —
   One flat list, `bgmanager/res/BgConfig.xml`, names every background by a
   `resources/Backgrounds/<Name>/LgBgConf.lgbg` classpath URL, each `.lgbg` names

@@ -1,0 +1,196 @@
+#!/usr/bin/env mandela
+// gate-new.mnd — write the scaffold of a new Mandela gate, in the shape the gates already ship.
+//
+// Every gate in this directory has the same five parts, and three of them are
+// not optional: a `#!/usr/bin/env mandela` first line, a `// name.mnd — what it
+// is for` second line and an invocation comment carrying `-s`, all three pinned
+// by `ShippedScriptsTest`; then a premise that fails loudly when the file the
+// gate reads its answer from is gone, because a gate whose authority vanished
+// otherwise reports a clean tree; then a findings list printed one per line and
+// a final `error("N name finding(s)", "ViolationError")` so the CLI exits 2 and
+// CI names the script. The parts people forget are the premise and the prose -
+// which is why `scripts-hygiene.mnd` exists for the wiring and this script exists
+// for the shape.
+//
+// It writes exactly one file, the new `.mnd`, and prints the two edits the human
+// must make: the `mandelaCheck(...)` registration beside its siblings and inside
+// `repositoryChecks` (lg3d-mandela/build.gradle), and the table row in this
+// README. It deliberately does not rewrite either of those: a build file is
+// hand-written source, and a generator that edited it would have `scripts-hygiene.mnd`
+// auditing its own work instead of the author's. Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/gate-new.mnd my-check -s .
+//
+// A **generator, not a gate**: it writes one file, refuses to overwrite an
+// existing one, and exits 0 - the `userscript-new.mnd` / `deck-new.mnd` kind.
+// Note what happens if you stop before wiring it: the new script ships in
+// `scripts/mandela` with no README row, so `repositoryChecks` goes red on
+// `scripts-hygiene.mnd`. That is the gate doing its job, not a defect in here.
+//
+//   args[0]   the gate's file name, without .mnd   (default: my-check)
+//   args[1]   the one-line statement of what it checks
+
+use std.fs
+
+let DIR = "scripts/mandela"
+let NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-"
+
+// A gate name the filesystem, the Gradle task name and the README anchor all
+// accept: lower case, digits and hyphens. A space or an underscore becomes a
+// hyphen, anything else is dropped rather than escaped, and a caller who typed
+// the extension gets it removed. Nothing about the name is trusted afterwards:
+// it is re-checked before a file is written.
+fun clean(raw) {
+    // The extension is stripped from the caller's word first: the filter below
+    // drops the dot, so ".mnd" would otherwise survive as the word "mnd".
+    var source = raw.lower()
+    if (source.endsWith(".mnd")) { source = source.removeSuffix(".mnd") }
+    var out = ""
+    for (ch in source) {
+        if (NAME_CHARS.contains(ch)) {
+            out += ch
+        } else if ((ch == " " || ch == "_") && !out.endsWith("-")) {
+            out += "-"
+        }
+    }
+    while (out.endsWith("-")) {
+        out = out.substring(0, out.length - 1)
+    }
+    while (out.startsWith("-")) {
+        out = out.substring(1)
+    }
+    return out
+}
+
+// scripts/mandela/my-check.mnd -> myCheck, the task being myCheckCheck: the
+// convention every registration in lg3d-mandela/build.gradle follows, spelled
+// here so the author is never asked to invent a second name for one tool.
+fun camel(kebab) {
+    var out = ""
+    var up = false
+    for (ch in kebab) {
+        if (ch == "-") {
+            up = true
+        } else if (up) {
+            out += ch.upper()
+            up = false
+        } else {
+            out += ch
+        }
+    }
+    return out
+}
+
+let name = clean(if (args.length > 0) args[0] else "my-check")
+if (name.length == 0) {
+    error("a gate name needs at least one letter or digit; try gate-new.mnd my-check -s .", "ViolationError")
+}
+if (camel(name).length == 0) {
+    error("${name} leaves no word to build a Gradle task name from", "ViolationError")
+}
+let task = "${camel(name)}Check"
+let target = "${DIR}/${name}.mnd"
+let purpose = if (args.length > 1) args[1] else "<what this gate holds true, in one line>"
+
+if (fs.exists(target)) {
+    error("${target} already exists; a gate is hand-written after it is scaffolded, " +
+          "so this script will not overwrite the checks someone may already have written",
+          "ViolationError")
+}
+
+// ---------------------------------------------------------------------------
+// the scaffold
+// ---------------------------------------------------------------------------
+// Lines are assembled in a list and joined once. Most are written in single
+// quotes on purpose: a Mandela single-quoted string does not interpolate, so the
+// generated program keeps its own ${...} markers instead of this script trying to
+// resolve names it never defined. Where the gate's own name must be burned in,
+// the line is built by concatenation.
+var body = [
+    '#!/usr/bin/env mandela',
+    "// ${name}.mnd — ${purpose}",
+    '//',
+    '// <Why the surfaces can drift apart, and what a reader loses when they do.',
+    '//  Name the two copies of the fact, the file each one lives in, and the',
+    '//  failure the mismatch causes. The paragraph is what makes the next',
+    "//  maintainer's fix the right one; it is also the one line a gate without",
+    '//  evidence gets written off for.>',
+    '// Run from the repository root:',
+    '//',
+    '//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar',
+    '//         run ' + target + ' -s .',
+    '//     ./gradlew :lg3d-mandela:' + task,
+    '//',
+    '// Checks, exit 0 when all hold and 2 on any finding:',
+    '//   1. every path in AUTHORITY exists - a gate whose authority is gone',
+    '//     proves nothing, so it says so out loud instead of passing;',
+    '//   2. <the invariant this file exists to hold>.',
+    '',
+    'use std.fs',
+    '',
+    '// Every file this gate reads its answer from. Replace the seed with the real',
+    '// ones: a gate auditing a list that holds nothing checks nothing.',
+    'let AUTHORITY = ["settings.gradle"]',
+    '',
+    '// ---------------------------------------------------------------------',
+    '// text tools, if the subject is text: the language has no regex, so the',
+    '// gates here scan with indexOf / substring over a moving rest, the way',
+    '// doc-links.mnd and exclusions.mnd do.',
+    '// ---------------------------------------------------------------------',
+    '',
+    '// fun tagOf(line) {',
+    '//     ...',
+    '// }',
+    '',
+    '// ---------------------------------------------------------------------',
+    '// the premise: read it before the checks, so a moved file is reported as a',
+    '// moved file and never as a clean tree.',
+    '// ---------------------------------------------------------------------',
+    '',
+    'for (needed in AUTHORITY) {',
+    '    if (!fs.exists(needed)) { error("${needed} is missing, so ' + name + '.mnd can prove nothing", "ViolationError") }',
+    '}',
+    '',
+    'var findings = []',
+    '',
+    '// 2. the invariant: one finding per defect, each naming the file and the',
+    '//    rule it broke, and each verified by hand before it is allowed to fail',
+    '//    a build - a script states a claim, it does not prove one.',
+    '//',
+    '// for (item in subjects) {',
+    '//     if (!holds(item)) { findings.push("<what is wrong, and where>") }',
+    '// }',
+    '',
+    'println("<what was read, counted: the number is the evidence>")',
+    'if (findings.length == 0) {',
+    '    println("<the sentence that says the invariant holds>")',
+    '} else {',
+    '    for (f in findings) { println("  gap: ${f}") }',
+    '    error("${findings.length} ' + name + ' finding(s)", "ViolationError")',
+    '}',
+    ''
+]
+
+fs.write(target, body.join("\n"))
+
+// ---------------------------------------------------------------------------
+// the wiring it does not do for you
+// ---------------------------------------------------------------------------
+println("wrote ${target}")
+println("edit it: replace the placeholder checks with the real invariants, then")
+println("prove it bites by planting one defect and reverting it.")
+println("")
+println("three edits make it a gate; scripts-hygiene.mnd fails until all three are made:")
+println("")
+println("  1. lg3d-mandela/build.gradle, beside its siblings:")
+println("     mandelaCheck('" + task + "', '" + name + ".mnd',")
+println("             'Fail when <the invariant, spelled as a build failure>.')")
+println("")
+println("  2. the same file, in the repositoryChecks dependsOn list: '" + task + "'")
+println("     (and the count in its comment, and the README's, both go up by one)")
+println("")
+println("  3. scripts/mandela/README.md, a row in the table:")
+println("     | [`" + name + ".mnd`](" + name + ".mnd) | <what it checks> | <what it found> |")
+println("")
+println("then the changelog entry, and whatsNewRefresh in the same PR.")

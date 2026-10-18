@@ -384,9 +384,10 @@ the exit codes and how to add a tool.
   `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
   start-menu items whose description reads like a different category than their
   group, always exit 0), `userscript-new.mnd` (a Web Browser userscript
-  generator) and `deck-new.mnd` (a Presentoire slide-deck generator) are not
-  gates: the first three always exit 0, the last two only write the one file each
-  names.
+  generator), `deck-new.mnd` (a Presentoire slide-deck generator) and
+  `gate-new.mnd` (the scaffold of a new gate, with its three wiring edits printed
+  rather than applied) are not gates: the first three always exit 0, and the last
+  three write the one file each names and refuse to overwrite it.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole
 tree, so their failures belong to the CI step that ran them and not to
