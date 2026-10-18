@@ -267,6 +267,11 @@ dependencies {
     // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
     implementation project(':ftp-client')
     implementation 'com.github.mwiede:jsch:0.2.24'
+    // The Terminal app (org.jdesktop.lg3d.apps.terminal) wraps the lg3d-terminal
+    // module's TerminalPanel (PTY + ANSI/VT100 emulation). The terminal jar is
+    // also resolved onto the lg3d-core desktop run classpath (see
+    // lg3d-core/build.gradle), so the in-JVM start-menu launch works.
+    implementation project(':lg3d-terminal')
     // Wonderland M7a videoplayer: the pure transport (wonderland-modules) owns
     // the playback policy; this 2D-desktop app supplies the live OpenJFX Media
     // sink (JfxMediaSurface) through the module's installSurfaceFactory seam --

@@ -51,6 +51,13 @@ include 'lg3d-mandela'
 // desktop classpath. The lg3d-apps "Web Server Console" forks it as a child
 // process and talks to it over HTTP, so Spring never enters the desktop JVM.
 include 'lg3d-webserver'
+// Terminal: a full-featured terminal emulator (PTY + ANSI/VT100 emulation) that
+// can be hosted in the lg3d 3D desktop OR run as a standalone 2D application.
+// JNA-based PTY for cross-platform native terminal support. The core engine
+// (lg3d-terminal) has no lg3d-core dependency; lg3d-apps wraps its TerminalPanel
+// in a "Terminal" start-menu app (SwingNode in 3D, MDI internal frame in 2D),
+// and the :lg3d-core:run task puts its jar on the desktop classpath.
+include 'lg3d-terminal'
 // OpenWonderland modernization port (decompiled from the 2006-era Wonderland.jar
 // installer and rewritten for JDK 21 + Jogamp). Four projects mirror the original
 // client/common/server/module-platform split, kept separate so the pure layers
