@@ -25,7 +25,9 @@
 //
 // What it counts, and what it therefore admits it cannot see:
 //   - the vocabulary is the setters and constructors a Swing label actually
-//     goes through, plus the app-local status helpers that write to one;
+//     goes through, the app-local helpers that write to one, and the
+//     JOptionPane trio - whose message is the *second* argument, after the
+//     parent, so it is classified one step further along the line;
 //   - only an argument in *that* call's own source text is classified, so a
 //     label built three lines above and passed as a variable is invisible, and
 //     so is an argument that begins on the next line;
@@ -448,5 +450,5 @@ if (warnings.length > 0) {
 }
 
 println("")
-println("${sources.length} source(s) read; ${totalProse} prose literal(s) written in place against ${totalLookup} bundle lookup(s); ${totalToken} single word(s), ${totalBlank} blank and ${totalUnbuild} in excluded code are not counted as prose")
+println("${sources.length} source(s) read; ${totalProse} prose literal(s) written in place against ${totalLookup} bundle lookup(s) sitting in that same argument slot; ${totalToken} single word(s), ${totalBlank} blank and ${totalUnbuild} in excluded code are not counted as prose")
 println("a report, not a gate: a literal here is a screen to translate, not a defect — ${skippedPrefixes.length} exclude pattern(s) were honoured from the module build files so that code nobody compiles is never counted as code anybody reads")
