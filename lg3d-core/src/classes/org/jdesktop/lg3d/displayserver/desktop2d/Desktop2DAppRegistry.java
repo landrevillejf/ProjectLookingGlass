@@ -577,6 +577,13 @@ public final class Desktop2DAppRegistry {
         // shows its own JFrame, so it runs beside the 2D desktop rather than
         // inside it. The same launcher is available in the 3D desktop.
         frames.add("org.jdesktop.lg3d.apps.launcher.LauncherFrame");
+        // The Terminal (lg3d-terminal, org.jdesktop.lg3d.apps.terminal.TerminalApp)
+        // is a full-featured terminal emulator with PTY support, ANSI/VT100
+        // emulation, 256-color display, and scrollback buffer. It shows its own
+        // JFrame (TerminalFrame), so it runs beside the 2D desktop rather than
+        // inside it. The lg3d-terminal jar (with JNA for PTY support) is on the
+        // desktop run classpath, so the in-JVM start-menu launch resolves.
+        frames.add("org.jdesktop.lg3d.apps.terminal.TerminalApp");
         SWING_FRAME_APPS = Collections.unmodifiableSet(frames);
     }
 
