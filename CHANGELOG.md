@@ -10,6 +10,47 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`run-classpath.mnd` — a Mandela gate on the two hand-written copies of the desktop classpath** (`scripts`, `lg3d-mandela`) —
+  `:lg3d-core:run` assembles its `classpath` by hand — module jars plus a dozen
+  detached configurations — because the desktop launches start-menu apps *in its own
+  JVM* and a Maven dependency of `lg3d-apps` never reaches that JVM on its own;
+  `releaseBundle` then writes the same list a second time, because the released
+  launcher runs `-cp "${HERE}/lib/*"` and a jar absent from `lib/` is simply not on
+  the released desktop's classpath. Two hand-written copies of one truth is the
+  defect this port has now hit three times (OpenJFX, POI, JNA): an app that works
+  under `./gradlew :lg3d-core:run` and dies with `NoClassDefFoundError` on the
+  user's machine. The script reads `lg3d-core/build.gradle` twice and
+  `settings.gradle` once, then runs seven checks in both directions — the module
+  jars each side carries, a jar shipped outside `lib/` must be handed to the dev run
+  by a `systemProperty` too, every included module is carried somewhere or carries a
+  written reason, the third-party coordinates, the vendored `ext/` allow-list (both
+  copies must agree and every jar named must exist, since a misspelled include
+  silently copies nothing), and the run task must depend on every jar it puts on the
+  classpath. It asserts its own premise first: if `lib/*` stops being the released
+  classpath, the two module checks prove nothing. Wired as
+  `:lg3d-mandela:runClasspathCheck` inside `repositoryChecks`; its first run over
+  this tree is the *Fixed* entry below.
+- **`coverage-floors.mnd` — a Mandela gate on what the coverage floors may claim** (`scripts`, `lg3d-mandela`) —
+  The root `coverageFloors` map is load-bearing in two directions that nothing
+  checked: `check` runs `jacocoTestCoverageVerification` only for a module named
+  there, so a module that gains a suite and no floor is measured but never guarded,
+  while a floor for a module with no suite names a rule that can never fire —
+  protection advertised, not delivered. A suite means at least one `.java` under
+  `src/test/java`, because an empty directory makes the Gradle test task `NO-SOURCE`
+  and JaCoCo never runs; `:lg3d-terminal:test` was exactly that and no surface said
+  so. A module with a suite and a deliberate exemption must carry its reason in the
+  script the way `legacy-j3d.mnd` scopes its exemptions, and an exemption that stops
+  being true is itself a finding. A fourth surface is compared: the floors quoted in
+  root `AGENTS.md` *Test coverage* prose against the map the build enforces, so a
+  bump that leaves the prose behind tells a reader a number nothing guards. Wired as
+  `:lg3d-mandela:coverageFloorsCheck`; it ships green over 16 floor(s) in 19
+  module(s) with one documented exemption (`lg3d-apps`, whose panels are
+  probe-verified against a live desktop), and it was proven in both directions at
+  once by moving `lg3d-widgets`' floor onto `lg3d-terminal`, which fails twice in a
+  single run. The two gates together take `repositoryChecks` from eleven to thirteen
+  and are documented in the scripts `README.md` and root `AGENTS.md` —
+  `scripts-hygiene.mnd` is the gate that named the omission the moment the scripts
+  were committed without their rows.
 - **Espresso can now clear a corrupted Gradle cache directly from the toolbar** (`lg3d-apps`) —
   A new *Clear Gradle Cache* toolbar action (`gradle-clear-cache`) deletes
   `~/.gradle/caches` to fix the common "Could not open cp_proj generic class
@@ -2663,6 +2704,17 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The released desktop could not open a Terminal: `releaseBundle` shipped neither the `lg3d-terminal` jar nor JNA** (`lg3d-core`) —
+  PR #428 put `lg3d-terminal` and `net.java.dev.jna:jna` / `jna-platform` on the
+  hand-assembled `:lg3d-core:run` classpath, which is why the Terminal opened under
+  `./gradlew :lg3d-core:run`. The release bundle's `lib/` never got them, so the
+  shipped `-cp "${HERE}/lib/*"` offered a start-menu entry whose classes — and whose
+  PTY library, since `com.sun.jna.Native` behind `forkpty` is what allocates the
+  shell — were not on the classpath: `NoClassDefFoundError` on the first shell, on
+  the user's machine, and invisible to CI because nothing compared the two lists.
+  Both copies now carry all three, the bundle's own comment inventory names JNA
+  beside JSch, and `scripts/mandela/run-classpath.mnd` is the gate that keeps them
+  equal.
 - **A Gradle/Maven project carrying its own distribution no longer reports "not available"** (`lg3d-apps`) —
   `BuildTools.launcher` resolved a build tool by checking for a file literally
   named `gradlew`/`mvnw` at the project root and then falling back to `gradle`/

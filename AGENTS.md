@@ -272,7 +272,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the eleven gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the thirteen gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -312,6 +312,20 @@ the exit codes and how to add a tool.
   `javax.vecmath`, `com.sun.j3d`); the do-not-edit `lg3d-docs` samples, the
   retired `lg3d-awt` toolkit and the two deserialisation shims are out of scope
   (a CI gate).
+- `run-classpath.mnd` - the two hand-written copies of one desktop classpath. The
+  module jars and third-party coordinates `:lg3d-core:run` assembles by hand must
+  be the same set `releaseBundle` ships under `lib/` - the released launcher runs
+  `-cp "${HERE}/lib/*"`, so a jar missing there is a `NoClassDefFoundError` on the
+  user's desktop and never on the developer's. A jar shipped outside `lib/` must
+  be reached by a `systemProperty` on both sides, a `settings.gradle` module may be
+  on neither list only with a written reason, the `ext/` allow-lists must agree and
+  name jars that exist on disk, and the run task must depend on every jar it puts
+  on the classpath (a CI gate).
+- `coverage-floors.mnd` - what the root `coverageFloors` map is allowed to claim: a
+  module with a test suite and no floor has no measurable regression guard, a floor
+  for a module with no test source names a rule that can never fire, an exemption
+  must carry its reason, and the floors quoted in this file's *Test coverage* prose
+  must be the numbers the build actually enforces (a CI gate).
 - `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
