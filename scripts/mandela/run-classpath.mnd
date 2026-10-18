@@ -1,0 +1,342 @@
+#!/usr/bin/env mandela
+// run-classpath.mnd — the dev run and the release bundle must carry one desktop.
+//
+// :lg3d-core:run does not inherit a classpath from Gradle's dependency graph: it
+// is assembled by hand from module jars plus a dozen detached configurations,
+// because the desktop launches start-menu apps *in its own JVM*, and a Maven
+// dependency of lg3d-apps never reaches that JVM on its own. releaseBundle then
+// writes the SAME list a second time, because the release launcher runs
+// `-cp "${HERE}/lib/*:${HERE}"` and a jar that is not in lib/ is simply not on
+// the released desktop's classpath. Two hand-written copies of one truth is the
+// defect: an app that works under `./gradlew :lg3d-core:run` and dies with
+// NoClassDefFoundError in the released desktop.
+//
+// Seven checks, each a provable wiring gap rather than a style claim:
+//   1. a module jar on the run classpath that releaseBundle does not ship in lib/;
+//   2. a module jar releaseBundle ships in lib/ that the run classpath never loads;
+//   3. a jar shipped outside lib/ (the server/ dir) whose dev counterpart is not
+//      handed to the desktop by a *.jar system property, so dev and release
+//      disagree on how the same jar is reached;
+//   4. a settings.gradle module no desktop classpath carries and that is not
+//      documented absent;
+//   5. a third-party coordinate the run task resolves that releaseRuntime omits;
+//   6. the vendored ext/ allow-list: both copies must agree, and every jar named
+//      must exist on disk (a misspelled include copies nothing, silently);
+//   7. a jar on the run classpath the run task does not depend on, so Gradle can
+//      launch the desktop against a stale or absent jar.
+// The launcher premise is asserted first: if lib/* is no longer the released
+// classpath, checks 1 and 2 would prove nothing.
+//
+// Gate, exit 2 on a finding. Run from the repository root:
+//
+//     mandela run scripts/mandela/run-classpath.mnd -s .
+//     ./gradlew :lg3d-mandela:runClasspathCheck
+//
+// A deliberate absence goes in ABSENT below with the reason the build file gives;
+// an entry that stops being true is itself a finding.
+
+use std.fs
+
+let CORE = "lg3d-core/build.gradle"
+let SETTINGS = "settings.gradle"
+let EXT_DIR = "lg3d-incubator/ext"
+
+// module -> why no desktop classpath carries it.
+var ABSENT = {}
+ABSENT.put("wonderland-server", "the desktop talks to a world server over REST / WebSocket and does not host one in its JVM (lg3d-core/build.gradle, run task)")
+
+// ---------------------------------------------------------------------------
+// text tools (the language has no regex)
+// ---------------------------------------------------------------------------
+
+// Every single-quoted token in a text, in order.
+fun quotedAll(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("'")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("'")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// Every double-quoted token in a text, in order: the Maven coordinates
+// interpolate the version catalog, so they are written in double quotes.
+fun doubleQuotedAll(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("\"")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("\"")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// The text from a marker to the first blank line after it: one Gradle statement
+// or spec, without the comment blocks that follow it.
+fun blockAfter(text, marker) {
+    let at = text.indexOf(marker)
+    if (at < 0) { return "" }
+    var out = []
+    for (line in text.substring(at).split("\n")) {
+        if (line.trim().length == 0 && out.length > 0) { break }
+        out.push(line)
+    }
+    return out.join("\n")
+}
+
+// The identifier-shaped words in a text. Punctuation is flattened to spaces
+// first: one native pass per character class, instead of a per-character loop
+// that rebuilds a growing string across a 20 KB block (the guide's `+` warning).
+fun identifiers(text) {
+    var flat = text
+    for (ch in ",()[]{}=+-*/;:.@!?&|%<>#$~^\"' \t\n\r") {
+        flat = flat.replace(ch, " ")
+    }
+    var out = []
+    for (word in flat.split(" ")) {
+        if (word.length == 0) { continue }
+        let head = word.charAt(0)
+        if (head >= "0" && head <= "9") { continue }
+        out.push(word)
+    }
+    return out
+}
+
+// `def name = project(':module').tasks.named('jar'|'bootJar')` within one
+// region, as name -> [module, task]. A `def name = tasks.named('jar')` with no
+// project() is this file's own module, lg3d-core, and is named by hand. Gradle
+// spells a project path with a leading colon; settings.gradle does not, so the
+// colon is stripped here and every module in this script is a bare name.
+// Names that do not end in `Jar` are not jar tasks and stay out, so no output
+// directory can be mistaken for a module.
+fun jarDefs(region) {
+    var defs = {}
+    for (line in region.split("\n")) {
+        let text = line.trim()
+        if (!text.startsWith("def ") || !text.contains("tasks.named(")) { continue }
+        let eq = text.indexOf("=")
+        let name = text.substring(4, eq).trim()
+        if (!name.endsWith("Jar")) { continue }
+        let toks = quotedAll(text)
+        if (!text.contains("project(':")) {
+            if (toks.length >= 1 && toks[0] == "jar") { defs.put(name, ["lg3d-core", "jar"]) }
+            continue
+        }
+        if (toks.length < 2) { continue }
+        defs.put(name, [toks[0].removePrefix(":"), toks[1]])
+    }
+    return defs
+}
+
+// The def names a text mentions, and the modules they stand for.
+fun defsIn(text, defs) {
+    var out = []
+    for (word in identifiers(text)) {
+        if (defs.has(word) && !out.contains(word)) { out.push(word) }
+    }
+    return out
+}
+
+fun modulesOf(names, defs) {
+    var out = []
+    for (name in names) {
+        let module = defs.get(name)[0]
+        if (!out.contains(module)) { out.push(module) }
+    }
+    return out
+}
+
+// `group:artifact` from every dependencies.create("group:artifact:version") line
+// in a region; the version and classifier are dropped, since the pair is what
+// identifies the library.
+fun coordinates(region) {
+    var out = []
+    for (line in region.split("\n")) {
+        if (!line.contains("dependencies.create(")) { continue }
+        for (coord in doubleQuotedAll(line)) {
+            let parts = coord.split(":")
+            if (parts.length < 2) { continue }
+            let pair = "${parts[0]}:${parts[1]}"
+            if (!out.contains(pair)) { out.push(pair) }
+        }
+    }
+    return out
+}
+
+// The ext/ allow-list of one region: the quoted .jar names on an `include: [`
+// line, which is how both copies write it.
+fun extAllowList(region) {
+    var out = []
+    for (line in region.split("\n")) {
+        if (!line.contains("include: [")) { continue }
+        for (name in quotedAll(line)) {
+            if (name.endsWith(".jar") && !out.contains(name)) { out.push(name) }
+        }
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// read the two lists out of one build file
+// ---------------------------------------------------------------------------
+
+if (!fs.exists(CORE)) { error("${CORE} is missing", "ViolationError") }
+let build = fs.read(CORE)
+
+let runAt = build.indexOf("tasks.register('run', JavaExec) {")
+let bundleAt = build.indexOf("tasks.register('releaseBundle', Zip) {")
+if (runAt < 0) { error("${CORE} registers no run task", "ViolationError") }
+if (bundleAt < 0) { error("${CORE} registers no releaseBundle task", "ViolationError") }
+if (runAt > bundleAt) { error("the run task is registered after releaseBundle, so the two regions this script reads are not the two it thinks it reads", "ViolationError") }
+let runRegion = build.substring(runAt, bundleAt)
+let bundleRegion = build.substring(bundleAt)
+
+var findings = []
+
+// The premise of checks 1 and 2. Written in single quotes so the launcher's own
+// ${HERE} is text here and not an interpolation this script would have to define.
+if (!build.contains('-cp "${HERE}/lib/*')) {
+    findings.push("the release launcher no longer puts lib/* on the desktop classpath, so this gate proves nothing about what the released desktop can load")
+}
+
+let runDefs = jarDefs(runRegion)
+let bundleDefs = jarDefs(bundleRegion)
+
+let classpathBlock = blockAfter(runRegion, "classpath = sourceSets.main.runtimeClasspath +")
+if (classpathBlock.length == 0) { error("the run task no longer assembles its classpath from sourceSets.main.runtimeClasspath", "ViolationError") }
+let dependsBlock = blockAfter(runRegion, "dependsOn ")
+let bundleLibBlock = blockAfter(bundleRegion, "into('lib')")
+let bundleServerBlock = blockAfter(bundleRegion, "into('server')")
+if (bundleLibBlock.length == 0) { error("releaseBundle ships no into('lib') spec", "ViolationError") }
+
+let runJarNames = defsIn(classpathBlock, runDefs)
+let runModules = modulesOf(runJarNames, runDefs)
+
+// What the desktop JVM really loads also includes the modules lg3d-core itself
+// depends on - those arrive through sourceSets.main.runtimeClasspath and are
+// never written in the files() list - and lg3d-core's own compiled output. The
+// declaration is read by its configuration keyword rather than by a block
+// window, because a dependencies block is full of blank lines.
+for (line in build.split("\n")) {
+    let text = line.trim()
+    if (!text.contains("project(':")) { continue }
+    if (!text.startsWith("api ") && !text.startsWith("implementation ") && !text.startsWith("runtimeOnly ")) { continue }
+    let depModule = quotedAll(text)[0].removePrefix(":")
+    if (depModule.length > 0 && !runModules.contains(depModule)) { runModules.push(depModule) }
+}
+if (!runModules.contains("lg3d-core")) { runModules.push("lg3d-core") }
+
+let bundleLibNames = defsIn(bundleLibBlock, bundleDefs)
+let bundleLib = modulesOf(bundleLibNames, bundleDefs)
+let bundleServerNames = defsIn(bundleServerBlock, bundleDefs)
+let bundleServer = modulesOf(bundleServerNames, bundleDefs)
+
+var carried = []
+for (m in bundleLib) { carried.push(m) }
+for (m in bundleServer) {
+    if (!carried.contains(m)) { carried.push(m) }
+}
+
+// 1 and 2: the two copies of one classpath.
+for (m in runModules) {
+    if (!bundleLib.contains(m)) {
+        findings.push(":lg3d-core:run loads ${m} on the desktop classpath, which releaseBundle does not ship under lib/ - the released desktop cannot launch that app")
+    }
+}
+for (m in bundleLib) {
+    if (!runModules.contains(m)) {
+        findings.push("releaseBundle ships ${m} on the released desktop classpath, which :lg3d-core:run never loads - the two desktops are not the same build")
+    }
+}
+
+// 3: a jar shipped outside lib/ is reached by path, so the dev run must name it
+// the same way - a `systemProperty '<name>.jar', <thatJarDef>` line.
+for (serverName in bundleServerNames) {
+    let serverModule = bundleDefs.get(serverName)[0]
+    var reached = false
+    for (propLine in runRegion.split("\n")) {
+        if (propLine.contains("systemProperty") && propLine.contains(".jar'") && propLine.contains(serverName)) {
+            reached = true
+        }
+    }
+    if (!reached) {
+        findings.push("${serverModule} ships outside lib/ for the released desktop to reach by path, but no run-task system property hands it that way")
+    }
+}
+
+// 4: every module the build produces is carried somewhere, or excused by a reason.
+var modules = []
+for (settingLine in fs.lines(SETTINGS)) {
+    if (!settingLine.trim().startsWith("include ")) { continue }
+    let included = quotedAll(settingLine)[0]
+    if (included.length > 0) { modules.push(included) }
+}
+for (m in modules) {
+    if (!runModules.contains(m) && !carried.contains(m) && !ABSENT.has(m)) {
+        findings.push("${SETTINGS} includes ${m}, but no desktop classpath carries it and this script records no reason")
+    }
+}
+for (m in keys(ABSENT)) {
+    if (runModules.contains(m) || carried.contains(m)) {
+        findings.push("${m} is documented absent here but is now on a desktop classpath - drop the stale exemption")
+    }
+    if (!modules.contains(m)) {
+        findings.push("${m} is documented absent here but settings.gradle does not include it")
+    }
+}
+
+// 5: third-party libraries, dev copy against release copy.
+let runCoords = coordinates(runRegion)
+let bundleCoords = coordinates(bundleRegion)
+for (coord in runCoords) {
+    if (!bundleCoords.contains(coord)) {
+        findings.push("the run task resolves ${coord}, which releaseRuntime does not ship - a released app that touches it dies with NoClassDefFoundError")
+    }
+}
+
+// 6: the ext/ allow-list is written twice and names files, not artifacts.
+let runExt = extAllowList(runRegion)
+let bundleExt = extAllowList(bundleRegion)
+for (name in runExt) {
+    if (!bundleExt.contains(name)) { findings.push("the run classpath carries ext/${name}, which releaseBundle does not ship") }
+    if (!fs.exists("${EXT_DIR}/${name}")) {
+        findings.push("the ext/ allow-list names ${EXT_DIR}/${name}, which does not exist - the include copies nothing and says nothing")
+    }
+}
+for (name in bundleExt) {
+    if (!runExt.contains(name)) { findings.push("releaseBundle ships ext/${name}, which the run classpath does not carry") }
+}
+
+// 7: a jar on the classpath has to be built before the desktop launches.
+for (jarName in runJarNames) {
+    if (!dependsBlock.contains(jarName)) {
+        findings.push("${runDefs.get(jarName)[0]} is on the run classpath, but the run task does not depend on its jar task")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// report
+// ---------------------------------------------------------------------------
+
+println("${runModules.length} module(s) on the dev run classpath, ${bundleLib.length} shipped in lib/, ${bundleServer.length} outside it")
+println("${runCoords.length} third-party coordinate(s) resolved by run, ${bundleCoords.length} by releaseRuntime")
+println("${runExt.length} ext/ jar(s) allowed for dev, ${bundleExt.length} for the bundle, ${length(keys(ABSENT))} documented absence(s)")
+println("${modules.length} module(s) in ${SETTINGS}")
+
+if (findings.length == 0) {
+    println("the dev desktop and the released desktop carry the same classpath")
+} else {
+    for (f in findings) { println("  CLASSPATH GAP  ${f}") }
+    error("${findings.length} run-classpath finding(s)", "ViolationError")
+}

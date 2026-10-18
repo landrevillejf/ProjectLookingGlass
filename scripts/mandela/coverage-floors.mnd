@@ -1,0 +1,257 @@
+#!/usr/bin/env mandela
+// coverage-floors.mnd — a coverage floor must describe a real test suite.
+//
+// The root build.gradle keeps a per-module minimum line/branch ratio in the
+// coverageFloors map, and `check` depends on jacocoTestCoverageVerification only
+// for a module named in it. The map is therefore load-bearing in two directions
+// nothing checks: a module that gains a suite and no floor is measured but never
+// guarded, and a floor for a module with no suite can never fail, so it
+// advertises protection that does not exist. Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/coverage-floors.mnd -s .
+//
+// Gate, exit 2 on a finding. A module with a suite and deliberately no floor is
+// listed in EXEMPT below with the reason, the way legacy-j3d.mnd scopes its
+// exemptions: the gate makes the choice visible, it does not make the choice.
+// A fourth surface is compared too: root AGENTS.md quotes some floors in its
+// *Test coverage* prose, and a bump that leaves the prose behind tells a reader
+// a number the build no longer enforces.
+
+use std.fs
+
+let ROOT = "build.gradle"
+let SETTINGS = "settings.gradle"
+let AGENTS = "AGENTS.md"
+
+// module -> why it has a suite and no floor. A stale entry (the module gained a
+// floor, left settings.gradle, or has no suite after all) is itself a finding.
+var EXEMPT = {}
+EXEMPT.put("lg3d-apps", "its panels are probe-verified against a live desktop, so a floor would only price the headless fraction (AGENTS.md, Test coverage)")
+
+// How many .java files a directory holds, walking it by hand. A module whose
+// src/test/java exists but is empty has NO suite: Gradle calls that task
+// NO-SOURCE and JaCoCo never runs, so counting the directory would be a lie.
+fun countJava(dir) {
+    var count = 0
+    if (!fs.isDirectory(dir)) { return 0 }
+    var stack = [dir]
+    while (stack.length > 0) {
+        let at = stack.pop()
+        for (name in fs.list(at)) {
+            let child = "${at}/${name}"
+            if (fs.isDirectory(child)) {
+                stack.push(child)
+            } else if (name.endsWith(".java")) {
+                count += 1
+            }
+        }
+    }
+    return count
+}
+
+// The quoted value after a marker on a line, or "" — the same hand scan the
+// other checkers use, because the language has no regex.
+fun quotedAfter(text, marker) {
+    let at = text.indexOf(marker)
+    if (at < 0) { return "" }
+    let rest = text.substring(at + marker.length)
+    let open = rest.indexOf("'")
+    if (open < 0) { return "" }
+    let body = rest.substring(open + 1)
+    let close = body.indexOf("'")
+    if (close < 0) { return "" }
+    return body.substring(0, close)
+}
+
+// The literal digits after `key:` in one entry line, or "" when they are not
+// there. Kept as text, not as a Double, because the report has to show the
+// number exactly as the build writes it: 0.310 and 0.31 are the same ratio and
+// a different claim about precision.
+fun digitsAfter(line, key) {
+    let at = line.indexOf(key)
+    if (at < 0) { return "" }
+    var i = at + key.length
+    while (i < line.length) {
+        let c = line.charAt(i)
+        if (c == " " or c == "\t") { i += 1 } else { break }
+    }
+    var digits = ""
+    while (i < line.length) {
+        let c = line.charAt(i)
+        if (c == "." or (c >= "0" and c <= "9")) {
+            digits += c
+            i += 1
+        } else {
+            break
+        }
+    }
+    return digits
+}
+
+// The map's own text, from its opening bracket to the line that closes it.
+fun floorsBlock(text) {
+    let at = text.indexOf("coverageFloors = [")
+    if (at < 0) { error("${ROOT} has no coverageFloors map", "ViolationError") }
+    let rest = text.substring(at)
+    let end = rest.indexOf("\n    ]")
+    if (end < 0) { error("the coverageFloors map is never closed", "ViolationError") }
+    return rest.substring(0, end)
+}
+
+var modules = []
+for (line in fs.lines(SETTINGS)) {
+    if (!line.trim().startsWith("include ")) { continue }
+    let name = quotedAfter(line, "include ")
+    if (name.length > 0) { modules.push(name) }
+}
+
+let block = floorsBlock(fs.read(ROOT))
+var floors = {}
+for (line in block.split("\n")) {
+    let module = quotedAfter(line, "")
+    if (module.length == 0) { continue }
+    floors.put(module, [digitsAfter(line, "line:"), digitsAfter(line, "branch:")])
+}
+
+// A floor for a module settings.gradle no longer includes wires a task that
+// never exists; the entry reads as protection and costs nothing.
+var findings = []
+for (m in keys(floors)) {
+    if (!modules.contains(m)) {
+        findings.push("${ROOT} floors ${m}, which settings.gradle does not include")
+    }
+}
+
+// One floor value: a ratio must be written, parse, and sit in (0,1]. A missing
+// or malformed number is reported as itself, never compared against 0.
+fun floorProblem(which, text) {
+    if (text.length == 0 or text == "." or !text.contains(".")) {
+        let shown = if (text.length == 0) "absent" else text
+        return "${which} floor is not a written number (${shown})"
+    }
+    let ratio = text.toDouble()
+    if (ratio <= 0 or ratio > 1) {
+        return "${which} floor ${text} is not a ratio in (0,1]"
+    }
+    return ""
+}
+
+var rows = []
+for (m in modules) {
+    let suite = countJava("${m}/src/test/java")
+    let floor = floors.get(m)
+    if (floor == null) {
+        if (suite > 0 and !EXEMPT.has(m)) {
+            findings.push("${m} has ${suite} test source(s) and no floor, so a coverage regression there cannot fail the build")
+        }
+        rows.push([m, "-", "-", str(suite)])
+    } else {
+        if (suite == 0) {
+            findings.push("${m} has a floor and no test source under src/test/java, so its jacocoTestCoverageVerification can never fail")
+        }
+        let lineProblem = floorProblem("line", floor[0])
+        if (lineProblem.length > 0) { findings.push("${m} ${lineProblem}") }
+        let branchProblem = floorProblem("branch", floor[1])
+        if (branchProblem.length > 0) { findings.push("${m} ${branchProblem}") }
+        rows.push([m, floor[0], floor[1], str(suite)])
+    }
+}
+
+// The exemptions have to stay true in both directions.
+for (m in keys(EXEMPT)) {
+    if (floors.has(m)) {
+        findings.push("${m} is exempted here and floored in ${ROOT}; drop the stale exemption")
+    }
+    if (!modules.contains(m)) {
+        findings.push("${m} is exempted here but settings.gradle does not include it")
+    }
+    if (countJava("${m}/src/test/java") == 0) {
+        findings.push("${m} is exempted here and has no test source to exempt")
+    }
+}
+
+// A floor that is never applied is a comment, not a gate. The wiring lives
+// outside the map (it reads coverageFloors[project.name] for every module), so
+// the whole build file is the text that has to carry it.
+let rootText = fs.read(ROOT)
+if (!rootText.contains("coverageFloors[project.name]")) {
+    findings.push("${ROOT} never looks a module up in coverageFloors")
+}
+if (!rootText.contains("jacocoTestCoverageVerification")) {
+    findings.push("the coverageFloors map is never wired to jacocoTestCoverageVerification")
+}
+if (!rootText.contains("dependsOn 'jacocoTestCoverageVerification'")) {
+    findings.push("jacocoTestCoverageVerification is configured but no check depends on it")
+}
+
+// The prose surface. AGENTS.md's *Test coverage* note quotes floors in the form
+// `module` line / branch, so a bumped number that leaves the prose behind tells
+// a reader a ratio the build no longer enforces. Each quoted pair a module name
+// opens is compared with the map's own digits.
+fun skipSpace(text, from) {
+    var i = from
+    while (i < text.length) {
+        let c = text.charAt(i)
+        if (c == " " or c == "\t" or c == "\n") { i += 1 } else { break }
+    }
+    return i
+}
+
+fun readNumber(text, from) {
+    var i = skipSpace(text, from)
+    var digits = ""
+    while (i < text.length) {
+        let c = text.charAt(i)
+        if (c == "." or (c >= "0" and c <= "9")) {
+            digits += c
+            i += 1
+        } else {
+            break
+        }
+    }
+    return [digits, i]
+}
+
+let agentsText = fs.read(AGENTS)
+var prosePairs = 0
+for (m in keys(floors)) {
+    var rest = agentsText
+    loop {
+        let mark = "`${m}`"
+        let at = rest.indexOf(mark)
+        if (at < 0) { break }
+        let after = rest.substring(at + mark.length)
+        let lineFloor = readNumber(after, 0)
+        let slash = skipSpace(after, lineFloor[1])
+        let branchFloor = readNumber(after, slash + 1)
+        // Only a real quoted pair counts: a number, then "/", then a number.
+        // Prose that merely names a module and then says something else with
+        // digits is left alone rather than guessed at.
+        if (lineFloor[0].contains(".") and slash < after.length and after.charAt(slash) == "/" and branchFloor[0].contains(".")) {
+            prosePairs += 1
+            if (lineFloor[0] != floors.get(m)[0]) {
+                findings.push("${AGENTS} says ${m} line floor ${lineFloor[0]}, ${ROOT} enforces ${floors.get(m)[0]}")
+            }
+            if (branchFloor[0] != floors.get(m)[1]) {
+                findings.push("${AGENTS} says ${m} branch floor ${branchFloor[0]}, ${ROOT} enforces ${floors.get(m)[1]}")
+            }
+        }
+        rest = after
+    }
+}
+
+println("module                line    branch  tests")
+for (r in rows) {
+    println("  ${r[0].padEnd(20)}${r[1].padEnd(8)}${r[2].padEnd(8)}${r[3]}")
+}
+println("${length(keys(floors))} floor(s) over ${length(modules)} module(s), " +
+        "${length(keys(EXEMPT))} documented exemption(s), " +
+        "${prosePairs} floor(s) quoted in ${AGENTS}")
+
+if (findings.length == 0) {
+    println("every floor names a module with a suite, and every suite is floored or exempted")
+} else {
+    for (f in findings) { println("  FLOOR GAP  ${f}") }
+    error("${findings.length} coverage-floor finding(s)", "ViolationError")
+}
