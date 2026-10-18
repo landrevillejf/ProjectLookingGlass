@@ -310,6 +310,9 @@ the exit codes and how to add a tool.
 - `i18n-keys.mnd` - the shell bundle contract: every `Messages.tr("...")` literal
   in a production source exists in `messages.properties`, the French bundle
   carries the same keys, and each key's `{n}` placeholders agree (a CI gate).
+  Its counterpart question - how much of the desktop never asks for a key at all -
+  is answered by `ui-strings.mnd` below, because a label that skips the bundle is
+  not a contract violation anywhere: it is English forever.
 - `legacy-j3d.mnd` - the Java 3D migration rule as a gate: no source the build
   compiles may `import` a pre-migration package (`javax.media.j3d`,
   `javax.vecmath`, `com.sun.j3d`); the do-not-edit `lg3d-docs` samples, the
@@ -404,10 +407,16 @@ the exit codes and how to add a tool.
   the language reserves a `PROCESS` grant with no function, so it cannot spawn
   `git`; it prints `git fetch --prune`, `git cherry` and `gh pr list` beside its
   numbers rather than deciding, and runs as `:lg3d-mandela:branchHygiene`),
+  `ui-strings.mnd` (report: the screen text that never reached `Messages.tr()` -
+  a literal written into a widget constructor, a text setter, a `JOptionPane`
+  message or a panel's own status helper, counted per module, per surface and per
+  file as the schedule a person ranks, never as a violation, and paired with
+  `i18n-keys.mnd` above, which can only audit the keys a source does ask for; runs
+  as `:lg3d-mandela:uiStrings`),
   `userscript-new.mnd` (a Web Browser userscript
   generator), `deck-new.mnd` (a Presentoire slide-deck generator) and
   `gate-new.mnd` (the scaffold of a new gate, with its three wiring edits printed
-  rather than applied) are not gates: the first four always exit 0, and the last
+  rather than applied) are not gates: the first five always exit 0, and the last
   three write the one file each names and refuse to overwrite it.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole

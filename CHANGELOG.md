@@ -10,6 +10,45 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`ui-strings.mnd` — a Mandela report on the screen text that never asks the bundle** (`scripts`, `lg3d-mandela`) —
+  `i18n-keys.mnd` can only audit the keys a source *asks* for, and `Messages.tr()`
+  degrades safely — a missing key echoes the key — so a label that skips the
+  bundle is not an error at build time or at runtime either: it is simply English,
+  forever, and nothing in the repository counted how many there are. The report
+  reads the one piece of evidence a source gives: a string literal written into
+  the argument slot of a widget constructor, a text setter, a `JOptionPane`
+  message (the *second* argument, after the parent component) or a panel's own
+  status helper, and prints it beside the slot that asks the bundle instead — per
+  module, per surface, and ranked per file, so the output is the schedule a person
+  works through rather than a list of violations. Its 21-name vocabulary was
+  measured before it was written down, and three families were left out on
+  evidence rather than taste: 32 of 32 `error(` and all 183 `info(` sites, and 71
+  of 90 `warn(` sites, carry a `LOG.`/`log.`/`logger.` receiver, so their argument
+  is a log line and not a label; `Container.add("…")` is a desktop-entry section
+  header or a diagnostic collected into a list; and `JMenu`/`setTipText` have no
+  literal call site at all. Four buckets are defined in the header, because a
+  grep and a report must not be read as disagreeing: prose, single word (`"OK"`,
+  `"#ff0000"`, a value or a label, and only a reader can tell), blank (a
+  spaces-only `new JLabel("   ")` is a spacer no translator would ship) and
+  excluded (a path the module's own build file leaves out renders for nobody).
+  Its first run read 2,842 sources and counted **1,314 prose literals against 20
+  bundle lookups**: `lg3d-apps` carries 1,178 of them and `lg3d-core` 12, because
+  the shell is the half that was made translatable, and the schedule starts at
+  `DockerManagementPanel` (74), `MessengerPanel` (55) and `VideoConferencePanel`
+  (52). Every number was checked against an independent `grep` pass — the source
+  count and each surface count exact, or explained by two calls on one line, and
+  the 20 lookups exact — and that check found **two defects in the report
+  itself**, both fixed here: the three `JOptionPane` names were in the dialog list
+  but not in the vocabulary, so the 40 dialog messages it now counts were
+  invisible, and the cheap per-line gate tested for a quote, which hid a lookup
+  built from data (`subMenu.setToolTipText(Messages.trLgcfgDesc(child.getName(),
+  …))`) until gate and classifier were made to read one marker list. 37 legacy
+  Latin-1 sources do not decode as text and are named, the same blind spot
+  `i18n-keys.mnd` reports. It is a **report, not a gate** — it always exits 0 and
+  is wired as `:lg3d-mandela:uiStrings`, deliberately outside
+  `repositoryChecks`, because a literal in a constructor is a screen to translate
+  and not a defect — documented in the scripts `README.md` and in `AGENTS.md`
+  beside `i18n-keys.mnd`, the question it answers.
 - **`help-topics.mnd` — a Mandela gate on the Help Center's JavaHelp bundle as one graph** (`scripts`, `lg3d-mandela`) —
   The Help Center is `javax.help` over five hand-written copies of one fact:
   `lg3d-help.hs` names the homeID, the map and the three navigators, `map.jhm`

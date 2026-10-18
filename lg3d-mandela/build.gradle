@@ -249,6 +249,26 @@ tasks.register('branchHygiene', JavaExec) {
     args = ['run', new File(scriptDir, 'branch-hygiene.mnd').toString(), '-s', repoRoot.toString()]
 }
 
+// ui-strings.mnd is a report of the same kind, and the counterweight to
+// i18nKeysCheck: that gate proves every key the shell *asks* for exists, while
+// this counts the labels that never ask - a literal written straight into a
+// Swing setter or widget constructor, which is English forever because
+// Messages.tr() degrades safely rather than failing. A literal is not a defect
+// (it can be a value, a deliberate name, or prose no user reads), so there is
+// nothing to fail on: the report is a schedule ranked by size for whoever
+// decides which screens ship translated. Deliberately NOT in `repositoryChecks`.
+tasks.register('uiStrings', JavaExec) {
+    group = 'reporting'
+    description = 'Report the UI strings that never reach Messages.tr(), per module, per surface and per file (report-only, never fails).'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    workingDir = repoRoot
+    args = ['run', new File(scriptDir, 'ui-strings.mnd').toString(), '-s', repoRoot.toString()]
+}
+
 // The other half of whats-new.mnd: the same script, run with its `write` mode
 // word, rendering CHANGELOG.md into the committed help topic AND into one page per
 // released version under documentation/releases/, with an index above them. A
