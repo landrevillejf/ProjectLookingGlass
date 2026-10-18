@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- The yellow "Health Fair!" wall poster the 2009 reference carries on the
+     hall's far wall, between the notice board and the windows. It is an
+     addition to the room, not a replacement: the notice board's own four
+     posters (Health, Clinic Hours, Wash Hands, Exam Rooms) stay exactly where
+     their author put them on notice-north.
+
+     Same poster-cell shape as the notice board and the framed pictures: a
+     name, a file and a pixel measure, no model and no lighting. The map is
+     512 px square, so 1.9 mm per pixel is the ~0.97 m print a person reads
+     from across the hall.
+
+     x = 0.0 sits in the clear band of the north wall between the notice board
+     (centred at x = -3.5) and window-north-a (centred at x = 3.2); the inner
+     face is z = -8.0, so -7.85 hangs it 15 cm off the plaster and yaw 0 turns
+     its normal into the room, the same authorship as notice-north.
+
+     (An XML comment may not carry a double hyphen: an unparseable cell is not
+     an error, it is one fewer cell.) -->
+<poster-cell>
+    <name>Health Fair Poster</name>
+    <metadata/>
+    <image-uri>wla://wonderland-outpatient-clinic/art/healthfair.png</image-uri>
+    <pixelScaleX>0.0019</pixelScaleX>
+    <pixelScaleY>0.0019</pixelScaleY>
+    <position-component>
+        <translation><x>0.0</x><y>1.7</y><z>-7.85</z></translation>
+        <rotation><x>0.0</x><y>1.0</y><z>0.0</z><angle>0.0</angle></rotation>
+    </position-component>
+</poster-cell>
