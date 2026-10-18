@@ -56,20 +56,39 @@ class WorldInventoryTest {
     }
 
     @Test
-    void everyPlacedCellBecomesExactlyOneBlockingBox() {
+    void everyPropSizedCellBecomesExactlyOneBlockingBox() {
         WorldInventory inventory = new WorldInventory(List.of(
-                cell("room-a", 0f, 0f, 4f),
-                cell("room-b", 20f, 0f, 5f)));
+                cell("sofa", 0f, 0f, 0.6f),
+                cell("desk", 20f, 0f, 0.8f)));
         List<Obstacle> obstacles = inventory.obstacles();
         assertThat(obstacles).hasSize(2);
         Obstacle a = obstacles.get(0);
-        assertThat(a.id()).isEqualTo("room-a");
+        assertThat(a.id()).isEqualTo("sofa");
         // Obstacle.of names the box from centre + half-extents; the footprint is
-        // used on both horizontal axes so a long room blocks along its short one.
-        assertThat(a.minX()).isCloseTo(-4f, within(1e-5f));
-        assertThat(a.maxX()).isCloseTo(4f, within(1e-5f));
-        assertThat(a.minZ()).isCloseTo(-4f, within(1e-5f));
-        assertThat(a.maxZ()).isCloseTo(4f, within(1e-5f));
+        // used on both horizontal axes so a long prop blocks along its short one.
+        assertThat(a.minX()).isCloseTo(-0.6f, within(1e-5f));
+        assertThat(a.maxX()).isCloseTo(0.6f, within(1e-5f));
+        assertThat(a.minZ()).isCloseTo(-0.6f, within(1e-5f));
+        assertThat(a.maxZ()).isCloseTo(0.6f, within(1e-5f));
+    }
+
+    @Test
+    void anEnclosureIsWalkableRatherThanASealedCrate() {
+        // A room, a building or a stair mass is a space to be INSIDE; one solid
+        // box for it is a crate the walker can never enter. It contributes no
+        // obstacle, while a prop beside it still blocks.
+        WorldInventory inventory = new WorldInventory(List.of(
+                cell("pavilion", 0f, 0f, 6f),
+                cell("sofa", 3f, 0f, 0.6f)));
+        assertThat(inventory.obstacles()).hasSize(1);
+        assertThat(inventory.obstacles().get(0).id()).isEqualTo("sofa");
+
+        // A step aimed into the enclosure is not refused: the walker walks in.
+        AvatarCollider collider = inventory.colliderAt(0f, -20f);
+        CellTransform request = new CellTransform();
+        request.setTranslation(new com.jme.math.Vector3f(0f, 0f, 0f));
+        assertThat(collider.clamp(request)).isNull();
+        assertThat(request.getTranslation(null).z).isZero();
     }
 
     @Test
