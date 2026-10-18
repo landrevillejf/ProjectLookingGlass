@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.StructureSymbol;
 import org.junit.jupiter.api.DisplayName;
@@ -545,6 +546,167 @@ class BuildToolsTest {
 
         assertTrue(BuildTools.gradleBuildOutline(null).isEmpty());
         assertTrue(BuildTools.gradleBuildOutline("").isEmpty());
+    }
+
+    // -- task-tree discovery -------------------------------------------------
+
+    @Test
+    @DisplayName("the Gradle task tree proposes the base lifecycle, test/run by plugin, declared tasks and modules")
+    void gradleTaskTree() {
+        List<BuildTask> tasks = BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'application'
+                }
+                tasks.register('smokeTest') {
+                }
+                task legacyCopy
+                """, """
+                rootProject.name = 'demo'
+                include ':app'
+                include(":core", ":core:util")
+                """);
+
+        // The base lifecycle every build carries.
+        List<String> lifecycle = tasks.stream()
+                .filter(t -> t.group().equals("Lifecycle"))
+                .map(BuildTask::name).toList();
+        assertTrue(lifecycle.containsAll(
+                List.of("build", "assemble", "check", "clean", "tasks")), lifecycle.toString());
+        // 'application' implies the Java plugin (test) and adds run.
+        assertTrue(lifecycle.contains("test"), lifecycle.toString());
+        assertTrue(lifecycle.contains("run"), lifecycle.toString());
+
+        // The script's own registered tasks, each with its declaration line.
+        List<BuildTask> declared = tasks.stream()
+                .filter(t -> t.group().equals("Declared tasks")).toList();
+        assertEquals(List.of("smokeTest", "legacyCopy"),
+                declared.stream().map(BuildTask::name).toList(), declared.toString());
+        assertEquals(4, declared.get(0).line());
+        assertEquals(6, declared.get(1).line());
+
+        // Each included module gets its own build/test/clean branch.
+        assertTrue(tasks.stream().anyMatch(t -> t.group().equals("module :app")
+                && t.name().equals(":app:build")), tasks.toString());
+        assertTrue(tasks.stream().anyMatch(t -> t.name().equals(":core:util:test")),
+                tasks.toString());
+        assertEquals(3, tasks.stream().filter(t -> t.group().equals("module :core")).count());
+
+        // Discovery is unwired: the caller attaches the run callback.
+        assertTrue(tasks.stream().noneMatch(BuildTask::isRunnable));
+    }
+
+    @Test
+    @DisplayName("a Gradle script with no JVM plugin proposes no test/run, and null input is safe")
+    void gradleTaskTreeWithoutPlugins() {
+        List<String> lifecycle = BuildTools.gradleTaskTree("group = 'x'\n", null).stream()
+                .filter(t -> t.group().equals("Lifecycle"))
+                .map(BuildTask::name).toList();
+        assertFalse(lifecycle.contains("test"), lifecycle.toString());
+        assertFalse(lifecycle.contains("run"), lifecycle.toString());
+        assertTrue(lifecycle.contains("build"), lifecycle.toString());
+
+        // A null build script still yields the base lifecycle; null settings add no modules.
+        assertFalse(BuildTools.gradleTaskTree(null, null).isEmpty());
+        assertTrue(BuildTools.gradleTaskTree(null, null).stream()
+                .noneMatch(t -> t.group().startsWith("module ")));
+    }
+
+    @Test
+    @DisplayName("a Spring Boot project proposes the plugin-contributed bootRun/bootJar tasks")
+    void gradleTaskTreeSpringBoot() {
+        List<BuildTask> tasks = BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'java'
+                    id 'org.springframework.boot' version '3.3.0'
+                    id 'io.spring.dependency-management' version '1.1.5'
+                }
+                """, null);
+        List<BuildTask> boot = tasks.stream()
+                .filter(t -> t.group().equals("Spring Boot")).toList();
+        // bootRun is contributed by the plugin, never declared in the script.
+        assertEquals(List.of("bootRun", "bootJar", "bootBuildImage"),
+                boot.stream().map(BuildTask::name).toList(), boot.toString());
+        // bootWar needs the war plugin, which this script does not apply.
+        assertFalse(tasks.stream().anyMatch(t -> t.name().equals("bootWar")), tasks.toString());
+        // 'java' still yields test; a JVM project also gets the base lifecycle.
+        assertTrue(tasks.stream().anyMatch(t -> t.name().equals("test")), tasks.toString());
+        assertTrue(tasks.stream().noneMatch(BuildTask::isRunnable));
+
+        // With the war plugin applied, bootWar joins the set.
+        assertTrue(BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'war'
+                    id 'org.springframework.boot'
+                }
+                """, null).stream().anyMatch(t -> t.name().equals("bootWar")));
+
+        // Kotlin-DSL id("...") shape is read the same way.
+        assertTrue(BuildTools.gradleTaskTree(
+                "plugins { id(\"org.springframework.boot\") }", null).stream()
+                .anyMatch(t -> t.name().equals("bootRun")));
+
+        // The shadow plugin contributes shadowJar, deduplicated across its two ids.
+        List<BuildTask> shadow = BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'java'
+                    id 'com.gradleup.shadow'
+                }
+                """, null).stream().filter(t -> t.name().equals("shadowJar")).toList();
+        assertEquals(1, shadow.size(), shadow.toString());
+        assertEquals("Shadow", shadow.get(0).group());
+
+        // No known plugin: nothing contributed.
+        assertTrue(BuildTools.gradleTaskTree("plugins { id 'java' }", null).stream()
+                .noneMatch(t -> t.group().equals("Spring Boot") || t.group().equals("Shadow")));
+    }
+
+    @Test
+    @DisplayName("appliesPlugin reads both the plugins block and the legacy apply form")
+    void appliesPlugin() {
+        assertTrue(BuildTools.appliesPlugin("plugins { id 'java' }", "java"));
+        assertTrue(BuildTools.appliesPlugin("plugins { id(\"java-library\") }", "java-library"));
+        assertTrue(BuildTools.appliesPlugin("apply plugin: 'application'", "application"));
+        assertFalse(BuildTools.appliesPlugin("plugins { id 'java' }", "application"));
+        // An unquoted core id is not matched: the plugins block requires quotes.
+        assertFalse(BuildTools.appliesPlugin("id java\n", "java"));
+        assertFalse(BuildTools.appliesPlugin(null, "java"));
+        assertFalse(BuildTools.appliesPlugin("", "java"));
+        assertFalse(BuildTools.appliesPlugin("plugins { id 'java' }", null));
+        assertFalse(BuildTools.appliesPlugin("plugins { id 'java' }", ""));
+    }
+
+    @Test
+    @DisplayName("gradleModules normalises includes to colon-led paths, skipping comments and duplicates")
+    void gradleModules() {
+        assertEquals(List.of(":app", ":core", ":core:util"), BuildTools.gradleModules("""
+                rootProject.name = 'demo'
+                include ':app'
+                // include ':commented'
+                include(":core")
+                include ':core', ':core:util'
+                include ':app'
+                """));
+        assertTrue(BuildTools.gradleModules(null).isEmpty());
+        assertTrue(BuildTools.gradleModules("   ").isEmpty());
+        assertTrue(BuildTools.gradleModules("rootProject.name = 'x'").isEmpty());
+    }
+
+    @Test
+    @DisplayName("the Maven task tree proposes the lifecycle phases, and only for a real POM")
+    void mavenTaskTree() {
+        List<String> phases = BuildTools.mavenTaskTree(POM).stream()
+                .map(BuildTask::name).toList();
+        assertEquals(List.of("clean", "validate", "compile", "test", "package",
+                "verify", "install", "site", "deploy"), phases);
+        assertTrue(BuildTools.mavenTaskTree(POM).stream()
+                .allMatch(t -> t.group().equals("Lifecycle")));
+        assertTrue(BuildTools.mavenTaskTree(POM).stream()
+                .noneMatch(BuildTask::isRunnable));
+
+        // Not a POM: nothing proposed.
+        assertTrue(BuildTools.mavenTaskTree(null).isEmpty());
+        assertTrue(BuildTools.mavenTaskTree("").isEmpty());
+        assertTrue(BuildTools.mavenTaskTree("<html><body>hi</body></html>").isEmpty());
     }
 
     // -- helpers ------------------------------------------------------------

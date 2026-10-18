@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
@@ -73,6 +74,8 @@ class GradleBuildToolsTest {
     private List<List<Diagnostic>> reports;
     private List<String> clearedPaths;
     private Map<String, List<StructureSymbol>> structures;
+    private List<String> taskTitles;
+    private List<List<BuildTask>> taskBatches;
     private FakeRunner runner;
     private String[] doc;
 
@@ -91,6 +94,8 @@ class GradleBuildToolsTest {
         reports = new ArrayList<>();
         clearedPaths = new ArrayList<>();
         structures = new LinkedHashMap<>();
+        taskTitles = new ArrayList<>();
+        taskBatches = new ArrayList<>();
         doc = new String[] {text};
         Path filePath = fileName.isEmpty() ? null : root.resolve(fileName);
         tools.onEditorStarted(new EditorContext(granted, EditorSinks.builder()
@@ -105,6 +110,10 @@ class GradleBuildToolsTest {
                 })
                 .clearDiagnostics(clearedPaths::add)
                 .showStructure((p, ss) -> structures.put(String.valueOf(p), ss))
+                .showTasks((title, ts) -> {
+                    taskTitles.add(title);
+                    taskBatches.add(ts);
+                })
                 .build()));
         tools.onDocumentOpened(new DocumentContext(
                 (filePath == null) ? null : filePath.toString(),
@@ -438,6 +447,102 @@ class GradleBuildToolsTest {
         assertTrue(structures.get(root.resolve("build.gradle").toString()).isEmpty());
         assertTrue(msgs.get(0).startsWith("Outline build.gradle: nothing recognised"),
                 msgs.toString());
+    }
+
+    // -- the task tree ---------------------------------------------------------
+
+    @Test
+    @DisplayName("opening a file in a Gradle project publishes its task tree, wired to run")
+    void publishesTaskTreeOnOpen(@TempDir Path root) throws Exception {
+        javaDocOf(root);
+        wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+
+        assertEquals(1, taskBatches.size(), "one publish on open");
+        assertEquals(root.getFileName().toString(), taskTitles.get(0));
+        List<BuildTask> tasks = taskBatches.get(0);
+        List<String> names = tasks.stream().map(BuildTask::name).toList();
+        // The 'java' plugin gives the base lifecycle plus test, but not run.
+        assertTrue(names.containsAll(List.of(
+                "build", "assemble", "check", "clean", "tasks", "test")), names.toString());
+        assertFalse(names.contains("run"), names.toString());
+        assertTrue(tasks.stream().allMatch(BuildTask::isRunnable), "every task is wired to run");
+
+        // Activating a leaf runs it through the same path as the toolbar action.
+        BuildTask build = tasks.stream()
+                .filter(t -> t.name().equals("build")).findFirst().orElseThrow();
+        runner.fallback = new Toolchain.Result(0, "\nBUILD SUCCESSFUL in 1s\n");
+        build.action().run();
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "build"),
+                runner.commands.get(0));
+        assertEquals(List.of(root), runner.workDirs);
+        assertEquals(List.of("gradle build output"), consoleTitles);
+    }
+
+    @Test
+    @DisplayName("a Spring Boot project publishes the plugin-contributed bootRun, wired to run")
+    void springBootTaskTreeRunsBootRun(@TempDir Path root) throws Exception {
+        Files.writeString(root.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'org.springframework.boot' version '3.3.0'
+                }
+                """, StandardCharsets.UTF_8);
+        Files.createFile(root.resolve("gradlew"));
+        wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+
+        List<BuildTask> tasks = taskBatches.get(0);
+        List<String> names = tasks.stream().map(BuildTask::name).toList();
+        assertTrue(names.containsAll(List.of("bootRun", "bootJar", "bootBuildImage")),
+                names.toString());
+        assertTrue(tasks.stream().allMatch(BuildTask::isRunnable), "every task is wired to run");
+
+        // Activating bootRun runs it through the same path as any other leaf.
+        BuildTask bootRun = tasks.stream()
+                .filter(t -> t.name().equals("bootRun")).findFirst().orElseThrow();
+        runner.fallback = new Toolchain.Result(0, "\nStarted App in 1.2 seconds\n");
+        bootRun.action().run();
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "bootRun"),
+                runner.commands.get(0));
+    }
+
+    @Test
+    @DisplayName("editing the build script re-publishes the tree; another file only does on save")
+    void republishesOnBuildFileChange(@TempDir Path root) throws Exception {
+        javaDocOf(root);
+        GradleBuildTools tools = wire(root, "build.gradle", "apply plugin: 'java'\n");
+        assertEquals(1, taskBatches.size());
+        assertTrue(taskBatches.get(0).stream()
+                .noneMatch(t -> t.name().equals("deploy")), taskBatches.get(0).toString());
+
+        // Adding a task to the open build script updates the tree on the next change.
+        tools.onDocumentChanged(new DocumentContext(
+                root.resolve("build.gradle").toString(), "build.gradle",
+                "apply plugin: 'java'\ntasks.register('deploy') {\n}\n", "", s -> { }, s -> { }));
+        assertEquals(2, taskBatches.size(), "a build-script edit re-publishes");
+        assertTrue(taskBatches.get(1).stream().anyMatch(t -> t.name().equals("deploy")
+                && t.group().equals("Declared tasks")), taskBatches.get(1).toString());
+
+        // Editing an ordinary source file does not re-scan the build script.
+        tools.onDocumentChanged(new DocumentContext(
+                root.resolve("src/main/java/com/acme/App.java").toString(), "App.java",
+                "class App {\n}\n", "", s -> { }, s -> { }));
+        assertEquals(2, taskBatches.size(), "a non-build-file edit does not re-publish");
+
+        // Saving re-publishes from the build script on disk, not the edited buffer.
+        tools.onDocumentSaved(new DocumentContext(
+                root.resolve("src/main/java/com/acme/App.java").toString(), "App.java",
+                "class App {\n}\n", "", s -> { }, s -> { }));
+        assertEquals(3, taskBatches.size(), "a save re-publishes");
+        assertTrue(taskBatches.get(2).stream()
+                .noneMatch(t -> t.name().equals("deploy")), taskBatches.get(2).toString());
+    }
+
+    @Test
+    @DisplayName("a document outside any Gradle project publishes no task tree")
+    void noTaskTreeOutsideAProject(@TempDir Path root) throws Exception {
+        write(root.resolve("src"), "App.java", "class App {\n}\n");
+        wire(root, "src/App.java", "class App {\n}\n");
+        assertTrue(taskBatches.isEmpty(), "nothing is published without a project");
     }
 
     // -- helpers ---------------------------------------------------------------

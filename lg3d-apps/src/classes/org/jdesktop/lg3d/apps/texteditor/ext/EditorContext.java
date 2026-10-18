@@ -155,6 +155,21 @@ public final class EditorContext {
     }
 
     /**
+     * Replaces the Tasks tree the editor shows for the open project with
+     * {@code tasks}, grouped by each task's {@link BuildTask#group()}; no-op
+     * without {@link TextEditorPermission#TOOLBAR}, because the tree exists to
+     * run build actions. A build extension publishes it after scanning the
+     * project's {@code build.gradle} / {@code pom.xml}, and re-publishes as
+     * tasks are added or removed. An empty list clears the tree.
+     */
+    public void showTasks(String title, List<BuildTask> tasks) {
+        if (has(TextEditorPermission.TOOLBAR) && sinks.showTasks != null) {
+            sinks.showTasks.accept(title,
+                    (tasks == null) ? List.of() : tasks);
+        }
+    }
+
+    /**
      * Asks the editor to move the caret to the 1-based {@code line} of
      * {@code path} (go-to-definition / find-occurrences jumps); no-op without
      * {@link TextEditorPermission#READ}, since navigating reads the document.

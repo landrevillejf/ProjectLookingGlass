@@ -15,11 +15,13 @@ package org.jdesktop.lg3d.apps.texteditor;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
@@ -62,6 +64,13 @@ public final class MavenBuildTools implements TextEditorExtension {
 
     /** Where Maven puts compiled classes; the standard layout, not a configurable guess. */
     private static final Path CLASSES = Path.of("target", "classes");
+
+    /**
+     * Lifecycle phases that boot Maven but compile nothing, so a task tree run
+     * of one gets the short timeout and no diagnostic parsing (the same
+     * treatment the toolbar's own {@code clean} action gets).
+     */
+    private static final Set<String> QUICK_GOALS = Set.of("clean", "validate");
 
     private EditorContext editor;
     private DocumentContext currentDoc;
@@ -117,6 +126,24 @@ public final class MavenBuildTools implements TextEditorExtension {
     @Override
     public void onDocumentOpened(DocumentContext doc) {
         this.currentDoc = doc;
+        publishTasks();
+    }
+
+    @Override
+    public void onDocumentChanged(DocumentContext doc) {
+        this.currentDoc = doc;
+        // Re-scan only while the user edits the POM itself, so a phase the POM
+        // newly builds updates the tree without re-reading pom.xml on every
+        // keystroke in an ordinary source file.
+        if (doc != null && BuildTools.isBuildFile(doc.getFileName(), BuildTools.MAVEN_MARKERS)) {
+            publishTasks();
+        }
+    }
+
+    @Override
+    public void onDocumentSaved(DocumentContext doc) {
+        this.currentDoc = doc;
+        publishTasks();
     }
 
     @Override
@@ -298,6 +325,60 @@ public final class MavenBuildTools implements TextEditorExtension {
         String filePath = (currentDoc == null) ? null : currentDoc.getFilePath();
         return BuildTools.searchStart(filePath)
                 .flatMap(start -> BuildTools.projectRoot(start, BuildTools.MAVEN_MARKERS));
+    }
+
+    // -- task tree -----------------------------------------------------------
+
+    /**
+     * Scans the open project's {@code pom.xml} and publishes the lifecycle
+     * goals it proposes to the editor's Tasks tree, each wired to the same
+     * {@link #runGoals} path the toolbar actions use — so a goal run from the
+     * tree logs, files findings and reports on the status line exactly like its
+     * button. A directory that is not a Maven project publishes nothing, which
+     * leaves any other extension's tree (a Gradle project's) untouched. Called
+     * on the EDT from the document hooks; the scan reads one small file at most.
+     */
+    private void publishTasks() {
+        EditorContext ctx = editor;
+        if (ctx == null) {
+            return;
+        }
+        Optional<Path> root = projectRoot();
+        if (root.isEmpty()) {
+            return;
+        }
+        Path project = root.get();
+        List<BuildTask> discovered = BuildTools.mavenTaskTree(pomText(project));
+        List<BuildTask> wired = new ArrayList<>(discovered.size());
+        for (BuildTask task : discovered) {
+            String name = task.name();
+            wired.add(task.withAction(() -> runGoals("mvn " + name, List.of(name),
+                    timeoutFor(name), diagnoseFor(name))));
+        }
+        Path fileName = project.getFileName();
+        ctx.showTasks((fileName == null) ? project.toString() : fileName.toString(), wired);
+    }
+
+    /**
+     * The POM text: the open document when it <em>is</em> a {@code pom.xml} (so
+     * unsaved edits are scanned), else the project's own from disk, else empty.
+     */
+    private String pomText(Path root) {
+        DocumentContext doc = currentDoc;
+        if (doc != null && BuildTools.isBuildFile(doc.getFileName(), BuildTools.MAVEN_MARKERS)) {
+            return doc.getFullText();
+        }
+        return BuildTools.readBuildFile(root.resolve("pom.xml")).orElse("");
+    }
+
+    /** The run timeout for a goal: quick goals only configure, the rest compile. */
+    private static long timeoutFor(String goal) {
+        return QUICK_GOALS.contains(goal) ? QUICK_TIMEOUT_MS : BUILD_TIMEOUT_MS;
+    }
+
+    /** True when a goal's output should be parsed for compiler/test findings. */
+    private static boolean diagnoseFor(String goal) {
+        return !QUICK_GOALS.contains(goal);
     }
 
     /**

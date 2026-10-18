@@ -28,6 +28,7 @@ import java.util.Set;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic.Kind;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
@@ -207,6 +208,44 @@ class IdeChromeTest {
                 EnumSet.of(TextEditorPermission.DIAGNOSE), sinks);
         ctx.reportDiagnostics("/a", null);
         assertEquals(List.of("/a:0"), reported);
+    }
+
+    @Test
+    @DisplayName("TOOLBAR-gated showTasks only fires when granted, and null normalises to empty")
+    void showTasksGating() {
+        final List<String> published = new ArrayList<>();
+        final List<Integer> sizes = new ArrayList<>();
+        EditorSinks sinks = EditorSinks.builder()
+                .showTasks((title, tasks) -> {
+                    published.add(title);
+                    sizes.add(tasks.size());
+                })
+                .build();
+        List<BuildTask> two = List.of(
+                new BuildTask("Lifecycle", "build", "Assemble and check", 0),
+                new BuildTask("Lifecycle", "test", "Run the tests", 0));
+
+        // Granted TOOLBAR: the tree is published.
+        EditorContext with = new EditorContext(
+                EnumSet.of(TextEditorPermission.TOOLBAR), sinks);
+        with.showTasks("demo", two);
+        assertEquals(List.of("demo"), published);
+        assertEquals(List.of(2), sizes);
+
+        // A null list normalises to empty rather than throwing.
+        published.clear();
+        sizes.clear();
+        with.showTasks("demo", null);
+        assertEquals(List.of(0), sizes);
+
+        // Not granted TOOLBAR (DIAGNOSE alone is not enough): silent no-op.
+        published.clear();
+        sizes.clear();
+        EditorContext without = new EditorContext(
+                EnumSet.of(TextEditorPermission.DIAGNOSE), sinks);
+        without.showTasks("demo", two);
+        assertTrue(published.isEmpty());
+        assertTrue(sizes.isEmpty());
     }
 
     @Test
@@ -416,6 +455,46 @@ class IdeChromeTest {
     }
 
     @Test
+    @DisplayName("TaskTreePanel groups tasks by branch, keeps their action, and clears")
+    void taskTreePanel() {
+        TaskTreePanel panel = new TaskTreePanel();
+        final int[] ran = {0};
+        panel.setTasks("demo", List.of(
+                new BuildTask("Lifecycle", "build", "Assemble and check", 0)
+                        .withAction(() -> ran[0]++),
+                new BuildTask("Lifecycle", "test", "Run the tests", 0),
+                new BuildTask("Declared tasks", "deploy", "Declared here", 7)));
+        assertEquals("demo", panel.titleText());
+        assertEquals(2, panel.groupCount());
+        assertEquals(List.of("Lifecycle", "Declared tasks"), panel.groups());
+        assertEquals(3, panel.taskCount());
+        assertEquals(2, panel.tasksIn("Lifecycle").size());
+        assertEquals("deploy", panel.tasksIn("Declared tasks").get(0).name());
+        assertEquals(7, panel.tasksIn("Declared tasks").get(0).line());
+        assertTrue(panel.tasksIn("nope").isEmpty());
+
+        // A runnable leaf keeps its callback, so a double-click can run it.
+        BuildTask build = panel.tasksIn("Lifecycle").get(0);
+        assertTrue(build.isRunnable());
+        build.action().run();
+        assertEquals(1, ran[0]);
+        assertFalse(panel.tasksIn("Lifecycle").get(1).isRunnable());
+
+        // A blank group files at the root branch, retitled "Tasks".
+        panel.setTasks("demo", List.of(new BuildTask("", "solo", "", 0)));
+        assertEquals(List.of("Tasks"), panel.groups());
+        assertEquals(1, panel.taskCount());
+
+        // A null/empty list leaves just the root, and the title falls back.
+        panel.setTasks(null, null);
+        assertEquals("Tasks", panel.titleText());
+        assertEquals(0, panel.groupCount());
+        assertEquals(0, panel.taskCount());
+        panel.clear();
+        assertEquals(0, panel.taskCount());
+    }
+
+    @Test
     @DisplayName("DebugPanel renders output, stack, locals and breakpoints")
     void debugPanel() {
         DebugPanel panel = new DebugPanel();
@@ -451,7 +530,7 @@ class IdeChromeTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("the editor exposes Output/Problems/Structure/Debug/Completions tabs")
+    @DisplayName("the editor exposes Output/Problems/Structure/Debug/Completions/Tasks tabs")
     void bottomTabsWired() {
         Set<String> titles = new java.util.HashSet<>();
         AdvancedTextEditorPanel panel = new AdvancedTextEditorPanel(false);
@@ -461,10 +540,12 @@ class IdeChromeTest {
                 titles.add(tabs.getTitleAt(i));
             }
             assertTrue(titles.containsAll(
-                    List.of("Output", "Problems", "Structure", "Debug", "Completions")),
-                    "expected all five IDE tabs, got " + titles);
+                    List.of("Output", "Problems", "Structure", "Debug", "Completions", "Tasks")),
+                    "expected all six IDE tabs, got " + titles);
             assertSame(panel.problemsPanel(), tabs.getComponent(1));
             assertSame(panel.debugPanel(), tabs.getComponent(3));
+            // Tasks is appended last so the pinned indices above never shift.
+            assertSame(panel.taskTreePanel(), tabs.getComponent(5));
 
             // The context-wired sink actually paints into the live chrome.
             EditorContext ctx = new EditorContext(
@@ -476,6 +557,16 @@ class IdeChromeTest {
                     Diagnostic.of("", 1, 1, Kind.ERROR, "boom")));
             assertEquals(1, panel.problemsPanel().problemCount());
             assertEquals(1, panel.currentTab().diagnosticCount());
+
+            // The TOOLBAR-gated Tasks sink paints the tree the same way.
+            EditorContext taskCtx = new EditorContext(
+                    EnumSet.of(TextEditorPermission.TOOLBAR),
+                    EditorSinks.builder()
+                            .showTasks(panel::showTasksForExtension)
+                            .build());
+            taskCtx.showTasks("demo", List.of(
+                    new BuildTask("Lifecycle", "build", "", 0)));
+            assertEquals(1, panel.taskTreePanel().taskCount());
         } finally {
             panel.dispose();
         }
