@@ -1,0 +1,78 @@
+plugins {
+    id 'java-library'
+    id 'application'
+    id 'jacoco'
+}
+
+group = 'org.jdesktop'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // JNA for native PTY support (forkpty/openpty via libc)
+    implementation 'net.java.dev.jna:jna:5.14.0'
+    implementation 'net.java.dev.jna:jna-platform:5.14.0'
+    
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.jdesktop.terminal.Standalone'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    finalizedBy 'jacocoTestReport'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// Coverage floor: 80% line coverage mandatory for Phase 1
+// The jacocoTestCoverageVerification task is already registered by the root build.gradle;
+// we only need to configure its violation rules here.
+tasks.named('jacocoTestCoverageVerification') {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn 'jacocoTestCoverageVerification'
+}
+
+// Encoding
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// Jar configuration
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'LG3D Terminal',
+            'Implementation-Version': project.version,
+            'Main-Class': 'org.jdesktop.terminal.Standalone'
+        )
+    }
+}
