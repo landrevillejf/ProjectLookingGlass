@@ -65,6 +65,12 @@ pdfbox = "3.0.5"          # org.apache.pdfbox:pdfbox (Apache-2.0)
 # it; the process and audio halves use the JDK, so no other VoIP dependency
 # is introduced.
 ice4j = "3.2-21-g3d9cdaa"  # org.jitsi:ice4j (Apache-2.0; ICE/STUN/TURN)
+# JNA (Java Native Access) powers the Terminal app's PTY support: the terminal
+# module uses JNA to call native forkpty/openpty functions from libc for
+# pseudo-terminal creation without JNI compilation. Licensed LGPL-2.1-or-later.
+# Also resolved onto the lg3d-core desktop run classpath (see lg3d-core/build.gradle),
+# so the in-JVM start-menu launch finds com.sun.jna.Native.
+jna = "5.14.0"              # net.java.dev.jna:jna (LGPL-2.1-or-later; native access)
 # The Archive app (lg3d-apps, org.jdesktop.lg3d.apps.archive) browses, extracts
 # and creates archives of every common open format (zip, tar, tar.gz/.tgz,
 # tar.bz2, tar.xz, gz, bz2, xz, cpio, ar, 7z) through Apache Commons Compress.
@@ -189,6 +195,15 @@ pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 # (the live sink) only; wonderland-modules stays dependency-free so its
 # headless floor is unaffected.
 ice4j = { module = "org.jitsi:ice4j", version.ref = "ice4j" }
+
+# JNA (Java Native Access): the terminal app's PTY layer uses JNA to call
+# native forkpty/openpty functions from libc for pseudo-terminal creation
+# without JNI compilation. jna-platform carries the platform-specific native
+# library loaders. Both are also resolved onto the lg3d-core desktop run
+# classpath (see lg3d-core/build.gradle), so the in-JVM start-menu launch
+# finds com.sun.jna.Native.
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 # Apache Commons Compress: the multi-format archive engine backing the lg3d-apps
 # Archive app (zip/tar/gz/bz2/xz/cpio/ar/7z). XZ for Java (org.tukaani:xz) is the
