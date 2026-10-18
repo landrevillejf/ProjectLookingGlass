@@ -38,6 +38,7 @@ public final class EditorSinks {
     final BiConsumer<String, List<Diagnostic>> reportDiagnostics;
     final Consumer<String> clearDiagnostics;
     final BiConsumer<String, List<StructureSymbol>> showStructure;
+    final BiConsumer<String, List<BuildTask>> showTasks;
     final BiConsumer<String, Integer> navigate;
     final Function<String, List<Integer>> breakpointsFor;
     final Consumer<String> appendDebugOutput;
@@ -56,6 +57,7 @@ public final class EditorSinks {
         this.reportDiagnostics = b.reportDiagnostics;
         this.clearDiagnostics = b.clearDiagnostics;
         this.showStructure = b.showStructure;
+        this.showTasks = b.showTasks;
         this.navigate = b.navigate;
         this.breakpointsFor = b.breakpointsFor;
         this.appendDebugOutput = b.appendDebugOutput;
@@ -97,6 +99,7 @@ public final class EditorSinks {
         private BiConsumer<String, List<Diagnostic>> reportDiagnostics;
         private Consumer<String> clearDiagnostics;
         private BiConsumer<String, List<StructureSymbol>> showStructure;
+        private BiConsumer<String, List<BuildTask>> showTasks;
         private BiConsumer<String, Integer> navigate;
         private Function<String, List<Integer>> breakpointsFor;
         private Consumer<String> appendDebugOutput;
@@ -119,6 +122,9 @@ public final class EditorSinks {
         }
         public Builder showStructure(BiConsumer<String, List<StructureSymbol>> v) {
             this.showStructure = v; return this;
+        }
+        public Builder showTasks(BiConsumer<String, List<BuildTask>> v) {
+            this.showTasks = v; return this;
         }
         public Builder navigate(BiConsumer<String, Integer> v) {
             this.navigate = v; return this;

@@ -36,6 +36,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.StructureSymbol;
 
 /**
@@ -1068,6 +1069,204 @@ final class BuildTools {
         for (StructureSymbol s : rows) {
             if (seen.add(s.name() + "|" + s.kind() + "|" + s.line())) {
                 out.add(s);
+            }
+        }
+        return out;
+    }
+
+    // ------------------------------------------------------------------
+    // Task-tree discovery (pure)
+    // ------------------------------------------------------------------
+
+    /**
+     * The base lifecycle every Gradle build carries, name + one-line blurb.
+     * These are the {@code base} plugin's own tasks, so they are proposed for
+     * any project whether or not the build script names them.
+     */
+    private static final String[][] GRADLE_BASE_LIFECYCLE = {
+            {"build", "Assemble the project and run all of its checks"},
+            {"assemble", "Assemble the project's outputs (jars, distributions)"},
+            {"check", "Run every verification task, tests included"},
+            {"clean", "Delete the project's build output directory"},
+            {"tasks", "List every task this project declares"},
+    };
+
+    /**
+     * The plugins whose presence means the project compiles JVM sources, and so
+     * has a {@code test} task worth proposing. {@code application} implies the
+     * Java plugin, and is listed again here for the {@code run} detection.
+     */
+    private static final List<String> JVM_PLUGINS = List.of(
+            "java", "java-library", "application", "groovy", "scala",
+            "org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.android", "kotlin");
+
+    /**
+     * Maven's lifecycle phases, in their canonical order, name + blurb. Unlike
+     * Gradle a POM never "declares" these — they are the fixed vocabulary of the
+     * default lifecycle — so the whole set is proposed for any Maven project and
+     * the scan's only job is to confirm the POM is real enough to build.
+     */
+    private static final String[][] MAVEN_LIFECYCLE = {
+            {"clean", "Remove the target/ directory"},
+            {"validate", "Validate the project is correct and complete"},
+            {"compile", "Compile the main source code"},
+            {"test", "Run the unit tests through surefire"},
+            {"package", "Build and test, then write the jar/war to target/"},
+            {"verify", "Run integration-test and quality checks"},
+            {"install", "Install the package into the local repository"},
+            {"site", "Generate the project site documentation"},
+            {"deploy", "Deploy the package to the remote repository"},
+    };
+
+    /** The task-registration idioms {@link #gradleBuildOutline} already reads. */
+    private static final Pattern TASK_DECL = Pattern.compile(
+            "(?:^|\\s)(task\\s+([A-Za-z_][\\w]*)|tasks\\.register\\s*\\(\\s*['\"]"
+                    + "([^'\"]+)['\"]|register\\s*\\(\\s*['\"]([^'\"]+)['\"])");
+
+    /**
+     * The task tree a Gradle project proposes, discovered by scanning its build
+     * script and settings file rather than by invoking Gradle: the base
+     * lifecycle every build carries, {@code test} when a JVM plugin is applied,
+     * {@code run} when the {@code application} plugin is, every task the script
+     * itself registers (with its declaration line), and — for a multi-project
+     * build — each {@code include}d module's own {@code build}/{@code test}/
+     * {@code clean}. Every returned task is unwired ({@link BuildTask#action()}
+     * is null); the caller attaches the run callback.
+     *
+     * @param buildText    the {@code build.gradle(.kts)} text (may be null)
+     * @param settingsText the {@code settings.gradle(.kts)} text (may be null)
+     * @return the proposed tasks, grouped and in a stable order
+     */
+    static List<BuildTask> gradleTaskTree(String buildText, String settingsText) {
+        List<BuildTask> tasks = new ArrayList<>();
+        String build = (buildText == null) ? "" : buildText;
+        for (String[] row : GRADLE_BASE_LIFECYCLE) {
+            tasks.add(new BuildTask("Lifecycle", row[0], row[1], 0));
+        }
+        boolean jvm = appliesAnyPlugin(build, JVM_PLUGINS);
+        if (jvm) {
+            tasks.add(new BuildTask("Lifecycle", "test", "Run the unit tests", 0));
+        }
+        if (appliesAnyPlugin(build, List.of("application"))) {
+            tasks.add(new BuildTask("Lifecycle", "run",
+                    "Run the application (application plugin)", 0));
+        }
+        tasks.addAll(declaredGradleTasks(build));
+        for (String module : gradleModules(settingsText)) {
+            String group = "module " + module;
+            tasks.add(new BuildTask(group, module + ":build", "Build this subproject", 0));
+            tasks.add(new BuildTask(group, module + ":test", "Test this subproject", 0));
+            tasks.add(new BuildTask(group, module + ":clean", "Clean this subproject", 0));
+        }
+        return tasks;
+    }
+
+    /**
+     * The task tree a Maven project proposes: the default lifecycle phases,
+     * offered only when {@code pomText} looks like a POM at all (so a project
+     * with no POM proposes nothing). Every task is unwired; the caller attaches
+     * the run callback. Multi-module reactors need no per-module rows — a phase
+     * run at the root already fans out through the reactor.
+     *
+     * @param pomText the {@code pom.xml} text (may be null)
+     * @return the lifecycle goals, in canonical order
+     */
+    static List<BuildTask> mavenTaskTree(String pomText) {
+        if (pomText == null || !pomText.contains("<project")) {
+            return List.of();
+        }
+        List<BuildTask> tasks = new ArrayList<>(MAVEN_LIFECYCLE.length);
+        for (String[] row : MAVEN_LIFECYCLE) {
+            tasks.add(new BuildTask("Lifecycle", row[0], row[1], 0));
+        }
+        return tasks;
+    }
+
+    /** True when {@code text} applies any of {@code pluginIds}. */
+    private static boolean appliesAnyPlugin(String text, List<String> pluginIds) {
+        for (String id : pluginIds) {
+            if (appliesPlugin(text, id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when {@code text} applies {@code id}, in either of the two shapes the
+     * DSL uses: {@code plugins { id 'x' }} / {@code id("x")} or the legacy
+     * {@code apply plugin: 'x'}. Unquoted core-plugin ids are not matched — the
+     * {@code plugins} block requires quotes, so a quoted scan is the correct one.
+     */
+    static boolean appliesPlugin(String text, String id) {
+        if (text == null || text.isEmpty() || id == null || id.isEmpty()) {
+            return false;
+        }
+        String q = Pattern.quote(id);
+        return Pattern.compile("id\\s*\\(?\\s*['\"]" + q + "['\"]").matcher(text).find()
+                || Pattern.compile("apply\\s+plugin:\\s*['\"]" + q + "['\"]")
+                        .matcher(text).find();
+    }
+
+    /**
+     * The tasks a build script registers itself, each with its declaration line,
+     * deduplicated by name (the first registration wins). Grouped under
+     * {@code "Declared tasks"} so they read as the project's own vocabulary
+     * beside the built-in lifecycle.
+     */
+    private static List<BuildTask> declaredGradleTasks(String buildText) {
+        List<BuildTask> out = new ArrayList<>();
+        if (buildText == null || buildText.isBlank()) {
+            return out;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        String[] lines = buildText.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].strip();
+            if (line.isEmpty() || line.startsWith("//")) {
+                continue;
+            }
+            Matcher m = TASK_DECL.matcher(line);
+            if (m.find()) {
+                String name = m.group(2) != null ? m.group(2)
+                        : (m.group(3) != null ? m.group(3) : m.group(4));
+                if (name != null && seen.add(name)) {
+                    out.add(new BuildTask("Declared tasks", name,
+                            "Declared in the build script", i + 1));
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The subprojects a settings file {@code include}s, each normalised to its
+     * colon-led task path ({@code :app}, {@code :app:core}). Reads both the
+     * Groovy {@code include ':a', ':b'} and the Kotlin {@code include(":a")}
+     * shapes; comment lines are skipped. Order is document order, deduplicated.
+     */
+    static List<String> gradleModules(String settingsText) {
+        List<String> out = new ArrayList<>();
+        if (settingsText == null || settingsText.isBlank()) {
+            return out;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        Matcher quoted = Pattern.compile("['\"]([^'\"]+)['\"]").matcher("");
+        for (String raw : settingsText.split("\n")) {
+            String line = raw.strip();
+            if (line.startsWith("//") || !line.contains("include")) {
+                continue;
+            }
+            quoted.reset(line);
+            while (quoted.find()) {
+                String name = quoted.group(1).strip();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                String path = name.startsWith(":") ? name : ":" + name;
+                if (seen.add(path)) {
+                    out.add(path);
+                }
             }
         }
         return out;

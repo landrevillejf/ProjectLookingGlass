@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
@@ -103,6 +104,8 @@ class MavenBuildToolsTest {
     private List<List<Diagnostic>> reports;
     private List<String> clearedPaths;
     private Map<String, List<StructureSymbol>> structures;
+    private List<String> taskTitles;
+    private List<List<BuildTask>> taskBatches;
     private FakeRunner runner;
     private String[] doc;
 
@@ -121,6 +124,8 @@ class MavenBuildToolsTest {
         reports = new ArrayList<>();
         clearedPaths = new ArrayList<>();
         structures = new LinkedHashMap<>();
+        taskTitles = new ArrayList<>();
+        taskBatches = new ArrayList<>();
         doc = new String[] {text};
         Path filePath = fileName.isEmpty() ? null : root.resolve(fileName);
         tools.onEditorStarted(new EditorContext(granted, EditorSinks.builder()
@@ -135,6 +140,10 @@ class MavenBuildToolsTest {
                 })
                 .clearDiagnostics(clearedPaths::add)
                 .showStructure((p, ss) -> structures.put(String.valueOf(p), ss))
+                .showTasks((title, ts) -> {
+                    taskTitles.add(title);
+                    taskBatches.add(ts);
+                })
                 .build()));
         tools.onDocumentOpened(new DocumentContext(
                 (filePath == null) ? null : filePath.toString(),
@@ -529,6 +538,68 @@ class MavenBuildToolsTest {
         act(tools, 5);
         assertTrue(structures.get(root.resolve("pom.xml").toString()).isEmpty());
         assertTrue(msgs.get(0).startsWith("Outline pom.xml: no entries"), msgs.toString());
+    }
+
+    // -- the task tree ---------------------------------------------------------
+
+    @Test
+    @DisplayName("opening a file in a Maven project publishes its lifecycle task tree, wired to run")
+    void publishesTaskTreeOnOpen(@TempDir Path root) throws Exception {
+        mavenDocOf(root);
+        wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+
+        assertEquals(1, taskBatches.size(), "one publish on open");
+        assertEquals(root.getFileName().toString(), taskTitles.get(0));
+        List<BuildTask> tasks = taskBatches.get(0);
+        assertEquals(List.of("clean", "validate", "compile", "test", "package",
+                        "verify", "install", "site", "deploy"),
+                tasks.stream().map(BuildTask::name).toList());
+        assertTrue(tasks.stream().allMatch(BuildTask::isRunnable), "every goal is wired to run");
+
+        // Activating a leaf runs it through the same path as the toolbar action.
+        BuildTask compile = tasks.stream()
+                .filter(t -> t.name().equals("compile")).findFirst().orElseThrow();
+        runner.fallback = new Toolchain.Result(0, "[INFO] BUILD SUCCESS");
+        compile.action().run();
+        assertEquals(List.of(root.resolve("mvnw").toString(), "-B",
+                "--no-transfer-progress", "compile"), runner.commands.get(0));
+        assertEquals(List.of(root), runner.workDirs);
+        assertEquals(List.of("mvn compile output"), consoleTitles);
+    }
+
+    @Test
+    @DisplayName("editing the POM re-publishes the tree; another file only does on save")
+    void republishesOnPomChange(@TempDir Path root) throws Exception {
+        mavenDocOf(root);
+        MavenBuildTools tools = wire(root, "pom.xml", POM);
+        assertEquals(1, taskBatches.size());
+        assertEquals(9, taskBatches.get(0).size());
+
+        // Editing the open POM re-publishes (the phase vocabulary is fixed).
+        tools.onDocumentChanged(new DocumentContext(
+                root.resolve("pom.xml").toString(), "pom.xml", POM, "", s -> { }, s -> { }));
+        assertEquals(2, taskBatches.size(), "a POM edit re-publishes");
+
+        // Editing an ordinary source file does not re-scan the POM.
+        tools.onDocumentChanged(new DocumentContext(
+                root.resolve("src/main/java/com/acme/App.java").toString(), "App.java",
+                "class App {\n}\n", "", s -> { }, s -> { }));
+        assertEquals(2, taskBatches.size(), "a non-POM edit does not re-publish");
+
+        // Saving re-publishes, reading the POM from disk when the doc is not one.
+        tools.onDocumentSaved(new DocumentContext(
+                root.resolve("src/main/java/com/acme/App.java").toString(), "App.java",
+                "class App {\n}\n", "", s -> { }, s -> { }));
+        assertEquals(3, taskBatches.size(), "a save re-publishes");
+        assertEquals(9, taskBatches.get(2).size());
+    }
+
+    @Test
+    @DisplayName("a document outside any Maven project publishes no task tree")
+    void noTaskTreeOutsideAProject(@TempDir Path root) throws Exception {
+        write(root.resolve("src"), "App.java", "class App {\n}\n");
+        wire(root, "src/App.java", "class App {\n}\n");
+        assertTrue(taskBatches.isEmpty(), "nothing is published without a project");
     }
 
     // -- helpers ---------------------------------------------------------------

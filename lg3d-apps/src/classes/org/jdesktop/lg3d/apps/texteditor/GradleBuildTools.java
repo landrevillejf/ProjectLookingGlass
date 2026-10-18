@@ -14,11 +14,13 @@
 package org.jdesktop.lg3d.apps.texteditor;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
 import org.jdesktop.lg3d.apps.texteditor.ext.EditorContext;
@@ -76,6 +78,22 @@ public final class GradleBuildTools implements TextEditorExtension {
             "build.gradle", "build.gradle.kts",
             "settings.gradle", "settings.gradle.kts");
 
+    /** The build script the task scan reads applied plugins and declared tasks from. */
+    private static final List<String> BUILD_SCRIPT_MARKERS = List.of(
+            "build.gradle", "build.gradle.kts");
+
+    /** The settings file the task scan reads subproject {@code include}s from. */
+    private static final List<String> SETTINGS_MARKERS = List.of(
+            "settings.gradle", "settings.gradle.kts");
+
+    /**
+     * Lifecycle tasks that configure the project but compile nothing, so a task
+     * tree run of one gets the short timeout and no diagnostic parsing (the same
+     * treatment the toolbar's own {@code clean} / {@code tasks} actions get).
+     */
+    private static final Set<String> QUICK_TASKS = Set.of(
+            "clean", "tasks", "help", "dependencies", "projects", "properties");
+
     private EditorContext editor;
     private DocumentContext currentDoc;
     private BuildTools.Runner runner = BuildTools.ASYNC_RUNNER;
@@ -130,6 +148,25 @@ public final class GradleBuildTools implements TextEditorExtension {
     @Override
     public void onDocumentOpened(DocumentContext doc) {
         this.currentDoc = doc;
+        publishTasks();
+    }
+
+    @Override
+    public void onDocumentChanged(DocumentContext doc) {
+        this.currentDoc = doc;
+        // Re-scan only when the edited document is itself a Gradle build or
+        // settings file, so the tree follows a task the user is adding or
+        // removing right now without re-reading the build script on every
+        // keystroke in an ordinary source file.
+        if (isGradleScript(doc)) {
+            publishTasks();
+        }
+    }
+
+    @Override
+    public void onDocumentSaved(DocumentContext doc) {
+        this.currentDoc = doc;
+        publishTasks();
     }
 
     @Override
@@ -296,5 +333,87 @@ public final class GradleBuildTools implements TextEditorExtension {
             }
         }
         return Optional.empty();
+    }
+
+    // -- task tree -----------------------------------------------------------
+
+    /**
+     * Scans the open project's build script and settings file and publishes the
+     * tasks it proposes to the editor's Tasks tree, each wired to the same
+     * {@link #runTasks} path the toolbar actions use — so a task run from the
+     * tree logs, files findings and reports on the status line exactly like its
+     * button. A directory that is not a Gradle project publishes nothing, which
+     * leaves any other extension's tree (a Maven project's) untouched. Called on
+     * the EDT from the document hooks; the scan reads two small files at most.
+     */
+    private void publishTasks() {
+        EditorContext ctx = editor;
+        if (ctx == null) {
+            return;
+        }
+        Optional<Path> root = projectRoot();
+        if (root.isEmpty()) {
+            return;
+        }
+        Path project = root.get();
+        List<BuildTask> discovered = BuildTools.gradleTaskTree(
+                scriptText(project, BUILD_SCRIPT_MARKERS),
+                scriptText(project, SETTINGS_MARKERS));
+        List<BuildTask> wired = new ArrayList<>(discovered.size());
+        for (BuildTask task : discovered) {
+            String name = task.name();
+            wired.add(task.withAction(() -> runTasks("gradle " + name, List.of(name),
+                    timeoutFor(name), diagnoseFor(name))));
+        }
+        Path fileName = project.getFileName();
+        ctx.showTasks((fileName == null) ? project.toString() : fileName.toString(), wired);
+    }
+
+    /** True when {@code doc} is a Gradle build or settings file. */
+    private static boolean isGradleScript(DocumentContext doc) {
+        if (doc == null) {
+            return false;
+        }
+        return BuildTools.isBuildFile(doc.getFileName(), BUILD_SCRIPT_MARKERS)
+                || BuildTools.isBuildFile(doc.getFileName(), SETTINGS_MARKERS);
+    }
+
+    /**
+     * The text of the first of {@code markers} to exist: the open document when
+     * it <em>is</em> that file (so unsaved edits are scanned), else the
+     * project's own copy from disk, else empty.
+     */
+    private String scriptText(Path root, List<String> markers) {
+        DocumentContext doc = currentDoc;
+        if (doc != null && BuildTools.isBuildFile(doc.getFileName(), markers)) {
+            return doc.getFullText();
+        }
+        for (String marker : markers) {
+            Optional<String> text = BuildTools.readBuildFile(root.resolve(marker));
+            if (text.isPresent()) {
+                return text.get();
+            }
+        }
+        return "";
+    }
+
+    /** The run timeout for a task: {@code run} streams, quick tasks only configure. */
+    private static long timeoutFor(String task) {
+        String leaf = leafOf(task);
+        if (leaf.equals("run")) {
+            return RUN_TIMEOUT_MS;
+        }
+        return QUICK_TASKS.contains(leaf) ? QUICK_TIMEOUT_MS : BUILD_TIMEOUT_MS;
+    }
+
+    /** True when a task's output should be parsed for compiler/test findings. */
+    private static boolean diagnoseFor(String task) {
+        return !QUICK_TASKS.contains(leafOf(task));
+    }
+
+    /** The last colon-delimited segment of a task path ({@code :app:run} -> {@code run}). */
+    private static String leafOf(String task) {
+        int colon = task.lastIndexOf(':');
+        return (colon >= 0) ? task.substring(colon + 1) : task;
     }
 }

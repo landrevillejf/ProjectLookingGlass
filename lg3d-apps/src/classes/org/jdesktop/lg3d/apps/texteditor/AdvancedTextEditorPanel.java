@@ -54,6 +54,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.JTextComponent;
 import org.jdesktop.lg3d.apps.gitgui.GitGuiPanel;
+import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionBroker;
 import org.jdesktop.lg3d.apps.texteditor.ext.ExtensionRegistry;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
@@ -209,6 +210,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private Map<String, List<Diagnostic>> lastProjectDiagnostics = Map.of();
     /** South Structure tab: the current document's symbol outline. */
     private final StructurePanel structurePanel = new StructurePanel();
+    /** South Tasks tab: the open project's discovered build tasks. */
+    private final TaskTreePanel taskTreePanel = new TaskTreePanel();
     /** South Debug tab: the debugger surface (breakpoints/stack/locals/output). */
     private final DebugPanel debugPanel = new DebugPanel();
     private final CompletionPanel completionPanel = new CompletionPanel();
@@ -281,6 +284,7 @@ public class AdvancedTextEditorPanel extends JPanel
                         .reportDiagnostics(this::reportDiagnosticsForExtension)
                         .clearDiagnostics(this::clearDiagnosticsForExtension)
                         .showStructure(this::showStructureForExtension)
+                        .showTasks(this::showTasksForExtension)
                         .navigate(this::navigateForExtension)
                         .breakpointsFor(this::breakpointsForExtension)
                         .appendDebugOutput(debugPanel::appendOutput)
@@ -315,6 +319,9 @@ public class AdvancedTextEditorPanel extends JPanel
         bottomTabs.addTab("Structure", structurePanel);
         bottomTabs.addTab("Debug", debugPanel);
         bottomTabs.addTab("Completions", completionPanel);
+        // The Tasks tab is appended last so the four surfaces above keep the
+        // component indices the chrome test pins (Problems=1, Debug=3).
+        bottomTabs.addTab("Tasks", taskTreePanel);
         problemsPanel.setOnActivate(this::gotoDiagnostic);
         structurePanel.setOnActivate(symbol -> {
             EditorTab tab = currentTab();
@@ -1898,6 +1905,16 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     /**
+     * Fills the Tasks tab with the project's discovered build tasks. Delegate
+     * for {@code EditorContext.showTasks}; called on the EDT by a build
+     * extension after it scans the open project's build file.
+     */
+    void showTasksForExtension(String title, List<BuildTask> tasks) {
+        cards.show(center, CARD_EDITOR);
+        taskTreePanel.setTasks(title, tasks);
+    }
+
+    /**
      * Paints the completion strip and the inline popup. Delegate for
      * {@code EditorContext.publishCompletions}; an empty list clears both
      * (Phase 4 strip, Phase 6 popup). The popup is shown only when the caret
@@ -2157,6 +2174,11 @@ public class AdvancedTextEditorPanel extends JPanel
     /** The Structure tab (test seam). */
     final StructurePanel structurePanel() {
         return structurePanel;
+    }
+
+    /** The Tasks tab (test seam). */
+    final TaskTreePanel taskTreePanel() {
+        return taskTreePanel;
     }
 
     /** The Debug tab (test seam). */
