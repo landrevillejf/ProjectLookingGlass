@@ -181,6 +181,28 @@ class WorldVisitPanelTest {
         assertEquals(" ", panelStatus());
     }
 
+    @Test
+    @DisplayName("the audio controls read On and full until touched")
+    void audioDefaultsAreOnAndFull() {
+        assertEquals(100, panel.volume());
+        assertTrue(panel.micOn());
+    }
+
+    @Test
+    @DisplayName("the volume slider and the Mic pill drive the live call")
+    void audioControlsDriveTheCall() {
+        JavaSoundVoiceBridge call = new JavaSoundVoiceBridge();
+        panel.setVoice(call);
+
+        panel.setVolume(40);
+        assertEquals(0.4, call.getOutputGain(), 1e-9);
+
+        panel.setMicOn(false);
+        assertTrue(call.isMuted());
+        panel.setMicOn(true);
+        assertFalse(call.isMuted());
+    }
+
     /** The strip's text, read through the panel's own accessor. */
     private String panelStatus() {
         return panel.statusText();

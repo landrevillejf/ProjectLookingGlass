@@ -49,8 +49,10 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
@@ -91,6 +93,21 @@ public final class WorldVisitPanel extends JPanel {
     private final JButton sendButton = new JButton("Send");
 
     private final JLabel statusLabel = new JLabel(" ");
+
+    /** The call's volume, 0..100 -- the reference's slider, docked, not floating. */
+    private final JSlider volumeSlider = new JSlider(0, 100, 100);
+
+    /** The reference's Mic pill; selected reads On, deselected Off. */
+    private final JToggleButton micToggle = new JToggleButton("Mic On", true);
+
+    private final JLabel volumeLabel = new JLabel("Volume");
+
+    /** The live call the audio controls drive; null until a call exists. */
+    private JavaSoundVoiceBridge voice;
+
+    private double localGain = 1.0;
+
+    private boolean localMuted;
 
     /** The roster's truth; this panel is its face, never a second copy. */
     private final UserList users = new UserList();
@@ -161,7 +178,25 @@ public final class WorldVisitPanel extends JPanel {
         stacked.add(composer);
 
         add(stacked, BorderLayout.CENTER);
-        add(statusLabel, BorderLayout.SOUTH);
+
+        // The reference's audio chrome: a volume slider and a Mic pill under the
+        // conversation. They drive the live call when there is one and remember
+        // the setting when there is not, so the controls are never a decoration
+        // that lies about being wired.
+        volumeSlider.setToolTipText("Call volume");
+        volumeSlider.addChangeListener(e -> applyVolume());
+        micToggle.addActionListener(e -> applyMic());
+        JPanel audio = new JPanel(new BorderLayout(6, 0));
+        audio.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        audio.add(volumeLabel, BorderLayout.WEST);
+        audio.add(volumeSlider, BorderLayout.CENTER);
+        audio.add(micToggle, BorderLayout.EAST);
+        JPanel south = new JPanel(new BorderLayout());
+        south.add(audio, BorderLayout.CENTER);
+        south.add(statusLabel, BorderLayout.SOUTH);
+        add(south, BorderLayout.SOUTH);
+        applyVolume();
+        applyMic();
 
         users.addListener(new UserList.PresenceListener() {
             @Override
@@ -218,6 +253,63 @@ public final class WorldVisitPanel extends JPanel {
     /** The strip's text, for the suite that drives the panel without showing it. */
     String statusText() {
         return statusLabel.getText();
+    }
+
+    /**
+     * Hand the panel the live call its audio controls drive. The current slider
+     * and pill state are pushed onto it immediately, so a call that starts mid
+     * visit inherits the volume the visitor already chose.
+     *
+     * @param voice the call, or {@code null} to take the controls back to local
+     */
+    public void setVoice(JavaSoundVoiceBridge voice) {
+        this.voice = voice;
+        applyVolume();
+        applyMic();
+    }
+
+    /** The volume the slider shows, 0..100. */
+    public int volume() {
+        return volumeSlider.getValue();
+    }
+
+    /** Whether the Mic pill reads On. */
+    public boolean micOn() {
+        return micToggle.isSelected();
+    }
+
+    /**
+     * Move the volume slider the way a drag would; {@code setValue} fires the
+     * same change path the listener is on, so programmatic and hand moves agree.
+     */
+    public void setVolume(int percent) {
+        volumeSlider.setValue(Math.max(0, Math.min(100, percent)));
+    }
+
+    /**
+     * Set the Mic pill the way a click would. A programmatic {@code setSelected}
+     * fires the item listener but not the action listener, so the apply runs
+     * here too and the two routes cannot disagree.
+     */
+    public void setMicOn(boolean on) {
+        micToggle.setSelected(on);
+        applyMic();
+    }
+
+    private void applyVolume() {
+        localGain = volumeSlider.getValue() / 100.0;
+        volumeLabel.setText("Volume " + volumeSlider.getValue());
+        if (voice != null) {
+            voice.setOutputGain(localGain);
+        }
+    }
+
+    private void applyMic() {
+        localMuted = !micToggle.isSelected();
+        micToggle.setText(micToggle.isSelected() ? "Mic On" : "Mic Off");
+        if (voice != null) {
+            voice.setMuted(localMuted);
+        }
     }
 
     /** The roster's header line -- "Users (9)", or the words for being alone. */
