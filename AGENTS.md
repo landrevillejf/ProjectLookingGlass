@@ -275,7 +275,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the fourteen gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the fifteen gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -337,6 +337,20 @@ the exit codes and how to add a tool.
   "Ported, not excluded" that is excluded anyway all fail. The two spellings are
   compared on path segments, so `sun/**` covers `sun.awt.*` while `apps/browser`
   never matches `apps/browser3d` (a CI gate).
+- `bgconfigs.mnd` - the Background Manager's menu against the art the tree ships.
+  `bgmanager/res/BgConfig.xml` names every `.lgbg` by a `resources/Backgrounds/...`
+  classpath URL, and `:lg3d-core:runtimeResources` relocates that whole tree under
+  the `resources/` prefix. Both readers are unforgiving SAX parsers -
+  `BgConfigFileReader` throws `Wrong tag` on anything but `<BgManagerConfig>` and
+  `<BGURL>` and appends every URL without de-duplicating, `BgFileReader` throws
+  `Undefined Tag` on anything outside its thirteen names - so a stray element is an
+  empty picker, not one lost background, and a repeated URL offers the same
+  panorama twice. Eight checks cover the two vocabularies, duplicate and dangling
+  URLs, descriptors nobody lists, directories with no descriptor, the required
+  elements, the three `BGType` strings, parseable numbers, and every image
+  reference resolving through the mapping - which is read back from the build file
+  as a premise, so the gate stops applying the day the task stops relocating those
+  directories (a CI gate).
 - `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the

@@ -10,6 +10,36 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`bgconfigs.mnd` — a Mandela gate on the Background Manager's menu against the art the tree ships** (`scripts`, `lg3d-mandela`) —
+  One flat list, `bgmanager/res/BgConfig.xml`, names every background by a
+  `resources/Backgrounds/<Name>/LgBgConf.lgbg` classpath URL, each `.lgbg` names
+  its thumbnail and its panorama faces the same way, and
+  `:lg3d-core:runtimeResources` relocates the whole tree under the top-level
+  `resources/` prefix — that spelling is the only one the classloader lookup
+  accepts. Two SAX readers sit at the end of that chain and neither is forgiving:
+  `BgConfigFileReader` throws `Wrong tag` on any element but
+  `<BgManagerConfig>`/`<BGURL>` and appends every URL **without de-duplicating**,
+  and `BgFileReader` throws `Undefined Tag` on anything outside its thirteen
+  names, so one stray element is not one lost background but a stack trace and an
+  empty picker, while one repeated URL silently offers the same panorama twice.
+  None of it is visible to the compiler, and all of it is visible in the files.
+  Eight checks: only the elements the config reader knows (plus no `<` followed
+  by whitespace, which SAX rejects before any element is read), no duplicated
+  `<BGURL>`, every URL naming a descriptor that exists, every descriptor named by
+  a URL, every directory under `Backgrounds/` holding one, every element of every
+  `.lgbg` inside `BgFileReader`'s own vocabulary, the required elements present
+  with a `BGType` among the three it compares against and numbers `Integer`
+  and `Float` can actually parse, and every `resources/…` image reference
+  resolving through the mapping — which the script reads back from
+  `lg3d-core/build.gradle` as a *premise*, so the day the task stops relocating
+  those directories the gate says so instead of enforcing a rule the build no
+  longer applies. Wired as `:lg3d-mandela:bgConfigsCheck` inside
+  `repositoryChecks` (fourteen gates become fifteen); the two defects its first
+  run found are the *Fixed* entry below. Green at 48 `<BGURL>` entries, 48
+  directories and 48 descriptors in exact agreement with 173 image references
+  resolving, and proven by planting an unknown element, a `<` with a space after
+  it, a descriptor no `<BGURL>` names, a missing `<Name>`, a fourth `BGType`
+  value and an unresolvable image path — each one fails.
 - **`exclusions.mnd` — a Mandela gate that the exclusion set in the prose is the exclusion set in the build** (`scripts`, `lg3d-mandela`) —
   this file's *Code Exclusions* and *Incubator Exclusions* sections name the code
   paths the build leaves out, and every module's `build.gradle` writes the same
@@ -2727,6 +2757,21 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The Background Manager offered the same panorama twice, and shipped a background directory nothing reads** (`lg3d-incubator`) —
+  found by `scripts/mandela/bgconfigs.mnd` as it was written. `BgConfigFileReader`
+  appends every `<BGURL>` it reads without de-duplicating, and
+  `res/BgConfig.xml` listed `resources/Backgrounds/PyramidLakeSunrise/LgBgConf.lgbg`
+  twice, so the picker showed one panorama as two menu entries — the duplicate
+  line is gone. The second defect was invisible from the config: the directory
+  `Backgrounds/DreamLakeReflrctions/` (the name misspelled) held a single JPEG and
+  no `LgBgConf.lgbg`, so nothing could ever list it, while `runtimeResources`
+  relocated its art into the shipped classpath tree regardless. That JPEG was
+  byte-identical to `lg3d-core/src/resources/images/background/DreamLakeReflections.jpg`,
+  which is the copy the desktop wallpaper cycle, the glassy taskbar and the
+  Control Center's Appearance/Schedule panels actually resolve — so the relocated
+  file was dead weight in every bundle, read by no code and no menu. The
+  directory is deleted; the wallpaper itself is untouched, and the gate now fails
+  if a background directory appears in the tree with no descriptor to offer it.
 - **The released desktop could not open a Terminal: `releaseBundle` shipped neither the `lg3d-terminal` jar nor JNA** (`lg3d-core`) —
   PR #428 put `lg3d-terminal` and `net.java.dev.jna:jna` / `jna-platform` on the
   hand-assembled `:lg3d-core:run` classpath, which is why the Terminal opened under

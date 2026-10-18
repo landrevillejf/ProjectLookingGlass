@@ -1,0 +1,353 @@
+#!/usr/bin/env mandela
+// bgconfigs.mnd — the background manager's menu must be the art the tree ships.
+//
+// The Background Manager app offers the desktop's backgrounds from one flat list:
+// `res/BgConfig.xml` names each background's `.lgbg` descriptor by a classpath
+// URL, and every `.lgbg` names its thumbnail and its panorama faces the same way.
+// `:lg3d-core:runtimeResources` then relocates the whole tree under the top-level
+// `resources/` prefix (lg3d-core/build.gradle), because that is the only spelling
+// the classloader lookup accepts. Two readers sit on that chain, and both are
+// SAX parsers that refuse to be forgiving: `BgConfigFileReader.endElement` throws
+// "Wrong tag" on any element that is not `<BGURL>`, `BgFileReader.endElement`
+// throws "Undefined Tag" on anything outside its thirteen names, and
+// `BgConfigFileReader` appends every URL without de-duplicating. A config that
+// trips either one does not lose one background - it prints a stack trace and
+// leaves the picker empty, and a duplicated URL silently offers the same
+// panorama twice. None of that is visible to the compiler, and all of it is
+// visible in the files. Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/bgconfigs.mnd -s .
+//     ./gradlew :lg3d-mandela:bgConfigsCheck
+//
+// Eight checks, exit 0 when all hold and 2 on any finding:
+//   1. BgConfig.xml carries only the two elements its reader knows;
+//   2. no `<BGURL>` is written twice;
+//   3. every `<BGURL>` names a `.lgbg` that exists;
+//   4. every `.lgbg` in the tree is named by a `<BGURL>` (a descriptor nobody
+//      loads is art that ships and never appears);
+//   5. every directory under `Backgrounds/` holds a `.lgbg`, so the relocated
+//      tree carries no orphan;
+//   6. every element of every `.lgbg` is in the reader's own vocabulary;
+//   7. every `.lgbg` states a Name, a Thumbnail, at least one Image, a BGType
+//      the reader compares against, and an InitialBackground it can parse;
+//   8. every Thumbnail and Image path is a `resources/...` URL that resolves
+//      through the mapping the runtimeResources task actually declares.
+//
+// The mapping is the one thing here that lives in a build file rather than in
+// this script's own vocabulary, so it is read back as a premise: if the task
+// stops relocating these directories, this script says so rather than checking
+// a rule the build no longer applies.
+
+use std.fs
+
+let BG_DIR = "lg3d-incubator/src/classes/org/jdesktop/lg3d/apps/bgmanager"
+let CONFIG = "${BG_DIR}/res/BgConfig.xml"
+let BACKGROUNDS = "${BG_DIR}/Backgrounds"
+let ART = "lg3d-art/src/resources"
+let CORE_RES = "lg3d-core/src/resources"
+let CORE_BUILD = "lg3d-core/build.gradle"
+
+// The element names BgFileReader's endElement dispatch answers to; anything
+// else raises "Undefined Tag" and takes the whole list down with it.
+let BG_TAGS = ["Background", "Name", "Thumbnail", "Author", "Date", "Description",
+        "BGType", "InitialBackground", "Layer", "Image",
+        "TranslationX", "TranslationY", "TranslationZ"]
+
+// The three strings the reader compares BGType against, spelled as it spells
+// them. A fourth value parses and then matches nothing, so the background is
+// loaded and classified as none of the three.
+let BG_TYPES = ["Simple Background", "Panorama Background", "Layered Background"]
+
+// ---------------------------------------------------------------------------
+// xml tools, by hand: the language has no regex and no xml reader
+// ---------------------------------------------------------------------------
+
+// Every start tag's name, in document order. End tags, the prolog and comments
+// name nothing new; an attribute list is cut at its first space, and a trailing
+// slash belongs to a self-closing tag, not to the name.
+fun tagNames(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("<")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        if (rest.startsWith("/") || rest.startsWith("?") || rest.startsWith("!")) { continue }
+        let close = rest.indexOf(">")
+        if (close < 0) { break }
+        var name = rest.substring(0, close)
+        let space = name.indexOf(" ")
+        if (space >= 0) { name = name.substring(0, space) }
+        if (name.endsWith("/")) { name = name.removeSuffix("/") }
+        if (name.length > 0) { out.push(name) }
+        // Stay on the '>' so the next pass finds the next '<' after it.
+        rest = rest.substring(close)
+    }
+    return out
+}
+
+// The trimmed body of every `<tag>...</tag>`, in order. The readers trim the
+// same way before they use a body, so a path written with padding around it
+// resolves here exactly as it does at runtime.
+fun bodies(text, tag) {
+    var out = []
+    let open = "<" + tag + ">"
+    let close = "</" + tag + ">"
+    var rest = text
+    loop {
+        let a = rest.indexOf(open)
+        if (a < 0) { break }
+        rest = rest.substring(a + open.length)
+        let b = rest.indexOf(close)
+        if (b < 0) { break }
+        out.push(rest.substring(0, b).trim())
+        rest = rest.substring(b)
+    }
+    return out
+}
+
+// The items a list holds more than once, each named once: what the config reader
+// silently turns into two identical menu entries.
+fun repeats(list) {
+    var seen = []
+    var again = []
+    for (item in list) {
+        if (seen.contains(item) && !again.contains(item)) { again.push(item) }
+        if (!seen.contains(item)) { seen.push(item) }
+    }
+    return again
+}
+
+// Integer text, the way Integer.valueOf reads one: digits only, at least one.
+fun isDigits(text) {
+    if (text.length == 0) { return false }
+    for (ch in text) {
+        if (ch < "0" || ch > "9") { return false }
+    }
+    return true
+}
+
+// Float text, the way Float.valueOf reads one: digits plus the sign, the point
+// and the exponent letters, and at least one digit. A number the reader cannot
+// parse is a NumberFormatException it prints and swallows, leaving the layer at
+// the coordinate the previous one used.
+fun looksNumeric(text) {
+    var sawDigit = false
+    for (ch in text) {
+        if (ch >= "0" && ch <= "9") {
+            sawDigit = true
+        } else if (ch == "." || ch == "-" || ch == "+" || ch == "e" || ch == "E") {
+            continue
+        } else {
+            return false
+        }
+    }
+    return sawDigit
+}
+
+// How many `<` are followed by whitespace: XML forbids it between the mark and a
+// name, and a bare `<` in text is equally invalid, so SAX fails the document and
+// the whole background list is gone. A tag scanner that only reads well-formed
+// starts would call that document clean.
+fun malformedMarks(text) {
+    var hits = 0
+    var rest = text
+    loop {
+        let at = rest.indexOf("<")
+        if (at < 0) { break }
+        rest = rest.substring(at + 1)
+        if (rest.length > 0) {
+            let ch = rest.charAt(0)
+            if (ch == " " || ch == "\t" || ch == "\n") { hits += 1 }
+        }
+    }
+    return hits
+}
+
+// Names a directory holds, filtered to the entries a background could live in.
+fun dirsUnder(dir) {
+    var out = []
+    if (!fs.isDirectory(dir)) { return out }
+    for (name in fs.list(dir)) {
+        if (fs.isDirectory("${dir}/${name}")) { out.push(name) }
+    }
+    return out
+}
+
+// One classpath URL resolved through the mapping the build file writes: a
+// resources/Backgrounds/... name is relocated out of this module's own tree,
+// and everything else comes from the two art roots, later overriding earlier.
+fun resolve(ref) {
+    if (!ref.startsWith("resources/")) { return "" }
+    let rest = ref.removePrefix("resources/")
+    if (rest.startsWith("Backgrounds/")) {
+        let mine = "${BG_DIR}/${rest}"
+        if (fs.exists(mine)) { return mine }
+    }
+    let art = "${ART}/${rest}"
+    if (fs.exists(art)) { return art }
+    let core = "${CORE_RES}/${rest}"
+    if (fs.exists(core)) { return core }
+    return ""
+}
+
+// ---------------------------------------------------------------------------
+// the premise: the build file still relocates what this script assumes
+// ---------------------------------------------------------------------------
+
+for (needed in [CONFIG, BACKGROUNDS]) {
+    if (!fs.exists(needed)) { error("${needed} is missing, so the background manager has nothing to read", "ViolationError") }
+}
+if (!fs.exists(CORE_BUILD)) { error("${CORE_BUILD} is missing", "ViolationError") }
+
+let build = fs.read(CORE_BUILD)
+// Spelled in single quotes: a double-quoted copy would interpolate the
+// build file's own ${bgmanagerResDir} as if this script defined it.
+var premises = []
+for (line in [
+        'from("${bgmanagerResDir}/Backgrounds")',
+        "into 'Backgrounds'",
+        "from rootProject.file('lg3d-art/src/resources')",
+        "from file('src/resources')"]) {
+    if (!build.contains(line)) { premises.push(line) }
+}
+if (premises.length > 0) {
+    for (p in premises) {
+        error("${CORE_BUILD} no longer writes ${p}, so the classpath mapping bgconfigs.mnd checks references has moved and this script must move with it", "ViolationError")
+    }
+}
+
+let config = fs.read(CONFIG)
+
+// ---------------------------------------------------------------------------
+// 1, 2, 3: the list itself
+// ---------------------------------------------------------------------------
+
+var findings = []
+
+// 1. BgConfigFileReader accepts exactly two element names, and the document has
+// to be well-formed XML before that matters.
+if (malformedMarks(config) > 0) {
+    findings.push("${CONFIG} writes a '<' followed by whitespace, which SAX rejects before any element is read - the picker comes up empty")
+}
+for (tag in tagNames(config)) {
+    if (tag != "BgManagerConfig" && tag != "BGURL") {
+        findings.push("${CONFIG} carries <${tag}>, which BgConfigFileReader refuses with 'Wrong tag' - the picker comes up empty")
+        break
+    }
+}
+
+let urls = bodies(config, "BGURL")
+if (urls.length == 0) { error("${CONFIG} lists no <BGURL> at all", "ViolationError") }
+
+// 2. the reader appends without de-duplicating.
+for (dup in repeats(urls)) {
+    findings.push("${CONFIG} lists ${dup} twice, and BgConfigFileReader appends every URL it reads - the same background is offered twice")
+}
+
+// 3. every URL names a descriptor that exists.
+var listed = []
+for (url in urls) {
+    if (!url.startsWith("resources/Backgrounds/") || !url.endsWith("/LgBgConf.lgbg")) {
+        findings.push("${CONFIG} names ${url}, which is not a resources/Backgrounds/<Name>/LgBgConf.lgbg URL the relocation can serve")
+        continue
+    }
+    let file = "${BG_DIR}/" + url.removePrefix("resources/")
+    if (!fs.exists(file)) {
+        findings.push("${CONFIG} names ${url}, whose file ${file} is not in the tree")
+    }
+    let name = url.removePrefix("resources/Backgrounds/").removeSuffix("/LgBgConf.lgbg")
+    if (!listed.contains(name)) { listed.push(name) }
+}
+
+// ---------------------------------------------------------------------------
+// 4, 5: the directories on disk against the list
+// ---------------------------------------------------------------------------
+
+var dirs = dirsUnder(BACKGROUNDS)
+var withConfig = []
+for (name in dirs) {
+    if (fs.exists("${BACKGROUNDS}/${name}/LgBgConf.lgbg")) { withConfig.push(name) }
+}
+for (name in withConfig) {
+    if (!listed.contains(name)) {
+        findings.push("${BACKGROUNDS}/${name}/LgBgConf.lgbg exists and no <BGURL> names it - the background ships and never appears")
+    }
+}
+for (name in dirs) {
+    if (!withConfig.contains(name)) {
+        findings.push("${BACKGROUNDS}/${name} holds no LgBgConf.lgbg, so runtimeResources relocates its art into the classpath tree and nothing reads it")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 6, 7, 8: one pass over every descriptor
+// ---------------------------------------------------------------------------
+
+var refCount = 0
+var tagCount = 0
+for (name in withConfig) {
+    let file = "${BACKGROUNDS}/${name}/LgBgConf.lgbg"
+    let text = fs.read(file)
+
+    // 6. the reader's own vocabulary.
+    if (malformedMarks(text) > 0) {
+        findings.push("${file} writes a '<' followed by whitespace, which SAX rejects - the whole background list fails to load")
+    }
+    for (tag in tagNames(text)) {
+        tagCount += 1
+        if (!BG_TAGS.contains(tag)) {
+            findings.push("${file} carries <${tag}>, which BgFileReader refuses with 'Undefined Tag' - the whole background list fails to load")
+        }
+    }
+
+    // 7. the fields the reader reads, in the shape it reads them.
+    let names = bodies(text, "Name")
+    let thumbs = bodies(text, "Thumbnail")
+    let images = bodies(text, "Image")
+    let types = bodies(text, "BGType")
+    if (names.length == 0) { findings.push("${file} states no <Name>, so the menu entry has no label") }
+    if (thumbs.length == 0) { findings.push("${file} states no <Thumbnail>") }
+    if (images.length == 0) { findings.push("${file} states no <Image>, so the background loads and shows nothing") }
+    if (types.length == 0) {
+        findings.push("${file} states no <BGType>")
+    } else if (!BG_TYPES.contains(types[0])) {
+        findings.push("${file} declares BGType '${types[0]}', which is none of the three BgFileReader compares against")
+    }
+    for (initial in bodies(text, "InitialBackground")) {
+        if (!isDigits(initial)) {
+            findings.push("${file} declares <InitialBackground>${initial}</InitialBackground>, which Integer.valueOf cannot parse")
+        }
+    }
+    // A layered background's translations are read as floats, the same call.
+    for (tag in ["TranslationX", "TranslationY", "TranslationZ"]) {
+        for (value in bodies(text, tag)) {
+            if (!looksNumeric(value)) {
+                findings.push("${file} declares <${tag}>${value}</${tag}>, which Float.valueOf cannot parse")
+            }
+        }
+    }
+
+    // 8. every path the reader hands the classloader.
+    for (ref in thumbs + images) {
+        refCount += 1
+        if (resolve(ref).length == 0) {
+            findings.push("${file} references ${ref}, which resolves in none of the trees runtimeResources assembles")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// report
+// ---------------------------------------------------------------------------
+
+println("${str(urls.length)} <BGURL> entrie(s), ${str(dirs.length)} background director(ies), ${str(withConfig.length)} descriptor(s), ${str(tagCount)} element(s) and ${str(refCount)} image reference(s) read")
+println("the reader's vocabulary: ${str(BG_TAGS.length)} element names, ${str(BG_TYPES.length)} BGType values")
+
+if (findings.length == 0) {
+    println("every background the manager offers is in the tree, and every background in the tree is offered")
+} else {
+    for (f in findings) { println("  background gap: ${f}") }
+    error("${findings.length} bgconfigs finding(s)", "ViolationError")
+}

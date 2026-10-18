@@ -110,7 +110,9 @@ tasks.register('mandelaRepl', JavaExec) {
 // language itself, a changelog-shape gate, a start-menu descriptor audit, an
 // accelerator-conflict gate, an i18n bundle-completeness gate, a legacy Java 3D
 // import lint, a gate on the two hand-written copies of the desktop classpath,
-// a gate on what the coverage floors may claim, a freshness gate on the generated
+// a gate on what the coverage floors may claim, a gate pairing the build files'
+// source excludes with the exclusion prose, a gate on the background manager's
+// menu against the art the tree ships, a freshness gate on the generated
 // What's New help topic and on the release archive drawn from the same changelog,
 // and a gate on the automation's own wiring. They
 // are ordinary `mandela run` invocations, so
@@ -118,7 +120,7 @@ tasks.register('mandelaRepl', JavaExec) {
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all fourteen)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all fifteen)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -170,6 +172,8 @@ mandelaCheck('coverageFloorsCheck', 'coverage-floors.mnd',
         'Fail when a coverageFloors floor names a module with no test suite, or a module with a suite carries no floor and no exemption.')
 mandelaCheck('exclusionsCheck', 'exclusions.mnd',
         'Fail when the source excludes the build files apply and the exclusion prose AGENTS.md states stop being the same set, or an exclude names a tree that holds nothing.')
+mandelaCheck('bgConfigsCheck', 'bgconfigs.mnd',
+        'Fail when the background manager\'s BgConfig.xml and the .lgbg descriptors under Backgrounds/ stop agreeing with each other, with the SAX vocabularies that read them, or with the classpath tree runtimeResources assembles.')
 mandelaCheck('scriptsHygieneCheck', 'scripts-hygiene.mnd',
         'Fail when a Mandela gate is unwired, left out of repositoryChecks, or missing from the scripts README.')
 mandelaCheck('whatsNewCheck', 'whats-new.mnd',
@@ -181,7 +185,7 @@ tasks.register('repositoryChecks') {
     dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit',
             'acceleratorsCheck',
             'i18nKeysCheck', 'legacyJ3dCheck', 'runClasspathCheck', 'coverageFloorsCheck',
-            'exclusionsCheck',
+            'exclusionsCheck', 'bgConfigsCheck',
             'scriptsHygieneCheck', 'whatsNewCheck',
             'mandelaVersionCheck', 'changelogCheck'
 }
