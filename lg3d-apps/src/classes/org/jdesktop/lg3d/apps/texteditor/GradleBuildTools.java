@@ -94,6 +94,14 @@ public final class GradleBuildTools implements TextEditorExtension {
     private static final Set<String> QUICK_TASKS = Set.of(
             "clean", "tasks", "help", "dependencies", "projects", "properties");
 
+    /**
+     * Tasks that launch a long-running, potentially never-exiting process (the
+     * application itself), so they get the run timeout rather than the build
+     * timeout: {@code run} from the application plugin and {@code bootRun} from
+     * the Spring Boot plugin.
+     */
+    private static final Set<String> RUN_TASKS = Set.of("run", "bootRun");
+
     private EditorContext editor;
     private DocumentContext currentDoc;
     private BuildTools.Runner runner = BuildTools.ASYNC_RUNNER;
@@ -397,10 +405,10 @@ public final class GradleBuildTools implements TextEditorExtension {
         return "";
     }
 
-    /** The run timeout for a task: {@code run} streams, quick tasks only configure. */
+    /** The run timeout for a task: app-launching tasks stream, quick tasks only configure. */
     private static long timeoutFor(String task) {
         String leaf = leafOf(task);
-        if (leaf.equals("run")) {
+        if (RUN_TASKS.contains(leaf)) {
             return RUN_TIMEOUT_MS;
         }
         return QUICK_TASKS.contains(leaf) ? QUICK_TIMEOUT_MS : BUILD_TIMEOUT_MS;

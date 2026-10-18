@@ -612,6 +612,55 @@ class BuildToolsTest {
     }
 
     @Test
+    @DisplayName("a Spring Boot project proposes the plugin-contributed bootRun/bootJar tasks")
+    void gradleTaskTreeSpringBoot() {
+        List<BuildTask> tasks = BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'java'
+                    id 'org.springframework.boot' version '3.3.0'
+                    id 'io.spring.dependency-management' version '1.1.5'
+                }
+                """, null);
+        List<BuildTask> boot = tasks.stream()
+                .filter(t -> t.group().equals("Spring Boot")).toList();
+        // bootRun is contributed by the plugin, never declared in the script.
+        assertEquals(List.of("bootRun", "bootJar", "bootBuildImage"),
+                boot.stream().map(BuildTask::name).toList(), boot.toString());
+        // bootWar needs the war plugin, which this script does not apply.
+        assertFalse(tasks.stream().anyMatch(t -> t.name().equals("bootWar")), tasks.toString());
+        // 'java' still yields test; a JVM project also gets the base lifecycle.
+        assertTrue(tasks.stream().anyMatch(t -> t.name().equals("test")), tasks.toString());
+        assertTrue(tasks.stream().noneMatch(BuildTask::isRunnable));
+
+        // With the war plugin applied, bootWar joins the set.
+        assertTrue(BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'war'
+                    id 'org.springframework.boot'
+                }
+                """, null).stream().anyMatch(t -> t.name().equals("bootWar")));
+
+        // Kotlin-DSL id("...") shape is read the same way.
+        assertTrue(BuildTools.gradleTaskTree(
+                "plugins { id(\"org.springframework.boot\") }", null).stream()
+                .anyMatch(t -> t.name().equals("bootRun")));
+
+        // The shadow plugin contributes shadowJar, deduplicated across its two ids.
+        List<BuildTask> shadow = BuildTools.gradleTaskTree("""
+                plugins {
+                    id 'java'
+                    id 'com.gradleup.shadow'
+                }
+                """, null).stream().filter(t -> t.name().equals("shadowJar")).toList();
+        assertEquals(1, shadow.size(), shadow.toString());
+        assertEquals("Shadow", shadow.get(0).group());
+
+        // No known plugin: nothing contributed.
+        assertTrue(BuildTools.gradleTaskTree("plugins { id 'java' }", null).stream()
+                .noneMatch(t -> t.group().equals("Spring Boot") || t.group().equals("Shadow")));
+    }
+
+    @Test
     @DisplayName("appliesPlugin reads both the plugins block and the legacy apply form")
     void appliesPlugin() {
         assertTrue(BuildTools.appliesPlugin("plugins { id 'java' }", "java"));

@@ -1101,6 +1101,31 @@ final class BuildTools {
             "org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.android", "kotlin");
 
     /**
+     * Well-known Gradle plugin ids and the tasks each <em>contributes</em> to the
+     * build. These never appear as a {@code task foo} declaration — applying the
+     * plugin adds them — so a text scan cannot see them the way it sees a
+     * declared task. Each row is {@code {pluginId, group, taskName, description,
+     * companionPluginId}}; a row is proposed whenever {@code pluginId} is applied
+     * and, when {@code companionPluginId} is non-empty, only if that plugin is
+     * applied too ({@code bootWar} needs {@code war}). Duplicate task names are
+     * dropped, so a plugin reachable under two ids is not proposed twice.
+     */
+    private static final String[][] PLUGIN_TASKS = {
+            {"org.springframework.boot", "Spring Boot", "bootRun",
+                    "Run the Spring Boot application", ""},
+            {"org.springframework.boot", "Spring Boot", "bootJar",
+                    "Assemble the executable Spring Boot jar", ""},
+            {"org.springframework.boot", "Spring Boot", "bootBuildImage",
+                    "Build an OCI image with Cloud Native Buildpacks", ""},
+            {"org.springframework.boot", "Spring Boot", "bootWar",
+                    "Assemble the executable Spring Boot war", "war"},
+            {"com.github.johnrengelman.shadow", "Shadow", "shadowJar",
+                    "Assemble the fat/uber jar with relocated dependencies", ""},
+            {"com.gradleup.shadow", "Shadow", "shadowJar",
+                    "Assemble the fat/uber jar with relocated dependencies", ""},
+    };
+
+    /**
      * Maven's lifecycle phases, in their canonical order, name + blurb. Unlike
      * Gradle a POM never "declares" these — they are the fixed vocabulary of the
      * default lifecycle — so the whole set is proposed for any Maven project and
@@ -1127,11 +1152,12 @@ final class BuildTools {
      * The task tree a Gradle project proposes, discovered by scanning its build
      * script and settings file rather than by invoking Gradle: the base
      * lifecycle every build carries, {@code test} when a JVM plugin is applied,
-     * {@code run} when the {@code application} plugin is, every task the script
-     * itself registers (with its declaration line), and — for a multi-project
-     * build — each {@code include}d module's own {@code build}/{@code test}/
-     * {@code clean}. Every returned task is unwired ({@link BuildTask#action()}
-     * is null); the caller attaches the run callback.
+     * {@code run} when the {@code application} plugin is, the tasks well-known
+     * plugins contribute (Spring Boot's {@code bootRun}, the shadow jar), every
+     * task the script itself registers (with its declaration line), and — for a
+     * multi-project build — each {@code include}d module's own {@code build}/
+     * {@code test}/{@code clean}. Every returned task is unwired
+     * ({@link BuildTask#action()} is null); the caller attaches the run callback.
      *
      * @param buildText    the {@code build.gradle(.kts)} text (may be null)
      * @param settingsText the {@code settings.gradle(.kts)} text (may be null)
@@ -1151,6 +1177,7 @@ final class BuildTools {
             tasks.add(new BuildTask("Lifecycle", "run",
                     "Run the application (application plugin)", 0));
         }
+        tasks.addAll(pluginContributedTasks(build));
         tasks.addAll(declaredGradleTasks(build));
         for (String module : gradleModules(settingsText)) {
             String group = "module " + module;
@@ -1206,6 +1233,30 @@ final class BuildTools {
         return Pattern.compile("id\\s*\\(?\\s*['\"]" + q + "['\"]").matcher(text).find()
                 || Pattern.compile("apply\\s+plugin:\\s*['\"]" + q + "['\"]")
                         .matcher(text).find();
+    }
+
+    /**
+     * The tasks well-known plugins contribute, proposed when the plugin is
+     * applied (see {@link #PLUGIN_TASKS}). Grouped per plugin so they read as
+     * that plugin's vocabulary beside the base lifecycle and the script's own
+     * declared tasks.
+     */
+    private static List<BuildTask> pluginContributedTasks(String build) {
+        List<BuildTask> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String[] row : PLUGIN_TASKS) {
+            if (!appliesPlugin(build, row[0])) {
+                continue;
+            }
+            String companion = row[4];
+            if (!companion.isEmpty() && !appliesPlugin(build, companion)) {
+                continue;
+            }
+            if (seen.add(row[2])) {
+                out.add(new BuildTask(row[1], row[2], row[3], 0));
+            }
+        }
+        return out;
     }
 
     /**

@@ -479,6 +479,33 @@ class GradleBuildToolsTest {
     }
 
     @Test
+    @DisplayName("a Spring Boot project publishes the plugin-contributed bootRun, wired to run")
+    void springBootTaskTreeRunsBootRun(@TempDir Path root) throws Exception {
+        Files.writeString(root.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'org.springframework.boot' version '3.3.0'
+                }
+                """, StandardCharsets.UTF_8);
+        Files.createFile(root.resolve("gradlew"));
+        wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+
+        List<BuildTask> tasks = taskBatches.get(0);
+        List<String> names = tasks.stream().map(BuildTask::name).toList();
+        assertTrue(names.containsAll(List.of("bootRun", "bootJar", "bootBuildImage")),
+                names.toString());
+        assertTrue(tasks.stream().allMatch(BuildTask::isRunnable), "every task is wired to run");
+
+        // Activating bootRun runs it through the same path as any other leaf.
+        BuildTask bootRun = tasks.stream()
+                .filter(t -> t.name().equals("bootRun")).findFirst().orElseThrow();
+        runner.fallback = new Toolchain.Result(0, "\nStarted App in 1.2 seconds\n");
+        bootRun.action().run();
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "bootRun"),
+                runner.commands.get(0));
+    }
+
+    @Test
     @DisplayName("editing the build script re-publishes the tree; another file only does on save")
     void republishesOnBuildFileChange(@TempDir Path root) throws Exception {
         javaDocOf(root);
