@@ -1028,9 +1028,14 @@ public final class WorldViewer implements AutoCloseable {
         if (crowd != null) {
             eye = new Vector3d(crowd.x, crowd.y + EYE_HEIGHT_M, crowd.z);
         } else {
+            // No crowd to arrive at is not a reason to arrive outside the world.
+            // The old fallback stood the visitor one approach past the subject's
+            // near wall -- beyond the property line -- which is the "I appear
+            // outside the world" every resident-less stock world produced. Stand
+            // in the middle of the room the framing chose, on its floor, instead.
             eye = new Vector3d(center.x,
                     center.y - half.y + EYE_HEIGHT_M,
-                    center.z + half.z + WALK_APPROACH_M);
+                    center.z);
         }
         atWalkPose = true;
         yaw = 0.0;
