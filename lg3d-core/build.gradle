@@ -962,7 +962,8 @@ tasks.register('releaseBundle', Zip) {
     // JavaHelp (Help Center), the update-manager's Jackson / BouncyCastle /
     // slf4j, and the db-manager's Jackson / slf4j + the bundled SQLite / H2 /
     // PostgreSQL / MariaDB JDBC drivers, plus the ftp-client's Commons Net
-    // (FTP/FTPS) + JSch (SFTP); its Jackson / slf4j / bcprov are already listed.
+    // (FTP/FTPS) + JSch (SFTP) + JNA (the Terminal's PTY calls); its Jackson /
+    // slf4j / bcprov are already listed.
     // The wonderland jars, the JAXB / reflections set they need and ice4j (the
     // softphone's NAT engine) are added below with the module jars. jbusinessday +
     // slf4j and the incubator ext jars are added below too.
@@ -989,6 +990,12 @@ tasks.register('releaseBundle', Zip) {
         dependencies.create("org.bouncycastle:bcprov-jdk18on:${libs.versions.bouncycastle.get()}"),
         dependencies.create("commons-net:commons-net:${libs.versions.commonsNet.get()}"),
         dependencies.create("com.github.mwiede:jsch:${libs.versions.jsch.get()}"),
+        // JNA (+ the platform library) for the Terminal app's PTY support: the
+        // module calls forkpty/openpty through com.sun.jna.Native, so a bundle
+        // without it dies with NoClassDefFoundError on the first shell. Resolved
+        // exactly like the run classpath above (jnaLibs).
+        dependencies.create("net.java.dev.jna:jna:${libs.versions.jna.get()}"),
+        dependencies.create("net.java.dev.jna:jna-platform:${libs.versions.jna.get()}"),
         dependencies.create("org.xerial:sqlite-jdbc:${libs.versions.sqliteJdbc.get()}"),
         dependencies.create("com.h2database:h2:${libs.versions.h2.get()}"),
         dependencies.create("org.postgresql:postgresql:${libs.versions.postgresql.get()}"),
@@ -1030,6 +1037,13 @@ tasks.register('releaseBundle', Zip) {
     def updateManagerJar = project(':update-manager').tasks.named('jar')
     def dbManagerJar = project(':db-manager').tasks.named('jar')
     def ftpClientJar = project(':ftp-client').tasks.named('jar')
+    // Terminal: the standalone lg3d-terminal module's jar, wrapped by lg3d-apps'
+    // org.jdesktop.lg3d.apps.terminal panel and launched in-JVM by the "Terminal"
+    // start-menu command. It ships for the same reason it is on the run classpath
+    // above: TerminalPanel imports org.jdesktop.terminal.*, so a bundle whose
+    // start menu offers Terminal without that jar shows the user a dead icon.
+    // scripts/mandela/run-classpath.mnd is the gate that compares the two lists.
+    def terminalJar = project(':lg3d-terminal').tasks.named('jar')
     // Mandela ships inside the bundle for the same reason it is on the run
     // classpath above: Espresso's MandelaTools and the Web Browser bridge link
     // against it at runtime, not build time.
@@ -1060,7 +1074,7 @@ tasks.register('releaseBundle', Zip) {
 
     dependsOn coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
             lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
-            mandelaJar, wonderlandCommonJar, wonderlandClientJar,
+            terminalJar, mandelaJar, wonderlandCommonJar, wonderlandClientJar,
             wonderlandModulesJar, wonderlandRendererJar, wonderlandAvatarsJar,
             wonderlandDesktopJar, runtimeResources, releaseLauncher,
             webServerBootJar
@@ -1074,7 +1088,7 @@ tasks.register('releaseBundle', Zip) {
     into('lib') {
         from(coreJar, escherJar, appsJar, incubatorJar, widgetsJar,
              lpmConsoleJar, updateManagerJar, dbManagerJar, ftpClientJar,
-             mandelaJar, wonderlandCommonJar, wonderlandClientJar,
+             terminalJar, mandelaJar, wonderlandCommonJar, wonderlandClientJar,
              wonderlandModulesJar, wonderlandRendererJar, wonderlandAvatarsJar,
              wonderlandDesktopJar)
         from(releaseRuntime)
