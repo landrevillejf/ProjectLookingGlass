@@ -13,7 +13,7 @@
  */
 package org.jdesktop.lg3d.apps.terminal;
 
-import org.jdesktop.lg3d.apps.texteditor.TitledSwingWindow;
+import org.jdesktop.lg3d.apps.TitledSwingWindow;
 import org.jdesktop.terminal.TerminalSession;
 
 import javax.swing.*;
@@ -84,16 +84,17 @@ public class TerminalPanel extends JPanel {
     }
     
     /**
-     * Convenience factory: creates a {@code TitledSwingWindow} hosting a new
-     * terminal panel, suitable for the lg3d 3D desktop.
+     * Convenience factory: creates a {@code Frame3D} hosting a new terminal
+     * panel, suitable for the lg3d 3D desktop.
      *
      * @param title the window title
-     * @return the new TitledSwingWindow
+     * @return the new Frame3D
      * @throws IOException if the shell cannot be launched
      */
-    public static TitledSwingWindow createTitledWindow(String title) throws IOException {
+    public static org.jdesktop.lg3d.wg.Frame3D createTitledWindow(String title) throws IOException {
         TerminalPanel panel = new TerminalPanel();
-        TitledSwingWindow window = new TitledSwingWindow(title, panel);
-        return window;
+        return TitledSwingWindow.show(title, panel, 
+                panel.session.getDisplay().getPreferredSize().width,
+                panel.session.getDisplay().getPreferredSize().height);
     }
 }
