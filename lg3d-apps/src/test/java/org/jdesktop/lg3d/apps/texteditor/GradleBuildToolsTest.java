@@ -158,14 +158,15 @@ class GradleBuildToolsTest {
                 "a build never edits the document");
 
         List<ToolbarContribution> c = tools.toolbarContributions();
-        assertEquals(6, c.size());
+        assertEquals(7, c.size());
         assertEquals(List.of("Build", "Run Tests", "Run Application", "Clean",
-                "List Tasks", "Outline Build File"),
+                "List Tasks", "Outline Build File", "Clear Gradle Cache"),
                 c.stream().map(ToolbarContribution::getLabel).toList());
         assertEquals(List.of("control alt shift G", "control alt shift T",
                 "control alt shift U", "control alt shift C", "control alt shift S"),
                 c.subList(0, 5).stream().map(ToolbarContribution::getAccelerator).toList());
         assertEquals("", c.get(5).getAccelerator(), "outlining stays unbound");
+        assertEquals("", c.get(6).getAccelerator(), "clearing cache stays unbound");
     }
 
     // -- the task actions ----------------------------------------------------
@@ -582,6 +583,44 @@ class GradleBuildToolsTest {
         write(root.resolve("src"), "App.java", "class App {\n}\n");
         wire(root, "src/App.java", "class App {\n}\n");
         assertTrue(taskBatches.isEmpty(), "nothing is published without a project");
+    }
+
+    // -- clear cache --------------------------------------------------------
+
+    @Test
+    @DisplayName("clearing the Gradle cache deletes the cache directory and reports success")
+    void clearCacheDeletesAndReports(@TempDir Path cacheDir) throws Exception {
+        Path root = cacheDir.resolve("project");
+        Files.createDirectories(root);
+        javaDocOf(root);
+        GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        Path fakeCache = cacheDir.resolve("caches");
+        Files.createDirectories(fakeCache.resolve("8.14"));
+        Files.writeString(fakeCache.resolve("8.14").resolve("some.bin"), "corrupt",
+                StandardCharsets.UTF_8);
+        tools.setGradleCacheDirForTesting(fakeCache);
+
+        act(tools, 6);
+
+        assertFalse(Files.exists(fakeCache), "the cache directory is deleted");
+        assertEquals(1, msgs.size(), msgs.toString());
+        assertTrue(msgs.get(0).contains("Gradle cache cleared"), msgs.get(0));
+        assertTrue(msgs.get(0).contains(fakeCache.toString()), msgs.get(0));
+    }
+
+    @Test
+    @DisplayName("clearing a missing cache directory reports no cache found")
+    void clearCacheMissingReports(@TempDir Path root) throws Exception {
+        javaDocOf(root);
+        GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        Path fakeCache = root.resolve("nonexistent-cache");
+        tools.setGradleCacheDirForTesting(fakeCache);
+
+        act(tools, 6);
+
+        assertEquals(1, msgs.size(), msgs.toString());
+        assertTrue(msgs.get(0).contains("no cache directory"), msgs.get(0));
+        assertTrue(Files.notExists(fakeCache), "nothing was created");
     }
 
     // -- helpers ---------------------------------------------------------------
