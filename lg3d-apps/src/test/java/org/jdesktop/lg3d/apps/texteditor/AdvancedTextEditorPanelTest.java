@@ -738,6 +738,9 @@ class AdvancedTextEditorPanelTest {
                 }));
         panel.setProvisionerForTesting(new ProjectProvisioner((url, dest) -> {
         }));
+        // Keep the failure log out of the real home directory.
+        Path errorLog = tmp.resolve("new-project-error.log");
+        panel.setProvisioningErrorLogForTesting(errorLog);
         String rootBefore = panel.currentProjectRoot();
 
         // A JDK the manager does not know is rejected before anything is written.
@@ -752,6 +755,16 @@ class AdvancedTextEditorPanelTest {
                 "a failed provisioning attaches nothing");
         assertTrue(panel.statusMessage().contains("Could not create project"),
                 "one status message explains the failure: " + panel.statusMessage());
+        assertTrue(panel.statusMessage().contains("not in the manager"),
+                "the short message names the root cause, not just the wrapper: "
+                        + panel.statusMessage());
+        assertTrue(Files.isRegularFile(errorLog),
+                "the full stack trace is written where it can be read and copied");
+        assertTrue(Files.readString(errorLog).contains("not in the manager"),
+                "the log carries the whole cause chain");
+        String console = panel.outputConsoleText();
+        assertTrue(console.contains("New Project failed") && console.contains("IOException"),
+                "the full trace is surfaced in the selectable, copyable console: " + console);
         panel.dispose();
     }
 
