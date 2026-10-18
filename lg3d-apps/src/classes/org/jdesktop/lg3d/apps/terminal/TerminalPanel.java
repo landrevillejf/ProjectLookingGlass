@@ -92,7 +92,10 @@ public class TerminalPanel extends JPanel {
 
         cards = new CardLayout();
         JPanel stack = new JPanel(cards);
-        stack.add(terminal.getScrollPane(), TERMINAL_CARD);
+        // The emulator itself, not terminal.getScrollPane(): a viewport sizes its
+        // view from the view's preferred size (charWidth x columns), which
+        // autoResize() then grows without bound. See SshPanel, same choice.
+        stack.add(terminal, TERMINAL_CARD);
         JPanel failed = new JPanel(new BorderLayout());
         failureNotice = new JLabel(" ");
         failed.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));

@@ -381,9 +381,13 @@ public final class SshTerminalPanel extends JComponent {
     }
 
     private void handleOsc(char c) {
-        if (c == 7 || c == 27) { // BEL or ST terminates OSC
+        if (c == 7) { // BEL terminates the string
             parserState = STATE_GROUND;
-            // OSC sequences (window title, etc.) - we ignore them for now
+        } else if (c == 27) {
+            // ESC is not a terminator by itself: it starts the two-byte ST "ESC \",
+            // and Fedora's OSC 3008 ends every prompt with it. Going back to GROUND
+            // here would print the leading backslash of that ST on the screen.
+            parserState = STATE_ESC;
         } else {
             oscString.append(c);
         }
