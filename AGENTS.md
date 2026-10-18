@@ -166,7 +166,10 @@ One app is excluded for deep core-API drift (**not** a missing library):
 > (AppLaunchAction / Pseudo3DShortcut / `FuzzyEdgePanel.setSize` / vecmath
 > `Color3f(awt.Color)` drift). That drift was small and self-contained, so all four
 > were **ported to the current API and now build**; their start-menu descriptors
-> live in `lg3d-apps/src/config`. Always verify the live exclusion set against
+> live in `lg3d-apps/src/config`. `exclusions.mnd` makes that verification a CI
+> gate rather than a habit: it pairs every `exclude` line in the build with a
+> token in the prose below, in both directions. Always verify the live exclusion
+> set against
 > [`lg3d-incubator/build.gradle`](lg3d-incubator/build.gradle) rather than trusting
 > this prose — it has been stale before.
 
@@ -272,7 +275,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the thirteen gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the fourteen gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -326,6 +329,14 @@ the exit codes and how to add a tool.
   for a module with no test source names a rule that can never fire, an exemption
   must carry its reason, and the floors quoted in this file's *Test coverage* prose
   must be the numbers the build actually enforces (a CI gate).
+- `exclusions.mnd` - the exclusion set as one set, because it is written twice:
+  this file's *Code Exclusions* / *Incubator Exclusions* prose and the
+  `exclude '…'` lines inside every module's `java` source set. An exclude no
+  prose explains, a prose token no build applies, an exclude whose tree holds no
+  source (unless the script records why that guard stays), and an app under
+  "Ported, not excluded" that is excluded anyway all fail. The two spellings are
+  compared on path segments, so `sun/**` covers `sun.awt.*` while `apps/browser`
+  never matches `apps/browser3d` (a CI gate).
 - `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the

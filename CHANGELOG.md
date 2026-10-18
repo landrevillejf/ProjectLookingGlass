@@ -10,6 +10,29 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`exclusions.mnd` — a Mandela gate that the exclusion set in the prose is the exclusion set in the build** (`scripts`, `lg3d-mandela`) —
+  this file's *Code Exclusions* and *Incubator Exclusions* sections name the code
+  paths the build leaves out, and every module's `build.gradle` writes the same
+  fact again as `exclude 'org/…'` lines inside a `java` source set. Nothing made
+  the two agree, and the document admitted the gap itself ("it has been stale
+  before"): an exclude no prose explains is a reader who restores the tree and
+  inherits its JDK 21 defect blind, and a prose token no build applies promises an
+  exclusion for sources that are already compiled into the jar. The gate reads
+  both surfaces, pairs them on *path segments* rather than strings — so `sun/**`
+  explains `sun.awt.*`, `apps/browser/**` explains the build's own spelling, and
+  `apps/browser/**` provably never matches `apps/browser3d/**` — and checks the
+  "Ported, not excluded" claim against the same set. It also asks whether a
+  pattern still names a tree: that found **one real dead exclude**,
+  `org/jdesktop/lg3d/apps/x11integration/**`, inherited from the 2006 `build.xml`
+  and repeated in four documents, over a package that has no sources anywhere in
+  the repository or anywhere in its git history; the line stays as the guard that
+  keeps a restored legacy tree out, recorded with that reason in the script's
+  `KEPT` map — the same discipline `run-classpath.mnd` and `legacy-j3d.mnd` apply
+  to a deliberate absence, where an entry that stops being true is itself a
+  finding. Wired as `:lg3d-mandela:exclusionsCheck` in `repositoryChecks`; green
+  over 14 exclude(s) paired 1:1 with 14 prose tokens, and proven by planting an
+  undocumented exclude, a deleted one the prose still claims and an exclude on a
+  ported app, which fail as 5 findings in one run.
 - **`run-classpath.mnd` — a Mandela gate on the two hand-written copies of the desktop classpath** (`scripts`, `lg3d-mandela`) —
   `:lg3d-core:run` assembles its `classpath` by hand — module jars plus a dozen
   detached configurations — because the desktop launches start-menu apps *in its own
