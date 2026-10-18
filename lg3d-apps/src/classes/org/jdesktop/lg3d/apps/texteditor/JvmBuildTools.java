@@ -13,6 +13,7 @@
  */
 package org.jdesktop.lg3d.apps.texteditor;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
@@ -83,6 +84,11 @@ public final class JvmBuildTools implements TextEditorExtension {
     /** Seam over the kotlinc lookup so tests never depend on a real install. */
     private Supplier<Optional<Path>> kotlinToolSeam =
             () -> Toolchain.findOnPath("kotlinc", System.getenv("PATH"));
+    /**
+     * The central JDK manager, used to compile and run the current document with
+     * the JDK its enclosing project selected rather than always the editor's own.
+     */
+    private JdkRegistry registry = new JdkRegistry();
 
     // -- test seams -------------------------------------------------------
 
@@ -92,6 +98,50 @@ public final class JvmBuildTools implements TextEditorExtension {
 
     final void setKotlinToolForTesting(Supplier<Optional<Path>> replacement) {
         this.kotlinToolSeam = replacement;
+    }
+
+    final void setJdkRegistryForTesting(JdkRegistry replacement) {
+        this.registry = replacement;
+    }
+
+    /**
+     * A {@code javac}/{@code java} from the JDK the current document's project
+     * selected, falling back to the editor's own JDK when the document is not
+     * inside an Espresso project or that project selected none. Resolving the
+     * binary path (rather than a {@code JAVA_HOME}) is enough: javac and the
+     * single-file launcher run under whichever JDK owns the executable.
+     */
+    private Optional<Path> jdkTool(String tool) {
+        Path home = selectedJdkHome();
+        Optional<Path> fromProject = (home == null)
+                ? Optional.empty() : ProjectToolchain.jdkTool(home, tool);
+        return fromProject.isPresent() ? fromProject : Toolchain.jdkTool(tool);
+    }
+
+    /**
+     * The home of the JDK selected by the nearest enclosing project that records
+     * one, or null. Walks up from the document's own folder looking for an
+     * Espresso {@code .espresso/toolchain.properties} — the marker a plain-Java
+     * project has, since it carries no {@code build.gradle} or {@code pom.xml}.
+     */
+    private Path selectedJdkHome() {
+        DocumentContext doc = currentDoc;
+        if (doc == null) {
+            return null;
+        }
+        String filePath = doc.getFilePath();
+        if (filePath == null || filePath.isBlank()) {
+            return null;
+        }
+        Path dir = Path.of(filePath).toAbsolutePath().normalize().getParent();
+        for (int i = 0; i < BuildTools.MAX_WALK_UP && dir != null; i++) {
+            if (Files.isRegularFile(dir.resolve(ProjectToolchain.TOOLCHAIN_DIR)
+                    .resolve(ProjectToolchain.TOOLCHAIN_FILE))) {
+                return ProjectToolchain.jdkHome(dir, registry).orElse(null);
+            }
+            dir = dir.getParent();
+        }
+        return null;
     }
 
     // -- SPI ---------------------------------------------------------------
@@ -168,7 +218,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Compile Java: no class/record/enum/interface found");
             return;
         }
-        Optional<Path> javac = Toolchain.jdkTool("javac");
+        Optional<Path> javac = jdkTool("javac");
         if (javac.isEmpty()) {
             msg("Compile Java: javac not found in this JDK");
             return;
@@ -201,7 +251,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Run Java: no class found in the document");
             return;
         }
-        Optional<Path> java = Toolchain.jdkTool("java");
+        Optional<Path> java = jdkTool("java");
         if (java.isEmpty()) {
             msg("Run Java: the java launcher not found in this JDK");
             return;
@@ -229,7 +279,7 @@ public final class JvmBuildTools implements TextEditorExtension {
             msg("Debug Java: no class found in the document");
             return;
         }
-        Optional<Path> java = Toolchain.jdkTool("java");
+        Optional<Path> java = jdkTool("java");
         if (java.isEmpty()) {
             msg("Debug Java: the java launcher not found in this JDK");
             return;

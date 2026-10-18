@@ -34,6 +34,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
+import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic.Kind;
@@ -74,6 +75,16 @@ class AdvancedTextEditorPanelTest {
     private static void type(EditorTab tab, String text)
             throws BadLocationException {
         tab.document().insertString(tab.document().getLength(), text, null);
+    }
+
+    /**
+     * Blocks until the EDT has drained every task posted before this call, so a
+     * test can assert the outcome of work a virtual thread marshalled back via
+     * {@code invokeLater} (Swing is headless-safe: the EDT still runs).
+     */
+    private static void flushEdt() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+        });
     }
 
     @Test
@@ -684,6 +695,73 @@ class AdvancedTextEditorPanelTest {
         assertNotNull(panel.gitGuiPanel());
         assertNotNull(panel.projectCard());
         panel.dispose();
+    }
+
+    @Test
+    @DisplayName("New Project provisions off the EDT, then attaches and opens the entry file")
+    void newProjectProvisionsAttachesAndOpens(@TempDir Path tmp) throws Exception {
+        AdvancedTextEditorPanel panel = newPanel();
+        // A shared JDK store holding one JDK 21 (never copied into the project) and
+        // a provisioner that "downloads" a canned Gradle instead of touching the net.
+        panel.setJdkRegistryForTesting(new JdkRegistry(jdkStore(tmp, "21.0.4"),
+                (url, dest) -> {
+                }));
+        panel.setProvisionerForTesting(new ProjectProvisioner((url, dest) -> {
+            String file = url.substring(url.lastIndexOf('/') + 1);
+            String dir = file.replace("-bin.zip", "");
+            CannedArchives.writeToolZip(dest, dir, dir.startsWith("gradle") ? "gradle" : "mvn");
+        }));
+
+        Path parent = tmp.resolve("ws");
+        Thread worker = panel.provisionNewProject(parent,
+                new NewProjectRequest("demo", BuildSystem.GRADLE, "8.10", "jdk-21.0.4+7"));
+        worker.join(20_000);
+        flushEdt();
+
+        Path root = parent.resolve("demo");
+        assertTrue(Files.isRegularFile(root.resolve("build.gradle")), "the project was scaffolded");
+        assertTrue(Files.isExecutable(root.resolve(".espresso/tools/gradle-8.10/bin/gradle")),
+                "the project's own Gradle was downloaded and made runnable");
+        assertEquals(root.toString(), panel.currentProjectRoot(), "the new project is attached");
+        assertEquals(2, panel.tabCount(), "the entry source opened in a new tab");
+        assertTrue(panel.statusMessage().contains("created at"),
+                "the status line reports success: " + panel.statusMessage());
+        panel.dispose();
+    }
+
+    @Test
+    @DisplayName("a provisioning failure reports once and attaches nothing")
+    void newProjectFailureAttachesNothing(@TempDir Path tmp) throws Exception {
+        AdvancedTextEditorPanel panel = newPanel();
+        panel.setJdkRegistryForTesting(new JdkRegistry(jdkStore(tmp, "21.0.4"),
+                (url, dest) -> {
+                }));
+        panel.setProvisionerForTesting(new ProjectProvisioner((url, dest) -> {
+        }));
+        String rootBefore = panel.currentProjectRoot();
+
+        // A JDK the manager does not know is rejected before anything is written.
+        Path parent = tmp.resolve("ws");
+        Thread worker = panel.provisionNewProject(parent,
+                new NewProjectRequest("demo", BuildSystem.GRADLE, "8.10", "ghost-jdk"));
+        worker.join(20_000);
+        flushEdt();
+
+        assertFalse(Files.exists(parent.resolve("demo")), "nothing was scaffolded");
+        assertEquals(rootBefore, panel.currentProjectRoot(),
+                "a failed provisioning attaches nothing");
+        assertTrue(panel.statusMessage().contains("Could not create project"),
+                "one status message explains the failure: " + panel.statusMessage());
+        panel.dispose();
+    }
+
+    /** A temp JDK-manager store holding one managed JDK 21 with the given version. */
+    private static Path jdkStore(Path tmp, String version) throws IOException {
+        Path home = tmp.resolve("jdkstore").resolve("jdks").resolve("jdk-21.0.4+7");
+        Files.createDirectories(home.resolve("bin"));
+        Files.writeString(home.resolve("bin").resolve("java"), "#!/bin/sh\n");
+        Files.writeString(home.resolve("release"), "JAVA_VERSION=\"" + version + "\"\n");
+        return tmp.resolve("jdkstore");
     }
 
     @Test

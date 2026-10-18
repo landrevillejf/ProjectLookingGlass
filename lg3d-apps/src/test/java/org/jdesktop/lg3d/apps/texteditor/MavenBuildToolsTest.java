@@ -81,18 +81,20 @@ class MavenBuildToolsTest {
             "</project>",
             "");
 
-    /** Records every command and delivers queued results synchronously. */
+    /** Records every command and its environment, delivering queued results synchronously. */
     private static final class FakeRunner implements BuildTools.Runner {
         final List<List<String>> commands = new ArrayList<>();
         final List<Path> workDirs = new ArrayList<>();
+        final List<Map<String, String>> envs = new ArrayList<>();
         final Deque<Toolchain.Result> replies = new ArrayDeque<>();
         Toolchain.Result fallback = new Toolchain.Result(0, "");
 
         @Override
-        public void run(List<String> command, Path workDir, long timeoutMs,
+        public void run(List<String> command, Path workDir, Map<String, String> env, long timeoutMs,
                         Consumer<Toolchain.Result> done) {
             commands.add(command);
             workDirs.add(workDir);
+            envs.add(env);
             done.accept(replies.isEmpty() ? fallback : replies.poll());
         }
     }
@@ -458,7 +460,7 @@ class MavenBuildToolsTest {
     }
 
     @Test
-    @DisplayName("a project with neither a wrapper nor Maven on PATH is reported, not crashed")
+    @DisplayName("a project with neither a wrapper nor a project Maven is reported, not crashed")
     void noLauncher(@TempDir Path root) throws Exception {
         mavenDocOf(root);
         Files.delete(root.resolve("mvnw"));
@@ -466,10 +468,73 @@ class MavenBuildToolsTest {
         tools.setLauncherForTesting(r -> Optional.empty());
         act(tools, 0);
         assertTrue(runner.commands.isEmpty());
-        assertTrue(msgs.get(0).contains("Maven is not available \u2014 no ./mvnw in " + root
-                + " and no mvn on PATH"), msgs.toString());
+        assertTrue(msgs.get(0).contains("Maven is not provisioned \u2014 no ./mvnw and no project"
+                + " Maven in " + root), msgs.toString());
+        assertFalse(msgs.get(0).toLowerCase().contains("path"),
+                "the message never sends the user to the system tool: " + msgs);
         act(tools, 3);
-        assertTrue(msgs.get(1).startsWith("mvn run: Maven is not available"), msgs.toString());
+        assertTrue(msgs.get(1).startsWith("mvn run: Maven is not provisioned"), msgs.toString());
+    }
+
+    @Test
+    @DisplayName("a provisioned project runs its own Maven under the selected JDK's JAVA_HOME")
+    void provisionedProjectUsesProjectToolAndSelectedJdk(@TempDir Path tmp) throws Exception {
+        Path root = tmp.resolve("proj");
+        write(root.resolve("src/main/java/com/acme"), "App.java", "class App {\n}\n");
+        Files.writeString(root.resolve("pom.xml"), POM, StandardCharsets.UTF_8);
+        // Espresso provisioned this Maven into the project; there is no wrapper.
+        Path distro = root.resolve(".espresso/tools/apache-maven-3.9.9/bin/mvn");
+        Files.createDirectories(distro.getParent());
+        Files.writeString(distro, "");
+        Path store = tmp.resolve("store");
+        Path jdkHome = store.resolve("jdks").resolve("jdk-21.0.4+7");
+        Files.createDirectories(jdkHome.resolve("bin"));
+        Files.writeString(jdkHome.resolve("bin").resolve("java"), "#!/bin/sh\n");
+        Files.writeString(jdkHome.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
+        Files.createDirectories(root.resolve(".espresso"));
+        Files.writeString(root.resolve(".espresso/toolchain.properties"),
+                "buildSystem=MAVEN\ntoolVersion=3.9.9\njdkId=jdk-21.0.4+7\n");
+
+        MavenBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        tools.setJdkRegistryForTesting(new JdkRegistry(store, (url, dest) -> { }));
+        runner.fallback = new Toolchain.Result(0, "[INFO] BUILD SUCCESS");
+
+        act(tools, 0);
+
+        assertEquals(List.of(distro.toString(), "-B", "--no-transfer-progress", "compile"),
+                runner.commands.get(0), "the build runs the project's own Maven, never a system one");
+        assertEquals(jdkHome.toString(), runner.envs.get(0).get("JAVA_HOME"),
+                "JAVA_HOME is the JDK the project selected");
+    }
+
+    @Test
+    @DisplayName("run launches the main class with the selected JDK's own java, not the editor's")
+    void runUsesSelectedJdkJava(@TempDir Path tmp) throws Exception {
+        Path root = tmp.resolve("proj");
+        write(root.resolve("src/main/java/com/acme"), "App.java", "class App {\n}\n");
+        Files.writeString(root.resolve("pom.xml"), POM, StandardCharsets.UTF_8);
+        Files.createFile(root.resolve("mvnw"));
+        write(root.resolve("target/classes/com/acme"), "Main.class", "cafe\n");
+        Path store = tmp.resolve("store");
+        Path jdkHome = store.resolve("jdks").resolve("jdk-21.0.4+7");
+        Files.createDirectories(jdkHome.resolve("bin"));
+        Files.writeString(jdkHome.resolve("bin").resolve("java"), "#!/bin/sh\n");
+        Files.writeString(jdkHome.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
+        Files.createDirectories(root.resolve(".espresso"));
+        Files.writeString(root.resolve(".espresso/toolchain.properties"),
+                "buildSystem=MAVEN\ntoolVersion=3.9.9\njdkId=jdk-21.0.4+7\n");
+
+        MavenBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        tools.setJdkRegistryForTesting(new JdkRegistry(store, (url, dest) -> { }));
+        runner.replies.add(new Toolchain.Result(0, "[INFO] BUILD SUCCESS"));
+        runner.fallback = new Toolchain.Result(0, "hello\n");
+
+        act(tools, 3);
+
+        assertEquals(2, runner.commands.size(), runner.commands.toString());
+        assertEquals(jdkHome.resolve("bin").resolve("java").toString(),
+                runner.commands.get(1).get(0), "the launch uses the selected JDK's java");
+        assertEquals(jdkHome.toString(), runner.envs.get(1).get("JAVA_HOME"));
     }
 
     @Test

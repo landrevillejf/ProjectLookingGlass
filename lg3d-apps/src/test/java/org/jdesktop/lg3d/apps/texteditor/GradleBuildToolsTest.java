@@ -51,18 +51,20 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GradleBuildToolsTest {
 
-    /** Records every command and delivers queued results synchronously. */
+    /** Records every command and its environment, delivering queued results synchronously. */
     private static final class FakeRunner implements BuildTools.Runner {
         final List<List<String>> commands = new ArrayList<>();
         final List<Path> workDirs = new ArrayList<>();
+        final List<Map<String, String>> envs = new ArrayList<>();
         final Deque<Toolchain.Result> replies = new ArrayDeque<>();
         Toolchain.Result fallback = new Toolchain.Result(0, "");
 
         @Override
-        public void run(List<String> command, Path workDir, long timeoutMs,
+        public void run(List<String> command, Path workDir, Map<String, String> env, long timeoutMs,
                         Consumer<Toolchain.Result> done) {
             commands.add(command);
             workDirs.add(workDir);
+            envs.add(env);
             done.accept(replies.isEmpty() ? fallback : replies.poll());
         }
     }
@@ -341,7 +343,7 @@ class GradleBuildToolsTest {
     }
 
     @Test
-    @DisplayName("a project with neither a wrapper nor a Gradle on PATH is reported, not crashed")
+    @DisplayName("a project with neither a wrapper nor a project Gradle is reported, not crashed")
     void noLauncher(@TempDir Path root) throws Exception {
         javaDocOf(root);
         Files.delete(root.resolve("gradlew"));
@@ -349,8 +351,45 @@ class GradleBuildToolsTest {
         tools.setLauncherForTesting(r -> Optional.empty());
         act(tools, 0);
         assertTrue(runner.commands.isEmpty());
-        assertTrue(msgs.get(0).contains("Gradle is not available \u2014 no ./gradlew in " + root
-                + " and no gradle on PATH"), msgs.toString());
+        assertTrue(msgs.get(0).contains("Gradle is not provisioned \u2014 no ./gradlew and no"
+                + " project Gradle in " + root), msgs.toString());
+        assertFalse(msgs.get(0).toLowerCase().contains("path"),
+                "the message never sends the user to the system tool: " + msgs);
+    }
+
+    @Test
+    @DisplayName("a provisioned project runs its own Gradle under the selected JDK's JAVA_HOME")
+    void provisionedProjectUsesProjectToolAndSelectedJdk(@TempDir Path tmp) throws Exception {
+        Path root = tmp.resolve("proj");
+        Path src = write(root.resolve("src/main/java/com/acme"), "App.java", "class App {\n}\n");
+        Files.writeString(root.resolve("build.gradle"), "apply plugin: 'java'\n",
+                StandardCharsets.UTF_8);
+        // Espresso provisioned this Gradle into the project; there is no wrapper.
+        Path distro = root.resolve(".espresso/tools/gradle-8.10/bin/gradle");
+        Files.createDirectories(distro.getParent());
+        Files.writeString(distro, "");
+        // The project selects a JDK that lives in the shared manager, not in the project.
+        Path store = tmp.resolve("store");
+        Path jdkHome = store.resolve("jdks").resolve("jdk-21.0.4+7");
+        Files.createDirectories(jdkHome.resolve("bin"));
+        Files.writeString(jdkHome.resolve("bin").resolve("java"), "#!/bin/sh\n");
+        Files.writeString(jdkHome.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
+        Files.createDirectories(root.resolve(".espresso"));
+        Files.writeString(root.resolve(".espresso/toolchain.properties"),
+                "buildSystem=GRADLE\ntoolVersion=8.10\njdkId=jdk-21.0.4+7\n");
+
+        GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        tools.setJdkRegistryForTesting(new JdkRegistry(store, (url, dest) -> { }));
+        runner.fallback = new Toolchain.Result(0, "BUILD SUCCESSFUL in 7s");
+
+        act(tools, 0);
+
+        assertEquals(List.of(distro.toString(), "--console=plain", "build"), runner.commands.get(0),
+                "the build runs the project's own Gradle, never a system one");
+        assertEquals(jdkHome.toString(), runner.envs.get(0).get("JAVA_HOME"),
+                "JAVA_HOME is the JDK the project selected");
+        assertEquals("dumb", runner.envs.get(0).get("TERM"));
+        assertTrue(Files.exists(src));
     }
 
     @Test
