@@ -275,7 +275,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the fifteen gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the sixteen gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -351,6 +351,22 @@ the exit codes and how to add a tool.
   reference resolving through the mapping - which is read back from the build file
   as a premise, so the gate stops applying the day the task stops relocating those
   directories (a CI gate).
+- `help-topics.mnd` - the Help Center's JavaHelp bundle as one graph instead of
+  five hand-written copies of it: `lg3d-help.hs` (homeID, mapref, the three
+  navigators' `data`, title), `map.jhm` (target → topic), `toc.xml` (Contents),
+  `index.xml` (the keyword index) and the topics themselves, with
+  `HelpContentTest.java`'s `TARGETS`/`RESOURCES` arrays as the fifth copy.
+  JavaHelp shows a reader nothing rather than an error when an edge breaks, so the
+  gate checks each target once declared and its url on disk, Contents and the
+  Index in both directions (no unreachable row, no topic no keyword finds, no
+  index leaf with neither target nor children, entries alphabetical per level as
+  the file's own comment promises), every relative `href`/`src`/`#fragment`
+  resolving, a `<title>`, an `<h1>` and the stylesheet link in every topic, the
+  HelpSet agreeing with `HelpCenterPanel`'s `HELPSET_PATH`/`HOME_ID` and the
+  test's asserted title, and a Contents label echoing the heading on the page -
+  except `overview` and `whats-new`, recorded in `LABEL_EXEMPT` with their
+  reasons, where an exemption that stops being true is itself the finding. The
+  build file's own indexing literals are read back as a premise (a CI gate).
 - `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the

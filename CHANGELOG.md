@@ -10,6 +10,52 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`help-topics.mnd` — a Mandela gate on the Help Center's JavaHelp bundle as one graph** (`scripts`, `lg3d-mandela`) —
+  The Help Center is `javax.help` over five hand-written copies of one fact:
+  `lg3d-help.hs` names the homeID, the map and the three navigators, `map.jhm`
+  pairs every target with the topic that answers it, `toc.xml` spells Contents,
+  `index.xml` spells the keyword index, the 19 topics link each other, the
+  stylesheet and their images by relative path — and `HelpContentTest.java`
+  re-writes the target list and the file list again as two Java arrays. JavaHelp
+  reports a broken edge by showing nothing: a target the map does not carry is a
+  Contents row that does nothing when a reader clicks it, a topic no `mapID` names
+  is a page the indexer globs into `JavaSearch` that no navigator can reach, a
+  homeID the map lacks is a Help Center that opens on a blank pane, and a topic
+  added to the directory but left out of the test's arrays keeps the suite green
+  while the reader never finds it. Nine checks: the build file's own
+  `helpContentDir` / `include '*.html'` / `into '…/JavaSearch'` literals as a
+  *premise*; the HelpSet's homeID, mapref, navigator `data` and title against
+  `HelpCenterPanel`'s `HELPSET_PATH` and `HOME_ID` and the assertion the headless
+  test copies; each target declared once with its url on disk and no topic left
+  unnamed; Contents in both directions; the Index in both directions, with no
+  target-less leaf, no target unreachable by keyword and the alphabetical order
+  `index.xml`'s own comment promises, checked level by level; a `<title>`, an
+  `<h1>` and the stylesheet link in every topic; every relative `href`, `src` and
+  `#fragment` resolving against the file or the anchor it names; the Contents
+  label echoing the heading the reader actually lands on, except for `overview`
+  and `whats-new`, which are written into the script's `LABEL_EXEMPT` with their
+  reasons — where an exemption that stops being true is itself the finding, the
+  discipline `exclusions.mnd` and `coverage-floors.mnd` apply; and the test's two
+  arrays paired with the map and the directory, both ways. Wired as
+  `:lg3d-mandela:helpTopicsCheck` inside `repositoryChecks` (fifteen gates become
+  sixteen). It ships **green over 19 targets, 108 index entries and 117 relative
+  links with no defect to report**, so what it records is one judgement instead:
+  `help/resources/images/lg3d-wm-usage.de.png` is named by no topic and no source,
+  printed and never failed, because only a reader knows whether a translation is
+  pending or the file is dead weight in the jar. Proven by planting **20 defects**
+  and reverting each — the premise literal moved, a `mapID` url aimed at a missing
+  file, a target declared twice, an undeclared target in Contents and in the Index,
+  a target no keyword reaches, an index leaf with neither target nor children, an
+  entry out of alphabetical order, a topic that stopped linking the stylesheet, a
+  dead `#fragment`, a dead image `src`, a topic with no `<title>`, a Contents label
+  the page does not carry, a label exemption that no longer holds, a homeID the map
+  does not declare, the panel's `HOME_ID` and `HELPSET_PATH` drifted, the HelpSet
+  title drifted from the assertion, a navigator's data file missing, a target
+  dropped from `TARGETS` — each naming the file it found. Writing it also corrected
+  a defect in the gate itself: its tag walker advanced its consumed offset by the
+  distance to `>` but not by the length of the tag name, which slid every later
+  indent back by ten characters and made the two nesting-dependent checks report
+  two false gaps on a bundle that had none.
 - **`branch-hygiene.mnd` — a Mandela report on which branches are left on one side of this repository** (`scripts`, `lg3d-mandela`) —
   `AGENTS.md` states the rule twice: a merge is not finished until the branch is
   gone from **both** sides, because a stale local that outlives its merged PR is
