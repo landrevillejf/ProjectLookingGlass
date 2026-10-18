@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -85,10 +86,29 @@ public class WebServerConsolePanel extends JPanel {
     /** The deploy types the form offers, matching the server's DeploymentType. */
     private static final String[] DEPLOY_TYPES = {"DOCKER", "JAR"};
 
+    /**
+     * How long {@link #startLocal()} waits for the forked JVM to bind its port
+     * before giving up. A Spring Boot child needs a few seconds to come up, so a
+     * single health poll fired the instant {@code ProcessBuilder.start()} returns
+     * always races the bind and latches "server down" on a server that is in fact
+     * starting -- the "it never starts, whatever port I type" symptom.
+     */
+    private static final long READY_TIMEOUT_SECONDS = 30L;
+
+    /** The pause between readiness polls while the forked server boots. */
+    private static final long READY_POLL_MILLIS = 400L;
+
     /** The client the console drives; re-pointed by Connect / Start local. */
     private volatile ManagementClient client;
     private final ServerProcessSupervisor supervisor;
     private final ExecutorService executor;
+
+    /**
+     * Builds the {@link ManagementClient} for an address. Production is
+     * {@code ManagementClient::new}; the headless test injects a factory over a
+     * fake transport so the readiness poll can be proved without a real server.
+     */
+    private final Function<String, ManagementClient> clientFactory;
 
     private final JTextField addressField = new JTextField(ManagementClient.defaultServer(), 24);
     private final JTextField portField = new JTextField(
@@ -122,7 +142,7 @@ public class WebServerConsolePanel extends JPanel {
     /** The production console: the default server address and a real supervisor. */
     public WebServerConsolePanel() {
         this(new ManagementClient(ManagementClient.defaultServer()),
-                new ServerProcessSupervisor());
+                new ServerProcessSupervisor(), ManagementClient::new);
     }
 
     /**
@@ -135,20 +155,27 @@ public class WebServerConsolePanel extends JPanel {
                 new ServerProcessSupervisor(
                         ServerProcessSupervisor.ancestorsOf(
                                 projectRoot == null ? null : projectRoot.toPath()),
-                        new ServerProcessSupervisor.ProcessSpawner()));
+                        new ServerProcessSupervisor.ProcessSpawner()),
+                ManagementClient::new);
     }
 
     /** A console over injected collaborators; the test seam. */
     WebServerConsolePanel(ManagementClient client, ServerProcessSupervisor supervisor) {
-        this(client, supervisor, defaultExecutor());
+        this(client, supervisor, ManagementClient::new);
     }
 
     WebServerConsolePanel(ManagementClient client, ServerProcessSupervisor supervisor,
-            ExecutorService executor) {
+            Function<String, ManagementClient> clientFactory) {
+        this(client, supervisor, defaultExecutor(), clientFactory);
+    }
+
+    WebServerConsolePanel(ManagementClient client, ServerProcessSupervisor supervisor,
+            ExecutorService executor, Function<String, ManagementClient> clientFactory) {
         super(new BorderLayout());
         this.client = client;
         this.supervisor = supervisor;
         this.executor = executor;
+        this.clientFactory = (clientFactory == null) ? ManagementClient::new : clientFactory;
 
         setOpaque(true);
         setBackground(Color.WHITE);
@@ -290,7 +317,7 @@ public class WebServerConsolePanel extends JPanel {
         }
         String address = addressField.getText();
         try {
-            ManagementClient repointed = new ManagementClient(
+            ManagementClient repointed = clientFactory.apply(
                     ManagementClient.normalizeServer(address));
             replaceClient(repointed);
             setStatus("Connecting to " + repointed.server() + " ...");
@@ -309,18 +336,61 @@ public class WebServerConsolePanel extends JPanel {
         setStatus("Starting a local server on port " + port + " ...");
         runAsync(() -> {
             ServerProcessSupervisor.Result result = supervisor.start(port);
+            if (!result.started() || result.url() == null) {
+                SwingUtilities.invokeLater(() -> setStatus(result.note()));
+                return;
+            }
+            String url = result.url();
+            // Re-point at the forked server BEFORE reading it. The old code swapped
+            // the client on the EDT inside invokeLater while this background thread
+            // had already called refresh(), so the first poll could hit the previous
+            // address. The field is volatile, so writing it here is seen by the read.
+            ManagementClient repointed = clientFactory.apply(url);
+            replaceClient(repointed);
+            // The supervisor returns the moment the process is forked, not when the
+            // JVM has bound its port, so poll health until it answers, the child
+            // dies, or the timeout elapses: a server that is merely slow to boot is
+            // then not reported as down.
+            HealthView ready = awaitHealth(repointed);
             SwingUtilities.invokeLater(() -> {
-                setStatus(result.note());
-                if (result.started() && result.url() != null) {
-                    addressField.setText(result.url());
-                    replaceClient(new ManagementClient(result.url()));
-                }
+                addressField.setText(url);
+                setStatus(ready != null
+                        ? "Server " + ready.status() + " at " + url
+                        : "the server did not become ready at " + url
+                                + " (" + result.note() + ")");
             });
-            if (result.started()) {
-                // Give the forked JVM a moment to bind, then read it.
-                refresh();
+            if (ready != null) {
+                refreshNow();
             }
         });
+    }
+
+    /**
+     * Polls {@code probe}'s health until it answers, the forked child dies, or
+     * {@link #READY_TIMEOUT_SECONDS} elapses. Runs off the EDT (from the start
+     * task), so blocking here is safe; returns {@code null} when the server never
+     * came up.
+     */
+    private HealthView awaitHealth(ManagementClient probe) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(READY_TIMEOUT_SECONDS);
+        while (!disposed && System.nanoTime() < deadline) {
+            try {
+                return probe.health();
+            } catch (IOException notUpYet) {
+                // A child that died during boot (a port already in use, a bad jar)
+                // will never answer, so stop waiting instead of burning the timeout.
+                if (!supervisor.isRunning()) {
+                    return null;
+                }
+                try {
+                    Thread.sleep(READY_POLL_MILLIS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     /** Stops a server child this console forked, then re-reads. */

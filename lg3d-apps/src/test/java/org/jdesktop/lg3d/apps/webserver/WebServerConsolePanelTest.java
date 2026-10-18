@@ -19,11 +19,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JPanel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.ThrowingSupplier;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Headless construction test for the Web Server Console panel.
@@ -126,6 +131,75 @@ class WebServerConsolePanelTest {
             assertTrue(status.toLowerCase().contains("down"),
                     "with no server the status should report it is down, was: " + status);
             assertDoesNotThrow(panel::refresh);
+        } finally {
+            panel.dispose();
+        }
+    }
+
+    @Test
+    @DisplayName("Start local waits for the forked server to answer before reporting")
+    void startLocalWaitsForTheServerToBecomeReady(@TempDir Path root) throws Exception {
+        // A stub bootJar in the source-tree layout so the supervisor resolves a jar.
+        Path libs = root.resolve("lg3d-webserver").resolve("build-gradle").resolve("libs");
+        Files.createDirectories(libs);
+        Files.writeString(libs.resolve("lg3d-webserver-1.69.0-dev-app.jar"), "stub");
+
+        // A child that stays alive, so the readiness poll keeps polling rather than
+        // bailing out early on a "the child died" check.
+        ServerProcessSupervisor.Child alive = new ServerProcessSupervisor.Child() {
+            @Override
+            public boolean alive() {
+                return true;
+            }
+
+            @Override
+            public void stop() {
+            }
+        };
+        ServerProcessSupervisor supervisor =
+                new ServerProcessSupervisor(List.of(root), argv -> alive);
+
+        // The transport refuses the first two health polls (the forked JVM is still
+        // binding its port) then answers UP: the console must poll until it answers,
+        // not latch "down" on the first connection-refused the way the old single
+        // immediate refresh did.
+        AtomicInteger healthCalls = new AtomicInteger();
+        ManagementClient.Transport flaky = (method, url, body) -> {
+            if (url.endsWith(ManagementClient.HEALTH_PATH)) {
+                if (healthCalls.incrementAndGet() <= 2) {
+                    throw new IOException("connection refused");
+                }
+                return new ManagementClient.Response(200,
+                        "{\"status\":\"UP\",\"dockerAvailable\":false,"
+                                + "\"jarAvailable\":true,\"deployments\":0,\"running\":0}");
+            }
+            if (url.endsWith(ManagementClient.INFO_PATH)) {
+                return new ManagementClient.Response(200, "{}");
+            }
+            return new ManagementClient.Response(200, "[]");
+        };
+        ManagementClient.Transport dead = (method, url, body) -> {
+            throw new IOException("down");
+        };
+
+        WebServerConsolePanel panel = new WebServerConsolePanel(
+                new ManagementClient("http://127.0.0.1:1", dead),
+                supervisor,
+                url -> new ManagementClient(url, flaky));
+        try {
+            panel.startLocal();
+            long deadline = System.currentTimeMillis() + 8_000L;
+            String status = panel.getStatusText();
+            while (System.currentTimeMillis() < deadline
+                    && (status == null || !status.contains("UP"))) {
+                Thread.sleep(50L);
+                status = panel.getStatusText();
+            }
+            assertTrue(healthCalls.get() >= 3,
+                    "the console should poll health until the server answers, calls="
+                            + healthCalls.get());
+            assertTrue(status != null && status.contains("UP"),
+                    "once the forked server answers, the status should read UP, was: " + status);
         } finally {
             panel.dispose();
         }
