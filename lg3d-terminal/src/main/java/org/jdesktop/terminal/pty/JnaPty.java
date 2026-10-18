@@ -13,230 +13,246 @@
  */
 package org.jdesktop.terminal.pty;
 
-import com.sun.jna.Native;
 import com.sun.jna.Platform;
-import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
-import java.util.List;
 
 /**
- * JNA-based pseudo-terminal implementation using native libc functions.
- * Supports Linux and macOS via forkpty/openpty.
+ * A pseudo-terminal allocated through native libc, by JNA, without JNI.
  *
- * <p>This implementation uses JNA to call native PTY functions without
- * requiring JNI compilation. The PTY is created via forkpty() on Linux
- * or openpty() on macOS.</p>
+ * <p>This owns the <i>master</i> end: the descriptor the emulator reads the
+ * shell's output from and writes the user's keystrokes to. The slave end is a
+ * device path - {@code /dev/pts/3} on Linux, {@code /dev/ttys003} on macOS -
+ * which {@link PtySpawn} hands to the child as its standard streams.</p>
+ *
+ * <p><b>Why allocation never forks.</b> The obvious single call, {@code forkpty},
+ * allocates a PTY <i>and</i> forks: in the child it returns 0 and execution
+ * continues in the caller. Inside a multi-threaded desktop JVM that "caller" is a
+ * half-born clone of the whole process - garbage collector and timer threads left
+ * behind, locks inherited already held - which then runs Java code and survives as
+ * a stray {@code java} process for every terminal window ever opened. It also
+ * returns the child's pid in the parent, so treating any non-zero result as
+ * failure rejects the one answer that means success. Both problems are structural
+ * and neither applies to {@code posix_openpt} + {@code grantpt} +
+ * {@code unlockpt} + {@code ptsname_r}, which allocate without forking; macOS has
+ * no {@code posix_openpt}, but its {@code openpty} does the same allocation in one
+ * call and, like the Linux path, never forks. Those are what this class uses, and
+ * no {@code fork} may be introduced anywhere in this package.</p>
+ *
+ * <p>Every native call is made by {@link LibC}, which is where the errno
+ * discipline and the platform-specific request numbers live.</p>
  */
 public class JnaPty implements Pty {
-    
-    private static final boolean IS_LINUX = Platform.isLinux();
-    private static final boolean IS_MAC = Platform.isMac();
-    
-    static {
-        Native.register(Platform.isMac() ? "c" : "libc.so.6");
+
+    /**
+     * True when this host can produce a PTY at all: JNA present, libc carrying the
+     * allocation calls, and the kernel's PTY driver mounted.
+     *
+     * <p>A probe rather than an assumption, because "no PTY here" is an environment
+     * fact a caller can act on - report it in the window, or fall back - whereas
+     * the static {@code Native.register} this class used to carry answered the same
+     * situation with an {@code UnsatisfiedLinkError} that nothing caught. It never
+     * throws, and it never allocates.</p>
+     */
+    public static boolean isAvailable() {
+        return LibC.available();
     }
-    
-    // Native function declarations
-    private static native int forkpty(int[] amaster, Pointer slave_name,
-                                       Pointer termp, Pointer winp);
-    private static native int openpty(int[] amaster, int[] aslave,
-                                       byte[] slave_name, Pointer termp,
-                                       Pointer winp);
-    private static native int ioctl(int fd, int request, Pointer data);
-    private static native int close(int fd);
-    private static native int write(int fd, byte[] buf, int count);
-    private static native int read(int fd, byte[] buf, int count);
-    
-    // ioctl requests
-    private static final int TIOCSWINSZ = 0x5414; // Linux
-    private static final int TIOCGWINSZ = 0x5413; // Linux
-    
+
+    /** Why {@link #isAvailable()} is false; null when it is true. */
+    public static String unavailableReason() {
+        return LibC.unavailableReason();
+    }
+
     private final int masterFd;
     private final String slaveName;
     private final PtyInputStream inputStream;
     private final PtyOutputStream outputStream;
     private volatile boolean closed = false;
-    
+
     /**
-     * Creates a new PTY with the specified initial dimensions.
+     * Creates a PTY with the given dimensions already applied.
+     *
+     * <p>The size is set before the constructor returns, so the first program
+     * spawned onto the slave sees the terminal the emulator thinks it has rather
+     * than the kernel's default of no rows and no columns.</p>
      *
      * @param rows    initial number of rows
      * @param columns initial number of columns
-     * @throws IOException if PTY creation fails
+     * @throws IOException if this host cannot build a PTY, or refused this one
      */
     public JnaPty(int rows, int columns) throws IOException {
-        if (!IS_LINUX && !IS_MAC) {
-            throw new UnsupportedOperationException(
-                "JnaPty only supports Linux and macOS");
+        if (!Platform.isLinux() && !Platform.isMac()) {
+            throw new IOException("PTY unavailable: a native pseudo-terminal needs "
+                    + "Linux or macOS, this host reports "
+                    + System.getProperty("os.name", "an unknown system"));
         }
-        
-        int[] amaster = new int[1];
-        Winsize winsize = new Winsize(rows, columns, 0, 0);
-        String slaveNameValue = null;
-        
-        int result;
-        if (IS_LINUX) {
-            result = forkpty(amaster, null, null, winsize.getPointer());
-            // forkpty doesn't return slave name
-        } else {
-            int[] aslave = new int[1];
-            byte[] slaveNameBuf = new byte[256];
-            result = openpty(amaster, aslave, slaveNameBuf, null, winsize.getPointer());
-            if (result == 0) {
-                int nullIndex = 0;
-                while (nullIndex < slaveNameBuf.length && slaveNameBuf[nullIndex] != 0) {
-                    nullIndex++;
-                }
-                slaveNameValue = new String(slaveNameBuf, 0, nullIndex);
-            }
-        }
-        
-        if (result != 0) {
-            throw new IOException("Failed to create PTY: errno " + Native.getLastError());
-        }
-        
-        this.masterFd = amaster[0];
-        this.slaveName = slaveNameValue;
+        LibC.Master master = LibC.allocate();
+        this.masterFd = master.fd;
+        this.slaveName = master.slavePath;
         this.inputStream = new PtyInputStream(masterFd);
         this.outputStream = new PtyOutputStream(masterFd);
+        try {
+            LibC.setWinsize(masterFd, rows, columns, 0, 0);
+        } catch (IOException | RuntimeException | Error e) {
+            // An unusable master must not be left open: the caller only sees the
+            // failure, so nothing downstream would ever close this descriptor.
+            closeQuietly();
+            throw e;
+        }
     }
-    
+
     @Override
     public InputStream getInputStream() {
         return inputStream;
     }
-    
+
     @Override
     public OutputStream getOutputStream() {
         return outputStream;
     }
-    
+
     @Override
     public String getSlaveName() {
         return slaveName;
     }
-    
+
     @Override
     public int getMasterFd() {
         return masterFd;
     }
-    
+
+    /** The size the kernel currently has for this PTY, as {@code {rows, columns}}. */
+    int[] getWinsize() throws IOException {
+        return LibC.getWinsize(masterFd);
+    }
+
     @Override
     public void resize(int rows, int columns, int width, int height) throws IOException {
         if (closed) {
             throw new IOException("PTY is closed");
         }
-        
-        Winsize winsize = new Winsize(rows, columns, width, height);
-        int result = ioctl(masterFd, TIOCSWINSZ, winsize.getPointer());
-        if (result != 0) {
-            throw new IOException("Failed to resize PTY: errno " + Native.getLastError());
-        }
+        LibC.setWinsize(masterFd, rows, columns, width, height);
     }
-    
+
+    /**
+     * Closes the master, once. Idempotent, and quiet about a descriptor the kernel
+     * has already reclaimed: when the shell exits, reading the master answers
+     * {@code EIO} and the slave is gone, so a close that reports {@code EBADF} is
+     * reporting a pty that is already closed for every purpose that matters.
+     */
     @Override
     public void close() throws IOException {
         if (closed) {
             return;
         }
         closed = true;
-        
-        int result = close(masterFd);
-        if (result != 0) {
-            throw new IOException("Failed to close PTY: errno " + Native.getLastError());
+        LibC.close(masterFd);
+    }
+
+    /** Closes the master and keeps whatever failure the caller is reporting. */
+    private void closeQuietly() {
+        try {
+            LibC.close(masterFd);
+        } catch (IOException | RuntimeException | Error ignored) {
+            // Nothing a caller can do about a failed release, mid-failure.
         }
     }
-    
+
     /**
-     * Winsize structure for terminal window size.
+     * Reads the shell's output from the master. A blocking read, which is what the
+     * session's reader thread wants: it parks in the kernel until there is
+     * something to emulate, and {@link LibC#read} turns the shell's exit - Linux's
+     * {@code EIO} on a master with no slaves left - into end of stream.
      */
-    public static class Winsize extends Structure {
-        public short ws_row;
-        public short ws_col;
-        public short ws_xpixel;
-        public short ws_ypixel;
-        
-        public Winsize() {
-            super();
-        }
-        
-        public Winsize(int rows, int cols, int xpixel, int ypixel) {
-            super();
-            this.ws_row = (short) rows;
-            this.ws_col = (short) cols;
-            this.ws_xpixel = (short) xpixel;
-            this.ws_ypixel = (short) ypixel;
-        }
-        
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("ws_row", "ws_col", "ws_xpixel", "ws_ypixel");
-        }
-    }
-    
-    /**
-     * Input stream for reading from the PTY master.
-     */
-    private static class PtyInputStream extends InputStream {
+    private final class PtyInputStream extends InputStream {
         private final int fd;
-        
+
         PtyInputStream(int fd) {
             this.fd = fd;
         }
-        
+
         @Override
         public int read() throws IOException {
-            byte[] buf = new byte[1];
-            int result = JnaPty.read(fd, buf, 1);
-            if (result <= 0) {
+            byte[] one = new byte[1];
+            if (readInto(one, 0, 1) != 1) {
                 return -1;
             }
-            return buf[0] & 0xFF;
+            return one[0] & 0xFF;
         }
-        
+
         @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            byte[] buf = new byte[len];
-            int result = JnaPty.read(fd, buf, len);
-            if (result <= 0) {
-                return -1;
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            checkOpen();
+            if (length == 0) {
+                return 0;
             }
-            System.arraycopy(buf, 0, b, off, result);
-            return result;
+            return readInto(buffer, offset, length);
+        }
+
+        @Override
+        public void close() throws IOException {
+            JnaPty.this.close();
+        }
+
+        private int readInto(byte[] buffer, int offset, int length) throws IOException {
+            byte[] chunk = buffer;
+            if (offset != 0) {
+                // JNA maps a whole byte[] to the native buffer, so a read into the
+                // middle of a caller's array goes through a temporary.
+                chunk = new byte[length];
+            }
+            int n = LibC.read(fd, chunk, length);
+            if (n > 0 && chunk != buffer) {
+                System.arraycopy(chunk, 0, buffer, offset, n);
+            }
+            return n;
         }
     }
-    
+
     /**
-     * Output stream for writing to the PTY master.
+     * Writes the user's keystrokes to the master, as though typed on the slave.
      */
-    private static class PtyOutputStream extends OutputStream {
+    private final class PtyOutputStream extends OutputStream {
         private final int fd;
-        
+
         PtyOutputStream(int fd) {
             this.fd = fd;
         }
-        
+
         @Override
         public void write(int b) throws IOException {
-            byte[] buf = new byte[]{(byte) b};
-            int result = JnaPty.write(fd, buf, 1);
-            if (result < 0) {
-                throw new IOException("Write failed: errno " + Native.getLastError());
-            }
+            write(new byte[]{(byte) b}, 0, 1);
         }
-        
+
         @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            byte[] buf = new byte[len];
-            System.arraycopy(b, off, buf, 0, len);
-            int result = JnaPty.write(fd, buf, len);
-            if (result < 0) {
-                throw new IOException("Write failed: errno " + Native.getLastError());
-            }
+        public void write(byte[] buffer, int offset, int length) throws IOException {
+            checkOpen();
+            LibC.write(fd, buffer, offset, length);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            checkOpen();
+            // A pty has no user-space buffer to push: whatever was written is
+            // already the kernel's, and flow control there is the line
+            // discipline's business, not an OutputStream flush's.
+        }
+
+        @Override
+        public void close() throws IOException {
+            JnaPty.this.close();
+        }
+    }
+
+    /**
+     * Streams are "no longer valid" once the PTY is closed, per {@link Pty}, and
+     * an unbounded native call on a reclaimed descriptor is not how that should
+     * surface.
+     */
+    private void checkOpen() throws IOException {
+        if (closed) {
+            throw new IOException("PTY is closed");
         }
     }
 }

@@ -13,19 +13,21 @@
  */
 package org.jdesktop.lg3d.apps.terminal;
 
-import org.jdesktop.terminal.TerminalSession;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.IOException;
 
 /**
  * A JFrame hosting a {@link TerminalPanel}, suitable for capture by
  * {@code SwingNodeWindowCapture} and presentation as a 3D desktop window.
- * The frame creates a terminal session on construction, starts it, and
- * disposes the session when the frame closes.
+ * The frame opens the shell through the panel and ends the session when the
+ * frame closes.
+ *
+ * <p>A terminal that cannot start still gets a window, showing the reason: this
+ * constructor runs on the event-dispatch thread, where an exception becomes the
+ * desktop's uncaught-exception handler - a crash report for an environment
+ * problem, and no terminal for the user.</p>
  */
 public class TerminalFrame extends JFrame {
 
@@ -48,11 +50,7 @@ public class TerminalFrame extends JFrame {
         super("Terminal");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        try {
-            terminalPanel = new TerminalPanel(rows, columns);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to start terminal session", e);
-        }
+        terminalPanel = new TerminalPanel(rows, columns);
         add(terminalPanel, BorderLayout.CENTER);
 
         pack();
@@ -71,5 +69,15 @@ public class TerminalFrame extends JFrame {
      */
     public TerminalPanel getTerminalPanel() {
         return terminalPanel;
+    }
+
+    /**
+     * Releases the shell and its pty. Called on dispose so a window closed by the
+     * window manager - not by the close button's listener - still ends its shell.
+     */
+    @Override
+    public void dispose() {
+        terminalPanel.dispose();
+        super.dispose();
     }
 }
