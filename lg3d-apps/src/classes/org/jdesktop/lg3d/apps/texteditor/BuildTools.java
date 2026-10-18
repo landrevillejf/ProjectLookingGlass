@@ -70,21 +70,22 @@ import org.jdesktop.lg3d.apps.texteditor.ext.StructureSymbol;
 final class BuildTools {
 
     /**
-     * Seam over the process spawn: run {@code command} in {@code workDir} and
-     * hand {@code done} the merged result, in production on the EDT after
-     * executing on a virtual thread. Mirrors {@code JvmBuildTools.Runner} so the
+     * Seam over the process spawn: run {@code command} in {@code workDir} with
+     * the pinned {@code env} and hand {@code done} the merged result, in
+     * production on the EDT after executing on a virtual thread. The caller
+     * supplies the environment (a project-selected {@code JAVA_HOME}) so the run
+     * never inherits an ambient one. Mirrors {@code JvmBuildTools.Runner} so the
      * build tools' actions are testable with a synchronous fake.
      */
     interface Runner {
-        void run(List<String> command, Path workDir, long timeoutMs,
+        void run(List<String> command, Path workDir, Map<String, String> env, long timeoutMs,
                  Consumer<Toolchain.Result> done);
     }
 
-    /** Production runner: virtual thread, pinned environment, EDT delivery. */
-    static final Runner ASYNC_RUNNER = (command, workDir, timeoutMs, done) ->
+    /** Production runner: virtual thread, project-pinned environment, EDT delivery. */
+    static final Runner ASYNC_RUNNER = (command, workDir, env, timeoutMs, done) ->
             Thread.ofVirtual().start(() -> {
-                Toolchain.Result result = Toolchain.execute(command, workDir,
-                        buildEnvironment(), timeoutMs);
+                Toolchain.Result result = Toolchain.execute(command, workDir, env, timeoutMs);
                 SwingUtilities.invokeLater(() -> done.accept(result));
             });
 
@@ -208,8 +209,8 @@ final class BuildTools {
 
     /**
      * The project's own build launcher ({@code ./gradlew} / {@code ./mvnw}) —
-     * the wrapper pins the tool version the project was built with, so it wins
-     * over whatever happens to be on {@code PATH}.
+     * the wrapper pins the tool version the project was built with, so it is the
+     * first place a build action looks.
      *
      * @return the wrapper inside {@code root} when it is a regular file
      */
@@ -222,24 +223,28 @@ final class BuildTools {
     }
 
     /**
-     * A build tool on {@code PATH} (the system {@code gradle} / {@code mvn}).
-     *
-     * @return the executable, empty when the tool is not installed
-     */
-    static Optional<Path> cliTool(String name) {
-        return Toolchain.findOnPath(name, System.getenv("PATH"));
-    }
-
-    /**
-     * The launcher a build action should use: the project wrapper first, then
-     * the tool on {@code PATH}.
+     * The launcher a build action should use, resolved from the project alone:
+     * its own wrapper first, then a distribution the project carries — one
+     * Espresso provisioned into {@code .espresso/tools/} or one unpacked at the
+     * project root (see {@link ProjectToolchain}). The system {@code PATH} is
+     * never consulted, so a project with no Gradle/Maven of its own reports no
+     * launcher rather than silently building with whatever is installed globally.
      *
      * @param wrapperName the wrapper file name ({@code gradlew} / {@code mvnw})
-     * @param cliName     the {@code PATH} command ({@code gradle} / {@code mvn})
+     * @param cliName     selects which distribution to look for ({@code gradle} / {@code mvn})
      */
     static Optional<Path> launcher(Path root, String wrapperName, String cliName) {
         Optional<Path> wrapped = wrapper(root, wrapperName);
-        return wrapped.isPresent() ? wrapped : cliTool(cliName);
+        if (wrapped.isPresent()) {
+            return wrapped;
+        }
+        if ("gradle".equals(cliName)) {
+            return ProjectToolchain.gradleLauncher(root);
+        }
+        if ("mvn".equals(cliName)) {
+            return ProjectToolchain.mavenLauncher(root);
+        }
+        return Optional.empty();
     }
 
     /** @return true when the document's own file name is this tool's build file. */
@@ -313,19 +318,21 @@ final class BuildTools {
     }
 
     /**
-     * The environment handed to a build: {@code JAVA_HOME} pinned to the JDK the
-     * desktop itself runs on <em>when the user has not set one</em> (so a build
-     * never silently compiles against a different JDK than the editor's own
-     * compile/run actions use), and {@code TERM=dumb} so neither tool emits
-     * terminal control codes into the console.
+     * The environment handed to a build. {@code JAVA_HOME} is pinned to the JDK
+     * the project selected (resolved from the manager and passed in), or to the
+     * JDK the editor itself runs on when the project selected none — never to an
+     * ambient {@code JAVA_HOME}, so a build always compiles against the JDK the
+     * project means. {@code TERM=dumb} keeps both tools from emitting terminal
+     * control codes into the console.
+     *
+     * @param jdkHome the selected JDK home, or {@code null} to use the editor's own
      */
-    static Map<String, String> buildEnvironment() {
+    static Map<String, String> buildEnvironment(Path jdkHome) {
         Map<String, String> env = new LinkedHashMap<>();
-        if (System.getenv("JAVA_HOME") == null) {
-            String home = System.getProperty("java.home", "");
-            if (!home.isEmpty()) {
-                env.put("JAVA_HOME", home);
-            }
+        String home = (jdkHome != null) ? jdkHome.toString()
+                : System.getProperty("java.home", "");
+        if (!home.isEmpty()) {
+            env.put("JAVA_HOME", home);
         }
         env.put("TERM", "dumb");
         return Map.copyOf(env);

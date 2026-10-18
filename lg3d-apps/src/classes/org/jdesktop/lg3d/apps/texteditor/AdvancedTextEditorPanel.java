@@ -101,7 +101,7 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
 public class AdvancedTextEditorPanel extends JPanel
         implements FindReplaceBar.Host, SettingsCard.Host,
         RecentCard.Host, ExtensionsCard.Host, ProjectCard.Host,
-        ToolbarCustomizeCard.Host {
+        ToolbarCustomizeCard.Host, ManageJdksCard.Host {
 
     /** Preferred panel width, read by the 3D wrapper and the MDI host. */
     public static final int WIDTH_PX = 960;
@@ -115,6 +115,8 @@ public class AdvancedTextEditorPanel extends JPanel
     private static final String CARD_EXTENSIONS = "extensions";
     private static final String CARD_PROJECT = "project";
     private static final String CARD_GIT = "git";
+    /** The central JDK manager card. */
+    private static final String CARD_JDKS = "jdks";
     /** The toolbar-customise card (choose/reorder user toolbar buttons). */
     static final String CARD_TOOLBAR = "toolbar";
 
@@ -195,6 +197,23 @@ public class AdvancedTextEditorPanel extends JPanel
     private final GitGuiPanel gitGuiPanel = new GitGuiPanel();
     /** Last directory handed to the embedded Git GUI (test seam). */
     private volatile File gitTarget;
+    /**
+     * The central multi-JDK manager: one shared store of the JDKs Espresso
+     * downloaded plus the folders the user registered. A project only selects an
+     * entry here; no JDK is ever copied into a project. Injectable so tests run
+     * against a temp store (see {@link #setJdkRegistryForTesting}).
+     */
+    private JdkRegistry jdkRegistry = new JdkRegistry();
+    /** The JDK manager card, hosted in the same {@link #center} card layout. */
+    private final ManageJdksCard manageJdksCard;
+    /**
+     * Creates new projects on disk: scaffolds the sources, downloads the chosen
+     * build tool into the project's own {@code .espresso/tools/} and records the
+     * selected JDK by id. The heavy work runs off the EDT on a virtual thread.
+     * Injectable so tests provision headlessly from canned archive bytes (see
+     * {@link #setProvisionerForTesting}).
+     */
+    private ProjectProvisioner provisioner = new ProjectProvisioner();
     private final EditorStatusBar statusBar = new EditorStatusBar();
     /** South console receiving compile/run tool output (never the document). */
     private final OutputConsole outputConsole = new OutputConsole();
@@ -308,6 +327,7 @@ public class AdvancedTextEditorPanel extends JPanel
         extensionsCard = new ExtensionsCard(this);
         toolbarCustomizeCard = new ToolbarCustomizeCard(this);
         projectCard = new ProjectCard(this);
+        manageJdksCard = new ManageJdksCard(jdkRegistry, this);
 
         projectTree.setOnFileChosen(this::openPath);
 
@@ -365,6 +385,7 @@ public class AdvancedTextEditorPanel extends JPanel
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         gitScroll.setName("gitCard");
         center.add(gitScroll, CARD_GIT);
+        center.add(manageJdksCard, CARD_JDKS);
 
         // Project tree (west) beside the card area.
         JSplitPane mainHSPLIT = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
@@ -2197,8 +2218,14 @@ public class AdvancedTextEditorPanel extends JPanel
 
     /** Opens the "Projet" card. */
     private void showProject() {
-        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects(), jdkRegistry.list());
         cards.show(center, CARD_PROJECT);
+    }
+
+    /** Opens the central JDK manager card, re-read from the registry. */
+    private void showJdkManager() {
+        manageJdksCard.refresh();
+        cards.show(center, CARD_JDKS);
     }
 
     /** The attached project root, or null while the tree is per-file. */
@@ -2208,10 +2235,15 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     @Override
-    public void newProject(String name) {
-        String clean = sanitizeProjectName(name);
+    public void newProject(NewProjectRequest request) {
+        String clean = sanitizeProjectName(request.name());
         if (clean == null) {
             message("Invalid project name (letters, digits, . - _ only)");
+            return;
+        }
+        if (request.buildSystem().needsTool() && request.toolVersion().isBlank()) {
+            message(request.buildSystem().displayName()
+                    + " needs a version to download (e.g. 8.10)");
             return;
         }
         JFileChooser chooser = new JFileChooser();
@@ -2220,17 +2252,41 @@ public class AdvancedTextEditorPanel extends JPanel
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        Path root = chooser.getSelectedFile().toPath().resolve(clean);
-        try {
-            createProjectSkeleton(root);
-        } catch (IOException | SecurityException e) {
-            message("Could not create project: " + e.getMessage());
-            return;
-        }
-        attachProject(root);
-        openPath(root.resolve("src").resolve("Main.java"));
-        cards.show(center, CARD_EDITOR);
-        message("Project " + clean + " created at " + root);
+        // Rebuild with the sanitised name so the scaffolded folder matches.
+        provisionNewProject(chooser.getSelectedFile().toPath(),
+                new NewProjectRequest(clean, request.buildSystem(),
+                        request.toolVersion(), request.jdkId()));
+    }
+
+    /**
+     * Provisions {@code parent/<name>} from {@code request} on a virtual thread
+     * (never the EDT: the build-tool download and extract can be slow),
+     * marshalling each progress milestone and the final attach/open onto the
+     * status line and the editor. A failure leaves one status message and
+     * nothing half-attached. Split out from {@link #newProject} so tests can
+     * drive provisioning past the headless-unreachable folder chooser with an
+     * injected fake provisioner.
+     *
+     * @return the worker thread, so a test can join it; production ignores it
+     */
+    Thread provisionNewProject(Path parent, NewProjectRequest request) {
+        Path root = parent.resolve(request.name());
+        message("Creating project " + request.name() + "\u2026");
+        return Thread.ofVirtual().start(() -> {
+            try {
+                Path entry = provisioner.provision(root, request, jdkRegistry,
+                        p -> SwingUtilities.invokeLater(() -> message(p)));
+                SwingUtilities.invokeLater(() -> {
+                    attachProject(root);
+                    openPath(entry);
+                    cards.show(center, CARD_EDITOR);
+                    message("Project " + request.name() + " created at " + root);
+                });
+            } catch (IOException | RuntimeException ex) {
+                SwingUtilities.invokeLater(
+                        () -> message("Could not create project: " + ex.getMessage()));
+            }
+        });
     }
 
     @Override
@@ -2305,6 +2361,70 @@ public class AdvancedTextEditorPanel extends JPanel
     }
 
     @Override
+    public void openJdkManager() {
+        showJdkManager();
+    }
+
+    /**
+     * Downloads a JDK into the shared store on a virtual thread (never the EDT,
+     * never into a project), marshalling each progress milestone onto the status
+     * line and re-reading the card when it lands.
+     */
+    @Override
+    public void downloadJdk(String version) {
+        if (version == null || version.isBlank()) {
+            message("Enter a JDK version to download (e.g. 21)");
+            return;
+        }
+        message("Downloading JDK " + version + "\u2026");
+        Thread.ofVirtual().start(() -> {
+            try {
+                JdkEntry entry = jdkRegistry.download(version,
+                        p -> SwingUtilities.invokeLater(() -> message(p)));
+                SwingUtilities.invokeLater(() -> {
+                    manageJdksCard.refresh();
+                    message("JDK " + (entry.version().isEmpty() ? entry.id() : entry.version())
+                            + " is ready in the manager");
+                });
+            } catch (IOException | RuntimeException ex) {
+                SwingUtilities.invokeLater(
+                        () -> message("JDK download failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    @Override
+    public void registerJdkFolder() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose an existing JDK folder");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        try {
+            JdkEntry entry = jdkRegistry.register(chooser.getSelectedFile().toPath());
+            manageJdksCard.refresh();
+            message("Registered JDK " + (entry.version().isEmpty() ? entry.id() : entry.version()));
+        } catch (IOException | SecurityException ex) {
+            message("Could not register that folder: " + ex.getMessage());
+        }
+    }
+
+    @Override
+    public void removeJdk(String id) {
+        if (id == null) {
+            return;
+        }
+        try {
+            jdkRegistry.remove(id);
+            manageJdksCard.refresh();
+            message("Forgot JDK " + id);
+        } catch (IOException | SecurityException ex) {
+            message("Could not remove JDK " + id + ": " + ex.getMessage());
+        }
+    }
+
+    @Override
     public void openRecentProject(String path) {
         cards.show(center, CARD_EDITOR);
         if (path == null) {
@@ -2325,14 +2445,14 @@ public class AdvancedTextEditorPanel extends JPanel
     public void removeRecentProject(String path) {
         settings.removeProject(path);
         persistSettings();
-        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects(), jdkRegistry.list());
     }
 
     @Override
     public void clearRecentProjects() {
         settings.clearProjects();
         persistSettings();
-        projectCard.load(currentProjectRoot(), settings.getRecentProjects());
+        projectCard.load(currentProjectRoot(), settings.getRecentProjects(), jdkRegistry.list());
     }
 
     /** Entry point written into every new project. */
@@ -2393,6 +2513,32 @@ public class AdvancedTextEditorPanel extends JPanel
     /** The Project card (test seam). */
     final ProjectCard projectCard() {
         return projectCard;
+    }
+
+    /** The central JDK manager (test seam). */
+    final JdkRegistry jdkRegistry() {
+        return jdkRegistry;
+    }
+
+    /** The JDK manager card (test seam). */
+    final ManageJdksCard manageJdksCard() {
+        return manageJdksCard;
+    }
+
+    /** Swaps in a JDK manager over a temp store and re-reads the card (test seam). */
+    final void setJdkRegistryForTesting(JdkRegistry replacement) {
+        this.jdkRegistry = replacement;
+        this.manageJdksCard.setRegistryForTesting(replacement);
+    }
+
+    /** The project provisioner (test seam). */
+    final ProjectProvisioner provisioner() {
+        return provisioner;
+    }
+
+    /** Swaps in a provisioner over a fake downloader (test seam). */
+    final void setProvisionerForTesting(ProjectProvisioner replacement) {
+        this.provisioner = replacement;
     }
 
     /** The embedded desktop Git client panel (test seam). */

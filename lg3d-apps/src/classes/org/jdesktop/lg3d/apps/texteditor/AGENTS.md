@@ -31,8 +31,8 @@
   plus a small **×** `JButton` that closes that tab, index resolved at click
   time; Ctrl+W and middle-click still work), a toolbar, a `FindReplaceBar`, and a `CardLayout` centre that flips between the
   editor, the `RecentCard`, the `ExtensionsCard`, the `SettingsCard`, the
-  `ProjectCard` and the embedded Git view (the desktop `GitGuiPanel` in a
-  scroll pane). The
+  `ProjectCard`, the `ManageJdksCard` (the central JDK manager) and the embedded
+  Git view (the desktop `GitGuiPanel` in a scroll pane). The
   editor card sits inside a west/east `JSplitPane` with the `ProjectTreePanel`
   (a lazily-loaded file tree re-rooted on the project of the document being
   edited — `.git`/`pom.xml`/`build.gradle`/… walk-up — double-click opens a
@@ -217,8 +217,11 @@
   Enter keys are never hijacked.
   **Phase 5 is live:** the toolbar gained a **`Project…`** button opening the
   `ProjectCard` — Espresso's project menu (in-panel, no popups): *New Project…*
-  scaffolds `src/Main.java` + `README.md` via `createProjectSkeleton` (refuses
-  non-empty dirs; names pass `sanitizeProjectName`, no separators, no `..`),
+  collects a `NewProjectRequest` (name, build system, tool version and a JDK
+  selected from the manager) and hands it to the host, which provisions it
+  through `ProjectProvisioner` (see the hermetic-toolchain note below); names
+  still pass `sanitizeProjectName` (no separators, no `..`) and
+  `createProjectSkeleton` remains the minimal plain-Java scaffold,
   *Open Project Folder…* and the recent-projects list attach/detach the west
   `ProjectTreePanel` root (persisted in `EditorSettings.pushProject`,
   `MAX_RECENT_PROJECTS`), *Re-root to Current File* and *Close Project* keep
@@ -280,13 +283,18 @@
   KeyStroke wins the shared `center` input map. Discovery walks up from the
   document (deepest match first, `BuildTools.MAX_WALK_UP` levels — the same limit
   as the west tree) to a `settings.gradle[.kts]`/`build.gradle[.kts]` or a
-  `pom.xml`, then runs the project's **own wrapper** (`./gradlew`, `./mvnw`)
-  before falling back to `gradle`/`mvn` on `PATH`; no project or no launcher is a
-  status-line answer that spawns nothing. The shared rules live in `BuildTools`:
+  `pom.xml`, then resolves the launcher **hermetically** through
+  `ProjectToolchain` — the project's own wrapper (`./gradlew`, `./mvnw`), else a
+  Gradle/Maven distribution the project carries (`.espresso/tools/…` first, then
+  a root-level `gradle-*`/`apache-maven-*`) — and **never** `gradle`/`mvn` on
+  `PATH`; no project or no launcher is a status-line answer that spawns nothing
+  (“not provisioned — no project Gradle/Maven”), so a project always builds with
+  the exact tool Espresso put in it. The shared rules live in `BuildTools`:
   `--console=plain` and `-B --no-transfer-progress` (the log must be the
-  compiler's own text, not a progress animation), `TERM=dumb`, `JAVA_HOME` only
-  when the parent has none, exit-code conventions 124 timeout / 127 missing
-  executable / 130 interrupt. The finished log is then *interpreted*: Maven's
+  compiler's own text, not a progress animation), `TERM=dumb`, and `JAVA_HOME`
+  pinned to the project's selected JDK (read from `.espresso/toolchain.properties`
+  via `JdkRegistry`, else the editor's own `java.home`), exit-code conventions
+  124 timeout / 127 missing executable / 130 interrupt. The finished log is then *interpreted*: Maven's
   `[ERROR] file:[line,col] message` and Gradle's `file.java:line: error: message`
   forms plus the surefire test failures become `Diagnostic`s filed against the
   file that owns them — deduped by path+line+message (Gradle repeats every
@@ -310,6 +318,38 @@
   outlines everything read before the error, and the Gradle outline prefers
   `build.gradle[.kts]` over the settings file that wins the root lookup — a
   settings file has no plugins or dependencies to show.
+  **The hermetic toolchain & central JDK manager are live:** Espresso provisions
+  each project's *own* build tool and shares JDKs centrally, so a project always
+  compiles/runs with the exact Gradle or Maven Espresso downloaded into it and
+  never a system tool. **Per project**, *New Project…* (`ProjectCard` →
+  `Host.newProject(NewProjectRequest)` →
+  `AdvancedTextEditorPanel.provisionNewProject`, off the EDT on a virtual thread
+  with status-line progress) runs `ProjectProvisioner`: it refuses a non-empty
+  dir, scaffolds the sources, `README.md`, `.gitignore` and the build descriptor
+  from `ProjectTemplates` (Gradle `application`+`mainClass`, or a Maven POM whose
+  compiler `release` comes from the selected JDK), downloads the chosen tool
+  version through the `Downloader`/`HttpDownloader` seam and extracts it
+  (`Archives`: pure-JDK `extractZip`/`extractTarGz`) into
+  `<root>/.espresso/tools/<tool>-<ver>/`, then writes
+  `<root>/.espresso/toolchain.properties` (`buildSystem`, `toolVersion`,
+  `toolHome`, `jdkId`). **Centrally**, JDKs are *never* copied into a project:
+  `JdkRegistry` indexes a shared store (`~/.espresso/jdks/<version>/`) plus
+  user-registered folders (`~/.espresso/jdks.properties`), and a project only
+  *selects* one by `JdkEntry.id()`, so two projects can target Java 25 and Java
+  21 without either carrying a private JDK. `ManageJdksCard` (its own card, no
+  popups: a `JList` of JDKs, a version field + Download, Register Existing
+  Folder…, Remove, Back) is the manager surface; `ProjectCard` links to it and
+  lists `JdkRegistry.list()` (newest first) as the JDK selector. `BuildSystem`
+  (`GRADLE`/`MAVEN`/`NONE`) carries each tool's wrapper name, launcher path,
+  distribution prefix and download URL so provisioning and resolution share one
+  source of truth. Resolution (`ProjectToolchain`) is pure given a tree +
+  registry: `gradleLauncher`/`mavenLauncher` prefer the wrapper, then the
+  project's own distribution, and `jdkHome` reads `jdkId` from
+  `toolchain.properties` — the launcher lookup that used to fall back to `PATH`
+  (and so reported “Gradle is not available” for a project carrying its own
+  distribution) is gone. A plain-Java project (`NONE`) provisions no tool and
+  compiles/runs with the selected JDK's own `javac`/`java` (`JvmBuildTools`
+  resolves them from the project JDK first, else the editor's).
 
 ## Roles
 
@@ -336,10 +376,10 @@
   user-content buttons to the built-in `JToolBar`: it lays one row and clips past
   its right edge, and that row is already wider than the panel. Jogamp packages
   only; obey the core UI/UX rulebook.
-- **QA** — 45 headless JUnit 5 suites under
+- **QA** — 47 headless JUnit 5 suites under
   `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (and the `ext`-package
   `ExtensionBrokerDispatchTest`) cover every
-  engine class, all twenty-three bundled extensions and all panel/widget surfaces (480
+  engine class, all twenty-three bundled extensions and all panel/widget surfaces (530
   deterministic tests, plus the 4 opt-in live build tests below): tokenisation,
   search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
@@ -420,7 +460,8 @@
   `Runner` so no test executes a program, and the DIAGNOSE/TOOLBAR/WRITE gates —
   including that a gated template insert reports the Output panel instead of
   claiming success). The build surface is covered by `BuildToolsTest` (the pure
-  half — root walk-up, wrapper/PATH launcher resolution, argv and environment,
+  half — root walk-up, wrapper/project-distribution launcher resolution (never
+  `PATH`), the `JAVA_HOME`-pinning `buildEnvironment(jdkHome)`, argv and environment,
   and the log interpretation over the **verbatim** output of a real Gradle 8.14
   and Maven 3.9.11 run: verdict, headline, test-report URL, diagnostic parsing
   and dedupe, status-line clamping, the outline scans), by `GradleBuildToolsTest`
@@ -442,7 +483,23 @@
   green real build clears the document's findings, and that Maven's run writes
   `target/classes` and launches the POM's main class. That live path is how the
   outline reading `settings.gradle` instead of `build.gradle` was found — no
-  recorded log could show it. The
+  recorded log could show it. The hermetic toolchain & JDK manager are covered by
+  `ArchivesTest` (zip/tar.gz round-trip), `JdkRegistryTest` (index the shared
+  store + registered folders, resolve by id/version, persist to
+  `jdks.properties`, `download` via a fake `Downloader` landing in the store —
+  never a project), `ProjectProvisionerTest` (fake `Downloader`: layout,
+  `toolchain.properties`, per-`BuildSystem` descriptors, tool-less `NONE`,
+  refuse-non-empty, unknown-JDK rejection before any write, and that no JDK is
+  copied into the project), `ProjectToolchainTest` (wrapper / `.espresso/tools`
+  / root-level distribution priority, no `PATH`, `jdkHome` via the registry),
+  `ManageJdksCardTest` (each button routes one host callback; the list reflects
+  the registry) and `ProjectCardTest` (`NewProjectRequest` assembly: build-system
+  radios, version disabled for plain Java, selected JDK id); the panel glue
+  (`AdvancedTextEditorPanelTest.newProjectProvisionsAttachesAndOpens` /
+  `newProjectFailureAttachesNothing`) drives `provisionNewProject` past the
+  headless-unreachable chooser with an injected fake provisioner over a virtual
+  thread, flushing the EDT to assert attach-and-open on success and one message
+  with nothing attached on failure. The
   language itself is tested in its own module
   ([`../../../../../../../../lg3d-mandela/AGENTS.md`](../../../../../../../../lg3d-mandela/AGENTS.md));
   nothing here re-derives a grammar rule to assert it.

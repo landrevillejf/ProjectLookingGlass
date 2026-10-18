@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Container;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.AbstractButton;
@@ -40,10 +41,12 @@ class ProjectCardTest {
     /** Records every callback the card makes, in order. */
     private static final class RecordingHost implements ProjectCard.Host {
         final List<String> calls = new ArrayList<>();
+        final List<NewProjectRequest> requests = new ArrayList<>();
 
         @Override
-        public void newProject(String name) {
-            calls.add("new:" + name);
+        public void newProject(NewProjectRequest request) {
+            requests.add(request);
+            calls.add("new:" + request.name());
         }
 
         @Override
@@ -64,6 +67,11 @@ class ProjectCardTest {
         @Override
         public void openGitGui() {
             calls.add("git");
+        }
+
+        @Override
+        public void openJdkManager() {
+            calls.add("jdks");
         }
 
         @Override
@@ -115,6 +123,10 @@ class ProjectCardTest {
         return (JTextField) find(card, "projectNameField");
     }
 
+    private static JTextField versionField(ProjectCard card) {
+        return (JTextField) find(card, "projectVersionField");
+    }
+
     @Test
     @DisplayName("the action row routes each button to its host callback")
     void actionRouting() {
@@ -125,7 +137,44 @@ class ProjectCardTest {
         button(card, "newProjectButton").doClick();
         button(card, "openProjectFolderButton").doClick();
         button(card, "gitGuiButton").doClick();
-        assertEquals(List.of("new:demo-app", "openFolder", "git"), host.calls);
+        button(card, "manageJdksButton").doClick();
+        assertEquals(List.of("new:demo-app", "openFolder", "git", "jdks"), host.calls);
+    }
+
+    @Test
+    @DisplayName("the form assembles a NewProjectRequest from name, build system, version and JDK")
+    void assemblesTheNewProjectRequest() {
+        RecordingHost host = new RecordingHost();
+        ProjectCard card = new ProjectCard(host);
+        card.load(null, List.of(), List.of(
+                new JdkEntry("jdk-25+36", "25", Path.of("/jdks/25"), true),
+                new JdkEntry("jdk-21.0.4+7", "21.0.4", Path.of("/jdks/21"), false)));
+        assertEquals(2, card.jdkCount());
+        assertEquals("jdk-25+36", card.selectedJdkId(), "load selects the newest JDK");
+
+        // Gradle is the default build system; its version field stays editable.
+        assertEquals(BuildSystem.GRADLE, card.selectedBuildSystem());
+        assertTrue(card.versionEditable());
+
+        field(card).setText("demo-app");
+        versionField(card).setText("8.10");
+        card.selectJdk(1);
+        button(card, "newProjectButton").doClick();
+        assertEquals(new NewProjectRequest("demo-app", BuildSystem.GRADLE, "8.10", "jdk-21.0.4+7"),
+                host.requests.get(0));
+
+        // Choosing Plain Java disables the version field and drops the version.
+        button(card, "plainRadio").doClick();
+        assertEquals(BuildSystem.NONE, card.selectedBuildSystem());
+        assertFalse(card.versionEditable(), "plain Java downloads no tool");
+        button(card, "newProjectButton").doClick();
+        assertEquals(new NewProjectRequest("demo-app", BuildSystem.NONE, "", "jdk-21.0.4+7"),
+                host.requests.get(1), "plain Java carries no tool version");
+
+        // Maven is selectable too, and re-enables the version field.
+        button(card, "mavenRadio").doClick();
+        assertEquals(BuildSystem.MAVEN, card.selectedBuildSystem());
+        assertTrue(card.versionEditable());
     }
 
     @Test
@@ -133,7 +182,7 @@ class ProjectCardTest {
     void listRouting() {
         RecordingHost host = new RecordingHost();
         ProjectCard card = new ProjectCard(host);
-        card.load("/ws/demo", List.of("/ws/demo", "/ws/old"));
+        card.load("/ws/demo", List.of("/ws/demo", "/ws/old"), List.of());
         assertEquals(2, card.entryCount());
         assertEquals("Project: /ws/demo", card.rootLabelText());
 
@@ -179,7 +228,7 @@ class ProjectCardTest {
     void emptyLoad() {
         RecordingHost host = new RecordingHost();
         ProjectCard card = new ProjectCard(host);
-        card.load(null, null);
+        card.load(null, null, null);
         assertEquals("No project", card.rootLabelText());
         assertEquals(0, card.entryCount());
         assertNull(card.selectedPath());

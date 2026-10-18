@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -76,12 +77,18 @@ public final class MavenBuildTools implements TextEditorExtension {
     private DocumentContext currentDoc;
     private BuildTools.Runner runner = BuildTools.ASYNC_RUNNER;
     /**
-     * Seam over the wrapper/PATH lookup so the "Maven is not available" path is
-     * provable on a machine that happens to have Maven installed (see
+     * Seam over launcher resolution so the "Maven is not provisioned" path is
+     * provable without a real project tree. The default resolves the project's
+     * own wrapper or a Maven it carries — never the system PATH (see
      * {@link GradleBuildTools} for the same seam and its rationale).
      */
-    private Function<Path, Optional<Path>> launcherSeam =
-            root -> BuildTools.launcher(root, "mvnw", "mvn");
+    private Function<Path, Optional<Path>> launcherSeam = ProjectToolchain::mavenLauncher;
+    /**
+     * The central JDK manager, used to resolve the JDK this project selected so
+     * both the Maven build and the {@code java} launch run under that
+     * {@code JAVA_HOME} rather than an ambient one.
+     */
+    private JdkRegistry registry = new JdkRegistry();
 
     // -- test seams -------------------------------------------------------
 
@@ -91,6 +98,10 @@ public final class MavenBuildTools implements TextEditorExtension {
 
     final void setLauncherForTesting(Function<Path, Optional<Path>> replacement) {
         this.launcherSeam = replacement;
+    }
+
+    final void setJdkRegistryForTesting(JdkRegistry replacement) {
+        this.registry = replacement;
     }
 
     // -- SPI ---------------------------------------------------------------
@@ -202,15 +213,17 @@ public final class MavenBuildTools implements TextEditorExtension {
                     + " folders above the document \u2014 open a file from inside a Maven project");
             return;
         }
-        Optional<Path> launcher = launcherSeam.apply(root.get());
+        Path work = root.get();
+        Optional<Path> launcher = launcherSeam.apply(work);
         if (launcher.isEmpty()) {
-            ctx.showMessage(label + ": Maven is not available \u2014 no ./mvnw in "
-                    + root.get() + " and no mvn on PATH");
+            ctx.showMessage(label + ": Maven is not provisioned \u2014 no ./mvnw and no project"
+                    + " Maven in " + work + " (create the project with Espresso or add a wrapper)");
             return;
         }
-        ctx.showMessage("Running " + label + " in " + root.get() + "\u2026");
-        Path work = root.get();
-        runner.run(BuildTools.mavenCommand(launcher.get(), goals), work, timeoutMs,
+        ctx.showMessage("Running " + label + " in " + work + "\u2026");
+        Path jdkHome = ProjectToolchain.jdkHome(work, registry).orElse(null);
+        Map<String, String> env = BuildTools.buildEnvironment(jdkHome);
+        runner.run(BuildTools.mavenCommand(launcher.get(), goals), work, env, timeoutMs,
                 res -> finished(work, label, res, diagnose));
     }
 
@@ -234,8 +247,8 @@ public final class MavenBuildTools implements TextEditorExtension {
         Path work = root.get();
         Optional<Path> launcher = launcherSeam.apply(work);
         if (launcher.isEmpty()) {
-            ctx.showMessage("mvn run: Maven is not available \u2014 no ./mvnw in " + work
-                    + " and no mvn on PATH");
+            ctx.showMessage("mvn run: Maven is not provisioned \u2014 no ./mvnw and no project"
+                    + " Maven in " + work + " (create the project with Espresso or add a wrapper)");
             return;
         }
         String mainClass = mainClass(work).orElse(null);
@@ -244,13 +257,18 @@ public final class MavenBuildTools implements TextEditorExtension {
                     + " <exec.mainClass> property or a <mainClass> to the jar plugin configuration");
             return;
         }
-        Optional<Path> java = Toolchain.jdkTool("java");
+        // The java launcher comes from the JDK the project selected, else the editor's own.
+        Path jdkHome = ProjectToolchain.jdkHome(work, registry).orElse(null);
+        Optional<Path> java = (jdkHome != null)
+                ? ProjectToolchain.jdkTool(jdkHome, "java")
+                : Toolchain.jdkTool("java");
         if (java.isEmpty()) {
-            ctx.showMessage("mvn run: the java launcher was not found in this JDK");
+            ctx.showMessage("mvn run: the java launcher was not found in the selected JDK");
             return;
         }
+        Map<String, String> env = BuildTools.buildEnvironment(jdkHome);
         ctx.showMessage("Compiling " + work.getFileName() + " for " + mainClass + "\u2026");
-        runner.run(BuildTools.mavenCommand(launcher.get(), List.of("compile")), work,
+        runner.run(BuildTools.mavenCommand(launcher.get(), List.of("compile")), work, env,
                 BUILD_TIMEOUT_MS, cres -> {
             if (!cres.success()) {
                 finished(work, "mvn compile", cres, true);
@@ -264,7 +282,7 @@ public final class MavenBuildTools implements TextEditorExtension {
             }
             ctx.showMessage("Running " + mainClass + "\u2026");
             runner.run(BuildTools.javaClasspathRunCommand(java.get(),
-                            work.resolve(CLASSES), mainClass), work, RUN_TIMEOUT_MS,
+                            work.resolve(CLASSES), mainClass), work, env, RUN_TIMEOUT_MS,
                     rres -> finished(work, "mvn run", rres, false));
         });
     }

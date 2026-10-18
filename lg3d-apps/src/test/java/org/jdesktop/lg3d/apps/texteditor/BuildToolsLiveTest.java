@@ -194,7 +194,7 @@ class BuildToolsLiveTest {
     @Test
     @DisplayName("a real mvn compile failure is filed with Maven's own line and column")
     void mavenCompileFailureEndToEnd(@TempDir Path project) throws Exception {
-        assumeTrue(mavenAvailable(project), "neither ./mvnw nor mvn on PATH");
+        assumeTrue(mavenAvailable(project), "no ./mvnw and no project Maven to run");
         Files.writeString(project.resolve("pom.xml"), POM, StandardCharsets.UTF_8);
         Path broken = write(project.resolve("src/main/java/com/acme"), "App.java",
                 "package com.acme;\npublic class App {\n  int x = ;\n}\n");
@@ -218,7 +218,7 @@ class BuildToolsLiveTest {
     @Test
     @DisplayName("a real mvn run compiles, then launches the POM's main class")
     void mavenRunApplicationEndToEnd(@TempDir Path project) throws Exception {
-        assumeTrue(mavenAvailable(project), "neither ./mvnw nor mvn on PATH");
+        assumeTrue(mavenAvailable(project), "no ./mvnw and no project Maven to run");
         Files.writeString(project.resolve("pom.xml"), POM, StandardCharsets.UTF_8);
         Path doc = write(project.resolve("src/main/java/com/acme"), "App.java",
                 "package com.acme;\n"
@@ -245,7 +245,11 @@ class BuildToolsLiveTest {
 
     // -- fixtures ------------------------------------------------------------
 
-    /** The launcher the real build will use: {@code mvnw} in the project, else {@code mvn}. */
+    /**
+     * The launcher the real build will use: the project's own {@code mvnw} or a
+     * Maven it carries - never the system PATH, so a temp project with neither
+     * skips the live run rather than borrowing an ambient {@code mvn}.
+     */
     private static boolean mavenAvailable(Path project) {
         return BuildTools.launcher(project, "mvnw", "mvn").isPresent();
     }

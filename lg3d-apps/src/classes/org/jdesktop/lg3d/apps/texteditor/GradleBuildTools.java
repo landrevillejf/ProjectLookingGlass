@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -38,11 +39,12 @@ import org.jdesktop.lg3d.apps.texteditor.ext.ToolbarContribution;
  *
  * <p><b>Discovery.</b> The project root is the nearest ancestor directory
  * holding {@code settings.gradle(.kts)} or {@code build.gradle(.kts)} (same
- * walk limit as the west {@link ProjectTreePanel}), and the launcher is the
- * project's {@code ./gradlew} when it exists — the wrapper pins the Gradle
- * version the project was written for — otherwise a {@code gradle} on
- * {@code PATH}. A project with neither gets a status line saying so instead of
- * a stack trace.</p>
+ * walk limit as the west {@link ProjectTreePanel}), and the launcher is
+ * resolved from the project alone — its {@code ./gradlew} when it exists (the
+ * wrapper pins the Gradle version the project was written for), else a Gradle
+ * the project carries under {@code .espresso/tools/} or unpacked at its root.
+ * The system {@code PATH} is never used, so a project with no Gradle of its own
+ * gets a status line saying it is not provisioned instead of a stack trace.</p>
  *
  * <p><b>Reporting.</b> The full log goes to the Output panel; compiler and test
  * findings are parsed out of it into the Problems panel (and each open file's
@@ -106,12 +108,16 @@ public final class GradleBuildTools implements TextEditorExtension {
     private DocumentContext currentDoc;
     private BuildTools.Runner runner = BuildTools.ASYNC_RUNNER;
     /**
-     * Seam over the wrapper/PATH lookup, so a test can prove the "Gradle is not
-     * available" path on a machine that happens to have Gradle installed — the
-     * same reason {@link JvmBuildTools} seams its kotlinc lookup.
+     * Seam over launcher resolution, so a test can prove the "Gradle is not
+     * provisioned" path without a real project tree. The default resolves the
+     * project's own wrapper or a Gradle it carries — never the system PATH.
      */
-    private Function<Path, Optional<Path>> launcherSeam =
-            root -> BuildTools.launcher(root, "gradlew", "gradle");
+    private Function<Path, Optional<Path>> launcherSeam = ProjectToolchain::gradleLauncher;
+    /**
+     * The central JDK manager, used to resolve the JDK this project selected so
+     * the build runs under that {@code JAVA_HOME} rather than an ambient one.
+     */
+    private JdkRegistry registry = new JdkRegistry();
 
     // -- test seams -------------------------------------------------------
 
@@ -121,6 +127,10 @@ public final class GradleBuildTools implements TextEditorExtension {
 
     final void setLauncherForTesting(Function<Path, Optional<Path>> replacement) {
         this.launcherSeam = replacement;
+    }
+
+    final void setJdkRegistryForTesting(JdkRegistry replacement) {
+        this.registry = replacement;
     }
 
     // -- SPI ---------------------------------------------------------------
@@ -244,15 +254,18 @@ public final class GradleBuildTools implements TextEditorExtension {
                     + " folders above the document \u2014 open a file from inside a Gradle project");
             return;
         }
-        Optional<Path> launcher = launcherSeam.apply(root.get());
+        Path work = root.get();
+        Optional<Path> launcher = launcherSeam.apply(work);
         if (launcher.isEmpty()) {
-            ctx.showMessage(label + ": Gradle is not available \u2014 no ./gradlew in "
-                    + root.get() + " and no gradle on PATH");
+            ctx.showMessage(label + ": Gradle is not provisioned \u2014 no ./gradlew and no"
+                    + " project Gradle in " + work + " (create the project with Espresso"
+                    + " or add a wrapper)");
             return;
         }
-        ctx.showMessage("Running " + label + " in " + root.get() + "\u2026");
-        Path work = root.get();
-        runner.run(BuildTools.gradleCommand(launcher.get(), tasks), work, timeoutMs,
+        ctx.showMessage("Running " + label + " in " + work + "\u2026");
+        Path jdkHome = ProjectToolchain.jdkHome(work, registry).orElse(null);
+        Map<String, String> env = BuildTools.buildEnvironment(jdkHome);
+        runner.run(BuildTools.gradleCommand(launcher.get(), tasks), work, env, timeoutMs,
                 res -> finished(work, label, res, diagnose));
     }
 

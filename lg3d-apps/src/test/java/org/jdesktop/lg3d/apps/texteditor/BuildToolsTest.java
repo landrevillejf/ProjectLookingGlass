@@ -54,9 +54,25 @@ class BuildToolsTest {
                 BuildTools.projectRoot(deep, BuildTools.GRADLE_MARKERS));
         assertEquals(Optional.of(wrapper), BuildTools.wrapper(root, "gradlew"));
         assertTrue(BuildTools.wrapper(root, "mvnw").isEmpty());
-        // The wrapper is preferred, so the PATH lookup never runs here.
-        assertEquals(Optional.of(wrapper),
-                BuildTools.launcher(root, "gradlew", "definitely-not-a-real-tool"));
+        // The wrapper wins, so a project distribution is never consulted here.
+        assertEquals(Optional.of(wrapper), BuildTools.launcher(root, "gradlew", "gradle"));
+    }
+
+    @Test
+    @DisplayName("with no wrapper the launcher is the project's own distribution, else nothing - never the system PATH")
+    void launcherFallsBackToProjectDistributionThenEmpty(@TempDir Path root) throws Exception {
+        Files.writeString(root.resolve("build.gradle"), "apply plugin: 'java'\n");
+        // No wrapper: an Espresso-provisioned distribution under .espresso/tools is used.
+        Path distro = root.resolve(".espresso/tools/gradle-8.10/bin/gradle");
+        Files.createDirectories(distro.getParent());
+        Files.writeString(distro, "");
+        assertEquals(Optional.of(distro), BuildTools.launcher(root, "gradlew", "gradle"));
+
+        // Neither a wrapper nor a distribution: no launcher, whatever `gradle` is on PATH.
+        Path bare = Files.createDirectories(root.resolve("bare"));
+        Files.writeString(bare.resolve("build.gradle"), "apply plugin: 'java'\n");
+        assertTrue(BuildTools.launcher(bare, "gradlew", "gradle").isEmpty(),
+                "an unprovisioned project never falls back to the system PATH");
     }
 
     @Test
@@ -111,18 +127,20 @@ class BuildToolsTest {
     }
 
     @Test
-    @DisplayName("the build environment is dumb-terminal and never overrides a user's JAVA_HOME")
-    void buildEnvironment() {
-        var env = BuildTools.buildEnvironment();
-        assertEquals("dumb", env.get("TERM"));
-        String userHome = System.getenv("JAVA_HOME");
-        if (userHome == null) {
-            assertEquals(System.getProperty("java.home"), env.get("JAVA_HOME"),
-                    "an unset JAVA_HOME is pinned to the JDK the editor runs on");
-        } else {
-            assertFalse(env.containsKey("JAVA_HOME"),
-                    "the user's own JAVA_HOME is never overwritten");
-        }
+    @DisplayName("the build environment pins JAVA_HOME to the selected JDK and stays dumb-terminal")
+    void buildEnvironment(@TempDir Path jdk) {
+        // A project that selected a JDK builds under exactly that JAVA_HOME,
+        // whatever the ambient environment happens to carry.
+        var pinned = BuildTools.buildEnvironment(jdk);
+        assertEquals("dumb", pinned.get("TERM"));
+        assertEquals(jdk.toString(), pinned.get("JAVA_HOME"),
+                "the selected JDK is pinned, never an ambient JAVA_HOME");
+
+        // A project that selected none falls back to the JDK the editor runs on.
+        var editor = BuildTools.buildEnvironment(null);
+        assertEquals("dumb", editor.get("TERM"));
+        assertEquals(System.getProperty("java.home"), editor.get("JAVA_HOME"),
+                "no selection pins JAVA_HOME to the editor's own JDK");
     }
 
     // -- Gradle log interpretation (recorded output) -----------------------

@@ -10,6 +10,58 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Espresso now provisions each project's own build tool and manages JDKs centrally — a hermetic Gradle/Maven toolchain per project, a shared multi-JDK manager** (`lg3d-apps`) —
+  Creating a project used to scaffold only `src/Main.java` + `README.md` and then
+  build it with whatever `gradle`/`mvn` happened to be on `PATH`, so a project
+  carrying its own Gradle distribution still reported "Gradle is not available".
+  Espresso is now hermetic per project and central for JDKs. **Per project**, the
+  *New Project…* form (`ProjectCard`) collects a `NewProjectRequest` — a name, a
+  build system (Gradle / Maven / plain Java), that tool's version and a JDK
+  selected from the manager — and the host provisions it off the EDT on a virtual
+  thread (`AdvancedTextEditorPanel.provisionNewProject` → `ProjectProvisioner`)
+  with status-line progress: it refuses a non-empty directory, scaffolds the
+  sources, `README.md`, `.gitignore` and the build descriptor from
+  `ProjectTemplates` (Gradle `application` + `mainClass`, or a Maven POM whose
+  compiler `release` comes from the selected JDK), **downloads the chosen tool
+  version** through the `Downloader`/`HttpDownloader` seam and extracts it
+  (`Archives`: pure-JDK `extractZip`/`extractTarGz`) into the project's own
+  `<root>/.espresso/tools/<tool>-<ver>/`, then records the selection in
+  `<root>/.espresso/toolchain.properties` (`buildSystem`, `toolVersion`,
+  `toolHome`, `jdkId`). Compiling and running always resolve that project-local
+  tool through `ProjectToolchain` (wrapper → `.espresso/tools/…` → a root-level
+  distribution) and **never** fall back to the system `gradle`/`mvn`; a project
+  with no provisioned tool gets a "not provisioned — no project Gradle/Maven"
+  status answer that spawns nothing. **Centrally**, JDKs are *never* copied into a
+  project: `JdkRegistry` indexes one shared store (`~/.espresso/jdks/<version>/`)
+  plus user-registered folders (`~/.espresso/jdks.properties`), and a project only
+  *selects* one by `JdkEntry.id()`, so two projects can target Java 25 and Java 21
+  without either carrying a private JDK, and `JAVA_HOME` is pinned to the selected
+  JDK for every build/run (else the editor's own `java.home`). `ManageJdksCard` is
+  the manager surface — its own in-panel card (no popups): a `JList` of JDKs, a
+  version field + Download, *Register Existing Folder…*, Remove and Back — and
+  `ProjectCard` links to it and lists `JdkRegistry.list()` (newest first) as the
+  JDK selector. `BuildSystem` (`GRADLE`/`MAVEN`/`NONE`) carries each tool's
+  wrapper name, launcher path, distribution prefix and download URL so
+  provisioning and resolution share one source of truth; a plain-Java project
+  (`NONE`) provisions no tool and compiles/runs with the selected JDK's own
+  `javac`/`java` (`JvmBuildTools` resolves them from the project JDK first). Every
+  download and extract is a seam, so **34 new headless cases** prove the contract
+  with no network: five new suites (`ArchivesTest` 4 — zip/tar.gz round-trip;
+  `JdkRegistryTest` 7 — index the store + registered folders, resolve by
+  id/version, persist, `download` via a fake `Downloader` landing in the store and
+  never a project; `ProjectProvisionerTest` 6 — layout, `toolchain.properties`,
+  per-`BuildSystem` descriptors, tool-less `NONE`, refuse-non-empty, unknown-JDK
+  rejection before any write, and that no JDK is copied into the project;
+  `ProjectToolchainTest` 7 — wrapper / `.espresso/tools` / root-level priority, no
+  `PATH`, `jdkHome` via the registry; `ManageJdksCardTest` 3 — each button routes
+  one host callback and the list reflects the registry) plus seven added to
+  existing suites (`ProjectCardTest` `NewProjectRequest` assembly, two
+  `AdvancedTextEditorPanelTest` provisioning cases driving `provisionNewProject`
+  past the headless-unreachable chooser with an injected fake provisioner, and the
+  hermetic launcher + `JAVA_HOME`-pinning cases in `BuildToolsTest`,
+  `GradleBuildToolsTest` and `MavenBuildToolsTest`). Real network downloads cannot
+  run in headless CI, so one end-to-end Gradle and one Maven provisioning are
+  verified by hand and reported in the PR.
 - **Mandela can now author a Presentoire deck — a shipped generator script and an Espresso starter template** (`lg3d-mandela`, `lg3d-apps`, `scripts`) —
   The Markdown deck Presentoire opens is the one bridge between the two apps:
   `lg3d-apps` (Espresso) depends on `lg3d-mandela` but not on `lg3d-incubator`
@@ -2601,6 +2653,23 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **A Gradle/Maven project carrying its own distribution no longer reports "not available"** (`lg3d-apps`) —
+  `BuildTools.launcher` resolved a build tool by checking for a file literally
+  named `gradlew`/`mvnw` at the project root and then falling back to `gradle`/
+  `mvn` on the system `PATH`. A project whose Gradle or Maven was unpacked at its
+  root (or under `.espresso/tools/`) but had no wrapper script therefore resolved
+  to nothing whenever the system tool was absent, and Espresso reported "Gradle is
+  not available" for a project that shipped its own. Resolution now goes through
+  `ProjectToolchain`: the wrapper first, then a project-carried distribution
+  (`.espresso/tools/gradle-*`/`apache-maven-*`, then a root-level
+  `gradle-*`/`apache-maven-*`), and the `PATH` fallback is removed entirely — a
+  project builds with the exact tool Espresso provisioned into it, and the
+  missing-tool message reads "not provisioned — no project Gradle/Maven" rather
+  than pointing at a system install. `BuildToolsTest` pins the
+  wrapper → project-distribution → empty priority and the absence of any `PATH`
+  lookup, and `GradleBuildToolsTest`/`MavenBuildToolsTest` assert a provisioned
+  project runs `.espresso/tools/…/bin/gradle` (or `mvn`) with `JAVA_HOME` set to
+  the selected JDK.
 - **The Web Server Console no longer vanishes from both start menus** (`lg3d-apps`) —
   `webserver.lgcfg` carried a `--` inside its XML comment ("the desktop classpath
   -- lg3d-apps does not depend on"), and `--` is illegal within an XML comment, so
