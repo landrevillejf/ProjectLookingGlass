@@ -22,9 +22,13 @@ import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -214,6 +218,15 @@ public class AdvancedTextEditorPanel extends JPanel
      * {@link #setProvisionerForTesting}).
      */
     private ProjectProvisioner provisioner = new ProjectProvisioner();
+    /**
+     * Where a New Project failure appends its full stack trace. The status line
+     * is a truncated, auto-clearing, non-selectable label that cannot carry a
+     * multi-line cause chain or be copied, so the whole detail goes here (under
+     * {@code ~/.espresso}). Redirectable in tests via
+     * {@link #setProvisioningErrorLogForTesting} to keep them off the home dir.
+     */
+    private Path provisioningErrorLog = Path.of(System.getProperty("user.home", "."),
+            JdkRegistry.DEFAULT_BASE, "new-project-error.log");
     private final EditorStatusBar statusBar = new EditorStatusBar();
     /** South console receiving compile/run tool output (never the document). */
     private final OutputConsole outputConsole = new OutputConsole();
@@ -2283,10 +2296,64 @@ public class AdvancedTextEditorPanel extends JPanel
                     message("Project " + request.name() + " created at " + root);
                 });
             } catch (IOException | RuntimeException ex) {
-                SwingUtilities.invokeLater(
-                        () -> message("Could not create project: " + ex.getMessage()));
+                logger.log(Level.SEVERE, "New Project provisioning failed for " + root, ex);
+                String trace = stackTraceOf(ex);
+                Path log = logProvisioningError(root, trace);
+                String why = rootCauseMessage(ex);
+                // The status label truncates and clears itself and cannot be
+                // copied, so the whole trace also goes to the selectable Output
+                // console and is appended to a persistent log under ~/.espresso.
+                SwingUtilities.invokeLater(() -> {
+                    cards.show(center, CARD_EDITOR);
+                    outputConsole.appendOutput("New Project failed: " + why, trace);
+                    message("Could not create project: " + why
+                            + (log == null ? "" : " \u2014 full trace: " + log));
+                });
             }
         });
+    }
+
+    /**
+     * Appends the full stack trace of a New Project failure to
+     * {@link #provisioningErrorLog} so it can be read and copied whole, which the
+     * transient status label cannot do. Best-effort: failing to write the log
+     * never masks the original problem.
+     *
+     * @return the log file, or {@code null} when it could not be written
+     */
+    private Path logProvisioningError(Path root, String trace) {
+        Path log = provisioningErrorLog;
+        try {
+            Files.createDirectories(log.getParent());
+            Files.writeString(log,
+                    System.lineSeparator() + "[" + LocalDateTime.now()
+                            + "] New Project provisioning failed for " + root
+                            + System.lineSeparator() + trace,
+                    StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            return log;
+        } catch (IOException | RuntimeException ioe) {
+            logger.log(Level.WARNING, "Could not write the error log " + log, ioe);
+            return null;
+        }
+    }
+
+    /** Renders a throwable's whole stack trace (with causes) as text. */
+    private static String stackTraceOf(Throwable ex) {
+        StringWriter trace = new StringWriter();
+        try (PrintWriter pw = new PrintWriter(trace)) {
+            ex.printStackTrace(pw);
+        }
+        return trace.toString();
+    }
+
+    /** The deepest cause's message, so the short status line names the real failure. */
+    private static String rootCauseMessage(Throwable ex) {
+        Throwable t = ex;
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        String m = t.getMessage();
+        return (m == null || m.isEmpty()) ? t.getClass().getSimpleName() : m;
     }
 
     @Override
@@ -2539,6 +2606,11 @@ public class AdvancedTextEditorPanel extends JPanel
     /** Swaps in a provisioner over a fake downloader (test seam). */
     final void setProvisionerForTesting(ProjectProvisioner replacement) {
         this.provisioner = replacement;
+    }
+
+    /** Redirects the New Project failure log (test seam; keeps tests off ~/.espresso). */
+    final void setProvisioningErrorLogForTesting(Path log) {
+        this.provisioningErrorLog = log;
     }
 
     /** The embedded desktop Git client panel (test seam). */
