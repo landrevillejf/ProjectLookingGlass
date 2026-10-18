@@ -223,6 +223,28 @@ tasks.register('startmenuCategories', JavaExec) {
     args = ['run', new File(scriptDir, 'startmenu-categories.mnd').toString(), '-s', repoRoot.toString()]
 }
 
+// branch-hygiene.mnd is a report of the same kind, and the one the repository
+// most needs: it reads .git/refs directly - loose files plus packed-refs, the
+// same text git reads - because the language reserves a PROCESS grant with no
+// function, so no Mandela script can spawn git. It answers what refs can answer:
+// which branch is checked out, which local names have no origin/ counterpart,
+// which tips are already origin/main's, which two names share one commit, and
+// which origin/ entries have no local branch. It deliberately never fails:
+// whether a branch is *merged* lives in the object graph, and AGENTS.md's rule is
+// that pruning needs `git cherry` and `gh pr list` proof first, so the report
+// prints those commands beside its own numbers instead of deciding for you.
+tasks.register('branchHygiene', JavaExec) {
+    group = 'reporting'
+    description = 'Report the branches that exist on one side of the repository only, read from .git/refs (report-only, never fails).'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    workingDir = repoRoot
+    args = ['run', new File(scriptDir, 'branch-hygiene.mnd').toString(), '-s', repoRoot.toString()]
+}
+
 // The other half of whats-new.mnd: the same script, run with its `write` mode
 // word, rendering CHANGELOG.md into the committed help topic AND into one page per
 // released version under documentation/releases/, with an index above them. A

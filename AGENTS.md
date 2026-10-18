@@ -383,10 +383,15 @@ the exit codes and how to add a tool.
 - `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
   `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
   start-menu items whose description reads like a different category than their
-  group, always exit 0), `userscript-new.mnd` (a Web Browser userscript
+  group, always exit 0), `branch-hygiene.mnd` (report: which branch names exist on
+  one side of the repository only, read from `.git/refs` and `packed-refs` because
+  the language reserves a `PROCESS` grant with no function, so it cannot spawn
+  `git`; it prints `git fetch --prune`, `git cherry` and `gh pr list` beside its
+  numbers rather than deciding, and runs as `:lg3d-mandela:branchHygiene`),
+  `userscript-new.mnd` (a Web Browser userscript
   generator), `deck-new.mnd` (a Presentoire slide-deck generator) and
   `gate-new.mnd` (the scaffold of a new gate, with its three wiring edits printed
-  rather than applied) are not gates: the first three always exit 0, and the last
+  rather than applied) are not gates: the first four always exit 0, and the last
   three write the one file each names and refuse to overwrite it.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole
@@ -437,6 +442,10 @@ verifying it by hand first - the script states a claim, it does not prove one.
   remote), then drop the local with `git branch -d <branch>`. A stale local that
   outlives its merged PR is what makes a later commit land on a dead branch and
   get cherry-picked, which duplicates the work under a second SHA.
+  `./gradlew :lg3d-mandela:branchHygiene` prints that asymmetry read straight from
+  `.git/refs` - locals with no `origin/` counterpart, and `origin/` entries no
+  local holds - but it is a report: `refs/remotes/origin` is only a cache, so
+  `git fetch --prune` is what makes its numbers true before any of them is acted on.
 - **Verify the branch before committing to it**, especially when resuming an
   interrupted session whose changes are still uncommitted in the working tree.
   The checked-out branch may be the one whose PR already merged. Ask first:

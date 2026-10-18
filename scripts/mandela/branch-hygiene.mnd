@@ -1,0 +1,277 @@
+#!/usr/bin/env mandela
+// branch-hygiene.mnd — which branches are left on one side of this repository only.
+//
+// AGENTS.md states the rule twice: a merge is not finished until the branch is
+// gone from both sides (`gh pr merge --delete-branch`, then `git branch -d`),
+// because a stale local that outlives its merged PR is how a later commit lands
+// on a dead branch and gets cherry-picked - the same work duplicated under a
+// second SHA. It also says the other half: prune only what is provably empty,
+// since a squash-merged branch can hold commits that exist nowhere else.
+//
+// Both halves are decided today by a human typing `git branch --merged`,
+// `git cherry` and `gh pr list`, and none of that is visible in a file the
+// compiler or a CI step reads. But git itself keeps its answer in files: a
+// branch *is* a one-line text file under `.git/refs/`, every remote-tracking
+// branch is the same under `refs/remotes/origin/`, and `packed-refs` holds the
+// ones the repository has folded away. So this script reads exactly what git
+// reads and answers the question refs can answer - which names exist on which
+// side, and which tips are the same commit - with no subprocess at all. That
+// matters here for a second reason: the language reserves a PROCESS grant it has
+// no function for, so a Mandela script cannot spawn `git` even to try.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/branch-hygiene.mnd -s .
+//     ... the same, with `full` to list every branch and its tip
+//
+// A **report, not a gate**: it always exits 0, like `todo-scan.mnd`. Refs prove
+// existence and SHA equality, and nothing else - they cannot prove a branch is
+// merged, because ancestry lives in the object graph, and this script prints the
+// two commands that turn each claim it makes into a proof rather than calling
+// one a defect. The `asset-report.mnd` argument applies: a list a reader weighs
+// is worth more than a red build over a judgement. One limitation is load-bearing
+// and said twice, here and where it matters: `refs/remotes/origin` is a *cache*,
+// so the script reads the remote as of the last fetch, and `git fetch --prune` is
+// the only thing that makes an origin/ entry disappear once GitHub deleted the
+// branch - which is why a merged PR can still look alive here.
+//
+// What refs do answer, in five sections: which branch is checked out (and
+// whether the checkout is detached, the one case where a commit belongs to no
+// ref at all), which local names have no origin/ counterpart, which local tips
+// *are* origin/main's tip and so provably carry no unique work, which two local
+// names point at one commit, and which origin/ entries have no local branch.
+
+use std.fs
+
+let GIT = ".git"
+let HEADS = "${GIT}/refs/heads"
+let ORIGIN = "${GIT}/refs/remotes/origin"
+let PACKED = "${GIT}/packed-refs"
+let MAIN = "main"
+
+// The branches that are not feature branches and so are never "gone on one
+// side": the trunk exists on both by definition, and `master` is the trunk's
+// other spelling in this repository's history (AGENTS.md names both).
+let TRUNK = [MAIN, "master"]
+
+// ---------------------------------------------------------------------------
+// refs are text files: one 40-hex-digit line, or a symref pointing at another
+// ---------------------------------------------------------------------------
+
+// Every ref file under one directory, named relative to it. Nested names are
+// real - `feat/mandela_scripts` is a directory holding a file - so this walks,
+// with the explicit-stack shape `exclusions.mnd` uses rather than recursion.
+fun refsUnder(dir) {
+    var out = []
+    if (!fs.isDirectory(dir)) { return out }
+    let prefix = dir + "/"
+    var stack = [dir]
+    while (stack.length > 0) {
+        let at = stack.pop()
+        for (name in fs.list(at)) {
+            // Built from the directory being listed, not from the root of the
+            // walk: `feat` is one level down, and prefix + name would read
+            // refs/heads/mandela_scripts, a path that exists nowhere.
+            let child = "${at}/${name}"
+            if (fs.isDirectory(child)) {
+                stack.push(child)
+            } else if (name != "HEAD") {
+                // origin/HEAD is a symref to the default branch, not a branch.
+                out.push(child.removePrefix(prefix))
+            }
+        }
+    }
+    return out
+}
+
+// A ref file's commit, or empty text for a symref: `HEAD` and `origin/HEAD` name
+// another ref rather than holding an object id, and a script that read the line
+// as a SHA would report a branch pointing at "ref: refs/heads/main".
+fun refAt(path) {
+    let text = fs.read(path).trim()
+    if (text.startsWith("ref:")) { return "" }
+    return text
+}
+
+// The folded refs, read into a map so a loose file can override one: git writes
+// a branch to its own file the moment it changes it, and leaves the old line in
+// packed-refs until the next `git pack-refs`. Trusting the packed copy alone
+// would report the tip a branch had before its last commit.
+fun packedInto(into, prefix) {
+    if (!fs.exists(PACKED)) { return into }
+    for (line in fs.read(PACKED).split("\n")) {
+        let words = line.trim()
+        if (words.length == 0) { continue }
+        if (words.startsWith("#") || words.startsWith("^")) { continue }
+        let cut = words.indexOf(" ")
+        if (cut < 0) { continue }
+        let ref = words.substring(cut + 1)
+        if (ref.startsWith(prefix)) {
+            into.put(ref.removePrefix(prefix), words.substring(0, cut))
+        }
+    }
+    return into
+}
+
+// name -> commit, for one refs/ subtree, loose winning over packed.
+fun collect(dir, prefix) {
+    var out = {}
+    packedInto(out, prefix)
+    for (name in refsUnder(dir)) {
+        let sha = refAt("${dir}/${name}")
+        if (sha.length > 0) { out.put(name, sha) }
+    }
+    return out
+}
+
+// The first eight characters: enough to tell two tips apart on one line, and a
+// SHA is never compared on this truncated form - only full lines are.
+fun short(sha) {
+    if (sha.length < 8) { return sha }
+    return sha.substring(0, 8)
+}
+
+// Every key of a map, in insertion order - `keys` is a List, and the report
+// prints names in the order the refs were read, which is git's own sorted order.
+fun namesOf(map) {
+    return map.keys
+}
+
+// ---------------------------------------------------------------------------
+// the report
+// ---------------------------------------------------------------------------
+
+if (!fs.isDirectory(GIT)) {
+    println("${GIT} is not a directory, so this is a linked worktree or a submodule checkout.")
+    println("branch-hygiene.mnd reads one plain .git directory: run it in the main checkout.")
+} else if (!fs.exists("${GIT}/HEAD")) {
+    println("${GIT}/HEAD is missing, so there is no repository here to report on.")
+} else {
+    var locals = collect(HEADS, "refs/heads/")
+    var remotes = collect(ORIGIN, "refs/remotes/origin/")
+
+    // The current branch, and whether the checkout is detached at all: a commit
+    // made on a detached HEAD belongs to no branch and is unreachable from any
+    // ref the moment the checkout moves - the one branch defect refs prove.
+    let head = fs.read("${GIT}/HEAD").trim()
+    var headName = ""
+    if (head.startsWith("ref:")) {
+        headName = head.removePrefix("ref:").trim().removePrefix("refs/heads/")
+    }
+
+    var headline = "DETACHED HEAD, which belongs to no branch"
+    if (headName.length > 0 && locals.has(headName)) {
+        headline = "${headName} at ${short(locals.get(headName))}"
+    } else if (headName.length > 0) {
+        headline = "${headName}, which no ref file under ${HEADS} names"
+    }
+    println("current branch: ${headline}")
+    println("${locals.size} local branch(es); ${remotes.size} remote-tracking branch(es) under origin/")
+    println("")
+
+    if (args.length > 0 && args[0] == "full") {
+        for (name in namesOf(locals)) {
+            let sha = locals.get(name)
+            var tail = "no remote-tracking ref"
+            if (remotes.has(name)) {
+                tail = if (remotes.get(name) == sha) "synced with origin" else "origin at ${short(remotes.get(name))}"
+            }
+            println("  ${name.padEnd(44)} ${short(sha)}  ${tail}")
+        }
+        println("")
+    }
+
+    // 1. The asymmetry AGENTS.md warns about: a name the local repository still
+    //    has and origin no longer does. `gh pr merge --delete-branch` removes the
+    //    remote half of every merged PR, so this list is "the local that may have
+    //    outlived its PR" - but a branch that was simply never pushed looks
+    //    exactly the same in refs, and saying which is which needs GitHub.
+    var orphan = []
+    for (name in namesOf(locals)) {
+        if (!TRUNK.contains(name) && !remotes.has(name)) { orphan.push(name) }
+    }
+    if (headName.length > 0 && orphan.contains(headName)) {
+        println("checked out on a branch with no remote-tracking ref: ${headName}")
+        println("  this is the case AGENTS.md tells you to verify before committing to it:")
+        println("  gh pr list --head ${headName} --state all")
+        println("  git branch -r --contains ${short(locals.get(headName))}")
+        println("  A commit made here now lands on a branch whose PR may already have")
+        println("  merged, and the work comes back a second time under a second SHA.")
+        println("")
+    }
+    println("local with no origin/ counterpart (${orphan.length}):")
+    for (name in orphan) {
+        if (name == headName) { continue }
+        println("  ${name.padEnd(44)} ${short(locals.get(name))}")
+    }
+    if (orphan.length == 0) { println("  none") }
+    println("")
+
+    // 2. The one pruning claim refs can prove outright, with no ancestry at all:
+    //    a branch whose tip *is* origin/main's tip holds nothing main does not,
+    //    because a commit id names one commit. This is `git cherry` saying "no +
+    //    lines", without asking the object graph.
+    let trunkAt = if (remotes.has(MAIN)) remotes.get(MAIN) else ""
+    var empty = []
+    if (trunkAt.length > 0) {
+        for (name in namesOf(locals)) {
+            if (name != MAIN && name != headName && locals.get(name) == trunkAt) { empty.push(name) }
+        }
+    }
+    println("same commit as origin/main, so it carries no work main lacks (${empty.length}):")
+    for (name in empty) {
+        println("  ${name.padEnd(44)} ${short(locals.get(name))}")
+    }
+    if (empty.length == 0) { println("  none") }
+    println("")
+
+    // 3. Two local names on one commit: the cherry-pick signature, or simply two
+    //    branches cut from the same point and never advanced. The report cannot
+    //    tell, and does not pretend to.
+    var tips = {}
+    var shared = []
+    for (name in namesOf(locals)) {
+        let sha = locals.get(name)
+        if (tips.has(sha)) { shared.push("${tips.get(sha)} and ${name} at ${short(sha)}") }
+        else { tips.put(sha, name) }
+    }
+    println("two local branch names, one commit (${shared.length}):")
+    for (line in shared) { println("  ${line}") }
+    if (shared.length == 0) { println("  none") }
+    println("")
+
+    // 4. The mirror of section 1, and the half of it refs cannot see alone: a
+    //    remote-tracking ref with no local branch. It is either work on another
+    //    machine, or a cache entry for a branch GitHub no longer has - the
+    //    opposite asymmetry, and invisible to everything below because
+    //    refs/remotes/origin is a cache, correct only as of the last fetch.
+    var remoteOnly = []
+    for (name in namesOf(remotes)) {
+        if (!locals.has(name)) { remoteOnly.push(name) }
+    }
+    println("origin/ entry with no local branch (${remoteOnly.length}):")
+    for (name in remoteOnly) {
+        println("  ${name.padEnd(44)} ${short(remotes.get(name))}")
+    }
+    if (remoteOnly.length == 0) { println("  none") }
+    println("  refs/remotes/origin is what the last fetch left behind, so an entry here")
+    println("  can name a branch GitHub already deleted with its PR. git fetch --prune")
+    println("  is what makes this list, and section 1 above, read the remote as it is.")
+    println("")
+
+    // 5. The trunk itself: a local main whose tip is not origin/main has commits
+    //    the pushed trunk does not (a commit made on the wrong branch, which
+    //    AGENTS.md's flow does not allow) or is simply behind it.
+    if (locals.has(MAIN) && trunkAt.length > 0 && locals.get(MAIN) != trunkAt) {
+        println("main is ${short(locals.get(MAIN))} while origin/main is ${short(trunkAt)}")
+        println("  one side has commits the other lacks; git cherry origin/main main says which")
+        println("")
+    }
+
+    println("what refs cannot prove, and what says so:")
+    println("  git fetch --prune                     (makes the origin/ cache true again)")
+    println("  git cherry origin/main <branch>   (+ a line is work main does not have)")
+    println("  gh pr list --head <branch> --state all")
+    println("  git log -1 --format=%cs <branch>  (the tip date, for what is merely old)")
+    println("Never delete a branch on this report alone - AGENTS.md: record the tip")
+    println("with git rev-parse first, and keep any branch with an open PR.")
+}

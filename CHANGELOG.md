@@ -10,6 +10,37 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`branch-hygiene.mnd` — a Mandela report on which branches are left on one side of this repository** (`scripts`, `lg3d-mandela`) —
+  `AGENTS.md` states the rule twice: a merge is not finished until the branch is
+  gone from **both** sides, because a stale local that outlives its merged PR is
+  how a later commit lands on a dead branch and comes back cherry-picked under a
+  second SHA. The check today is a human remembering to type `git branch --merged`,
+  `git cherry` and `gh pr list`, and none of that is visible to a compiler or a CI
+  step. But git keeps its own answer in files — a branch *is* a one-line text file
+  under `.git/refs/heads/`, a remote-tracking branch is the same under
+  `refs/remotes/origin/`, and `packed-refs` holds the folded ones with the loose
+  file winning, since git repacks lazily and the packed copy still names the tip a
+  branch had *before* its last commit. So the report reads exactly what git reads,
+  which is also the only option: the language reserves a `PROCESS` grant it has no
+  function for, so no Mandela script can spawn `git` even to try. Five sections —
+  the checked-out branch (and a detached HEAD, the one case where a commit belongs
+  to no ref at all), locals with no `origin/` counterpart, locals whose tip *is*
+  `origin/main`'s tip and therefore provably carry no unique work without asking
+  the object graph, two local names on one commit (the cherry-pick signature), and
+  `origin/` entries no local holds. It is a **report and not a gate**, wired as
+  `:lg3d-mandela:branchHygiene` and deliberately outside `repositoryChecks`: refs
+  prove existence and SHA equality and never *ancestry*, so the script prints
+  `git fetch --prune`, `git cherry` and `gh pr list` beside its own numbers instead
+  of calling an entry a defect, and says twice that `refs/remotes/origin` is a
+  cache correct only as of the last fetch — the reason a merged PR can still look
+  alive here. Its first run named 9 local-only branches and 4 `origin/` entries;
+  verified by hand, GitHub carries only 3 heads (so 3 of those 4 are cache for
+  already-merged PRs), `origin/feat/wonderland-p32-gpu-bloom` is `MERGED` yet still
+  on the remote — `--delete-branch` was not applied — and `git cherry` gives 8 of
+  the 9 locals unique commits, 5 of them from **closed** PRs which must not be
+  pruned, leaving exactly one (`feat/release-notes-and-site`, 0 unique commits, PR
+  `#378` merged) as the stale local the rule warns about. Documented in the scripts
+  `README.md` and in `AGENTS.md`, both under *Branch hygiene is part of merging*.
 - **`gate-new.mnd` — a Mandela generator that scaffolds the next gate in the shape the shipped ones already have** (`scripts`, `lg3d-mandela`) —
   fifteen gates in `scripts/mandela` share five parts, and the two a person forgets
   are not the syntax: `ShippedScriptsTest` already pins the shebang, the
