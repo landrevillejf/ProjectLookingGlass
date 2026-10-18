@@ -72,6 +72,10 @@ public final class JavaSoundVoiceBridge {
     private volatile int sendSequence;
     private volatile long sendTimestamp;
     private volatile boolean running;
+    /** Mic gate: while set, the capture loop reads but transmits nothing. */
+    private volatile boolean muted;
+    /** Playback gain, 0.0 (silent) to 1.0 (as received); the volume slider. */
+    private volatile double outputGain = 1.0;
     private volatile Thread captureThread;
     private volatile Thread receiveThread;
     private volatile Thread playThread;
@@ -180,6 +184,34 @@ public final class JavaSoundVoiceBridge {
         return running;
     }
 
+    /**
+     * Gate the microphone. A muted bridge still captures (so unmuting is
+     * instant, no line re-open) but sends nothing, which is what "Mic Off"
+     * means to the person on the other end: silence, not a dropped call.
+     */
+    public void setMuted(boolean muted) {
+        this.muted = muted;
+    }
+
+    /** Whether the microphone is currently gated. */
+    public boolean isMuted() {
+        return muted;
+    }
+
+    /**
+     * Set the playback gain the play loop scales every decoded frame by.
+     * Clamped to [0,1]; values outside are the slider being lied to, not a
+     * request to amplify beyond the wire's own level.
+     */
+    public void setOutputGain(double gain) {
+        this.outputGain = Math.max(0.0, Math.min(1.0, gain));
+    }
+
+    /** The current playback gain, 0.0 to 1.0. */
+    public double getOutputGain() {
+        return outputGain;
+    }
+
     /** Read one 20 ms frame at a time, encode it, and send one RTP datagram. */
     private void captureLoop() {
         short[] pcm = new short[SAMPLES_PER_PACKET];
@@ -192,6 +224,9 @@ public final class JavaSoundVoiceBridge {
             short[] samples = bytesToSamples(raw, read);
             System.arraycopy(samples, 0, pcm, 0,
                     Math.min(samples.length, pcm.length));
+            if (muted) {
+                continue;               // Mic Off: read, but put nothing on the wire
+            }
             RtpPacket packet = encodeFrame(pcm, sendSequence & 0xffff,
                     sendTimestamp & 0xffffffffL, ssrc);
             send(packet);
@@ -227,7 +262,20 @@ public final class JavaSoundVoiceBridge {
                 continue;
             }
             short[] pcm = decodePayload(packet);
+            scale(pcm, outputGain);
             playback.write(samplesToBytes(pcm), 0, pcm.length * 2);
+        }
+    }
+
+    /** Multiply every sample by {@code gain}, clamping to the 16-bit range. */
+    private static void scale(short[] pcm, double gain) {
+        if (gain == 1.0) {
+            return;
+        }
+        for (int i = 0; i < pcm.length; i++) {
+            double v = pcm[i] * gain;
+            pcm[i] = (short) Math.max(Short.MIN_VALUE,
+                    Math.min(Short.MAX_VALUE, Math.round(v)));
         }
     }
 

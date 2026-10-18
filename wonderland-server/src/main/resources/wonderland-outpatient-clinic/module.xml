@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
   wonderland-outpatient-clinic: a clean-room re-authoring of the community
-  "TMS Medical Center / Outpatient Clinic" world, rebuilt for the JDK 21 +
+  "SIMS Medical Center / Outpatient Clinic" world, rebuilt for the JDK 21 +
   Jogamp Wonderland port. The layout mirrors the reference screenshot's
   directory sign — a central waiting area ringed by exam rooms, a patient
   education room, an observation room and a reception desk — authored as

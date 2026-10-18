@@ -55,6 +55,17 @@ public final class WorldInventory {
     public static final float CELL_BLOCKING_HEIGHT_M = 2.0f;
 
     /**
+     * The footprint at and above which a placement is an ENCLOSURE -- a room, a
+     * building, a stair mass -- rather than a prop. A volume this wide is a
+     * space a person is meant to be inside or on top of; handing it to the
+     * collision kernel as one solid box makes it a sealed crate the walker can
+     * never enter, which is precisely the "the pavilion has no door" and "the
+     * clinic's rooms are walled shut" defect. Enclosures are therefore walkable
+     * and contribute no obstacle; only prop-sized cells block a step.
+     */
+    public static final float ENCLOSURE_FOOTPRINT_M = 2.5f;
+
+    /**
      * One placed cell. Yaw and scale are already folded into the footprint by
      * the caller that built this (WorldScene's own placement math), so the box
      * here is axis-aligned -- what WalkerCollision and WorldPVS both want, and
@@ -119,6 +130,12 @@ public final class WorldInventory {
     public List<Obstacle> obstacles() {
         List<Obstacle> out = new ArrayList<>(placements.size());
         for (Placement p : placements) {
+            // An enclosure is a space to be in, not a thing to bump into: one
+            // solid box for a room or a building seals it shut, so it is left
+            // out of the blocking set entirely and the walker can walk in.
+            if (p.footprint() >= ENCLOSURE_FOOTPRINT_M) {
+                continue;
+            }
             out.add(Obstacle.of(p.name(), p.x(), p.y(), p.z(),
                     p.footprint(), p.height(), p.footprint()));
         }

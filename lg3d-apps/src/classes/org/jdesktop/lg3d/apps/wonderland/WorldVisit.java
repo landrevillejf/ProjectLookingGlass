@@ -86,6 +86,9 @@ public final class WorldVisit implements AutoCloseable {
 
     private final ChatChannel chat = new ChatChannel(client);
 
+    /** The visit's voice call; the sidebar's volume slider and Mic pill drive it. */
+    private final JavaSoundVoiceBridge voice = new JavaSoundVoiceBridge();
+
     /** True once the sockets are open, so {@link #close()} knows what to undo. */
     private volatile boolean connected;
 
@@ -115,6 +118,10 @@ public final class WorldVisit implements AutoCloseable {
         // changes, a parse would silently start lying about what went wrong.
         panel.setSender(text -> chat.send(text,
                 reason -> say("not sent \u00B7 " + reason)));
+        // The audio chrome's target: the controls store their setting on the
+        // call from the first paint, so a call that starts later inherits the
+        // volume and mute the visitor already chose.
+        panel.setVoice(voice);
     }
 
     /**
@@ -236,6 +243,7 @@ public final class WorldVisit implements AutoCloseable {
         }
         closed = true;
         chat.stop();
+        voice.stop();          // idempotent; ends a call if one was carrying
         if (connected) {
             connected = false;
             client.disconnect();
