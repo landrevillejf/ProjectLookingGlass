@@ -13,14 +13,18 @@
  */
 package org.jdesktop.lg3d.apps.texteditor;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.jdesktop.lg3d.apps.texteditor.ext.BuildTask;
 import org.jdesktop.lg3d.apps.texteditor.ext.Diagnostic;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
@@ -118,6 +122,11 @@ public final class GradleBuildTools implements TextEditorExtension {
      * the build runs under that {@code JAVA_HOME} rather than an ambient one.
      */
     private JdkRegistry registry = new JdkRegistry();
+    /**
+     * The Gradle cache directory to clear. Defaults to {@code ~/.gradle/caches};
+     * tests inject a temp path so they do not touch the real user cache.
+     */
+    private Path gradleCacheDir = defaultGradleCacheDir();
 
     // -- test seams -------------------------------------------------------
 
@@ -131,6 +140,16 @@ public final class GradleBuildTools implements TextEditorExtension {
 
     final void setJdkRegistryForTesting(JdkRegistry replacement) {
         this.registry = replacement;
+    }
+
+    final void setGradleCacheDirForTesting(Path dir) {
+        this.gradleCacheDir = dir;
+    }
+
+    /** The default Gradle cache directory: {@code ~/.gradle/caches}. */
+    private static Path defaultGradleCacheDir() {
+        String home = System.getProperty("user.home", ".");
+        return Path.of(home, ".gradle", "caches");
     }
 
     // -- SPI ---------------------------------------------------------------
@@ -212,7 +231,10 @@ public final class GradleBuildTools implements TextEditorExtension {
                         this::listTasks, "control alt shift S"),
                 new ToolbarContribution("gradle-outline", "Outline Build File",
                         "Outline the build script in the Structure tab: plugins, repositories, dependencies and registered tasks",
-                        this::outlineBuildFile)
+                        this::outlineBuildFile),
+                new ToolbarContribution("gradle-clear-cache", "Clear Gradle Cache",
+                        "Delete the Gradle cache (~/.gradle/caches) to fix corrupted cache errors; Gradle will rebuild on next run",
+                        this::clearCache)
         );
     }
 
@@ -267,6 +289,39 @@ public final class GradleBuildTools implements TextEditorExtension {
         Map<String, String> env = BuildTools.buildEnvironment(jdkHome);
         runner.run(BuildTools.gradleCommand(launcher.get(), tasks), work, env, timeoutMs,
                 res -> finished(work, label, res, diagnose));
+    }
+
+    private void clearCache() {
+        EditorContext ctx = editor;
+        if (ctx == null) {
+            return;
+        }
+        Path cache = gradleCacheDir;
+        if (cache == null || !Files.isDirectory(cache)) {
+            ctx.showMessage("Clear Gradle Cache: no cache directory at " + cache);
+            return;
+        }
+        try {
+            deleteRecursively(cache);
+            ctx.showMessage("Gradle cache cleared at " + cache + " — Gradle will rebuild on next run");
+        } catch (IOException e) {
+            ctx.showMessage("Clear Gradle Cache failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Recursively deletes a directory and all its contents. Best-effort: a
+     * failure partway through leaves partial state but reports what succeeded.
+     */
+    private static void deleteRecursively(Path root) throws IOException {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(p);
+            }
+        }
     }
 
     /** Files one finished build's output, findings and status line. EDT callback. */

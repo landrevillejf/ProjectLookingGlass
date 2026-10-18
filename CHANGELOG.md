@@ -10,6 +10,16 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **Espresso can now clear a corrupted Gradle cache directly from the toolbar** (`lg3d-apps`) —
+  A new *Clear Gradle Cache* toolbar action (`gradle-clear-cache`) deletes
+  `~/.gradle/caches` to fix the common "Could not open cp_proj generic class
+  cache" error that Gradle throws when its internal cache files get corrupted
+  (from a crash, disk issue or interrupted build). The action reports success
+  or failure on the status line, and a test seam (`setGradleCacheDirForTesting`)
+  lets the headless suite prove the delete without touching the real user cache.
+  **2 new headless cases** in `GradleBuildToolsTest` (the delete-and-report
+  path with a fake cache directory, and the missing-cache path that reports
+  "no cache directory" without creating anything).
 - **Espresso now provisions each project's own build tool and manages JDKs centrally — a hermetic Gradle/Maven toolchain per project, a shared multi-JDK manager** (`lg3d-apps`) —
   Creating a project used to scaffold only `src/Main.java` + `README.md` and then
   build it with whatever `gradle`/`mvn` happened to be on `PATH`, so a project
