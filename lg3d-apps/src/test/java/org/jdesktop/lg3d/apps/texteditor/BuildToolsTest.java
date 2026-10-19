@@ -192,6 +192,24 @@ class BuildToolsTest {
     }
 
     @Test
+    @DisplayName("a port conflict names the port and suggests how to free it")
+    void portInUseAdviceNamesTheConflict() {
+        // Recorded from a real Spring Boot bootRun failure: the app tried to bind
+        // 8080 and something else was already listening there.
+        String log = "***************************\nAPPLICATION FAILED TO START\n"
+                + "***************************\n\nDescription:\n\n"
+                + "Web server failed to start. Port 8080 was already in use.\n\n"
+                + "Action:\n\nIdentify and stop the process that's listening on port 8080\n";
+        Optional<String> advice = BuildTools.portInUseAdvice(log);
+        assertTrue(advice.isPresent(), log);
+        assertTrue(advice.get().contains("Port 8080"), advice.get());
+        assertTrue(advice.get().contains("--server.port=8081"),
+                "the next port is the natural escape for a one-off conflict");
+        assertTrue(BuildTools.portInUseAdvice("").isEmpty());
+        assertTrue(BuildTools.portInUseAdvice(null).isEmpty());
+    }
+
+    @Test
     @DisplayName("the build environment pins JAVA_HOME to the selected JDK and stays dumb-terminal")
     void buildEnvironment(@TempDir Path jdk) {
         // A project that selected a JDK builds under exactly that JAVA_HOME,

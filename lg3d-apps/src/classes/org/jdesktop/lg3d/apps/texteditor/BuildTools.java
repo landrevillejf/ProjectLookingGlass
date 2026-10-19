@@ -202,6 +202,14 @@ final class BuildTools {
     private static final Pattern WORKSPACE_METADATA = Pattern.compile(
             "Could not read workspace metadata");
 
+    /**
+     * Spring Boot's port-conflict failure: {@code Web server failed to start.
+     * Port 8080 was already in use.} The number is the TCP port the application
+     * tried to bind.
+     */
+    private static final Pattern PORT_IN_USE = Pattern.compile(
+            "Port (\\d+) was already in use");
+
     /** Maven boilerplate that never belongs in a one-line status message. */
     private static final List<String> MAVEN_NOISE = List.of(
             "To see the full stack trace", "Re-run Maven using",
@@ -835,6 +843,91 @@ final class BuildTools {
     }
 
     /**
+     * A port conflict: Spring Boot (or any web framework) tried to bind a port
+     * that another process already holds. The advice names the port, the process
+     * using it (when discoverable), and how to free it — either by killing the
+     * other process or by running on a different port.
+     *
+     * @param output merged stdout+stderr of the build
+     * @return the one-line advice, empty when the log is not a port conflict
+     */
+    static Optional<String> portInUseAdvice(String output) {
+        if (output == null || output.isEmpty()) {
+            return Optional.empty();
+        }
+        Matcher m = PORT_IN_USE.matcher(output);
+        if (!m.find()) {
+            return Optional.empty();
+        }
+        String port = m.group(1);
+        String pid = findPidOnPort(port);
+        if (pid != null) {
+            String name = getProcessName(pid);
+            return Optional.of("Port " + port + " is in use by " + name
+                    + " (PID " + pid + "); stop it or use --server.port="
+                    + (Integer.parseInt(port) + 1));
+        }
+        return Optional.of("Port " + port + " is in use; stop the other process"
+                + " or use --server.port=" + (Integer.parseInt(port) + 1));
+    }
+
+    /**
+     * Finds the PID holding a TCP port, using {@code lsof} first (most portable
+     * on Linux/macOS) and falling back to {@code ss} (Linux iproute2). Returns
+     * {@code null} when the port is free or the tools are unavailable.
+     */
+    private static String findPidOnPort(String port) {
+        // Try lsof first
+        try {
+            ProcessBuilder pb = new ProcessBuilder("lsof", "-ti", ":" + port);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out.split("\n")[0];
+            }
+        } catch (Exception e) {
+            // lsof not available or failed
+        }
+        // Fallback to ss (Linux)
+        try {
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c",
+                    "ss -tlnp sport = :" + port + " | grep -oP 'pid=\\K\\d+'");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out.split("\n")[0];
+            }
+        } catch (Exception e) {
+            // ss not available or failed
+        }
+        return null;
+    }
+
+    /**
+     * The short command name of a process (e.g. {@code java}, {@code node}).
+     * Returns {@code "unknown process"} when the PID is gone or {@code ps} fails.
+     */
+    private static String getProcessName(String pid) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("ps", "-p", pid, "-o", "comm=");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out;
+            }
+        } catch (Exception e) {
+            // ps failed
+        }
+        return "unknown process";
+    }
+
+    /**
      * The one line a finished build leaves on the status bar: the tool's own
      * verdict when the log carries one (a build explains itself, an exit code
      * explains nothing), the failure headline when it does not, and how many
@@ -855,7 +948,8 @@ final class BuildTools {
             sb.append(verdict.isEmpty()
                     ? " \u2014 failed (exit " + result.exitCode() + ")"
                     : " \u2014 " + verdict);
-            Optional<String> advice = toolchainAdvice(result.output());
+            Optional<String> advice = toolchainAdvice(result.output())
+                    .or(() -> portInUseAdvice(result.output()));
             Optional<String> head = advice.isPresent()
                     ? advice : failureHeadline(result.output());
             if (head.isPresent()) {

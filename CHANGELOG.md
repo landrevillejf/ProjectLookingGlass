@@ -2989,6 +2989,21 @@ work to make it build and run on a current toolchain.
   provisioned distribution, and a stub alone is still resolved; `GradleBuildToolsTest`
   asserts the advice, not the cache sentence, reaches the status line, and that
   the JDK travels into the argv of every action.
+- **A Spring Boot port conflict now names the port, the process using it, and how to free it** (`lg3d-apps`) —
+  `bootRun` failed with *"Port 8080 was already in use"* and the status line
+  echoed the failure headline, which told the user nothing they could act on.
+  `BuildTools.portInUseAdvice` now detects the Spring Boot port-conflict pattern,
+  extracts the port number, and runs `lsof -ti :<port>` (with a fallback to
+  `ss -tlnp`) to find the PID, then `ps -p <pid> -o comm=` to name the process.
+  The status line reads *"Port 8080 is in use by java (PID 12345); stop it or
+  use --server.port=8081"* — the next port is the natural escape for a one-off
+  conflict. When the tools are unavailable or the port is free by the time the
+  check runs, the fallback names the port and the escape without a PID. The
+  advice is wired into `statusLine` after `toolchainAdvice`, so a JDK mismatch
+  still wins over a port conflict, and a port conflict wins over the generic
+  failure headline. **1 new headless case**: `BuildToolsTest` feeds the verbatim
+  Spring Boot failure log and asserts the advice names the port and suggests the
+  next port.
 - **The Web Server Console no longer vanishes from both start menus** (`lg3d-apps`) —
   `webserver.lgcfg` carried a `--` inside its XML comment ("the desktop classpath
   -- lg3d-apps does not depend on"), and `--` is illegal within an XML comment, so
