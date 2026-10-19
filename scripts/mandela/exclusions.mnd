@@ -1,0 +1,480 @@
+#!/usr/bin/env mandela
+// exclusions.mnd — the exclusion set AGENTS.md describes must be the one the build applies.
+//
+// AGENTS.md states, in prose, which code paths the build leaves out and why:
+// the retired AWT peer toolkit, the JDK-internal sun.awt shims, the native X11
+// integration, the unused RMI scene-graph transport, the ODE nodes, and the
+// incubator apps whose libraries are gone. The build files keep the same fact a
+// second time, as `exclude 'org/...'` lines inside a source set's `java` block.
+// Nothing makes those two surfaces agree, and the document says so itself:
+// "Always verify the live exclusion set against lg3d-incubator/build.gradle
+// rather than trusting this prose - it has been stale before." An exclusion in
+// the build that no prose explains is a reader who restores the file and
+// inherits its JDK 21 defect; an exclusion in the prose that no build applies is
+// a code path already back in the jar while the guide still promises it is out.
+// Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/exclusions.mnd -s .
+//     ./gradlew :lg3d-mandela:exclusionsCheck
+//
+// Four checks, exit 0 when all hold and 2 on any finding:
+//   1. every source exclude in any module's build file is named in that
+//      document's *Code Exclusions* / *Incubator Exclusions* prose;
+//   2. every prose exclusion token is applied by some build file;
+//   3. every source exclude names a tree that still holds the sources it
+//      claims to skip, or is recorded in KEPT above as a deliberate guard over
+//      a tree the port never carried;
+//   4. every app under "Ported, not excluded" is genuinely not excluded.
+//
+// The two vocabularies are written differently and mean the same thing: the
+// build says `org/jdesktop/lg3d/apps/browser/**`, the prose says
+// `apps/browser/**` - relative to the package the reader is already talking
+// about - and one prose bullet spells `org.jdesktop.lg3d.wg/.../j3dnodes/
+// Ode*.java` with an ellipsis over the middle segments. So the match is made on
+// the segments, not the string: split on `/` and `.`, drop the wildcard pieces,
+// then accept a token whose segments appear in order in the other's, or - when
+// the build pattern recurses - whose are a prefix of it. Segment equality is
+// exact, which is what keeps `apps/browser/**` from being read as
+// `apps/browser3d/**`.
+
+use std.fs
+
+let AGENTS = "AGENTS.md"
+let SETTINGS = "settings.gradle"
+let CODE_SECTION = "## Code Exclusions"
+let INCU_SECTION = "## Incubator Exclusions"
+let PORTED_MARKER = "Ported, not excluded."
+
+// pattern -> why it is still written while its tree holds nothing. The port
+// inherited some excludes from the 2006 Ant build rather than from a source tree
+// it ever shipped: the line stays as the guard that keeps a restored legacy tree
+// out of the build, and the prose that names it describes the retired feature,
+// not a directory. An entry that stops being true - the sources come back - is
+// itself a finding, the way run-classpath.mnd treats a documented absence.
+var KEPT = {}
+KEPT.put("org/jdesktop/lg3d/apps/x11integration/**", "copied from lg3d-core/build.xml and build-tools/import/build-junit.xml; no x11integration sources exist in the port or in its history, so the exclude guards a tree that must not be brought back")
+
+// ---------------------------------------------------------------------------
+// text tools (the language has no regex)
+// ---------------------------------------------------------------------------
+
+// Every single-quoted token on a line, in order.
+fun quotedAll(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("'")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("'")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// Every `code span` in a text, in order: markdown's own quoting, and the only
+// spelling both vocabularies use for a path.
+fun spans(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("`")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("`")
+        if (close < 0) { break }
+        let body = rest.substring(0, close)
+        if (body.length > 0) { out.push(body) }
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// Leading spaces, as a count: a source set's java block is closed by the line
+// that returns to the indent its own opening line sits at.
+fun indentOf(line) {
+    var i = 0
+    while (i < line.length) {
+        if (line.charAt(i) != " ") { break }
+        i += 1
+    }
+    return i
+}
+
+// The pattern split into the segments both spellings agree on. `/` and `.` are
+// the same separator read two ways, a lone `*` or `**` says "anything" and
+// carries no name, and `...` is an ellipsis over whole segments - so all three
+// disappear and what is left is compared segment by segment.
+fun segments(pattern) {
+    var out = []
+    for (part in pattern.split("/")) {
+        for (word in part.split(".")) {
+            var name = ""
+            for (ch in word) {
+                if (ch != "*") { name += ch }
+            }
+            if (name.length > 0) { out.push(name) }
+        }
+    }
+    return out
+}
+
+// Does needle appear in order inside hay? Exact segment equality is what makes
+// `browser` not match `browser3d`.
+fun isSubsequence(needle, hay) {
+    var at = 0
+    for (word in hay) {
+        if (at < needle.length && word == needle[at]) { at += 1 }
+    }
+    return at == needle.length
+}
+
+fun isPrefix(lead, rest) {
+    if (lead.length > rest.length) { return false }
+    var i = 0
+    while (i < lead.length) {
+        if (lead[i] != rest[i]) { return false }
+        i += 1
+    }
+    return true
+}
+
+// A build pattern that ends in a wildcard reaches into everything below it, so
+// it stands for the prose that names only a branch of that tree.
+fun recurses(pattern) {
+    return pattern.endsWith("/**") || pattern.endsWith("/*") || pattern.endsWith(".*")
+}
+
+// The one relation the two vocabularies are compared by.
+fun covers(buildPattern, prosePattern) {
+    let buildSegs = segments(buildPattern)
+    let proseSegs = segments(prosePattern)
+    if (proseSegs.length == 0) { return false }
+    if (recurses(buildPattern) && isPrefix(buildSegs, proseSegs)) { return true }
+    return isSubsequence(proseSegs, buildSegs)
+}
+
+// The literal directory a pattern sits in, and the file-name prefix its last
+// segment narrows to: `.../j3dnodes/Ode*.java` checks the j3dnodes directory for
+// a file whose name starts with Ode, because a pattern whose tree is gone is a
+// pattern nobody needs any more.
+fun literalDir(pattern) {
+    let parts = pattern.split("/")
+    let last = parts[parts.length - 1]
+    if (!last.contains("*")) { return pattern }
+    var out = []
+    for (i in 0..(parts.length - 2)) { out.push(parts[i]) }
+    return out.join("/")
+}
+
+fun namePrefix(pattern) {
+    let parts = pattern.split("/")
+    let last = parts[parts.length - 1]
+    if (!last.contains("*")) { return "" }
+    return last.substring(0, last.indexOf("*"))
+}
+
+// How many sources a pattern really skips under one source root: 0 when the tree
+// is gone, and never a number the walker did not earn.
+fun sourcesBehind(root, dir, prefix) {
+    let base = "${root}/${dir}"
+    if (!fs.isDirectory(base)) { return 0 }
+    var count = 0
+    var stack = [base]
+    while (stack.length > 0) {
+        let at = stack.pop()
+        for (name in fs.list(at)) {
+            let child = "${at}/${name}"
+            if (fs.isDirectory(child)) {
+                stack.push(child)
+            } else if (name.endsWith(".java") && name.startsWith(prefix)) {
+                count += 1
+            }
+        }
+    }
+    return count
+}
+
+// The source roots of one build file, taken from its `java` blocks: a pattern is
+// relative to a root the source set declares, and a srcDirs that also names
+// src/resources or src/test/java belongs to a different source set and would
+// make a dead exclude look alive.
+fun javaSrcDirs(text) {
+    var out = []
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        let line = lines[i]
+        let open = line.trim()
+        if (open == "java {") {
+            let baseIndent = indentOf(line)
+            i += 1
+            while (i < lines.length) {
+                let inner = lines[i]
+                if (indentOf(inner) <= baseIndent && inner.trim() == "}") { break }
+                let words = inner.trim()
+                if (words.startsWith("srcDir ") || words.startsWith("srcDirs ")) {
+                    for (dir in quotedAll(words)) {
+                        if (!out.contains(dir)) { out.push(dir) }
+                    }
+                }
+                i += 1
+            }
+        }
+        i += 1
+    }
+    return out
+}
+
+// Whether a pattern names a code path at all. Gradle also spells resource
+// filters (`**/*.java`, `**/*.form`), jar entries (`META-INF/...`) and
+// interpolated class files (`${api}/Foo*.class`) with exclude, and those are a
+// packaging decision, not an exclusion AGENTS.md owes the reader: a code path
+// always opens at a lowercase package directory.
+fun packageShaped(pattern) {
+    if (pattern.length == 0) { return false }
+    // Spelled in two pieces: "${" as one literal would open an interpolation
+    // this script has nothing to interpolate.
+    if (pattern.contains("$" + "{")) { return false }
+    if (pattern.endsWith(".class")) { return false }
+    let first = pattern.split("/")[0]
+    if (first.length == 0) { return false }
+    let head = first.charAt(0)
+    if (head < "a" || head > "z") { return false }
+    for (ch in first) {
+        if (ch == "-" || ch == "*") { return false }
+    }
+    return true
+}
+
+// The source excludes of one build file, read only from its `java` blocks for
+// the same reason the roots are: an exclude written anywhere else filters
+// resources or jar entries, not sources the document promised to leave out.
+fun sourceExcludes(text) {
+    var out = []
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        let line = lines[i]
+        if (line.trim() == "java {") {
+            let baseIndent = indentOf(line)
+            i += 1
+            while (i < lines.length) {
+                let inner = lines[i]
+                if (indentOf(inner) <= baseIndent && inner.trim() == "}") { break }
+                let words = inner.trim()
+                if (words.startsWith("exclude ")) {
+                    for (pattern in quotedAll(words)) {
+                        if (packageShaped(pattern) && !out.contains(pattern)) { out.push(pattern) }
+                    }
+                }
+                i += 1
+            }
+        }
+        i += 1
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// the prose surface
+// ---------------------------------------------------------------------------
+
+if (!fs.exists(AGENTS)) { error("${AGENTS} is missing from the repository root", "ViolationError") }
+if (!fs.exists(SETTINGS)) { error("${SETTINGS} is missing", "ViolationError") }
+let agents = fs.read(AGENTS)
+
+// One section: from its header to the next `## ` header.
+fun section(text, header) {
+    let at = text.indexOf(header)
+    if (at < 0) { return "" }
+    let rest = text.substring(at + header.length)
+    let next = rest.indexOf("\n## ")
+    return if (next < 0) rest else rest.substring(0, next)
+}
+
+// The exclusion tokens of a section: the code spans that open a bullet, before
+// the " - " that starts its reason. A bullet's reason carries backticked names
+// too - `SwingNode`, `nativewindow/x11`, `Frame3DToFrontEvent` - and those are
+// replacements and missing classes, not paths the build leaves out.
+fun bulletTokens(body) {
+    var out = []
+    for (line in body.split("\n")) {
+        let words = line.trim()
+        if (!words.startsWith("- `")) { continue }
+        let at = words.indexOf(" - ")
+        let head = if (at < 0) words else words.substring(0, at)
+        for (span in spans(head)) {
+            if (span.contains("/") || span.contains(".")) {
+                if (!out.contains(span)) { out.push(span) }
+            }
+        }
+    }
+    return out
+}
+
+let codeBody = section(agents, CODE_SECTION)
+let incuBody = section(agents, INCU_SECTION)
+if (codeBody.length == 0) { error("${AGENTS} carries no ${CODE_SECTION} section", "ViolationError") }
+if (incuBody.length == 0) { error("${AGENTS} carries no ${INCU_SECTION} section", "ViolationError") }
+
+// The marker introduces the apps that were ported instead of excluded, so each
+// section is read twice: its bullet tokens up to the marker are the exclusion
+// set, and the code spans after it that end in /** are the ported claim. The
+// passage is cut by the marker rather than scanned whole, because a token's
+// section is not a token's role - the same spelling could appear on either side.
+fun upTo(body, marker) {
+    let at = body.indexOf(marker)
+    return if (at < 0) body else body.substring(0, at)
+}
+
+fun after(body, marker) {
+    let at = body.indexOf(marker)
+    return if (at < 0) "" else body.substring(at)
+}
+
+var prose = []
+for (span in bulletTokens(upTo(codeBody, PORTED_MARKER)) + bulletTokens(upTo(incuBody, PORTED_MARKER))) {
+    if (!prose.contains(span)) { prose.push(span) }
+}
+var ported = []
+for (body in [after(codeBody, PORTED_MARKER), after(incuBody, PORTED_MARKER)]) {
+    for (line in body.split("\n")) {
+        for (span in spans(line)) {
+            if (span.endsWith("/**") && !ported.contains(span)) { ported.push(span) }
+        }
+    }
+}
+if (ported.length == 0) { error("no ported, not excluded claim was read from ${AGENTS}, so check 4 has nothing to prove", "ViolationError") }
+if (prose.length == 0) { error("neither exclusion section offers a single path token", "ViolationError") }
+
+// ---------------------------------------------------------------------------
+// the build surface
+// ---------------------------------------------------------------------------
+
+var modules = []
+for (line in fs.lines(SETTINGS)) {
+    if (!line.trim().startsWith("include ")) { continue }
+    let name = quotedAll(line)[0]
+    if (name.length > 0) { modules.push(name) }
+}
+
+var filesRead = []
+var excludes = []
+for (m in modules) {
+    let file = "${m}/build.gradle"
+    if (!fs.exists(file)) { continue }
+    filesRead.push(m)
+    let text = fs.read(file)
+    let roots = javaSrcDirs(text)
+    for (pattern in sourceExcludes(text)) {
+        excludes.push([m, file, pattern, roots])
+    }
+}
+
+var findings = []
+
+// The prose points the reader at two build files by name; if one of them is gone
+// the exclusion set it describes no longer exists either, and a gate that read
+// an empty set would report agreement.
+for (named in ["lg3d-core", "lg3d-incubator"]) {
+    if (!filesRead.contains(named)) {
+        findings.push("${AGENTS} points its reader at ${named}/build.gradle, which is not there to be read")
+    }
+}
+if (excludes.length == 0) {
+    error("no source exclude was read from any module build file, so this gate is reading nothing", "ViolationError")
+}
+
+// 1 and 2: the two vocabularies, both directions.
+// The prose token that explains each exclude, kept for the report: the reader
+// sees the pairing the gate accepted, not only the count it proved.
+var explained = {}
+for (ex in excludes) {
+    var by = ""
+    for (token in prose) {
+        if (covers(ex[2], token)) { by = token; break }
+    }
+    if (by.length == 0) {
+        findings.push("${ex[1]} excludes ${ex[2]}, which ${AGENTS} never explains - a reader would restore it blind")
+    }
+    explained.put("${ex[0]} ${ex[2]}", by)
+}
+for (token in prose) {
+    var applied = ""
+    for (ex in excludes) {
+        if (covers(ex[2], token)) { applied = ex[1]; break }
+    }
+    if (applied.length == 0) {
+        findings.push("${AGENTS} says ${token} is excluded; no build file excludes it - the prose is stale")
+    }
+}
+
+// 3: a pattern whose tree is gone is a pattern nobody needs, unless the script
+// above says why it is kept. The exclude is resolved against every source root
+// its own module declares.
+var rows = []
+for (ex in excludes) {
+    let dir = literalDir(ex[2])
+    let prefix = namePrefix(ex[2])
+    var behind = 0
+    var where = ""
+    for (root in ex[3]) {
+        let count = sourcesBehind("${ex[0]}/${root}", dir, prefix)
+        if (count > 0) { behind = count; where = "${ex[0]}/${root}"; break }
+    }
+    let kept = if (KEPT.has(ex[2])) " guard" else ""
+    if (behind == 0 && !KEPT.has(ex[2])) {
+        findings.push("${ex[1]} excludes ${ex[2]}, which names no source under ${ex[0]} (${dir}) - the tree is gone and the pattern stayed")
+    }
+    if (behind > 0 && KEPT.has(ex[2])) {
+        findings.push("${ex[2]} is kept here as a guard over an absent tree and now holds ${behind} source(s) under ${where} - drop the stale exemption")
+    }
+    rows.push([ex[1], ex[2], explained.get("${ex[0]} ${ex[2]}"), str(behind), kept])
+}
+
+// 4: the ported claim. An app the document says now builds must not also be
+// excluded, or one of the two sentences is false.
+for (token in ported) {
+    for (ex in excludes) {
+        if (covers(ex[2], token)) {
+            findings.push("${AGENTS} claims ${token} was ported and now builds, but ${ex[1]} still excludes it")
+        }
+    }
+}
+
+// The kept guards have to stay true in the other direction too: a pattern
+// exempted here that no build file excludes any more is a sentence about a guard
+// that no longer exists.
+for (pattern in keys(KEPT)) {
+    var stillHere = false
+    for (ex in excludes) {
+        if (ex[2] == pattern) { stillHere = true }
+    }
+    if (!stillHere) {
+        findings.push("${pattern} is documented here as a kept guard and no build file excludes it")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// report
+// ---------------------------------------------------------------------------
+
+println("${str(excludes.length)} source exclude(s) across ${str(filesRead.length)} module build file(s); ${str(prose.length)} exclusion token(s) and ${str(ported.length)} ported claim(s) in ${AGENTS}; ${str(KEPT.size())} guard(s) documented here")
+for (row in rows) {
+    let who = if (row[2] == null || row[2].length == 0) "NOT IN THE PROSE" else row[2]
+    println("  ${row[0].padEnd(30)} ${row[1].padEnd(52)} ${who}  (${row[3]} source(s)${row[4]})")
+}
+for (token in ported) {
+    println("  ported, not excluded: ${token}")
+}
+
+if (findings.length == 0) {
+    println("the exclusion set in the prose and in the build are the same set")
+} else {
+    for (f in findings) { println("  exclusion gap: ${f}") }
+    error("${findings.length} exclusions finding(s)", "ViolationError")
+}

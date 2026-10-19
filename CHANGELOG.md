@@ -10,6 +10,240 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **`ui-strings.mnd` — a Mandela report on the screen text that never asks the bundle** (`scripts`, `lg3d-mandela`) —
+  `i18n-keys.mnd` can only audit the keys a source *asks* for, and `Messages.tr()`
+  degrades safely — a missing key echoes the key — so a label that skips the
+  bundle is not an error at build time or at runtime either: it is simply English,
+  forever, and nothing in the repository counted how many there are. The report
+  reads the one piece of evidence a source gives: a string literal written into
+  the argument slot of a widget constructor, a text setter, a `JOptionPane`
+  message (the *second* argument, after the parent component) or a panel's own
+  status helper, and prints it beside the slot that asks the bundle instead — per
+  module, per surface, and ranked per file, so the output is the schedule a person
+  works through rather than a list of violations. Its 21-name vocabulary was
+  measured before it was written down, and three families were left out on
+  evidence rather than taste: 32 of 32 `error(` and all 183 `info(` sites, and 71
+  of 90 `warn(` sites, carry a `LOG.`/`log.`/`logger.` receiver, so their argument
+  is a log line and not a label; `Container.add("…")` is a desktop-entry section
+  header or a diagnostic collected into a list; and `JMenu`/`setTipText` have no
+  literal call site at all. Four buckets are defined in the header, because a
+  grep and a report must not be read as disagreeing: prose, single word (`"OK"`,
+  `"#ff0000"`, a value or a label, and only a reader can tell), blank (a
+  spaces-only `new JLabel("   ")` is a spacer no translator would ship) and
+  excluded (a path the module's own build file leaves out renders for nobody).
+  Its first run read 2,842 sources and counted **1,314 prose literals against 20
+  bundle lookups**: `lg3d-apps` carries 1,178 of them and `lg3d-core` 12, because
+  the shell is the half that was made translatable, and the schedule starts at
+  `DockerManagementPanel` (74), `MessengerPanel` (55) and `VideoConferencePanel`
+  (52). Every number was checked against an independent `grep` pass — the source
+  count and each surface count exact, or explained by two calls on one line, and
+  the 20 lookups exact — and that check found **two defects in the report
+  itself**, both fixed here: the three `JOptionPane` names were in the dialog list
+  but not in the vocabulary, so the 40 dialog messages it now counts were
+  invisible, and the cheap per-line gate tested for a quote, which hid a lookup
+  built from data (`subMenu.setToolTipText(Messages.trLgcfgDesc(child.getName(),
+  …))`) until gate and classifier were made to read one marker list. 37 legacy
+  Latin-1 sources do not decode as text and are named, the same blind spot
+  `i18n-keys.mnd` reports. It is a **report, not a gate** — it always exits 0 and
+  is wired as `:lg3d-mandela:uiStrings`, deliberately outside
+  `repositoryChecks`, because a literal in a constructor is a screen to translate
+  and not a defect — documented in the scripts `README.md` and in `AGENTS.md`
+  beside `i18n-keys.mnd`, the question it answers.
+- **`help-topics.mnd` — a Mandela gate on the Help Center's JavaHelp bundle as one graph** (`scripts`, `lg3d-mandela`) —
+  The Help Center is `javax.help` over five hand-written copies of one fact:
+  `lg3d-help.hs` names the homeID, the map and the three navigators, `map.jhm`
+  pairs every target with the topic that answers it, `toc.xml` spells Contents,
+  `index.xml` spells the keyword index, the 19 topics link each other, the
+  stylesheet and their images by relative path — and `HelpContentTest.java`
+  re-writes the target list and the file list again as two Java arrays. JavaHelp
+  reports a broken edge by showing nothing: a target the map does not carry is a
+  Contents row that does nothing when a reader clicks it, a topic no `mapID` names
+  is a page the indexer globs into `JavaSearch` that no navigator can reach, a
+  homeID the map lacks is a Help Center that opens on a blank pane, and a topic
+  added to the directory but left out of the test's arrays keeps the suite green
+  while the reader never finds it. Nine checks: the build file's own
+  `helpContentDir` / `include '*.html'` / `into '…/JavaSearch'` literals as a
+  *premise*; the HelpSet's homeID, mapref, navigator `data` and title against
+  `HelpCenterPanel`'s `HELPSET_PATH` and `HOME_ID` and the assertion the headless
+  test copies; each target declared once with its url on disk and no topic left
+  unnamed; Contents in both directions; the Index in both directions, with no
+  target-less leaf, no target unreachable by keyword and the alphabetical order
+  `index.xml`'s own comment promises, checked level by level; a `<title>`, an
+  `<h1>` and the stylesheet link in every topic; every relative `href`, `src` and
+  `#fragment` resolving against the file or the anchor it names; the Contents
+  label echoing the heading the reader actually lands on, except for `overview`
+  and `whats-new`, which are written into the script's `LABEL_EXEMPT` with their
+  reasons — where an exemption that stops being true is itself the finding, the
+  discipline `exclusions.mnd` and `coverage-floors.mnd` apply; and the test's two
+  arrays paired with the map and the directory, both ways. Wired as
+  `:lg3d-mandela:helpTopicsCheck` inside `repositoryChecks` (fifteen gates become
+  sixteen). It ships **green over 19 targets, 108 index entries and 117 relative
+  links with no defect to report**, so what it records is one judgement instead:
+  `help/resources/images/lg3d-wm-usage.de.png` is named by no topic and no source,
+  printed and never failed, because only a reader knows whether a translation is
+  pending or the file is dead weight in the jar. Proven by planting **20 defects**
+  and reverting each — the premise literal moved, a `mapID` url aimed at a missing
+  file, a target declared twice, an undeclared target in Contents and in the Index,
+  a target no keyword reaches, an index leaf with neither target nor children, an
+  entry out of alphabetical order, a topic that stopped linking the stylesheet, a
+  dead `#fragment`, a dead image `src`, a topic with no `<title>`, a Contents label
+  the page does not carry, a label exemption that no longer holds, a homeID the map
+  does not declare, the panel's `HOME_ID` and `HELPSET_PATH` drifted, the HelpSet
+  title drifted from the assertion, a navigator's data file missing, a target
+  dropped from `TARGETS` — each naming the file it found. Writing it also corrected
+  a defect in the gate itself: its tag walker advanced its consumed offset by the
+  distance to `>` but not by the length of the tag name, which slid every later
+  indent back by ten characters and made the two nesting-dependent checks report
+  two false gaps on a bundle that had none.
+- **`branch-hygiene.mnd` — a Mandela report on which branches are left on one side of this repository** (`scripts`, `lg3d-mandela`) —
+  `AGENTS.md` states the rule twice: a merge is not finished until the branch is
+  gone from **both** sides, because a stale local that outlives its merged PR is
+  how a later commit lands on a dead branch and comes back cherry-picked under a
+  second SHA. The check today is a human remembering to type `git branch --merged`,
+  `git cherry` and `gh pr list`, and none of that is visible to a compiler or a CI
+  step. But git keeps its own answer in files — a branch *is* a one-line text file
+  under `.git/refs/heads/`, a remote-tracking branch is the same under
+  `refs/remotes/origin/`, and `packed-refs` holds the folded ones with the loose
+  file winning, since git repacks lazily and the packed copy still names the tip a
+  branch had *before* its last commit. So the report reads exactly what git reads,
+  which is also the only option: the language reserves a `PROCESS` grant it has no
+  function for, so no Mandela script can spawn `git` even to try. Five sections —
+  the checked-out branch (and a detached HEAD, the one case where a commit belongs
+  to no ref at all), locals with no `origin/` counterpart, locals whose tip *is*
+  `origin/main`'s tip and therefore provably carry no unique work without asking
+  the object graph, two local names on one commit (the cherry-pick signature), and
+  `origin/` entries no local holds. It is a **report and not a gate**, wired as
+  `:lg3d-mandela:branchHygiene` and deliberately outside `repositoryChecks`: refs
+  prove existence and SHA equality and never *ancestry*, so the script prints
+  `git fetch --prune`, `git cherry` and `gh pr list` beside its own numbers instead
+  of calling an entry a defect, and says twice that `refs/remotes/origin` is a
+  cache correct only as of the last fetch — the reason a merged PR can still look
+  alive here. Its first run named 9 local-only branches and 4 `origin/` entries;
+  verified by hand, GitHub carries only 3 heads (so 3 of those 4 are cache for
+  already-merged PRs), `origin/feat/wonderland-p32-gpu-bloom` is `MERGED` yet still
+  on the remote — `--delete-branch` was not applied — and `git cherry` gives 8 of
+  the 9 locals unique commits, 5 of them from **closed** PRs which must not be
+  pruned, leaving exactly one (`feat/release-notes-and-site`, 0 unique commits, PR
+  `#378` merged) as the stale local the rule warns about. Documented in the scripts
+  `README.md` and in `AGENTS.md`, both under *Branch hygiene is part of merging*.
+- **`gate-new.mnd` — a Mandela generator that scaffolds the next gate in the shape the shipped ones already have** (`scripts`, `lg3d-mandela`) —
+  fifteen gates in `scripts/mandela` share five parts, and the two a person forgets
+  are not the syntax: `ShippedScriptsTest` already pins the shebang, the
+  `// name.mnd — what it is for` line and an invocation that names `-s`, so what
+  rots is the *premise* — the check that fails loudly when the file a gate reads
+  its answer from has moved, without which a vanished authority is reported as a
+  clean tree — and the prose paragraph that says why the two surfaces can drift
+  and what the mismatch costs a user. `gate-new.mnd my-check` writes
+  `scripts/mandela/my-check.mnd` with all of that in place, derives the Gradle
+  task name from the same word (`my-check` → `myCheckCheck`, so nobody is asked to
+  invent a second name for one tool), cleans a sloppy argument the way
+  `deck-new.mnd` does (`My_Bad Name_.mnd` → `my-bad-name`) and refuses to
+  overwrite a gate someone may already be editing. It is a **generator, not a
+  gate**: it writes the one file and *prints* the three edits it deliberately does
+  not make — the `mandelaCheck(...)` registration, its `repositoryChecks` entry
+  and the README row — because a tool that rewrote `lg3d-mandela/build.gradle`
+  would have `scripts-hygiene.mnd` auditing its own work rather than the author's,
+  and that gate is exactly what goes red while a scaffold sits unwired. Proven end
+  to end on this tree: the generated file compiled under the same `check` the build
+  runs, ran green, then failed with exit 2 once its `AUTHORITY` was pointed at a
+  file that does not exist, and leaving it unwired produced the single
+  `scripts-hygiene` finding its own header promises. Documented in the scripts
+  `README.md` (including in *Adding a script*, which now starts from the scaffold)
+  and in `AGENTS.md` beside the two generators of its kind.
+- **`bgconfigs.mnd` — a Mandela gate on the Background Manager's menu against the art the tree ships** (`scripts`, `lg3d-mandela`) —
+  One flat list, `bgmanager/res/BgConfig.xml`, names every background by a
+  `resources/Backgrounds/<Name>/LgBgConf.lgbg` classpath URL, each `.lgbg` names
+  its thumbnail and its panorama faces the same way, and
+  `:lg3d-core:runtimeResources` relocates the whole tree under the top-level
+  `resources/` prefix — that spelling is the only one the classloader lookup
+  accepts. Two SAX readers sit at the end of that chain and neither is forgiving:
+  `BgConfigFileReader` throws `Wrong tag` on any element but
+  `<BgManagerConfig>`/`<BGURL>` and appends every URL **without de-duplicating**,
+  and `BgFileReader` throws `Undefined Tag` on anything outside its thirteen
+  names, so one stray element is not one lost background but a stack trace and an
+  empty picker, while one repeated URL silently offers the same panorama twice.
+  None of it is visible to the compiler, and all of it is visible in the files.
+  Eight checks: only the elements the config reader knows (plus no `<` followed
+  by whitespace, which SAX rejects before any element is read), no duplicated
+  `<BGURL>`, every URL naming a descriptor that exists, every descriptor named by
+  a URL, every directory under `Backgrounds/` holding one, every element of every
+  `.lgbg` inside `BgFileReader`'s own vocabulary, the required elements present
+  with a `BGType` among the three it compares against and numbers `Integer`
+  and `Float` can actually parse, and every `resources/…` image reference
+  resolving through the mapping — which the script reads back from
+  `lg3d-core/build.gradle` as a *premise*, so the day the task stops relocating
+  those directories the gate says so instead of enforcing a rule the build no
+  longer applies. Wired as `:lg3d-mandela:bgConfigsCheck` inside
+  `repositoryChecks` (fourteen gates become fifteen); the two defects its first
+  run found are the *Fixed* entry below. Green at 48 `<BGURL>` entries, 48
+  directories and 48 descriptors in exact agreement with 173 image references
+  resolving, and proven by planting an unknown element, a `<` with a space after
+  it, a descriptor no `<BGURL>` names, a missing `<Name>`, a fourth `BGType`
+  value and an unresolvable image path — each one fails.
+- **`exclusions.mnd` — a Mandela gate that the exclusion set in the prose is the exclusion set in the build** (`scripts`, `lg3d-mandela`) —
+  this file's *Code Exclusions* and *Incubator Exclusions* sections name the code
+  paths the build leaves out, and every module's `build.gradle` writes the same
+  fact again as `exclude 'org/…'` lines inside a `java` source set. Nothing made
+  the two agree, and the document admitted the gap itself ("it has been stale
+  before"): an exclude no prose explains is a reader who restores the tree and
+  inherits its JDK 21 defect blind, and a prose token no build applies promises an
+  exclusion for sources that are already compiled into the jar. The gate reads
+  both surfaces, pairs them on *path segments* rather than strings — so `sun/**`
+  explains `sun.awt.*`, `apps/browser/**` explains the build's own spelling, and
+  `apps/browser/**` provably never matches `apps/browser3d/**` — and checks the
+  "Ported, not excluded" claim against the same set. It also asks whether a
+  pattern still names a tree: that found **one real dead exclude**,
+  `org/jdesktop/lg3d/apps/x11integration/**`, inherited from the 2006 `build.xml`
+  and repeated in four documents, over a package that has no sources anywhere in
+  the repository or anywhere in its git history; the line stays as the guard that
+  keeps a restored legacy tree out, recorded with that reason in the script's
+  `KEPT` map — the same discipline `run-classpath.mnd` and `legacy-j3d.mnd` apply
+  to a deliberate absence, where an entry that stops being true is itself a
+  finding. Wired as `:lg3d-mandela:exclusionsCheck` in `repositoryChecks`; green
+  over 14 exclude(s) paired 1:1 with 14 prose tokens, and proven by planting an
+  undocumented exclude, a deleted one the prose still claims and an exclude on a
+  ported app, which fail as 5 findings in one run.
+- **`run-classpath.mnd` — a Mandela gate on the two hand-written copies of the desktop classpath** (`scripts`, `lg3d-mandela`) —
+  `:lg3d-core:run` assembles its `classpath` by hand — module jars plus a dozen
+  detached configurations — because the desktop launches start-menu apps *in its own
+  JVM* and a Maven dependency of `lg3d-apps` never reaches that JVM on its own;
+  `releaseBundle` then writes the same list a second time, because the released
+  launcher runs `-cp "${HERE}/lib/*"` and a jar absent from `lib/` is simply not on
+  the released desktop's classpath. Two hand-written copies of one truth is the
+  defect this port has now hit three times (OpenJFX, POI, JNA): an app that works
+  under `./gradlew :lg3d-core:run` and dies with `NoClassDefFoundError` on the
+  user's machine. The script reads `lg3d-core/build.gradle` twice and
+  `settings.gradle` once, then runs seven checks in both directions — the module
+  jars each side carries, a jar shipped outside `lib/` must be handed to the dev run
+  by a `systemProperty` too, every included module is carried somewhere or carries a
+  written reason, the third-party coordinates, the vendored `ext/` allow-list (both
+  copies must agree and every jar named must exist, since a misspelled include
+  silently copies nothing), and the run task must depend on every jar it puts on the
+  classpath. It asserts its own premise first: if `lib/*` stops being the released
+  classpath, the two module checks prove nothing. Wired as
+  `:lg3d-mandela:runClasspathCheck` inside `repositoryChecks`; its first run over
+  this tree is the *Fixed* entry below.
+- **`coverage-floors.mnd` — a Mandela gate on what the coverage floors may claim** (`scripts`, `lg3d-mandela`) —
+  The root `coverageFloors` map is load-bearing in two directions that nothing
+  checked: `check` runs `jacocoTestCoverageVerification` only for a module named
+  there, so a module that gains a suite and no floor is measured but never guarded,
+  while a floor for a module with no suite names a rule that can never fire —
+  protection advertised, not delivered. A suite means at least one `.java` under
+  `src/test/java`, because an empty directory makes the Gradle test task `NO-SOURCE`
+  and JaCoCo never runs; `:lg3d-terminal:test` was exactly that and no surface said
+  so. A module with a suite and a deliberate exemption must carry its reason in the
+  script the way `legacy-j3d.mnd` scopes its exemptions, and an exemption that stops
+  being true is itself a finding. A fourth surface is compared: the floors quoted in
+  root `AGENTS.md` *Test coverage* prose against the map the build enforces, so a
+  bump that leaves the prose behind tells a reader a number nothing guards. Wired as
+  `:lg3d-mandela:coverageFloorsCheck`; it ships green over 16 floor(s) in 19
+  module(s) with one documented exemption (`lg3d-apps`, whose panels are
+  probe-verified against a live desktop), and it was proven in both directions at
+  once by moving `lg3d-widgets`' floor onto `lg3d-terminal`, which fails twice in a
+  single run. The two gates together take `repositoryChecks` from eleven to thirteen
+  and are documented in the scripts `README.md` and root `AGENTS.md` —
+  `scripts-hygiene.mnd` is the gate that named the omission the moment the scripts
+  were committed without their rows.
 - **Espresso can now clear a corrupted Gradle cache directly from the toolbar** (`lg3d-apps`) —
   A new *Clear Gradle Cache* toolbar action (`gradle-clear-cache`) deletes
   `~/.gradle/caches` to fix the common "Could not open cp_proj generic class
@@ -2663,6 +2897,32 @@ work to make it build and run on a current toolchain.
   proves both are documented and the gate is in the aggregate.
 
 ### Fixed
+- **The Background Manager offered the same panorama twice, and shipped a background directory nothing reads** (`lg3d-incubator`) —
+  found by `scripts/mandela/bgconfigs.mnd` as it was written. `BgConfigFileReader`
+  appends every `<BGURL>` it reads without de-duplicating, and
+  `res/BgConfig.xml` listed `resources/Backgrounds/PyramidLakeSunrise/LgBgConf.lgbg`
+  twice, so the picker showed one panorama as two menu entries — the duplicate
+  line is gone. The second defect was invisible from the config: the directory
+  `Backgrounds/DreamLakeReflrctions/` (the name misspelled) held a single JPEG and
+  no `LgBgConf.lgbg`, so nothing could ever list it, while `runtimeResources`
+  relocated its art into the shipped classpath tree regardless. That JPEG was
+  byte-identical to `lg3d-core/src/resources/images/background/DreamLakeReflections.jpg`,
+  which is the copy the desktop wallpaper cycle, the glassy taskbar and the
+  Control Center's Appearance/Schedule panels actually resolve — so the relocated
+  file was dead weight in every bundle, read by no code and no menu. The
+  directory is deleted; the wallpaper itself is untouched, and the gate now fails
+  if a background directory appears in the tree with no descriptor to offer it.
+- **The released desktop could not open a Terminal: `releaseBundle` shipped neither the `lg3d-terminal` jar nor JNA** (`lg3d-core`) —
+  PR #428 put `lg3d-terminal` and `net.java.dev.jna:jna` / `jna-platform` on the
+  hand-assembled `:lg3d-core:run` classpath, which is why the Terminal opened under
+  `./gradlew :lg3d-core:run`. The release bundle's `lib/` never got them, so the
+  shipped `-cp "${HERE}/lib/*"` offered a start-menu entry whose classes — and whose
+  PTY library, since `com.sun.jna.Native` behind `forkpty` is what allocates the
+  shell — were not on the classpath: `NoClassDefFoundError` on the first shell, on
+  the user's machine, and invisible to CI because nothing compared the two lists.
+  Both copies now carry all three, the bundle's own comment inventory names JNA
+  beside JSch, and `scripts/mandela/run-classpath.mnd` is the gate that keeps them
+  equal.
 - **A Gradle/Maven project carrying its own distribution no longer reports "not available"** (`lg3d-apps`) —
   `BuildTools.launcher` resolved a build tool by checking for a file literally
   named `gradlew`/`mvnw` at the project root and then falling back to `gradle`/

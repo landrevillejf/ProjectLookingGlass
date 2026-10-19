@@ -1,0 +1,454 @@
+#!/usr/bin/env mandela
+// ui-strings.mnd — the strings a user reads that never reached Messages.tr().
+//
+// i18n-keys.mnd proves the *bundle* contract: every key a source asks for
+// exists, and the French bundle carries the same keys with the same
+// placeholders. It cannot ask the other question, the one that decides whether
+// a French user sees French: how much of the desktop never asks for a key at
+// all. Messages.tr() degrades safely — a missing key echoes the key — so an
+// untranslated label is not an error anywhere, not at build time and not at
+// runtime; it is simply English, forever. This report counts that, per module,
+// per surface and per file, from the only evidence a source gives: a widget
+// constructor or a text setter whose argument is a string literal written in
+// place rather than looked up.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/ui-strings.mnd -s .
+//     ./gradlew :lg3d-mandela:uiStrings
+//
+// It is a REPORT and never a gate: it always exits 0. A literal in a
+// constructor is not a defect — the string may be a value rather than a label
+// ("0", "#ff0000", a path, a format pattern), a name that is deliberately not
+// translated, or prose no user reads. Only a person deciding which screens
+// ship translated can call one of these numbers a defect, which is why the
+// output is a schedule ranked by size rather than a list of violations.
+//
+// What it counts, and what it therefore admits it cannot see:
+//   - the vocabulary is the setters and constructors a Swing label actually
+//     goes through, the app-local helpers that write to one, and the
+//     JOptionPane trio - whose message is the *second* argument, after the
+//     parent, so it is classified one step further along the line;
+//   - only an argument in *that* call's own source text is classified, so a
+//     label built three lines above and passed as a variable is invisible, and
+//     so is an argument that begins on the next line;
+//   - a source that does not decode as text is skipped and named, the same
+//     blind spot i18n-keys.mnd reports;
+//   - a path the module's own build file excludes is counted separately,
+//     because a string in code that never compiles is one nobody reads.
+//
+// The four buckets a literal falls into, so the totals can be read without
+// guessing (they are also why a plain grep for `setText("…")` finds a slightly
+// larger prose count: a grep calls a spaces-only literal prose):
+//   - prose: the literal holds a space and is not spaces only, so it is a
+//     phrase a person reads on screen;
+//   - single word: one word ("OK", "#ff0000", "docker", a path fragment), which
+//     may be a label or may be a value - only a reader can tell, which is why
+//     this is a report and not a gate;
+//   - blank: empty, or spaces only - `new JLabel("   ")` is a spacer, not a
+//     string a translator would ship;
+//   - excluded: the source sits under a path its own module's build file
+//     excludes, so nothing renders it and nobody reads it.
+//
+// Three families of call were measured and deliberately left out of the
+// vocabulary, because counting them would report screen text that is not:
+//   - error(), info(), warn() and hint() look like the app-local helpers they
+//     partly are, but 32 of 32 error( and all 183 info( sites, and 71 of 90
+//     warn( sites, carry a LOG./log./logger./perfLogger. receiver: their
+//     argument is a log line, not a label. The bare warn("…") helpers in two
+//     control-center panels are therefore a known undercount, and hint() is
+//     left out because the same name also belongs to an X11 WM_CLASS setter.
+//   - Container.add("…") is a desktop-entry section header or a diagnostic
+//     collected into a List, not text a widget shows.
+//   - a name with no literal call site is not listed either, so JMenu and
+//     setTipText are absent: the menu titles this tree builds all come from a
+//     variable or a lookup.
+
+use std.fs
+
+// The two files that make the question meaningful. Read as a premise: the
+// report says out loud when either has moved, because then it is counting a
+// mechanism the tree no longer has.
+let TR_SOURCE = "lg3d-core/src/classes/org/jdesktop/lg3d/i18n/Messages.java"
+let BASE = "lg3d-core/src/classes/org/jdesktop/lg3d/i18n/messages.properties"
+
+// Never a shipped source: build output, vendored code, the two trees nothing
+// compiles (the historical docs' samples and the retired AWT toolkit).
+let SKIP_DIRS = ["build", "build-gradle", "libs", "ext", "node_modules", "target",
+                 "lg3d-docs", "lg3d-awt"]
+
+// The names a string becomes screen text through, and the surface each one is.
+// Everything here was measured in the tree before it was written down; a name
+// with no call site is not listed.
+let NAMES = {}
+NAMES.put("setText", "text of a field, label or status line")
+NAMES.put("setTitle", "window / panel / dialog title")
+NAMES.put("setToolTipText", "tool tip")
+NAMES.put("setStatus", "app status line (the per-panel helper)")
+NAMES.put("setHint", "hint line")
+NAMES.put("setMessage", "message area")
+NAMES.put("setError", "error line")
+NAMES.put("setInfo", "information line")
+NAMES.put("setSummary", "summary line")
+NAMES.put("setDescription", "description text")
+NAMES.put("addTab", "tab title")
+NAMES.put("createTitledBorder", "group-box border title")
+NAMES.put("JLabel", "label")
+NAMES.put("JButton", "button")
+NAMES.put("JMenuItem", "menu item")
+NAMES.put("JCheckBox", "check box")
+NAMES.put("JRadioButton", "radio button")
+// The app-local helpers that write to a message line. `message` is here and
+// `error`/`warn`/`info` are not for the reason named above: every one of their
+// call sites that this tree has is a logger, while `message(` has none.
+NAMES.put("message", "app message line (the per-panel helper or result builder)")
+// The JOptionPane trio take their message as the *second* argument, after the
+// parent component, so they are classified one step further along the line.
+// They must also be in NAMES: the scan looks a call site up there first, so a
+// name missing from NAMES is not a dialog with no hits, it is a dialog nobody
+// sees, and the list below would then be read but never consulted.
+NAMES.put("showMessageDialog", "modal message dialog")
+NAMES.put("showConfirmDialog", "confirm dialog, the question")
+NAMES.put("showInputDialog", "input dialog, the prompt")
+let DIALOGS = ["showMessageDialog", "showConfirmDialog", "showInputDialog"]
+
+// How a source asks the bundle for text. One list, read both by the cheap line
+// gate below and by the per-call-site test, so the gate can never hide a lookup
+// the classifier would have recognised. Measured here: `Messages.tr` is the only
+// spelling that appears outside the class that defines it - trOrDefault and the
+// bare tr() live on three lines of Messages.java itself, each carrying a key
+// literal - so the list is short without being wrong.
+let LOOKUP_MARKERS = ["Messages.tr"]
+
+// Characters that end an identifier. Mandela has no regex, so the name in front
+// of a '(' is read back by hand until one of these: `this.setText(` yields
+// setText, `BorderFactory.createTitledBorder(` yields createTitledBorder and
+// `new JLabel(` yields JLabel, which is what makes one lookup per call site
+// enough instead of one search per vocabulary name.
+let BREAK = " \t.<>=(),;{}[]\"&|!'+-*/%?"
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+fun isSkipped(name) {
+    name in SKIP_DIRS || name.startsWith(".")
+}
+
+// Every .java under a src/classes tree, recursively. The same scope rule
+// i18n-keys.mnd uses, because that is the code the shell and the apps ship.
+fun javaSources(dir, found) {
+    for (name in fs.list(dir)) {
+        if (isSkipped(name)) { continue }
+        var path = "${dir}/${name}"
+        if (dir == ".") { path = name }
+        if (fs.isDirectory(path)) {
+            javaSources(path, found)
+        } else if (name.endsWith(".java") && path.contains("/src/classes/")) {
+            found.push(path)
+        }
+    }
+    return found
+}
+
+// The identifier ending just before the character at index `at`.
+fun identifierBefore(text, at) {
+    var i = at
+    while (i > 0) {
+        let ch = text.charAt(i - 1)
+        if (BREAK.indexOf(ch) >= 0) { break }
+        i -= 1
+    }
+    return text.substring(i, at)
+}
+
+// The index of the first character that is not a space, at or after `from`.
+fun pastSpaces(text, from) {
+    var i = from
+    while (i < text.length && (text.charAt(i) == " " || text.charAt(i) == "\t")) {
+        i += 1
+    }
+    return i
+}
+
+// The closing quote of a Java string literal that opens at `open`, honouring
+// the one escape that appears in these sources: a quoted character inside a
+// message. Returns -1 when the literal never closes on this line, which is what
+// a multi-line concatenation looks like — counted as prose by its first piece.
+fun closeQuote(text, open) {
+    var i = open + 1
+    while (i < text.length) {
+        let ch = text.charAt(i)
+        if (ch == "\\") {
+            i += 2
+            continue
+        }
+        if (ch == "\"") { return i }
+        i += 1
+    }
+    return -1
+}
+
+// The first comma after `from` that is outside a string literal and outside any
+// nested parentheses: where the JOptionPane message argument begins.
+fun firstComma(text, from) {
+    var i = from
+    var depth = 0
+    var inString = false
+    while (i < text.length) {
+        let ch = text.charAt(i)
+        if (inString) {
+            if (ch == "\\") { i += 2; continue }
+            if (ch == "\"") { inString = false }
+        } else if (ch == "\"") {
+            inString = true
+        } else if (ch == "(") {
+            depth += 1
+        } else if (ch == ")") {
+            if (depth == 0) { return -1 }
+            depth -= 1
+        } else if (ch == "," && depth == 0) {
+            return i
+        }
+        i += 1
+    }
+    return -1
+}
+
+// Whether a line mentions the bundle at all - the cheap half of the gate, and
+// the reason a lookup is still seen on a line that carries no quote, such as
+// `subMenu.setToolTipText(Messages.trLgcfgDesc(child.getName(), child.getDesc()))`.
+fun isLookupLine(line) {
+    for (spelling in LOOKUP_MARKERS) {
+        if (line.contains(spelling)) { return true }
+    }
+    return false
+}
+
+// Whether the text at `at` reads as a bundle lookup rather than a literal.
+fun isLookup(text, at) {
+    let rest = text.substring(at)
+    for (marker in LOOKUP_MARKERS) {
+        if (rest.startsWith(marker)) { return true }
+    }
+    return false
+}
+
+// The top-level module a source path belongs to: the first path segment.
+fun moduleOf(path) {
+    let at = path.indexOf("/")
+    if (at < 0) { return path }
+    return path.substring(0, at)
+}
+
+// The source path relative to its module's src/classes, which is what an
+// Ant-style exclude in the module's own build file is written against.
+fun relative(path) {
+    let key = "/src/classes/"
+    let at = path.indexOf(key)
+    if (at < 0) { return path }
+    return path.substring(at + key.length)
+}
+
+// The package prefixes one module's build file excludes. Only patterns that
+// name a path are honoured: a `**/*.java` in a *test* source set starts with a
+// wildcard and would otherwise empty the module, and a jar-task exclude such as
+// `META-INF/...` names no source at all. A pattern is cut at its first `*`, so
+// `Ode*.java` becomes the prefix `.../j3dnodes/Ode`.
+fun excludePrefixes(buildText) {
+    var out = []
+    for (line in buildText.split("\n")) {
+        let marker = "exclude '"
+        let at = line.indexOf(marker)
+        if (at < 0) { continue }
+        let open = at + marker.length
+        let close = line.indexOf("'", open)
+        if (close < 0) { continue }
+        let pattern = line.substring(open, close)
+        if (pattern.startsWith("**")) { continue }
+        let star = pattern.indexOf("*")
+        var prefix = pattern
+        if (star >= 0) { prefix = pattern.substring(0, star) }
+        if (prefix.length > 0) { out.push(prefix) }
+    }
+    return out
+}
+
+// One counter map per module, created on first sight.
+fun bump(counts, key) {
+    var seen = 0
+    if (counts.has(key)) { seen = counts.get(key) }
+    counts.put(key, seen + 1)
+}
+
+// ---------------------------------------------------------------------------
+// the premise
+// ---------------------------------------------------------------------------
+
+var warnings = []
+if (!fs.exists(TR_SOURCE)) {
+    warnings.push("${TR_SOURCE} is gone, so Messages.tr() no longer exists and every literal below is simply how the tree writes text")
+}
+if (!fs.exists(BASE)) {
+    warnings.push("${BASE} is gone, so there is no base bundle for a translated label to come from")
+}
+
+// ---------------------------------------------------------------------------
+// the walk
+// ---------------------------------------------------------------------------
+
+let sources = javaSources(".", [])
+
+// Which sources the build leaves out, read from the module that carries them.
+var excludes = {}
+var moduleFiles = {}
+for (src in sources) {
+    let modName = moduleOf(src)
+    if (!excludes.has(modName)) {
+        var prefixes = []
+        let build = "${modName}/build.gradle"
+        if (fs.exists(build)) { prefixes = excludePrefixes(fs.read(build)) }
+        excludes.put(modName, prefixes)
+        moduleFiles.put(modName, 0)
+    }
+    moduleFiles.put(modName, moduleFiles.get(modName) + 1)
+}
+
+var prose = {}
+var token = {}
+var blank = {}
+var lookup = {}
+var unbuild = {}
+var unreadable = []
+var fileProse = {}
+var surfaceHits = {}
+var skippedPrefixes = []
+for (pack in excludes.keys()) {
+    for (prefix in excludes.get(pack)) { skippedPrefixes.push("${pack}/src/classes/${prefix}") }
+}
+
+// The per-file work, in one pass over the line. One cheap gate first: a call
+// site needs a '(' on the line, and then either a '"' (a literal written in
+// place) or the bundle's own name (a lookup). Testing the lookup marker only
+// when the quote is absent keeps the identifier walk off the lines that carry
+// neither, which is the whole cost of a scan over 2800 sources.
+for (src in sources) {
+    let ownModule = moduleOf(src)
+    let mine = relative(src)
+    var built = true
+    for (prefix in excludes.get(ownModule)) {
+        if (mine.startsWith(prefix)) { built = false }
+    }
+    var lines = []
+    try {
+        lines = fs.lines(src)
+    } catch (e) {
+        unreadable.push(src)
+        continue
+    }
+    for (line in lines) {
+        if (!line.contains("(")) { continue }
+        if (!line.contains("\"") && !isLookupLine(line)) { continue }
+        var from = 0
+        loop {
+            let at = line.indexOf("(", from)
+            if (at < 0) { break }
+            from = at + 1
+            let callName = identifierBefore(line, at)
+            if (!NAMES.has(callName)) { continue }
+            // Where the text argument lives: straight after '(' for a setter or
+            // a constructor, one argument further for a JOptionPane dialog.
+            var argAt = pastSpaces(line, at + 1)
+            if (callName in DIALOGS) {
+                let comma = firstComma(line, at + 1)
+                if (comma < 0) { continue }
+                argAt = pastSpaces(line, comma + 1)
+            }
+            if (argAt >= line.length) { continue }
+            if (isLookup(line, argAt)) {
+                bump(lookup, ownModule)
+                continue
+            }
+            if (line.charAt(argAt) != "\"") { continue }
+            let end = closeQuote(line, argAt)
+            var value = ""
+            if (end < 0) {
+                value = line.substring(argAt + 1)
+            } else {
+                value = line.substring(argAt + 1, end)
+            }
+            bump(surfaceHits, callName)
+            // The order is the definition above: an excluded source is counted
+            // nowhere else, and isBlank() is whitespace rather than emptiness, so
+            // a spaces-only literal lands in blank and never in prose.
+            if (!built) {
+                bump(unbuild, ownModule)
+            } else if (value.isBlank()) {
+                bump(blank, ownModule)
+            } else if (value.contains(" ")) {
+                bump(prose, ownModule)
+                bump(fileProse, src)
+            } else {
+                bump(token, ownModule)
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// the report
+// ---------------------------------------------------------------------------
+
+var totalProse = 0
+var totalToken = 0
+var totalBlank = 0
+var totalLookup = 0
+var totalUnbuild = 0
+for (tree in moduleFiles.keys()) {
+    var p = 0
+    if (prose.has(tree)) { p = prose.get(tree) }
+    var t = 0
+    if (token.has(tree)) { t = token.get(tree) }
+    var b = 0
+    if (blank.has(tree)) { b = blank.get(tree) }
+    var l = 0
+    if (lookup.has(tree)) { l = lookup.get(tree) }
+    var u = 0
+    if (unbuild.has(tree)) { u = unbuild.get(tree) }
+    totalProse += p
+    totalToken += t
+    totalBlank += b
+    totalLookup += l
+    totalUnbuild += u
+    if (p + t + b + l + u > 0) {
+        println("  ${tree.padEnd(20)} ${moduleFiles.get(tree)} source(s): ${p} prose literal(s), ${t} single word, ${b} blank, ${l} bundle lookup(s), ${u} in code the build excludes")
+    }
+}
+
+println("")
+println("by surface, counting only the literals written in place:")
+for (surfaceName in surfaceHits.keys().sortBy { x -> 0 - surfaceHits.get(x) }) {
+    println("  ${surfaceName.padEnd(22)} ${surfaceHits.get(surfaceName)} site(s) - ${NAMES.get(surfaceName)}")
+}
+
+println("")
+println("where the prose is, largest first:")
+for (topSrc in fileProse.keys().sortBy { x -> 0 - fileProse.get(x) }.take(15)) {
+    var topCount = "${fileProse.get(topSrc)}"
+    println("  ${topCount.padStart(5)} ${topSrc}")
+}
+
+if (unreadable.length > 0) {
+    println("")
+    println("${unreadable.length} source(s) do not decode as text and were skipped, the same blind spot i18n-keys.mnd names:")
+    for (doc in unreadable.take(6)) { println("  unreadable, skipped: ${doc}") }
+    if (unreadable.length > 6) { println("  ... and ${unreadable.length - 6} more") }
+}
+
+if (warnings.length > 0) {
+    println("")
+    for (w in warnings) { println("  premise: ${w}") }
+}
+
+println("")
+println("${sources.length} source(s) read; ${totalProse} prose literal(s) written in place against ${totalLookup} bundle lookup(s) sitting in that same argument slot; ${totalToken} single word(s), ${totalBlank} blank and ${totalUnbuild} in excluded code are not counted as prose")
+println("a report, not a gate: a literal here is a screen to translate, not a defect — ${skippedPrefixes.length} exclude pattern(s) were honoured from the module build files so that code nobody compiles is never counted as code anybody reads")

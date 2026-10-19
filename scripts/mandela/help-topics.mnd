@@ -1,0 +1,706 @@
+#!/usr/bin/env mandela
+// help-topics.mnd — the Help Center's JavaHelp bundle, checked as one set.
+//
+// The Help Center is a javax.help JHelp over four hand-written XML files,
+// nineteen hand-written HTML topics and a fifth copy of the same facts in
+// HelpContentTest.java. lg3d-help.hs names the homeID, the map and the three
+// navigators; map.jhm pairs each target with the file that answers it; toc.xml
+// spells the Contents tree; index.xml spells the keyword index; the topics link
+// each other and the stylesheet by relative path. Each is a hand-maintained copy
+// of one graph, and JavaHelp is silent about a broken edge: a target the map does
+// not declare is a Contents row that does nothing when a reader clicks it, a
+// topic no mapID names is a page the indexer globs into JavaSearch that no
+// navigator can reach, and a homeID the map does not carry is a Help Center that
+// opens on a blank pane. None of it fails the build, and HelpContentTest only
+// proves the names it was *told* about - a topic added to the directory and left
+// out of its arrays keeps the suite green and leaves the reader without it.
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/help-topics.mnd -s .
+//     ./gradlew :lg3d-mandela:helpTopicsCheck
+//
+// Nine checks, exit 0 when all hold and 2 on any finding:
+//   1. the bundle is the bundle the build file and the panel describe (premise);
+//   2. the HelpSet's homeID, mapref, navigator data and title all resolve, and
+//      agree with the panel's constants and the headless test's assertion;
+//   3. map.jhm declares each target once, every url it names exists, and no
+//      topic in the directory is left unnamed;
+//   4. every toc.xml target is declared, and every declared target is reachable
+//      from Contents;
+//   5. every index.xml target is declared, every declared target is findable by
+//      keyword, no index item is a dead leaf, and the entries stay alphabetical
+//      where the file's own comment promises they are;
+//   6. every topic states a <title> and an <h1> and links the stylesheet;
+//   7. every relative href and src in a topic resolves, and every #fragment
+//      names an id or name on the page it lands on;
+//   8. a topic's Contents label is the heading the reader finds on the page,
+//      except where a written exemption says why it cannot be;
+//   9. HelpContentTest's TARGETS and RESOURCES are the map and the directory, in
+//      both directions.
+//
+// A tenth question - an image under help/resources that no topic and no source
+// names - is printed and never fails: only a reader knows whether a translation
+// is pending or the file is dead weight in the jar.
+
+use std.fs
+
+let HELP = "lg3d-apps/src/classes/org/jdesktop/lg3d/apps/help"
+let CONTENT = "${HELP}/helpcontent"
+let IMAGES = "${HELP}/resources/images"
+let SRC_CLASSES = "lg3d-apps/src/classes"
+let HS = "${CONTENT}/lg3d-help.hs"
+let MAP = "${CONTENT}/map.jhm"
+let TOC = "${CONTENT}/toc.xml"
+let IDX = "${CONTENT}/index.xml"
+let PANEL = "${HELP}/HelpCenterPanel.java"
+let TEST = "lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/help/HelpContentTest.java"
+let BUILD = "lg3d-apps/build.gradle"
+let CSS = "lg3d-help.css"
+let SEARCH_DB = "JavaSearch"
+
+// Two targets whose Contents label is allowed not to echo the page heading, each
+// with its reason. The discipline is the one exclusions.mnd and
+// coverage-floors.mnd apply: an exemption that stops being true is itself a
+// finding, so a reason that outlives its case is reported rather than carried.
+let LABEL_EXEMPT = {}
+LABEL_EXEMPT.put("overview", "the landing page's <h1> is a greeting and its <title> names the whole guide, while Contents spells the target twice, as the root and as its first child")
+LABEL_EXEMPT.put("whats-new", "the page is generated from CHANGELOG.md by whats-new.mnd, which owns its <title> and <h1>, and the Contents label is the shorter one a reader scans")
+
+// ---------------------------------------------------------------------------
+// xml and html tools, by hand: the language has no regex and no xml reader
+// ---------------------------------------------------------------------------
+
+// The attribute text of every `<tag ...>` in document order, with the indent of
+// the line each starts on. The two navigators are written one element per line,
+// so the indent is the nesting level and the tree can be read without a parser.
+// A tag whose '>' never arrives, or whose attributes hold a '<', is not
+// well-formed: the walk stops there, so the caller sees fewer items than the file
+// claims rather than a wrong answer.
+fun itemsAt(text, tag) {
+    var out = []
+    let key = "<" + tag
+    var rest = text
+    var eaten = 0
+    loop {
+        let at = rest.indexOf(key)
+        if (at < 0) { break }
+        if (at + key.length >= rest.length) { break }
+        let tail = rest.substring(at + key.length)
+        let next = tail.charAt(0)
+        if (next != " " && next != ">" && next != "/") {
+            // <tocitemx is not <tocitem; go on looking after the name.
+            rest = tail
+            eaten += at + key.length
+            continue
+        }
+        let close = tail.indexOf(">")
+        if (close < 0) { break }
+        let slice = tail.substring(0, close)
+        if (slice.contains("<")) { break }
+        let line = text.substring(0, eaten + at).split("\n").last
+        var indent = 0
+        while (indent < line.length && line.charAt(indent) == " ") { indent += 1 }
+        out.push([indent, slice])
+        rest = tail.substring(close)
+        // The consumed prefix grows by the searched position, the tag name itself
+        // and the distance to the '>': rest now starts at that '>', so eaten is
+        // its absolute offset. Leaving key.length out would slide every later
+        // indent back by the length of the tag, and the two checks that read the
+        // indentation - a parent with no children, and the alphabetical order -
+        // would then be measuring lines that are not the element they name.
+        eaten += at + key.length + close
+    }
+    return out
+}
+
+// Every value written name="..." in a document, in order. Declared before
+// attrOf, which reads one of them out of a single element's slice: the language
+// resolves a name where it was written, so a helper cannot call one declared
+// further down the file.
+fun quoted(text, name) {
+    var out = []
+    let key = name + "=\""
+    var rest = text
+    loop {
+        let at = rest.indexOf(key)
+        if (at < 0) { break }
+        rest = rest.substring(at + key.length)
+        let close = rest.indexOf("\"")
+        if (close < 0) { break }
+        out.push(rest.substring(0, close))
+        rest = rest.substring(close)
+    }
+    return out
+}
+
+// One attribute of one element's slice, or empty text when it is absent. The
+// space in front is what makes the match an attribute rather than the tail of a
+// longer name.
+fun attrOf(slice, name) {
+    let hits = quoted(" " + slice, name)
+    if (hits.length == 0) { return "" }
+    return hits[0]
+}
+
+// Every double-quoted literal in a run of text, alternating pairs - what the
+// arrays of a Java source are made of.
+fun literals(text) {
+    var out = []
+    var rest = text
+    loop {
+        let open = rest.indexOf("\"")
+        if (open < 0) { break }
+        rest = rest.substring(open + 1)
+        let close = rest.indexOf("\"")
+        if (close < 0) { break }
+        let value = rest.substring(0, close)
+        if (value.length > 0) { out.push(value) }
+        rest = rest.substring(close + 1)
+    }
+    return out
+}
+
+// The literals of one Java array literal, read from its anchor to its brace.
+fun blockLiterals(text, anchor) {
+    let at = text.indexOf(anchor)
+    if (at < 0) { return [] }
+    let tail = text.substring(at)
+    let open = tail.indexOf("{")
+    if (open < 0) { return [] }
+    let close = tail.indexOf("}")
+    if (close < open) { return [] }
+    return literals(tail.substring(open, close))
+}
+
+// The trimmed body of every `<tag>...</tag>`, attributes on the open tag allowed:
+// JavaHelp writes <data engine="...">JavaSearch</data>, and a scanner looking for
+// `<data>` alone would report a navigator the file has as missing from it.
+fun bodies(text, tag) {
+    var out = []
+    let key = "<" + tag
+    let close = "</" + tag + ">"
+    var rest = text
+    loop {
+        let at = rest.indexOf(key)
+        if (at < 0) { break }
+        let tail = rest.substring(at + key.length)
+        if (tail.length == 0) { break }
+        let next = tail.charAt(0)
+        if (next != " " && next != ">" && next != "/") {
+            rest = tail
+            continue
+        }
+        let head = tail.indexOf(">")
+        if (head < 0) { break }
+        rest = tail.substring(head + 1)
+        let end = rest.indexOf(close)
+        if (end < 0) { break }
+        out.push(rest.substring(0, end).trim())
+        rest = rest.substring(end)
+    }
+    return out
+}
+
+// The first body of a tag, or empty text when the document has none.
+fun one(text, tag) {
+    let found = bodies(text, tag)
+    if (found.length == 0) { return "" }
+    return found[0]
+}
+
+// The first value of an attribute anywhere in a document.
+fun oneAttr(text, name) {
+    let hits = quoted(text, name)
+    if (hits.length == 0) { return "" }
+    return hits[0]
+}
+
+// The items a list holds more than once, each named once.
+fun repeats(list) {
+    var seen = []
+    var again = []
+    for (item in list) {
+        if (seen.contains(item) && !again.contains(item)) { again.push(item) }
+        if (!seen.contains(item)) { seen.push(item) }
+    }
+    return again
+}
+
+// base + ref with '.' and '..' walked out, so a topic's ../resources/... image is
+// checked against the tree the classloader actually serves.
+fun normalize(base, ref) {
+    var out = []
+    for (part in (base + "/" + ref).split("/")) {
+        if (part == "" || part == ".") { continue }
+        if (part == "..") {
+            if (out.length > 0) { out.pop() }
+        } else {
+            out.push(part)
+        }
+    }
+    return out.join("/")
+}
+
+// File names in a directory with a given suffix.
+fun filesUnder(dir, suffix) {
+    var out = []
+    if (!fs.isDirectory(dir)) { return out }
+    for (name in fs.list(dir)) {
+        if (name.endsWith(suffix)) { out.push(name) }
+    }
+    return out
+}
+
+// The string literal a Java line carries: the first one on the line naming the
+// anchor, or on one of the two lines after it. The panel splits its constant over
+// two lines, and a checker that read only the anchor's own line would report the
+// HelpSet path as missing.
+fun literalNear(text, anchor) {
+    let lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        if (lines[i].contains(anchor)) {
+            var k = i
+            while (k < lines.length && k < i + 3) {
+                let hits = literals(lines[k])
+                if (hits.length > 0) { return hits[0] }
+                k += 1
+            }
+            return ""
+        }
+        i += 1
+    }
+    return ""
+}
+
+// Entries at one nesting level, in document order, must read alphabetically - the
+// promise index.xml's own comment makes. The level is the parent's path, so the
+// two children of "applications" are ordered among themselves and not against the
+// top level they sit inside. Case is ignored because the shipped file sorts "2D
+// desktop" before "About" before "address book", which is what a reader scanning
+// an index expects.
+fun orderFindings(items, where) {
+    var problems = []
+    var stack = []
+    var last = {}
+    for (item in items) {
+        let indent = item[0]
+        let text = attrOf(item[1], "text")
+        while (stack.length > 0 && stack.last[0] >= indent) { stack.pop() }
+        var key = ""
+        for (p in stack) { key += "/" + p[1] }
+        var before = ""
+        if (last.has(key)) { before = last.get(key) }
+        if (before.length > 0 && text.length > 0 && before.lower() > text.lower()) {
+            var under = "the root"
+            if (key.length > 0) { under = "under " + key }
+            problems.push("${text} follows ${before} ${under}, which is out of order in ${where}")
+        }
+        last.put(key, text)
+        // Only an element that opens children can be a parent; a self-closing
+        // item or an empty text adds no level to the path.
+        if (!item[1].endsWith("/") && text.length > 0) { stack.push([indent, text]) }
+    }
+    return problems
+}
+
+// ---------------------------------------------------------------------------
+// 1. the premise: this is still the bundle the build file and the panel describe
+// ---------------------------------------------------------------------------
+
+for (needed in [HS, MAP, TOC, IDX, PANEL, TEST, BUILD]) {
+    if (!fs.exists(needed)) { error("${needed} is missing, so the Help Center has no bundle to check", "ViolationError") }
+}
+
+// Spelled as the build file spells them: the directory the indexer reads, the
+// glob it reads it through, and the classpath location the search database is
+// landed in. If any moves, the checks below would be enforcing a layout the build
+// no longer assembles, so the script says so instead of passing quietly.
+var premises = []
+let buildText = fs.read(BUILD)
+for (claimed in ["def helpContentDir = file('src/classes/org/jdesktop/lg3d/apps/help/helpcontent')",
+                 "include '*.html'",
+                 "into 'org/jdesktop/lg3d/apps/help/helpcontent/JavaSearch'"]) {
+    if (!buildText.contains(claimed)) { premises.push(claimed) }
+}
+if (premises.length > 0) {
+    for (p in premises) {
+        error("${BUILD} no longer writes ${p}, so the help bundle's indexing and packaging have moved and help-topics.mnd must move with them", "ViolationError")
+    }
+}
+
+var findings = []
+
+let hs = fs.read(HS)
+let map = fs.read(MAP)
+let toc = fs.read(TOC)
+let idx = fs.read(IDX)
+let panel = fs.read(PANEL)
+let test = fs.read(TEST)
+
+let topics = filesUnder(CONTENT, ".html")
+if (topics.length == 0) { error("${CONTENT} holds no topic, so the Help Center has nothing to show", "ViolationError") }
+
+// ---------------------------------------------------------------------------
+// 3 first, because checks 2, 4, 5, 8 and 9 all ask "is it declared"
+// ---------------------------------------------------------------------------
+
+// The language binds a name once for the whole script - even a `for (x in ...)`
+// variable claims the name - so each section below reads its elements into its
+// own vocabulary rather than re-declaring target/text/url per loop.
+var targets = []
+var urls = {}
+for (entry in itemsAt(map, "mapID")) {
+    let declTarget = attrOf(entry[1], "target")
+    let declUrl = attrOf(entry[1], "url")
+    if (declTarget.length == 0) {
+        findings.push("${MAP} declares a <mapID> with no target attribute")
+        continue
+    }
+    if (targets.contains(declTarget)) {
+        findings.push("${MAP} declares target ${declTarget} twice, and a JavaHelp map collision answers one click with one of the two, whichever the parser kept")
+    } else {
+        targets.push(declTarget)
+    }
+    urls.put(declTarget, declUrl)
+}
+if (targets.length == 0) { error("${MAP} declares no <mapID>, so no target can resolve to a topic", "ViolationError") }
+
+// every url exists, and names a topic the indexer can read
+for (target in targets) {
+    let mapped = urls.get(target)
+    if (mapped.length == 0) {
+        findings.push("${MAP} maps target ${target} to no url at all")
+        continue
+    }
+    if (mapped.startsWith("http://") || mapped.startsWith("https://")) { continue }
+    if (!mapped.endsWith(".html")) {
+        findings.push("${MAP} maps target ${target} to ${mapped}, which is not an HTML topic")
+    }
+    if (!fs.exists("${CONTENT}/${mapped}")) {
+        findings.push("${MAP} maps target ${target} to ${mapped}, which is not in ${CONTENT} - the reader clicks and gets an empty pane")
+    }
+}
+
+// no topic is left unnamed: the indexer globs every *.html, so an unnamed page is
+// a search hit no navigator can reach
+for (name in topics) {
+    if (!quoted(map, "url").contains(name)) {
+        findings.push("${CONTENT}/${name} is in the topic directory and named by no <mapID> in ${MAP}, so the full-text index serves it and Contents cannot reach it")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 2. the HelpSet against the panel and the test
+// ---------------------------------------------------------------------------
+
+let homeId = one(hs, "homeID")
+if (homeId.length == 0) {
+    findings.push("${HS} declares no <homeID>, so the Help Center has no page to open on")
+} else if (!targets.contains(homeId)) {
+    findings.push("${HS} names homeID ${homeId}, which ${MAP} does not declare - the viewer opens on nothing")
+}
+
+let refs = itemsAt(hs, "mapref")
+if (refs.length == 0) {
+    findings.push("${HS} declares no <mapref>, so no target can resolve to a topic")
+} else {
+    let location = attrOf(refs[0][1], "location")
+    if (!fs.exists("${CONTENT}/${location}")) {
+        findings.push("${HS} refers to the map at ${location}, which is not in ${CONTENT}")
+    }
+}
+
+// The three navigators, by the data file each one reads. JavaSearch is the odd
+// one out: it is built by the indexer task, which the premise above just proved
+// still exists, so its absence from the tree is the expected state and not a
+// finding - the ABSENT discipline run-classpath.mnd applies to a deliberate gap.
+var viewCount = 0
+for (view in itemsAt(hs, "view")) {
+    viewCount += 1
+}
+for (data in bodies(hs, "data")) {
+    if (data == SEARCH_DB) { continue }
+    if (!fs.exists("${CONTENT}/${data}")) {
+        findings.push("${HS} points a navigator at ${data}, which is not in ${CONTENT}")
+    }
+}
+if (!hs.contains(SEARCH_DB)) {
+    findings.push("${HS} no longer points its Search view at the ${SEARCH_DB} database the build generates")
+}
+
+// The panel's two constants: the path it discovers the HelpSet by, and the id it
+// asks JHelp to open. Both are hand-written copies of what ${HS} says.
+let panelPath = literalNear(panel, "HELPSET_PATH")
+if (panelPath.length == 0) {
+    findings.push("${PANEL} no longer states a HELPSET_PATH this script can read")
+} else if (!fs.exists("${SRC_CLASSES}/${panelPath}")) {
+    findings.push("${PANEL} loads the HelpSet from ${panelPath}, which is on no source classpath")
+} else if (!panelPath.endsWith("lg3d-help.hs")) {
+    findings.push("${PANEL} loads ${panelPath}, not the ${HS} this bundle ships")
+}
+let panelHome = literalNear(panel, "HOME_ID")
+if (panelHome.length == 0) {
+    findings.push("${PANEL} no longer states a HOME_ID this script can read")
+} else if (homeId.length > 0 && panelHome != homeId) {
+    findings.push("${PANEL} opens on ${panelHome} while ${HS} names homeID ${homeId} - two copies of one fact, and the viewer follows the HelpSet")
+}
+
+// The title the headless test asserts is the one the HelpSet carries.
+let asserted = literalNear(test, "helpSet.getTitle()")
+let setTitle = one(hs, "title")
+if (asserted.length > 0 && asserted != setTitle) {
+    findings.push("${HS} titles the guide ${setTitle} while ${TEST} asserts ${asserted} - the suite fails and says nothing about which copy is wrong")
+}
+
+// ---------------------------------------------------------------------------
+// 4. Contents
+// ---------------------------------------------------------------------------
+
+var tocTargets = []
+var labels = {}
+for (row in itemsAt(toc, "tocitem")) {
+    let rowTarget = attrOf(row[1], "target")
+    let rowText = attrOf(row[1], "text")
+    if (rowText.length == 0) {
+        findings.push("${TOC} shows an empty row, which a reader cannot click to anything")
+    }
+    if (rowTarget.length == 0) { continue }
+    if (!targets.contains(rowTarget)) {
+        findings.push("${TOC} links ${rowText} to target ${rowTarget}, which ${MAP} does not declare - the row does nothing when clicked")
+    }
+    if (!tocTargets.contains(rowTarget)) { tocTargets.push(rowTarget) }
+    if (!labels.has(rowTarget)) { labels.put(rowTarget, rowText) }
+}
+
+for (target in targets) {
+    if (!tocTargets.contains(target)) {
+        findings.push("${MAP} declares target ${target} and ${TOC} never reaches it - the topic is only findable by keyword or by search")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 5. the keyword index
+// ---------------------------------------------------------------------------
+
+let indexItems = itemsAt(idx, "indexitem")
+if (indexItems.length == 0) { error("${IDX} holds no <indexitem>, so the Index view is empty", "ViolationError") }
+
+var position = 0
+var keywordCount = {}
+for (leaf in indexItems) {
+    let kwTarget = attrOf(leaf[1], "target")
+    let kwText = attrOf(leaf[1], "text")
+    position += 1
+    if (kwText.length == 0) {
+        findings.push("${IDX} has an index entry with no text at item ${position}")
+    }
+    if (kwTarget.length == 0) {
+        // A parent entry is legal, a leaf with nothing behind it is a row that
+        // does nothing: the next item is a child only if it is indented deeper.
+        var hasChild = false
+        if (position < indexItems.length) {
+            if (indexItems[position][0] > leaf[0]) { hasChild = true }
+        }
+        if (!hasChild) {
+            findings.push("${IDX} item ${position} (${kwText}) has no target and no children, which shows a reader nothing to open")
+        }
+        continue
+    }
+    if (!targets.contains(kwTarget)) {
+        findings.push("${IDX} indexes ${kwText} to target ${kwTarget}, which ${MAP} does not declare - the keyword resolves to an empty pane")
+        continue
+    }
+    var seen = 0
+    if (keywordCount.has(kwTarget)) { seen = keywordCount.get(kwTarget) }
+    keywordCount.put(kwTarget, seen + 1)
+}
+
+for (problem in orderFindings(indexItems, IDX)) {
+    findings.push(problem)
+}
+
+for (target in targets) {
+    if (!keywordCount.has(target)) {
+        findings.push("${IDX} has no keyword for target ${target}, so the Index view cannot find that topic")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 6 and 7: the topics themselves
+// ---------------------------------------------------------------------------
+
+var idCount = 0
+var linkCount = 0
+for (name in topics) {
+    let file = "${CONTENT}/${name}"
+    let page = fs.read(file)
+
+    let title = one(page, "title")
+    let heading = one(page, "h1")
+    if (title.length == 0) {
+        findings.push("${file} has no <title>, so JavaHelp names the page by its file name")
+    }
+    if (heading.length == 0) {
+        findings.push("${file} has no <h1>, so the reader lands on a page with no heading")
+    }
+    if (!quoted(page, "href").contains(CSS)) {
+        findings.push("${file} does not link ${CSS}, so it renders with no stylesheet in the Help Center")
+    }
+
+    // Relative links: to another topic, into the help tree's own resources, or a
+    // fragment on the page. External http links are not this bundle's business.
+    for (href in quoted(page, "href")) {
+        if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("mailto:")) { continue }
+        linkCount += 1
+        var otherPage = page
+        var otherFile = file
+        let frag = href.indexOf("#")
+        var anchor = ""
+        var path = href
+        if (frag >= 0) {
+            path = href.substring(0, frag)
+            anchor = href.substring(frag + 1)
+        }
+        if (path.length > 0) {
+            otherFile = "${CONTENT}/${path}"
+            if (!fs.exists(otherFile)) {
+                findings.push("${file} links ${href}, which is not in the topic directory")
+                continue
+            }
+            otherPage = fs.read(otherFile)
+        }
+        if (anchor.length > 0) {
+            let ids = quoted(otherPage, "id")
+            let names = quoted(otherPage, "name")
+            if (!ids.contains(anchor) && !names.contains(anchor)) {
+                var where = "its own page"
+                if (path.length > 0) { where = path }
+                findings.push("${file} links ${href}, and ${where} carries no id or name ${anchor}")
+            }
+        }
+    }
+
+    // Images, resolved the way the classloader resolves them: up out of
+    // helpcontent and into the help package's own resources tree.
+    for (src in quoted(page, "src")) {
+        if (src.startsWith("http://") || src.startsWith("https://")) { continue }
+        linkCount += 1
+        if (!fs.exists(normalize(CONTENT, src))) {
+            findings.push("${file} shows ${src}, which resolves to no file in the tree")
+        }
+    }
+
+    let anchors = quoted(page, "id")
+    idCount += anchors.length
+}
+
+if (!fs.exists("${CONTENT}/${CSS}")) {
+    findings.push("${CONTENT}/${CSS} is missing, so every topic renders unstyled")
+}
+
+// ---------------------------------------------------------------------------
+// 8. the Contents label against the heading the reader lands on
+// ---------------------------------------------------------------------------
+
+for (target in tocTargets) {
+    var pageLabel = ""
+    if (labels.has(target)) { pageLabel = labels.get(target) }
+    var pageUrl = ""
+    if (urls.has(target)) { pageUrl = urls.get(target) }
+    // A target with no readable page is already named by the map check above; the
+    // label question cannot be answered and asking it would only repeat the finding
+    // with two empty strings in it.
+    if (pageUrl.length == 0 || !fs.exists("${CONTENT}/${pageUrl}")) { continue }
+    var pageTitle = ""
+    var pageH1 = ""
+    let topicPage = fs.read("${CONTENT}/${pageUrl}")
+    pageTitle = one(topicPage, "title")
+    pageH1 = one(topicPage, "h1")
+    let echoes = pageTitle == pageLabel || pageH1 == pageLabel
+    if (LABEL_EXEMPT.has(target)) {
+        if (echoes) {
+            var reason = LABEL_EXEMPT.get(target)
+            findings.push("${target} now echoes its Contents label, so ${reason} no longer holds and the exemption in this script should go")
+        }
+        continue
+    }
+    if (!echoes && pageLabel.length > 0) {
+        findings.push("${TOC} calls ${pageUrl} ${pageLabel} while the page titles itself ${pageTitle} and heads itself ${pageH1} - a reader following the Contents looks for a heading that is not there")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 9. the headless test's arrays, which are the same lists a fifth time
+// ---------------------------------------------------------------------------
+
+let declaredTargets = blockLiterals(test, "String[] TARGETS =")
+let declaredFiles = blockLiterals(test, "String[] RESOURCES =")
+if (declaredTargets.length == 0 || declaredFiles.length == 0) {
+    error("${TEST} no longer writes the TARGETS and RESOURCES arrays this script pairs against", "ViolationError")
+}
+
+for (target in targets) {
+    if (!declaredTargets.contains(target)) {
+        findings.push("${TEST} names no target ${target}, so the suite proves a bundle that has grown one topic it never loads")
+    }
+}
+for (target in declaredTargets) {
+    if (!targets.contains(target)) {
+        findings.push("${TEST} asserts target ${target} resolves, which ${MAP} does not declare - the suite fails on a map the test no longer matches")
+    }
+}
+
+// Every file the directory holds must be in the test's list, and every name the
+// list carries must exist: the two directions of the same drift, a topic that
+// ships unproven and a name that ships removed.
+var bundleFiles = filesUnder(CONTENT, ".html")
+for (suffix in [".hs", ".jhm", ".xml", ".css"]) {
+    for (name in filesUnder(CONTENT, suffix)) { bundleFiles.push(name) }
+}
+for (name in bundleFiles) {
+    if (!declaredFiles.contains(name)) {
+        findings.push("${CONTENT}/${name} ships and ${TEST} does not list it in RESOURCES, so the jar can lose it unnoticed")
+    }
+}
+for (name in declaredFiles) {
+    if (!bundleFiles.contains(name) && name != "${SEARCH_DB}") {
+        findings.push("${TEST} lists ${name} in RESOURCES, which is not in ${CONTENT}")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// report
+// ---------------------------------------------------------------------------
+
+var imageCorpus = ""
+for (name in topics) { imageCorpus += fs.read("${CONTENT}/${name}").lower() }
+for (name in filesUnder(HELP, ".java")) { imageCorpus += fs.read("${HELP}/${name}").lower() }
+var unreferenced = []
+for (name in filesUnder(IMAGES, ".png")) {
+    if (!imageCorpus.contains(name.lower())) { unreferenced.push(name) }
+}
+
+println("${targets.length} targets, ${topics.length} topics, ${indexItems.length} index entries, ${viewCount} navigator view(s), ${linkCount} relative link(s) and ${idCount} anchor(s) read")
+for (target in targets) {
+    var shownUrl = ""
+    if (urls.has(target)) { shownUrl = urls.get(target) }
+    var shownBytes = 0
+    if (shownUrl.length > 0 && fs.exists("${CONTENT}/${shownUrl}")) { shownBytes = fs.size("${CONTENT}/${shownUrl}") }
+    var shownKeywords = 0
+    if (keywordCount.has(target)) { shownKeywords = keywordCount.get(target) }
+    var shownLabel = ""
+    if (labels.has(target)) { shownLabel = labels.get(target) }
+    println("  ${target.padEnd(24)} ${shownUrl.padEnd(30)} ${shownLabel.padEnd(34)} ${shownKeywords} keyword(s), ${shownBytes} bytes")
+}
+if (unreferenced.length > 0) {
+    println("  unreferenced image(s) under ${IMAGES} (a judgement, not a finding):")
+    for (name in unreferenced) { println("    ${name} - named by no topic and no source in ${HELP}") }
+}
+
+if (findings.length == 0) {
+    println("every target the Help Center can be asked for is declared, mapped, listed in Contents, findable in the Index, and ships the page it names")
+} else {
+    for (f in findings) { println("  help gap: ${f}") }
+    error("${findings.length} help-topics finding(s)", "ViolationError")
+}

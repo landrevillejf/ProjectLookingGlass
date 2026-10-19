@@ -109,15 +109,20 @@ tasks.register('mandelaRepl', JavaExec) {
 // Pages site, a release-consistency gate, a version-consistency gate for the
 // language itself, a changelog-shape gate, a start-menu descriptor audit, an
 // accelerator-conflict gate, an i18n bundle-completeness gate, a legacy Java 3D
-// import lint, a freshness gate on the generated What's New help topic and on the
-// release archive drawn from the same changelog, and a gate on the automation's
-// own wiring. They
+// import lint, a gate on the two hand-written copies of the desktop classpath,
+// a gate on what the coverage floors may claim, a gate pairing the build files'
+// source excludes with the exclusion prose, a gate on the background manager's
+// menu against the art the tree ships, a gate on the Help Center's JavaHelp
+// bundle - its HelpSet, map, Contents, Index, topics and the headless test's
+// copies of the same lists - a freshness gate on the generated
+// What's New help topic and on the release archive drawn from the same changelog,
+// and a gate on the automation's own wiring. They
 // are ordinary `mandela run` invocations, so
 // the only thing these tasks add is the sandbox and the classpath -- run against
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all eleven)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all sixteen)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -163,6 +168,16 @@ mandelaCheck('i18nKeysCheck', 'i18n-keys.mnd',
         'Fail when a Messages.tr key is missing from the shell bundle or the French bundle drifts from the base.')
 mandelaCheck('legacyJ3dCheck', 'legacy-j3d.mnd',
         'Fail when a built source imports a pre-migration Java 3D package (javax.media.j3d / javax.vecmath / com.sun.j3d).')
+mandelaCheck('runClasspathCheck', 'run-classpath.mnd',
+        'Fail when the hand-assembled :lg3d-core:run classpath and the releaseBundle classpath stop describing the same desktop.')
+mandelaCheck('coverageFloorsCheck', 'coverage-floors.mnd',
+        'Fail when a coverageFloors floor names a module with no test suite, or a module with a suite carries no floor and no exemption.')
+mandelaCheck('exclusionsCheck', 'exclusions.mnd',
+        'Fail when the source excludes the build files apply and the exclusion prose AGENTS.md states stop being the same set, or an exclude names a tree that holds nothing.')
+mandelaCheck('bgConfigsCheck', 'bgconfigs.mnd',
+        'Fail when the background manager\'s BgConfig.xml and the .lgbg descriptors under Backgrounds/ stop agreeing with each other, with the SAX vocabularies that read them, or with the classpath tree runtimeResources assembles.')
+mandelaCheck('helpTopicsCheck', 'help-topics.mnd',
+        'Fail when the Help Center\'s HelpSet, map, Contents, Index, topics or headless test stop describing one bundle: an undeclared or unreachable target, a mapped file that is not there, a keyword that leads nowhere, a dead relative link, a label the page does not carry.')
 mandelaCheck('scriptsHygieneCheck', 'scripts-hygiene.mnd',
         'Fail when a Mandela gate is unwired, left out of repositoryChecks, or missing from the scripts README.')
 mandelaCheck('whatsNewCheck', 'whats-new.mnd',
@@ -173,7 +188,9 @@ tasks.register('repositoryChecks') {
     description = 'Run every Mandela script that audits this repository.'
     dependsOn 'docLinksCheck', 'htmlLinksCheck', 'releaseCheck', 'startMenuAudit',
             'acceleratorsCheck',
-            'i18nKeysCheck', 'legacyJ3dCheck', 'scriptsHygieneCheck', 'whatsNewCheck',
+            'i18nKeysCheck', 'legacyJ3dCheck', 'runClasspathCheck', 'coverageFloorsCheck',
+            'exclusionsCheck', 'bgConfigsCheck', 'helpTopicsCheck',
+            'scriptsHygieneCheck', 'whatsNewCheck',
             'mandelaVersionCheck', 'changelogCheck'
 }
 
@@ -208,6 +225,48 @@ tasks.register('startmenuCategories', JavaExec) {
     mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
     workingDir = repoRoot
     args = ['run', new File(scriptDir, 'startmenu-categories.mnd').toString(), '-s', repoRoot.toString()]
+}
+
+// branch-hygiene.mnd is a report of the same kind, and the one the repository
+// most needs: it reads .git/refs directly - loose files plus packed-refs, the
+// same text git reads - because the language reserves a PROCESS grant with no
+// function, so no Mandela script can spawn git. It answers what refs can answer:
+// which branch is checked out, which local names have no origin/ counterpart,
+// which tips are already origin/main's, which two names share one commit, and
+// which origin/ entries have no local branch. It deliberately never fails:
+// whether a branch is *merged* lives in the object graph, and AGENTS.md's rule is
+// that pruning needs `git cherry` and `gh pr list` proof first, so the report
+// prints those commands beside its own numbers instead of deciding for you.
+tasks.register('branchHygiene', JavaExec) {
+    group = 'reporting'
+    description = 'Report the branches that exist on one side of the repository only, read from .git/refs (report-only, never fails).'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    workingDir = repoRoot
+    args = ['run', new File(scriptDir, 'branch-hygiene.mnd').toString(), '-s', repoRoot.toString()]
+}
+
+// ui-strings.mnd is a report of the same kind, and the counterweight to
+// i18nKeysCheck: that gate proves every key the shell *asks* for exists, while
+// this counts the labels that never ask - a literal written straight into a
+// Swing setter or widget constructor, which is English forever because
+// Messages.tr() degrades safely rather than failing. A literal is not a defect
+// (it can be a value, a deliberate name, or prose no user reads), so there is
+// nothing to fail on: the report is a schedule ranked by size for whoever
+// decides which screens ship translated. Deliberately NOT in `repositoryChecks`.
+tasks.register('uiStrings', JavaExec) {
+    group = 'reporting'
+    description = 'Report the UI strings that never reach Messages.tr(), per module, per surface and per file (report-only, never fails).'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.jdesktop.lg3d.mandela.cli.MandelaCli'
+    workingDir = repoRoot
+    args = ['run', new File(scriptDir, 'ui-strings.mnd').toString(), '-s', repoRoot.toString()]
 }
 
 // The other half of whats-new.mnd: the same script, run with its `write` mode

@@ -166,7 +166,10 @@ One app is excluded for deep core-API drift (**not** a missing library):
 > (AppLaunchAction / Pseudo3DShortcut / `FuzzyEdgePanel.setSize` / vecmath
 > `Color3f(awt.Color)` drift). That drift was small and self-contained, so all four
 > were **ported to the current API and now build**; their start-menu descriptors
-> live in `lg3d-apps/src/config`. Always verify the live exclusion set against
+> live in `lg3d-apps/src/config`. `exclusions.mnd` makes that verification a CI
+> gate rather than a habit: it pairs every `exclude` line in the build with a
+> token in the prose below, in both directions. Always verify the live exclusion
+> set against
 > [`lg3d-incubator/build.gradle`](lg3d-incubator/build.gradle) rather than trusting
 > this prose — it has been stale before.
 
@@ -272,7 +275,7 @@ own language rather than in bash - see
 the exit codes and how to add a tool.
 
 ```bash
-./gradlew :lg3d-mandela:repositoryChecks   # the eleven gates, one command
+./gradlew :lg3d-mandela:repositoryChecks   # the sixteen gates, one command
 ./gradlew :lg3d-mandela:docLinksCheck      # or one of them
 ./gradlew :lg3d-mandela:whatsNewRefresh    # a generator, not a gate
 ```
@@ -307,11 +310,66 @@ the exit codes and how to add a tool.
 - `i18n-keys.mnd` - the shell bundle contract: every `Messages.tr("...")` literal
   in a production source exists in `messages.properties`, the French bundle
   carries the same keys, and each key's `{n}` placeholders agree (a CI gate).
+  Its counterpart question - how much of the desktop never asks for a key at all -
+  is answered by `ui-strings.mnd` below, because a label that skips the bundle is
+  not a contract violation anywhere: it is English forever.
 - `legacy-j3d.mnd` - the Java 3D migration rule as a gate: no source the build
   compiles may `import` a pre-migration package (`javax.media.j3d`,
   `javax.vecmath`, `com.sun.j3d`); the do-not-edit `lg3d-docs` samples, the
   retired `lg3d-awt` toolkit and the two deserialisation shims are out of scope
   (a CI gate).
+- `run-classpath.mnd` - the two hand-written copies of one desktop classpath. The
+  module jars and third-party coordinates `:lg3d-core:run` assembles by hand must
+  be the same set `releaseBundle` ships under `lib/` - the released launcher runs
+  `-cp "${HERE}/lib/*"`, so a jar missing there is a `NoClassDefFoundError` on the
+  user's desktop and never on the developer's. A jar shipped outside `lib/` must
+  be reached by a `systemProperty` on both sides, a `settings.gradle` module may be
+  on neither list only with a written reason, the `ext/` allow-lists must agree and
+  name jars that exist on disk, and the run task must depend on every jar it puts
+  on the classpath (a CI gate).
+- `coverage-floors.mnd` - what the root `coverageFloors` map is allowed to claim: a
+  module with a test suite and no floor has no measurable regression guard, a floor
+  for a module with no test source names a rule that can never fire, an exemption
+  must carry its reason, and the floors quoted in this file's *Test coverage* prose
+  must be the numbers the build actually enforces (a CI gate).
+- `exclusions.mnd` - the exclusion set as one set, because it is written twice:
+  this file's *Code Exclusions* / *Incubator Exclusions* prose and the
+  `exclude '…'` lines inside every module's `java` source set. An exclude no
+  prose explains, a prose token no build applies, an exclude whose tree holds no
+  source (unless the script records why that guard stays), and an app under
+  "Ported, not excluded" that is excluded anyway all fail. The two spellings are
+  compared on path segments, so `sun/**` covers `sun.awt.*` while `apps/browser`
+  never matches `apps/browser3d` (a CI gate).
+- `bgconfigs.mnd` - the Background Manager's menu against the art the tree ships.
+  `bgmanager/res/BgConfig.xml` names every `.lgbg` by a `resources/Backgrounds/...`
+  classpath URL, and `:lg3d-core:runtimeResources` relocates that whole tree under
+  the `resources/` prefix. Both readers are unforgiving SAX parsers -
+  `BgConfigFileReader` throws `Wrong tag` on anything but `<BgManagerConfig>` and
+  `<BGURL>` and appends every URL without de-duplicating, `BgFileReader` throws
+  `Undefined Tag` on anything outside its thirteen names - so a stray element is an
+  empty picker, not one lost background, and a repeated URL offers the same
+  panorama twice. Eight checks cover the two vocabularies, duplicate and dangling
+  URLs, descriptors nobody lists, directories with no descriptor, the required
+  elements, the three `BGType` strings, parseable numbers, and every image
+  reference resolving through the mapping - which is read back from the build file
+  as a premise, so the gate stops applying the day the task stops relocating those
+  directories (a CI gate).
+- `help-topics.mnd` - the Help Center's JavaHelp bundle as one graph instead of
+  five hand-written copies of it: `lg3d-help.hs` (homeID, mapref, the three
+  navigators' `data`, title), `map.jhm` (target → topic), `toc.xml` (Contents),
+  `index.xml` (the keyword index) and the topics themselves, with
+  `HelpContentTest.java`'s `TARGETS`/`RESOURCES` arrays as the fifth copy.
+  JavaHelp shows a reader nothing rather than an error when an edge breaks, so the
+  gate checks each target once declared and its url on disk, Contents and the
+  Index in both directions (no unreachable row, no topic no keyword finds, no
+  index leaf with neither target nor children, entries alphabetical per level as
+  the file's own comment promises), every relative `href`/`src`/`#fragment`
+  resolving, a `<title>`, an `<h1>` and the stylesheet link in every topic, the
+  HelpSet agreeing with `HelpCenterPanel`'s `HELPSET_PATH`/`HOME_ID` and the
+  test's asserted title, and a Contents label echoing the heading on the page -
+  except `overview` and `whats-new`, recorded in `LABEL_EXEMPT` with their
+  reasons, where an exemption that stops being true is itself the finding. The
+  build file's own indexing literals are read back as a premise (a CI gate).
 - `scripts-hygiene.mnd` - the automation's own wiring: every `mandelaCheck(...)`
   gate names a script that exists, every registered gate is in the
   `repositoryChecks` aggregate, and every shipped `.mnd` is documented in the
@@ -344,10 +402,22 @@ the exit codes and how to add a tool.
 - `asset-report.mnd` (report), `todo-scan.mnd` (report: the tree's open
   `TODO`/`FIXME` markers, always exit 0), `startmenu-categories.mnd` (report: the
   start-menu items whose description reads like a different category than their
-  group, always exit 0), `userscript-new.mnd` (a Web Browser userscript
-  generator) and `deck-new.mnd` (a Presentoire slide-deck generator) are not
-  gates: the first three always exit 0, the last two only write the one file each
-  names.
+  group, always exit 0), `branch-hygiene.mnd` (report: which branch names exist on
+  one side of the repository only, read from `.git/refs` and `packed-refs` because
+  the language reserves a `PROCESS` grant with no function, so it cannot spawn
+  `git`; it prints `git fetch --prune`, `git cherry` and `gh pr list` beside its
+  numbers rather than deciding, and runs as `:lg3d-mandela:branchHygiene`),
+  `ui-strings.mnd` (report: the screen text that never reached `Messages.tr()` -
+  a literal written into a widget constructor, a text setter, a `JOptionPane`
+  message or a panel's own status helper, counted per module, per surface and per
+  file as the schedule a person ranks, never as a violation, and paired with
+  `i18n-keys.mnd` above, which can only audit the keys a source does ask for; runs
+  as `:lg3d-mandela:uiStrings`),
+  `userscript-new.mnd` (a Web Browser userscript
+  generator), `deck-new.mnd` (a Presentoire slide-deck generator) and
+  `gate-new.mnd` (the scaffold of a new gate, with its three wiring edits printed
+  rather than applied) are not gates: the first five always exit 0, and the last
+  three write the one file each names and refuse to overwrite it.
 
 These tasks are deliberately **not** wired into `check`: they audit the whole
 tree, so their failures belong to the CI step that ran them and not to
@@ -397,6 +467,10 @@ verifying it by hand first - the script states a claim, it does not prove one.
   remote), then drop the local with `git branch -d <branch>`. A stale local that
   outlives its merged PR is what makes a later commit land on a dead branch and
   get cherry-picked, which duplicates the work under a second SHA.
+  `./gradlew :lg3d-mandela:branchHygiene` prints that asymmetry read straight from
+  `.git/refs` - locals with no `origin/` counterpart, and `origin/` entries no
+  local holds - but it is a report: `refs/remotes/origin` is only a cache, so
+  `git fetch --prune` is what makes its numbers true before any of them is acted on.
 - **Verify the branch before committing to it**, especially when resuming an
   interrupted session whose changes are still uncommitted in the working tree.
   The checked-out branch may be the one whose PR already merged. Ask first:
