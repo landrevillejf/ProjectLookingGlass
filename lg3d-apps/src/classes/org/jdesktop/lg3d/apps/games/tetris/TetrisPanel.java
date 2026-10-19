@@ -62,7 +62,7 @@ public class TetrisPanel extends JPanel {
     private static final Logger logger = Logger.getLogger("lg.apps.tetris");
 
     /** Natural size of the whole surface, in the pixels the 3D host scales. */
-    public static final int WIDTH_PX = 500;
+    public static final int WIDTH_PX = 540;
     public static final int HEIGHT_PX = TetrisEngine.HEIGHT * TetrisBoard.CELL_PX;
 
     /**
@@ -70,7 +70,7 @@ public class TetrisPanel extends JPanel {
      * control pad's three columns of full words: at the width this game shipped
      * with, the live desktop rendered the rotate button as "Rot...".
      */
-    private static final int SIDEBAR_PX = 240;
+    private static final int SIDEBAR_PX = 280;
 
     private final TetrisEngine engine;
     private final TetrisAudio audio;
