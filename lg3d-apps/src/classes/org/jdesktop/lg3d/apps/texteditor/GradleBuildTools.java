@@ -131,7 +131,7 @@ public final class GradleBuildTools implements TextEditorExtension {
      */
     private JdkRegistry registry = new JdkRegistry();
     /**
-     * The Gradle user cache root the clear action rewrites the script caches of.
+     * The Gradle user cache root whose generated caches the clear action rewrites.
      * Defaults to {@code ~/.gradle/caches}; tests inject a temp path so they do
      * not touch the real user cache.
      */
