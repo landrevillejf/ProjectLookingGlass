@@ -76,6 +76,7 @@ class Desktop2DMenuConfigTest {
             + "  </void>\n"
             + "  <void property=\"menuGroup\"><string>Utilities</string></void>\n"
             + "  <void property=\"name\"><string>Calculator</string></void>\n"
+            + "  <void property=\"version\"><string>1.2.0</string></void>\n"
             + " </object>\n"
             + " <object class=\"org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig\">\n"
             + "  <void property=\"command\"><string>firefox</string></void>\n"
@@ -201,6 +202,8 @@ class Desktop2DMenuConfigTest {
         assertEquals("Utilities", calculator.getMenuGroup());
         assertEquals("resources/images/icon/calculator.png",
                 calculator.getIconResource());
+        assertEquals("1.2.0", calculator.getVersion(),
+                "the version property is parsed from the descriptor");
         assertTrue(calculator.toString().contains("Calculator"));
     }
 

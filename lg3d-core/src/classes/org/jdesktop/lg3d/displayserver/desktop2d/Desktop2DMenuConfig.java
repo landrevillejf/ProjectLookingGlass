@@ -122,14 +122,21 @@ public final class Desktop2DMenuConfig {
         private final String desc;
         private final String menuGroup;
         private final String iconResource;
+        private final String version;
 
         public ItemSpec(String name, String command, String desc,
                         String menuGroup, String iconResource) {
+            this(name, command, desc, menuGroup, iconResource, null);
+        }
+
+        public ItemSpec(String name, String command, String desc,
+                        String menuGroup, String iconResource, String version) {
             this.name = (name == null) ? "" : name;
             this.command = command;
             this.desc = desc;
             this.menuGroup = menuGroup;
             this.iconResource = iconResource;
+            this.version = version;
         }
 
         public String getName() {
@@ -156,6 +163,14 @@ public final class Desktop2DMenuConfig {
          */
         public String getIconResource() {
             return iconResource;
+        }
+
+        /**
+         * The application's own version string (independent of the desktop
+         * version), or null when the descriptor supplies none.
+         */
+        public String getVersion() {
+            return version;
         }
 
         @Override
@@ -348,7 +363,8 @@ public final class Desktop2DMenuConfig {
                 command,
                 Messages.trLgcfgDesc(xmlName, stringProperty(object, "desc")),
                 stringProperty(object, "menuGroup"),
-                stripResourceScheme(stringProperty(object, "displayResourceUrlName")));
+                stripResourceScheme(stringProperty(object, "displayResourceUrlName")),
+                stringProperty(object, "version"));
     }
 
     /**
@@ -377,7 +393,8 @@ public final class Desktop2DMenuConfig {
                 command,
                 Messages.trLgcfgDesc(name, stringProperty(object, "desc")),
                 menuGroup,
-                iconUrl);
+                iconUrl,
+                stringProperty(object, "version"));
     }
 
     /**

@@ -1355,7 +1355,7 @@ public class Desktop2D {
             Icon icon = AppIcons.iconFor(
                     appName, item.getIconResource(), Desktop2DStartMenu.ICON_SIZE);
             return hostPanel(appName, icon, panel, item.getCommand(),
-                    item.getIconResource(), item.getDesc());
+                    item.getIconResource(), item.getDesc(), item.getVersion());
         } catch (Throwable t) {
             // NoClassDefFoundError included: on a 3D-less JVM an app may still
             // drag in a Java 3D class through a shared helper.
@@ -1378,9 +1378,10 @@ public class Desktop2D {
      */
     private Desktop2DWindow hostPanel(String appName, Icon icon,
                                       JComponent panel, String command,
-                                      String iconResource, String desc) {
+                                      String iconResource, String desc,
+                                      String version) {
         Desktop2DWindow window = new Desktop2DWindow(appName, icon, panel,
-                appName, command, iconResource, desc);
+                appName, command, iconResource, desc, version);
         track(window);
         desktop.add(window);
         // A new window opens on the workspace currently shown.
@@ -1473,7 +1474,7 @@ public class Desktop2D {
             d.activateWindow(existing);
             return existing;
         }
-        return d.hostPanel(title, icon, content, null, null, null);
+        return d.hostPanel(title, icon, content, null, null, null, null);
     }
 
     // ------------------------------------------------------------------

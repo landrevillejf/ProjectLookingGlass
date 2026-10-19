@@ -10,5 +10,8 @@
   <void property="name"> 
    <string>CD Viewer Sample</string> 
   </void> 
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object> 
 </java> 

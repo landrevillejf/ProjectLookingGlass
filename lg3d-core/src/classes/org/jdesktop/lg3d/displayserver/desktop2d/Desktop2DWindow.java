@@ -66,6 +66,12 @@ public class Desktop2DWindow extends JInternalFrame implements TranslucentSurfac
     private final String description;
 
     /**
+     * The application's own version string (independent of the desktop version);
+     * may be null when the descriptor supplies none.
+     */
+    private final String version;
+
+    /**
      * @param title    the window title (the application's name)
      * @param icon     the application icon, or null for none
      * @param content  the application's Swing panel
@@ -104,11 +110,30 @@ public class Desktop2DWindow extends JInternalFrame implements TranslucentSurfac
     public Desktop2DWindow(String title, Icon icon, JComponent content,
                            String appName, String command, String iconResource,
                            String description) {
+        this(title, icon, content, appName, command, iconResource, description, null);
+    }
+
+    /**
+     * @param title        the window title (the application's name)
+     * @param icon         the application icon, or null for none
+     * @param content      the application's Swing panel
+     * @param appName      the application name used by the taskbar button
+     * @param command      the descriptor command to relaunch this app from, or
+     *                     null if it cannot be relaunched (not session-saved)
+     * @param iconResource the classpath icon location, or null for none
+     * @param description  the application description shown in its About box,
+     *                     or null when the descriptor supplies none
+     * @param version      the application's own version string, or null
+     */
+    public Desktop2DWindow(String title, Icon icon, JComponent content,
+                           String appName, String command, String iconResource,
+                           String description, String version) {
         super(title, true, true, true, true);
         this.appName = appName;
         this.command = command;
         this.iconResource = iconResource;
         this.description = description;
+        this.version = version;
         setFrameIcon(icon);
         getContentPane().add(content);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -141,6 +166,11 @@ public class Desktop2DWindow extends JInternalFrame implements TranslucentSurfac
         return description;
     }
 
+    /** The application's own version string, or null. */
+    public String getVersion() {
+        return version;
+    }
+
     /**
      * Re-resolves this window's frame icon against the currently active icon
      * pack and repaints, so switching packs updates open windows live. A window
@@ -171,7 +201,8 @@ public class Desktop2DWindow extends JInternalFrame implements TranslucentSurfac
                 new JMenuItem(Messages.tr("lg2d.window.about",
                         AboutDialog.displayTitle(title)));
         about.addActionListener(e ->
-                AboutDialog.show(this, getTitle(), description, getFrameIcon()));
+                AboutDialog.show(this, getTitle(), description,
+                        getFrameIcon(), version, command));
         help.add(about);
         JMenuBar bar = new JMenuBar();
         bar.add(help);

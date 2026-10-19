@@ -63,6 +63,9 @@ public class StartMenuItemConfig extends ConfigData {
     /** The parent menu group */
     private String menuGroup;
 
+    /** The application's own version (independent of the desktop version). */
+    private String version;
+
     /** The menu item data */
     private MenuItem menuItem;
     
@@ -307,6 +310,23 @@ public class StartMenuItemConfig extends ConfigData {
      */
     public void setName(String name) {
         menuItem.setName(name);
+    }
+
+    /**
+     * Get the application's own version string, independent of the
+     * desktop version. May be null if the descriptor does not supply one.
+     * @return the version, or null
+     */
+    public String getVersion() {
+        return version;
+    }
+
+    /**
+     * Set the application's own version string.
+     * @param version the version
+     */
+    public void setVersion(String version) {
+        this.version = version;
     }
     
     /**

@@ -24,6 +24,9 @@
   <void property="classpathJars">
    <string>smalltoolkit.jar</string>
   </void>
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object>
 -->
 <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
@@ -47,6 +50,9 @@
   </void>
   <void property="classpathJars">
    <string>smalltoolkit.jar</string>
+  </void>
+  <void property="version">
+   <string>1.0.0</string>
   </void>
  </object>
 </java>

@@ -16,6 +16,8 @@ package org.jdesktop.lg3d.displayserver.desktop2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
@@ -158,6 +160,42 @@ class AboutDialogTest {
         assertEquals(AboutDialog.PRODUCT_LINE, lines.get(2));
     }
 
+    @Test
+    @DisplayName("creditLines with an explicit app version shows that version")
+    void creditLinesWithAppVersion() {
+        List<String> lines = AboutDialog.creditLines("2.5.0");
+        assertEquals(3, lines.size());
+        assertEquals("Version: 2.5.0", lines.get(1));
+    }
+
+    @Test
+    @DisplayName("creditLines with a blank app version falls back to desktop")
+    void creditLinesWithBlankAppVersionFallsBack() {
+        List<String> lines = AboutDialog.creditLines(null);
+        assertEquals(3, lines.size());
+        assertTrue(lines.get(1).startsWith("Version: "), lines.get(1));
+    }
+
+    // ------------------------------------------------------------------
+    // Per-app version display
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("displayVersion prefers the app version when present")
+    void displayVersionPrefersAppVersion() {
+        assertEquals("3.0.0", AboutDialog.displayVersion("3.0.0"));
+        assertEquals("1.2", AboutDialog.displayVersion("  1.2  "));
+    }
+
+    @Test
+    @DisplayName("displayVersion falls back to desktop version for blank app version")
+    void displayVersionFallsBackForBlank() {
+        String desktop = AboutDialog.getVersion();
+        assertEquals(desktop, AboutDialog.displayVersion(null));
+        assertEquals(desktop, AboutDialog.displayVersion(""));
+        assertEquals(desktop, AboutDialog.displayVersion("   "));
+    }
+
     // ------------------------------------------------------------------
     // Content assembly (headless-safe: a plain panel, no dialog)
     // ------------------------------------------------------------------
@@ -190,5 +228,138 @@ class AboutDialogTest {
                 new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB));
         assertTrue(hasIconLabel(AboutDialog.buildContent("X", "d", icon)));
         assertFalse(hasIconLabel(AboutDialog.buildContent("X", "d", null)));
+    }
+
+    @Test
+    @DisplayName("buildContent with an app version shows that version")
+    void buildContentWithAppVersion() {
+        JPanel content = AboutDialog.buildContent("Calc", "A calculator", null, "2.0.0");
+        List<String> texts = labelTexts(content);
+        assertTrue(anyContains(texts, "Version: 2.0.0"), texts.toString());
+    }
+
+    // ------------------------------------------------------------------
+    // Changelog resolution
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("resolveChangelog returns null for a null or blank command")
+    void resolveChangelogNullForBlank() {
+        assertNull(AboutDialog.resolveChangelog(null));
+        assertNull(AboutDialog.resolveChangelog(""));
+        assertNull(AboutDialog.resolveChangelog("   "));
+    }
+
+    @Test
+    @DisplayName("resolveChangelog returns null for an external command")
+    void resolveChangelogNullForExternal() {
+        assertNull(AboutDialog.resolveChangelog("firefox"));
+        assertNull(AboutDialog.resolveChangelog("xterm -e vim"));
+    }
+
+    @Test
+    @DisplayName("resolveChangelog returns null when no changelog exists")
+    void resolveChangelogNullWhenMissing() {
+        // A real class but no CHANGELOG.md beside it
+        assertNull(AboutDialog.resolveChangelog(
+                "java java.lang.String"));
+    }
+
+    // ------------------------------------------------------------------
+    // Markdown-to-HTML rendering
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("renderMarkdownToHtml wraps empty input in a paragraph")
+    void renderMarkdownEmpty() {
+        String html = AboutDialog.renderMarkdownToHtml("");
+        assertTrue(html.contains("<p>(empty)</p>"), html);
+    }
+
+    @Test
+    @DisplayName("a # heading becomes an <h1>")
+    void renderMarkdownH1() {
+        String html = AboutDialog.renderMarkdownToHtml("# Changelog");
+        assertTrue(html.contains("<h1>Changelog</h1>"), html);
+    }
+
+    @Test
+    @DisplayName("a ## [version] heading becomes an <h2> with brackets stripped")
+    void renderMarkdownH2Version() {
+        String html = AboutDialog.renderMarkdownToHtml("## [1.0.0] — 2026-01-01");
+        assertTrue(html.contains("<h2>1.0.0"), html);
+        assertFalse(html.contains("["), html);
+    }
+
+    @Test
+    @DisplayName("a ### subsection becomes an <h3>")
+    void renderMarkdownH3() {
+        String html = AboutDialog.renderMarkdownToHtml("### Added");
+        assertTrue(html.contains("<h3>Added</h3>"), html);
+    }
+
+    @Test
+    @DisplayName("a top-level bullet becomes a list item")
+    void renderMarkdownBullet() {
+        String html = AboutDialog.renderMarkdownToHtml("- **Calculator** — an advanced calculator");
+        assertTrue(html.contains("<ul>"), html);
+        assertTrue(html.contains("<li>"), html);
+        assertTrue(html.contains("<strong>Calculator</strong>"), html);
+    }
+
+    @Test
+    @DisplayName("continuation lines are joined into the bullet")
+    void renderMarkdownBulletContinuation() {
+        String md = "- **Title** — first line\n  second line\n  third line";
+        String html = AboutDialog.renderMarkdownToHtml(md);
+        assertTrue(html.contains("first line second line third line"), html);
+    }
+
+    @Test
+    @DisplayName("inlineMarkdown converts bold, code and link spans")
+    void inlineMarkdownSpans() {
+        assertEquals("<strong>bold</strong>",
+                AboutDialog.inlineMarkdown("**bold**"));
+        assertEquals("<code>foo</code>",
+                AboutDialog.inlineMarkdown("`foo`"));
+        assertEquals("<a href=\"http://x\">link</a>",
+                AboutDialog.inlineMarkdown("[link](http://x)"));
+    }
+
+    @Test
+    @DisplayName("inlineMarkdown escapes HTML characters")
+    void inlineMarkdownEscapesHtml() {
+        assertEquals("&lt;tag&gt;",
+                AboutDialog.inlineMarkdown("<tag>"));
+        assertEquals("a &amp; b",
+                AboutDialog.inlineMarkdown("a & b"));
+    }
+
+    @Test
+    @DisplayName("inlineMarkdown leaves unbalanced markers as literal text")
+    void inlineMarkdownUnbalanced() {
+        // Unclosed bold
+        String result = AboutDialog.inlineMarkdown("the ** flag");
+        assertTrue(result.contains("**"), result);
+    }
+
+    @Test
+    @DisplayName("a full changelog renders with proper structure")
+    void renderMarkdownFullChangelog() {
+        String md = "# Changelog\n\n"
+                + "## [1.0.0] — 2026-01-01\n\n"
+                + "### Added\n\n"
+                + "- **Feature A** — the first feature\n"
+                + "  with continuation\n\n"
+                + "### Fixed\n\n"
+                + "- **Bug B** — a fix with `code`";
+        String html = AboutDialog.renderMarkdownToHtml(md);
+        assertTrue(html.contains("<h1>Changelog</h1>"), html);
+        assertTrue(html.contains("<h2>1.0.0"), html);
+        assertTrue(html.contains("<h3>Added</h3>"), html);
+        assertTrue(html.contains("<strong>Feature A</strong>"), html);
+        assertTrue(html.contains("with continuation"), html);
+        assertTrue(html.contains("<h3>Fixed</h3>"), html);
+        assertTrue(html.contains("<code>code</code>"), html);
     }
 }

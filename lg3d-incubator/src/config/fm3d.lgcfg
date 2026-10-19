@@ -24,6 +24,9 @@
       <void property="classpathJars">
         <string>fm3d.jar</string>
       </void>
-   </object> 
+    <void property="version">
+   <string>1.0.0</string>
+  </void>
+ </object> 
 </java>
 
