@@ -285,6 +285,20 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
+    @DisplayName("Tetris maps to its 2D Swing panel")
+    void tetrisIsHostedPanel() {
+        // Tetris (lg3d-apps) is the Games group's Swing case: the descriptor
+        // names the wrapper that hosts the panel on a SwingNode inside a
+        // Frame3D, and that same wrapper class keys the panel the 2D desktop
+        // opens as an MDI internal frame.
+        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+                "java org.jdesktop.lg3d.apps.games.tetris.Tetris"));
+        assertEquals("org.jdesktop.lg3d.apps.games.tetris.TetrisPanel",
+                Desktop2DAppRegistry.panelClass(
+                        "java org.jdesktop.lg3d.apps.games.tetris.Tetris"));
+    }
+
+    @Test
     @DisplayName("the Periodic Table 3D app maps to its 2D Swing panel")
     void periodicTableIsHostedPanel() {
         // The Periodic Table is pure-3D in the 3D desktop but ships a plain

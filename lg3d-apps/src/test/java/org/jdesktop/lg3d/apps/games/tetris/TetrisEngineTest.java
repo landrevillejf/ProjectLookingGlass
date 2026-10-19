@@ -307,9 +307,10 @@ class TetrisEngineTest {
         TetrisEngine engine = showing(O);
         engine.start();
         // Leave only the 2x2 the entering piece occupies, so its lock is the
-        // last thing the well can accept.
+        // last thing the well can accept. Column 0 stays open throughout: a
+        // pre-completed row would pay out instead of ending the run.
         for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
+            for (int x = 1; x < WIDTH; x++) {
                 if (y > 1 || (x != 4 && x != 5)) {
                     engine.setCell(x, y, MARK);
                 }

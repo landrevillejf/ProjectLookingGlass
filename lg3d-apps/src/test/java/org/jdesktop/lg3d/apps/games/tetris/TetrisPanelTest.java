@@ -17,22 +17,30 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
-import java.awt.event.KeyAdapter;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.prefs.Preferences;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.ThrowingSupplier;
 
 /**
  * Headless tests for {@link TetrisPanel} and {@link TetrisBoard}, the surface
@@ -84,7 +92,7 @@ class TetrisPanelTest {
         int wellWidth = TetrisEngine.WIDTH * TetrisBoard.CELL_PX;
         assertTrue(TetrisPanel.WIDTH_PX >= wellWidth, "the well must not be clipped");
         assertEquals(TetrisEngine.HEIGHT * TetrisBoard.CELL_PX, TetrisPanel.HEIGHT_PX);
-        assertEquals(new java.awt.Dimension(TetrisPanel.WIDTH_PX, TetrisPanel.HEIGHT_PX),
+        assertEquals(new Dimension(TetrisPanel.WIDTH_PX, TetrisPanel.HEIGHT_PX),
                 panel.getPreferredSize());
         assertEquals(wellWidth, panel.getBoard().getPreferredSize().width);
     }
@@ -95,7 +103,8 @@ class TetrisPanelTest {
         // Desktop2DAppRegistry.PANEL_APPS builds the panel reflectively through
         // this constructor, so it must exist. (It reads the real user store and
         // never writes it without a settings dialog, which is harmless here.)
-        TetrisPanel built = assertDoesNotThrow(TetrisPanel::new);
+        ThrowingSupplier<TetrisPanel> ctor = TetrisPanel::new;
+        TetrisPanel built = assertDoesNotThrow(ctor);
         assertNotNull(built.getBoard());
         built.resetGame();
     }
@@ -176,6 +185,50 @@ class TetrisPanelTest {
     // -------------------------------------------------------------------- paint
 
     @Test
+    @DisplayName("a row paints its caption once, not in the value too")
+    void captionsAreNotDoubled() {
+        panel.newGame();
+        // fieldRow() puts the caption in its own label, so a value label that
+        // also named itself rendered "Score:  Score: 0" on the live desktop.
+        for (JLabel caption : labelsOf(panel)) {
+            String name = caption.getText();
+            if (name == null || !name.endsWith(":")) {
+                continue;
+            }
+            String word = name.substring(0, name.length() - 1);
+            for (Component sibling : caption.getParent().getComponents()) {
+                if (!(sibling instanceof JLabel) || sibling == caption) {
+                    continue;
+                }
+                String value = ((JLabel) sibling).getText();
+                assertFalse(value != null && value.startsWith(word),
+                        "the row paints \"" + name + "\" and its value repeats it: \""
+                        + value + "\"");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("no sidebar control is clipped at the panel's own size")
+    void nothingIsClipped() {
+        // The control pad is a 3x3 grid inside a fixed-width sidebar: at the
+        // width this game first shipped with, the live desktop rendered the
+        // rotate button as "Rot...", which no preferred-size assertion sees.
+        panel.setSize(panel.getPreferredSize());
+        relayout(panel);
+        for (JButton button : buttonsOf(panel)) {
+            assertTrue(button.getWidth() >= button.getPreferredSize().width,
+                    "\"" + button.getText() + "\" wants "
+                    + button.getPreferredSize().width + "px but has "
+                    + button.getWidth() + "px");
+        }
+        for (JLabel label : labelsOf(panel)) {
+            assertTrue(label.getWidth() >= label.getPreferredSize().width,
+                    "the label \"" + label.getText() + "\" is clipped");
+        }
+    }
+
+    @Test
     @DisplayName("the well paints headless in every state a run gets into")
     void everyStatePaints() {
         paint(panel);                      // at rest: an empty well and the sidebar
@@ -189,14 +242,16 @@ class TetrisPanelTest {
     }
 
     @Test
-    @DisplayName("the ghost sits under the piece wherever the floor is")
-    void ghostAndPiecePaintTogether() {
+    @DisplayName("the well is a full grid of cells and the piece lands on it")
+    void boardPaintsTheFallingPiece() {
         panel.newGame();
         TetrisBoard board = panel.getBoard();
+        board.setSize(board.getPreferredSize());
         BufferedImage image = newBuffer(board);
         board.paintComponent(image.createGraphics());
         assertTrue(containsAnyColour(image, panel.getEngine().getCurrent().color()),
                 "the falling piece reached the canvas");
+        assertEquals(TetrisEngine.WIDTH * TetrisBoard.CELL_PX, image.getWidth());
     }
 
     // ------------------------------------------------------------------- close
@@ -215,8 +270,10 @@ class TetrisPanelTest {
     /** Fills the well so the next lock has nowhere to put a piece: game over. */
     private void finishTheRun() {
         TetrisEngine engine = panel.getEngine();
+        // Column 0 is deliberately left open: a row the test itself completed
+        // would pay out instead of ending the run.
         for (int y = 0; y < TetrisEngine.HEIGHT; y++) {
-            for (int x = 0; x < TetrisEngine.WIDTH; x++) {
+            for (int x = 1; x < TetrisEngine.WIDTH; x++) {
                 if (y > 1 || (x != 4 && x != 5)) {
                     engine.setCell(x, y, Color.GRAY);
                 }
@@ -226,27 +283,61 @@ class TetrisPanelTest {
         assertTrue(engine.isGameOver());
     }
 
+    /** Lays out this container and every container below it, top down. */
+    private static void relayout(Container container) {
+        container.doLayout();
+        for (Component child : container.getComponents()) {
+            if (child instanceof Container) {
+                relayout((Container) child);
+            }
+        }
+    }
+
+    private static List<JLabel> labelsOf(Container container) {
+        List<JLabel> found = new ArrayList<>();
+        for (Component child : container.getComponents()) {
+            if (child instanceof JLabel) {
+                found.add((JLabel) child);
+            } else if (child instanceof Container) {
+                found.addAll(labelsOf((Container) child));
+            }
+        }
+        return found;
+    }
+
+    private static List<JButton> buttonsOf(Container container) {
+        List<JButton> found = new ArrayList<>();
+        for (Component child : container.getComponents()) {
+            if (child instanceof JButton) {
+                found.add((JButton) child);
+            } else if (child instanceof Container) {
+                found.addAll(buttonsOf((Container) child));
+            }
+        }
+        return found;
+    }
+
     private static void paint(TetrisPanel target) {
         target.setSize(TetrisPanel.WIDTH_PX, TetrisPanel.HEIGHT_PX);
         target.doLayout();
         BufferedImage image = newBuffer(target);
-        Graphics2D g = (Graphics2D) image.getGraphics();
+        Graphics2D g = image.createGraphics();
         target.paint(g);
         g.dispose();
-        assertTrue(image.getWidth() > 0);
+        assertTrue(image.getHeight() > 0);
     }
 
-    private static BufferedImage newBuffer(java.awt.Component component) {
+    private static BufferedImage newBuffer(Component component) {
         return new BufferedImage(Math.max(1, component.getWidth()),
                 Math.max(1, component.getHeight()), BufferedImage.TYPE_INT_ARGB);
     }
 
     /** Whether any pixel of the canvas carries that colour, ignoring alpha. */
     private static boolean containsAnyColour(BufferedImage image, Color color) {
+        int wanted = color.getRGB() & 0xFFFFFF;
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
-                int rgb = image.getRGB(x, y) & 0xFFFFFF;
-                if (rgb == (color.getRGB() & 0xFFFFFF)) {
+                if ((image.getRGB(x, y) & 0xFFFFFF) == wanted) {
                     return true;
                 }
             }
@@ -255,33 +346,16 @@ class TetrisPanelTest {
     }
 
     /**
-     * Sends a keystroke to whatever the panel installed on the board, the same
-     * way the 3D desktop's {@code SwingNodeRenderer} does: it redispatches a
-     * real {@link KeyEvent} at the focused component rather than relying on
-     * input maps, so the listener is the one path both surfaces share.
+     * Sends a keystroke to the listeners the panel installed on the board, the
+     * same way the 3D desktop's {@code SwingNodeRenderer} does: it redispatches
+     * a real {@link KeyEvent} at a component rather than going through input
+     * maps, so the board's listener is the one path both surfaces share.
      */
-    private static void press(java.awt.Component target, int keyCode) {
-        KeyListener[] listeners = ((KeyAdapter[]) null) == null
-                ? ((java.awt.event.FocusListener[]) null) == null
-                        ? targetListeners(target) : targetListeners(target)
-                : targetListeners(target);
-        KeyEvent event = new KeyEvent(target, KeyEvent.KEY_PRESSED, 0L, 0, keyCode);
-        for (KeyListener listener : listeners) {
+    private static void press(Component target, int keyCode) {
+        KeyEvent event = new KeyEvent(target, KeyEvent.KEY_PRESSED, 0L, 0, keyCode,
+                KeyEvent.CHAR_UNDEFINED, KeyEvent.KEY_LOCATION_STANDARD);
+        for (KeyListener listener : ((JComponent) target).getKeyListeners()) {
             listener.keyPressed(event);
         }
-    }
-
-    private static KeyListener[] targetListeners(java.awt.Component target) {
-        return ((JComponentLike) () -> null).getClass() == null
-                ? null : ((javax.swing.JComponent) target).getKeyListeners();
-    }
-
-    /** Never used; kept out of the public surface of the game. */
-    private interface JComponentLike {
-        Object unused();
-    }
-
-    private static void unusedAssertNotSame(Object a, Object b) {
-        assertNotSame(a, b);
     }
 }

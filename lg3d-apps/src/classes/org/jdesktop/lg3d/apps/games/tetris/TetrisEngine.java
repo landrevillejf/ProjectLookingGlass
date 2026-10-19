@@ -43,11 +43,13 @@ public final class TetrisEngine {
 
     /** Rows cleared at once, index 0 = a single line. The classic table. */
     private static final int[] LINE_SCORES = {40, 100, 300, 1200};
-    /** Delay of the first level, in milliseconds. */
-    private static final int BASE_DELAY_MS = 500;
+    /** The fall delay a fresh run uses when the player asked for none. */
+    private static final int DEFAULT_START_DELAY_MS = 500;
     /** Milliseconds shaved off per level, and the floor the fall never passes. */
     private static final int DELAY_PER_LEVEL_MS = 30;
     private static final int MIN_DELAY_MS = 50;
+    /** The slowest a run may be asked to start at, whatever the slider says. */
+    private static final int MAX_DELAY_MS = 2000;
     /** Rows a level costs. */
     private static final int LINES_PER_LEVEL = 10;
 
@@ -69,7 +71,8 @@ public final class TetrisEngine {
         LINE_LOCKED,
         /** The piece locked and rows were completed; {@code lines} counts them. */
         LINES_CLEARED,
-        /** The lock took the run to a new level. */
+        /** The lock completed rows and the tenth row crossed took the run to a
+         * new level; {@link #getLastLinesCleared()} still says how many paid. */
         LEVEL_UP,
         /** The lock left no room for the next piece: the run is over. */
         GAME_OVER
@@ -84,6 +87,7 @@ public final class TetrisEngine {
     private int score;
     private int level = 1;
     private int linesCleared;
+    private int baseDelayMs = DEFAULT_START_DELAY_MS;
     private boolean running;
     private boolean paused;
     private int clearedThisTurn;
@@ -149,46 +153,73 @@ public final class TetrisEngine {
     }
 
     /**
-     * The tick interval the level asks for: 500 ms at level 1, 30 ms shorter
-     * per level, never below 50 ms. The view re-reads this after every
-     * {@link Turn#LEVEL_UP}.
+     * The tick interval the level asks for: the level-1 delay less 30 ms per
+     * level, never below {@value #MIN_DELAY_MS} ms. The view re-reads this
+     * after every {@link Turn#LEVEL_UP}.
      */
     public int getTickDelayMs() {
-        return Math.max(MIN_DELAY_MS,
-                BASE_DELAY_MS - (level - 1) * DELAY_PER_LEVEL_MS);
+        return Math.max(MIN_DELAY_MS, baseDelayMs - (level - 1) * DELAY_PER_LEVEL_MS);
+    }
+
+    /**
+     * The level-1 fall delay the player chose. Clamped, because the caller is a
+     * slider and a preference file: a delay of 0 would ask the timer to spin
+     * the event dispatch thread, and one over {@value #MAX_DELAY_MS} is a game
+     * that looks frozen.
+     */
+    public void setBaseDelayMs(int baseDelayMs) {
+        this.baseDelayMs = Math.max(MIN_DELAY_MS, Math.min(MAX_DELAY_MS, baseDelayMs));
+    }
+
+    public int getBaseDelayMs() {
+        return baseDelayMs;
     }
 
     // ------------------------------------------------------------------- play
 
     /** Clears the well, zeroes the counters and drops the first piece in. */
-    public Turn start() {
+    public void start() {
+        atRest();
+        running = true;
+        spawn();
+    }
+
+    /**
+     * Puts the engine back as it was before a run: an empty well, no piece and
+     * no score. Distinct from a finished game, which keeps its stack and its
+     * last piece on screen so the player can see what killed the run -- this is
+     * the state a window goes to when it is reset or closed.
+     */
+    public void stop() {
+        atRest();
+    }
+
+    private void atRest() {
         for (Color[] row : grid) {
             Arrays.fill(row, null);
         }
+        current = null;
+        next = null;
         score = 0;
         level = 1;
         linesCleared = 0;
         clearedThisTurn = 0;
-        paused = false;
-        running = true;
-        next = null;
-        spawn();
-        return Turn.STEPPED;
-    }
-
-    /** Stops the run and puts the well back at rest (a closed window). */
-    public void stop() {
         running = false;
         paused = false;
     }
 
-    /** Pauses a run in progress, or resumes it; a no-op once the run is over. */
-    public Turn togglePause() {
-        if (!running || current == null) {
-            return Turn.NOOP;
+    /**
+     * Pauses a run in progress, or resumes it.
+     *
+     * @return the new paused state; {@code false} when the run is not playing
+     *         at all (not started, or already over), which changes nothing
+     */
+    public boolean togglePause() {
+        if (current == null || !running) {
+            return false;
         }
         paused = !paused;
-        return Turn.NOOP;
+        return paused;
     }
 
     public Turn moveLeft() {

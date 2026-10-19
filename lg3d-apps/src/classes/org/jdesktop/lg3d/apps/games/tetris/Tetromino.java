@@ -107,11 +107,6 @@ public final class Tetromino {
         return new Tetromino(turned, color, x, y);
     }
 
-    /** Shape-identical copy at a fresh position, for the engine's probes. */
-    public Tetromino at(int newX, int newY) {
-        return new Tetromino(shape, color, newX, newY);
-    }
-
     @Override
     public String toString() {
         return "Tetromino[" + x + "," + y + " " + height() + "x" + width()

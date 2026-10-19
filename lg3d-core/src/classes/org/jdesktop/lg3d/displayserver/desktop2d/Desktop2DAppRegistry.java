@@ -218,6 +218,15 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.games.chess.ChessPanel");
         panels.put("org.jdesktop.lg3d.apps.games.solitaire.Solitaire3D",
                 "org.jdesktop.lg3d.apps.games.solitaire.SolitairePanel");
+        // Tetris (lg3d-apps, org.jdesktop.lg3d.apps.games.tetris) is the reverse
+        // case of the four incubator games above: it was written as plain Swing
+        // first, so its Games-group descriptor names the wrapper that hosts the
+        // panel on a SwingNode inside a Frame3D, and here that same wrapper
+        // class keys the panel the 2D desktop opens as an MDI internal frame.
+        // The lg3d-apps jar is on the desktop run classpath, so the reflective
+        // lookup resolves and the panel loads no Java 3D.
+        panels.put("org.jdesktop.lg3d.apps.games.tetris.Tetris",
+                "org.jdesktop.lg3d.apps.games.tetris.TetrisPanel");
         // The Periodic Table (lg3d-incubator) ships a plain Swing reference
         // panel that renders the element grid without Java 3D, so the one
         // start-menu descriptor (keyed here on the 3D main class) launches the

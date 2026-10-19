@@ -147,6 +147,9 @@ public class GenerateAppIcons {
     /** In-tool mark: a Newton's cradle (a lifted ball over a resting row), the resurrected Physics app's sign. */
     private static final String CRADLE_GLYPH = "NewtonCradle";
 
+    /** In-tool mark: blocks stacked in a well with one piece still falling, Tetris' sign. */
+    private static final String TETRIS_GLYPH = "TetrisStack";
+
     /** app icon file, tile colour, glyph category, glyph name. */
     private static final Object[][] APPS = {
         {"imagestudio.png", IconColor.ORANGE, IconCategory.GENERAL,     "Edit"},
@@ -311,6 +314,14 @@ public class GenerateAppIcons {
         // in-tool like the keypad, disc and the other custom marks. Steel balls
         // read best on a cool blue-gray tile (the same family Chess uses).
         {"newtonscradle.png", IconColor.BLUE_GRAY, IconCategory.GENERAL, CRADLE_GLYPH},
+        // Tetris (lg3d-apps; a Swing TetrisPanel hosted on a SwingNode inside a
+        // Frame3D in the 3D desktop, the same panel in an MDI frame in the 2D
+        // desktop, Games menu group). The bundled glyph set carries nothing
+        // block-stack shaped, so the well-and-falling-piece mark is drawn
+        // in-tool like the cradle beside it. A deep purple tile keeps the fifth
+        // Games entry apart from its orange / indigo / blue-gray / green
+        // neighbours, and no other icon this table generates wears that colour.
+        {"tetris.png", IconColor.DEEP_PURPLE, IconCategory.GENERAL, TETRIS_GLYPH},
         // Web Server Console (Swing management console hosted on a SwingNode / 2D
         // MDI frame; Developers menu group): drives the lg3d-webserver Spring Boot
         // server over its management REST API and forks it as a child process. The
@@ -401,6 +412,8 @@ public class GenerateAppIcons {
                 glyph = drawWorldCubeHudGlyph(GLYPH);
             } else if (CRADLE_GLYPH.equals(glyphName)) {
                 glyph = drawCradleGlyph(GLYPH);
+            } else if (TETRIS_GLYPH.equals(glyphName)) {
+                glyph = drawTetrisGlyph(GLYPH);
             } else {
                 glyph = IconManager.resizeIcon(
                     IconManager.loadIconWithFallback(category, glyphName, 24, 24), GLYPH, GLYPH);
@@ -418,6 +431,45 @@ public class GenerateAppIcons {
             IconManager.exportIcon(icon, out.getAbsolutePath(), "png");
             System.out.println("wrote " + out.getPath());
         }
+    }
+
+    /**
+     * Draws the Tetris mark: a well holding a settled stack with one cell left
+     * open and the piece that would fill it still falling. The bundled
+     * {@code toolbarButtonGraphics} set carries nothing block-stack shaped -- a
+     * grid arrow or a page reads as a spreadsheet, not as this game -- so it is
+     * drawn in-tool like the cradle, the keypad and the disc. Designed in a
+     * 32x32 space and scaled to {@code size}.
+     */
+    private static Icon drawTetrisGlyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+        g.setStroke(new BasicStroke(1f));
+        // One cell edge and the grid's origin: four columns by five rows.
+        int cell = 5;
+        int[] colX = {8, 13, 18, 23};
+        int[] rowY = {4, 9, 14, 19, 24};
+        // The well, faintly, so the blocks read as contained rather than loose.
+        g.setColor(new Color(0xFF, 0xFF, 0xFF, 0x66));
+        g.drawRect(7, 3, 21, 26);
+        g.setColor(Color.WHITE);
+        // The settled stack: a full floor row, and the row above it open at the
+        // third column -- the gap every player is trying to close.
+        for (int x : colX) {
+            g.fillRect(x, rowY[4], cell - 1, cell - 1);
+        }
+        for (int x : new int[] {colX[0], colX[1], colX[3]}) {
+            g.fillRect(x, rowY[3], cell - 1, cell - 1);
+        }
+        // The falling piece: an L hung above the gap it will drop into.
+        for (int x : new int[] {colX[2], colX[3]}) {
+            g.fillRect(x, rowY[0], cell - 1, cell - 1);
+        }
+        g.fillRect(colX[2], rowY[1], cell - 1, cell - 1);
+        g.dispose();
+        return new ImageIcon(image);
     }
 
     /**

@@ -50,8 +50,11 @@
   `paintComponent`; hop to the EDT from lg3d listeners; `installHostedLookAndFeel()`
   runs **before** the panel is built (Synth widgets NPE under SwingNode capture).
   **Input is a `KeyListener` on the focusable board**, not an input map:
-  `SwingNodeRenderer` redispatches real `KeyEvent`s at a component, and
-  `WHEN_IN_FOCUSED_WINDOW` never fires there. Sidebar buttons are
+  `SwingNodeRenderer` hands each real `KeyEvent` to the hidden frame's focus
+  owner through `KeyboardFocusManager.redispatchEvent`, and its own comment
+  records why — "the offscreen frame is never the focused window" — so a
+  `WHEN_IN_FOCUSED_WINDOW` binding can never fire and an input map is the wrong
+  tool. Sidebar buttons are
   `setFocusable(false)` so the board keeps focus and the keys.
   Sound loads **lazily** and may never throw — a machine with no mixer gets a
   silent, playable game. Clips are bundled beside the sources at
@@ -59,20 +62,24 @@
   resource source set; adding an `Effect` without shipping its file is silent
   forever, so `TetrisAudioTest` gates the two sets against each other.
   Jogamp packages only; nothing here may load a Java 3D class.
-- **QA** — 51 headless JUnit 5 cases in `src/test/java/.../games/tetris/`:
+- **QA** — 53 headless JUnit 5 cases in `src/test/java/.../games/tetris/`:
   `TetrisEngineTest` (every rule — steps, rotation, lock, one and four line
   clears, level ramp, speed clamp, game over — driven by `showing(int)`, an
   engine whose `Random.nextInt` is pinned so the piece sequence is deterministic
   without seed hunting), `TetrisPanelTest` (construction, geometry, keys reaching
-  the engine, every state painting), `TetrominoTest`, `TetrisSettingsTest` and
+  the engine, every state painting, and two checks the **live desktop** taught:
+  no row paints its caption twice, and no sidebar control is clipped at the
+  panel's own preferred width — a truncated `"Rot..."` is invisible to every
+  preferred-size assertion), `TetrominoTest`, `TetrisSettingsTest` and
   `TetrisAudioTest`. Both settings tests build over a **unique throwaway
   preferences node** (`Preferences.userRoot().node("/lg3d/…-test/" + UUID)` +
   `removeNode()` in `@AfterEach`) — the test JVM does not isolate
   `java.util.prefs`, so a run must never touch the player's real choices.
   `Desktop2DAppRegistryTest.tetrisIsHostedPanel` asserts the command resolves.
   The modal settings dialog is not exercised: `JOptionPane` needs a window and a
-  headless JVM has none. Verify the 3D surface with the in-JVM probe + internal
-  screencapture (`lg3d-core/lgscreen-*.png`).
+  headless JVM has none, so the 3D surface is verified with the in-JVM probe +
+  internal screencapture (`lg3d-core/AGENTS.md` step 6) — that is the only way
+  the two clipped/doubled labels were ever seen.
 - **Business Analyst** — The Games group's fifth entry and the first written for
   both desktops at once rather than ported into them. It ships ~1.1 MB of WAV
   clips and deliberately **not** the 33 MB original victory jingle: a released
