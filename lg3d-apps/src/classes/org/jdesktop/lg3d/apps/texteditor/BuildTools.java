@@ -173,6 +173,35 @@ final class BuildTools {
     private static final Pattern REPORT_URL =
             Pattern.compile("See the report at:\\s*(\\S+)");
 
+    /**
+     * Gradle's script compiler rejecting a JDK newer than the tool understands:
+     * {@code BUG! exception in phase 'semantic analysis' in source unit
+     * '_BuildScript_' Unsupported class file major version 69}. The number is the
+     * class-file major version, and {@code major - 44} is the Java release
+     * (65 = Java 21, 69 = Java 25).
+     */
+    private static final Pattern CLASS_FILE_MAJOR =
+            Pattern.compile("Unsupported class file major version (\\d{2,3})");
+
+    /**
+     * The line Gradle prints <em>around</em> that rejection. It names a class
+     * cache, so a reader who stops here concludes the cache is corrupt and wipes
+     * it — which cannot help, because the cache is never written while the
+     * compiler is failing. See {@link #toolchainAdvice(String)}.
+     */
+    private static final Pattern GENERIC_CLASS_CACHE = Pattern.compile(
+            "Could not open (?:cp_proj|cp_settings|settings) generic class cache");
+
+    /**
+     * The other cache sentence, recorded from a <em>half-deleted</em> cache: a tree
+     * cleared while a daemon still held it open comes back as {@code Could not read
+     * workspace metadata from ~/.gradle/caches/8.14/dependencies-accessors/
+     * <hash>/metadata.bin}. Unlike {@link #GENERIC_CLASS_CACHE} this one really is
+     * the cache — which is why the advice names the daemon as well as the action.
+     */
+    private static final Pattern WORKSPACE_METADATA = Pattern.compile(
+            "Could not read workspace metadata");
+
     /** Maven boilerplate that never belongs in a one-line status message. */
     private static final List<String> MAVEN_NOISE = List.of(
             "To see the full stack trace", "Re-run Maven using",
@@ -280,16 +309,41 @@ final class BuildTools {
     // ------------------------------------------------------------------
 
     /**
-     * {@code gradlew --console=plain <tasks>}. Plain console (no ANSI spinner)
-     * because the log is read back as text into the Output panel, and the tasks
-     * are passed verbatim so a failure names the task that failed.
+     * {@code gradlew --console=plain -Dorg.gradle.java.home=<jdk> <tasks>}. Plain
+     * console (no ANSI spinner) because the log is read back as text into the
+     * Output panel, and the tasks are passed verbatim so a failure names the task
+     * that failed.
+     *
+     * <p>The JDK travels as a command-line property and not only as
+     * {@code JAVA_HOME} (see {@link #buildEnvironment}) because a wrapper script
+     * is free to ignore its environment: the {@code gradlew} a third-party
+     * scaffolder writes is often a few lines of {@code exec java -jar
+     * gradle-wrapper.jar "$@"}, which resolves {@code java} from {@code PATH}
+     * whatever {@code JAVA_HOME} says. Then the project silently builds on
+     * whatever JDK the host happens to default to — and a Gradle too old for it
+     * fails with the misleading cache message {@link #toolchainAdvice(String)}
+     * decodes. {@code org.gradle.java.home} is read by the client itself, so it
+     * selects the daemon JVM no matter how dumb the launcher in front of it is.</p>
+     *
+     * @param jdkHome the JDK the build must run on, or {@code null} for the
+     *                editor's own — the same rule {@link #buildEnvironment} uses
      */
-    static List<String> gradleCommand(Path launcher, List<String> tasks) {
+    static List<String> gradleCommand(Path launcher, List<String> tasks, Path jdkHome) {
         List<String> cmd = new ArrayList<>();
         cmd.add(launcher.toString());
         cmd.add("--console=plain");
+        String home = (jdkHome != null) ? jdkHome.toString()
+                : System.getProperty("java.home", "");
+        if (!home.isEmpty()) {
+            cmd.add("-Dorg.gradle.java.home=" + home);
+        }
         cmd.addAll(tasks);
         return List.copyOf(cmd);
+    }
+
+    /** The command with no explicit JDK: the editor's own, pinned as a property. */
+    static List<String> gradleCommand(Path launcher, List<String> tasks) {
+        return gradleCommand(launcher, tasks, null);
     }
 
     /**
@@ -739,6 +793,48 @@ final class BuildTools {
     }
 
     /**
+     * The real reason behind Gradle's most misleading failure. Its script
+     * compiler rejects a class file it cannot read, and the message that reaches
+     * the user names a <em>cache</em> ({@code Could not open cp_proj generic
+     * class cache}) while the line underneath it names the cause
+     * ({@code Unsupported class file major version 69}). Read as cache damage,
+     * that error invites deleting the cache — which cannot help, because nothing
+     * was ever written to it, and the price of the attempt is re-downloading
+     * every dependency. So the headline for this failure is the JDK mismatch, not
+     * the cache sentence {@link #failureHeadline(String)} would otherwise pick.
+     *
+     * @param output merged stdout+stderr of the build
+     * @return the one-line advice, empty when the log is not this failure
+     */
+    static Optional<String> toolchainAdvice(String output) {
+        if (output == null || output.isEmpty()) {
+            return Optional.empty();
+        }
+        Matcher m = CLASS_FILE_MAJOR.matcher(output);
+        if (!m.find()) {
+            // A cache sentence with no compiler rejection under it is a genuinely
+            // stale or half-deleted cache: say so, narrowly, and only where it is
+            // true. Both forms are rebuilt by the same action, and a daemon that
+            // still holds the deleted workspace open has to release it first — the
+            // half of the remedy the metadata failure is proof of.
+            if (GENERIC_CLASS_CACHE.matcher(output).find()
+                    || WORKSPACE_METADATA.matcher(output).find()) {
+                return Optional.of("Gradle's generated build cache is unreadable"
+                        + " \u2014 Clear Gradle Cache rebuilds it; a running daemon has"
+                        + " to release the old one (gradle --stop)");
+            }
+            return Optional.empty();
+        }
+        int major = Integer.parseInt(m.group(1));
+        if (major < 45) {
+            return Optional.empty(); // not a release number this arithmetic means
+        }
+        return Optional.of("this Gradle cannot read Java " + (major - 44)
+                + " classes \u2014 pick a JDK it supports for the project, or upgrade"
+                + " its wrapper; the cache message is a symptom, not the cause");
+    }
+
+    /**
      * The one line a finished build leaves on the status bar: the tool's own
      * verdict when the log carries one (a build explains itself, an exit code
      * explains nothing), the failure headline when it does not, and how many
@@ -759,7 +855,9 @@ final class BuildTools {
             sb.append(verdict.isEmpty()
                     ? " \u2014 failed (exit " + result.exitCode() + ")"
                     : " \u2014 " + verdict);
-            Optional<String> head = failureHeadline(result.output());
+            Optional<String> advice = toolchainAdvice(result.output());
+            Optional<String> head = advice.isPresent()
+                    ? advice : failureHeadline(result.output());
             if (head.isPresent()) {
                 sb.append(": ").append(head.get());
             }

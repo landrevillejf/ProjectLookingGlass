@@ -115,15 +115,80 @@ class BuildToolsTest {
     void commandBuilders() {
         Path gradlew = Path.of("/p/gradlew");
         Path mvn = Path.of("/usr/bin/mvn");
-        assertEquals(List.of("/p/gradlew", "--console=plain", "build"),
+        assertEquals(List.of("/p/gradlew", "--console=plain",
+                        "-Dorg.gradle.java.home=" + System.getProperty("java.home"), "build"),
                 BuildTools.gradleCommand(gradlew, List.of("build")));
-        assertEquals(List.of("/p/gradlew", "--console=plain", "test", "--tests", "AppTest"),
+        assertEquals(List.of("/p/gradlew", "--console=plain",
+                        "-Dorg.gradle.java.home=" + System.getProperty("java.home"),
+                        "test", "--tests", "AppTest"),
                 BuildTools.gradleCommand(gradlew, List.of("test", "--tests", "AppTest")));
         assertEquals(List.of("/usr/bin/mvn", "-B", "--no-transfer-progress", "package"),
                 BuildTools.mavenCommand(mvn, List.of("package")));
         assertEquals(List.of("/jdk/bin/java", "-cp", "/p/target/classes", "com.acme.App"),
                 BuildTools.javaClasspathRunCommand(Path.of("/jdk/bin/java"),
                         Path.of("/p/target/classes"), "com.acme.App"));
+    }
+
+    @Test
+    @DisplayName("the selected JDK travels as a Gradle property, not only as JAVA_HOME")
+    void gradleCommandPinsTheSelectedJdk() {
+        Path gradlew = Path.of("/p/gradlew");
+        List<String> cmd = BuildTools.gradleCommand(gradlew, List.of("build"), Path.of("/opt/jdk-21"));
+        assertEquals(List.of("/p/gradlew", "--console=plain",
+                        "-Dorg.gradle.java.home=/opt/jdk-21", "build"),
+                cmd, "the property is spelled exactly as Gradle reads it");
+        assertTrue(cmd.indexOf("-Dorg.gradle.java.home=/opt/jdk-21") < cmd.indexOf("build"),
+                "the pin precedes the task names, which are the argument list's tail");
+        assertTrue(BuildTools.gradleCommand(gradlew, List.of("build"), null)
+                        .contains("-Dorg.gradle.java.home=" + System.getProperty("java.home")),
+                "a project that selected no JDK still pins the editor's own, never the host default");
+    }
+
+    @Test
+    @DisplayName("Gradle's cache-shaped JDK rejection is reported as the mismatch it is")
+    void toolchainAdviceNamesTheRealCause() {
+        // Recorded from a real Gradle 8.5 build running on Java 25: the headline
+        // blames a class cache, the line under it names the class file version.
+        String log = "* What went wrong:\n"
+                + "Could not open cp_proj generic class cache for build file"
+                + " '/home/dev/SpringBootDemo/build.gradle'"
+                + " (/home/dev/.gradle/caches/8.5/scripts/1wacoo0c/cp_proj).\n"
+                + "   > BUG! exception in phase 'semantic analysis' in source unit"
+                + " '_BuildScript_' Unsupported class file major version 69\n";
+        Optional<String> advice = BuildTools.toolchainAdvice(log);
+        assertTrue(advice.isPresent(), log);
+        assertTrue(advice.get().contains("Java 25"), advice.get());
+        assertTrue(advice.get().contains("symptom, not the cause"), advice.get());
+
+        String older = log.replace("major version 69", "major version 65");
+        assertTrue(BuildTools.toolchainAdvice(older).get().contains("Java 21"),
+                "major 65 is Java 21: the mapping is the release number minus 44");
+        assertTrue(BuildTools.toolchainAdvice(log.replace("major version 69", "major version 44"))
+                        .isEmpty(),
+                "a number below the first class-file version is not a release to name");
+    }
+
+    @Test
+    @DisplayName("only the cache sentence alone is a stale cache, and ordinary failures get no advice")
+    void toolchainAdviceSeparatesTheGenuineCacheFailure() {
+        String stale = "* What went wrong:\nCould not open settings generic class cache"
+                + " for settings file '/p/settings.gradle'.\n";
+        assertTrue(BuildTools.toolchainAdvice(stale).get().contains("Clear Gradle Cache"),
+                "the cache advice is reserved for the log that really does name only a cache");
+        // Verbatim from this repository's own build after a partial cache wipe: this
+        // failure is the cache, and a live daemon is half the reason it stays broken.
+        String workspace = "* What went wrong:\njava.io.UncheckedIOException: Could not read"
+                + " workspace metadata from /home/dev/.gradle/caches/8.14"
+                + "/dependencies-accessors/cc79d4bd9560/metadata.bin\n\nBUILD FAILED in 1s\n";
+        String advice = BuildTools.toolchainAdvice(workspace).orElse("");
+        assertTrue(advice.contains("Clear Gradle Cache"), advice);
+        assertTrue(advice.contains("gradle --stop"),
+                "releasing the deleted workspace is the other half of the remedy");
+        assertTrue(BuildTools.toolchainAdvice(
+                "* What went wrong:\n> There were failing tests.\n").isEmpty(),
+                "an ordinary failure keeps its own headline");
+        assertTrue(BuildTools.toolchainAdvice("").isEmpty());
+        assertTrue(BuildTools.toolchainAdvice(null).isEmpty());
     }
 
     @Test

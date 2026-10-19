@@ -27,10 +27,12 @@ import java.util.stream.Stream;
 
 /**
  * Resolves the tools a project actually uses, from the project's own tree only.
- * A build tool is found in priority order - the wrapper the project carries, a
- * distribution Espresso downloaded into {@code .espresso/tools/}, then one
- * unpacked at the project root - and the JDK is the one the project selected
- * from the manager, recorded in {@code .espresso/toolchain.properties}.
+ * A build tool is found in priority order - a wrapper the project carries that
+ * honours {@code JAVA_HOME}, a distribution Espresso downloaded into
+ * {@code .espresso/tools/}, then one unpacked at the project root, and only then
+ * a wrapper script that ignores its environment; and the JDK is the one the
+ * project selected from the manager, recorded in
+ * {@code .espresso/toolchain.properties}.
  *
  * <p>Nothing here ever consults the system {@code PATH}. That is the whole
  * point of the hermetic toolchain: Espresso runs the project's Gradle/Maven and
@@ -82,7 +84,7 @@ final class ProjectToolchain {
             return Optional.empty();
         }
         Path wrapper = wrapperOrNull(root, bs);
-        if (wrapper != null) {
+        if (wrapper != null && honorsJavaHome(wrapper)) {
             return Optional.of(wrapper);
         }
         Path provisioned = firstLauncherUnder(
@@ -101,7 +103,29 @@ final class ProjectToolchain {
                 return Optional.of(bare);
             }
         }
-        return Optional.empty();
+        // Last resort, not first choice: a script that ignores JAVA_HOME. It is
+        // still the tool version the project declared, and the build pins the JDK
+        // as a Gradle property as well, so it runs on the right JVM anyway.
+        return Optional.ofNullable(wrapper);
+    }
+
+    /**
+     * Whether a wrapper script picks its JVM from {@code JAVA_HOME}, the way the
+     * script {@code gradle wrapper} generates does. A scaffolder that hand-writes
+     * a few lines of {@code exec java -jar gradle-wrapper.jar "$@"} does not: that
+     * script resolves {@code java} from {@code PATH}, so the project builds on
+     * whatever JDK the host defaults to and an old Gradle meets a class file it
+     * cannot read. Such a wrapper loses priority to a distribution Espresso
+     * provisioned; an unreadable script is treated the same way, since the
+     * fallback paths are the safer ones.
+     */
+    private static boolean honorsJavaHome(Path script) {
+        try {
+            return new String(Files.readAllBytes(script), StandardCharsets.UTF_8)
+                    .contains("JAVA_HOME");
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
     }
 
     /**
