@@ -179,10 +179,7 @@ public final class JavaStructureTools implements TextEditorExtension {
                         this::renameSymbol),
                 new ToolbarContribution("struct-organize-imports", "Organize Imports",
                         "Drop unused imports, remove duplicates and sort the import block",
-                        this::organizeImportsAction),
-                new ToolbarContribution("struct-import-selected", "Import Selected Type",
-                        "Import the selected class name",
-                        this::importSelectedType)
+                        this::organizeImportsAction)
         );
     }
 

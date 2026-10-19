@@ -594,6 +594,7 @@ public class AdvancedTextEditorPanel extends JPanel
             findBar.focusLine();
         });
         bind(input, actions, "ctrl SPACE", "te-complete", this::forceShowCompletion);
+        bind(input, actions, "alt ENTER", "te-quickfix", this::quickFix);
         bind(input, actions, "ctrl Z", "te-undo", this::undoCurrent);
         bind(input, actions, "ctrl Y", "te-redo", this::redoCurrent);
         bind(input, actions, "ctrl EQUALS", "te-zoom-in", () -> zoom(+1));
@@ -1992,6 +1993,121 @@ public class AdvancedTextEditorPanel extends JPanel
     /** Ctrl+Space: force the inline popup open at the caret. */
     final void forceShowCompletion() {
         updateCompletionPopup(true);
+    }
+
+    /** Alt+Enter: quick-fix — import the type under the caret. */
+    final void quickFix() {
+        EditorTab tab = currentTab();
+        if (tab == null) {
+            return;
+        }
+        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
+        if (fileName == null || !fileName.endsWith(".java")) {
+            message("Quick-fix only available for Java files");
+            return;
+        }
+        // Get the word under the caret
+        String text = tab.getText();
+        int caret = tab.caretOffset();
+        if (caret < 0 || caret > text.length()) {
+            return;
+        }
+        // Find the word boundaries
+        int start = caret;
+        int end = caret;
+        while (start > 0 && Character.isJavaIdentifierPart(text.charAt(start - 1))) {
+            start--;
+        }
+        while (end < text.length() && Character.isJavaIdentifierPart(text.charAt(end))) {
+            end++;
+        }
+        if (start == end) {
+            message("Place the caret on a type name");
+            return;
+        }
+        String typeName = text.substring(start, end);
+        if (!Character.isUpperCase(typeName.charAt(0))) {
+            message("Type names start with an uppercase letter");
+            return;
+        }
+        // Search for the type in common packages
+        List<String> candidates = new java.util.ArrayList<>();
+        String[] packages = {
+                "java.lang", "java.util", "java.io", "java.nio", "java.net",
+                "java.time", "java.math", "java.text", "java.sql",
+                "java.util.concurrent", "java.util.stream", "java.util.function",
+                "java.util.regex", "java.util.concurrent.atomic"
+        };
+        for (String pkg : packages) {
+            String fqn = pkg + "." + typeName;
+            try {
+                Class.forName(fqn);
+                candidates.add(fqn);
+            } catch (ClassNotFoundException e) {
+                // not found
+            }
+        }
+        if (candidates.isEmpty()) {
+            message("No class found for: " + typeName);
+            return;
+        }
+        // Check if already imported
+        if (text.contains("import " + candidates.get(0) + ";")) {
+            message("Already imported: " + candidates.get(0));
+            return;
+        }
+        // If multiple candidates, let the user choose
+        String toImport;
+        if (candidates.size() == 1) {
+            toImport = candidates.get(0);
+        } else {
+            Object choice = JOptionPane.showInputDialog(
+                    this,
+                    "Multiple classes found for '" + typeName + "':",
+                    "Import Type",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    candidates.toArray(),
+                    candidates.get(0));
+            if (choice == null) {
+                return;
+            }
+            toImport = choice.toString();
+        }
+        // Add the import
+        String importLine = "import " + toImport + ";\n";
+        // Find the import section
+        int importInsertPos = 0;
+        String[] lines = text.split("\n", -1);
+        int offset = 0;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.startsWith("package ")) {
+                importInsertPos = offset + lines[i].length() + 1;
+            } else if (line.startsWith("import ")) {
+                importInsertPos = offset + lines[i].length() + 1;
+            } else if (!line.isEmpty() && !line.startsWith("//") && importInsertPos > 0) {
+                break;
+            }
+            offset += lines[i].length() + 1;
+        }
+        if (importInsertPos == 0) {
+            // No package or import, insert after any initial comments
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (!line.isEmpty() && !line.startsWith("//") && !line.startsWith("/*") && !line.startsWith("*")) {
+                    break;
+                }
+                importInsertPos += lines[i].length() + 1;
+            }
+        }
+        try {
+            tab.document().insertString(importInsertPos, importLine, null);
+        } catch (javax.swing.text.BadLocationException ble) {
+            message("Failed to insert import");
+            return;
+        }
+        message("Imported: " + toImport);
     }
 
     /** The inline popup (test seam). */
