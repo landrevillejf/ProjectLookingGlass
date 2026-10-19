@@ -1992,6 +1992,25 @@ public class AdvancedTextEditorPanel extends JPanel
 
     /** Ctrl+Space: force the inline popup open at the caret. */
     final void forceShowCompletion() {
+        EditorTab tab = currentTab();
+        if (tab == null) {
+            return;
+        }
+        // Recompute candidates at the current caret position so Ctrl+Space
+        // works even when no extension has published completions yet.
+        String text = tab.getText();
+        int caret = tab.caretOffset();
+        String fileName = tab.getPath() != null ? tab.getPath().getFileName().toString() : null;
+        List<String> candidates = JavaCompletionTools.completions(text, caret, fileName);
+        if (!candidates.isEmpty()) {
+            lastCompletionCandidates = candidates;
+            String path = tab.getPath() != null ? tab.getPath().toString() : null;
+            String title = (path == null || path.isEmpty()) ? null : baseName(path);
+            completionPanel.setCompletions(title, candidates);
+        } else if (lastCompletionCandidates.isEmpty()) {
+            message("No completions at the caret");
+            return;
+        }
         updateCompletionPopup(true);
     }
 
