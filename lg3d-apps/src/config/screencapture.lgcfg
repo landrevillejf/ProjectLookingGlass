@@ -10,6 +10,9 @@
   <void property="name"> 
    <string>Screen Snapshot</string> 
   </void> 
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object> -->
  <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
   <void property="command">
@@ -29,6 +32,9 @@
   </void>
   <void property="name">
    <string>Screen Snapshot</string>
+  </void>
+  <void property="version">
+   <string>1.0.0</string>
   </void>
  </object>
 </java> 

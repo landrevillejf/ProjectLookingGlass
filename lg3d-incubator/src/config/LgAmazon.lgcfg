@@ -41,5 +41,8 @@
   <void property="classpathJars">
     <string>LgAmazon.jar  ../axis/jaxrpc.jar ../axis/axis.jar ../axis/commons-logging-1.0.4.jar ../axis/commons-discovery-0.2.jar ../axis/wsdl4j-1.5.1.jar ../activation.jar ../mail.jar</string>
   </void>
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object> 
 </java>  

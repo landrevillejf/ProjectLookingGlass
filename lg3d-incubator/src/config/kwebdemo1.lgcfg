@@ -12,6 +12,9 @@
   <void property="name">
    <string>K-Web 3D UI demo</string>
   </void>
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object>
  -->
  <!-- Start Menu Item -->
@@ -36,6 +39,9 @@
   </void> 
   <void property="classpathJars">
     <string>kwebdemo1.jar</string>
+  </void>
+  <void property="version">
+   <string>1.0.0</string>
   </void>
  </object> 
 </java>

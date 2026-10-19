@@ -62,6 +62,19 @@ class Desktop2DWindowTest {
         assertEquals(CMD, window.getCommand());
         assertEquals("resources/icon.png", window.getIconResource());
         assertEquals("A scientific calculator", window.getDescription());
+        assertNull(window.getVersion(),
+                "the 7-arg constructor leaves version null");
+    }
+
+    @Test
+    @DisplayName("the 8-arg constructor retains the per-app version")
+    void eightArgConstructorRetainsVersion() {
+        Desktop2DWindow window = new Desktop2DWindow("Calculator", null,
+                new JPanel(), "Calculator", CMD, "resources/icon.png",
+                "A scientific calculator", "2.3.0");
+        assertEquals("2.3.0", window.getVersion());
+        assertEquals("Calculator", window.getAppName());
+        assertEquals(CMD, window.getCommand());
     }
 
     @Test
@@ -83,6 +96,7 @@ class Desktop2DWindowTest {
         assertNull(window.getDescription());
         assertNull(window.getCommand());
         assertNull(window.getIconResource());
+        assertNull(window.getVersion());
         assertEquals("About Calc", aboutItem(window).getText());
         assertEquals(1, window.getContentPane().getComponentCount());
         assertSame(panel, window.getContentPane().getComponent(0));

@@ -12,6 +12,9 @@
   <void property="name">
    <string>Googler</string>
   </void>
+  <void property="version">
+   <string>1.0.0</string>
+  </void>
  </object>
  -->
  <!-- Start Menu item -->
@@ -44,6 +47,9 @@
             libs/saaj.jar 
             libs/wsdl4j-1.5.1.jar 
             libs/xercesImpl.jar</string>
+  </void>
+  <void property="version">
+   <string>1.0.0</string>
   </void>
  </object> 
 </java>
