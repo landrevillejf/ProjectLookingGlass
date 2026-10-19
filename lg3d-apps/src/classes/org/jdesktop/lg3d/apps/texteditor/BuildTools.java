@@ -173,6 +173,43 @@ final class BuildTools {
     private static final Pattern REPORT_URL =
             Pattern.compile("See the report at:\\s*(\\S+)");
 
+    /**
+     * Gradle's script compiler rejecting a JDK newer than the tool understands:
+     * {@code BUG! exception in phase 'semantic analysis' in source unit
+     * '_BuildScript_' Unsupported class file major version 69}. The number is the
+     * class-file major version, and {@code major - 44} is the Java release
+     * (65 = Java 21, 69 = Java 25).
+     */
+    private static final Pattern CLASS_FILE_MAJOR =
+            Pattern.compile("Unsupported class file major version (\\d{2,3})");
+
+    /**
+     * The line Gradle prints <em>around</em> that rejection. It names a class
+     * cache, so a reader who stops here concludes the cache is corrupt and wipes
+     * it — which cannot help, because the cache is never written while the
+     * compiler is failing. See {@link #toolchainAdvice(String)}.
+     */
+    private static final Pattern GENERIC_CLASS_CACHE = Pattern.compile(
+            "Could not open (?:cp_proj|cp_settings|settings) generic class cache");
+
+    /**
+     * The other cache sentence, recorded from a <em>half-deleted</em> cache: a tree
+     * cleared while a daemon still held it open comes back as {@code Could not read
+     * workspace metadata from ~/.gradle/caches/8.14/dependencies-accessors/
+     * <hash>/metadata.bin}. Unlike {@link #GENERIC_CLASS_CACHE} this one really is
+     * the cache — which is why the advice names the daemon as well as the action.
+     */
+    private static final Pattern WORKSPACE_METADATA = Pattern.compile(
+            "Could not read workspace metadata");
+
+    /**
+     * Spring Boot's port-conflict failure: {@code Web server failed to start.
+     * Port 8080 was already in use.} The number is the TCP port the application
+     * tried to bind.
+     */
+    private static final Pattern PORT_IN_USE = Pattern.compile(
+            "Port (\\d+) was already in use");
+
     /** Maven boilerplate that never belongs in a one-line status message. */
     private static final List<String> MAVEN_NOISE = List.of(
             "To see the full stack trace", "Re-run Maven using",
@@ -280,16 +317,41 @@ final class BuildTools {
     // ------------------------------------------------------------------
 
     /**
-     * {@code gradlew --console=plain <tasks>}. Plain console (no ANSI spinner)
-     * because the log is read back as text into the Output panel, and the tasks
-     * are passed verbatim so a failure names the task that failed.
+     * {@code gradlew --console=plain -Dorg.gradle.java.home=<jdk> <tasks>}. Plain
+     * console (no ANSI spinner) because the log is read back as text into the
+     * Output panel, and the tasks are passed verbatim so a failure names the task
+     * that failed.
+     *
+     * <p>The JDK travels as a command-line property and not only as
+     * {@code JAVA_HOME} (see {@link #buildEnvironment}) because a wrapper script
+     * is free to ignore its environment: the {@code gradlew} a third-party
+     * scaffolder writes is often a few lines of {@code exec java -jar
+     * gradle-wrapper.jar "$@"}, which resolves {@code java} from {@code PATH}
+     * whatever {@code JAVA_HOME} says. Then the project silently builds on
+     * whatever JDK the host happens to default to — and a Gradle too old for it
+     * fails with the misleading cache message {@link #toolchainAdvice(String)}
+     * decodes. {@code org.gradle.java.home} is read by the client itself, so it
+     * selects the daemon JVM no matter how dumb the launcher in front of it is.</p>
+     *
+     * @param jdkHome the JDK the build must run on, or {@code null} for the
+     *                editor's own — the same rule {@link #buildEnvironment} uses
      */
-    static List<String> gradleCommand(Path launcher, List<String> tasks) {
+    static List<String> gradleCommand(Path launcher, List<String> tasks, Path jdkHome) {
         List<String> cmd = new ArrayList<>();
         cmd.add(launcher.toString());
         cmd.add("--console=plain");
+        String home = (jdkHome != null) ? jdkHome.toString()
+                : System.getProperty("java.home", "");
+        if (!home.isEmpty()) {
+            cmd.add("-Dorg.gradle.java.home=" + home);
+        }
         cmd.addAll(tasks);
         return List.copyOf(cmd);
+    }
+
+    /** The command with no explicit JDK: the editor's own, pinned as a property. */
+    static List<String> gradleCommand(Path launcher, List<String> tasks) {
+        return gradleCommand(launcher, tasks, null);
     }
 
     /**
@@ -739,6 +801,180 @@ final class BuildTools {
     }
 
     /**
+     * The real reason behind Gradle's most misleading failure. Its script
+     * compiler rejects a class file it cannot read, and the message that reaches
+     * the user names a <em>cache</em> ({@code Could not open cp_proj generic
+     * class cache}) while the line underneath it names the cause
+     * ({@code Unsupported class file major version 69}). Read as cache damage,
+     * that error invites deleting the cache — which cannot help, because nothing
+     * was ever written to it, and the price of the attempt is re-downloading
+     * every dependency. So the headline for this failure is the JDK mismatch, not
+     * the cache sentence {@link #failureHeadline(String)} would otherwise pick.
+     *
+     * @param output merged stdout+stderr of the build
+     * @return the one-line advice, empty when the log is not this failure
+     */
+    static Optional<String> toolchainAdvice(String output) {
+        if (output == null || output.isEmpty()) {
+            return Optional.empty();
+        }
+        Matcher m = CLASS_FILE_MAJOR.matcher(output);
+        if (!m.find()) {
+            // A cache sentence with no compiler rejection under it is a genuinely
+            // stale or half-deleted cache: say so, narrowly, and only where it is
+            // true. Both forms are rebuilt by the same action, and a daemon that
+            // still holds the deleted workspace open has to release it first — the
+            // half of the remedy the metadata failure is proof of.
+            if (GENERIC_CLASS_CACHE.matcher(output).find()
+                    || WORKSPACE_METADATA.matcher(output).find()) {
+                return Optional.of("Gradle's generated build cache is unreadable"
+                        + " \u2014 Clear Gradle Cache rebuilds it; a running daemon has"
+                        + " to release the old one (gradle --stop)");
+            }
+            return Optional.empty();
+        }
+        int major = Integer.parseInt(m.group(1));
+        if (major < 45) {
+            return Optional.empty(); // not a release number this arithmetic means
+        }
+        return Optional.of("this Gradle cannot read Java " + (major - 44)
+                + " classes \u2014 pick a JDK it supports for the project, or upgrade"
+                + " its wrapper; the cache message is a symptom, not the cause");
+    }
+
+    /**
+     * A port conflict: Spring Boot (or any web framework) tried to bind a port
+     * that another process already holds. The advice names the port, the process
+     * using it (when discoverable), the exact command to free it, and how to
+     * run on a different port instead.
+     *
+     * @param output merged stdout+stderr of the build
+     * @return the one-line advice, empty when the log is not a port conflict
+     */
+    static Optional<String> portInUseAdvice(String output) {
+        if (output == null || output.isEmpty()) {
+            return Optional.empty();
+        }
+        Matcher m = PORT_IN_USE.matcher(output);
+        if (!m.find()) {
+            return Optional.empty();
+        }
+        String port = m.group(1);
+        String pid = findPidOnPort(port);
+        if (pid != null) {
+            String name = getProcessName(pid);
+            return Optional.of("Port " + port + " is in use by " + name
+                    + " (PID " + pid + "); run 'kill " + pid + "' to free it,"
+                    + " or use --server.port=" + (Integer.parseInt(port) + 1));
+        }
+        return Optional.of("Port " + port + " is in use; run 'lsof -ti :" + port
+                + " | xargs kill' to free it, or use --server.port="
+                + (Integer.parseInt(port) + 1));
+    }
+
+    /**
+     * Finds the PID holding a TCP port, using {@code lsof} first (most portable
+     * on Linux/macOS) and falling back to {@code ss} (Linux iproute2). Returns
+     * {@code null} when the port is free or the tools are unavailable.
+     */
+    private static String findPidOnPort(String port) {
+        // Try lsof first
+        try {
+            ProcessBuilder pb = new ProcessBuilder("lsof", "-ti", ":" + port);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out.split("\n")[0];
+            }
+        } catch (Exception e) {
+            // lsof not available or failed
+        }
+        // Fallback to ss (Linux)
+        try {
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c",
+                    "ss -tlnp sport = :" + port + " | grep -oP 'pid=\\K\\d+'");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out.split("\n")[0];
+            }
+        } catch (Exception e) {
+            // ss not available or failed
+        }
+        return null;
+    }
+
+    /**
+     * The short command name of a process (e.g. {@code java}, {@code node}).
+     * Returns {@code "unknown process"} when the PID is gone or {@code ps} fails.
+     */
+    private static String getProcessName(String pid) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("ps", "-p", pid, "-o", "comm=");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0 && !out.isEmpty()) {
+                return out;
+            }
+        } catch (Exception e) {
+            // ps.failed
+        }
+        return "unknown process";
+    }
+    
+    /**
+     * Kills the process holding a TCP port, returning a human-readable result.
+     * The port is freed by sending {@code SIGTERM} to the PID (graceful shutdown);
+     * when the process ignores it, a second pass sends {@code SIGKILL}. Returns
+     * a message suitable for a status line: the process name and PID when killed,
+     * or a reason when nothing could be done (no process, permission denied).
+     *
+     * @param port the TCP port to free
+     * @return a one-line report for the status bar
+     */
+    static String killProcessOnPort(String port) {
+        String pid = findPidOnPort(port);
+        if (pid == null) {
+            return "Port " + port + " is free — nothing to kill";
+        }
+        String name = getProcessName(pid);
+        // Try SIGTERM first (graceful)
+        try {
+            ProcessBuilder pb = new ProcessBuilder("kill", "-TERM", pid);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean done = p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0) {
+                // Wait a moment for the port to release
+                Thread.sleep(500);
+                String stillHolding = findPidOnPort(port);
+                if (stillHolding == null) {
+                    return "Freed port " + port + ": " + name + " (PID " + pid + ") stopped";
+                }
+                // Process ignored SIGTERM, escalate to SIGKILL
+                ProcessBuilder kill = new ProcessBuilder("kill", "-KILL", pid);
+                kill.redirectErrorStream(true);
+                Process k = kill.start();
+                boolean killed = k.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+                if (killed && k.exitValue() == 0) {
+                    Thread.sleep(300);
+                    return "Freed port " + port + ": " + name + " (PID " + pid + ") killed";
+                }
+                return "Port " + port + ": sent SIGKILL to " + name + " (PID " + pid + "), verify manually";
+            }
+            return "Port " + port + ": kill -TERM failed (exit " + p.exitValue() + ")";
+        } catch (Exception e) {
+            return "Port " + port + ": kill failed — " + e.getMessage();
+        }
+    }
+
+    /**
      * The one line a finished build leaves on the status bar: the tool's own
      * verdict when the log carries one (a build explains itself, an exit code
      * explains nothing), the failure headline when it does not, and how many
@@ -759,7 +995,10 @@ final class BuildTools {
             sb.append(verdict.isEmpty()
                     ? " \u2014 failed (exit " + result.exitCode() + ")"
                     : " \u2014 " + verdict);
-            Optional<String> head = failureHeadline(result.output());
+            Optional<String> advice = toolchainAdvice(result.output())
+                    .or(() -> portInUseAdvice(result.output()));
+            Optional<String> head = advice.isPresent()
+                    ? advice : failureHeadline(result.output());
             if (head.isPresent()) {
                 sb.append(": ").append(head.get());
             }

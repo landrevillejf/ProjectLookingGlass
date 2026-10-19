@@ -281,24 +281,46 @@
   (`E I P W Q`, outline unbound) — the two halves of the family `JvmBuildTools`
   (J/R/D/K/L/X) and `MandelaTools` (M/A/B) started, and the letters are
   disjoint because the first action to claim a KeyStroke wins the shared
-  `center` input map. The *Clear Gradle Cache* action deletes
-  `~/.gradle/caches` to fix corrupted-cache errors ("Could not open cp_proj
-  generic class cache") that Gradle throws after a crash or disk issue; it
-  reports success or failure on the status line, and a test seam
-  (`setGradleCacheDirForTesting`) lets the headless suite prove the delete
+  `center` input map. The *Clear Gradle Cache* action deletes only what Gradle
+  **generates for itself** — `caches/<version>/scripts` (where a `cp_proj` /
+  `cp_settings` class cache lives), the instrumented jars (`caches/jars-9`) and
+  the generated accessor workspaces (`caches/<version>/dependencies-accessors`,
+  `kotlin-dsl`) — and **never** `caches/<version>/modules-2` or the metadata
+  stores: wiping the downloads to chase one message costs the user a re-fetch and
+  does not fix the failure it most often names. "Could not open cp_proj generic
+  class cache" is usually Gradle wrapping an embedded Groovy that cannot read the
+  launching JDK's class files — a tool older than its JVM, logged as
+  `Unsupported class file major version NN` (the Java release is `NN - 44`; 69 =
+  Java 25) — and deleting a cache makes that failure recur byte-identically.
+  `BuildTools.toolchainAdvice` reads the version out of the log and puts the
+  mismatch on the status line *instead of* the cache sentence; with no version in
+  the log the cache really is stale, and the same advice then names the second
+  half of that remedy too, because a running daemon keeps a deleted workspace
+  open and answers instead with "Could not read workspace metadata from
+  …/dependencies-accessors/…/metadata.bin" until `gradle --stop` releases it. The
+  action reports what it deleted, or that there was nothing to clear, on the
+  status line, and a test seam
+  (`setGradleCachesDirForTesting`) lets the headless suite prove the delete
   without touching the real user cache. Discovery walks up from the document (deepest match first, `BuildTools.MAX_WALK_UP` levels — the same limit
   as the west tree) to a `settings.gradle[.kts]`/`build.gradle[.kts]` or a
   `pom.xml`, then resolves the launcher **hermetically** through
-  `ProjectToolchain` — the project's own wrapper (`./gradlew`, `./mvnw`), else a
-  Gradle/Maven distribution the project carries (`.espresso/tools/…` first, then
-  a root-level `gradle-*`/`apache-maven-*`) — and **never** `gradle`/`mvn` on
+  `ProjectToolchain` — a wrapper (`./gradlew`, `./mvnw`) **that reads its JVM
+  from `JAVA_HOME`**, else a Gradle/Maven distribution the project carries
+  (`.espresso/tools/…` first, then a root-level `gradle-*`/`apache-maven-*`);
+  a hand-written stub that only does `exec java -jar gradle-wrapper.jar "$@"`
+  resolves `java` from `PATH` and so discards the pinned JDK, which is why it
+  yields to a provisioned distribution and is kept only as the last resort —
+  and **never** `gradle`/`mvn` on
   `PATH`; no project or no launcher is a status-line answer that spawns nothing
   (“not provisioned — no project Gradle/Maven”), so a project always builds with
   the exact tool Espresso put in it. The shared rules live in `BuildTools`:
   `--console=plain` and `-B --no-transfer-progress` (the log must be the
-  compiler's own text, not a progress animation), `TERM=dumb`, and `JAVA_HOME`
-  pinned to the project's selected JDK (read from `.espresso/toolchain.properties`
-  via `JdkRegistry`, else the editor's own `java.home`), exit-code conventions
+  compiler's own text, not a progress animation), `TERM=dumb`, and the project's
+  selected JDK (read from `.espresso/toolchain.properties` via `JdkRegistry`, else
+  the editor's own `java.home`) pinned **twice** — as `JAVA_HOME` in the
+  environment *and* as `-Dorg.gradle.java.home=` on the command line, because the
+  second copy still reaches the daemon when the launcher script ignores the
+  first — exit-code conventions
   124 timeout / 127 missing executable / 130 interrupt. The finished log is then *interpreted*: Maven's
   `[ERROR] file:[line,col] message` and Gradle's `file.java:line: error: message`
   forms plus the surefire test failures become `Diagnostic`s filed against the
@@ -348,8 +370,9 @@
   (`GRADLE`/`MAVEN`/`NONE`) carries each tool's wrapper name, launcher path,
   distribution prefix and download URL so provisioning and resolution share one
   source of truth. Resolution (`ProjectToolchain`) is pure given a tree +
-  registry: `gradleLauncher`/`mavenLauncher` prefer the wrapper, then the
-  project's own distribution, and `jdkHome` reads `jdkId` from
+  registry: `gradleLauncher`/`mavenLauncher` prefer a wrapper that honours
+  `JAVA_HOME`, then the project's own distribution (a wrapper that ignores it is
+  still resolved, only last), and `jdkHome` reads `jdkId` from
   `toolchain.properties` — the launcher lookup that used to fall back to `PATH`
   (and so reported “Gradle is not available” for a project carrying its own
   distribution) is gone. A plain-Java project (`NONE`) provisions no tool and
@@ -381,10 +404,10 @@
   user-content buttons to the built-in `JToolBar`: it lays one row and clips past
   its right edge, and that row is already wider than the panel. Jogamp packages
   only; obey the core UI/UX rulebook.
-- **QA** — 47 headless JUnit 5 suites under
-  `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (and the `ext`-package
-  `ExtensionBrokerDispatchTest`) cover every
-  engine class, all twenty-three bundled extensions and all panel/widget surfaces (530
+- **QA** — 50 headless JUnit 5 suites under
+  `lg3d-apps/src/test/java/org/jdesktop/lg3d/apps/texteditor/` (48 in the package,
+  2 in `ext`, `ExtensionBrokerDispatchTest` among them) cover every
+  engine class, all twenty-three bundled extensions and all panel/widget surfaces (538
   deterministic tests, plus the 4 opt-in live build tests below): tokenisation,
   search &
   replace, atomic IO (BOM/charset/binary/oversize guards via `@TempDir`),
@@ -466,10 +489,15 @@
   including that a gated template insert reports the Output panel instead of
   claiming success). The build surface is covered by `BuildToolsTest` (the pure
   half — root walk-up, wrapper/project-distribution launcher resolution (never
-  `PATH`), the `JAVA_HOME`-pinning `buildEnvironment(jdkHome)`, argv and environment,
-  and the log interpretation over the **verbatim** output of a real Gradle 8.14
+  `PATH`), the JDK-pinning `buildEnvironment(jdkHome)` plus the command-line
+  property that pins the same JDK for a launcher which ignores `JAVA_HOME`, the
+  argv and environment, and the log interpretation over the **verbatim** output
+  of a real Gradle 8.14
   and Maven 3.9.11 run: verdict, headline, test-report URL, diagnostic parsing
-  and dedupe, status-line clamping, the outline scans), by `GradleBuildToolsTest`
+  and dedupe, the `toolchainAdvice` reading of two **recorded** failure logs — a
+  Gradle 8.5 running on Java 25 (the JDK mismatch named, the "generic class
+  cache" sentence dropped) and a half-deleted accessor workspace (the cache
+  named, `gradle --stop` with it) — status-line clamping, the outline scans), by `GradleBuildToolsTest`
   and `MavenBuildToolsTest` (every action driven through a synchronous `Runner`
   seam replaying those recorded logs plus a fake launcher lookup, so **no test
   spawns a build JVM** — pinned argv/goals, the per-file diagnostics, the
@@ -496,7 +524,9 @@
   `toolchain.properties`, per-`BuildSystem` descriptors, tool-less `NONE`,
   refuse-non-empty, unknown-JDK rejection before any write, and that no JDK is
   copied into the project), `ProjectToolchainTest` (wrapper / `.espresso/tools`
-  / root-level distribution priority, no `PATH`, `jdkHome` via the registry),
+  / root-level distribution priority — including that a wrapper which ignores
+  `JAVA_HOME` yields to a provisioned distribution and is reached only as the
+  last resort — no `PATH`, `jdkHome` via the registry),
   `ManageJdksCardTest` (each button routes one host callback; the list reflects
   the registry) and `ProjectCardTest` (`NewProjectRequest` assembly: build-system
   radios, version disabled for plain Java, selected JDK id); the panel glue

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -30,7 +31,9 @@ import org.junit.jupiter.api.io.TempDir;
  * a distribution unpacked at the project root - and asserts both the resolution
  * priority and the hard contract that nothing falls back to the system PATH. The
  * root-level case is the reported bug: a project shipping {@code gradle-8.10/}
- * used to be told "Gradle is not available".
+ * used to be told "Gradle is not available". The wrapper cases carry the other
+ * reported bug: a hand-written wrapper that resolves {@code java} from PATH
+ * discards the JDK Espresso pinned, so it no longer wins on name alone.
  */
 class ProjectToolchainTest {
 
@@ -55,11 +58,40 @@ class ProjectToolchainTest {
         return home;
     }
 
+    /**
+     * A wrapper script, either the one {@code gradle wrapper} generates (which
+     * picks its JVM from {@code JAVA_HOME}) or the few-line stub a scaffolder
+     * hand-writes (which resolves {@code java} from PATH and so ignores the
+     * pinned JDK). That difference is what the priority rules turn on.
+     */
+    private static Path writeWrapper(Path script, boolean honorsJavaHome) throws IOException {
+        Files.createDirectories(script.getParent());
+        String body = honorsJavaHome
+                ? "#!/bin/sh\nif [ -n \"$JAVA_HOME\" ]; then JAVACMD=\"$JAVA_HOME/bin/java\"; fi\n"
+                : "#!/bin/sh\nexec java -jar gradle/wrapper/gradle-wrapper.jar \"$@\"\n";
+        return Files.writeString(script, body, StandardCharsets.UTF_8);
+    }
+
     @Test
-    @DisplayName("the wrapper wins over a provisioned distribution")
-    void wrapperBeatsProvisionedTool(@TempDir Path tmp) throws Exception {
-        Path wrapper = Files.createFile(tmp.resolve("gradlew"));
+    @DisplayName("a wrapper that honours JAVA_HOME wins over a provisioned distribution")
+    void creditingWrapperBeatsProvisionedTool(@TempDir Path tmp) throws Exception {
+        Path wrapper = writeWrapper(tmp.resolve("gradlew"), true);
         file(tmp.resolve(".espresso/tools/gradle-8.10/bin/gradle"));
+        assertEquals(Optional.of(wrapper), ProjectToolchain.gradleLauncher(tmp));
+    }
+
+    @Test
+    @DisplayName("a wrapper that ignores JAVA_HOME yields to the provisioned distribution")
+    void javaHomeIgnoringWrapperYieldsToProvisioned(@TempDir Path tmp) throws Exception {
+        writeWrapper(tmp.resolve("gradlew"), false);
+        Path gradle = file(tmp.resolve(".espresso/tools/gradle-8.10/bin/gradle"));
+        assertEquals(Optional.of(gradle), ProjectToolchain.gradleLauncher(tmp));
+    }
+
+    @Test
+    @DisplayName("a wrapper that ignores JAVA_HOME is still the last resort")
+    void stubWrapperIsTheLastResort(@TempDir Path tmp) throws Exception {
+        Path wrapper = writeWrapper(tmp.resolve("gradlew"), false);
         assertEquals(Optional.of(wrapper), ProjectToolchain.gradleLauncher(tmp));
     }
 

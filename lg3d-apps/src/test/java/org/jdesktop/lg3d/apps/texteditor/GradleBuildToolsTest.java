@@ -158,15 +158,16 @@ class GradleBuildToolsTest {
                 "a build never edits the document");
 
         List<ToolbarContribution> c = tools.toolbarContributions();
-        assertEquals(7, c.size());
+        assertEquals(8, c.size());
         assertEquals(List.of("Build", "Run Tests", "Run Application", "Clean",
-                "List Tasks", "Outline Build File", "Clear Gradle Cache"),
+                "List Tasks", "Outline Build File", "Clear Gradle Cache", "Free Port"),
                 c.stream().map(ToolbarContribution::getLabel).toList());
         assertEquals(List.of("control alt shift G", "control alt shift T",
                 "control alt shift U", "control alt shift C", "control alt shift S"),
                 c.subList(0, 5).stream().map(ToolbarContribution::getAccelerator).toList());
         assertEquals("", c.get(5).getAccelerator(), "outlining stays unbound");
         assertEquals("", c.get(6).getAccelerator(), "clearing cache stays unbound");
+        assertEquals("", c.get(7).getAccelerator(), "freeing a port stays unbound");
     }
 
     // -- the task actions ----------------------------------------------------
@@ -181,7 +182,8 @@ class GradleBuildToolsTest {
 
         act(tools, 0);
 
-        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "build"),
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain",
+                        "-Dorg.gradle.java.home=" + System.getProperty("java.home"), "build"),
                 runner.commands.get(0));
         assertEquals(List.of(root), runner.workDirs, "the build runs in the project root");
         assertEquals(List.of("gradle build output"), consoleTitles);
@@ -205,7 +207,7 @@ class GradleBuildToolsTest {
         act(tools, 3);
         act(tools, 4);
         assertEquals(List.of("test", "run", "clean", "tasks"),
-                runner.commands.stream().map(c -> c.get(2)).toList());
+                runner.commands.stream().map(c -> c.get(c.size() - 1)).toList());
     }
 
     @Test
@@ -385,10 +387,14 @@ class GradleBuildToolsTest {
 
         act(tools, 0);
 
-        assertEquals(List.of(distro.toString(), "--console=plain", "build"), runner.commands.get(0),
+        assertEquals(List.of(distro.toString(), "--console=plain",
+                        "-Dorg.gradle.java.home=" + jdkHome, "build"), runner.commands.get(0),
                 "the build runs the project's own Gradle, never a system one");
         assertEquals(jdkHome.toString(), runner.envs.get(0).get("JAVA_HOME"),
                 "JAVA_HOME is the JDK the project selected");
+        assertTrue(runner.commands.get(0).contains("-Dorg.gradle.java.home=" + jdkHome),
+                "the same JDK also travels as a Gradle property, because a wrapper"
+                        + " script is free to ignore its environment");
         assertEquals("dumb", runner.envs.get(0).get("TERM"));
         assertTrue(Files.exists(src));
     }
@@ -512,7 +518,8 @@ class GradleBuildToolsTest {
                 .filter(t -> t.name().equals("build")).findFirst().orElseThrow();
         runner.fallback = new Toolchain.Result(0, "\nBUILD SUCCESSFUL in 1s\n");
         build.action().run();
-        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "build"),
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain",
+                        "-Dorg.gradle.java.home=" + System.getProperty("java.home"), "build"),
                 runner.commands.get(0));
         assertEquals(List.of(root), runner.workDirs);
         assertEquals(List.of("gradle build output"), consoleTitles);
@@ -541,7 +548,8 @@ class GradleBuildToolsTest {
                 .filter(t -> t.name().equals("bootRun")).findFirst().orElseThrow();
         runner.fallback = new Toolchain.Result(0, "\nStarted App in 1.2 seconds\n");
         bootRun.action().run();
-        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain", "bootRun"),
+        assertEquals(List.of(root.resolve("gradlew").toString(), "--console=plain",
+                        "-Dorg.gradle.java.home=" + System.getProperty("java.home"), "bootRun"),
                 runner.commands.get(0));
     }
 
@@ -588,39 +596,105 @@ class GradleBuildToolsTest {
     // -- clear cache --------------------------------------------------------
 
     @Test
-    @DisplayName("clearing the Gradle cache deletes the cache directory and reports success")
+    @DisplayName("clearing the Gradle cache deletes what it generates and keeps what it downloaded")
     void clearCacheDeletesAndReports(@TempDir Path cacheDir) throws Exception {
         Path root = cacheDir.resolve("project");
         Files.createDirectories(root);
         javaDocOf(root);
         GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
         Path fakeCache = cacheDir.resolve("caches");
-        Files.createDirectories(fakeCache.resolve("8.14"));
-        Files.writeString(fakeCache.resolve("8.14").resolve("some.bin"), "corrupt",
+        Path cpProj = fakeCache.resolve("8.14").resolve("scripts")
+                .resolve("1wacoo0cwmw").resolve("cp_proj");
+        Files.createDirectories(cpProj);
+        Files.writeString(cpProj.resolve("cp_proj.jar"), "stale", StandardCharsets.UTF_8);
+        // Recorded from the real half-deleted cache that broke a build with
+        // "Could not read workspace metadata from .../metadata.bin".
+        Path accessors = fakeCache.resolve("8.14").resolve("dependencies-accessors")
+                .resolve("cc79d4bd9560");
+        Files.createDirectories(accessors);
+        Files.writeString(accessors.resolve("metadata.bin"), "stale", StandardCharsets.UTF_8);
+        Path instrumented = fakeCache.resolve("jars-9");
+        Files.createDirectories(instrumented);
+        Files.writeString(instrumented.resolve("instrumented.jar"), "stale",
                 StandardCharsets.UTF_8);
-        tools.setGradleCacheDirForTesting(fakeCache);
+        Path dependencies = fakeCache.resolve("modules-2").resolve("files-2.1");
+        Files.createDirectories(dependencies);
+        Files.writeString(dependencies.resolve("spring-boot.jar"), "keep me",
+                StandardCharsets.UTF_8);
+        tools.setGradleCachesDirForTesting(fakeCache);
 
         act(tools, 6);
 
-        assertFalse(Files.exists(fakeCache), "the cache directory is deleted");
+        assertTrue(Files.notExists(fakeCache.resolve("8.14").resolve("scripts")),
+                "the compiled build-script cache is deleted");
+        assertTrue(Files.notExists(fakeCache.resolve("8.14").resolve("dependencies-accessors")),
+                "the generated accessor workspace is deleted with it");
+        assertTrue(Files.notExists(instrumented), "the instrumented-jar cache is deleted");
+        assertTrue(Files.isRegularFile(dependencies.resolve("spring-boot.jar")),
+                "downloaded dependencies are never deleted to chase one error message");
         assertEquals(1, msgs.size(), msgs.toString());
-        assertTrue(msgs.get(0).contains("Gradle cache cleared"), msgs.get(0));
-        assertTrue(msgs.get(0).contains(fakeCache.toString()), msgs.get(0));
+        assertTrue(msgs.get(0).contains("Gradle cache cleared: 3"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("dependencies were left in place"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("gradle --stop"),
+                "a running daemon keeps a deleted workspace open, so the answer says so");
     }
 
     @Test
-    @DisplayName("clearing a missing cache directory reports no cache found")
+    @DisplayName("a dependency cache alone is not a script cache: nothing is deleted")
+    void clearCacheKeepsADependencyOnlyRoot(@TempDir Path root) throws Exception {
+        javaDocOf(root);
+        GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        Path fakeCache = root.resolve("caches");
+        Path dependencies = fakeCache.resolve("modules-2");
+        Files.createDirectories(dependencies);
+        Files.writeString(dependencies.resolve("spring-boot.jar"), "keep me",
+                StandardCharsets.UTF_8);
+        tools.setGradleCachesDirForTesting(fakeCache);
+
+        act(tools, 6);
+
+        assertTrue(Files.isRegularFile(dependencies.resolve("spring-boot.jar")),
+                "the action that found no generated cache deleted part of it");
+        assertEquals(1, msgs.size(), msgs.toString());
+        assertTrue(msgs.get(0).contains("no generated Gradle cache"), msgs.get(0));
+    }
+
+    @Test
+    @DisplayName("a missing cache directory reports nothing to clear")
     void clearCacheMissingReports(@TempDir Path root) throws Exception {
         javaDocOf(root);
         GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
         Path fakeCache = root.resolve("nonexistent-cache");
-        tools.setGradleCacheDirForTesting(fakeCache);
+        tools.setGradleCachesDirForTesting(fakeCache);
 
         act(tools, 6);
 
         assertEquals(1, msgs.size(), msgs.toString());
-        assertTrue(msgs.get(0).contains("no cache directory"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("no generated Gradle cache"), msgs.get(0));
         assertTrue(Files.notExists(fakeCache), "nothing was created");
+    }
+
+    // -- failure interpretation -------------------------------------------
+
+    @Test
+    @DisplayName("a Gradle too old for the JDK says so, instead of blaming the cache")
+    void jdkMismatchFailureReportsTheRealCause(@TempDir Path root) throws Exception {
+        javaDocOf(root);
+        GradleBuildTools tools = wire(root, "src/main/java/com/acme/App.java", "class App {\n}\n");
+        // Recorded from a real Gradle 8.5 build running on Java 25.
+        runner.fallback = new Toolchain.Result(1, "\n* What went wrong:\n"
+                + "Could not open cp_proj generic class cache for build file"
+                + " '/home/dev/Demo/build.gradle'.\n"
+                + "   > BUG! exception in phase 'semantic analysis' in source unit"
+                + " '_BuildScript_' Unsupported class file major version 69\n"
+                + "\nBUILD FAILED in 4s\n");
+
+        act(tools, 0);
+
+        String status = msgs.get(msgs.size() - 1);
+        assertTrue(status.contains("this Gradle cannot read Java 25 classes"), status);
+        assertFalse(status.contains("generic class cache"),
+                "the misleading cache sentence is not what the user is handed as the reason");
     }
 
     // -- helpers ---------------------------------------------------------------

@@ -72,6 +72,14 @@ public final class GradleBuildTools implements TextEditorExtension {
     private static final long RUN_TIMEOUT_MS = 120_000;
 
     /**
+     * The per-version cache folders that hold what Gradle <em>generates</em> from
+     * the project's own build files, so each is safe to delete and rebuild. The
+     * download and metadata stores are not on this list and never will be.
+     */
+    private static final List<String> GENERATED_CACHES =
+            List.of("scripts", "dependencies-accessors", "kotlin-dsl");
+
+    /**
      * Which of the project's Gradle files the outline reads. Discovery order
      * ({@link BuildTools#GRADLE_MARKERS}) puts {@code settings.gradle} first
      * because that is what makes a directory a project <em>root</em>; for
@@ -123,10 +131,11 @@ public final class GradleBuildTools implements TextEditorExtension {
      */
     private JdkRegistry registry = new JdkRegistry();
     /**
-     * The Gradle cache directory to clear. Defaults to {@code ~/.gradle/caches};
-     * tests inject a temp path so they do not touch the real user cache.
+     * The Gradle user cache root whose generated caches the clear action rewrites.
+     * Defaults to {@code ~/.gradle/caches}; tests inject a temp path so they do
+     * not touch the real user cache.
      */
-    private Path gradleCacheDir = defaultGradleCacheDir();
+    private Path gradleCachesDir = defaultGradleCachesDir();
 
     // -- test seams -------------------------------------------------------
 
@@ -142,12 +151,12 @@ public final class GradleBuildTools implements TextEditorExtension {
         this.registry = replacement;
     }
 
-    final void setGradleCacheDirForTesting(Path dir) {
-        this.gradleCacheDir = dir;
+    final void setGradleCachesDirForTesting(Path dir) {
+        this.gradleCachesDir = dir;
     }
 
-    /** The default Gradle cache directory: {@code ~/.gradle/caches}. */
-    private static Path defaultGradleCacheDir() {
+    /** The default Gradle user cache root: {@code ~/.gradle/caches}. */
+    private static Path defaultGradleCachesDir() {
         String home = System.getProperty("user.home", ".");
         return Path.of(home, ".gradle", "caches");
     }
@@ -233,8 +242,13 @@ public final class GradleBuildTools implements TextEditorExtension {
                         "Outline the build script in the Structure tab: plugins, repositories, dependencies and registered tasks",
                         this::outlineBuildFile),
                 new ToolbarContribution("gradle-clear-cache", "Clear Gradle Cache",
-                        "Delete the Gradle cache (~/.gradle/caches) to fix corrupted cache errors; Gradle will rebuild on next run",
-                        this::clearCache)
+                        "Delete the caches Gradle generates for itself - compiled build"
+                        + " scripts, instrumented jars and version-catalog accessors - so a"
+                        + " stale one is rebuilt. Downloaded dependencies are kept.",
+                        this::clearCache),
+                new ToolbarContribution("gradle-free-port", "Free Port",
+                        "Kill the process holding port 8080 (or the next port you name) so bootRun can bind it",
+                        this::freePort)
         );
     }
 
@@ -287,8 +301,16 @@ public final class GradleBuildTools implements TextEditorExtension {
         ctx.showMessage("Running " + label + " in " + work + "\u2026");
         Path jdkHome = ProjectToolchain.jdkHome(work, registry).orElse(null);
         Map<String, String> env = BuildTools.buildEnvironment(jdkHome);
-        runner.run(BuildTools.gradleCommand(launcher.get(), tasks), work, env, timeoutMs,
-                res -> finished(work, label, res, diagnose));
+        // The JDK travels twice: as JAVA_HOME in the environment, and as a
+        // Gradle property on the command line. The second copy is not redundancy
+        // — a wrapper script that resolves `java` from PATH (the few-line stub a
+        // third-party scaffolder writes, rather than Gradle's own generated
+        // script) ignores JAVA_HOME completely, and the project then builds on
+        // whatever JDK the host defaults to. If that JDK is newer than the
+        // Gradle the wrapper pins, the script compiler fails and Gradle reports
+        // it as a cache error. See BuildTools#gradleCommand.
+        runner.run(BuildTools.gradleCommand(launcher.get(), tasks, jdkHome), work, env,
+                timeoutMs, res -> finished(work, label, res, diagnose));
     }
 
     private void clearCache() {
@@ -296,17 +318,82 @@ public final class GradleBuildTools implements TextEditorExtension {
         if (ctx == null) {
             return;
         }
-        Path cache = gradleCacheDir;
-        if (cache == null || !Files.isDirectory(cache)) {
-            ctx.showMessage("Clear Gradle Cache: no cache directory at " + cache);
+        List<Path> caches = derivedCachePaths();
+        if (caches.isEmpty()) {
+            ctx.showMessage("Clear Gradle Cache: no generated Gradle cache under "
+                    + gradleCachesDir);
             return;
         }
         try {
-            deleteRecursively(cache);
-            ctx.showMessage("Gradle cache cleared at " + cache + " — Gradle will rebuild on next run");
+            for (Path cache : caches) {
+                deleteRecursively(cache);
+            }
+            ctx.showMessage("Gradle cache cleared: " + caches.size()
+                    + " generated cache tree(s) under " + gradleCachesDir
+                    + " \u2014 dependencies were left in place; if Gradle still reports a"
+                    + " cache it cannot read, stop its daemons (gradle --stop), which holds"
+                    + " a deleted workspace open");
         } catch (IOException e) {
             ctx.showMessage("Clear Gradle Cache failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Frees port 8080 (Spring Boot's default) by killing whatever process holds
+     * it. The action is the other half of the port-conflict diagnostic: when
+     * {@code bootRun} reports a port in use, the user can invoke this to stop
+     * the other process and re-run. A Spring Boot app that exited cleanly
+     * already freed the port, so the action reports "nothing to kill" in that
+     * case rather than failing.
+     */
+    private void freePort() {
+        EditorContext ctx = editor;
+        if (ctx == null) {
+            return;
+        }
+        // Default to 8080 (Spring Boot's server.port); a future enhancement could
+        // prompt for a different port, but the common case is the one the
+        // diagnostic just named.
+        ctx.showMessage(BuildTools.killProcessOnPort("8080"));
+    }
+
+    /**
+     * The caches holding artefacts Gradle <em>generates</em> for its own build -
+     * compiled build scripts ({@code <version>/scripts}, where a {@code cp_proj}
+     * or {@code cp_settings} class cache lives), the instrumented jars it writes
+     * ({@code jars-9}), the version-catalog / accessor classes it generates
+     * ({@code <version>/dependencies-accessors}, {@code <version>/kotlin-dsl}) -
+     * and the only ones this action is allowed to delete. Each is rebuilt from the
+     * project's own build files, so clearing one costs a rebuild and nothing else.
+     * Deliberately excluded is {@code <version>/modules-2}, which holds every
+     * downloaded dependency, and the repository metadata stores: wiping a download
+     * to chase one error message costs the user a re-fetch of the whole world and,
+     * as {@link BuildTools#toolchainAdvice} exists to say, is not even what the
+     * most common reading of that message implies.
+     */
+    private List<Path> derivedCachePaths() {
+        Path root = gradleCachesDir;
+        if (root == null || !Files.isDirectory(root)) {
+            return List.of();
+        }
+        List<Path> out = new ArrayList<>();
+        Path instrumented = root.resolve("jars-9");
+        if (Files.isDirectory(instrumented)) {
+            out.add(instrumented);
+        }
+        try (Stream<Path> children = Files.list(root)) {
+            for (Path child : children.filter(Files::isDirectory).toList()) {
+                for (String generated : GENERATED_CACHES) {
+                    Path cache = child.resolve(generated);
+                    if (Files.isDirectory(cache)) {
+                        out.add(cache);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // Unreadable root: clear whatever was already found rather than nothing.
+        }
+        return List.copyOf(out);
     }
 
     /**

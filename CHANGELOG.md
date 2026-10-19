@@ -244,16 +244,30 @@ work to make it build and run on a current toolchain.
   and are documented in the scripts `README.md` and root `AGENTS.md` —
   `scripts-hygiene.mnd` is the gate that named the omission the moment the scripts
   were committed without their rows.
-- **Espresso can now clear a corrupted Gradle cache directly from the toolbar** (`lg3d-apps`) —
-  A new *Clear Gradle Cache* toolbar action (`gradle-clear-cache`) deletes
-  `~/.gradle/caches` to fix the common "Could not open cp_proj generic class
-  cache" error that Gradle throws when its internal cache files get corrupted
-  (from a crash, disk issue or interrupted build). The action reports success
-  or failure on the status line, and a test seam (`setGradleCacheDirForTesting`)
-  lets the headless suite prove the delete without touching the real user cache.
-  **2 new headless cases** in `GradleBuildToolsTest` (the delete-and-report
-  path with a fake cache directory, and the missing-cache path that reports
-  "no cache directory" without creating anything).
+- **Espresso can now clear the caches Gradle generates for itself, straight from the toolbar** (`lg3d-apps`) —
+  A new *Clear Gradle Cache* toolbar action (`gradle-clear-cache`) deletes the
+  caches holding what Gradle **generates** from the project's own build files —
+  `caches/<version>/scripts`, the tree a `cp_proj` / `cp_settings` generic class
+  cache lives in; the instrumented jars (`caches/jars-9`); and the generated
+  accessor workspaces (`caches/<version>/dependencies-accessors`, `kotlin-dsl`) —
+  so a stale one is rebuilt on the next run. It deliberately leaves
+  `caches/<version>/modules-2` and the metadata stores in place: wiping a download
+  costs the user a re-fetch of every dependency, and the message the action was
+  first written to answer is more often a JDK/tool mismatch than damaged files
+  (see the *Fixed* entry below), so the scope is what the diagnosis supports and
+  the tooltip says so. One caveat the action states rather than hides: a running
+  daemon keeps a deleted workspace open, so clearing a cache under one answers
+  with *“Could not read workspace metadata from …/metadata.bin”* until
+  `gradle --stop` releases it — a failure reproduced today, on this repository’s
+  own build, by exactly that sequence. The action reports how many trees it
+  deleted — or that there was nothing to clear — on the status line, and a test
+  seam (`setGradleCachesDirForTesting`) lets the headless suite prove the delete
+  without touching the real user cache. **3 headless cases** in
+  `GradleBuildToolsTest`: a fake cache holding a `cp_proj` tree, a
+  `dependencies-accessors` metadata tree, an instrumented-jar tree and a
+  dependency jar — the first three go, the last is asserted kept, and the answer
+  names the daemon; a dependency-only root that must not be touched at all; and a
+  missing cache directory that reports nothing to clear without creating one.
 - **Espresso now provisions each project's own build tool and manages JDKs centrally — a hermetic Gradle/Maven toolchain per project, a shared multi-JDK manager** (`lg3d-apps`) —
   Creating a project used to scaffold only `src/Main.java` + `README.md` and then
   build it with whatever `gradle`/`mvn` happened to be on `PATH`, so a project
@@ -2940,6 +2954,62 @@ work to make it build and run on a current toolchain.
   lookup, and `GradleBuildToolsTest`/`MavenBuildToolsTest` assert a provisioned
   project runs `.espresso/tools/…/bin/gradle` (or `mvn`) with `JAVA_HOME` set to
   the selected JDK.
+- **A Gradle too old for the host JDK is now named as the cause, and the build pins that JDK past a wrapper that ignores `JAVA_HOME`** (`lg3d-apps`) —
+  Espresso's Build actions pinned the project's selected JDK as `JAVA_HOME`, and
+  a real project still failed with *“Could not open cp_proj generic class cache
+  for build file ‘…/build.gradle’”* over *“BUG! exception in phase ‘semantic
+  analysis’ in source unit ‘_BuildScript_’ Unsupported class file major version
+  69”*. Reproduced from the log up: the same wrapper and the same Gradle 8.5,
+  changing only the JDK — Java 25 fails in 4s, Java 21 succeeds in 6s — and
+  deleting `~/.gradle/caches` between two runs reproduces the failure
+  byte-identically, so no cache was ever the problem. The message is Gradle’s
+  wrapper around its embedded Groovy refusing a class file it predates (major 69
+  = Java 25; Gradle 8.5 reads up to 65 = Java 21), and the Java release is
+  `major − 44`. `JAVA_HOME` had been discarded by the launcher Espresso chose:
+  the project’s `gradlew` was a scaffolder’s few-line
+  `exec java -jar gradle-wrapper.jar "$@"`, which resolves `java` from `PATH`
+  and so built on the host default. Three changes. `BuildTools.gradleCommand`
+  now passes `-Dorg.gradle.java.home=<jdk>` beside the environment pin — a
+  property the Gradle client reads from argv whatever the script does (verified
+  against that very stub with no `JAVA_HOME` and system Java 25: the build then
+  succeeds). `ProjectToolchain` credits a wrapper only when its text reads
+  `JAVA_HOME`, so a stub yields to a distribution Espresso provisioned and stays
+  the last resort rather than the first choice. And `BuildTools.toolchainAdvice`
+  turns a major version in the log into *“this Gradle cannot read Java 25
+  classes — pick a JDK it supports for the project, or upgrade its wrapper; the
+  cache message is a symptom, not the cause”*, which the status line prefers
+  over the misleading headline — while a failure that names a cache and no
+  version is a genuinely stale or half-deleted one, and gets that answer instead,
+  with the daemon that still holds the deleted workspace open named beside it.
+  **6 new headless cases**: `BuildToolsTest`
+  pins the argv property and feeds `toolchainAdvice` the verbatim log recorded
+  from Gradle 8.5 on Java 25 (and the boundary cases `NN − 44` must not invent);
+  `ProjectToolchainTest`
+  proves a `JAVA_HOME`-honouring wrapper still wins, a stub yields to a
+  provisioned distribution, and a stub alone is still resolved; `GradleBuildToolsTest`
+  asserts the advice, not the cache sentence, reaches the status line, and that
+  the JDK travels into the argv of every action.
+- **A Spring Boot port conflict now names the port, the process using it, and how to free it** (`lg3d-apps`) —
+  `bootRun` failed with *"Port 8080 was already in use"* and the status line
+  echoed the failure headline, which told the user nothing they could act on.
+  `BuildTools.portInUseAdvice` now detects the Spring Boot port-conflict pattern,
+  extracts the port number, and runs `lsof -ti :<port>` (with a fallback to
+  `ss -tlnp`) to find the PID, then `ps -p <pid> -o comm=` to name the process.
+  The status line reads *"Port 8080 is in use by java (PID 12345); stop it or
+  use --server.port=8081"* — the next port is the natural escape for a one-off
+  conflict. When the tools are unavailable or the port is free by the time the
+  check runs, the fallback names the port and the escape without a PID. The
+  advice is wired into `statusLine` after `toolchainAdvice`, so a JDK mismatch
+  still wins over a port conflict, and a port conflict wins over the generic
+  failure headline. A new **Free Port** toolbar action (`gradle-free-port`)
+  kills whatever process holds port 8080 (Spring Boot's default) by sending
+  `SIGTERM` first (graceful shutdown) and escalating to `SIGKILL` when the
+  process ignores it, then reports the result on the status line — *"Freed
+  port 8080: java (PID 12345) stopped"* — so the user can re-run `bootRun`
+  without manually hunting for the PID. **2 new headless cases**:
+  `BuildToolsTest` feeds the verbatim Spring Boot failure log and asserts the
+  advice names the port and suggests the next port; `GradleBuildToolsTest`
+  pins the eighth toolbar contribution.
 - **The Web Server Console no longer vanishes from both start menus** (`lg3d-apps`) —
   `webserver.lgcfg` carried a `--` inside its XML comment ("the desktop classpath
   -- lg3d-apps does not depend on"), and `--` is illegal within an XML comment, so
