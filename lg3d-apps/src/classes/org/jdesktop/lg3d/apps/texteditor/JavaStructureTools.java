@@ -163,11 +163,6 @@ public final class JavaStructureTools implements TextEditorExtension {
     public void onDocumentSaved(DocumentContext doc) {
         this.currentDoc = doc;
         refreshOutline(doc);
-        // Auto-add missing imports for Java files
-        String fileName = doc.getFileName();
-        if (fileName != null && fileName.endsWith(".java")) {
-            addMissingImportsAction();
-        }
     }
 
     @Override
@@ -185,9 +180,9 @@ public final class JavaStructureTools implements TextEditorExtension {
                 new ToolbarContribution("struct-organize-imports", "Organize Imports",
                         "Drop unused imports, remove duplicates and sort the import block",
                         this::organizeImportsAction),
-                new ToolbarContribution("struct-add-missing-imports", "Add Missing Imports",
-                        "Detect unresolved symbols and add their imports",
-                        this::addMissingImportsAction)
+                new ToolbarContribution("struct-import-selected", "Import Selected Type",
+                        "Import the selected class name",
+                        this::importSelectedType)
         );
     }
 
@@ -710,6 +705,76 @@ public final class JavaStructureTools implements TextEditorExtension {
     }
 
     // -- add missing imports -------------------------------------------------------
+
+    /**
+     * Imports the currently selected type name. Searches for matching classes
+     * in common packages and adds the import. If multiple matches exist, shows
+     * a dialog to choose.
+     */
+    private void importSelectedType() {
+        DocumentContext doc = currentDoc;
+        EditorContext ctx = editor;
+        if (doc == null || ctx == null) {
+            return;
+        }
+        String fileName = doc.getFileName();
+        if (fileName == null || !fileName.endsWith(".java")) {
+            ctx.showMessage("Not a Java file");
+            return;
+        }
+
+        String selected = doc.getSelectedText();
+        if (selected == null || selected.isBlank()) {
+            ctx.showMessage("No text selected");
+            return;
+        }
+
+        // Clean up the selection (remove whitespace, etc.)
+        String typeName = selected.trim();
+        if (!typeName.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            ctx.showMessage("Invalid type name: " + typeName);
+            return;
+        }
+
+        // Search for matching classes
+        List<String> candidates = findClassCandidates(typeName);
+        if (candidates.isEmpty()) {
+            ctx.showMessage("No class found for: " + typeName);
+            return;
+        }
+
+        String toImport;
+        if (candidates.size() == 1) {
+            toImport = candidates.get(0);
+        } else {
+            // Multiple matches: let the user choose
+            Object choice = JOptionPane.showInputDialog(
+                    (java.awt.Component) null,
+                    "Multiple classes found for '" + typeName + "':",
+                    "Import Type",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    candidates.toArray(),
+                    candidates.get(0));
+            if (choice == null) {
+                return; // cancelled
+            }
+            toImport = choice.toString();
+        }
+
+        // Check if already imported
+        String source = doc.getFullText();
+        String importLine = "import " + toImport + ";";
+        if (source.contains(importLine)) {
+            ctx.showMessage("Already imported: " + toImport);
+            return;
+        }
+
+        // Add the import
+        String withImport = addImports(source, List.of(toImport));
+        doc.setFullText(withImport);
+        ctx.showMessage("Imported: " + toImport);
+    }
 
     /**
      * Detects unresolved symbols in the current Java file and adds their imports.
