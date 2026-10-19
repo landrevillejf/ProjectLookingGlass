@@ -158,15 +158,16 @@ class GradleBuildToolsTest {
                 "a build never edits the document");
 
         List<ToolbarContribution> c = tools.toolbarContributions();
-        assertEquals(7, c.size());
+        assertEquals(8, c.size());
         assertEquals(List.of("Build", "Run Tests", "Run Application", "Clean",
-                "List Tasks", "Outline Build File", "Clear Gradle Cache"),
+                "List Tasks", "Outline Build File", "Clear Gradle Cache", "Free Port"),
                 c.stream().map(ToolbarContribution::getLabel).toList());
         assertEquals(List.of("control alt shift G", "control alt shift T",
                 "control alt shift U", "control alt shift C", "control alt shift S"),
                 c.subList(0, 5).stream().map(ToolbarContribution::getAccelerator).toList());
         assertEquals("", c.get(5).getAccelerator(), "outlining stays unbound");
         assertEquals("", c.get(6).getAccelerator(), "clearing cache stays unbound");
+        assertEquals("", c.get(7).getAccelerator(), "freeing a port stays unbound");
     }
 
     // -- the task actions ----------------------------------------------------

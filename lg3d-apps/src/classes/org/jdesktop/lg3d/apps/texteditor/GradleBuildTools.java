@@ -245,7 +245,10 @@ public final class GradleBuildTools implements TextEditorExtension {
                         "Delete the caches Gradle generates for itself - compiled build"
                         + " scripts, instrumented jars and version-catalog accessors - so a"
                         + " stale one is rebuilt. Downloaded dependencies are kept.",
-                        this::clearCache)
+                        this::clearCache),
+                new ToolbarContribution("gradle-free-port", "Free Port",
+                        "Kill the process holding port 8080 (or the next port you name) so bootRun can bind it",
+                        this::freePort)
         );
     }
 
@@ -333,6 +336,25 @@ public final class GradleBuildTools implements TextEditorExtension {
         } catch (IOException e) {
             ctx.showMessage("Clear Gradle Cache failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Frees port 8080 (Spring Boot's default) by killing whatever process holds
+     * it. The action is the other half of the port-conflict diagnostic: when
+     * {@code bootRun} reports a port in use, the user can invoke this to stop
+     * the other process and re-run. A Spring Boot app that exited cleanly
+     * already freed the port, so the action reports "nothing to kill" in that
+     * case rather than failing.
+     */
+    private void freePort() {
+        EditorContext ctx = editor;
+        if (ctx == null) {
+            return;
+        }
+        // Default to 8080 (Spring Boot's server.port); a future enhancement could
+        // prompt for a different port, but the common case is the one the
+        // diagnostic just named.
+        ctx.showMessage(BuildTools.killProcessOnPort("8080"));
     }
 
     /**

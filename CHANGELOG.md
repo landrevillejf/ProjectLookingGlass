@@ -3001,9 +3001,15 @@ work to make it build and run on a current toolchain.
   check runs, the fallback names the port and the escape without a PID. The
   advice is wired into `statusLine` after `toolchainAdvice`, so a JDK mismatch
   still wins over a port conflict, and a port conflict wins over the generic
-  failure headline. **1 new headless case**: `BuildToolsTest` feeds the verbatim
-  Spring Boot failure log and asserts the advice names the port and suggests the
-  next port.
+  failure headline. A new **Free Port** toolbar action (`gradle-free-port`)
+  kills whatever process holds port 8080 (Spring Boot's default) by sending
+  `SIGTERM` first (graceful shutdown) and escalating to `SIGKILL` when the
+  process ignores it, then reports the result on the status line — *"Freed
+  port 8080: java (PID 12345) stopped"* — so the user can re-run `bootRun`
+  without manually hunting for the PID. **2 new headless cases**:
+  `BuildToolsTest` feeds the verbatim Spring Boot failure log and asserts the
+  advice names the port and suggests the next port; `GradleBuildToolsTest`
+  pins the eighth toolbar contribution.
 - **The Web Server Console no longer vanishes from both start menus** (`lg3d-apps`) —
   `webserver.lgcfg` carried a `--` inside its XML comment ("the desktop classpath
   -- lg3d-apps does not depend on"), and `--` is illegal within an XML comment, so

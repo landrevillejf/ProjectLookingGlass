@@ -114,8 +114,8 @@ class AdvancedTextEditorPanelTest {
         // + Java Structure Tools 4 + Java Debugger 6 + Java Completion 1
         // + Insert & Snippets 5 + TODO Scan 2 + Comment Toggle 3
         // + Mandela Tools 5 (run / check / bytecode / starter template / deck)
-        // + Gradle Build Tools 7 + Maven Build Tools 6
-        assertEquals(91, panel.extensionActionCount());
+        // + Gradle Build Tools 8 + Maven Build Tools 6
+        assertEquals(92, panel.extensionActionCount());
         panel.dispose();
     }
 

@@ -922,9 +922,55 @@ final class BuildTools {
                 return out;
             }
         } catch (Exception e) {
-            // ps failed
+            // ps.failed
         }
         return "unknown process";
+    }
+    
+    /**
+     * Kills the process holding a TCP port, returning a human-readable result.
+     * The port is freed by sending {@code SIGTERM} to the PID (graceful shutdown);
+     * when the process ignores it, a second pass sends {@code SIGKILL}. Returns
+     * a message suitable for a status line: the process name and PID when killed,
+     * or a reason when nothing could be done (no process, permission denied).
+     *
+     * @param port the TCP port to free
+     * @return a one-line report for the status bar
+     */
+    static String killProcessOnPort(String port) {
+        String pid = findPidOnPort(port);
+        if (pid == null) {
+            return "Port " + port + " is free — nothing to kill";
+        }
+        String name = getProcessName(pid);
+        // Try SIGTERM first (graceful)
+        try {
+            ProcessBuilder pb = new ProcessBuilder("kill", "-TERM", pid);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean done = p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (done && p.exitValue() == 0) {
+                // Wait a moment for the port to release
+                Thread.sleep(500);
+                String stillHolding = findPidOnPort(port);
+                if (stillHolding == null) {
+                    return "Freed port " + port + ": " + name + " (PID " + pid + ") stopped";
+                }
+                // Process ignored SIGTERM, escalate to SIGKILL
+                ProcessBuilder kill = new ProcessBuilder("kill", "-KILL", pid);
+                kill.redirectErrorStream(true);
+                Process k = kill.start();
+                boolean killed = k.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+                if (killed && k.exitValue() == 0) {
+                    Thread.sleep(300);
+                    return "Freed port " + port + ": " + name + " (PID " + pid + ") killed";
+                }
+                return "Port " + port + ": sent SIGKILL to " + name + " (PID " + pid + "), verify manually";
+            }
+            return "Port " + port + ": kill -TERM failed (exit " + p.exitValue() + ")";
+        } catch (Exception e) {
+            return "Port " + port + ": kill failed — " + e.getMessage();
+        }
     }
 
     /**
