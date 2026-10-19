@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="1.5.0" class="java.beans.XMLDecoder">
+ <!-- Start Menu item: Tetris (from lg3d-apps). A falling-block stacking game:
+ the seven tetrominoes, a 10x20 well, line clears, levels that fall faster, a
+ landing-preview ghost, next-piece queue and saved sound / volume / speed
+ settings. Its Swing panel is hosted on a SwingNode inside a Frame3D via
+ TitledSwingWindow, and the same panel is registered in Desktop2DAppRegistry,
+ so the 2D desktop opens it as an internal frame. Launched in-JVM via the
+ "java <class>" command. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>java org.jdesktop.lg3d.apps.games.tetris.Tetris</string>
+  </void>
+  <void property="desc">
+   <string>Falling-block puzzle game with levels and scoring</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/tetris.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>Games</string>
+  </void>
+  <void property="name">
+   <string>Tetris</string>
+  </void>
+ </object>
+</java>
