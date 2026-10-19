@@ -30,7 +30,10 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JOptionPane;
+import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.jdesktop.lg3d.apps.texteditor.ext.DocumentContext;
@@ -176,7 +179,10 @@ public final class JavaStructureTools implements TextEditorExtension {
                         this::renameSymbol),
                 new ToolbarContribution("struct-organize-imports", "Organize Imports",
                         "Drop unused imports, remove duplicates and sort the import block",
-                        this::organizeImportsAction)
+                        this::organizeImportsAction),
+                new ToolbarContribution("struct-add-missing-imports", "Add Missing Imports",
+                        "Detect unresolved symbols and add their imports",
+                        this::addMissingImportsAction)
         );
     }
 
@@ -694,6 +700,206 @@ public final class JavaStructureTools implements TextEditorExtension {
                 sb.append(i == lines.size() - 1 ? " and " : ", ");
             }
             sb.append(lines.get(i));
+        }
+        return sb.toString();
+    }
+
+    // -- add missing imports -------------------------------------------------------
+
+    /**
+     * Detects unresolved symbols in the current Java file and adds their imports.
+     * Compiles the file, extracts "cannot find symbol" errors, searches for matching
+     * classes in common packages, and adds the imports.
+     */
+    private void addMissingImportsAction() {
+        DocumentContext doc = currentDoc;
+        EditorContext ctx = editor;
+        if (doc == null || ctx == null) {
+            return;
+        }
+        String source = doc.getFullText();
+        String fileName = doc.getFileName();
+        if (fileName == null || !fileName.endsWith(".java")) {
+            ctx.showMessage("Not a Java file");
+            return;
+        }
+
+        // Compile to get diagnostics
+        List<String> errors = compileAndGetErrors(source, fileName);
+        if (errors.isEmpty()) {
+            ctx.showMessage("No compilation errors");
+            return;
+        }
+
+        // Extract unresolved symbols
+        List<String> unresolved = extractUnresolvedSymbols(errors);
+        if (unresolved.isEmpty()) {
+            ctx.showMessage("No unresolved symbols found");
+            return;
+        }
+
+        // For each unresolved symbol, try to find and import it
+        List<String> added = new ArrayList<>();
+        List<String> ambiguous = new ArrayList<>();
+        List<String> notFound = new ArrayList<>();
+
+        for (String symbol : unresolved) {
+            List<String> candidates = findClassCandidates(symbol);
+            if (candidates.isEmpty()) {
+                notFound.add(symbol);
+            } else if (candidates.size() == 1) {
+                added.add(candidates.get(0));
+            } else {
+                ambiguous.add(symbol + " (" + candidates.size() + " matches)");
+            }
+        }
+
+        // Add the unambiguous imports
+        if (!added.isEmpty()) {
+            String withImports = addImports(source, added);
+            doc.setFullText(withImports);
+            ctx.showMessage("Added " + added.size() + " import(s): " + String.join(", ", added));
+        } else {
+            ctx.showMessage("No imports could be added automatically");
+        }
+
+        // Report ambiguous and not found
+        if (!ambiguous.isEmpty() || !notFound.isEmpty()) {
+            StringBuilder msg = new StringBuilder();
+            if (!ambiguous.isEmpty()) {
+                msg.append("Ambiguous: ").append(String.join(", ", ambiguous));
+            }
+            if (!notFound.isEmpty()) {
+                if (msg.length() > 0) msg.append("; ");
+                msg.append("Not found: ").append(String.join(", ", notFound));
+            }
+            ctx.showMessage(msg.toString());
+        }
+    }
+
+    /**
+     * Compiles the source and returns error messages.
+     */
+    private List<String> compileAndGetErrors(String source, String fileName) {
+        List<String> errors = new ArrayList<>();
+        try {
+            JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+            if (compiler == null) {
+                return errors;
+            }
+            DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+            try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8)) {
+                JavaFileObject file = new SimpleJavaFileObject(
+                        java.net.URI.create("string:///" + fileName),
+                        JavaFileObject.Kind.SOURCE) {
+                    @Override
+                    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+                        return source;
+                    }
+                };
+                JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, null, null, List.of(file));
+                task.call();
+                diagnostics.getDiagnostics().forEach(d -> {
+                    if (d.getKind() == javax.tools.Diagnostic.Kind.ERROR) {
+                        errors.add(d.getMessage(null));
+                    }
+                });
+            }
+        } catch (IOException e) {
+            // ignore
+        }
+        return errors;
+    }
+
+    /**
+     * Extracts unresolved symbol names from compilation error messages.
+     */
+    private List<String> extractUnresolvedSymbols(List<String> errors) {
+        List<String> symbols = new ArrayList<>();
+        Pattern cannotFind = Pattern.compile("cannot find symbol.*?symbol:\\s*class\\s+(\\w+)");
+        for (String error : errors) {
+            Matcher m = cannotFind.matcher(error);
+            if (m.find()) {
+                String symbol = m.group(1);
+                if (!symbols.contains(symbol)) {
+                    symbols.add(symbol);
+                }
+            }
+        }
+        return symbols;
+    }
+
+    /**
+     * Finds candidate fully-qualified class names for a simple class name.
+     */
+    private List<String> findClassCandidates(String simpleName) {
+        List<String> candidates = new ArrayList<>();
+        // Search common packages
+        String[] packages = {
+                "java.lang", "java.util", "java.io", "java.nio", "java.net",
+                "java.time", "java.math", "java.text", "java.sql", "java.util.concurrent",
+                "java.util.stream", "java.util.function", "java.util.regex"
+        };
+        for (String pkg : packages) {
+            String fqn = pkg + "." + simpleName;
+            try {
+                Class.forName(fqn);
+                candidates.add(fqn);
+            } catch (ClassNotFoundException e) {
+                // not found
+            }
+        }
+        return candidates;
+    }
+
+    /**
+     * Adds import statements to the source, inserting them after the package declaration
+     * or at the top of the file.
+     */
+    private String addImports(String source, List<String> imports) {
+        if (imports.isEmpty()) {
+            return source;
+        }
+        // Find existing imports or package declaration
+        String[] lines = source.split("\n", -1);
+        int insertAt = 0;
+        boolean hasImports = false;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.startsWith("package ")) {
+                insertAt = i + 1;
+            } else if (line.startsWith("import ")) {
+                hasImports = true;
+                insertAt = i + 1;
+            } else if (!line.isEmpty() && !line.startsWith("//") && !line.startsWith("/*") && insertAt > 0) {
+                break;
+            }
+        }
+
+        // Build new imports
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < insertAt; i++) {
+            sb.append(lines[i]).append('\n');
+        }
+        for (String imp : imports) {
+            String importLine = "import " + imp + ";";
+            // Check if already imported
+            boolean alreadyImported = false;
+            for (String line : lines) {
+                if (line.trim().equals(importLine)) {
+                    alreadyImported = true;
+                    break;
+                }
+            }
+            if (!alreadyImported) {
+                sb.append(importLine).append('\n');
+            }
+        }
+        for (int i = insertAt; i < lines.length; i++) {
+            sb.append(lines[i]);
+            if (i < lines.length - 1) {
+                sb.append('\n');
+            }
         }
         return sb.toString();
     }
