@@ -205,6 +205,9 @@ class BuildToolsTest {
         assertTrue(advice.get().contains("Port 8080"), advice.get());
         assertTrue(advice.get().contains("--server.port=8081"),
                 "the next port is the natural escape for a one-off conflict");
+        // The advice either names the PID and the kill command, or the lsof fallback.
+        assertTrue(advice.get().contains("kill") || advice.get().contains("lsof"),
+                "the advice must name a command the user can copy-paste");
         assertTrue(BuildTools.portInUseAdvice("").isEmpty());
         assertTrue(BuildTools.portInUseAdvice(null).isEmpty());
     }

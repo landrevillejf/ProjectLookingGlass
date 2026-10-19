@@ -845,8 +845,8 @@ final class BuildTools {
     /**
      * A port conflict: Spring Boot (or any web framework) tried to bind a port
      * that another process already holds. The advice names the port, the process
-     * using it (when discoverable), and how to free it — either by killing the
-     * other process or by running on a different port.
+     * using it (when discoverable), the exact command to free it, and how to
+     * run on a different port instead.
      *
      * @param output merged stdout+stderr of the build
      * @return the one-line advice, empty when the log is not a port conflict
@@ -864,11 +864,12 @@ final class BuildTools {
         if (pid != null) {
             String name = getProcessName(pid);
             return Optional.of("Port " + port + " is in use by " + name
-                    + " (PID " + pid + "); stop it or use --server.port="
-                    + (Integer.parseInt(port) + 1));
+                    + " (PID " + pid + "); run 'kill " + pid + "' to free it,"
+                    + " or use --server.port=" + (Integer.parseInt(port) + 1));
         }
-        return Optional.of("Port " + port + " is in use; stop the other process"
-                + " or use --server.port=" + (Integer.parseInt(port) + 1));
+        return Optional.of("Port " + port + " is in use; run 'lsof -ti :" + port
+                + " | xargs kill' to free it, or use --server.port="
+                + (Integer.parseInt(port) + 1));
     }
 
     /**
