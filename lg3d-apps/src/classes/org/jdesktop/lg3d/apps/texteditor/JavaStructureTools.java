@@ -163,6 +163,11 @@ public final class JavaStructureTools implements TextEditorExtension {
     public void onDocumentSaved(DocumentContext doc) {
         this.currentDoc = doc;
         refreshOutline(doc);
+        // Auto-add missing imports for Java files
+        String fileName = doc.getFileName();
+        if (fileName != null && fileName.endsWith(".java")) {
+            addMissingImportsAction();
+        }
     }
 
     @Override
