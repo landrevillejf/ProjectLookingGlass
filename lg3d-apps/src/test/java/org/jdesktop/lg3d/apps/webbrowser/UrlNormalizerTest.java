@@ -50,12 +50,14 @@ class UrlNormalizerTest {
     }
 
     @Test
-    @DisplayName("a host-like token becomes an https URL")
+    @DisplayName("a host-like token becomes an https URL, except localhost which stays http")
     void hostLikeBecomesHttps() {
         assertEquals("https://example.com",
                 UrlNormalizer.normalize("example.com", SearchEngine.DUCKDUCKGO));
-        assertEquals("https://localhost:8080",
+        assertEquals("http://localhost:8080",
                 UrlNormalizer.normalize("localhost:8080", SearchEngine.DUCKDUCKGO));
+        assertEquals("http://127.0.0.1:8080",
+                UrlNormalizer.normalize("127.0.0.1:8080", SearchEngine.DUCKDUCKGO));
         assertEquals("https://sub.domain.org/a/b",
                 UrlNormalizer.normalize("sub.domain.org/a/b", SearchEngine.DUCKDUCKGO));
     }

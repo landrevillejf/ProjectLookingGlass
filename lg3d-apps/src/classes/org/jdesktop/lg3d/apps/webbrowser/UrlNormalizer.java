@@ -70,7 +70,11 @@ public final class UrlNormalizer {
             return syntacticallyValid(text) ? text : search.searchUrl(text);
         }
         if (isProbablyHost(text)) {
-            String candidate = "https://" + text;
+            // Localhost and loopback addresses default to http:// so local dev
+            // servers work without the user having to type the scheme. Everything
+            // else defaults to https:// for security.
+            String scheme = isLocalHost(text) ? "http://" : "https://";
+            String candidate = scheme + text;
             return syntacticallyValid(candidate) ? candidate : search.searchUrl(text);
         }
         return search.searchUrl(text);
@@ -163,6 +167,29 @@ public final class UrlNormalizer {
         }
         // scheme-less "host:port" or "host/path" with a single label.
         return text.indexOf(':') >= 0 || text.indexOf('/') >= 0;
+    }
+
+    /**
+     * True when the host is a local development address: {@code localhost},
+     * loopback ({@code 127.0.0.1}, {@code [::1]}), or link-local. These default
+     * to {@code http://} rather than {@code https://} so local dev servers work
+     * without the user having to type the scheme.
+     */
+    private static boolean isLocalHost(String text) {
+        String lower = text.toLowerCase();
+        if (lower.startsWith("localhost")) {
+            return true;
+        }
+        if (lower.startsWith("127.0.0.1")) {
+            return true;
+        }
+        if (lower.startsWith("[::1]")) {
+            return true;
+        }
+        if (lower.startsWith("192.168.") || lower.startsWith("10.") || lower.startsWith("169.254.")) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean syntacticallyValid(String url) {
