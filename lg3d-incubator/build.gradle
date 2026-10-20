@@ -222,20 +222,21 @@ pitest {
     jvmArgs = ['-Xmx512m', '-Djava.awt.headless=true', '-Dlg.locale=en',
                '--add-exports', 'java.desktop/sun.awt.image=ALL-UNNAMED']
     avoidCallsTo = ['java.awt', 'javax.swing']
-    // PIT's forked JVM needs the same classpath filter as the test task:
-    // xercesImpl.jar references org.w3c.dom.ls.DocumentLS (removed from JDK),
-    // mail.jar clashes with angus-mail, commons-io-1.0.jar breaks POI
+    // Mail tests (GreenMail) and Presentoire tests fail under PIT's forked JVM
+    excludedTestClasses = [
+        'org.jdesktop.lg3d.apps.mail.*',
+        'org.jdesktop.lg3d.apps.presentoire.*'
+    ]
+}
+
+// PIT's forked JVM needs the same classpath filter as the test task:
+// xercesImpl.jar references org.w3c.dom.ls.DocumentLS (removed from JDK),
+// mail.jar clashes with angus-mail, commons-io-1.0.jar breaks POI
+tasks.named('pitest') {
     classpath = classpath.filter {
         !it.name.equals('xercesImpl.jar') \
             && !it.name.equals('mail.jar') \
             && !it.name.equals('activation.jar') \
             && !it.name.equals('commons-io-1.0.jar')
     }
-    // Mail tests (GreenMail), Presentoire tests and InvitationSenderTest fail
-    // under PIT's forked JVM (timing/classpath issues)
-    excludedTestClasses = [
-        'org.jdesktop.lg3d.apps.mail.*',
-        'org.jdesktop.lg3d.apps.presentoire.*',
-        'org.jdesktop.lg3d.apps.orgchart.ui.agenda.InvitationSenderTest'
-    ]
 }
