@@ -2,6 +2,7 @@ package org.jdesktop.wonderland.common.checksums;
 
 import java.io.Reader;
 import java.io.Writer;
+import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.xml.bind.JAXBContext;
@@ -33,8 +34,21 @@ public class Checksum {
       this.checksum = checksum;
    }
 
-   public boolean equals(Checksum checksum) {
-      return this.checksum.equals(checksum.getChecksum());
+   @Override
+   public boolean equals(Object obj) {
+      if (this == obj) {
+         return true;
+      }
+      if (!(obj instanceof Checksum)) {
+         return false;
+      }
+      Checksum other = (Checksum) obj;
+      return Objects.equals(this.checksum, other.checksum);
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hashCode(this.checksum);
    }
 
    public void setChecksum(String checksum) {

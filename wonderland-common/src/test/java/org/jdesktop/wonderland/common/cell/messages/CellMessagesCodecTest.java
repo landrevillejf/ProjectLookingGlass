@@ -28,7 +28,6 @@ import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
 import java.util.HashSet;
 import java.util.Set;
-import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
