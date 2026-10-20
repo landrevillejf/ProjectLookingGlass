@@ -95,6 +95,7 @@ public class StrokeFont extends gnu.x11.extension.glx.Application {
        gl.translatef (8.0f, 0.0f, 0.0f);
        return;
      }
+     default: break;
      }
    }
   }

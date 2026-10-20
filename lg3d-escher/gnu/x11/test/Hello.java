@@ -73,6 +73,7 @@ public class Hello extends gnu.x11.Application {
           || keysym == gnu.x11.keysym.Misc.ESCAPE) exit ();
         break;
       }      
+      default: break;
       }
     }
 

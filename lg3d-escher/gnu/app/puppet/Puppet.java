@@ -410,7 +410,8 @@ public class Puppet extends Application {
 
 
   public void client_to_register (Client client, int keycode) {
-    int index = client.register = keycode - display.input.min_keycode;
+    client.register = keycode - display.input.min_keycode;
+    int index = client.register;
     Client old = registers [index];
 
     if (old != null) old.register = -1;
@@ -819,7 +820,9 @@ public class Puppet extends Application {
     case Misc.SUPER_R:
     case Misc.HYPER_L:
     case Misc.HYPER_R:
-      if (prefix0 != ' ' && prefix0 != 'j') return false;		
+      if (prefix0 != ' ' && prefix0 != 'j') return false;
+      break;
+    default: break;
     }
 
 
@@ -1587,6 +1590,7 @@ public class Puppet extends Application {
 	update_client_order (focus); // != client
       }
       break;
+    default: break;
     }
   }
 
@@ -1712,7 +1716,8 @@ public class Puppet extends Application {
     if (key_process ()) {       // done
       display.input.ungrab_keyboard ();
       system_key_pressed = false;
-      prefix0 = prefix1 = 0;
+      prefix0 = 0;
+      prefix1 = 0;
 
       argument = 0;
       argument_negative = false;
@@ -1770,6 +1775,7 @@ public class Puppet extends Application {
     case Atom.WM_TRANSIENT_FOR_ID:
       // ignore (normal window manager should handle these)
       break;
+    default: break;
     }
   }
 

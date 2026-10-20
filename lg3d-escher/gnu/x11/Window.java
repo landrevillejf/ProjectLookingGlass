@@ -662,6 +662,7 @@ public class Window extends Drawable {
     case 8: request.write1 ((byte []) data, offset); break;    
     case 16: request.write2 ((int []) data, offset); break;
     case 32: request.write4 ((int []) data, offset); break;
+    default: break;
     }
     display.send_request (request);
   }
@@ -1530,9 +1531,15 @@ public class Window extends Drawable {
     }
   
   
-    public boolean equals (WMClassHint hint) {
-      if (hint == null) return false;
-      return res.equals (hint.res);
+    public boolean equals (Object obj) {
+      if (this == obj) return true;
+      if (!(obj instanceof WMClassHint)) return false;
+      return res.equals (((WMClassHint) obj).res);
+    }
+  
+  
+    public int hashCode () {
+      return res.hashCode ();
     }
   
   
@@ -1611,7 +1618,7 @@ public class Window extends Drawable {
     public int flags () { return read4 (32); }
   
     public boolean input () {
-        return (read4(36) == 0) ? false : true;
+        return read4(36) != 0;
     }
   
     public final static int WITHDRAWN = 0;
@@ -1693,7 +1700,7 @@ public class Window extends Drawable {
     public int inc_height () { return read4 (72); }
     
     public boolean presizeIncrement () {
-        return ((flags () & PRESIZE_INC_MASK) == 0) ? false : true;
+        return (flags () & PRESIZE_INC_MASK) != 0;
     }
   
     // writing

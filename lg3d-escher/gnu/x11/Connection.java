@@ -24,8 +24,6 @@ package gnu.x11;
 
 import gnu.x11.event.Event;
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.ListIterator;
 import java.util.Vector;
 
 

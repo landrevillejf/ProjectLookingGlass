@@ -62,6 +62,7 @@ public class WinOp extends gnu.x11.Application {
     case SET_INPUT_FOCUS:
       window.set_input_focus ();
       break;
+    default: break;
     }
 
     display.close ();

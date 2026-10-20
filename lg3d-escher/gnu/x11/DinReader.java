@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.io.EOFException;
 import java.util.LinkedList;
 import java.util.ListIterator;
-import gnu.x11.Display;
-import gnu.x11.Error;
 import gnu.x11.event.Event;
 
 class DinReader

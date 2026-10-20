@@ -472,6 +472,7 @@ public class Primitive extends gnu.x11.extension.glx.Application {
       gl.color_mask (true, true, false, true);
       gl.index_mask (0xfb);
       break;
+    default: break;
     }
   }
 

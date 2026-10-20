@@ -50,6 +50,7 @@ public class DoubleBuffer extends gnu.x11.extension.glx.Application implements R
     switch (button) {
     case Input.BUTTON1: spinning = true; break;
     case Input.BUTTON2: spinning = false; break;
+    default: break;
     }
   }
 

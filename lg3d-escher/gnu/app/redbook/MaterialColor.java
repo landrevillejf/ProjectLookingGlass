@@ -74,6 +74,7 @@ public class MaterialColor extends gnu.x11.extension.glx.Application {
     case 'G': change_diffuse (1);  break;
     case 'b':                   // fall through
     case 'B': change_diffuse (2); break;
+    default: break;
     }
   }
 

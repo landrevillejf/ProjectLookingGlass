@@ -86,6 +86,7 @@ public class Torus extends gnu.x11.extension.glx.Application {
       gl.load_identity ();
       glu.look_at (0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
       break;
+    default: break;
     }
 
     mark_window_dirty ();

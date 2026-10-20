@@ -193,6 +193,7 @@ public abstract class Application extends gnu.x11.Application {
     case Expose.CODE: dispatch_expose (); break;	
     case KeyPress.CODE: dispatch_key_press (); break;
     case MotionNotify.CODE: dispatch_motion_notify (); break;
+    default: break;
     }
   }
 

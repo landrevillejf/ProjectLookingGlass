@@ -59,9 +59,12 @@ public class RGB {
 
     float red = 0, green = 0, blue = 0;
 
-    if (saturation == 0)
+    if (saturation == 0) {
       // achromatic (grey)
-      red = green = blue = value;
+      red = value;
+      green = value;
+      blue = value;
+    }
 
     else {
       float h = hue / 60;      
@@ -109,6 +112,7 @@ public class RGB {
         green = p;
         blue = q;
         break;
+      default: break;
       }
     }
     
