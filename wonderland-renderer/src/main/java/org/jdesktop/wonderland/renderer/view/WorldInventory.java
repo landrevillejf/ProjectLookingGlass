@@ -93,7 +93,9 @@ public final class WorldInventory {
                 height = CELL_BLOCKING_HEIGHT_M;
             }
             if (!isSane(x) || !isSane(y) || !isSane(z)) {
-                x = y = z = 0f;
+                x = 0f;
+                y = 0f;
+                z = 0f;
             }
         }
 

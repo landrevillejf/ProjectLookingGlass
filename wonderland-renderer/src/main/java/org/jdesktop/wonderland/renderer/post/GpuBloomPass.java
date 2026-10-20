@@ -52,7 +52,6 @@ import com.jogamp.opengl.GLContext;
 import com.jogamp.opengl.GLDrawable;
 import com.jogamp.opengl.FBObject;
 import com.jogamp.opengl.GLFBODrawable;
-import com.jogamp.opengl.util.GLBuffers;
 
 /**
  * The live GPU bloom pass: one instance owns the FBOs, textures and shader
@@ -287,9 +286,13 @@ public final class GpuBloomPass implements GpuPostEffect {
         } finally {
             sceneFbo = 0;
             sceneTex = 0;
-            blurFbo[0] = blurFbo[1] = 0;
-            blurTex[0] = blurTex[1] = 0;
-            brightProg = blurProg = compProg = 0;
+            blurFbo[0] = 0;
+            blurFbo[1] = 0;
+            blurTex[0] = 0;
+            blurTex[1] = 0;
+            brightProg = 0;
+            blurProg = 0;
+            compProg = 0;
             ready = false;
         }
     }
