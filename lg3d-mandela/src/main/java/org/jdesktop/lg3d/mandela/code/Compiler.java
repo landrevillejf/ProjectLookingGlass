@@ -1367,6 +1367,10 @@ public final class Compiler {
                 loadThis(line);
                 emit(Op.GET_MEMBER, constant(slot.name()), line);
             }
+            default -> {
+                // Ref is exhaustive above; the empty arm keeps the switch total
+                // without adding a reachable branch.
+            }
         }
     }
 
@@ -1411,6 +1415,10 @@ public final class Compiler {
                     emit(Op.GET_LOCAL, at, line);
                 }
                 scope.endBlock(mark);
+            }
+            default -> {
+                // Ref is exhaustive above; the empty arm keeps the switch total
+                // without adding a reachable branch.
             }
         }
     }
