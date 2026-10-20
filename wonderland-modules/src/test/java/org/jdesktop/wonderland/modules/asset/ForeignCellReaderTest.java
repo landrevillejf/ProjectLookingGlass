@@ -19,6 +19,9 @@ package org.jdesktop.wonderland.modules.asset;
 
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import org.jdesktop.wonderland.common.cell.state.ForeignCellServerState;
 import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,6 +75,17 @@ class ForeignCellReaderTest {
         assertThat(state.getName()).isEqualTo("Lobby Poster");
         assertThat(state.getCellType()).isEqualTo("poster-cell");
         assertThat(state.getAssetURI()).isEqualTo("wla://M/art/poster.png");
+    }
+
+    @Test
+    void whitespaceBetweenElementsIsSteppedOverWhenReadingAChild() {
+        // A cell file indented by its author puts text nodes between the element
+        // children; text() must step over the non-element nodes to reach <name>
+        // rather than read the leading whitespace as the value.
+        String xml = "<poster-cell>\n  <name>Spaced</name>\n</poster-cell>";
+        ForeignCellServerState state = ForeignCellReader.read(xml);
+        assertThat(state).isNotNull();
+        assertThat(state.getName()).isEqualTo("Spaced");
     }
 
     @Test
@@ -214,6 +228,20 @@ class ForeignCellReaderTest {
         assertThat(q.x).isCloseTo((float) Math.sin(0.25), within(1e-3f));
     }
 
+    @Test
+    void aTurnAboutZReachesTheThirdTermOfTheZeroAxisGuard() {
+        // The guard tests x, then y, then z. A turn about +Y short-circuits on y and
+        // one about +X on x, so neither reaches the z test; a rotation authored about
+        // +Z (x and y zero, z non-zero) does, and must still be a unit quaternion.
+        String xml = "<model-cell><name>N</name><position-component>"
+                + "<rotation><x>0</x><y>0</y><z>1</z><angle>0.5</angle></rotation>"
+                + "</position-component></model-cell>";
+        Quaternion q = position(ForeignCellReader.read(xml)).getRotation();
+        double length = Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+        assertThat(length).isCloseTo(1.0, within(1e-3));
+        assertThat(q.z).isCloseTo((float) Math.sin(0.25), within(1e-3f));
+    }
+
     // ------------------------------------------------------------- misc ----
     @Test
     void aByteOrderMarkAtTheFrontDoesNotBreakTheProlog() {
@@ -241,5 +269,42 @@ class ForeignCellReaderTest {
                 "<poster-cell><name>P</name></poster-cell>");
         assertThat(state.getPixelScaleX())
                 .isEqualTo(ForeignCellServerState.DEFAULT_PIXEL_SCALE);
+    }
+
+    @Test
+    void aFactoryThatRefusesAFeatureIsStillSealedAndReturned() {
+        // sealedFactory tolerates a ParserConfigurationException: a third-party
+        // parser that does not know one of the hardening feature strings keeps the
+        // settings that did apply, and a world file is not worth failing to read
+        // over it. The seam hands in exactly such a factory; the first setFeature
+        // refusal is caught and the same instance comes back.
+        DocumentBuilderFactory refusing = new DocumentBuilderFactory() {
+            @Override
+            public DocumentBuilder newDocumentBuilder() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void setAttribute(String name, Object value) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object getAttribute(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void setFeature(String name, boolean value)
+                    throws ParserConfigurationException {
+                throw new ParserConfigurationException("no such feature: " + name);
+            }
+
+            @Override
+            public boolean getFeature(String name) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        assertThat(ForeignCellReader.sealedFactory(refusing)).isSameAs(refusing);
     }
 }

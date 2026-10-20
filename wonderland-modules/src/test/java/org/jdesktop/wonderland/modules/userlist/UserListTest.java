@@ -88,7 +88,11 @@ class UserListTest {
     void aPresentUserNeedsBothIdAndName() {
         assertThatThrownBy(() -> new PresentUser(null, "x"))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PresentUser("  ", "x"))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new PresentUser("1", "  "))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PresentUser("1", null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

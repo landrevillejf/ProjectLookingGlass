@@ -11,8 +11,14 @@
  */
 package org.jdesktop.wonderland.modules.collada;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import org.junit.jupiter.api.Test;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXParseException;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
@@ -291,5 +297,174 @@ class ColladaParserTest {
         assertThat(node.transforms().get(0).values()).isEmpty();                   // blank -> empty
         assertThat(node.transforms().get(1).values()).containsExactly(0.0, 0.0, 1.0); // 'zzz' dropped
         assertThat(node.geometries().get(0).url()).isNull();                       // url-less instance
+    }
+
+    @Test
+    void theErrorHandlerSwallowsRecoverableFaultsAndRethrowsTheFatalOne() {
+        // The hardened parser installs this handler so a non-COLLADA artifact does not
+        // also print "[Fatal Error]" to the desktop's terminal: the recoverable
+        // warning/error callbacks stay silent, and only the fatal one is rethrown for
+        // the loader to wrap with the cell's name.
+        ErrorHandler handler = ColladaParser.errorHandler();
+        SAXParseException recoverable = new SAXParseException("recoverable", null);
+        assertThatCode(() -> handler.warning(recoverable)).doesNotThrowAnyException();
+        assertThatCode(() -> handler.error(recoverable)).doesNotThrowAnyException();
+
+        SAXParseException fatal = new SAXParseException("fatal", null);
+        assertThatThrownBy(() -> handler.fatalError(fatal)).isSameAs(fatal);
+    }
+
+    @Test
+    void aFactoryThatRefusesTheHardeningFeaturesFailsAsAnUnavailableParser() {
+        // newSecureBuilder's catch is only reachable when a DocumentBuilderFactory
+        // refuses one of the hardening features; production's JDK factory never does,
+        // so the seam hands in one that throws on the first setFeature and the guard
+        // degrades to "no secure DOM parser" rather than parsing unhardened.
+        DocumentBuilderFactory refusing = new DocumentBuilderFactory() {
+            @Override
+            public DocumentBuilder newDocumentBuilder() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void setAttribute(String name, Object value) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object getAttribute(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void setFeature(String name, boolean value)
+                    throws ParserConfigurationException {
+                throw new ParserConfigurationException("no such feature: " + name);
+            }
+
+            @Override
+            public boolean getFeature(String name) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        assertThatThrownBy(() -> ColladaParser.newSecureBuilder(refusing))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no secure DOM parser available");
+    }
+
+    @Test
+    void anAssetWithoutAUnitAndAnImageWithoutASourceTolerateTheGaps() {
+        // <asset> with no <unit> keeps the 1.0 default (the unit != null guard's other
+        // arm), and an <image> with no <init_from> reads a null path rather than an
+        // empty one -- the ColladaImage ternary's init == null arm.
+        String body = "<asset><up_axis>Z_UP</up_axis></asset>"
+                + "<library_images><image id=\"Bare\"/></library_images>";
+        ColladaDocument doc = PARSER.parse(wrap(body));
+
+        assertThat(doc.asset().unitMeter()).isEqualTo(1.0);
+        assertThat(doc.asset().upAxis()).isEqualTo("Z_UP");
+        assertThat(doc.image("Bare").normalizedPath()).isNull();
+        assertThat(doc.image("Bare").initFrom()).isNull();
+    }
+
+    @Test
+    void aNodeWithAnUnrecognisedChildAndLooseInstanceBindingsIsStillRead() {
+        // A child element that is no transform and no known instance is simply ignored
+        // (the instance_node else-if's other arm); a <bind_material> with no
+        // <technique_common> binds nothing; and a <bind_vertex_input> with no
+        // input_semantic contributes no texcoord.
+        String body = "<library_visual_scenes><visual_scene id=\"S\">"
+                + "  <node id=\"n\">"
+                + "    <extra/>"
+                + "    <instance_geometry url=\"#g\"><bind_material/></instance_geometry>"
+                + "    <instance_geometry url=\"#h\"><bind_material><technique_common>"
+                + "      <instance_material symbol=\"m\" target=\"#M\">"
+                + "        <bind_vertex_input semantic=\"UVSET0\"/>"
+                + "      </instance_material>"
+                + "    </technique_common></bind_material></instance_geometry>"
+                + "  </node>"
+                + "</visual_scene></library_visual_scenes>";
+        ColladaNode node = PARSER.parse(wrap(body)).rootVisualScene().nodes().get(0);
+
+        assertThat(node.transforms()).isEmpty();          // <extra/> is not a transform
+        assertThat(node.children()).isEmpty();            // nor a child node
+        assertThat(node.nodeInstanceUrls()).isEmpty();    // nor an instance_node
+        assertThat(node.geometries()).hasSize(2);
+        assertThat(node.geometries().get(0).materials()).isEmpty();     // bind w/o technique_common
+        assertThat(node.geometries().get(1).materials().get(0).texcoords()).isEmpty(); // no input_semantic
+    }
+
+    @Test
+    void anAnimationWithNoChannelsAndSparseSamplerInputsIsStillRegistered() {
+        // An <animation> with neither channels nor nested children is not a group to
+        // flatten, so it is returned as-is (the mergedWith ternary's other arm); a
+        // <source> with no <float_array> reads empty; and a sampler <input> whose
+        // semantic is neither INPUT nor OUTPUT is passed over.
+        String body = "<library_animations>"
+                + "  <animation id=\"empty\" name=\"e\"/>"
+                + "  <animation id=\"a\" name=\"n\">"
+                + "    <source id=\"s1\"><other/></source>"
+                + "    <sampler id=\"smp\">"
+                + "      <input semantic=\"INPUT\" source=\"#s1\"/>"
+                + "      <input semantic=\"INTERPOLATION\" source=\"#interp\"/>"
+                + "      <input semantic=\"OUTPUT\" source=\"#s1\"/>"
+                + "    </sampler>"
+                + "    <channel source=\"#smp\" target=\"n/translation.X\"/>"
+                + "  </animation>"
+                + "</library_animations>";
+        ColladaDocument doc = PARSER.parse(wrap(body));
+
+        assertThat(doc.animationCount()).isEqualTo(2);
+        ColladaAnimation empty = doc.animations().get("empty");
+        assertThat(empty.isEmpty()).isTrue();
+        assertThat(empty.channels()).isEmpty();
+        ColladaAnimation anim = doc.animations().get("a");
+        assertThat(anim.source("s1").data()).isEmpty();     // no float_array
+        assertThat(anim.sampler("smp").inputSourceId()).isEqualTo("s1");
+        assertThat(anim.sampler("smp").outputSourceId()).isEqualTo("s1");
+    }
+
+    @Test
+    void anEffectWithoutATechniqueAndOneWithAnUnrecognisedTechniqueParse() {
+        // A <profile_COMMON> holding no <technique_common> and no <technique> leaves
+        // techCommon null (that guard's other arm); one whose <technique_common> holds
+        // only an unrecognised child exhausts the loop and leaves techniqueEl null.
+        String body = "<library_effects>"
+                + "  <effect id=\"noTech\"><profile_COMMON><newparam sid=\"s\"/>"
+                + "  </profile_COMMON></effect>"
+                + "  <effect id=\"unrecognised\"><profile_COMMON>"
+                + "    <technique_common><extra/></technique_common>"
+                + "  </profile_COMMON></effect>"
+                + "</library_effects>";
+        ColladaDocument doc = PARSER.parse(wrap(body));
+
+        assertThat(doc.effect("noTech").technique()).isNull();
+        assertThat(doc.effect("noTech").samplers()).isEmpty();
+        assertThat(doc.effect("unrecognised").technique()).isNull();
+        assertThat(doc.effect("unrecognised").diffuseColor()).isNull();
+    }
+
+    @Test
+    void anEffectNewparamChainWithEveryGapIsWalkedWithoutBinding() {
+        // Each newparam exercises one gap the FX-chain walk must survive: no sid
+        // (skipped), a <surface> with no <init_from>, a <sampler2D> with no <source>,
+        // and neither (an unrelated child). The <texture> with no texture attribute
+        // binds nothing, and a <transparent><float> that is not numeric reads as no
+        // factor, so transparency stays the 1.0 default.
+        String body = "<library_effects><effect id=\"fx\"><profile_COMMON>"
+                + "  <technique_common><lambert>"
+                + "    <transparent><float>abc</float></transparent>"
+                + "    <texture texcoord=\"UV\"/>"
+                + "  </lambert></technique_common>"
+                + "  <newparam><surface><init_from>Img</init_from></surface></newparam>"
+                + "  <newparam sid=\"surf\"><surface/></newparam>"
+                + "  <newparam sid=\"smp\"><sampler2D/></newparam>"
+                + "  <newparam sid=\"other\"><extra/></newparam>"
+                + "</profile_COMMON></effect></library_effects>";
+        ColladaEffect effect = PARSER.parse(wrap(body)).effect("fx");
+
+        assertThat(effect.technique()).isEqualTo("lambert");
+        assertThat(effect.transparency()).isEqualTo(1.0);   // non-numeric float -> no factor
+        assertThat(effect.samplers()).isEmpty();            // texture carries no image ref
     }
 }

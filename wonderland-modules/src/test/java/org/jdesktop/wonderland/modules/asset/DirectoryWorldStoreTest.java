@@ -12,15 +12,18 @@ package org.jdesktop.wonderland.modules.asset;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DirectoryWorldStoreTest {
 
@@ -91,5 +94,53 @@ class DirectoryWorldStoreTest {
         // ".." in the module name is mapped to a safe directory name, never traversed
         assertThat(store.present("..", "x")).isTrue();
         assertThat(store.present("../world", "a.dep")).isFalse();
+    }
+
+    @Test
+    void aNullModuleListsFromTheBaseItself() {
+        // safeName(null) is "", so the walk root is the base directory: a null
+        // module is not an error, it simply enumerates everything under the base.
+        assertThat(store.listAssets(null, ".dep")).contains("world/a.dep");
+    }
+
+    @Test
+    void anOpenFaultSurfacesAsUncheckedIoRatherThanAnEmptyOptional() {
+        // The seam drives the IOException Files.newInputStream only raises on a
+        // hostile machine: the store must report it, not pretend the asset is
+        // absent (which is what an empty Optional means to the loader).
+        DirectoryWorldStore.Fs fault = new DirectoryWorldStore.Fs() {
+            @Override
+            public InputStream newInputStream(Path path) throws IOException {
+                throw new IOException("cannot open");
+            }
+
+            @Override
+            public Stream<Path> walk(Path root) throws IOException {
+                return Files.walk(root);
+            }
+        };
+        DirectoryWorldStore hostile = new DirectoryWorldStore(base, fault);
+        assertThatThrownBy(() -> hostile.open("world", "a.dep"))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasMessageContaining("cannot open");
+    }
+
+    @Test
+    void aWalkFaultSurfacesAsUncheckedIoRatherThanAnEmptyList() {
+        DirectoryWorldStore.Fs fault = new DirectoryWorldStore.Fs() {
+            @Override
+            public InputStream newInputStream(Path path) throws IOException {
+                return Files.newInputStream(path);
+            }
+
+            @Override
+            public Stream<Path> walk(Path root) throws IOException {
+                throw new IOException("cannot list");
+            }
+        };
+        DirectoryWorldStore hostile = new DirectoryWorldStore(base, fault);
+        assertThatThrownBy(() -> hostile.listAssets("world", ".dep"))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasMessageContaining("cannot list");
     }
 }

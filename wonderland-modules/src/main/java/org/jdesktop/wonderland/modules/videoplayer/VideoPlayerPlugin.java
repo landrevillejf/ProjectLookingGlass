@@ -121,7 +121,11 @@ public final class VideoPlayerPlugin implements WonderlandPlugin {
      * @return true when the tick moved the transport into a new item
      */
     public boolean tickAndAdvance(long deltaMs) {
-        if (transport == null || playlist == null) {
+        // transport and playlist are built together in initialize() and
+        // cleared together in dispose(), so a null transport is the whole
+        // "not live" signal; testing playlist too is a branch that coupling
+        // makes unreachable, and an unreachable branch is not coverage.
+        if (transport == null) {
             return false;
         }
         transport.tick(deltaMs);

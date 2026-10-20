@@ -106,9 +106,13 @@ class ChatConversationTest {
         ChatMessage one = new ChatMessage("alice", "hi", 123L);
         ChatMessage same = new ChatMessage("alice", "hi", 123L);
         ChatMessage other = new ChatMessage("bob", "hi", 123L);
+        ChatMessage laterStamp = new ChatMessage("alice", "hi", 999L);
+        ChatMessage otherText = new ChatMessage("alice", "bye", 123L);
 
         assertThat(one).isEqualTo(same).hasSameHashCodeAs(same);
         assertThat(one).isNotEqualTo(other);
+        assertThat(one).isNotEqualTo(laterStamp);  // a different timestamp
+        assertThat(one).isNotEqualTo(otherText);   // a different body
         assertThat(one).isNotEqualTo("not a message");
         assertThat(one).isEqualTo(one);
         assertThat(one.toString()).isEqualTo("alice: hi");

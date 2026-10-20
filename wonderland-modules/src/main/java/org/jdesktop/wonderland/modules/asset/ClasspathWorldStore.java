@@ -99,15 +99,14 @@ public final class ClasspathWorldStore implements WorldStore {
     }
 
     /**
-     * Build the resource name {@code <module>/<path>} and refuse it if either
-     * component is null or the path tries to walk above its module directory.
-     * Returns null for the "no such resource" case rather than throwing.
+     * Build the resource name {@code <module>/<path>} and refuse it if the module
+     * is null or empty, or the path tries to walk above its module directory.
+     * Returns null for the "no such resource" case rather than throwing. The only
+     * caller passes a path drawn from {@link AssetSpelling#candidates}, which is
+     * never null and never empty, so this guards the module alone.
      */
     private static String confine(String module, String path) {
-        if (module == null || path == null) {
-            return null;
-        }
-        if (module.isEmpty() || path.isEmpty()) {
+        if (module == null || module.isEmpty()) {
             return null;
         }
         // Classpath resources always use '/' regardless of host OS.

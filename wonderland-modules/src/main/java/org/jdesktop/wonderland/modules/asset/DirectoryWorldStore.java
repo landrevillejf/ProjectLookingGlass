@@ -25,11 +25,46 @@ import java.util.stream.Stream;
 /** A {@link WorldStore} whose modules are directories under a base path. */
 public final class DirectoryWorldStore implements WorldStore {
 
+    /**
+     * The two file-system calls whose {@link IOException} this store turns into an
+     * {@link UncheckedIOException}. Factored behind an interface so a test can
+     * drive the fault deterministically on any root, rather than coaxing a real
+     * {@code Files.newInputStream} or {@code Files.walk} to fail on a live one.
+     */
+    interface Fs {
+        InputStream newInputStream(Path path) throws IOException;
+
+        Stream<Path> walk(Path root) throws IOException;
+    }
+
+    private static final Fs SYSTEM = new Fs() {
+        @Override
+        public InputStream newInputStream(Path path) throws IOException {
+            return Files.newInputStream(path);
+        }
+
+        @Override
+        public Stream<Path> walk(Path root) throws IOException {
+            return Files.walk(root);
+        }
+    };
+
     private final Path base;
+    private final Fs fs;
 
     /** @param base the directory that holds one sub-directory per module */
     public DirectoryWorldStore(Path base) {
+        this(base, SYSTEM);
+    }
+
+    /**
+     * Test seam: the same store with the file-system calls supplied, so an I/O
+     * fault that {@code Files} only raises on a hostile machine is raised on
+     * demand. Production callers use the single-argument constructor.
+     */
+    DirectoryWorldStore(Path base, Fs fs) {
         this.base = base.toAbsolutePath().normalize();
+        this.fs = fs;
     }
 
     @Override
@@ -37,7 +72,7 @@ public final class DirectoryWorldStore implements WorldStore {
         for (Path resolved : resolve(module, path)) {
             if (Files.isRegularFile(resolved)) {
                 try {
-                    return Optional.of(Files.newInputStream(resolved));
+                    return Optional.of(fs.newInputStream(resolved));
                 } catch (IOException ex) {
                     throw new UncheckedIOException("cannot open " + resolved, ex);
                 }
@@ -57,7 +92,7 @@ public final class DirectoryWorldStore implements WorldStore {
         if (!Files.isDirectory(root)) {
             return List.of();
         }
-        try (Stream<Path> walk = Files.walk(root)) {
+        try (Stream<Path> walk = fs.walk(root)) {
             return walk.filter(Files::isRegularFile)
                     .map(p -> root.relativize(p).toString().replace(java.io.File.separatorChar, '/'))
                     .filter(p -> p.endsWith(suffix))
@@ -88,7 +123,9 @@ public final class DirectoryWorldStore implements WorldStore {
 
     /** Resolve a module+path and confirm it stays inside that module's directory. */
     private Path confine(String module, String path) {
-        if (module == null || path == null) {
+        // Only resolve() calls this, and it passes an AssetSpelling candidate, which
+        // is never null and never empty -- so the module is the only part to guard.
+        if (module == null) {
             return null;
         }
         Path root = base.resolve(safeName(module)).normalize();

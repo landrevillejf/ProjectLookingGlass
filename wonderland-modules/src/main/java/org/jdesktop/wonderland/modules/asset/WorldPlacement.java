@@ -40,7 +40,6 @@ package org.jdesktop.wonderland.modules.asset;
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -93,23 +92,21 @@ public final class WorldPlacement {
         }
         Map<String, Absolute> resolved = new LinkedHashMap<>();
         for (String path : byPath.keySet()) {
-            resolved.put(path, absoluteOf(path, byPath, new HashMap<>(), new HashSet<>()));
+            resolved.put(path, absoluteOf(path, byPath, new HashSet<>()));
         }
         return resolved;
     }
 
     /**
-     * One cell's placement, with its ancestors folded in first. The memo is per
-     * call tree rather than global so the recursion stays linear in the depth of
-     * the world, and the guard set is the cycle breaker: a path already on the
-     * way down is a parent that names its own child, and it stops there.
+     * One cell's placement, with its ancestors folded in first. The guard set is
+     * the cycle breaker: a path already on the way down is a parent that names its
+     * own child, and the walk stops there. Each cell has exactly one parent, so the
+     * recursion is a single upward chain that visits every node at most once --
+     * there is no shared sub-result to memoise, and the walk is already linear in
+     * the depth of the world.
      */
     private static Absolute absoluteOf(String path, Map<String, Cell> byPath,
-            Map<String, Absolute> memo, Set<String> walking) {
-        Absolute known = memo.get(path);
-        if (known != null) {
-            return known;
-        }
+            Set<String> walking) {
         Cell cell = byPath.get(path);
         if (cell == null || !walking.add(path)) {
             return Absolute.identity();
@@ -118,9 +115,8 @@ public final class WorldPlacement {
         String parent = cell.parentPath();
         Absolute result = (parent == null || parent.equals(path))
                 ? local
-                : compose(absoluteOf(parent, byPath, memo, walking), local);
+                : compose(absoluteOf(parent, byPath, walking), local);
         walking.remove(path);
-        memo.put(path, result);
         return result;
     }
 

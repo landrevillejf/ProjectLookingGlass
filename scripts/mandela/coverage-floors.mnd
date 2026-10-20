@@ -48,7 +48,6 @@ EXEMPT.put("lg3d-webserver", "residue is defensive branches wanting fault inject
 EXEMPT.put("lg3d-mandela", "language toolchain goal is 100%/0 mutants; floor raised as each package closes")
 EXEMPT.put("wonderland-common", "untested data-model periphery pulled in by later milestones")
 EXEMPT.put("wonderland-server", "defensive transport branches want fault injection")
-EXEMPT.put("wonderland-modules", "defensive branches unreachable in-JVM")
 EXEMPT.put("wonderland-renderer", "probe-only Java 3D assembly + GL passes cannot be constructed headless")
 
 // module -> the fact that it has no test source at all, so no coverage rule and

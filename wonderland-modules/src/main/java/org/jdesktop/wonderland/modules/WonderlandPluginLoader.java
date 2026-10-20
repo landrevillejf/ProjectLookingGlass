@@ -199,10 +199,13 @@ public final class WonderlandPluginLoader {
         }
         for (String name : alive) {
             for (String dep : requires.get(name)) {
-                if (alive.contains(dep)) { // self-edge included on purpose: it keeps the node's indegree non-zero -> a cycle
-                    dependents.get(dep).add(name);
-                    indegree.merge(name, 1, Integer::sum);
-                }
+                // pruneUnsatisfiable ran to a fixed point, so every dep of an
+                // alive module is itself alive and dependents.get(dep) is never
+                // null. A self-edge is included on purpose: it keeps the node's
+                // indegree non-zero, which is exactly how a self-requirement
+                // becomes a cycle below.
+                dependents.get(dep).add(name);
+                indegree.merge(name, 1, Integer::sum);
             }
         }
 

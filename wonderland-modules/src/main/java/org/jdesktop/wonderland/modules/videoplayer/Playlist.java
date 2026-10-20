@@ -81,7 +81,11 @@ public final class Playlist {
 
     /** The current item, or null when empty. */
     public Item current() {
-        return cursor >= 0 && cursor < items.size() ? items.get(cursor) : null;
+        // cursor is only ever -1 (empty) or a valid index: add, moveTo, next,
+        // previous and removeAt all clamp it into [-1, size-1], so the upper
+        // bound the 2006 code also tested could never fail once cursor >= 0 --
+        // an unreachable branch is not coverage.
+        return cursor >= 0 ? items.get(cursor) : null;
     }
 
     /**

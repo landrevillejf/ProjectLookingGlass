@@ -73,6 +73,7 @@ class ColladaAnimationTest {
         ColladaAnimation anim = parse(ONE_ANIMATION).animations().get("walk-anim");
 
         ColladaAnimation.FloatSource times = anim.source("times");
+        assertThat(times.id()).isEqualTo("times");
         assertThat(times.data()).containsExactly(0.0, 1.0);
         assertThat(times.stride()).isEqualTo(1);
 
@@ -86,6 +87,7 @@ class ColladaAnimationTest {
         ColladaAnimation anim = parse(ONE_ANIMATION).animations().get("walk-anim");
 
         ColladaAnimation.Sampler sampler = anim.sampler("bob-sampler");
+        assertThat(sampler.id()).isEqualTo("bob-sampler");
         assertThat(sampler.inputSourceId()).isEqualTo("times");
         assertThat(sampler.outputSourceId()).isEqualTo("bob");
         assertThat(sampler.interpolation()).isEqualTo("LINEAR");

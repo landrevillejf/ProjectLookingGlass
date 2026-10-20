@@ -13,14 +13,19 @@
 package org.jdesktop.wonderland.modules.asset;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Proxy;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldLoaderTest {
 
@@ -103,6 +108,61 @@ class WorldLoaderTest {
         assertThat(contents.cells().get(0).name()).isEqualTo("Plain");
         assertThat(contents.cells().get(0).model()).isNull();
         assertThat(contents.loadedModelCount()).isZero();
+    }
+
+    @Test
+    void anEmptyOrUnreadableCellIsSkippedRatherThanDecoded() {
+        // read() degrades a stream IOException to "" and decode() maps "" to null,
+        // so a cell whose bytes are empty or whose stream fails mid-read is skipped
+        // -- the same tolerant outcome a corrupt cell gets, proved here for the two
+        // I/O-shaped failures rather than the malformed-text one above.
+        WorldStore stub = new WorldStore() {
+            @Override
+            public List<String> listAssets(String module, String suffix) {
+                return List.of("empty-wlc.xml", "faulty-wlc.xml");
+            }
+
+            @Override
+            public Optional<InputStream> open(String module, String path) {
+                if (path.startsWith("empty")) {
+                    return Optional.of(new ByteArrayInputStream(new byte[0]));
+                }
+                return Optional.of(new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new IOException("stream on fire");
+                    }
+                });
+            }
+
+            @Override
+            public boolean present(String module, String path) {
+                return false;
+            }
+        };
+
+        WorldContents contents = new WorldLoader().load(stub, "mod");
+        assertThat(contents.cellCount()).isZero();
+    }
+
+    @Test
+    void anUnmarshallerThatRefusesTheTolerantHandlerFailsFast() {
+        // The seam hands the loader an unmarshaller whose setEventHandler throws.
+        // The tolerant handler is what lets an unknown element degrade to a warning;
+        // without it every load would abort on the first unported component, so the
+        // loader refuses to be constructed rather than limp into a strict decode.
+        Unmarshaller refusing = (Unmarshaller) Proxy.newProxyInstance(
+                WorldLoaderTest.class.getClassLoader(),
+                new Class<?>[] {Unmarshaller.class},
+                (proxy, method, args) -> {
+                    if ("setEventHandler".equals(method.getName())) {
+                        throw new JAXBException("handler refused");
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                });
+        assertThatThrownBy(() -> new WorldLoader(refusing))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cannot install the tolerant handler");
     }
 
     @Test

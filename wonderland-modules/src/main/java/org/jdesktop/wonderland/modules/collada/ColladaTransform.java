@@ -75,19 +75,24 @@ public final class ColladaTransform {
     public Matrix4d toMatrix() {
         Matrix4d m = new Matrix4d();
         m.setIdentity();
-        switch (kind) {
-            case MATRIX:
+        // An exhaustive switch expression over the six Kind constants: javac fails the
+        // build if a seventh is ever added without a case here, so the enum itself --
+        // not a runtime throw -- is the guarantee every kind folds, and there is no
+        // unreachable default arm left to cover.
+        return switch (kind) {
+            case MATRIX -> {
                 if (values.length < 16) {
                     throw new IllegalArgumentException(
                             "<matrix> needs 16 values, found " + values.length);
                 }
-                m = matrixTokens();
-                break;
-            case TRANSLATE:
+                yield matrixTokens();
+            }
+            case TRANSLATE -> {
                 m.setTranslation(new org.jogamp.vecmath.Vector3d(
                         at(0), at(1), at(2)));
-                break;
-            case ROTATE:
+                yield m;
+            }
+            case ROTATE -> {
                 if (values.length < 4) {
                     throw new IllegalArgumentException(
                             "<rotate> needs 4 values, found " + values.length);
@@ -97,25 +102,23 @@ public final class ColladaTransform {
                 // first, the angle last.
                 m.setRotation(new org.jogamp.vecmath.AxisAngle4d(
                         values[0], values[1], values[2], Math.toRadians(values[3])));
-                break;
-            case SCALE:
+                yield m;
+            }
+            case SCALE -> {
                 m.setElement(0, 0, at(0));
                 m.setElement(1, 1, at(1));
                 m.setElement(2, 2, at(2));
-                break;
-            case UNIFORM_SCALE:
+                yield m;
+            }
+            case UNIFORM_SCALE -> {
                 double s = at(0);
                 m.setElement(0, 0, s);
                 m.setElement(1, 1, s);
                 m.setElement(2, 2, s);
-                break;
-            case LOOKAT:
-                m = lookAt();
-                break;
-            default:
-                throw new IllegalStateException("unhandled kind " + kind);
-        }
-        return m;
+                yield m;
+            }
+            case LOOKAT -> lookAt();
+        };
     }
 
     private double at(int index) {

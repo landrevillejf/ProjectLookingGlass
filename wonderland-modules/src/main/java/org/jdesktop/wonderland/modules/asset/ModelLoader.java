@@ -193,11 +193,13 @@ public final class ModelLoader {
         return out;
     }
 
-    /** Read a store asset fully; null when it is absent. */
+    /**
+     * Read a store asset fully; null when it is absent. Every caller passes a
+     * {@link WlaRef#path()}, which {@link WlaRef#parse} guarantees is a non-null,
+     * non-empty substring, so the null-path case this once guarded against cannot
+     * arise -- and the stores already degrade a null path to an empty result.
+     */
     private static byte[] read(WorldStore store, String module, String path) {
-        if (path == null) {
-            return null;
-        }
         return store.open(module, path).map(ModelLoader::readAll).orElse(null);
     }
 

@@ -259,6 +259,29 @@ class VideoTransportTest {
     }
 
     @Test
+    void loadWhilePausedStopsTheOldResourceFirst() {
+        transport.load("a.mp4", 1000);
+        transport.play();
+        transport.pause();               // -> PAUSED
+        surface.log.clear();
+        transport.load("b.mp4", 2000);   // a paused item is halted before the swap
+        assertThat(transport.state()).isEqualTo(TransportState.IDLE);
+        assertThat(surface.log).containsExactly("stop", "open:b.mp4:2000");
+    }
+
+    @Test
+    void stopFromEndedRewindsToZero() {
+        transport.load("a.mp4", 1000);
+        transport.play();
+        transport.tick(1500);            // -> ENDED (the tick already halted once)
+        surface.log.clear();
+        transport.stop();                // an explicit stop from ENDED is still legal
+        assertThat(transport.state()).isEqualTo(TransportState.STOPPED);
+        assertThat(transport.position()).isZero();
+        assertThat(surface.log).containsExactly("stop");
+    }
+
+    @Test
     void playFromEndedRestartsAtZero() {
         transport.load("a.mp4", 1000);
         transport.play();

@@ -51,11 +51,45 @@ import java.util.zip.ZipEntry;
 /** A {@link WorldStore} whose single module lives inside a world jar. */
 public final class JarWorldStore implements WorldStore, AutoCloseable {
 
+    /**
+     * The two {@link JarFile} calls that raise {@link IOException}: reading an
+     * entry and closing the jar. Behind an interface so a test can raise the fault
+     * on demand instead of needing a jar that only fails on a hostile filesystem.
+     */
+    interface JarIo {
+        InputStream inputStream(JarFile jar, ZipEntry entry) throws IOException;
+
+        void close(JarFile jar) throws IOException;
+    }
+
+    private static final JarIo SYSTEM = new JarIo() {
+        @Override
+        public InputStream inputStream(JarFile jar, ZipEntry entry) throws IOException {
+            return jar.getInputStream(entry);
+        }
+
+        @Override
+        public void close(JarFile jar) throws IOException {
+            jar.close();
+        }
+    };
+
     private final JarFile jar;
+    private final JarIo io;
 
     /** Open one world module jar for reading. */
     public JarWorldStore(Path jarPath) throws IOException {
+        this(jarPath, SYSTEM);
+    }
+
+    /**
+     * Test seam: the same store with the jar I/O calls supplied, so a read or
+     * close fault is raised on demand. Production callers use the single-argument
+     * constructor.
+     */
+    JarWorldStore(Path jarPath, JarIo io) throws IOException {
         this.jar = new JarFile(jarPath.toFile());
+        this.io = io;
     }
 
     @Override
@@ -68,7 +102,7 @@ public final class JarWorldStore implements WorldStore, AutoCloseable {
             return Optional.empty();
         }
         try {
-            return Optional.of(jar.getInputStream(entry));
+            return Optional.of(io.inputStream(jar, entry));
         } catch (IOException ex) {
             throw new UncheckedIOException("cannot read " + path + " from jar", ex);
         }
@@ -115,7 +149,7 @@ public final class JarWorldStore implements WorldStore, AutoCloseable {
     @Override
     public void close() {
         try {
-            jar.close();
+            io.close(jar);
         } catch (IOException ignored) {
             // closing a read-only jar cannot fail usefully; nothing to recover
         }

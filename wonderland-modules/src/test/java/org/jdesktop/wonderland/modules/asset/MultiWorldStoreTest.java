@@ -118,6 +118,35 @@ class MultiWorldStoreTest {
     }
 
     @Test
+    void aNullModuleRoutesToTheFallbackNotARegisteredJar() throws IOException {
+        // route() must not dereference a null module against the jar map: it goes
+        // straight to the fallback, exactly as any module no jar carries does.
+        Path a = jar("world-a.jar", "art/own.txt");
+        try (MultiWorldStore store = new MultiWorldStore()) {
+            store.add("world-a", a);
+            store.fallback(new MarkerStore());
+
+            assertThat(new String(store.open(null, "x/y.txt").orElseThrow()
+                    .readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("fallback:null/x/y.txt");
+            assertThat(store.present(null, "shared/a")).isTrue();
+            assertThat(store.listAssets(null, ".dae")).containsExactly("shared/fell-back.dae");
+        }
+    }
+
+    @Test
+    void aNullModuleWithNoFallbackIsSimplyAbsent() throws IOException {
+        Path a = jar("world-a.jar", "art/own.txt");
+        try (MultiWorldStore store = new MultiWorldStore()) {
+            store.add("world-a", a);
+            // route(null) -> own null -> fallback null: every operation degrades to
+            // "nothing", never a NullPointerException on the jar-map lookup.
+            assertThat(store.open(null, "art/x")).isEmpty();
+            assertThat(store.present(null, "art/x")).isFalse();
+            assertThat(store.listAssets(null, ".dae")).isEmpty();
+        }
+    }
+
+    @Test
     void hasModuleCountsOnlyRegisteredJarsNotTheFallback() throws IOException {
         Path a = jar("world-a.jar", "art/own.txt");
         try (MultiWorldStore store = new MultiWorldStore()) {

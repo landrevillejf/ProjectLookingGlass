@@ -20,15 +20,20 @@ package org.jdesktop.wonderland.modules.asset;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JarWorldStoreTest {
 
@@ -167,5 +172,48 @@ class JarWorldStoreTest {
             assertThat(store.present(MODULE, "room.kmz/room.kmz.dep")).isTrue();
             assertThat(store.present(MODULE, "room.kmz/room.kmz.dep.gz")).isFalse();
         }
+    }
+
+    @Test
+    void aReadFaultSurfacesAsUncheckedIoNotASilentEmpty() throws IOException {
+        // The seam raises the IOException JarFile.getInputStream only produces on a
+        // corrupt or closed jar: an entry that IS present but cannot be read must be
+        // reported, not mistaken for an absent one (an empty Optional).
+        JarWorldStore.JarIo faultRead = new JarWorldStore.JarIo() {
+            @Override
+            public InputStream inputStream(JarFile jar, ZipEntry entry) throws IOException {
+                throw new IOException("entry unreadable");
+            }
+
+            @Override
+            public void close(JarFile jar) throws IOException {
+                jar.close();
+            }
+        };
+        try (JarWorldStore store = new JarWorldStore(worldJar, faultRead)) {
+            assertThatThrownBy(() -> store.open(MODULE, "module.xml"))
+                    .isInstanceOf(UncheckedIOException.class)
+                    .hasMessageContaining("cannot read");
+        }
+    }
+
+    @Test
+    void aCloseFaultIsSwallowedBecauseThereIsNothingToRecover() throws IOException {
+        // close() is the one place the store deliberately ignores an IOException: a
+        // read-only jar that refuses to close is not something the caller can act
+        // on, and a failure on the cleanup path must not mask the load's own result.
+        JarWorldStore.JarIo faultClose = new JarWorldStore.JarIo() {
+            @Override
+            public InputStream inputStream(JarFile jar, ZipEntry entry) throws IOException {
+                return jar.getInputStream(entry);
+            }
+
+            @Override
+            public void close(JarFile jar) throws IOException {
+                throw new IOException("close refused");
+            }
+        };
+        JarWorldStore store = new JarWorldStore(worldJar, faultClose);
+        assertThatCode(store::close).doesNotThrowAnyException();
     }
 }
