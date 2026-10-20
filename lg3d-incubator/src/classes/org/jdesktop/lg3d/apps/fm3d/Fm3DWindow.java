@@ -35,8 +35,6 @@ package org.jdesktop.lg3d.apps.fm3d;
 
 import java.awt.*;
 import java.io.File;
-import java.util.LinkedList;
-import java.util.Vector;
 import java.awt.event.*;
 import org.jdesktop.lg3d.wg.*;
 import org.jdesktop.lg3d.wg.event.*;

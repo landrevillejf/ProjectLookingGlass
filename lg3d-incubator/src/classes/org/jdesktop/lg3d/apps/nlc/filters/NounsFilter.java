@@ -8,7 +8,6 @@ package org.jdesktop.lg3d.apps.nlc.filters;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.jdesktop.lg3d.apps.nlc.data.Application;
 import org.jdesktop.lg3d.apps.nlc.knowledge.external.AppKnowledge;

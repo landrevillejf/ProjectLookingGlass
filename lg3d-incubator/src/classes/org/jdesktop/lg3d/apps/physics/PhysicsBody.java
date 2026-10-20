@@ -15,7 +15,6 @@
  */
 package org.jdesktop.lg3d.apps.physics;
 import org.jogamp.vecmath.*;
-import org.jdesktop.lg3d.wg.Component3D;
 /**
  * An abstract class inherited by all classes representing rigid bodies.
  **/

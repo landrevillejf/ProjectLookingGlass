@@ -24,7 +24,6 @@ import javax.media.protocol.*;
 
 import javax.swing.*;
 import java.util.Vector;
-import java.util.Enumeration;
 
 import org.apache.commons.cli.*;
 
@@ -53,10 +52,12 @@ public class Algea3D implements Algea3DMBean {
     static {
 	String fn;
 
-	if ((fn = System.getenv("ALG3D_ML")) != null)
+	fn = System.getenv("ALG3D_ML");
+	if (fn != null)
 	    DEFAULT_ML = new MediaLocator(fn);
 
-	if ((fn = System.getenv("ALG3D_CONF_SOURCE")) != null) {
+	fn = System.getenv("ALG3D_CONF_SOURCE");
+	if (fn != null) {
 	    if ("".equals(DEFAULT_CONF_SOURCE))
 		DEFAULT_CONF_SOURCE = DEFAULT_ML;
 	    else
@@ -111,7 +112,8 @@ public class Algea3D implements Algea3DMBean {
         Player p = null;
 
         try {
-		if(firstRun=true) {
+		firstRun = true;
+		if(firstRun) {
 			registerAll();
 			firstRun=false;
 		}

@@ -8,7 +8,6 @@
 package org.jdesktop.lg3d.apps.trumplayer.mp3util;
 
 import java.io.*;
-import java.util.Arrays;
 
 /**
  *
@@ -101,7 +100,7 @@ public class ID3TagReader {
     }
     
     private ID3Tag readID3V2(File file){
-        if(file == null || file.exists() == false)
+        if(file == null || !file.exists())
             return null;
 
         ID3Tag result = null;
@@ -420,7 +419,7 @@ public class ID3TagReader {
 
     private ID3Tag readID3V1(File file){
 
-        if(file == null || file.exists() == false)
+        if(file == null || !file.exists())
             return null;
         
         ID3Tag result = null;

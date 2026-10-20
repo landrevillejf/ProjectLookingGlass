@@ -20,13 +20,10 @@ import org.jogamp.vecmath.Point3f;
 import org.jdesktop.lg3d.utils.action.ActionBooleanInt;
 import org.jdesktop.lg3d.utils.action.ActionFloat2;
 import org.jdesktop.lg3d.utils.action.ActionFloat3;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.eventadapter.EventAdapter;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 import org.jdesktop.lg3d.wg.event.LgEvent;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.apps.kwebdemo1.singletons.NodeData;
 
 /**

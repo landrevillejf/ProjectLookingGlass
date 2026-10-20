@@ -36,15 +36,10 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.logging.Logger;
-import org.jdesktop.lg3d.apps.utils.freedesktop.common.DesktopEntry;
-import org.jdesktop.lg3d.apps.utils.freedesktop.common.FileDesktopEntry;
 import org.jdesktop.lg3d.apps.utils.freedesktop.common.XDG;
 
 /**

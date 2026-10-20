@@ -90,8 +90,10 @@ public class CustomerReviewsPanel extends Container3D {
         titleLabel = new HTMLLabel(Product.createWhiteAppearance());
         titleLabel.background = new Color(255, 255, 255, 0);
         titleLabel.labelRender = new TitleRenderer();
-        titleLabel.topMargin = titleLabel.bottomMargin = 0;
-        titleLabel.leftMargin = titleLabel.rightMargin = 5;
+        titleLabel.topMargin = 0;
+        titleLabel.bottomMargin = 0;
+        titleLabel.leftMargin = 5;
+        titleLabel.rightMargin = 5;
         addChild(titleLabel);
                         
         reviewPanel = new ReviewPanel();        
@@ -292,15 +294,19 @@ public class CustomerReviewsPanel extends Container3D {
             setAnimation(new NaturalMotionAnimation(1000));
             
             info = new HTMLLabel(Product.createWhiteAppearance());  
-            info.topMargin = info.bottomMargin = 10;
-            info.leftMargin = info.rightMargin = 10;
+            info.topMargin = 10;
+            info.bottomMargin = 10;
+            info.leftMargin = 10;
+            info.rightMargin = 10;
             info.background = new Color(255, 0, 255, 0);
             info.labelRender = new CSRInfoRenderer();
             addChild(info);
             
             contents = new HTMLLabel(Product.createWhiteAppearance());
-            contents.topMargin = contents.bottomMargin = 20;
-            contents.leftMargin = contents.rightMargin = 20;
+            contents.topMargin = 20;
+            contents.bottomMargin = 20;
+            contents.leftMargin = 20;
+            contents.rightMargin = 20;
             contents.background = new Color(255, 255, 0, 0);
             addChild(contents);
             
@@ -333,7 +339,8 @@ public class CustomerReviewsPanel extends Container3D {
         void draw(Review review) {
         	       	
             this.review = review;
-        	contents.viewPos.x = contents.viewPos.y = 0;
+        	contents.viewPos.x = 0;
+        	contents.viewPos.y = 0;
             
             StringBuffer sb = new StringBuffer();
             

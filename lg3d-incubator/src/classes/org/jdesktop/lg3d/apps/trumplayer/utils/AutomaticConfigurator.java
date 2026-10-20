@@ -89,7 +89,7 @@ public class AutomaticConfigurator {
         else 
             b = createTrumplayerXML(albumList);
 
-        if ( b == false ){
+        if ( !b ){
             if( albumList.getList().size() == 0)
                 return Status.NOT_FOUND;
             else
@@ -145,7 +145,7 @@ public class AutomaticConfigurator {
     public static void main(String args[]){
         AutomaticConfigurator ac = AutomaticConfigurator.getConfigurator();
         File folder = new File(args[0]);
-        if( folder.isDirectory() == true ){
+        if( folder.isDirectory() ){
             if( args.length > 1)
                 ac.createConfigFiles(folder, "JISAutoDetect");
             else
@@ -185,7 +185,7 @@ public class AutomaticConfigurator {
                     break;
                 } else if ( a.getAlbum().equals(album) && a.getBaseDir().equals(path) ) {
                     result = a;
-                    if( a.getAlbum().equals("Various") == false )
+                    if( !a.getAlbum().equals("Various") )
                         a.setArtist("Various");
                     break;
                 }
@@ -296,7 +296,7 @@ public class AutomaticConfigurator {
     protected boolean modifyTrumplayerXML(AlbumList albumList){
         File trumplayer_xml = new File(TRUMPLAYER_CONFIG_PATH);
 
-        if( trumplayer_xml.exists() == false )
+        if( !trumplayer_xml.exists() )
             return createTrumplayerXML(albumList);
 
         AlbumInformationReader reader = AlbumInformationReader.getReader(TRUMPLAYER_CONFIG_PATH,TRUMPLAYER_LOCALHOME);
@@ -369,7 +369,7 @@ public class AutomaticConfigurator {
         
         // create new trumplayer.xml .
         try {
-            if( trumplayer_xml.createNewFile() == true ){
+            if( trumplayer_xml.createNewFile() ){
                 // creating part of internally m3u file.
                 // FileWriter writer = new FileWriter(trumplayer_xml);
                 OutputStreamWriter writer =
@@ -413,7 +413,7 @@ public class AutomaticConfigurator {
         writer.write("        <title>" + title.replace("&","&amp;") + "</title>\n");
         writer.write("        <image>" + image.replace("&","&amp;") + "</image>\n");
 
-        if( m3u != null && m3u.equals("") == false){
+        if( m3u != null && !m3u.equals("")){
             File m3uFile = new File(m3u);
             if( m3uFile.isDirectory() )
                 writer.write("        <folder>" + m3u.replace("&","&amp;") +"</folder>\n");
@@ -434,9 +434,9 @@ public class AutomaticConfigurator {
 
         // when local folder does not exists, make folder
         File localFolder = new File(TRUMPLAYER_LOCALHOME);
-        if ( localFolder.exists() == false )
+        if ( !localFolder.exists() )
             localFolder.mkdir();
-        else if( localFolder.isDirectory() != true )
+        else if( !localFolder.isDirectory() )
             return false;
 
 
@@ -482,13 +482,13 @@ public class AutomaticConfigurator {
         
         // if internal M3U exists, does not create M3U.
         // but return true. (trumplayer thinks no errors)
-        if( internalM3u.exists() == true )
+        if( internalM3u.exists() )
             return true;
         
 
         // create new extm3u for internal use.
         try {
-            if( internalM3u.createNewFile() == true ){
+            if( internalM3u.createNewFile() ){
                 // creating part of internally m3u file.
                 // FileWriter writer = new FileWriter(internalM3u);
                 OutputStreamWriter writer =
@@ -518,8 +518,8 @@ public class AutomaticConfigurator {
     protected String createJacketImage(String base, ID3Tag id3){
         String result = null;
         String filename = "";
-        if( id3 != null && id3.getImageType() != null && id3.getImageType().equals("") == false && 
-                id3.getImageType().equals(ID3Tag.URL) == false ){
+        if( id3 != null && id3.getImageType() != null && !id3.getImageType().equals("") && 
+                !id3.getImageType().equals(ID3Tag.URL) ){
 
             if(id3.getImageType().equals(ID3Tag.JPEG))
                 filename = base + ".jpg";
@@ -528,7 +528,7 @@ public class AutomaticConfigurator {
 
             File internalImage = new File(filename);
             result = filename;
-            if( internalImage.exists() == false && id3.getImage() != null ){
+            if( !internalImage.exists() && id3.getImage() != null ){
                 try{
                    FileOutputStream stream = new FileOutputStream(internalImage);
                    stream.write(id3.getImage());

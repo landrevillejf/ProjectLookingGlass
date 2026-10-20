@@ -124,7 +124,7 @@ public class CartClearRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.cartId==null && other.getCartId()==null) || 
              (this.cartId!=null &&
               this.cartId.equals(other.getCartId()))) &&

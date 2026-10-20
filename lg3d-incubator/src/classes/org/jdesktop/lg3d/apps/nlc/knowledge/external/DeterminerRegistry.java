@@ -8,7 +8,6 @@ package org.jdesktop.lg3d.apps.nlc.knowledge.external;
 import java.util.Arrays;
 
 import org.jdesktop.lg3d.apps.nlc.filters.AllFilter;
-import org.jdesktop.lg3d.apps.nlc.filters.DeterminerFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.Filter;
 import org.jdesktop.lg3d.apps.nlc.filters.FocusFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.TheFilter;

@@ -348,7 +348,7 @@ public class GoogleSearchResult  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true &&
+        _equals =
                 this.documentFiltering == other.isDocumentFiltering() &&
                 ((this.searchComments==null && other.getSearchComments()==null) ||
                 (this.searchComments!=null &&

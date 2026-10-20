@@ -141,7 +141,7 @@ public class ColumnView extends Component3D implements ModelListener, HoverEvent
 		for (WindowView view : windows) totalHeight += view.getModel().getHeight();
 		
 		
-		float position;;
+		float position;
 		if (TOP_ALIGN) position = SceneModel.getHeight() / 2f;
 		else position = totalHeight / 2f;
 		

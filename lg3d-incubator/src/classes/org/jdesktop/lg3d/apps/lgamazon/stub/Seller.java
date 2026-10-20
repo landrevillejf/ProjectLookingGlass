@@ -323,7 +323,7 @@ public class Seller  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.sellerId==null && other.getSellerId()==null) || 
              (this.sellerId!=null &&
               this.sellerId.equals(other.getSellerId()))) &&

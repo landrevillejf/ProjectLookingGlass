@@ -55,7 +55,7 @@ public class SearchBinSets  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.searchBinSet==null && other.getSearchBinSet()==null) || 
              (this.searchBinSet!=null &&
               java.util.Arrays.equals(this.searchBinSet, other.getSearchBinSet())));

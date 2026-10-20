@@ -78,7 +78,7 @@ public class SellerSellerFeedbackSummaryFeedbackDateRange  implements java.io.Se
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.sellerFeedbackRating==null && other.getSellerFeedbackRating()==null) || 
              (this.sellerFeedbackRating!=null &&
               java.util.Arrays.equals(this.sellerFeedbackRating, other.getSellerFeedbackRating()))) &&

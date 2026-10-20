@@ -23,14 +23,9 @@
 package org.jdesktop.lg3d.apps.physics;
 import org.jogamp.vecmath.Quat4f;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Matrix3f;
-import org.jogamp.vecmath.GVector;
-import org.jogamp.vecmath.GMatrix;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.sg.GeometryArray;
 import java.util.Vector;
-import java.lang.String;
 
         
 /**

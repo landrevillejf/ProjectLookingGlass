@@ -47,7 +47,7 @@ public class PromotionalTag  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.promotionalTag==null && other.getPromotionalTag()==null) || 
              (this.promotionalTag!=null &&
               this.promotionalTag.equals(other.getPromotionalTag())));

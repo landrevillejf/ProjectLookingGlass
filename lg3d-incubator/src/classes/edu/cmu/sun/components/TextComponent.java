@@ -12,8 +12,6 @@ package edu.cmu.sun.components;
 
 import org.jdesktop.lg3d.wg.Component3D;
 
-import org.jogamp.vecmath.Point3f;
-import org.jdesktop.lg3d.sg.BoundingBox;
 
 import edu.cmu.sun.model.SceneModel;
 

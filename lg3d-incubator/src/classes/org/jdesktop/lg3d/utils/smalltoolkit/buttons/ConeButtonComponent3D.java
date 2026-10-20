@@ -9,7 +9,6 @@
 
 package org.jdesktop.lg3d.utils.smalltoolkit.buttons;
 
-import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;

@@ -61,6 +61,12 @@ public class SerializableBuffer
         setData(in.readObject());
     }
     
+    @Override public boolean equals(Object obj){
+	    if (this == obj) return true;
+	    if (!(obj instanceof SerializableBuffer)) return false;
+	    return getSequenceNumber() == ((SerializableBuffer) obj).getSequenceNumber();
+    }
+
     @Override public int hashCode(){
 	    return (int) getSequenceNumber();
     }

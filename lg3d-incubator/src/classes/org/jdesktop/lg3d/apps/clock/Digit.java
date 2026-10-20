@@ -20,15 +20,11 @@
 
 package org.jdesktop.lg3d.apps.clock;
 
-import java.util.Timer;
-import java.util.TimerTask;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.utils.shape.Box;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.wg.Component3D;

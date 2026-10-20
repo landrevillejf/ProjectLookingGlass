@@ -30,8 +30,6 @@
 package org.jdesktop.lg3d.apps.clock;
 
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.utils.action.AppLaunchAction;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;

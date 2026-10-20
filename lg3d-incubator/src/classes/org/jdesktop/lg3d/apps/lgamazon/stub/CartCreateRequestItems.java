@@ -55,7 +55,7 @@ public class CartCreateRequestItems  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.item==null && other.getItem()==null) || 
              (this.item!=null &&
               java.util.Arrays.equals(this.item, other.getItem())));

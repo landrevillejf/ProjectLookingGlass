@@ -124,7 +124,7 @@ public class Offer  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.merchant==null && other.getMerchant()==null) || 
              (this.merchant!=null &&
               this.merchant.equals(other.getMerchant()))) &&

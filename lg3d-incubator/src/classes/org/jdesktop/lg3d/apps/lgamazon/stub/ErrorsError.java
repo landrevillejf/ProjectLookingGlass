@@ -70,7 +70,7 @@ public class ErrorsError  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.code==null && other.getCode()==null) || 
              (this.code!=null &&
               this.code.equals(other.getCode()))) &&

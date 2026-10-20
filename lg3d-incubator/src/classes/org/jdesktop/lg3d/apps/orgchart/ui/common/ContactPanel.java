@@ -4,7 +4,6 @@ import java.awt.image.BufferedImage;
 import java.util.EventObject;
 import java.util.Map;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.apps.orgchart.framework.Channel;
 import org.jdesktop.lg3d.apps.orgchart.framework.ChannelListener;

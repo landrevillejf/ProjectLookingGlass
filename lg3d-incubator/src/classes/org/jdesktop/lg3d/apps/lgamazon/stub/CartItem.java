@@ -323,7 +323,7 @@ public class CartItem  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.cartItemId==null && other.getCartItemId()==null) || 
              (this.cartItemId!=null &&
               this.cartItemId.equals(other.getCartItemId()))) &&

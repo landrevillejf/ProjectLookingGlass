@@ -55,7 +55,7 @@ public class Accessories  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.accessory==null && other.getAccessory()==null) || 
              (this.accessory!=null &&
               java.util.Arrays.equals(this.accessory, other.getAccessory())));

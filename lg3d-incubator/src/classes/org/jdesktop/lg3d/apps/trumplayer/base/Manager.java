@@ -11,8 +11,6 @@ import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.wg.Component3D;
 
 import java.util.AbstractList;
 

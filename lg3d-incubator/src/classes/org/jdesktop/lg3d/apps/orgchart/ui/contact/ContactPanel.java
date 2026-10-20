@@ -1,10 +1,7 @@
 package org.jdesktop.lg3d.apps.orgchart.ui.contact;
 
-import java.awt.Color;
-import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.util.EventObject;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.apps.orgchart.framework.Channel;

@@ -15,7 +15,6 @@ import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.ActionBooleanFloat3;
 import org.jdesktop.lg3d.utils.action.ActionFloat3;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
@@ -24,8 +23,6 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
 import org.jdesktop.lg3d.utils.layoutmanager.ZLayeredLayout;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 
 /**

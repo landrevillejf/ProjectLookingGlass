@@ -28,7 +28,6 @@ import java.util.Hashtable;
 import java.util.Vector;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.apps.googler.engine.events.ResultEventListener;
-import org.jdesktop.lg3d.apps.googler.engine.GoogleSearchParameters;
 
 
 /**

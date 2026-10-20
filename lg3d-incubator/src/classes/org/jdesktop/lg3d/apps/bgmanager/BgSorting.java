@@ -9,7 +9,6 @@ package org.jdesktop.lg3d.apps.bgmanager;
 
 import java.util.ArrayList;
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.wg.Container3D;
 
 /**
  *

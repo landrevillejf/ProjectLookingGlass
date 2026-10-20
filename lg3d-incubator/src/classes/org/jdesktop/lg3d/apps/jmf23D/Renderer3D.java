@@ -34,8 +34,6 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.image.*;
 
-import java.util.Enumeration;
-import java.util.Vector;
 
 import javax.media.*;
 import javax.media.Format;
@@ -49,7 +47,6 @@ import javax.media.util.*;
 // java3d
 import org.jogamp.vecmath.*;
 
-import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
 import org.jdesktop.lg3d.sg.*;
 import org.jdesktop.lg3d.utils.c3danimation.*;
 import org.jdesktop.lg3d.utils.eventadapter.*;
@@ -129,7 +126,7 @@ public final class Renderer3D implements VideoRenderer {
     public Object[] getControls() {
 
         if (controls == null)
-            controls = controls = new Control[] { new Renderer3DControl(this) };
+            controls = new Control[] { new Renderer3DControl(this) };
 
         return (Object[])controls;
     }

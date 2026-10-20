@@ -36,21 +36,12 @@ import java.util.Iterator;
 import java.util.TreeSet;
 import java.util.Vector;
 import java.util.logging.Logger;
-import org.jogamp.vecmath.Point3f;
-import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.sg.BranchGroup;
-import org.jdesktop.lg3d.utils.action.ActionBooleanFloat3;
-import org.jdesktop.lg3d.utils.action.ActionFloat2;
-import org.jdesktop.lg3d.utils.action.ActionFloat3;
-import org.jdesktop.lg3d.utils.action.ActionInt;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseDragDistanceAdapter;
 import org.jdesktop.lg3d.utils.shape.Cone;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.LayoutManager3D;
-import org.jdesktop.lg3d.wg.event.Component3DManualMoveEvent;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 /**

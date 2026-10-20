@@ -5265,7 +5265,7 @@ public class ItemAttributes  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.actor==null && other.getActor()==null) || 
              (this.actor!=null &&
               java.util.Arrays.equals(this.actor, other.getActor()))) &&

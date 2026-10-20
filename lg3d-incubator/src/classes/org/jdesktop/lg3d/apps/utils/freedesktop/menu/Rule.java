@@ -110,7 +110,7 @@ public class Rule {
                             break;
                     }
                 }
-                if(fileid != null && fileids != null && output == false) {
+                if(fileid != null && fileids != null && !output) {
                     for(String id : fileids) {
                         output = fileid.equals(id);
                         if(output)

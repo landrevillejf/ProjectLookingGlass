@@ -154,6 +154,12 @@ public class PreferenceContactService extends AbstractService implements Contact
                 // no op
             }
         }
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof PreferenceContact)) return false;
+            PreferenceContact other = (PreferenceContact) obj;
+            return hashCode == other.hashCode && super.equals(other);
+        }
         public int hashCode() {
             return hashCode;
         }

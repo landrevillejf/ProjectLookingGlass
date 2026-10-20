@@ -14,13 +14,6 @@ import edu.berkeley.guir.prefuse.graph.Entity;
 import edu.berkeley.guir.prefuse.graph.Node;
 import edu.berkeley.guir.prefuse.graph.TreeNode;
 
-import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.Tapp;
-import org.jdesktop.lg3d.wg.event.LgEventConnector;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 
 /**
  * Performs tree layout using a radial layout, laying out subsequent depth
@@ -117,7 +110,7 @@ public class Prefuse3DRadialLayout extends TreeLayout implements FocusListener {
     } //
 
     private NodeItem getPrevParent(NodeItem f, NodeItem pf) {
-        for (; pf!=null && pf.getParent()!=f; pf=(NodeItem)pf.getParent());
+        for (; pf!=null && pf.getParent()!=f; pf=(NodeItem)pf.getParent()) { }
         return pf;
     } //
 

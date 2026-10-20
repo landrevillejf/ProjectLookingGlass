@@ -40,7 +40,6 @@ import org.jdesktop.lg3d.scenemanager.utils.SceneControl;
 import org.jdesktop.lg3d.apps.utils.freedesktop.tabbed.TabbedDesktopPlugin;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPlugin;
-import org.jdesktop.lg3d.scenemanager.utils.taskbar.TaskbarItemConfig;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;

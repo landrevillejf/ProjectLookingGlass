@@ -55,7 +55,7 @@ public class SimilarViewedProducts  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.similarViewedProduct==null && other.getSimilarViewedProduct()==null) || 
              (this.similarViewedProduct!=null &&
               java.util.Arrays.equals(this.similarViewedProduct, other.getSimilarViewedProduct())));

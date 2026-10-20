@@ -16,7 +16,6 @@ import javax.swing.filechooser.FileFilter;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
-import javax.swing.JPanel;
 import java.util.Vector;
 import java.util.ResourceBundle;
 
@@ -166,7 +165,7 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
                 if(value < 0){
                     tableModel.moveRow(t-1,t-1,t);
                     tableList = tableModel.getDataVector();
-                    if( this.changedAlbumList == false){
+                    if( !this.changedAlbumList){
                         this.changedAlbumList = true;
                         this.saveButton.setEnabled(true);
                     }
@@ -665,7 +664,7 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
         String m3u = this.m3uTextField.getText().trim();
         String image = this.imageTextField.getText().trim();
         
-        if( m3u != null && m3u.trim().equals("") == false){
+        if( m3u != null && !m3u.trim().equals("")){
             
             boolean exists = false;
             // modify
@@ -673,11 +672,11 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
                 AlbumInformation info = albumInformations.get(i);
                 if( info.getArtist().equals(artist) && info.getTitle().equals(album) ){
                     exists = true;
-                    if(info.getM3U().equals(m3u) == false){
+                    if(!info.getM3U().equals(m3u)){
                         info.setM3U(m3u);
                         this.changedAlbumList = true;
                         this.saveButton.setEnabled(true);
-                    } else if (info.getImage().equals(image) == false){
+                    } else if (!info.getImage().equals(image)){
                         info.setImage(image);
                         this.changedAlbumList = true;
                         this.saveButton.setEnabled(true);
@@ -686,7 +685,7 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
             }
             
             // add
-            if(exists == false){
+            if(!exists){
                 AlbumInformation information = new AlbumInformation();
                 information.setArtist(artist);
                 information.setTitle(album);
@@ -755,7 +754,7 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
         setUpDwonButtonEnable(rowNumber);
         
         String imageFile = information.getImage();
-        if(imageFile != null && imageFile.trim().equalsIgnoreCase("") == false){
+        if(imageFile != null && !imageFile.trim().equalsIgnoreCase("")){
             File file = new File(imageFile);
             this.changeImage( this.imageLabel, file );
         } else changeImage( this.imageLabel, null);
@@ -813,7 +812,7 @@ public class PlayListManagerPanel extends javax.swing.JPanel implements UpdateAc
     }
     
     private void callWizard(){
-        if( setupSwingFrame == null || setupSwingFrame.isActive() == false ){
+        if( setupSwingFrame == null || !setupSwingFrame.isActive() ){
             setupSwingFrame = new SetupSwingFrame(SetupSwingFrame.Mode.ADD);
             // current LG3D does not support WindowListener.windowClosed,
             // therefore use interface UpdateEvent instead of WindowListener.

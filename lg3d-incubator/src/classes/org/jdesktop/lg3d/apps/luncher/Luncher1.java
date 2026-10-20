@@ -5,11 +5,9 @@
  */
 
 package org.jdesktop.lg3d.apps.luncher;
-import java.util.Enumeration;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.sg.BoundingBox;
 import org.jdesktop.lg3d.utils.action.AppLaunchAction;
 import org.jdesktop.lg3d.utils.shape.Box;
 import org.jdesktop.lg3d.utils.shape.Cylinder;
@@ -20,7 +18,6 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.layoutmanager.HorizontalLayout;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
-import org.jdesktop.lg3d.utils.component.Pseudo3DShortcut;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jogamp.vecmath.*;
 

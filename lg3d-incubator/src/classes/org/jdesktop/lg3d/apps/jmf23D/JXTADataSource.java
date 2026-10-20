@@ -8,7 +8,6 @@ import javax.media.protocol.*;
 
 import net.jxta.peer.*;
 
-import org.jdesktop.lg3d.apps.jmf23D.*;
 
 /**
 * A javax.media.DataSource that reads data from JXTA.
@@ -66,7 +65,8 @@ public class JXTADataSource
             SerializableBuffer sbuf = null;
 
 	    for(int i=0;i<3;i++){
-            if ((sbuf = buffers.remove(sequenceNumber)) == null) {
+            sbuf = buffers.remove(sequenceNumber);
+            if (sbuf == null) {
 
                 try {
                     Thread.sleep(5/(mapSize-sequenceNumber+1));
@@ -162,7 +162,7 @@ public class JXTADataSource
 
     public void stop()
               throws java.io.IOException {
-	if(started);
+	if(started) { }
 	//started = false;
     }
 
@@ -200,6 +200,7 @@ public class JXTADataSource
 	    switch(av) {
 		    case VIDEO: return videoStream;
 		    case AUDIO: return audioStream;
+		    default: break;
 	    }
 	    return null;
     }

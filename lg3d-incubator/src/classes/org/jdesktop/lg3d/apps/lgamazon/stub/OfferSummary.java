@@ -208,7 +208,7 @@ public class OfferSummary  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.lowestNewPrice==null && other.getLowestNewPrice()==null) || 
              (this.lowestNewPrice!=null &&
               this.lowestNewPrice.equals(other.getLowestNewPrice()))) &&

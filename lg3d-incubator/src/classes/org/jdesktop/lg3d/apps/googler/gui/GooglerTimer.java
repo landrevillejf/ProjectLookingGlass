@@ -30,7 +30,6 @@
 package org.jdesktop.lg3d.apps.googler.gui;
 
 import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * This is a single Timer that can be used all along the app to schedule tasks.

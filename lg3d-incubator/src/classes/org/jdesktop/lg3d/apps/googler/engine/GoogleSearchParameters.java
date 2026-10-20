@@ -218,4 +218,13 @@ public class GoogleSearchParameters {
                 getQuery() == otherp.getQuery() && 
                 getMaxResults() == otherp.getMaxResults());
     }
+
+    public int hashCode()
+    {
+        int h = System.identityHashCode(getFilter());
+        h = 31 * h + System.identityHashCode(getLanguage());
+        h = 31 * h + System.identityHashCode(getQuery());
+        h = 31 * h + getMaxResults();
+        return h;
+    }
 }

@@ -37,7 +37,6 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
@@ -171,8 +170,9 @@ public class MenuLoader {
                     } catch(RuntimeException ex) {
                         
                     }
-                } else
-                    ;//System.err.println("Not adding parent : " + currentParent);
+                } else {
+                    //System.err.println("Not adding parent : " + currentParent);
+                }
             }
         }
     }

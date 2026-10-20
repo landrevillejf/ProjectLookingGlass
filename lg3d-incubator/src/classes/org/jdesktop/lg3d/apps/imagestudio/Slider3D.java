@@ -28,7 +28,6 @@ import org.jdesktop.lg3d.utils.shape.GlassyText2D;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jogamp.vecmath.Color4f;
 import org.jogamp.vecmath.Vector3f;
 
 /**

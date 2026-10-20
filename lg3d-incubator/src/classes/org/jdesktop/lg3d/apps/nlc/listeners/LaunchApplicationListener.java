@@ -7,7 +7,6 @@ package org.jdesktop.lg3d.apps.nlc.listeners;
 
 
 import org.jdesktop.lg3d.apps.nlc.events.LaunchApplicationEvent;
-import org.jdesktop.lg3d.displayserver.EventProcessor;
 import org.jdesktop.lg3d.utils.action.AppLaunchAction;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;

@@ -230,7 +230,7 @@ public final class LetterContentDrawer extends AbstractLetter {
 		BufferedImage image = null;
 		Graphics2D g = null;
 		
-		StringBuffer[] lines = new StringBuffer[st.countTokens()];;
+		StringBuffer[] lines = new StringBuffer[st.countTokens()];
 		int j = 0;
 		while (st.hasMoreTokens()) {
 		

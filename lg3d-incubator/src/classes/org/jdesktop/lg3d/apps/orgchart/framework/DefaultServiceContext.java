@@ -16,7 +16,6 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.util.Date;
 import java.util.EventObject;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
@@ -252,6 +251,7 @@ public class DefaultServiceContext extends ConcurrentHashMap<String,Object>
                             processNext = false;
                         }
                         break;
+                    default: break;
                 }
                 
                 // only advance to next character if flag is set

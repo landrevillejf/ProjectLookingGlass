@@ -55,7 +55,7 @@ public class ResponseGroupInformationValidOperations  implements java.io.Seriali
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.operation==null && other.getOperation()==null) || 
              (this.operation!=null &&
               java.util.Arrays.equals(this.operation, other.getOperation())));

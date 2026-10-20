@@ -55,7 +55,7 @@ public class ResponseGroupInformationElements  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.element==null && other.getElement()==null) || 
              (this.element!=null &&
               java.util.Arrays.equals(this.element, other.getElement())));

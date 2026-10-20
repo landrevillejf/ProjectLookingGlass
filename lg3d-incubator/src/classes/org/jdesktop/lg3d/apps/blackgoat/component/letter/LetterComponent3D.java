@@ -1,10 +1,7 @@
 package org.jdesktop.lg3d.apps.blackgoat.component.letter;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
 
-import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Vector3f;
 
 //import org.jdesktop.lg3d.apps.blackgoat.action.PopupAction;
@@ -14,16 +11,10 @@ import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.sg.ColoringAttributes;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.TransparencyActionBoolean;
-import org.jdesktop.lg3d.utils.action.TransparencyActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;

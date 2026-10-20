@@ -162,7 +162,7 @@ public class BrowseNode  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.browseNodeId==null && other.getBrowseNodeId()==null) || 
              (this.browseNodeId!=null &&
               this.browseNodeId.equals(other.getBrowseNodeId()))) &&

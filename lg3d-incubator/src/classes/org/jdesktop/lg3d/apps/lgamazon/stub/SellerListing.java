@@ -415,7 +415,7 @@ public class SellerListing  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.exchangeId==null && other.getExchangeId()==null) || 
              (this.exchangeId!=null &&
               this.exchangeId.equals(other.getExchangeId()))) &&

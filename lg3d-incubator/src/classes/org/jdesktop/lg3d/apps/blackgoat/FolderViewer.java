@@ -1,12 +1,10 @@
 package org.jdesktop.lg3d.apps.blackgoat;
 
-import java.net.URL;
 import java.util.ArrayList;
 
 //import javax.mail.Message;
 import org.jogamp.vecmath.Vector3f;
 
-import org.jdesktop.lg3d.apps.blackgoat.button.Button;
 import org.jdesktop.lg3d.apps.blackgoat.button.ButtonAppearance;
 import org.jdesktop.lg3d.apps.blackgoat.component.folder.CubeComponent3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.folder.FolderContainer3D;
@@ -16,7 +14,6 @@ import org.jdesktop.lg3d.apps.blackgoat.component.preference.PreferenceComponent
 import org.jdesktop.lg3d.apps.blackgoat.draw.letter.DummyLetterContentDrawer;
 import org.jdesktop.lg3d.apps.blackgoat.draw.letter.Letter;
 //import org.jdesktop.lg3d.apps.blackgoat.emessage.read.DummyEMessageReader;
-import org.jdesktop.lg3d.apps.blackgoat.emessage.read.EMessageReadable;
 import org.jdesktop.lg3d.apps.blackgoat.layout.CubeLayout;
 import org.jdesktop.lg3d.apps.blackgoat.layout.CubeInfo;
 //import org.jdesktop.lg3d.apps.shapefactory.DummyEMessageReader;

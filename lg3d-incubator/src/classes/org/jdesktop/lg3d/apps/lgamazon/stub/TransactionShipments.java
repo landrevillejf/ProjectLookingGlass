@@ -55,7 +55,7 @@ public class TransactionShipments  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.shipment==null && other.getShipment()==null) || 
              (this.shipment!=null &&
               java.util.Arrays.equals(this.shipment, other.getShipment())));

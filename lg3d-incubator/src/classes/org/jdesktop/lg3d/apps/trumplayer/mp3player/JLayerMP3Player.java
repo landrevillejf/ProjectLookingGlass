@@ -24,8 +24,6 @@ import javax.media.format.*;
 import javazoom.jl.player.advanced.AdvancedPlayer;
 import javazoom.jl.player.advanced.PlaybackEvent;
 import javazoom.jl.player.advanced.PlaybackListener;
-import javazoom.jl.player.AudioDevice;
-import javazoom.jl.player.FactoryRegistry;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Header;
 

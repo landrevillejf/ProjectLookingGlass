@@ -16,8 +16,6 @@
 
 
 package org.jdesktop.lg3d.apps.physics;
-import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Matrix3f;
 import java.util.Vector;
 /**
  * A class used to represent general convex polyheda in a physics simulation.

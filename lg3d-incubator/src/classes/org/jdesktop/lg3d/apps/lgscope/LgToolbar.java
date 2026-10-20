@@ -102,7 +102,7 @@ public class LgToolbar extends Container3D {
             // It arranges it on the left. 
             float w = LgUtil.getSize(mover).x;
             float x = (Toolkit3D.getToolkit3D().getScreenWidth() / 2.0f) - w - (w / 2.0f);   // It is based on the center of mover.  
-            float y = (Toolkit3D.getToolkit3D().getScreenHeight() / 2.0f) - LgUtil.getSize(mover).y;;
+            float y = (Toolkit3D.getToolkit3D().getScreenHeight() / 2.0f) - LgUtil.getSize(mover).y;
             
             tr = new Vector3f(-x, y, 0);
         }

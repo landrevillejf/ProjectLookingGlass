@@ -101,6 +101,7 @@ implements ActionFloat3 {
             case Box.FRONT:
                 info.axis = new Vector3f(0.0f, 0.0f, 0.0f);
                 break;
+            default: break;
         }
         
         if (boxIndex == Box.FRONT) {

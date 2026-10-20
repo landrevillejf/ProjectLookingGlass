@@ -10,23 +10,17 @@
 
 package org.jdesktop.lg3d.apps.orgchart.ui.prefuse;
 
-import java.io.Serializable;
-import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Iterator;
 import java.util.logging.Logger;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.SwingConstants;
 import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContext;
-import org.jdesktop.lg3d.apps.orgchart.framework.contact.Contact;
-import org.jdesktop.lg3d.apps.orgchart.framework.contact.ContactService;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.FramedPanel;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.UIUtil;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;

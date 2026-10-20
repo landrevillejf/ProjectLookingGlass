@@ -93,7 +93,7 @@ public class CartModifyRequestItemsItem  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.action==null && other.getAction()==null) || 
              (this.action!=null &&
               this.action.equals(other.getAction()))) &&

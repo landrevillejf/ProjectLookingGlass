@@ -55,7 +55,7 @@ public class HTTPHeaders  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.header==null && other.getHeader()==null) || 
              (this.header!=null &&
               java.util.Arrays.equals(this.header, other.getHeader())));

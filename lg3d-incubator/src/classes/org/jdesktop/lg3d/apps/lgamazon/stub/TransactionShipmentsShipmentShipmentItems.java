@@ -55,7 +55,7 @@ public class TransactionShipmentsShipmentShipmentItems  implements java.io.Seria
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.transactionItemId==null && other.getTransactionItemId()==null) || 
              (this.transactionItemId!=null &&
               java.util.Arrays.equals(this.transactionItemId, other.getTransactionItemId())));

@@ -116,7 +116,7 @@ public class ItemAttributesItemDimensions  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.height==null && other.getHeight()==null) || 
              (this.height!=null &&
               this.height.equals(other.getHeight()))) &&

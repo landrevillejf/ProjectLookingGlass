@@ -101,7 +101,7 @@ public class CartCreateRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.mergeCart==null && other.getMergeCart()==null) || 
              (this.mergeCart!=null &&
               this.mergeCart.equals(other.getMergeCart()))) &&

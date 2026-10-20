@@ -5,7 +5,6 @@
  */
 package org.jdesktop.lg3d.apps.nlc.mascot;
 
-import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.util.logging.Logger;
@@ -140,6 +139,7 @@ public class BasicMascot extends Mascot {
 					mascot.speak(command.toString());
 				}
 			}
+			// fall through
 			default: {
 				char c = event.getKeyChar();
 				if (Character.isLetter(c) || Character.isSpace(c)) {

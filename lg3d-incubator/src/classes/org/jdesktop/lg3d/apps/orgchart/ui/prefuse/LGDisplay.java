@@ -1,11 +1,8 @@
 package org.jdesktop.lg3d.apps.orgchart.ui.prefuse;
 
-import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Paint;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -19,45 +16,22 @@ import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.util.Iterator;
 
 import javax.imageio.ImageIO;
-import javax.swing.JComponent;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import javax.swing.KeyStroke;
-import javax.swing.text.JTextComponent;
 
 import edu.berkeley.guir.prefuse.activity.Activity;
 import edu.berkeley.guir.prefuse.activity.SlowInSlowOutPacer;
-import edu.berkeley.guir.prefuse.event.ControlEventMulticaster;
 import edu.berkeley.guir.prefuse.event.ControlListener;
 import edu.berkeley.guir.prefuse.render.Renderer;
-import edu.berkeley.guir.prefuse.util.ColorLib;
-import edu.berkeley.guir.prefuse.util.FontLib;
-import edu.berkeley.guir.prefuse.util.display.Clip;
 import edu.berkeley.guir.prefuse.util.display.ExportDisplayAction;
 import edu.berkeley.guir.prefuse.util.display.ToolTipManager;
 import edu.berkeley.guir.prefuse.Display;
 import edu.berkeley.guir.prefuse.*;
-import org.jdesktop.lg3d.utils.action.ActionChar;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.cursor.WigglingCursor;
-import org.jdesktop.lg3d.utils.eventadapter.KeyTypedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
-import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.Tapp;
-import org.jdesktop.lg3d.wg.event.LgEventConnector;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 
 
 /**
@@ -307,7 +281,7 @@ public class LGDisplay extends Display {
      *  (i.e. non-screen) co-ordinates
      * @param scale the amount to zoom by
      */
-    public void zoomAbs(final Point2D p, double scale) {;
+    public void zoomAbs(final Point2D p, double scale) {
     double zx = p.getX(), zy = p.getY();
     m_transform.translate(zx, zy);
     m_transform.scale(scale,scale);

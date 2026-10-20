@@ -424,7 +424,8 @@ public class LgEdit extends Component3D {
         
         textBuffer.delete(0, textBuffer.length());
         textBuffer.append(text);        
-        viewX = viewY = 0;
+        viewX = 0;
+        viewY = 0;
     }
     
 

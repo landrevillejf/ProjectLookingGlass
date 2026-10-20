@@ -177,7 +177,8 @@ public class LabelComponent extends Component3D {
     
     public void setText(String text) {
         this.text = text;
-        viewPos.x = viewPos.y = 0; 
+        viewPos.x = 0;
+        viewPos.y = 0;
     }
     
     public String getText() {

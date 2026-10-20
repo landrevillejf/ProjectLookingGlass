@@ -7,7 +7,6 @@ package org.jdesktop.lg3d.apps.nlc.listeners;
 
 import java.awt.event.KeyEvent;
 
-import org.jdesktop.lg3d.apps.nlc.knowledge.CurrentScene;
 import org.jdesktop.lg3d.apps.nlc.knowledge.SceneFactory;
 import org.jdesktop.lg3d.apps.nlc.mascot.BasicMascot;
 import org.jdesktop.lg3d.wg.event.KeyEvent3D;

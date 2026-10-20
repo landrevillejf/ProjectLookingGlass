@@ -1,11 +1,8 @@
 package org.jdesktop.lg3d.apps.jmf23D;
 
-import java.awt.Color;
 
 import java.util.*;
 
-import javax.swing.JFileChooser;
-import javax.swing.JPanel;
 
 import javax.media.*;
 import javax.media.protocol.*;

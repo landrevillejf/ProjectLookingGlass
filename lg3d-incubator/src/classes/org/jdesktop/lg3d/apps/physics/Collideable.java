@@ -17,7 +17,6 @@ package org.jdesktop.lg3d.apps.physics;
 import org.jogamp.vecmath.Vector3f;
 import org.jogamp.vecmath.Matrix3f;
 import java.util.Vector;
-import org.jdesktop.lg3d.sg.GeometryArray;
 /**
  *
  * An interface for physical objects capable of collision

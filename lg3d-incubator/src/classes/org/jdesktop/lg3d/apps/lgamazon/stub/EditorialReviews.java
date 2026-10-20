@@ -55,7 +55,7 @@ public class EditorialReviews  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.editorialReview==null && other.getEditorialReview()==null) || 
              (this.editorialReview!=null &&
               java.util.Arrays.equals(this.editorialReview, other.getEditorialReview())));

@@ -178,7 +178,9 @@ public class TextPanel3D extends Container3D {
             case RIGHT:
                 if(rowText.length() <= getNcols())
                     firstI = getNcols() - rowText.length();
+                break;
                 
+            default: break;
         }
         addString(row, firstI, matrix[0].length, rowText, haloColor, fontColor, backColor, fontStyle);
     }

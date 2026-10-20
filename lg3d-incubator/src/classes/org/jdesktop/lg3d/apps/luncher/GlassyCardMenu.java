@@ -9,26 +9,20 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import org.jogamp.vecmath.Vector3f;
 import org.xml.sax.SAXException;
-import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.sg.Node;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionBooleanFloat3;
 import org.jdesktop.lg3d.utils.action.ActionFloat3;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
-import org.jdesktop.lg3d.utils.component.Pseudo3DShortcut;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
 import org.jdesktop.lg3d.utils.layoutmanager.ZLayeredLayout;
-import org.jdesktop.lg3d.utils.layoutmanager.HorizontalLayout;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 
@@ -228,9 +222,12 @@ public class GlassyCardMenu extends Container3D {
                         {
                             if (state) {
                                 // Registrate the start possition of the mouse
-                                startX = prevX = x;
-                                startY = prevY = y;
-                                startZ = prevZ = z;
+                                startX = x;
+                                prevX = x;
+                                startY = y;
+                                prevY = y;
+                                startZ = z;
+                                prevZ = z;
                             }
                         }
                     }) );

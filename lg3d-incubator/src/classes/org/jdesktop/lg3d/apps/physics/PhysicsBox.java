@@ -258,8 +258,10 @@ public class PhysicsBox extends PhysicsBody implements Collideable{
             int[] first=new int[2];
             int[] last=new int[2];
             
-            first[0]=first[1]=-1;
-            last[0]=last[1]=-1;
+            first[0] = -1;
+            first[1] = -1;
+            last[0] = -1;
+            last[1] = -1;
             
             
             for(int j=0;j<16;j++) {

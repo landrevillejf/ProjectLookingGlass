@@ -46,7 +46,7 @@ public class M3UReader {
             // get canonical path from file name
             path = new File(fileName).getCanonicalPath();
             File file = new File( path );
-            if( file.exists() == false ){
+            if( !file.exists() ){
                 System.err.println(path + " does not exists.");
                 result =  null;
             }

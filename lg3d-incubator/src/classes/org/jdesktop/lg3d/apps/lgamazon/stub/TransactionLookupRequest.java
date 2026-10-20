@@ -86,7 +86,7 @@ public class TransactionLookupRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.responseGroup==null && other.getResponseGroup()==null) || 
              (this.responseGroup!=null &&
               java.util.Arrays.equals(this.responseGroup, other.getResponseGroup()))) &&

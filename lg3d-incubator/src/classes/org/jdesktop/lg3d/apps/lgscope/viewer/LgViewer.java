@@ -356,6 +356,7 @@ public abstract class LgViewer extends Frame3D {
                 case KeyEvent.VK_LEFT:
                     rotate(value);
                     break;
+                default: break;
             }
         }
 
@@ -389,6 +390,7 @@ public abstract class LgViewer extends Frame3D {
                     x = 0;
                     y = 0.01f;
                     break;
+                default: break;
             }
             
             

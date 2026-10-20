@@ -3,17 +3,11 @@
 package org.jdesktop.lg3d.apps.orgchart.ui.contact;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
-import javax.swing.JOptionPane;
 import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContext;
 import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContextFactory;
 import org.jdesktop.lg3d.apps.orgchart.framework.Util;

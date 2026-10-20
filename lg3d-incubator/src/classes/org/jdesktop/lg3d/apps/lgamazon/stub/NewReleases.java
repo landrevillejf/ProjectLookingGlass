@@ -55,7 +55,7 @@ public class NewReleases  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.newRelease==null && other.getNewRelease()==null) || 
              (this.newRelease!=null &&
               java.util.Arrays.equals(this.newRelease, other.getNewRelease())));

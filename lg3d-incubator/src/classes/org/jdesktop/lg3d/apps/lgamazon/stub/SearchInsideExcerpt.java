@@ -139,7 +139,7 @@ public class SearchInsideExcerpt  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.checksum==null && other.getChecksum()==null) || 
              (this.checksum!=null &&
               this.checksum.equals(other.getChecksum()))) &&

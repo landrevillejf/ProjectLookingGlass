@@ -8,9 +8,7 @@
 package org.jdesktop.lg3d.apps.trumplayer.base;
 
 import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 
-import org.jdesktop.lg3d.apps.trumplayer.base.AlbumInformation;
 
 /**
  *
@@ -56,9 +54,9 @@ public abstract class ShelfBase extends Container3D {
     /** initialize */
     public void init(AlbumInformation[] albuminfo, String fontname,String encode){
         this.albuminfo = albuminfo;
-        if(encode != null && encode.trim().equals("") == false)
+        if(encode != null && !encode.trim().equals(""))
             this.encode = encode;
-        if(fontname != null && fontname.trim().equals("") == false)
+        if(fontname != null && !fontname.trim().equals(""))
             this.fontname = fontname;
         initialize();
     }

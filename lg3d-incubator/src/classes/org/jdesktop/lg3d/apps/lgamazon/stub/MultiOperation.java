@@ -438,7 +438,7 @@ public class MultiOperation  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.help==null && other.getHelp()==null) || 
              (this.help!=null &&
               this.help.equals(other.getHelp()))) &&

@@ -21,10 +21,6 @@
  */
 package org.jdesktop.lg3d.apps.luncher;
 
-import org.jdesktop.lg3d.utils.component.Pseudo3DShortcut;
-import org.jdesktop.lg3d.utils.shape.ColorCube;
-import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Tapp;
 import org.jogamp.vecmath.Vector3f;
 

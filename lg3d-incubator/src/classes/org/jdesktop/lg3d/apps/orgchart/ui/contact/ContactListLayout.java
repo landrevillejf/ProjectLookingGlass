@@ -6,13 +6,11 @@
 package org.jdesktop.lg3d.apps.orgchart.ui.contact;
 
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.c3danimation.Component3DAnimationFactory;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.LayoutManager3D;
-import org.jdesktop.lg3d.wg.Component3DAnimation;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import java.util.ArrayList;
 import java.util.HashMap;

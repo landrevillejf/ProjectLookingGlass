@@ -28,7 +28,6 @@ package org.jdesktop.lg3d.apps.googler.gui;
 import java.util.Hashtable;
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Point3f;
-import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.LayoutManager3D;

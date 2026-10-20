@@ -32,7 +32,6 @@
 package org.jdesktop.lg3d.apps.utils.freedesktop.common;
 
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Encapsulates each of the Desktop Entries that are to be included in the Desktop Entry poll

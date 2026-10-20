@@ -25,7 +25,6 @@ package org.jdesktop.lg3d.apps.kwebdemo1.singletons;
  */
 import java.util.Hashtable;
 import java.util.Enumeration;
-import java.lang.Integer;
 
 import org.jdesktop.lg3d.apps.kwebdemo1.nodes.*;
 

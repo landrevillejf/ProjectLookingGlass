@@ -216,7 +216,7 @@ public class CartCreate  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.marketplaceDomain==null && other.getMarketplaceDomain()==null) || 
              (this.marketplaceDomain!=null &&
               this.marketplaceDomain.equals(other.getMarketplaceDomain()))) &&

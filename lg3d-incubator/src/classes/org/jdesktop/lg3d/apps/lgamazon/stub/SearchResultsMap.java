@@ -55,7 +55,7 @@ public class SearchResultsMap  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.searchIndex==null && other.getSearchIndex()==null) || 
              (this.searchIndex!=null &&
               java.util.Arrays.equals(this.searchIndex, other.getSearchIndex())));

@@ -39,7 +39,6 @@ import org.jdesktop.lg3d.utils.c3danimation.Component3DAnimationFactory;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
 import org.jdesktop.lg3d.utils.eventadapter.Component3DManualMoveEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseDragDistanceAdapter;
-import org.jdesktop.lg3d.utils.layoutmanager.HorizontalLayout;
 import org.jdesktop.lg3d.utils.layoutmanager.HorizontalLayout.AlignmentType;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;

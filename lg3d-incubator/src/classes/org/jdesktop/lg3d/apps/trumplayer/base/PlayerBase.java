@@ -7,37 +7,10 @@
 
 package org.jdesktop.lg3d.apps.trumplayer.base;
 
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
-import org.jdesktop.lg3d.apps.trumplayer.base.LG3DMP3Player;
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.M3UReader;
-import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3Tag;
 
-import java.util.AbstractList;
 
-import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
-import org.jogamp.vecmath.Color4f;
-import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.utils.shape.Disc;
-import org.jdesktop.lg3d.utils.shape.Cylinder;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
-import org.jdesktop.lg3d.utils.shape.Text2D;
-import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.Texture;
-import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.Thumbnail;
 
 /**
@@ -80,9 +53,9 @@ public abstract class PlayerBase extends Container3D {
     }
     
     protected void init(String fontName, String encode){
-        if(encode != null && encode.trim().equals("") == false)
+        if(encode != null && !encode.trim().equals(""))
             this.encode = encode;
-        if(fontName != null && fontName.trim().equals("") == false)
+        if(fontName != null && !fontName.trim().equals(""))
             this.fontName = fontName;
         this.mp3player = new LG3DMP3Player(encode);
         initialize();
@@ -93,7 +66,7 @@ public abstract class PlayerBase extends Container3D {
     public abstract boolean inPlayerArea(float x, float y);
     
     public void setFontName(String fontName){
-        if(fontName != null && fontName.trim().equals("") == false)
+        if(fontName != null && !fontName.trim().equals(""))
             this.fontName = fontName;
     }
     
@@ -108,7 +81,7 @@ public abstract class PlayerBase extends Container3D {
     public String getEncode(){ return encode; }
     
     public void setEncode(String encode){
-        if(encode != null && encode.trim().equals("") == false)
+        if(encode != null && !encode.trim().equals(""))
             this.encode = encode;
     }
 }

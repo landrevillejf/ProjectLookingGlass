@@ -23,7 +23,6 @@ import org.jdesktop.lg3d.apps.nlc.conditions.VisibleCondition;
 import org.jdesktop.lg3d.apps.nlc.filters.ConditionFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.DefaultFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.Filter;
-import org.jdesktop.lg3d.apps.nlc.filters.HiddenFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.LaunchFilter;
 import org.jdesktop.lg3d.apps.nlc.filters.RunningFilter;
 import org.jdesktop.lg3d.apps.nlc.knowledge.CurrentScene;

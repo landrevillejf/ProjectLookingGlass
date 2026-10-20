@@ -16,7 +16,6 @@ package org.jdesktop.lg3d.apps.orgchart.ui.agenda;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

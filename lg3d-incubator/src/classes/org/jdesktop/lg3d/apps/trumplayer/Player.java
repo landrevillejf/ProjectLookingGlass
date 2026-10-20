@@ -10,8 +10,6 @@ package org.jdesktop.lg3d.apps.trumplayer;
 import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 import org.jdesktop.lg3d.apps.trumplayer.base.PlayerBase;
 import org.jdesktop.lg3d.apps.trumplayer.base.ShelfBase;
-import org.jdesktop.lg3d.apps.trumplayer.base.LG3DMP3Player;
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.M3UReader;
 import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3Tag;
 
 import java.util.AbstractList;
@@ -21,12 +19,10 @@ import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Color4f;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.utils.shape.Disc;
 import org.jdesktop.lg3d.utils.shape.Cylinder;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.shape.Text2D;
 import org.jdesktop.lg3d.sg.Appearance;
@@ -37,12 +33,10 @@ import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.InputEvent3D;
 import org.jdesktop.lg3d.wg.Thumbnail;
 
 import java.awt.image.BufferedImage;
@@ -154,7 +148,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -192,7 +186,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -217,7 +211,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -241,7 +235,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -270,7 +264,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -299,7 +293,7 @@ public class Player extends PlayerBase {
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -544,9 +538,9 @@ public class Player extends PlayerBase {
         if( id3 != null ){
             g.drawString( ("Title : " + id3.getTitle()) ,0,24);
             g.drawString( ("Artist : " +id3.getArtist()) ,0,48);
-            if( id3.getAlbum() != null && id3.getAlbum().equals("") == false )
+            if( id3.getAlbum() != null && !id3.getAlbum().equals("") )
                 g.drawString( "Album : " + id3.getAlbum() , 0,72);
-        } else if ( mp3.getFilePath() != null && mp3.getFilePath().equals("") == false ) {
+        } else if ( mp3.getFilePath() != null && !mp3.getFilePath().equals("") ) {
             g.drawString( ("File : " + mp3.getFilePath() ) ,0,24);
         } else {
             g.drawString( "No Information" ,0,24);

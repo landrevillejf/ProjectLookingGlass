@@ -70,7 +70,7 @@ public class TransactionShipmentsShipmentPackagesPackage  implements java.io.Ser
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.trackingNumber==null && other.getTrackingNumber()==null) || 
              (this.trackingNumber!=null &&
               this.trackingNumber.equals(other.getTrackingNumber()))) &&

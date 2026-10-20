@@ -116,7 +116,7 @@ public class Image  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.URL==null && other.getURL()==null) || 
              (this.URL!=null &&
               this.URL.equals(other.getURL()))) &&

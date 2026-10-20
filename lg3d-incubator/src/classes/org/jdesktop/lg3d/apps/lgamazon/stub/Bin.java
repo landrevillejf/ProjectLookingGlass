@@ -101,7 +101,7 @@ public class Bin  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.binName==null && other.getBinName()==null) || 
              (this.binName!=null &&
               this.binName.equals(other.getBinName()))) &&

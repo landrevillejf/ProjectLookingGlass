@@ -55,7 +55,7 @@ public class ListmaniaLists  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.listmaniaList==null && other.getListmaniaList()==null) || 
              (this.listmaniaList!=null &&
               java.util.Arrays.equals(this.listmaniaList, other.getListmaniaList())));

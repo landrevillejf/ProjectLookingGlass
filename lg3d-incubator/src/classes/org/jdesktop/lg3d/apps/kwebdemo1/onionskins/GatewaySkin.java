@@ -17,7 +17,6 @@
 package org.jdesktop.lg3d.apps.kwebdemo1.onionskins;
 
 import org.jogamp.vecmath.Color3f;
-import org.jdesktop.lg3d.apps.kwebdemo1.singletons.NodeData;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 
 /**

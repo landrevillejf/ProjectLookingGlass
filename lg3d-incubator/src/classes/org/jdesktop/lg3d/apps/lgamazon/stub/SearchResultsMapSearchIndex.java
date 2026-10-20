@@ -170,7 +170,7 @@ public class SearchResultsMapSearchIndex  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.indexName==null && other.getIndexName()==null) || 
              (this.indexName!=null &&
               this.indexName.equals(other.getIndexName()))) &&

@@ -3,7 +3,6 @@ package org.jdesktop.lg3d.apps.blackgoat.emessage.read;
 import javax.mail.*;
 import javax.mail.Session;
 
-import org.jdesktop.lg3d.apps.blackgoat.utils.UserInfo;
 
 /**
  * @author Dai Odahara

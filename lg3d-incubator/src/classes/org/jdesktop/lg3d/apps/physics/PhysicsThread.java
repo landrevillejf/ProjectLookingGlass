@@ -14,11 +14,9 @@
  * available at http://www.opensource.org/licenses/gpl-license.php.
  */
 package org.jdesktop.lg3d.apps.physics;
-import java.lang.Thread;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Vector;
-import java.util.PriorityQueue;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Frame3D;
 import java.util.HashSet;

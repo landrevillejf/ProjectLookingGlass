@@ -70,7 +70,7 @@ public class SearchInside  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.totalExcerpts==null && other.getTotalExcerpts()==null) || 
              (this.totalExcerpts!=null &&
               this.totalExcerpts.equals(other.getTotalExcerpts()))) &&

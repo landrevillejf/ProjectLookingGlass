@@ -484,7 +484,7 @@ public class Request  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.isValid==null && other.getIsValid()==null) || 
              (this.isValid!=null &&
               this.isValid.equals(other.getIsValid()))) &&

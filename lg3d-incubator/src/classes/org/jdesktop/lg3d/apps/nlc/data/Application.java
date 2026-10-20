@@ -71,6 +71,13 @@ public class Application {
 		return false;
 	}
 
+	@Override
+	public int hashCode() {
+		int h = appConfig == null ? 0 : appConfig.hashCode();
+		h = 31 * h + (frame == null ? 0 : frame.hashCode());
+		return h;
+	}
+
 	public void setAppConfig(ApplicationConfig appConfig) {
 		if (appConfig == null) {
 			throw new NullPointerException(

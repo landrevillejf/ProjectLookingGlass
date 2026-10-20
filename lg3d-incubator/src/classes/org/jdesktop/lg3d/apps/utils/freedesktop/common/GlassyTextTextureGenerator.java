@@ -153,7 +153,7 @@ class GlassyTextTextureGenerator {
 	}
 
 	int pow = 2;
-	for ( ; pow < n; pow *= 2);
+	for ( ; pow < n; pow *= 2) { }
 
 	return pow;
     }

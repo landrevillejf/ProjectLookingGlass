@@ -55,7 +55,7 @@ public class TransactionItemChildTransactionItems  implements java.io.Serializab
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.transactionItem==null && other.getTransactionItem()==null) || 
              (this.transactionItem!=null &&
               java.util.Arrays.equals(this.transactionItem, other.getTransactionItem())));

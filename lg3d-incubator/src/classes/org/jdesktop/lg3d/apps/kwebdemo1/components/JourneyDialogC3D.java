@@ -32,10 +32,8 @@ import org.jdesktop.lg3d.sg.QuadArray;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import org.jdesktop.lg3d.utils.animation.TranslationAnimationBoolean;
 import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.KeyPressedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
@@ -139,7 +137,7 @@ public class JourneyDialogC3D extends Component3D
   	  case 1: changeTexture(dialog01); break;
   	  case 2: changeTexture(dialog02); break;
   	  default: changeTexture(dialog00);
-	  };
+	  }
     this.setVisible(true);
     zoomIntoViewTA =
       new TranslationAnimationBoolean(new Vector3f(0f, 0f, 0.8f),

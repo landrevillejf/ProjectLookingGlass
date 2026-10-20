@@ -162,7 +162,7 @@ public class ListItem  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.listItemId==null && other.getListItemId()==null) || 
              (this.listItemId!=null &&
               this.listItemId.equals(other.getListItemId()))) &&

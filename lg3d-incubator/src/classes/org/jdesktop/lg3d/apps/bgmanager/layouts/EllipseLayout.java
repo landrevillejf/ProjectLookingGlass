@@ -2,7 +2,6 @@ package org.jdesktop.lg3d.apps.bgmanager.layouts;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.utils.c3danimation.Component3DAnimationFactory;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Component3DAnimation;
@@ -135,6 +134,7 @@ public class EllipseLayout implements LayoutManager3D {
                     comp.changeTranslation(x,y,z,1000);
                     break;
                 }
+                default: break;
             }
          /*   switch (componentDirection) {
             case CONNECT: {
