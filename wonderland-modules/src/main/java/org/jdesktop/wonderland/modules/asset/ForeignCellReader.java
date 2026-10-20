@@ -70,10 +70,16 @@ public final class ForeignCellReader {
      * operator dropped them in, so they are input, and input that can name an
      * external entity is input that can read whatever the server's user can.
      */
-    private static final DocumentBuilderFactory FACTORY = sealedFactory();
+    private static final DocumentBuilderFactory FACTORY =
+            sealedFactory(DocumentBuilderFactory.newInstance());
 
-    private static DocumentBuilderFactory sealedFactory() {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+    /**
+     * Lock the given factory down against doctypes and external entities. Takes
+     * the factory as a parameter so a test can hand in one whose {@code setFeature}
+     * refuses, driving the degrade below on demand rather than depending on a
+     * third-party parser happening to lack a feature string.
+     */
+    static DocumentBuilderFactory sealedFactory(DocumentBuilderFactory factory) {
         try {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
@@ -105,7 +111,9 @@ public final class ForeignCellReader {
             return null;
         }
         String name = text(root, "name");
-        if (name == null || name.isBlank()) {
+        // text() returns either null or a non-blank string, so the only thing to
+        // test here is presence -- a blank name can never reach this point.
+        if (name == null) {
             return null;
         }
         ForeignCellServerState state = new ForeignCellServerState();
@@ -160,8 +168,11 @@ public final class ForeignCellReader {
         for (int i = 0; i < children.getLength(); i++) {
             Node node = children.item(i);
             if (node.getNodeType() == Node.ELEMENT_NODE && tag.equals(node.getNodeName())) {
+                // getTextContent() on an element node is never null (the DOM returns
+                // the concatenation of its text, "" when there is none), so only the
+                // blank test is live here.
                 String value = node.getTextContent();
-                return (value == null || value.isBlank()) ? null : value;
+                return value.isBlank() ? null : value;
             }
         }
         return null;
@@ -191,10 +202,9 @@ public final class ForeignCellReader {
                     .endsWith(URI_SUFFIX)) {
                 continue;
             }
+            // getTextContent() on an element node is never null, so the value goes
+            // straight to the trim-and-scheme test.
             String value = element.getTextContent();
-            if (value == null) {
-                continue;
-            }
             String trimmed = value.trim();
             if (SCHEME.matcher(trimmed).find()) {
                 return trimmed;

@@ -380,6 +380,7 @@ class SoftphoneControlTest {
         assertThat(control.unmute()).isFalse();
         assertThat(control.recordAudio("/tmp/dead.wav", true)).isFalse();
         assertThat(control.recordAudio("/tmp/dead.wav", false)).isFalse();
+        assertThat(control.pauseRecordingAudio()).isFalse();
         assertThat(control.resumeRecordingAudio()).isFalse();
         assertThat(control.stopRecordingAudio()).isFalse();
         assertThat(backend.lines).isEmpty();

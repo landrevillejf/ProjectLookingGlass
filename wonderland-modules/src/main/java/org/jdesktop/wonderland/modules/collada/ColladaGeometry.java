@@ -234,12 +234,16 @@ public final class ColladaGeometry {
             double[] data = src.data();
             // The packed <p> array holds one stride-sized group per referenced
             // vertex; a <triangles>' count is the facet count, not the vertex
-            // count, so walk the tokens rather than trust count.
-            long entries = stride == 0 ? 0 : indices.length / stride;
+            // count, so walk the tokens rather than trust count. stride is non-zero
+            // here (guarded above), entries floors indices.length / stride, and
+            // position.offset() is at most stride - 1, so tokenIndex never reaches
+            // indices.length -- the only way out of the packed stream is a negative
+            // POSITION offset in a malformed export, which stops the walk.
+            long entries = indices.length / stride;
             for (long vertex = 0; vertex < entries; vertex++) {
                 long tokenIndex = vertex * stride + position.offset();
-                if (tokenIndex >= indices.length) {
-                    break; // malformed short <p>: emit what we have, do not throw on load
+                if (tokenIndex < 0) {
+                    break; // a negative POSITION offset has no token to read
                 }
                 int posIndex = (int) indices[(int) tokenIndex];
                 for (int comp = 0; comp < 3; comp++) {

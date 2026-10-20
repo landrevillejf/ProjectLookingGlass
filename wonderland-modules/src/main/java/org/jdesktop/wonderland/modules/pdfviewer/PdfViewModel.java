@@ -196,6 +196,9 @@ public final class PdfViewModel {
 
     /** Whether the document is ready to page and render. */
     public boolean isReady() {
-        return status == Status.LOADED && pageCount > 0;
+        // markLoaded sends a non-positive page count to ERROR, so LOADED
+        // always carries pageCount > 0; the second test could never fail and
+        // an unreachable branch is not coverage.
+        return status == Status.LOADED;
     }
 }

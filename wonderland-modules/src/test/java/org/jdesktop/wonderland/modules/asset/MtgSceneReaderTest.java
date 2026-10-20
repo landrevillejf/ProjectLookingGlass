@@ -361,6 +361,87 @@ class MtgSceneReaderTest {
     }
 
     @Test
+    void aCrossDocumentReferenceKeepsOnlyItsFragmentUnderTheNamespace() {
+        // A COLLADA url may name another document ("other.dae#geo"). stripHash only
+        // removes a LEADING '#', so an embedded one survives to prefixRef, which keeps
+        // the fragment after the last '#' and re-keys it -- the substring arm a
+        // same-document "#id" (already stripped to a bare id) never reaches.
+        String dae =
+                "<COLLADA xmlns=\"http://www.collada.org/2005/11/COLLADASchema\" version=\"1.4.1\">"
+                + "<library_geometries><geometry id=\"g\"><mesh><source id=\"s\">"
+                + "<float_array id=\"a\" count=\"9\">0 0 0 1 0 0 0 1 0</float_array>"
+                + "<technique_common><accessor source=\"#a\" count=\"3\" stride=\"3\">"
+                + "<param name=\"X\" type=\"float\"/></accessor></technique_common></source>"
+                + "<triangles count=\"1\"><p>0 1 2</p></triangles>"
+                + "</mesh></geometry></library_geometries>"
+                + "<library_visual_scenes><visual_scene id=\"vs\"><node id=\"n\">"
+                + "<instance_geometry url=\"other.dae#g\"/></node></visual_scene>"
+                + "</library_visual_scenes></COLLADA>";
+        String mtg = "Instance Terrain org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(dae));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(doc).isNotNull();
+        ColladaNode placed = nodeNamed(doc, "Terrain");
+        assertThat(placed).isNotNull();
+        // the embedded-hash url was reduced to its fragment "g", then namespaced
+        assertThat(placed.children().get(0).geometries().get(0).url())
+                .isEqualTo("#terrain__g");
+    }
+
+    @Test
+    void aScaleOnTheYOrZAxisAloneStillCarriesIntoTheTransform() {
+        // The scale guard tests x, then y, then z. The shipped wall stretches on x
+        // (and z), so the y-alone and z-alone arms went unproved; a non-unit scale
+        // on either axis must still emit the <scale> and reach the placed matrix.
+        String mtg = "Instance Tall org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1.0 1.5 1.0 terrain.dae\n"
+                + "Instance Deep org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1.0 1.0 2.0 terrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(worldOf(doc, "Tall").getElement(1, 1)).isEqualTo(1.5);
+        assertThat(worldOf(doc, "Deep").getElement(2, 2)).isEqualTo(2.0);
+    }
+
+    @Test
+    void aTabSeparatedInstanceLineStillFolds() {
+        // parseInstances accepts a tab after the keyword just as the water scan does;
+        // the shipped files are space-separated, so the tab arm of the FOLD's own
+        // guard (a separate branch from the water scan's) went unproved.
+        String mtg = "Instance\tTerrain\torg.jdesktop.mtgame.ColladaInstance\t"
+                + "0\t0\t0\t0\t1\t0\t0\t1\t1\t1\tterrain.dae\n";
+        MapStore store = new MapStore().put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Terrain")).isNotNull();
+    }
+
+    @Test
+    void anInstanceFileTooShortOrHalfTheGzipMagicIsNotInflated() {
+        // inflate() sniffs the two-byte magic. A file shorter than two bytes never
+        // reaches the byte test, and one wearing only 0x1f fails the second: neither
+        // is gzip, so both are parsed as-is, fail, and cost only their own instance.
+        String mtg = "Instance Tiny org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 tiny.dae\n"
+                + "Instance HalfMagic org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 half.dae\n"
+                + "Instance Good org.jdesktop.mtgame.ColladaInstance "
+                + "0 0 0 0 1 0 0 1 1 1 terrain.dae\n";
+        MapStore store = new MapStore()
+                .put("tiny.dae", new byte[]{0x41})
+                .put("half.dae", new byte[]{0x1f, 0x00, 0x00})
+                .put("terrain.dae", bytes(DAE));
+        ColladaDocument doc = read(mtg, store);
+
+        assertThat(nodeNamed(doc, "Tiny")).isNull();
+        assertThat(nodeNamed(doc, "HalfMagic")).isNull();
+        assertThat(nodeNamed(doc, "Good")).isNotNull();
+    }
+
+    @Test
     void aSceneNamingNoColladaInstanceYieldsNoDocument() {
         // A comment line and a water record carry no .dae to fold; a scene made
         // only of those is the "nothing readable" answer the loader turns into

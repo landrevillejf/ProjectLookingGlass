@@ -71,42 +71,57 @@ public final class ColladaParser {
     }
 
     private static DocumentBuilder newSecureBuilder() {
+        return newSecureBuilder(DocumentBuilderFactory.newInstance());
+    }
+
+    /**
+     * Build the hardened, namespace-aware parser from a caller-supplied factory.
+     * Production hands in {@link DocumentBuilderFactory#newInstance()}; a test
+     * injects a factory that refuses a hardening feature so the {@code no secure
+     * DOM parser} guard is driven rather than left an unreachable catch.
+     */
+    static DocumentBuilder newSecureBuilder(DocumentBuilderFactory f) {
         try {
-            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             f.setNamespaceAware(true);
             f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             f.setFeature("http://xml.org/sax/features/external-general-entities", false);
             f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             f.setExpandEntityReferences(false);
             DocumentBuilder builder = f.newDocumentBuilder();
-            /*
-             * The parser's default error handler prints to stderr <em>and</em>
-             * throws, so a cell whose artifact is not COLLADA at all wrote
-             * "[Fatal Error] :1:1: Content is not allowed in prolog" into the
-             * desktop's terminal on top of the exception the caller already
-             * receives. The message is the loader's to report -- it is what puts
-             * the cell's name on the failure -- so here the fatal case is
-             * rethrown silently and the recoverable ones stay recoverable.
-             */
-            builder.setErrorHandler(new org.xml.sax.ErrorHandler() {
-                @Override
-                public void warning(org.xml.sax.SAXParseException ex) {
-                }
-
-                @Override
-                public void error(org.xml.sax.SAXParseException ex) {
-                }
-
-                @Override
-                public void fatalError(org.xml.sax.SAXParseException ex)
-                        throws org.xml.sax.SAXParseException {
-                    throw ex;
-                }
-            });
+            builder.setErrorHandler(errorHandler());
             return builder;
         } catch (ParserConfigurationException ex) {
             throw new IllegalStateException("no secure DOM parser available", ex);
         }
+    }
+
+    /*
+     * The parser's default error handler prints to stderr <em>and</em>
+     * throws, so a cell whose artifact is not COLLADA at all wrote
+     * "[Fatal Error] :1:1: Content is not allowed in prolog" into the
+     * desktop's terminal on top of the exception the caller already
+     * receives. The message is the loader's to report -- it is what puts
+     * the cell's name on the failure -- so here the fatal case is
+     * rethrown silently and the recoverable ones stay recoverable.
+     */
+    static org.xml.sax.ErrorHandler errorHandler() {
+        return new org.xml.sax.ErrorHandler() {
+            @Override
+            public void warning(org.xml.sax.SAXParseException ex) {
+                // recoverable: stay silent, the loader names the cell on the failure
+            }
+
+            @Override
+            public void error(org.xml.sax.SAXParseException ex) {
+                // recoverable: ditto
+            }
+
+            @Override
+            public void fatalError(org.xml.sax.SAXParseException ex)
+                    throws org.xml.sax.SAXParseException {
+                throw ex;
+            }
+        };
     }
 
     // ---- asset -----------------------------------------------------------------
@@ -599,13 +614,11 @@ public final class ColladaParser {
     }
 
     private static String local(Element e) {
-        String localName = e.getLocalName();
-        if (localName != null) {
-            return localName;
-        }
-        String tag = e.getTagName();
-        int colon = tag.indexOf(':');
-        return colon < 0 ? tag : tag.substring(colon + 1);
+        // The builder is always namespace-aware (newSecureBuilder), so getLocalName()
+        // is never null for a parsed element; the tag-name / prefix fallback this once
+        // carried was reachable only under a non-namespace-aware parser that does not
+        // exist here.
+        return e.getLocalName();
     }
 
     private static String attr(Element e, String name) {
@@ -644,7 +657,8 @@ public final class ColladaParser {
     }
 
     private static double[] parseDoubles(String raw) {
-        if (raw == null || raw.isBlank()) {
+        // every caller passes text(...), which is never null, so only blank is empty
+        if (raw.isBlank()) {
             return new double[0];
         }
         String[] tokens = raw.trim().split("\\s+");
@@ -664,7 +678,8 @@ public final class ColladaParser {
     }
 
     private static long[] parseLongs(String raw) {
-        if (raw == null || raw.isBlank()) {
+        // every caller passes text(...) / textOfFirst(...), which is never null
+        if (raw.isBlank()) {
             return new long[0];
         }
         String[] tokens = raw.trim().split("\\s+");

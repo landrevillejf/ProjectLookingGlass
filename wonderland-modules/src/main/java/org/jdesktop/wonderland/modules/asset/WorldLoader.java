@@ -45,12 +45,20 @@ public final class WorldLoader {
     private final Unmarshaller unmarshaller;
 
     public WorldLoader() {
-        this.unmarshaller = tolerantUnmarshaller();
+        this(CellServerStateFactory.getUnmarshaller(null));
     }
 
-    /** The system unmarshaller, tuned to skip (rather than abort on) unknown elements. */
-    private static Unmarshaller tolerantUnmarshaller() {
-        Unmarshaller unmarshaller = CellServerStateFactory.getUnmarshaller(null);
+    /**
+     * Test seam: build the loader around a supplied unmarshaller, so the tolerant
+     * handler install below can be driven with one whose {@code setEventHandler}
+     * refuses. Production callers use the no-arg constructor.
+     */
+    WorldLoader(Unmarshaller unmarshaller) {
+        this.unmarshaller = tolerant(unmarshaller);
+    }
+
+    /** Tune the given unmarshaller to skip (rather than abort on) unknown elements. */
+    private static Unmarshaller tolerant(Unmarshaller unmarshaller) {
         try {
             unmarshaller.setEventHandler(event -> true); // skip unknown elements
         } catch (javax.xml.bind.JAXBException ex) {

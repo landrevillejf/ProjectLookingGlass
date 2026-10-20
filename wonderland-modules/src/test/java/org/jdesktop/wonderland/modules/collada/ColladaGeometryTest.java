@@ -107,22 +107,52 @@ class ColladaGeometryTest {
         assertThat(prim.positions(mesh)).isEmpty();               // sourceById null
         assertThat(prim.positions(null)).isEmpty();               // mesh null
 
-        ColladaGeometry.Primitive zeroStride = new ColladaGeometry.Primitive("triangles", null, 1,
+        ColladaGeometry.Primitive noInputs = new ColladaGeometry.Primitive("triangles", null, 1,
                 List.of(), new long[]{0});
-        assertThat(zeroStride.positions(mesh)).isEmpty();         // stride == 0
+        assertThat(noInputs.positions(mesh)).isEmpty();           // no POSITION input
     }
 
     @Test
     void aShortIndexStreamStopsRatherThanThrowing() {
         ColladaGeometry.Source pos = source("pos", new double[]{1, 2, 3, 4, 5, 6}, 3);
         ColladaGeometry.Mesh mesh = new ColladaGeometry.Mesh(List.of(pos), null, List.of());
-        // stride 2 (POSITION offset 0, TEXCOORD offset 1) but only 3 tokens -> one full
-        // vertex group then a partial group whose token index runs past the array.
+        // stride 2 (POSITION offset 0, TEXCOORD offset 1) but only 3 tokens: entries
+        // floors 3 / 2 to one full vertex group, so the trailing partial group is
+        // simply never walked (the token index can never reach indices.length).
         ColladaGeometry.Primitive prim = new ColladaGeometry.Primitive("triangles", null, 1,
                 List.of(input("POSITION", "#pos", 0), input("TEXCOORD", "#t", 1)),
                 new long[]{0, 0, 1});
 
         assertThat(prim.positions(mesh)).containsExactly(1f, 2f, 3f);
+    }
+
+    @Test
+    void positionsAreEmptyWhenANegativeOffsetCollapsesTheStride() {
+        // stride() is max(offset + 1); a sole POSITION input authored with a negative
+        // offset="-1" (a malformed export) collapses it to zero, and the walk stops
+        // before dividing by it rather than reading a stream that has no groups.
+        ColladaGeometry.Source pos = source("pos", new double[]{1, 2, 3}, 3);
+        ColladaGeometry.Mesh mesh = new ColladaGeometry.Mesh(List.of(pos), null, List.of());
+        ColladaGeometry.Primitive prim = new ColladaGeometry.Primitive("triangles", null, 1,
+                List.of(input("POSITION", "#pos", -1)), new long[]{0});
+
+        assertThat(prim.stride()).isZero();
+        assertThat(prim.positions(mesh)).isEmpty();
+    }
+
+    @Test
+    void aNegativePositionOffsetStopsTheWalkBeforeIndexingTheStream() {
+        // A POSITION input at offset="-1" beside a TEXCOORD at offset 0 keeps stride()
+        // at 1 (so the zero-stride guard passes) but makes the first token index -1;
+        // the walk stops there rather than indexing the packed <p> array out of bounds.
+        ColladaGeometry.Source pos = source("pos", new double[]{1, 2, 3}, 3);
+        ColladaGeometry.Mesh mesh = new ColladaGeometry.Mesh(List.of(pos), null, List.of());
+        ColladaGeometry.Primitive prim = new ColladaGeometry.Primitive("triangles", null, 1,
+                List.of(input("POSITION", "#pos", -1), input("TEXCOORD", "#t", 0)),
+                new long[]{0, 0});
+
+        assertThat(prim.stride()).isEqualTo(1);
+        assertThat(prim.positions(mesh)).isEmpty();
     }
 
     @Test

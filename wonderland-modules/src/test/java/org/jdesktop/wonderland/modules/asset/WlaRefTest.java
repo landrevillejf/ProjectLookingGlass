@@ -51,6 +51,13 @@ class WlaRefTest {
     }
 
     @Test
+    void baseNameIsThePathAfterTheLastSlash() {
+        assertThat(WlaRef.baseName("a/b/c.dae")).isEqualTo("c.dae");
+        assertThat(WlaRef.baseName("c.dae")).isEqualTo("c.dae");
+        assertThat(WlaRef.baseName(null)).isEmpty();
+    }
+
+    @Test
     void theSchemeConstantIsExposed() {
         assertThat(WlaRef.SCHEME).isEqualTo("wla://");
     }

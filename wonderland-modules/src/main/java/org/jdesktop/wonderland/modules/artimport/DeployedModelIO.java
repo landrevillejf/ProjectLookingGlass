@@ -156,13 +156,11 @@ public final class DeployedModelIO {
     }
 
     private static String local(Element e) {
-        String l = e.getLocalName();
-        if (l != null) {
-            return l;
-        }
-        String tag = e.getTagName();
-        int colon = tag.indexOf(':');
-        return colon < 0 ? tag : tag.substring(colon + 1);
+        // document() always sets setNamespaceAware(true), so getLocalName() is never
+        // null for a parsed element; the tag-name / prefix fallback this once carried
+        // was reachable only under a non-namespace-aware parser that does not exist
+        // here.
+        return e.getLocalName();
     }
 
     private static String attr(Element e, String name) {

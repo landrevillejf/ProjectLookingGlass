@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ModelLoaderTest {
 
@@ -122,6 +123,58 @@ class ModelLoaderTest {
 
         assertThat(result.isLoaded()).isTrue();
         assertThat(result.document().imageCount()).isEqualTo(2);
+    }
+
+    @Test
+    void aModelShorterOrHalfTheGzipMagicIsPassedThroughPlain() {
+        // inflate() sniffs the two-byte gzip magic. A model file shorter than two
+        // bytes never reaches the byte test, and one wearing only the first magic
+        // byte (0x1f without 0x8b) fails the second: neither is gzip, so both are
+        // parsed as-is and degrade to the same "bad collada" error, never a crash
+        // inside GZIPInputStream.
+        String dep = "<deployed-model><modelURL>wla://M/dir/m.dae</modelURL></deployed-model>";
+        MapStore oneByte = new MapStore()
+                .put("dir/m.dep", bytes(dep))
+                .put("dir/m.dae", new byte[]{0x41});
+        assertThat(LOADER.load(oneByte, "wla://M/dir/m.dep").error()).contains("bad collada");
+
+        MapStore halfMagic = new MapStore()
+                .put("dir/m.dep", bytes(dep))
+                .put("dir/m.dae", new byte[]{0x1f, 0x00, 0x00});
+        assertThat(LOADER.load(halfMagic, "wla://M/dir/m.dep").error()).contains("bad collada");
+    }
+
+    @Test
+    void anIoFailureReadingAnAssetSurfacesAsIllegalStateNotASilentNull() {
+        // readAll turns a stream IOException into IllegalStateException rather than
+        // a null: a null is what "absent" looks like to the caller, and a half-read
+        // asset is a hard I/O failure, not a missing one. This is the one failure
+        // the loader lets escape, because swallowing it would misreport a broken
+        // disk as an empty world.
+        WorldStore hostile = new WorldStore() {
+            @Override
+            public Optional<InputStream> open(String module, String path) {
+                return Optional.of(new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new IOException("disk on fire");
+                    }
+                });
+            }
+
+            @Override
+            public boolean present(String module, String path) {
+                return true;
+            }
+
+            @Override
+            public List<String> listAssets(String module, String suffix) {
+                return List.of();
+            }
+        };
+        assertThatThrownBy(() -> LOADER.load(hostile, "wla://M/dir/m.dep"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failed reading asset");
     }
 
     @Test

@@ -41,6 +41,16 @@ class PdfViewerPluginTest {
     }
 
     @Test
+    void theShippedNoopRasterizerResolvesAndRendersNothing() {
+        // the headless sink: no document resolves, no page renders and it holds
+        // nothing to release. renderPage's null is the half the open-via-seam
+        // walk never reaches on its own, so the shipped noop is pinned directly.
+        assertThat(NoopPageRasterizer.INSTANCE.pageCount("any.pdf")).isEqualTo(-1);
+        assertThat(NoopPageRasterizer.INSTANCE.renderPage("any.pdf", 1, 1.0f)).isNull();
+        NoopPageRasterizer.INSTANCE.release();
+    }
+
+    @Test
     void headlessInitializeKeepsTheModelOnTheNoopRasterizer() {
         PdfViewerPlugin plugin = new PdfViewerPlugin();
         plugin.initialize(EMPTY_CONTEXT);

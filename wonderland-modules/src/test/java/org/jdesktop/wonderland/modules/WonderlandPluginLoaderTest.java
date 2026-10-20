@@ -11,6 +11,10 @@
  */
 package org.jdesktop.wonderland.modules;
 
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.jdesktop.wonderland.common.modules.ModuleInfo;
@@ -18,6 +22,7 @@ import org.jdesktop.wonderland.common.modules.ModuleRequires;
 import org.jdesktop.wonderland.modules.api.PluginContext;
 import org.jdesktop.wonderland.modules.api.WonderlandPlugin;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -189,5 +194,103 @@ class WonderlandPluginLoaderTest {
 
         // a single shutdown pass tears each loaded plugin down exactly once
         assertThat(trace).containsExactly("dispose:only");
+    }
+
+    @Test
+    void aPluginWithNoModuleInfoObjectAtAllIsRejected() {
+        WonderlandPlugin infoless = new WonderlandPlugin() {
+            @Override
+            public ModuleInfo getModuleInfo() {
+                return null; // not a blank name -- no ModuleInfo at all
+            }
+
+            @Override
+            public void initialize(PluginContext context) {
+            }
+        };
+
+        assertThatThrownBy(() -> new WonderlandPluginLoader().load(List.of(infoless)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no module name");
+    }
+
+    @Test
+    void aRequiresEntryWithNoNameIsIgnoredRatherThanRequired() {
+        List<String> trace = new ArrayList<>();
+        WonderlandPlugin sloppy = new WonderlandPlugin() {
+            @Override
+            public ModuleInfo getModuleInfo() {
+                return new ModuleInfo("sloppy", 1, 0, 0);
+            }
+
+            @Override
+            public ModuleRequires getRequires() {
+                // a requires entry that carries no module name: requiredNames()
+                // must skip it, not add a null requirement no module could match.
+                return new ModuleRequires(new ModuleInfo[] {new ModuleInfo()});
+            }
+
+            @Override
+            public void initialize(PluginContext context) {
+                trace.add("init:sloppy");
+            }
+        };
+
+        WonderlandPluginLoader.LoadResult result =
+                new WonderlandPluginLoader().load(List.of(sloppy));
+
+        assertThat(names(result.loaded())).containsExactly("sloppy");
+        assertThat(result.skipped()).isEmpty();
+    }
+
+    @Test
+    void aDiamondDependencyInitialisesBaseFirstAndTopLast() {
+        List<String> trace = new ArrayList<>();
+        WonderlandPlugin base = new TracePlugin("base", List.of(), trace);
+        WonderlandPlugin left = new TracePlugin("left", List.of("base"), trace);
+        WonderlandPlugin right = new TracePlugin("right", List.of("base"), trace);
+        WonderlandPlugin top = new TracePlugin("top", List.of("left", "right"), trace);
+
+        WonderlandPluginLoader.LoadResult result =
+                new WonderlandPluginLoader().load(List.of(top, left, right, base));
+
+        // "top" has indegree 2: the first dependency to finish leaves it at 1
+        // (not ready), only the second brings it to 0 -- the branch a linear
+        // chain never reaches.
+        assertThat(names(result.loaded())).containsExactly("base", "left", "right", "top");
+        assertThat(trace).containsExactly("init:base", "init:left", "init:right", "init:top");
+    }
+
+    @Test
+    void shutdownDisposesADuplicatedPluginOnlyOnce() {
+        List<String> trace = new ArrayList<>();
+        WonderlandPlugin only = new TracePlugin("only", List.of(), trace);
+        // LoadResult's package-private constructor lets a test build the
+        // degenerate case production never produces -- the same plugin twice --
+        // so the dedup guard in shutdown() is exercised on its false arm.
+        WonderlandPluginLoader.LoadResult result =
+                new WonderlandPluginLoader.LoadResult(List.of(only, only), List.of());
+
+        result.shutdown();
+
+        assertThat(trace).containsExactly("dispose:only");
+    }
+
+    @Test
+    void aBrokenServiceEntryIsLoggedAndSkippedRatherThanThrown(@TempDir Path dir)
+            throws Exception {
+        Path services = dir.resolve("META-INF").resolve("services");
+        Files.createDirectories(services);
+        Files.writeString(services.resolve(WonderlandPlugin.class.getName()),
+                "com.example.DoesNotExistPlugin\n");
+        URL[] urls = {dir.toUri().toURL()};
+        // A loader parented on the bootstrap loader sees ONLY this bogus service
+        // file, so the very first provider lookup fails -- exactly the broken-jar
+        // case discover() must survive (log and return what it found) rather
+        // than propagate as a ServiceConfigurationError.
+        try (URLClassLoader broken = new URLClassLoader(urls, null)) {
+            List<WonderlandPlugin> found = new WonderlandPluginLoader().discover(broken);
+            assertThat(found).isEmpty();
+        }
     }
 }

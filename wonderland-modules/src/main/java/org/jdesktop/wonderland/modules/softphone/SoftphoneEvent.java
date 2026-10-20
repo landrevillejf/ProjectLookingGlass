@@ -128,7 +128,12 @@ public sealed interface SoftphoneEvent {
     private static int[] trailingInts(String text) {
         String[] tokens = text.split("\\s+");
         int count = 0;
-        for (int i = tokens.length - 1; i >= 0; i--) {
+        // tokens[0] is always the routing prefix word ("Softphone exited",
+        // "softphoneTestUDPPort"), never a number, so the backward scan only
+        // has to reach index 1: bounding it there gives the same count and
+        // lets an all-numeric tail exit the loop itself rather than always
+        // pre-empting that exit with the break below.
+        for (int i = tokens.length - 1; i >= 1; i--) {
             try {
                 Integer.parseInt(tokens[i]);
                 count++;
