@@ -92,6 +92,8 @@ class PasscodeAuthenticatorTest {
         assertThat(gate().verify(" |" + seal)).isNull();        // blank name
         assertThat(gate().verify("alice|" + seal.substring(1))).isNull(); // odd hex
         assertThat(gate().verify("alice|" + "zz" + seal.substring(2))).isNull(); // non-hex
+        assertThat(gate().verify("alice|0z")).isNull();   // valid first digit, junk second
+        assertThat(gate().verify("alice|z0")).isNull();   // junk first digit, valid second
     }
 
     @Test
@@ -121,5 +123,26 @@ class PasscodeAuthenticatorTest {
         assertThatThrownBy(() -> gate().issue("ali|ce"))
                 .as("a self-splitting username would make parsing a spoof")
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aJvmWithoutHmacIsABrokenDeploymentNotARefusedToken() {
+        // The one throwable the gate keeps: HmacSHA256 is JDK-mandated, so the
+        // only JVM missing it is broken, and the seam lets a test reach that
+        // path. It must surface as a loud IllegalStateException, never a silent
+        // null -- a null here would look like "token refused" and hide a dead
+        // deployment.
+        PasscodeAuthenticator broken = new PasscodeAuthenticator(SECRET,
+                (key, data) -> {
+                    throw new java.security.NoSuchAlgorithmException("no HMAC here");
+                });
+
+        assertThatThrownBy(() -> broken.issue("alice"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no HMAC on this JVM");
+        assertThatThrownBy(() -> broken.verify("alice|00"))
+                .as("verification signs the claim too, so it fails the same way")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no HMAC on this JVM");
     }
 }

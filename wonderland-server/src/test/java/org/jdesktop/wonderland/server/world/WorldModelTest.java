@@ -135,6 +135,30 @@ class WorldModelTest {
     }
 
     @Test
+    void removingACellTheWorldNeverHostedIsANoopThatDoesNotBumpTheRevision() {
+        long before = world.revision();
+
+        // not the environment (that guard is its own branch), just an id the
+        // world never held: remove finds nothing, so the revision must not move
+        // -- an autosave polling it would otherwise rewrite an unchanged world.
+        assertThat(world.removeCell(new CellID(9999L))).isNull();
+        assertThat(world.revision()).isEqualTo(before);
+    }
+
+    @Test
+    void addCellStoresAnIdentityTransformWhenHandedNone() {
+        CellID id = world.newCellID();
+
+        WorldCell cell = world.addCell(id, "some.client.Cell", "a-cell", null,
+                new CellClientState());
+
+        // a null transform defaults to identity at the model's own door, not
+        // only inside the WorldCell record
+        assertThat(cell.getTransform()).isNotNull();
+        assertThat(cell.getTransform().getTranslation(null)).isEqualTo(new Vector3f(0f, 0f, 0f));
+    }
+
+    @Test
     void hierarchyPutsTheEnvironmentFirstThenAscendingIds() {
         CellID late = world.newCellID();
         CellID early = world.newCellID();

@@ -94,11 +94,37 @@ class InterestManagerTest {
     void nanPlacesAreRefusedBecauseNaNComparisonsSilentlyExcludeEveryone() {
         InterestManager interests = new InterestManager();
 
+        // every axis is checked in turn -- a NaN in any one coordinate is a
+        // place that is not a place, and the short-circuit must refuse all three
         assertThatThrownBy(() -> interests.watch(ALICE, Float.NaN, 0, 0, 5f))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interests.watch(ALICE, 0, Float.NaN, 0, 5f))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interests.watch(ALICE, 0, 0, Float.NaN, 5f))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> interests.audienceFor(Float.NaN, 0, 0, 1f))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interests.audienceFor(0, Float.NaN, 0, 1f))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interests.audienceFor(0, 0, Float.NaN, 1f))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> interests.watch(null, 0, 0, 0, 5f))
                 .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void aWatchIsTrackedOncePlacedAndNotBeforeNorAfterNorForNull() {
+        InterestManager interests = new InterestManager();
+
+        assertThat(interests.isTracked(ALICE)).as("never moved yet").isFalse();
+        assertThat(interests.isTracked(null))
+                .as("a null session is not tracked, not an NPE")
+                .isFalse();
+
+        interests.watch(ALICE, 0, 0, 0, 5f);
+        assertThat(interests.isTracked(ALICE)).isTrue();
+
+        interests.forget(ALICE);
+        assertThat(interests.isTracked(ALICE)).as("a departed session is untracked").isFalse();
     }
 }

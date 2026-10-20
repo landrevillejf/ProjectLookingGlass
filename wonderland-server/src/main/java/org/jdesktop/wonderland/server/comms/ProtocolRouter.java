@@ -298,10 +298,11 @@ public class ProtocolRouter {
         // client dragged matches the one its SET_VIEW minted -- a furniture move
         // is not the person walking, so it must not re-home the mover's eye.
         if (cellID.equals(viewCells.get(session.getID()))) {
+            // CellTransform.getTranslation(null) always allocates a Vector3f, so
+            // a move's place is never null: the null guard that used to sit here
+            // could not be taken, and an unreachable branch is not coverage.
             Vector3f at = transform.getTranslation(null);
-            if (at != null) {
-                interest.watch(session.getID(), at.x, at.y, at.z, WATCH_RADIUS);
-            }
+            interest.watch(session.getID(), at.x, at.y, at.z, WATCH_RADIUS);
         }
         // broadcast the accepted transform to the sessions that can see it; the
         // senderID is the mover's session id, which the mover's own component
@@ -409,10 +410,11 @@ public class ProtocolRouter {
         // always receives its own echo (client-side suppression depends on it),
         // and an UNTRACKED session always receives everything -- so before any
         // avatar has moved, this is byte-identical to the pre-P5.4 broadcast.
+        // getTranslation(null) never returns null (it allocates), so the event
+        // always happens at a real point and there is no empty-audience arm.
         Vector3f at = transform.getTranslation(null);
-        Set<BigInteger> audience = at == null ? Set.of()
-                : new HashSet<>(interest.audienceFor(at.x, at.y, at.z,
-                        eventRadiusOf(cellID)));
+        Set<BigInteger> audience = new HashSet<>(interest.audienceFor(at.x, at.y,
+                at.z, eventRadiusOf(cellID)));
         for (ServerSession target : registry.all()) {
             if (!target.isAttached(CellChannelConnectionType.CLIENT_TYPE)) {
                 continue;
@@ -432,13 +434,18 @@ public class ProtocolRouter {
      * The reach a moved cell's event is credited with. A cell whose authored
      * bounds carry a radius broadcasts at least that far; one without answers
      * the documented default, so a bare transform never shrinks interest to a
-     * point.
+     * point. Package-private so a test can drive the unknown-cell and
+     * non-positive-radius arms directly; the public path only ever asks for a
+     * cell that was just moved, so it can reach neither.
      */
-    private float eventRadiusOf(CellID cellID) {
+    float eventRadiusOf(CellID cellID) {
         WorldCell cell = world.find(cellID);
         if (cell != null && cell.getLocalBounds() instanceof BoundingSphere sphere) {
             float radius = sphere.getRadius();
-            if (radius > 0f && !Float.isNaN(radius)) {
+            // radius > 0f is already false for NaN (every comparison with NaN
+            // is false), so a separate isNaN guard here would add a branch that
+            // can never be taken -- an unreachable branch is not coverage.
+            if (radius > 0f) {
                 return radius;
             }
         }
@@ -448,7 +455,13 @@ public class ProtocolRouter {
         return DEFAULT_EVENT_RADIUS;
     }
 
-    private void broadcastConfigure(CellID cellID) {
+    /**
+     * Tell every cache-connected session a cell's placement changed.
+     * Package-private so a test can drive the unknown-cell guard (on the public
+     * path a reparent has just re-put the cell, so it is never null here) and
+     * the no-cache-connection skip directly.
+     */
+    void broadcastConfigure(CellID cellID) {
         WorldCell cell = world.find(cellID);
         if (cell == null) {
             return;
@@ -474,7 +487,14 @@ public class ProtocolRouter {
         }
     }
 
-    private ByteBuffer pack(Message message, ServerSession session, ConnectionType type) {
+    /**
+     * Pack one outbound frame for a session's connection. Package-private so a
+     * test can hand it a message the codec cannot serialise and assert the
+     * PackerException surfaces as an IllegalStateException -- no public route
+     * packs anything but the router's own well-formed replies, so the guard is
+     * otherwise unreachable.
+     */
+    ByteBuffer pack(Message message, ServerSession session, ConnectionType type) {
         try {
             return MessagePacker.pack(message, session.clientID(type));
         } catch (PackerException ex) {

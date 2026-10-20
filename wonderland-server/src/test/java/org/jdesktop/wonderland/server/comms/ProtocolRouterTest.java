@@ -20,6 +20,7 @@
  */
 package org.jdesktop.wonderland.server.comms;
 
+import com.jme.bounding.BoundingSphere;
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
 import java.nio.ByteBuffer;
@@ -466,5 +467,288 @@ class ProtocolRouterTest {
     @Test
     void viewCellOfIsNullBeforeTheHandshake() {
         assertThat(router.viewCellOf(sessionB)).isNull();
+    }
+
+    // ---- transport-facing edges: a body-less but well-formed frame ------------
+
+    @Test
+    void aValidHeaderWithNoBodyFailsLoudToo() {
+        // 0xACED0005 is a well-formed serialisation-stream header with no message
+        // behind it: the codec reads the header, hits EOF and returns null rather
+        // than throwing, which the router turns into the same loud failure a
+        // corrupt header produces (received == null -> PackerException -> ISE)
+        assertThatThrownBy(() -> router.routeInbound(sessionA,
+                CellCacheConnectionType.CLIENT_TYPE,
+                ByteBuffer.wrap(new byte[]{(byte) 0xAC, (byte) 0xED, 0x00, 0x05})))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failed to unpack");
+    }
+
+    @Test
+    void editMessagesThatAreNotReparentAreIgnored() {
+        // the edit connection only acts on a reparent; anything else is a no-op
+        assertThat(router.routeInbound(sessionA, CellEditConnectionType.CLIENT_TYPE,
+                pack(setView()))).isEmpty();
+    }
+
+    // ---- defer(): a SET_VIEW from a session with no cache connection ----------
+
+    @Test
+    void setViewFromASessionWithoutACacheConnectionDefersNothing() {
+        List<Incoming> channelOnly = new ArrayList<>();
+        ServerSession channelSession = registry.create(ALICE, recordingSink(channelOnly));
+        registry.attach(channelSession, CellChannelConnectionType.CLIENT_TYPE);
+
+        // the type argument routes to the cache handler, but the session itself
+        // has no cache connection, so defer() declines to queue the view chain
+        List<ByteBuffer> reply = router.routeMessage(channelSession,
+                CellCacheConnectionType.CLIENT_TYPE, setView());
+
+        assertThat(reply).isNotEmpty();
+        assertThat(router.flush(channelSession)).isNull();
+        assertThat(channelOnly).isEmpty();
+    }
+
+    // ---- broadcasts skip a session missing the connection type they fan to ----
+
+    @Test
+    void aMoveBroadcastSkipsSessionsWithoutAChannelConnection() {
+        CellID cellID = world.newCellID();
+        world.addCell(cellID, "some.client.Cell", "cube", new CellTransform(),
+                new CellClientState());
+        List<Incoming> cacheOnly = new ArrayList<>();
+        ServerSession cacheSession = registry.create(ALICE, recordingSink(cacheOnly));
+        registry.attach(cacheSession, CellCacheConnectionType.CLIENT_TYPE);
+        pushedA.clear();
+        pushedB.clear();
+
+        router.routeInbound(sessionA, CellChannelConnectionType.CLIENT_TYPE,
+                pack(MovableMessage.newMoveRequestMessage(cellID,
+                        new Vector3f(1f, 2f, 3f), new Quaternion(), 2f)));
+
+        // the two channel-attached sessions hear the move; the cache-only one is
+        // skipped by the continue, so its sink stays empty
+        assertThat(pushedA).hasSize(1);
+        assertThat(pushedB).hasSize(1);
+        assertThat(cacheOnly).isEmpty();
+    }
+
+    @Test
+    void chatSkipsSessionsWithoutAChannelConnection() {
+        List<Incoming> cacheOnly = new ArrayList<>();
+        ServerSession cacheSession = registry.create(ALICE, recordingSink(cacheOnly));
+        registry.attach(cacheSession, CellCacheConnectionType.CLIENT_TYPE);
+        pushedA.clear();
+        pushedB.clear();
+
+        relayFrom(sessionA, "anyone on channel?");
+
+        assertThat(pushedA).hasSize(1);
+        assertThat(pushedB).hasSize(1);
+        assertThat(cacheOnly).isEmpty();
+    }
+
+    // ---- displayName(): the null-full-name and null/blank-username arms -------
+
+    @Test
+    void theRelayedNameUsesTheUsernameWhenTheFullNameIsNull() {
+        ServerSession noFull = registry.create(
+                new WonderlandIdentity("dave", null, "d@example.org"),
+                recordingSink(new ArrayList<>()));
+        registry.attach(noFull, CellChannelConnectionType.CLIENT_TYPE);
+        List<Incoming> listeners = pushedB;
+        listeners.clear();
+
+        relayFrom(noFull, "no full name");
+
+        assertThat(((TextChatMessage) listeners.get(0).message()).getSenderName())
+                .isEqualTo("dave");
+    }
+
+    @Test
+    void theRelayedNameIsGuestWhenTheUsernameIsMissingOrBlank() {
+        ServerSession nullName = registry.create(
+                new WonderlandIdentity(null, null, "n@example.org"),
+                recordingSink(new ArrayList<>()));
+        registry.attach(nullName, CellChannelConnectionType.CLIENT_TYPE);
+        ServerSession blankName = registry.create(
+                new WonderlandIdentity("   ", "   ", "b@example.org"),
+                recordingSink(new ArrayList<>()));
+        registry.attach(blankName, CellChannelConnectionType.CLIENT_TYPE);
+        List<Incoming> listeners = pushedB;
+        listeners.clear();
+
+        relayFrom(nullName, "who am i");
+        assertThat(((TextChatMessage) listeners.get(0).message()).getSenderName())
+                .isEqualTo("guest");
+
+        relayFrom(blankName, "who am i");
+        assertThat(((TextChatMessage) listeners.get(1).message()).getSenderName())
+                .isEqualTo("guest");
+    }
+
+    // ---- the mover's own view cell: re-home the watch, or not -----------------
+
+    @Test
+    void movingTheMoversOwnViewCellReHomesTheWatch() {
+        CellID viewCellID = ((ViewCreateResponseMessage) messages(router.routeInbound(
+                sessionA, CellCacheConnectionType.CLIENT_TYPE, pack(setView()))).get(0))
+                        .getViewCellID();
+        flushed(sessionA);
+        pushedA.clear();
+        pushedB.clear();
+
+        // moving the cell this session's own SET_VIEW minted is the person
+        // walking: at != null, so the watch re-homes and the move broadcasts
+        List<Message> reply = messages(router.routeInbound(sessionA,
+                CellChannelConnectionType.CLIENT_TYPE,
+                pack(MovableMessage.newMoveRequestMessage(viewCellID,
+                        new Vector3f(7f, 8f, 9f), new Quaternion(), 1f))));
+
+        assertThat(reply).hasSize(1);
+        assertThat(((MovableMessageResponse) reply.get(0)).getActionType())
+                .isEqualTo(MovableMessageResponse.ActionType.MOVE_MODIFIED);
+        assertThat(world.find(viewCellID).getTransform().getTranslation(null))
+                .isEqualTo(new Vector3f(7f, 8f, 9f));
+        assertThat(pushedA).hasSize(1);
+    }
+
+    @Test
+    void aMoveWithNoTranslationInTheMessageLandsAtTheOrigin() {
+        CellID viewCellID = ((ViewCreateResponseMessage) messages(router.routeInbound(
+                sessionA, CellCacheConnectionType.CLIENT_TYPE, pack(setView()))).get(0))
+                        .getViewCellID();
+        flushed(sessionA);
+        pushedA.clear();
+        pushedB.clear();
+
+        // a MovableMessage carrying no translation is normalised to the origin
+        // by CellTransform, so the move is still accepted, applied and broadcast
+        List<Message> reply = messages(router.routeInbound(sessionA,
+                CellChannelConnectionType.CLIENT_TYPE,
+                pack(MovableMessage.newMoveRequestMessage(viewCellID,
+                        null, new Quaternion(), 1f))));
+
+        assertThat(reply).hasSize(1);
+        assertThat(world.find(viewCellID).getTransform().getTranslation(null))
+                .isEqualTo(new Vector3f(0f, 0f, 0f));
+        assertThat(pushedA).hasSize(1);
+        assertThat(((MovableMessage) pushedA.get(0).message()).getActionType())
+                .isEqualTo(MovableMessage.ActionType.MOVED);
+    }
+
+    // ---- pack(): a message the codec cannot serialise -------------------------
+
+    /** A Message the codec cannot serialise: its one field is not Serializable. */
+    private static final class UnpackableMessage extends Message {
+        private static final long serialVersionUID = 1L;
+        @SuppressWarnings("unused")
+        private final Object payload = new Object();
+    }
+
+    @Test
+    void packingAnUnserialisableMessageRethrowsAsIllegalState() {
+        assertThatThrownBy(() -> router.pack(new UnpackableMessage(), sessionA,
+                CellCacheConnectionType.CLIENT_TYPE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failed to pack");
+    }
+
+    // ---- broadcastConfigure(): the unknown-cell and no-cache arms -------------
+
+    @Test
+    void configureOfAnUnknownCellBroadcastsNothing() {
+        router.broadcastConfigure(new CellID(9999L));
+
+        assertThat(pushedA).isEmpty();
+        assertThat(pushedB).isEmpty();
+    }
+
+    @Test
+    void configureSkipsSessionsWithoutACacheConnection() {
+        CellID cellID = world.newCellID();
+        world.addCell(cellID, "some.client.Cell", "cube", new CellTransform(),
+                new CellClientState());
+        List<Incoming> channelOnly = new ArrayList<>();
+        ServerSession channelSession = registry.create(ALICE, recordingSink(channelOnly));
+        registry.attach(channelSession, CellChannelConnectionType.CLIENT_TYPE);
+        pushedA.clear();
+        pushedB.clear();
+
+        router.broadcastConfigure(cellID);
+
+        // the two cache-attached sessions get the configure; the channel-only
+        // one is skipped by the isAttached guard
+        assertThat(pushedA).hasSize(1);
+        assertThat(pushedB).hasSize(1);
+        assertThat(channelOnly).isEmpty();
+    }
+
+    // ---- eventRadiusOf(): the fallbacks and the positive-radius arm -----------
+
+    @Test
+    void eventRadiusOfFallsBackForUnknownAndNonSphericalCells() {
+        // an id the world does not host -> the cell == null guard
+        assertThat(router.eventRadiusOf(new CellID(9999L)))
+                .isEqualTo(ProtocolRouter.DEFAULT_EVENT_RADIUS);
+        // a hosted cell whose bounds are not a sphere -> the instanceof arm
+        CellID boxy = world.newCellID();
+        world.putCell(new WorldCell(boxy, CellID.getEnvironmentCellID(),
+                "some.client.Cell", "boxy", null, new CellTransform(),
+                new CellClientState()));
+        assertThat(router.eventRadiusOf(boxy))
+                .isEqualTo(ProtocolRouter.DEFAULT_EVENT_RADIUS);
+    }
+
+    @Test
+    void eventRadiusOfUsesAPositiveSphereRadiusAndIgnoresANonPositiveOne() {
+        CellID round = world.newCellID();
+        world.putCell(new WorldCell(round, CellID.getEnvironmentCellID(),
+                "some.client.Cell", "round", new BoundingSphere(5f, new Vector3f()),
+                new CellTransform(), new CellClientState()));
+        assertThat(router.eventRadiusOf(round)).isEqualTo(5f);
+
+        // a zero radius is not a reach: it falls back to the documented default
+        CellID flat = world.newCellID();
+        world.putCell(new WorldCell(flat, CellID.getEnvironmentCellID(),
+                "some.client.Cell", "flat", new BoundingSphere(0f, new Vector3f()),
+                new CellTransform(), new CellClientState()));
+        assertThat(router.eventRadiusOf(flat))
+                .isEqualTo(ProtocolRouter.DEFAULT_EVENT_RADIUS);
+    }
+
+    // ---- detach(): a cache connection with no view cell, or an already-gone one
+
+    @Test
+    void detachOfACacheConnectionThatNeverSetAViewIsSilent() {
+        // sessionB never sent SET_VIEW, so no view cell is recorded for it
+        pushedA.clear();
+        pushedB.clear();
+
+        router.detach(sessionB, CellCacheConnectionType.CLIENT_TYPE);
+
+        assertThat(router.viewCellOf(sessionB)).isNull();
+        assertThat(pushedA).isEmpty();
+        assertThat(pushedB).isEmpty();
+    }
+
+    @Test
+    void detachOfACacheConnectionWhoseViewCellIsAlreadyGoneDoesNotBroadcast() {
+        CellID viewCellID = ((ViewCreateResponseMessage) messages(router.routeInbound(
+                sessionA, CellCacheConnectionType.CLIENT_TYPE, pack(setView()))).get(0))
+                        .getViewCellID();
+        flushed(sessionA);
+        // the cell leaves the world by some other means before the detach lands,
+        // but the session still has its id recorded
+        world.removeCell(viewCellID);
+        pushedA.clear();
+        pushedB.clear();
+
+        router.detach(sessionA, CellCacheConnectionType.CLIENT_TYPE);
+
+        // the id is cleared, yet there is no cell to unload, so nothing is fanned
+        assertThat(router.viewCellOf(sessionA)).isNull();
+        assertThat(pushedA).isEmpty();
+        assertThat(pushedB).isEmpty();
     }
 }

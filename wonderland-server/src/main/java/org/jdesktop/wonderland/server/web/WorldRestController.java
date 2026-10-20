@@ -139,8 +139,11 @@ public class WorldRestController {
      * Whether {@code path} stays inside the module root: no leading '/', no parent
      * ('..') segment, no backslash. Defense in depth -- the stores already refuse
      * traversal, but the endpoint should not even hand a crafted path to them.
+     *
+     * <p>Package-private and pure so its own test can drive every refusal arm,
+     * including a null path the required {@code @RequestParam} never delivers.</p>
      */
-    private static boolean isConfinedAssetPath(String path) {
+    static boolean isConfinedAssetPath(String path) {
         return path != null && !path.isBlank() && !path.startsWith("/")
                 && !path.contains("..") && !path.contains("\\");
     }

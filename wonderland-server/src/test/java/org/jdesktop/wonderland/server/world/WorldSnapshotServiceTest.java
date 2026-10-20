@@ -83,6 +83,38 @@ class WorldSnapshotServiceTest {
     }
 
     @Test
+    void aNullPathLeavesTheServiceInertToo(@TempDir Path dir) {
+        // Spring binds a missing property to "", but a directly-built service
+        // can be handed a genuine null; both must keep the switch off rather
+        // than NPE on the isBlank() check.
+        WorldModel model = chairWorld(4L, 0f, 0f, 0f);
+        WorldSnapshotService service = new WorldSnapshotService(model, null, 1000);
+
+        service.start();
+        model.applyMove(new CellID(4L), at(2f, 2f, 2f));
+        service.beat();
+        service.stop();
+
+        assertThat(dir.toFile().list()).isEmpty();
+    }
+
+    @Test
+    void aHeaderOnlySnapshotRestoresNothingAndStaysQuiet(@TempDir Path dir) throws IOException {
+        // A snapshot with the magic header but no placements is legitimate -- a
+        // prior session saved an empty world. restore returns 0, so the "restored
+        // N cells" log stays silent and the beat still writes a baseline file.
+        Path file = dir.resolve("world.snapshot");
+        Files.writeString(file, CellSnapshot.MAGIC + "\n", StandardCharsets.UTF_8);
+
+        WorldModel model = chairWorld(5L, 1f, 1f, 1f);
+        WorldSnapshotService service = new WorldSnapshotService(model, file.toString(), 1000);
+
+        service.start();
+        assertThat(translationOf(model, 5L)).isEqualTo(new Vector3f(1f, 1f, 1f));
+        service.stop();
+    }
+
+    @Test
     void aTornSnapshotIsForgottenRatherThanFatal(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("world.snapshot");
         Files.writeString(file, "this is not a cell snapshot\n", StandardCharsets.UTF_8);

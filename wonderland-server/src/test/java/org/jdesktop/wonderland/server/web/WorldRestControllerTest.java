@@ -298,6 +298,20 @@ class WorldRestControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void everyUnconfinedShapeIsRefusedAndOnlyACleanRelativePathIsAllowed() {
+        // The endpoint's @RequestParam is required, so a null path never reaches
+        // the predicate over HTTP; driving the pure guard directly covers that arm
+        // and every other refusal in one place.
+        assertThat(WorldRestController.isConfinedAssetPath(null)).isFalse();
+        assertThat(WorldRestController.isConfinedAssetPath("   ")).isFalse();
+        assertThat(WorldRestController.isConfinedAssetPath("/etc/passwd")).isFalse();
+        assertThat(WorldRestController.isConfinedAssetPath("../secret")).isFalse();
+        assertThat(WorldRestController.isConfinedAssetPath("art\\secret")).isFalse();
+        assertThat(WorldRestController.isConfinedAssetPath("module.xml")).isTrue();
+        assertThat(WorldRestController.isConfinedAssetPath("art/preview.png")).isTrue();
+    }
+
     // ---- the world preview: the browser's vignette asks for a picture of the
     // ---- world, and a world without one must answer 404, not an empty 200.
 

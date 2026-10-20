@@ -125,6 +125,14 @@ class AuthGateTest {
         assertThat(on().resolve(props)).isNull();
     }
 
+    @Test
+    void enabledRefusesANullAttachBag() {
+        // The transport can hand resolve() a null Properties when the attach
+        // carried no bag at all; enabled, that is a tokenless login -- refused,
+        // never an NPE and never an anonymous fallback.
+        assertThat(on().resolve(null)).isNull();
+    }
+
     // ---- misconfigured (enabled, no secret) ----
 
     @Test
@@ -135,6 +143,15 @@ class AuthGateTest {
         // Even a token that would be valid for SOME secret is refused when the
         // gate has no key at all -- the safe direction is always refusal.
         assertThat(misconfigured.resolve(props)).isNull();
+    }
+
+    @Test
+    void enabledNullSecretRefusesEverything() {
+        // A missing secret property (not merely blank) is the same
+        // misconfiguration: no key, so every login is refused at boot-safe.
+        AuthGate misconfigured = new AuthGate(true, null);
+
+        assertThat(misconfigured.resolve(withToken("ivan"))).isNull();
     }
 
     // ---- isActive ----

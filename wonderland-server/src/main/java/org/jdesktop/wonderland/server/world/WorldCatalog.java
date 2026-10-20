@@ -156,7 +156,7 @@ public class WorldCatalog {
     }
 
     /** {@link WorldLoader#load} guarded: a world that will not decode is empty, not fatal. */
-    private static WorldContents decode(WorldLoader loader,
+    static WorldContents decode(WorldLoader loader,
             org.jdesktop.wonderland.modules.asset.WorldStore store, String module) {
         try {
             return loader.load(store, module);
@@ -189,69 +189,78 @@ public class WorldCatalog {
      * <p>An unknown or unreadable module yields an empty list, never a throw.</p>
      */
     public List<Map<String, Object>> describeCells(String module) {
-        return loadContents(module).map(contents -> {
-            List<WorldContents.LoadedCell> loaded = contents.cells();
-            Map<String, WorldPlacement.Absolute> placed =
-                    WorldPlacement.resolve(WorldPlacement.cellsOf(loaded));
-            List<Map<String, Object>> out = new ArrayList<>();
-            for (WorldContents.LoadedCell cell : loaded) {
-                CellServerState state = cell.state();
-                if (state == null || state.getName() == null || state.getName().isEmpty()) {
-                    continue; // the seeder's rule: an unnamed cell is nothing to list
-                }
-                ModelCellComponentServerState model = (ModelCellComponentServerState)
-                        state.getComponentServerState(ModelCellComponentServerState.class);
-                boolean isModel = model != null;
-                AvatarCellServerState avatar =
-                        (state instanceof AvatarCellServerState a) ? a : null;
-                ForeignCellServerState foreign =
-                        (state instanceof ForeignCellServerState f) ? f : null;
-                Map<String, Object> described = new LinkedHashMap<>();
-                described.put("id", contents.module() + ":" + out.size());
-                described.put("parent", null);
-                described.put("className", avatar != null ? WorldSeeder.AVATAR_CELL_CLASS
-                        : isModel ? WorldSeeder.MODEL_CELL_CLASS
-                                : WorldModel.ENVIRONMENT_CLASS);
-                described.put("name", state.getName());
-                if (isModel) {
-                    described.put("deployedModelURL", model.getDeployedModelURL());
-                }
-                if (foreign != null) {
-                    // What the cell was written as and what it shows: the two facts
-                    // a client needs to draw a poster as its picture instead of
-                    // guessing from a name. See ForeignCellServerState.
-                    described.put("cellType", foreign.getCellType());
-                    if (foreign.getAssetURI() != null) {
-                        described.put("assetURL", foreign.getAssetURI());
-                    }
-                    // The picture's own measure. A cell is a plane, not a placemark:
-                    // "show this file here" needs a size as well as a place, and the
-                    // only size a poster's file records is how wide one of its pixels
-                    // is in metres. The picture's pixel count is the reader's half of
-                    // the multiplication -- it has the bytes -- so what travels here
-                    // is the scale, plus the preferred size for the two viewers that
-                    // write one and have no picture to be measured by.
-                    described.put("planeScale", List.of(foreign.getPixelScaleX(),
-                            foreign.getPixelScaleY()));
-                    if (foreign.getPixelWidth() > 0.0) {
-                        described.put("planePixels", List.of(foreign.getPixelWidth(),
-                                foreign.getPixelHeight()));
-                    }
-                }
-                if (avatar != null) {
-                    // The body the client should wear. Null is the pool default,
-                    // and the client says so -- so the key is present only when
-                    // the world actually chose a body for this resident.
-                    String body = avatar.getAvatarModelUrl();
-                    if (body != null && !body.isBlank()) {
-                        described.put("avatarModelUrl", body);
-                    }
-                }
-                putPlacement(described, state, placed.get(cell.path()));
-                out.add(described);
+        return loadContents(module).map(WorldCatalog::describe).orElse(List.of());
+    }
+
+    /**
+     * The flat descriptor list for one already-loaded world's cells. Split out of
+     * {@link #describeCells} -- which stays the only production entry point and
+     * still degrades an unknown module to empty -- so a test can feed a synthetic
+     * {@link WorldContents} (a cell with a null state, a null name or an empty
+     * name) through the real classifier without a store standing in the way.
+     */
+    static List<Map<String, Object>> describe(WorldContents contents) {
+        List<WorldContents.LoadedCell> loaded = contents.cells();
+        Map<String, WorldPlacement.Absolute> placed =
+                WorldPlacement.resolve(WorldPlacement.cellsOf(loaded));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (WorldContents.LoadedCell cell : loaded) {
+            CellServerState state = cell.state();
+            if (state == null || state.getName() == null || state.getName().isEmpty()) {
+                continue; // the seeder's rule: an unnamed cell is nothing to list
             }
-            return out;
-        }).orElse(List.of());
+            ModelCellComponentServerState model = (ModelCellComponentServerState)
+                    state.getComponentServerState(ModelCellComponentServerState.class);
+            boolean isModel = model != null;
+            AvatarCellServerState avatar =
+                    (state instanceof AvatarCellServerState a) ? a : null;
+            ForeignCellServerState foreign =
+                    (state instanceof ForeignCellServerState f) ? f : null;
+            Map<String, Object> described = new LinkedHashMap<>();
+            described.put("id", contents.module() + ":" + out.size());
+            described.put("parent", null);
+            described.put("className", avatar != null ? WorldSeeder.AVATAR_CELL_CLASS
+                    : isModel ? WorldSeeder.MODEL_CELL_CLASS
+                            : WorldModel.ENVIRONMENT_CLASS);
+            described.put("name", state.getName());
+            if (isModel) {
+                described.put("deployedModelURL", model.getDeployedModelURL());
+            }
+            if (foreign != null) {
+                // What the cell was written as and what it shows: the two facts
+                // a client needs to draw a poster as its picture instead of
+                // guessing from a name. See ForeignCellServerState.
+                described.put("cellType", foreign.getCellType());
+                if (foreign.getAssetURI() != null) {
+                    described.put("assetURL", foreign.getAssetURI());
+                }
+                // The picture's own measure. A cell is a plane, not a placemark:
+                // "show this file here" needs a size as well as a place, and the
+                // only size a poster's file records is how wide one of its pixels
+                // is in metres. The picture's pixel count is the reader's half of
+                // the multiplication -- it has the bytes -- so what travels here
+                // is the scale, plus the preferred size for the two viewers that
+                // write one and have no picture to be measured by.
+                described.put("planeScale", List.of(foreign.getPixelScaleX(),
+                        foreign.getPixelScaleY()));
+                if (foreign.getPixelWidth() > 0.0) {
+                    described.put("planePixels", List.of(foreign.getPixelWidth(),
+                            foreign.getPixelHeight()));
+                }
+            }
+            if (avatar != null) {
+                // The body the client should wear. Null is the pool default,
+                // and the client says so -- so the key is present only when
+                // the world actually chose a body for this resident.
+                String body = avatar.getAvatarModelUrl();
+                if (body != null && !body.isBlank()) {
+                    described.put("avatarModelUrl", body);
+                }
+            }
+            putPlacement(described, state, placed.get(cell.path()));
+            out.add(described);
+        }
+        return out;
     }
 
     /**
@@ -275,7 +284,7 @@ public class WorldCatalog {
      * wrong way and the clinic's floor a metre across, which is exactly the
      * "the world never appears" this surface exists to end.</p>
      */
-    private static void putPlacement(Map<String, Object> described,
+    static void putPlacement(Map<String, Object> described,
             CellServerState state, WorldPlacement.Absolute absolute) {
         if (absolute == null) {
             return;
@@ -308,13 +317,13 @@ public class WorldCatalog {
      * Whether a resolved placement is the identity -- no authored translation and
      * no stretch -- which is what the resolver returns for a cell nobody placed.
      */
-    private static boolean isUnplaced(WorldPlacement.Absolute absolute) {
+    static boolean isUnplaced(WorldPlacement.Absolute absolute) {
         Vector3f t = absolute.translation();
         return t.x == 0f && t.y == 0f && t.z == 0f && isUnit(absolute.scale());
     }
 
     /** Whether a composed stretch still leaves a cell its authored size. */
-    private static boolean isUnit(Vector3f scale) {
+    static boolean isUnit(Vector3f scale) {
         return scale.x == 1.0f && scale.y == 1.0f && scale.z == 1.0f;
     }
 
@@ -327,7 +336,7 @@ public class WorldCatalog {
      * plan a browser draws is wrong in exactly the way a floor plan of a town
      * drawn at two scales is wrong.
      */
-    private static void putFootprint(Map<String, Object> described,
+    static void putFootprint(Map<String, Object> described,
             CellServerState state, Vector3f scale) {
         Object component = (state == null) ? null
                 : state.getComponentServerState(PositionComponentServerState.class);
@@ -500,7 +509,7 @@ public class WorldCatalog {
     }
 
     /** Read a store's {@code open(module, path)} fully, closing the stream; empty on any miss. */
-    private static Optional<byte[]> readBytes(OpenFunction open, String module, String path) {
+    static Optional<byte[]> readBytes(OpenFunction open, String module, String path) {
         try (InputStream in = open.open(module, path).orElse(null)) {
             return in == null ? Optional.empty() : Optional.of(in.readAllBytes());
         } catch (IOException | RuntimeException ex) {
@@ -513,7 +522,7 @@ public class WorldCatalog {
         if (worldsDir == null || !Files.isDirectory(worldsDir)) {
             return List.of();
         }
-        try (Stream<Path> files = Files.list(worldsDir)) {
+        try (Stream<Path> files = listWorldsDir()) {
             return files.filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(".jar"))
                     .sorted(Comparator.comparing(p -> stem(p)))
@@ -522,6 +531,17 @@ public class WorldCatalog {
             LOG.warn("cannot list worlds directory {}: {}", worldsDir, ex.toString());
             return List.of();
         }
+    }
+
+    /**
+     * Open the worlds directory for listing. A seam so a test can drive the
+     * {@code IOException} arm of {@link #worldJars} -- a directory that will not
+     * list -- without depending on chmod or on not being root, the honest-unreadable
+     * rule the core's PrivacyService test sets. Production reads the real
+     * {@link Files#list}.
+     */
+    Stream<Path> listWorldsDir() throws IOException {
+        return Files.list(worldsDir);
     }
 
     private WorldSummary bundledSummary(String module) {
@@ -552,15 +572,24 @@ public class WorldCatalog {
      * {module, ""} when module.xml is absent or unreadable -- the module name is a
      * fine title, and a broken description is not worth losing the row over.
      */
-    private static String[] readModuleXml(OpenFunction open, String module) {
-        try (InputStream in = open.open(module, "module.xml").orElse(null)) {
-            if (in == null) {
+    static String[] readModuleXml(OpenFunction open, String module) {
+        try {
+            Optional<InputStream> found = open.open(module, "module.xml");
+            if (found.isEmpty()) {
                 return new String[] {module, ""};
             }
-            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            String name = first(NAME, xml);
-            String desc = first(DESCRIPTION, xml);
-            return new String[] {name == null ? module : name, desc == null ? "" : desc};
+            // Opened as a non-null resource in its own try-with-resources rather
+            // than a nullable one with an early return inside it: javac guards a
+            // TWR return with `if (resource != null) close()`, and on an in==null
+            // early return that guard's close arm is provably dead -- an
+            // unreachable branch, not coverage. A present stream keeps it real.
+            try (InputStream in = found.get()) {
+                String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                String name = first(NAME, xml);
+                String desc = first(DESCRIPTION, xml);
+                return new String[] {name == null ? module : name,
+                        desc == null ? "" : desc};
+            }
         } catch (IOException | RuntimeException ex) {
             return new String[] {module, ""};
         }
@@ -571,14 +600,14 @@ public class WorldCatalog {
         return m.find() ? m.group(1).trim() : null;
     }
 
-    private static String stem(Path jar) {
+    static String stem(Path jar) {
         String name = jar.getFileName().toString();
         return name.endsWith(".jar") ? name.substring(0, name.length() - 4) : name;
     }
 
     /** A store's {@code open(module, path)} as a functional seam shared by both origins. */
     @FunctionalInterface
-    private interface OpenFunction {
+    interface OpenFunction {
         Optional<InputStream> open(String module, String path);
     }
 }

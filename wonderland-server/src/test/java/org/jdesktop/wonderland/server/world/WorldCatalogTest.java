@@ -18,15 +18,29 @@
  */
 package org.jdesktop.wonderland.server.world;
 
+import com.jme.math.Quaternion;
+import com.jme.math.Vector3f;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.stream.Stream;
+import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
+import org.jdesktop.wonderland.common.cell.state.CellServerState;
+import org.jdesktop.wonderland.common.cell.state.ModelCellServerState;
+import org.jdesktop.wonderland.common.cell.state.PositionComponentServerState;
+import org.jdesktop.wonderland.modules.asset.WorldContents;
+import org.jdesktop.wonderland.modules.asset.WorldLoader;
+import org.jdesktop.wonderland.modules.asset.WorldPlacement;
+import org.jdesktop.wonderland.modules.asset.WorldStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -541,5 +555,270 @@ class WorldCatalogTest {
         // a stray format is not silently served as a PNG; the name says octet-stream
         assertThat(WorldCatalog.contentTypeOf("preview.gif"))
                 .isEqualTo("application/octet-stream");
+    }
+
+    // ---- branch-level seams: the classifier and its placement helpers are proved
+    // ---- directly with synthetic states, so no store or world file is in the way.
+
+    /** A placement with the given translation and stretch, unturned. */
+    private static WorldPlacement.Absolute abs(float tx, float ty, float tz,
+            float sx, float sy, float sz) {
+        return new WorldPlacement.Absolute(new Vector3f(tx, ty, tz),
+                new Quaternion(), new Vector3f(sx, sy, sz));
+    }
+
+    /** A position component carrying box bounds; a null {@code x} means null bounds. */
+    private static PositionComponentServerState positionWithBounds(Double x, Double z) {
+        PositionComponentServerState position = new PositionComponentServerState();
+        if (x == null) {
+            position.setBounds((PositionComponentServerState.Bounds) null);
+        } else {
+            PositionComponentServerState.Bounds bounds =
+                    new PositionComponentServerState.Bounds();
+            bounds.x = x;
+            bounds.z = (z == null) ? 0.0 : z;
+            position.setBounds(bounds);
+        }
+        return position;
+    }
+
+    /** A model cell carrying the given position component. */
+    private static CellServerState cellWith(PositionComponentServerState position) {
+        CellServerState cell = new ModelCellServerState();
+        cell.addComponentServerState(position);
+        return cell;
+    }
+
+    private static WorldCatalog.OpenFunction throwingOpen() {
+        return (module, path) -> {
+            throw new IllegalStateException("store is down");
+        };
+    }
+
+    private static WorldStore throwingStore() {
+        return new WorldStore() {
+            @Override
+            public Optional<InputStream> open(String module, String path) {
+                throw new IllegalStateException("store is down");
+            }
+
+            @Override
+            public boolean present(String module, String path) {
+                throw new IllegalStateException("store is down");
+            }
+
+            @Override
+            public List<String> listAssets(String module, String suffix) {
+                throw new IllegalStateException("store is down");
+            }
+        };
+    }
+
+    @Test
+    void describeSkipsACellThatIsNullOrUnnamedAndKeepsTheNamedOne() {
+        CellServerState named = new ModelCellServerState();
+        named.setName("Kept");
+        CellServerState nameless = new ModelCellServerState();
+        nameless.setName(null);
+        CellServerState blank = new ModelCellServerState();
+        blank.setName("");
+
+        List<Map<String, Object>> out = WorldCatalog.describe(
+                new WorldContents("synthetic", List.of(
+                        new WorldContents.LoadedCell(null, null),
+                        new WorldContents.LoadedCell(nameless, null),
+                        new WorldContents.LoadedCell(blank, null),
+                        new WorldContents.LoadedCell(named, null))));
+
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0)).containsEntry("name", "Kept")
+                .containsEntry("id", "synthetic:0")
+                .containsEntry("className", WorldModel.ENVIRONMENT_CLASS);
+        // the kept cell has no path, so no placement resolved: absent keys, not zeros
+        assertThat(out.get(0)).doesNotContainKeys("x", "y", "z", "width", "depth");
+    }
+
+    @Test
+    void describeCarriesAnAvatarBodyOnlyWhenTheWorldChoseOne() {
+        AvatarCellServerState naked = new AvatarCellServerState("Naked");
+        naked.setName("Naked");
+        AvatarCellServerState blankBody = new AvatarCellServerState("Blank");
+        blankBody.setName("Blank");
+        blankBody.setAvatarModelUrl("   ");
+        AvatarCellServerState dressed = new AvatarCellServerState("Dressed");
+        dressed.setName("Dressed");
+        dressed.setAvatarModelUrl("wla://x/body.dae");
+
+        List<Map<String, Object>> out = WorldCatalog.describe(
+                new WorldContents("avatars", List.of(
+                        new WorldContents.LoadedCell(naked, null),
+                        new WorldContents.LoadedCell(blankBody, null),
+                        new WorldContents.LoadedCell(dressed, null))));
+
+        assertThat(out).hasSize(3)
+                .allSatisfy(c -> assertThat(c.get("className"))
+                        .isEqualTo(WorldSeeder.AVATAR_CELL_CLASS));
+        assertThat(out.get(0)).doesNotContainKey("avatarModelUrl"); // a null body
+        assertThat(out.get(1)).doesNotContainKey("avatarModelUrl"); // a blank body
+        assertThat(out.get(2)).containsEntry("avatarModelUrl", "wla://x/body.dae");
+    }
+
+    @Test
+    void putPlacementCarriesNothingForACellTheResolverNeverSaw() {
+        Map<String, Object> row = new LinkedHashMap<>();
+        WorldCatalog.putPlacement(row, new ModelCellServerState(), null);
+        assertThat(row).isEmpty();
+    }
+
+    @Test
+    void anUnplacedCellWithNoPositionOfItsOwnIsNowhereNotAtTheOrigin() {
+        // identity absolute + a state with no position component -> !authored &&
+        // isUnplaced -> the keys stay absent ("nowhere"), not zeroed ("at origin")
+        Map<String, Object> row = new LinkedHashMap<>();
+        WorldCatalog.putPlacement(row, new ModelCellServerState(),
+                WorldPlacement.Absolute.identity());
+        assertThat(row).doesNotContainKeys("x", "y", "z", "yaw", "scale",
+                "width", "depth");
+    }
+
+    @Test
+    void aPlacedCellWithNoStateStillCarriesItsCoordinatesButNoFootprint() {
+        // a null state skips the component lookup (the state==null arm) yet the real
+        // placement still travels; no position component means no scale, no footprint
+        Map<String, Object> row = new LinkedHashMap<>();
+        WorldCatalog.putPlacement(row, null, abs(1f, 2f, 3f, 1f, 1f, 1f));
+        assertThat(row).containsEntry("x", 1.0f).containsEntry("y", 2.0f)
+                .containsEntry("z", 3.0f);
+        assertThat(row).doesNotContainKeys("scale", "width", "depth");
+    }
+
+    @Test
+    void isUnplacedIsTrueOnlyForTheIdentityPlacement() {
+        assertThat(WorldCatalog.isUnplaced(WorldPlacement.Absolute.identity())).isTrue();
+        assertThat(WorldCatalog.isUnplaced(abs(1f, 0f, 0f, 1f, 1f, 1f))).isFalse();
+        assertThat(WorldCatalog.isUnplaced(abs(0f, 1f, 0f, 1f, 1f, 1f))).isFalse();
+        assertThat(WorldCatalog.isUnplaced(abs(0f, 0f, 1f, 1f, 1f, 1f))).isFalse();
+        // a zero translation with a non-unit stretch is still a placement
+        assertThat(WorldCatalog.isUnplaced(abs(0f, 0f, 0f, 2f, 1f, 1f))).isFalse();
+    }
+
+    @Test
+    void isUnitIsTrueOnlyWhenEveryAxisIsOne() {
+        assertThat(WorldCatalog.isUnit(new Vector3f(1f, 1f, 1f))).isTrue();
+        assertThat(WorldCatalog.isUnit(new Vector3f(2f, 1f, 1f))).isFalse();
+        assertThat(WorldCatalog.isUnit(new Vector3f(1f, 2f, 1f))).isFalse();
+        assertThat(WorldCatalog.isUnit(new Vector3f(1f, 1f, 2f))).isFalse();
+    }
+
+    @Test
+    void putFootprintReportsTheAuthoredFootprintOnlyForPositiveBounds() {
+        // positive bounds: width/depth are twice the half-extent, grown by the stretch
+        Map<String, Object> row = new LinkedHashMap<>();
+        WorldCatalog.putFootprint(row, cellWith(positionWithBounds(2.0, 3.0)),
+                new Vector3f(2f, 1f, 1f));
+        assertThat(row).containsEntry("width", 8.0).containsEntry("depth", 6.0);
+
+        // null bounds, a zero width or a zero depth each leave the footprint out
+        Map<String, Object> nullBounds = new LinkedHashMap<>();
+        WorldCatalog.putFootprint(nullBounds, cellWith(positionWithBounds(null, null)),
+                new Vector3f(1f, 1f, 1f));
+        assertThat(nullBounds).doesNotContainKeys("width", "depth");
+
+        Map<String, Object> zeroX = new LinkedHashMap<>();
+        WorldCatalog.putFootprint(zeroX, cellWith(positionWithBounds(0.0, 3.0)),
+                new Vector3f(1f, 1f, 1f));
+        assertThat(zeroX).doesNotContainKeys("width", "depth");
+
+        Map<String, Object> zeroZ = new LinkedHashMap<>();
+        WorldCatalog.putFootprint(zeroZ, cellWith(positionWithBounds(2.0, 0.0)),
+                new Vector3f(1f, 1f, 1f));
+        assertThat(zeroZ).doesNotContainKeys("width", "depth");
+
+        // a state with no position component at all carries no footprint either
+        Map<String, Object> noPosition = new LinkedHashMap<>();
+        WorldCatalog.putFootprint(noPosition, new ModelCellServerState(),
+                new Vector3f(1f, 1f, 1f));
+        assertThat(noPosition).doesNotContainKeys("width", "depth");
+    }
+
+    @Test
+    void stemStripsTheJarSuffixAndLeavesAnyOtherNameAlone() {
+        assertThat(WorldCatalog.stem(Path.of("wonderland-town-world.jar")))
+                .isEqualTo("wonderland-town-world");
+        assertThat(WorldCatalog.stem(Path.of("readme.txt"))).isEqualTo("readme.txt");
+    }
+
+    @Test
+    void decodeDegradesAStoreThatThrowsToAnEmptyWorld() {
+        WorldContents contents =
+                WorldCatalog.decode(new WorldLoader(), throwingStore(), "any-world");
+        assertThat(contents.module()).isEqualTo("any-world");
+        assertThat(contents.cells()).isEmpty();
+    }
+
+    @Test
+    void readBytesIsEmptyWhenTheStoreThrows() {
+        assertThat(WorldCatalog.readBytes(throwingOpen(), "m", "p")).isEmpty();
+    }
+
+    @Test
+    void readModuleXmlFallsBackToTheModuleNameWhenTheStoreOrStreamThrows() {
+        // a store that throws (the RuntimeException arm) degrades to {module, ""}
+        assertThat(WorldCatalog.readModuleXml(throwingOpen(), "my-module"))
+                .containsExactly("my-module", "");
+        // ... and so does a stream that throws while being read (the IOException arm)
+        WorldCatalog.OpenFunction ioThrowing = (module, path) ->
+                Optional.of(new InputStream() {
+                    @Override
+                    public int read() {
+                        return -1;
+                    }
+
+                    @Override
+                    public byte[] readAllBytes() throws IOException {
+                        throw new IOException("stream is down");
+                    }
+                });
+        assertThat(WorldCatalog.readModuleXml(ioThrowing, "io-module"))
+                .containsExactly("io-module", "");
+    }
+
+    @Test
+    void readModuleXmlDegradesWhenTheStreamCannotBeClosed() {
+        // the body reads fine, but close() throws: try-with-resources routes that
+        // IOException to the same catch, so the row still degrades to {module, ""}
+        WorldCatalog.OpenFunction closeThrows = (module, path) ->
+                Optional.of(new InputStream() {
+                    private final byte[] body =
+                            "<wonderland-module><name>Real</name></wonderland-module>"
+                                    .getBytes(StandardCharsets.UTF_8);
+                    private int at;
+
+                    @Override
+                    public int read() {
+                        return (at < body.length) ? (body[at++] & 0xff) : -1;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("cannot close");
+                    }
+                });
+        assertThat(WorldCatalog.readModuleXml(closeThrows, "close-module"))
+                .containsExactly("close-module", "");
+    }
+
+    @Test
+    void worldJarsIsEmptyWhenTheDirectoryWillNotList() {
+        WorldCatalog catalog = new WorldCatalog(dir.toString()) {
+            @Override
+            Stream<Path> listWorldsDir() throws IOException {
+                throw new IOException("cannot list the worlds directory");
+            }
+        };
+        assertThat(catalog.worldJars()).isEmpty();
+        // the degraded listing still offers the bundled clinic and never throws
+        assertThat(catalog.available()).extracting(WorldSummary::module)
+                .contains(WorldSeeder.CLINIC_MODULE);
     }
 }
