@@ -298,7 +298,9 @@ jobs:
       # would against a self-hosted server -- one code path, not a special case
       # that works only on a disposable instance.
       - name: Mint the analysis token
-        if: ${{ secrets.SONAR_TOKEN == '' }}
+        if: ${{ !env.SONAR_TOKEN }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           set -euo pipefail
           TOKEN=$(curl -sf -u admin:admin -X POST \
