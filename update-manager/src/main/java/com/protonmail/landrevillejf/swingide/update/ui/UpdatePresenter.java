@@ -433,6 +433,10 @@ public class UpdatePresenter {
             case SKIP_VERSION -> skip(update);
             case DISMISSED -> log.info("User dismissed the update proposal for {}",
                 update.getVersion());
+            default -> {
+                // Choice is exhaustive above; the empty arm keeps the switch
+                // total without adding a reachable branch.
+            }
         }
     }
 
