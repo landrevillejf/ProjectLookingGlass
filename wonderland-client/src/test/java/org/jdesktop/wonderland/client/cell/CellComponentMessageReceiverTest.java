@@ -9,7 +9,6 @@ package org.jdesktop.wonderland.client.cell;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.PlainComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.ProbeComponent;
-import org.jdesktop.wonderland.client.cell.CellTestFixtures.StateRecordingComponent;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.ComponentLookupClass;
 import org.jdesktop.wonderland.common.cell.messages.CellClientComponentMessage;

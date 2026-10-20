@@ -21,7 +21,6 @@ import org.jdesktop.wonderland.client.cell.CellTestFixtures.ProbeComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingChannel;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingRenderer;
-import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingResponse;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RendererCell;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.StateRecordingComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.UnconstructibleComponent;

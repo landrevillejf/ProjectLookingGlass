@@ -56,7 +56,8 @@ class CellCacheConnectionTest {
     @BeforeEach
     void setUp() {
         cache = new CellCacheBasicImpl();
-        conn = new CellCacheConnection(view = new RecordingView());
+        view = new RecordingView();
+        conn = new CellCacheConnection(view);
         conn.addListener(cache);
         session = new PipelineSession();
         // play the server's view-registration handler
@@ -158,7 +159,8 @@ class CellCacheConnectionTest {
         // interrupt flag, the catch logs SEVERE and returns null, and the
         // unguarded viewCellID read then throws -- kept verbatim
         PipelineSession silent = new PipelineSession();
-        CellCacheConnection fresh = new CellCacheConnection(view = new RecordingView());
+        view = new RecordingView();
+        CellCacheConnection fresh = new CellCacheConnection(view);
         try {
             Thread.currentThread().interrupt();
             assertThatThrownBy(() -> fresh.connect(silent, new java.util.Properties()))
