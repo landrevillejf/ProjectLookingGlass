@@ -70,5 +70,6 @@ tasks.named('test') {
 // dies on a HeadlessException, which is noise about the harness, not a
 // judgement about the test suite.
 pitest {
+    targetClasses = ['org.jdesktop.lg3d.widgets.*']
     avoidCallsTo = ['java.awt', 'javax.swing']
 }

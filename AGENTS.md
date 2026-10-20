@@ -97,7 +97,10 @@ the pipeline is not allowed to be optional.
 - 100% line and branch coverage is mandatory (JaCoCo)
 - 0 surviving mutants is mandatory (PIT)
 - Cucumber BDD suites run inside `test` in every module that has feature files,
-  and their HTML report is published per module
+  and their HTML report is published per module. **Every pull request must add
+  Cucumber scenarios covering the feature being delivered and/or maintain existing
+  scenarios to reflect changes** -- this applies to all modules and all applications
+  without exception, and is part of the definition of done alongside JaCoCo and PIT.
 - Checkstyle violations fail the build
 - OWASP dependency-check fails on CVSS >= 7
 - SonarQube: 0 bugs, 0 vulnerabilities, 100% coverage on new code

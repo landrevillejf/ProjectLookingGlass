@@ -49,7 +49,8 @@ import static org.mockito.Mockito.when;
 class UpdatePresenterTest {
 
     private static final String CURRENT_VERSION = "1.2.3";
-    private static final long STATUS_TIMEOUT_SECONDS = 5;
+    // PIT's instrumentation slows execution; 30s is sufficient even under mutation analysis
+    private static final long STATUS_TIMEOUT_SECONDS = 30;
 
     private UpdateService service;
     private EventBus eventBus;

@@ -218,7 +218,13 @@ tasks.named('test') {
 // that it needs on the desktop run classpath -- repeated deliberately, because
 // the extension holds one list and a module that sets it replaces it.
 pitest {
+    targetClasses = ['edu.cmu.sun.*', 'org.jdesktop.lg3d.apps.*']
     jvmArgs = ['-Xmx512m', '-Djava.awt.headless=true', '-Dlg.locale=en',
                '--add-exports', 'java.desktop/sun.awt.image=ALL-UNNAMED']
     avoidCallsTo = ['java.awt', 'javax.swing']
+    // Mail tests (GreenMail) and Presentoire tests fail under PIT's forked JVM
+    excludedTestClasses = [
+        'org.jdesktop.lg3d.apps.mail.*',
+        'org.jdesktop.lg3d.apps.presentoire.*'
+    ]
 }

@@ -105,5 +105,8 @@ tasks.named('test') {
 // what scripts/mandela/mutation-floors.mnd checks. AWT and Swing calls are not
 // mutated: a mutant that throws HeadlessException says nothing about the suite.
 pitest {
+    targetClasses = ['com.protonmail.landrevillejf.swingide.*']
     avoidCallsTo = ['java.awt', 'javax.swing']
+    // Tests depend on lg3d.version being set to 0.0.0 (see test task above)
+    jvmArgs = ['-Xmx512m', '-Djava.awt.headless=true', '-Dlg.locale=en', '-Dlg3d.version=0.0.0']
 }
