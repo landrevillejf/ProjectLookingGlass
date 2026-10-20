@@ -74,7 +74,7 @@ class GitGuiPanelTest {
         assertEquals(1, panel.historyCount());
         assertTrue(panel.statusText().contains("main"), panel.statusText());
         assertTrue(panel.statusText().contains("2 change(s)"), panel.statusText());
-        assertTrue(panel.statusText().contains("1 staged") == false, panel.statusText());
+        assertTrue(!panel.statusText().contains("1 staged"), panel.statusText());
         assertTrue(panel.statusText().contains("origin: git@example.com:me/repo.git"),
                 panel.statusText());
     }

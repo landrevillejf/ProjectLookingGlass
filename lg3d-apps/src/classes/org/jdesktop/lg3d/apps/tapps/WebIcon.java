@@ -33,18 +33,15 @@ import org.jogamp.java3d.Transform3D;
 import org.jogamp.java3d.TransformGroup;
 import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.utils.action.AppLaunchAction;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
 import org.jdesktop.lg3d.utils.action.TranslateActionBoolean;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Java3DGraph;
 import org.jdesktop.lg3d.wg.Tapp;
 
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 /**
  * A sample 3D icon

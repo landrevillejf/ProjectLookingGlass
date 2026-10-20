@@ -122,6 +122,7 @@ public final class HardeningRules {
             case RUNNING -> {
                 // The desired state; nothing to recommend.
             }
+            default -> { }
         }
     }
 
@@ -149,6 +150,7 @@ public final class HardeningRules {
             case ENFORCING -> {
                 // The desired state; nothing to recommend.
             }
+            default -> { }
         }
     }
 
@@ -185,6 +187,7 @@ public final class HardeningRules {
             case ON -> {
                 // The desired state; nothing to recommend.
             }
+            default -> { }
         }
     }
 

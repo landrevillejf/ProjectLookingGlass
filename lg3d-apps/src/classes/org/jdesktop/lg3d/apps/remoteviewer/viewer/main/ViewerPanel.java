@@ -297,6 +297,7 @@ public class ViewerPanel extends JPanel {
             case COLOR_16_BIT: colorQuality = BufferedImage.TYPE_USHORT_555_RGB; break;
             case COLOR_256: colorQuality = BufferedImage.TYPE_BYTE_INDEXED; break;
             case COLOR_GRAY: colorQuality = BufferedImage.TYPE_BYTE_GRAY; break;
+            default: break;
         }
         recorder.viewerData.setColorQuality(colorQuality);
         if (recorder.isRecording()) recorder.viewer.updateOptions();
@@ -312,6 +313,7 @@ public class ViewerPanel extends JPanel {
             case 4: level = Deflater.FILTERED; break;
             case 5: level = Deflater.HUFFMAN_ONLY; break;
             case 6: level = Deflater.NO_COMPRESSION; break;
+            default: break;
         }
         recorder.viewerData.setCompressionLevel(level);
         if (recorder.isRecording()) recorder.viewer.updateOptions();

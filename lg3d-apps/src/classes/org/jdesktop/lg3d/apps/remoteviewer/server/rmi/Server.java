@@ -329,11 +329,11 @@ public class Server extends Thread {
             (Config.password.length() != 0);
         String status = "Running ..." + 
             "\nat: " + Config.server_address + ":" + Config.server_port + 
-            "\nauthentication: " + (auth == true ? "enabled" : "disabled") +
+            "\nauthentication: " + (auth ? "enabled" : "disabled") +
             "\nencryption: " + 
-            (Config.ssl_enabled == true ? "enabled" : "disabled") +
+            (Config.ssl_enabled ? "enabled" : "disabled") +
             "\nmultihomed: " + 
-            (Config.multihomed_enabled == true ? "enabled" : "disabled")+ "\n";
+            (Config.multihomed_enabled ? "enabled" : "disabled")+ "\n";
         return status;
     }
 }

@@ -108,8 +108,10 @@ public class ScreenPlayer extends JLabel {
             @Override
             public void mousePressed(MouseEvent e) {
                 if (isSelecting) {
-                    destx = srcx = e.getX ();
-                    desty = srcy = e.getY ();
+                    srcx = e.getX ();
+                    destx = srcx;
+                    srcy = e.getY ();
+                    desty = srcy;
                 }
                 else
                     ScreenPlayer.this.recorder.viewer.AddObject(e);

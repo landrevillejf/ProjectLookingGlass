@@ -230,6 +230,7 @@ public final class IdentityStore {
             case MISMATCH -> {
                 // Deliberately do not overwrite the pin; see overrideMismatch.
             }
+            default -> { }
         }
         return decision;
     }

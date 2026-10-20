@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import org.jdesktop.lg3d.apps.webbrowser.ext.BrowserContext;
 import org.jdesktop.lg3d.apps.webbrowser.ext.ExtensionManifest;
 import org.jdesktop.lg3d.apps.webbrowser.ext.PageContext;

@@ -30,18 +30,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.jogamp.vecmath.Color4f;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.java3d.utils.shader.StringIO;
 
 import org.jdesktop.lg3d.apps.audioplayer.AlbumIndex;
 import org.jdesktop.lg3d.apps.audioplayer.AudioPlayerStore;
 import org.jdesktop.lg3d.apps.audioplayer.MediaItem;
 import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.GLSLShaderProgram;
-import org.jdesktop.lg3d.sg.Shader;
-import org.jdesktop.lg3d.sg.ShaderAppearance;
-import org.jdesktop.lg3d.sg.ShaderProgram;
 import org.jdesktop.lg3d.sg.Shape3D;
-import org.jdesktop.lg3d.sg.SourceCodeShader;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionInt;

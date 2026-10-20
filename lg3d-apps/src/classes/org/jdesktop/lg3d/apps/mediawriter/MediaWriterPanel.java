@@ -14,7 +14,6 @@
 package org.jdesktop.lg3d.apps.mediawriter;
 
 import org.jdesktop.lg3d.apps.mediawriter.MediaWriterEngine.DeviceInfo;
-import org.jdesktop.lg3d.apps.mediawriter.MediaWriterEngine.DeviceKind;
 import org.jdesktop.lg3d.apps.mediawriter.MediaWriterEngine.MediaMode;
 import org.jdesktop.lg3d.apps.mediawriter.MediaWriterEngine.ProgressHandler;
 
@@ -360,7 +359,7 @@ public class MediaWriterPanel extends JPanel {
         srcDeviceCombo.setVisible(clone);
 
         targetLabel.setText(data ? "Burn to:" : "Target:");
-        boolean targetUsed = !data || true; // data disc: optional burn drive
+        boolean targetUsed = true; // data disc: optional burn drive
         targetCombo.setVisible(targetUsed);
         refreshBtn.setVisible(targetUsed);
 
@@ -555,6 +554,7 @@ public class MediaWriterPanel extends JPanel {
                 browserTargetField.setText(new File(browserDir, name).getAbsolutePath());
                 browserPanel.setVisible(false);
                 break;
+            default: break;
         }
         repaint();
     }
@@ -672,6 +672,7 @@ public class MediaWriterPanel extends JPanel {
                         throw new MediaWriterEngine.MediaWriterException("Select a source folder");
                     }
                     break;
+                default: break;
             }
         } catch (MediaWriterEngine.MediaWriterException ex) {
             statusLabel.setText(ex.getMessage());
@@ -703,6 +704,7 @@ public class MediaWriterPanel extends JPanel {
                                 : new File(out);
                         engine.createDataDisc(new File(src), outIso, label, tgt, speed, verify, h);
                         break;
+                    default: break;
                 }
             } catch (RuntimeException ex) {
                 SwingUtilities.invokeLater(() -> {

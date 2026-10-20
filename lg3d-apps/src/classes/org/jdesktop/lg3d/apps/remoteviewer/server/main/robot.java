@@ -121,6 +121,7 @@ public class robot {
             case MouseEvent.MOUSE_RELEASED: rt.mouseRelease(buttonMask); break;
             case MouseEvent.MOUSE_WHEEL: rt.mouseWheel(
                     ((MouseWheelEvent) evt).getUnitsToScroll()); break;
+            default: break;
         }          
     }
     
@@ -128,6 +129,7 @@ public class robot {
         switch(evt.getID()) {
             case KeyEvent.KEY_PRESSED: rt.keyPress(evt.getKeyCode()); break;
             case KeyEvent.KEY_RELEASED: rt.keyRelease(evt.getKeyCode()); break; 
+            default: break;
         }
     }       
    

@@ -1650,6 +1650,7 @@ public class AdvancedTextEditorPanel extends JPanel
                 b.setText(label);
                 b.setIcon(icon);
             }
+            default -> { }
         }
         String tip = cc.extension() + ": " + label;
         if (!c.getTooltip().isBlank()) {

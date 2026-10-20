@@ -68,7 +68,7 @@ public class TestFrame extends javax.swing.JFrame {
         outsideLG = new javax.swing.JRadioButton();
         jPanel1 = new javax.swing.JPanel();
         updateLocationButton = new javax.swing.JButton();
-        jLabel1 = jLabel1 = new MyLabel("test");
+        jLabel1 = new MyLabel("test");
         moveWindowB = new javax.swing.JButton();
         testCB = new javax.swing.JCheckBox();
         testTF = new MyTextField();
