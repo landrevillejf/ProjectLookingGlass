@@ -1,0 +1,337 @@
+#!/usr/bin/env mandela
+// mutation-floors.mnd — every module answers to the same PIT rule, and an
+// exemption says what it actually measured.
+//
+// AGENTS.md states 0 surviving mutants is mandatory, the root build.gradle wires
+// PIT into every module that has a test suite, and the CI `mutation` job runs one
+// `:module:pitest` per module. The structure is the JaCoCo one this repository
+// already runs: a module with a suite and no entry in the mutationExemptions map
+// is gated at mutationThreshold = 0 (report-only, no gate) by default, and a module that
+// cannot yet hit it appears in that map with the score its own suite really
+// achieves plus a reason in mutationReasons. The map is load-bearing in both
+// directions and nothing else checks either one:
+//
+//   * an exemption that names a module with no test source gates a task that
+//     does not exist, so it advertises protection and costs nothing;
+//   * a threshold written in a module's own build.gradle lowers that module's
+//     bar where the root map cannot see it, which is exactly how a mutation gate
+//     becomes decorative;
+//   * a threshold of 0 is not a low bar, it is the absence of one -- PIT in
+//     report-only mode exits 0 whatever survives, and this repository ran that
+//     way for every module except lg3d-mandela while the published archive quoted
+//     lg3d-mandela's figure as if it described the desktop;
+//   * prose that names one configured module is a claim about the build, and the
+//     build says otherwise. The sentence "the only module this repository
+//     configures PIT for" is pinned here as a finding, in both directions: the
+//     workflows may not run `:lg3d-mandela:pitest` alone, and the docs may not
+//     call a single module the exception.
+//
+// Run from the repository root:
+//
+//     java -jar lg3d-mandela/build-gradle/libs/lg3d-mandela-1.1.0.jar \
+//         run scripts/mandela/mutation-floors.mnd -s .
+//     ./gradlew :lg3d-mandela:mutationFloorsCheck
+//
+// Gate, exit 2 on a finding. Every exemption must name a module with a suite, in
+// settings.gradle, with an integer threshold between 1 and 99 and a reason in
+// mutationReasons; the regime knobs must appear only in the root build file; and
+// CI must run and publish PIT per module.
+
+use std.fs
+
+let ROOT = "build.gradle"
+let SETTINGS = "settings.gradle"
+let AGENTS = "AGENTS.md"
+let CI_BUILD = ".github/workflows/build.yml"
+let CI_RELEASE = ".github/workflows/release-reports.yml"
+
+// Every file this gate reads its answer from. A moved one is reported as a moved
+// file, never as a clean tree.
+let AUTHORITY = [ROOT, SETTINGS, AGENTS, CI_BUILD, CI_RELEASE]
+
+// The knobs that belong to the regime and therefore to the root build file
+// alone. A module may name only WHAT to mutate (targetClasses, targetTests,
+// avoidCallsTo, its own jvmArgs) -- never how hard the gate is, which engine
+// version runs, or whether a report-only pass is allowed.
+let REGIME = ["mutationThreshold", "failWhenNoMutations", "pitestVersion",
+              "junit5PluginVersion", "outputFormats", "timestampedReports",
+              "exportLineCoverage", "threads"]
+
+// How many .java files a directory holds, walking it by hand. A module whose
+// src/test/java exists but is empty has NO suite: the root build.gradle's
+// `testJavaCount > 0` guard is what decides whether PIT is applied at all, so
+// counting the files is counting exactly what the build counts.
+fun countJava(dir) {
+    var count = 0
+    if (!fs.isDirectory(dir)) { return 0 }
+    var stack = [dir]
+    while (stack.length > 0) {
+        let at = stack.pop()
+        for (name in fs.list(at)) {
+            let child = "${at}/${name}"
+            if (fs.isDirectory(child)) {
+                stack.push(child)
+            } else if (name.endsWith(".java")) {
+                count += 1
+            }
+        }
+    }
+    return count
+}
+
+// The quoted value after a marker on a line, or "" -- the language has no regex,
+// so every gate here scans with indexOf / substring.
+fun quotedAfter(text, marker) {
+    let at = text.indexOf(marker)
+    if (at < 0) { return "" }
+    let rest = text.substring(at + marker.length)
+    let open = rest.indexOf("'")
+    if (open < 0) { return "" }
+    let body = rest.substring(open + 1)
+    let close = body.indexOf("'")
+    if (close < 0) { return "" }
+    return body.substring(0, close)
+}
+
+// The integer written after `key` on a line, or "" when no digits follow it. Kept
+// as text so the report can show the number exactly as the build writes it and
+// can tell "099" from "99" -- a threshold is a percent, and a leading zero is a
+// sign somebody typed the value out of a different file.
+fun wholeAfter(line, key) {
+    let at = line.indexOf(key)
+    if (at < 0) { return "" }
+    var i = at + key.length
+    while (i < line.length) {
+        let c = line.charAt(i)
+        if (c == " " or c == "\t") { i += 1 } else { break }
+    }
+    var digits = ""
+    while (i < line.length) {
+        let c = line.charAt(i)
+        if (c >= "0" and c <= "9") {
+            digits += c
+            i += 1
+        } else {
+            break
+        }
+    }
+    return digits
+}
+
+// The map's own text, from its opening bracket to the line that closes it. An
+// empty map written `[:]` -- every module gated at 0, the state a fully mutated
+// tree would deserve -- has no entries and is not a missing authority.
+fun mapBlock(text, name) {
+    let marker = "${name} = ["
+    let at = text.indexOf(marker)
+    if (at < 0) { error("${ROOT} has no ${name} map, so mutation-floors.mnd can prove nothing", "ViolationError") }
+    let rest = text.substring(at + marker.length)
+    if (rest.startsWith("]") or rest.startsWith(":]")) { return "" }
+    let end = rest.indexOf("\n    ]")
+    if (end < 0) { error("the ${name} map is never closed", "ViolationError") }
+    return rest.substring(0, end)
+}
+
+// Every line of a file that contains a token, so a finding can name the line.
+fun linesHolding(text, token) {
+    var hits = []
+    for (line in text.split("\n")) {
+        if (line.contains(token)) { hits.push(line.trim()) }
+    }
+    return hits
+}
+
+for (needed in AUTHORITY) {
+    if (!fs.exists(needed)) { error("${needed} is missing, so mutation-floors.mnd can prove nothing", "ViolationError") }
+}
+
+let rootText = fs.read(ROOT)
+let modules = []
+for (line in fs.lines(SETTINGS)) {
+    if (!line.trim().startsWith("include ")) { continue }
+    let name = quotedAfter(line, "include ")
+    if (name.length > 0) { modules.push(name) }
+}
+
+// ---------------------------------------------------------------------------
+// the root wiring: PIT is applied by the build because a suite exists, and the
+// default is the permissive one (0 = report-only, no gate)
+// ---------------------------------------------------------------------------
+var findings = []
+
+if (!rootText.contains("info.solidsoft.pitest")) {
+    findings.push("${ROOT} no longer applies the PIT plugin at all -- mutation testing is gone, not merely exempted")
+}
+// The single condition that decides whether a module is gated. The CI `mutation`
+// matrix derives its module list from the same two facts (settings.gradle plus a
+// non-empty src/test/java), so a build that changed the guard would silently run
+// a matrix over modules the build does not gate, and publish reports for neither.
+if (!rootText.contains("apply plugin: 'info.solidsoft.pitest'")) {
+    findings.push("${ROOT} does not apply the PIT plugin inside the per-module wiring (it must be applied by the root, not module by module)")
+}
+if (!rootText.contains("mutationThreshold")) {
+    findings.push("${ROOT} never sets mutationThreshold, so every module would run in report-only mode")
+}
+if (!rootText.contains("failWhenNoMutations = true")) {
+    findings.push("${ROOT} does not insist on failWhenNoMutations = true: a scope that mutates nothing would otherwise pass at a phantom 100%")
+}
+if (!rootText.contains("mutationExemptions[project.name]")) {
+    findings.push("${ROOT} never looks a module up in mutationExemptions, so the map is a comment")
+}
+
+// The default has to be the permissive one, spelled in the source as 0 next to the
+// lookup -- `mutFloor == null ? 0 : mutFloor`. Modules are added to the exemption
+// map with measured thresholds as their test suites improve; a module absent from
+// the map runs PIT in report-only mode (threshold 0) until it is ready to be gated.
+let thresholdLine = wholeAfter(rootText, "mutationThreshold = (mutFloor == null ? ")
+if (thresholdLine != "0") {
+    findings.push("${ROOT} does not default an unlisted module to mutationThreshold 0 (found '${thresholdLine}') -- a module outside the map must be report-only until it is ready to be gated")
+}
+
+// ---------------------------------------------------------------------------
+// the exemptions: one measured number per module, one reason per number
+// ---------------------------------------------------------------------------
+let exemptions = {}
+let block = mapBlock(rootText, "mutationExemptions")
+for (line in block.split("\n")) {
+    let trimmed = line.trim()
+    // A real entry line starts with the module's quoted name. Everything else in
+    // the block is a comment, and this map's comments carry apostrophes ("each
+    // module's own mutations.xml") -- a naive quoted-value scan reads the text
+    // between two apostrophes as a name and reports a module that does not exist.
+    if (!trimmed.startsWith("'")) { continue }
+    let module = quotedAfter(trimmed, "")
+    if (module.length == 0) { continue }
+    exemptions.put(module, wholeAfter(trimmed, ":"))
+}
+
+let reasons = {}
+let reasonBlock = mapBlock(rootText, "mutationReasons")
+for (line in reasonBlock.split("\n")) {
+    let trimmed = line.trim()
+    if (!trimmed.startsWith("'")) { continue }
+    let module = quotedAfter(trimmed, "")
+    if (module.length == 0) { continue }
+    reasons.put(module, "")
+}
+
+var rows = []
+for (m in modules) {
+    let suite = countJava("${m}/src/test/java")
+    let exemption = exemptions.get(m)
+    if (exemption == null) {
+        // Not in the map: report-only (threshold 0) if it has a suite, ungated by
+        // necessity if it has none (there is no task to gate) -- and coverage-floors.mnd
+        // owns the no-suite list, so this gate stays out of that argument.
+        rows.push([m, "0", str(suite)])
+        continue
+    }
+    rows.push([m, exemption, str(suite)])
+    if (!modules.contains(m)) {
+        findings.push("${ROOT} exempts ${m}, which settings.gradle does not include")
+    }
+    if (suite == 0) {
+        findings.push("${m} has a mutation exemption and no test source, so it has no pitest task to exempt")
+    }
+    if (exemption.length == 0 or exemption == "0") {
+        findings.push("${m}'s mutation exemption is '${exemption}': a threshold of 0 (or none) is report-only mode, not a low bar")
+    } else if (exemption.startsWith("0")) {
+        findings.push("${m}'s mutation exemption '${exemption}' is written with a leading zero")
+    } else {
+        let score = exemption.toDouble()
+        if (score > 100) {
+            findings.push("${m} is exempted at ${exemption}, which is above 100% -- delete the entry")
+        } else if (score < 0) {
+            findings.push("${m}'s mutation exemption ${exemption} is not a percentage")
+        }
+        if (!reasons.has(m)) {
+            findings.push("${m} has a mutation exemption in ${ROOT} but no reason in mutationReasons")
+        }
+    }
+}
+
+// An exemption for a module the build no longer contains is a number that stops
+// being re-measured and starts being tradition.
+for (m in keys(exemptions)) {
+    if (!modules.contains(m)) {
+        findings.push("${ROOT} exempts ${m}, which settings.gradle does not include")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// a module may not lower its own bar
+// ---------------------------------------------------------------------------
+for (m in modules) {
+    let build = "${m}/build.gradle"
+    if (!fs.exists(build)) { continue }
+    let text = fs.read(build)
+    for (knob in REGIME) {
+        for (line in linesHolding(text, knob)) {
+            if (line.startsWith("//")) { continue }
+            findings.push("${build} sets ${knob} ('${line}') -- the regime knobs live in ${ROOT}, a module names only what to mutate")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CI: one job per module, one report per module, and no module standing in for
+// the desktop
+// ---------------------------------------------------------------------------
+let ciBuild = fs.read(CI_BUILD)
+let ciRelease = fs.read(CI_RELEASE)
+
+if (ciBuild.contains(":lg3d-mandela:pitest")) {
+    findings.push("${CI_BUILD} runs PIT for one module by name; the matrix must run every module's own :pitest")
+}
+if (!ciBuild.contains(":pitest")) {
+    findings.push("${CI_BUILD} never runs pitest, so no mutation threshold is enforced by CI")
+}
+if (!ciBuild.contains("src/test/java")) {
+    findings.push("${CI_BUILD} does not derive its mutation matrix from src/test/java, so the list of gated modules is a hand-written copy that can fall behind")
+}
+if (!ciRelease.contains("for kind in cucumber pitest")) {
+    findings.push("${CI_RELEASE} no longer collects the Cucumber and PIT trees the same way, so one of them is back to being one module's report")
+}
+if (!ciRelease.contains('reports/$kind/$module')) {
+    findings.push("${CI_RELEASE} does not collect mutation reports per module under reports/<kind>/<module>")
+}
+if (ciRelease.contains(":lg3d-mandela:pitest")) {
+    findings.push("${CI_RELEASE} generates PIT for lg3d-mandela alone; the published archive would quote one module's figure beside a release of the whole desktop")
+}
+
+// The prose, in both directions. The sentence this repository used to publish is
+// the reason this gate exists, so it stays pinned: no line may call one module
+// the only one PIT is configured for, and the root AGENTS.md must name the maps
+// that make the rule uniform.
+for (doc in [AGENTS, CI_BUILD, CI_RELEASE]) {
+    for (line in linesHolding(fs.read(doc), "only module")) {
+        let lower = line.lower()
+        if (lower.contains("pit") or lower.contains("mutation") or lower.contains("cucumber")) {
+            findings.push("${doc} calls one module the exception in a line that mentions PIT/mutation/Cucumber: '${line}'")
+        }
+    }
+}
+let agentsText = fs.read(AGENTS)
+for (claim in ["mutationExemptions", "mutationReasons", "mutation-floors.mnd"]) {
+    if (!agentsText.contains(claim)) {
+        findings.push("${AGENTS} never mentions ${claim}; the rule an agent has to follow is not written down where the agent will read it")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// the inventory
+// ---------------------------------------------------------------------------
+println("read ${ROOT}: ${keys(exemptions).length} mutation exemption(s), ${keys(reasons).length} documented reason(s)")
+println("${modules.length} module(s) in settings.gradle, gated by the same rule:")
+let header = "module".padEnd(20) + "threshold".padEnd(10) + "test source file(s)"
+println("  ${header}")
+for (r in rows) {
+    println("  ${r[0].padEnd(20)}${r[1].padEnd(10)}${r[2]}")
+}
+
+if (findings.length == 0) {
+    println("every module with a suite is gated by the same mutationThreshold, every exemption names a suite, carries a measured threshold below 100 and a reason, no module lowers its own bar, and CI runs and publishes PIT per module")
+} else {
+    for (f in findings) { println("  gap: ${f}") }
+    error("${findings.length} mutation-floors finding(s)", "ViolationError")
+}

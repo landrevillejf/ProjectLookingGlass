@@ -34,7 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class CheckUpdateProgressDialogTest {
 
-    private static final long EDT_TIMEOUT_SECONDS = 5;
+    // PIT's instrumentation slows execution; 30s is sufficient even under mutation analysis
+    private static final long EDT_TIMEOUT_SECONDS = 30;
 
     @Test
     @DisplayName("The dialog is non-modal and shows an indeterminate progress bar")

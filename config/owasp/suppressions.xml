@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check exclusions for Project Looking Glass.
+
+  The CVE gate is HARD: build.gradle sets failBuildOnCVSS = 7f and CI's `cve` job
+  runs the aggregate scan with no `continue-on-error`, so a CVSS >= 7 finding
+  fails the pull request. This file is the only place a finding may be set aside,
+  and a set-aside here is a decision with three parts, the way a bank's risk
+  acceptance is: a named artefact, a written justification, and an expiry date.
+
+  The rules scripts/mandela/cve-scope.mnd enforces, so that an exclusion file
+  cannot quietly become a mute button:
+
+    * one <suppress> per vendored binary, matched by <filePath regex="true"> on
+      that jar's own path. A directory-wide pattern is forbidden: it would
+      auto-cover the next jar somebody drops into ext/ without anyone deciding
+      to ship a vulnerability;
+    * every <filePath> must name a jar that exists on disk, so an entry cannot
+      outlive the binary it excuses (and a jar that was deleted must have its
+      entry deleted with it);
+    * every entry must carry an `until` attribute. Dependency-check stops
+      applying an expired suppression, so the finding returns and the build goes
+      red until a person re-decides or removes the binary. That is the whole
+      point: an exclusion is a lease, not a deed;
+    * no entry may use <cve>, <cpe>, <vulnerabilityName>, <gav>, <packageUrl>,
+      <name> or <cvssScore>/<cvssVnScore>. Naming one CVE is how a single
+      inconvenient finding becomes permanently invisible and the next CVE in the
+      same jar is reported as brand new; a CVSS threshold is how a scan is
+      turned off wholesale; a Maven coordinate is how a *current* dependency
+      with an available fix release stops failing the build -- and the answer to
+      that one is always the upgrade, never the exclusion.
+
+  Everything excluded here is a binary the repository vendors rather than
+  resolves: the 2006-era jars under lg3d-incubator/ext/ (SECURITY.md, "Known
+  risk: bundled legacy third-party libraries"), which are end-of-life with no
+  redistributable replacement, and the two shaded jars under libs/ that the
+  desktop forks or compiles against. Nine of the incubator jars ARE on the
+  shipped desktop run classpath (the allow-list in lg3d-core/build.gradle's `run`
+  and `releaseBundle` tasks) and therefore carry a shorter lease: a vulnerability
+  in a binary that reaches a user's desktop is reviewed every quarter, while one
+  that only an experimental incubator app compiles against is reviewed annually.
+  Findings against anything resolved from Maven Central -- the JDK toolchain,
+  Java 3D/Jogamp, JavaFX, Spring Boot, POI, JUnit -- are not, and may not be,
+  excluded here.
+
+  Review dates: shipped binaries 2027-01-15, compile-only incubator jars
+  2027-04-01. To renew an exclusion, change the date in the same commit and say
+  why in the message; to end one, delete the jar and its entry.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd
+                                  https://dependency-check.github.io/DependencyCheck/dependency-suppression.1.4.xsd">
+
+  <!-- ==================== shipped on the desktop run classpath ==================== -->
+  <!-- These nine are in the allow-list of lg3d-core/build.gradle's `run` task and
+       copied into releaseBundle's lib/, so a user's desktop loads them. Quarterly
+       review; the justification is that the incubator apps that need them (Image
+       Studio, Algea3D, Presentoire's text layout, Agenda 3D) have no replacement
+       that is both compatible and redistributable. -->
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      JAI core (javax.media.jai). Shipped: lg3d-core `run` + releaseBundle allow-list,
+      used by the incubator's Image Studio, whose operators registry is JAI-specific.
+      Sun/Oracle JAI is end-of-life; no fixed version exists and the reference
+      implementation is not redistributable under a compatible licence.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jai_core\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      JAI codecs (javax.media.jai.codec). Shipped alongside jai_core.jar for the same
+      Image Studio dependency; same end-of-life position -- no maintained replacement.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jai_codec\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      Java Media Framework (javax.media). Shipped: Algea3D and the ported jmf23D app
+      are built on the JMF controller API. JMF was discontinued by Sun in 2005; there
+      is no successor artefact to upgrade to (the fobs4jmf/jl1.0 jars below are its
+      codecs), so "upgrade" is not an available answer for this binary.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jmf\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      FOBs4JMF -- a streaming Ogg Vorbis demuxer for JMF. Shipped as a JMF codec for
+      Algea3D. Upstream project is dormant since the 2000s; no fixed release exists.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]fobs4jmf\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      JLayer 1.0 -- MP3 decoding for JMF. Shipped as a JMF codec. The 1.0 branch is
+      long superseded by JLayer 1.0.1 in name only upstream (different licence, not a
+      drop-in for the JMF plug-in API), so the vendored jar cannot be bumped in place.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jl1\.0\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      Apache Commons CLI 1.0. Shipped because Algea3D's main() parses its arguments
+      with the 1.0 API (OptionConstructor-style), which later 1.x releases removed.
+      The class is small and its input is argv, so the 1.0 CVE surface (no deserialisation,
+      no network parsing) is bounded -- but the exclusion carries an expiry, not an
+      exemption: replacing the call sites with the current commons-cli is the real fix.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]commons-cli-1\.0\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      JavaNLP (Natural Language Processing library). Shipped for the incubator's
+      WordNet/semantic apps. Unmaintained binary vendored in-tree since 2006; no
+      upstream release to upgrade to.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]javanlp\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      NanoXML Lite 2.2.3. Shipped: nanoxml is the XML reader some 2006-era apps use
+      directly. Small non-security-focused parser, but the parse-untrusted-XML
+      findings against it are never going to be patched upstream, so the entry is
+      time-boxed and the real answer is moving those call sites to the JDK parser.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]nanoxml-lite-2\.2\.3\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      Prefuse visualisation toolkit. Shipped for the incubator's graph/telephone
+      apps. Dormant since the Google Code era; the source archive is not rebuilt
+      upstream, so there is no fixed version to move to.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]prefuse\.jar</filePath>
+  </suppress>
+
+  <!-- ==================== vendored binaries the product forks ==================== -->
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      jbusinessday -- the business-day/holiday calendar Agenda 3D compiles against
+      (declared as a file dependency in lg3d-core and lg3d-incubator, and copied into
+      releaseBundle's lib/). A SNAPSHOT of an unmaintained project vendored in libs/;
+      no release artefact exists to upgrade to, so the entry expires rather than
+      becoming permanent -- at which point either the jar is gone or a person re-signs
+      the risk for another quarter.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]libs[/\\]jbusinessday-0\.9\.1-SNAPSHOT\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-01-15Z">
+    <notes><![CDATA[
+      IconManager 1.6.0 -- a shaded fat jar (it embeds slf4j-simple and other
+      third-party classes) used for icon resolution and the tray gauge. Compile-only
+      in lg3d-core/lg3d-apps but its repackaged output (slimIconManagerJar) is on the
+      run classpath, so it ships. Being a fat jar, its embedded dependencies are the
+      findings; they cannot be bumped without rebuilding the upstream artefact, which
+      is why this entry carries an expiry.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]libs[/\\]IconManager-1\.6\.0\.jar</filePath>
+  </suppress>
+
+  <!-- ==================== incubator compile-only legacy jars ==================== -->
+  <!-- The remaining lg3d-incubator/ext binaries are NOT on the desktop run classpath:
+       lg3d-core/build.gradle's incubatorExtJars allow-list deliberately omits them
+       (and omits ext/axis/xercesImpl.jar in particular, because that ancient Xerces
+       overrides the platform JAXP parser and breaks java.util.prefs). They are
+       compile-time dependencies of experimental incubator apps that SECURITY.md
+       already tells a user to treat as untrusted. Annual review. -->
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JavaBeans Activation Framework (javax.activation), 2006-era. Compile-time only,
+      for the incubator's Mail/blackgoat apps; superseded by jakarta/angular activation
+      which the shipped Mail app already uses, so the legacy jar stays off the run
+      classpath.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]activation\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Axis 1.x -- end-of-life since 2006, retired by the ASF. Compile-time only
+      for the incubator's web-service apps; the upgrade path (Axis2/JAX-WS) is a rewrite
+      of those apps, not a version bump.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]axis\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Commons Discovery 0.2 -- an Axis 1 helper, long unmaintained. Compile-time
+      only, never on the run classpath.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]commons-discovery-0\.2\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Commons Logging 1.0.4 -- superseded by the current 1.3.x released through
+      Maven Central, but here only as an Axis 1 compile-time companion; the shipping
+      desktop does not load it (JUL is the desktop's own logging path).
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]commons-logging-1\.0\.4\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JAX-RPC API stubs bundled with Axis 1. Compile-time only; the javax.xml.rpc API is
+      part of the removed Java EE modules in JDK 11+, which is precisely why the apps that
+      need it are incubator-only and excluded from the shipped classpath.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]jaxrpc\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Log4j 1.2.8 (under ext/axis/), carried only so the 2006-era Axis apps
+      compile. Log4j 1.x is end-of-life (Log4Shell-adjacent findings in 1.x are never
+      going to be patched). Compile-time only -- the shipping desktop uses JUL, and the
+      incubator's log4j.jar twin below is excluded on the same terms.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]log4j-1\.2\.8\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      SAAJ (javax.xml.soap) stubs bundled with Axis 1. Compile-time only; Java EE module
+      removed from the JDK, hence not on the desktop classpath.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]saaj\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      WSDL4J 1.5.1 -- Axis 1's WSDL reader, unmaintained. Compile-time only.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]wsdl4j-1\.5\.1\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Xerces-Impl (ancient Apache Xerces-J) bundled with Axis 1 -- the single most
+      dangerous jar in ext/, because it registers itself as the JAXP parser and would
+      override the platform XML implementation. lg3d-core/build.gradle and the
+      incubator's own test task both exclude it from any runtime/test classpath for
+      exactly that reason, so it is a compile-time artefact of the ported Axis apps
+      only. Never shipped; the exclusion is what keeps the CVE report readable.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]axis[/\\]xercesImpl\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      BouncyCastle bcprov built for JDK 1.4 (unsigned "jdk14" line). Compile-time only,
+      for the incubator's crypto-using demos. Current bcprov releases exist on Maven
+      Central for the shipped code paths; this jar stays because a 2006 app calls the
+      removed 1.4 provider API surface.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]bcprov-jdk14\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Commons IO 1.0 -- predates IOUtils.byteArray(int), which is why
+      lg3d-incubator/build.gradle drops it from the test classpath so POI's transitive
+      commons-io 2.18.0 wins. Compile-time only for fm3d's FileUtils; never shipped.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]commons-io-1\.0\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JAIMlib -- the AIM TOC client library the wilkoaim3d incubator app compiles
+      against. AOL discontinued the AIM TOC service in Dec 2017, so the app can never
+      log in; the jar is kept only so the source still compiles. Compile-time only,
+      never on the run classpath, and there is no upstream fix coming.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jaimlib\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JPedal STD (Java PDF renderer), a 2006 commercial evaluation build. Compile-time
+      only for the incubator's PDF viewer. No vendor update exists for this artefact.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jpedalSTD\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JXTA -- the Sun P2P platform the incubator's jxta chat app compiles against.
+      Project archived; the 2.x line has unpatched findings and no maintainer. Compile
+      time only, never shipped.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]jxta\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      Apache Log4j 1.x (ext/log4j.jar), the incubator apps' own logging binding. Same
+      end-of-life position as the Axis-carried 1.2.8 above: 1.x will not be patched,
+      the shipping desktop uses JUL, and this jar is compile-time only.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]log4j\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      JavaMail (javax.mail), kept only for the incubator's blackgoat mail app. The
+      shipped Mail app uses angus-mail/jakarta.mail instead -- lg3d-incubator/build.gradle
+      excludes this jar from the test classpath because its old
+      com/sun/mail/handlers/text_plain provider collides with angus-mail's jakarta one.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]mail\.jar</filePath>
+  </suppress>
+
+  <suppress until="2027-04-01Z">
+    <notes><![CDATA[
+      SVG Salamander -- the incubator SVG viewer's renderer. Unmaintained since the
+      Google Code era; compile-time only, not on the run classpath.
+    ]]></notes>
+    <filePath regex="true">.*[/\\]lg3d-incubator[/\\]ext[/\\]svgSalamander\.jar</filePath>
+  </suppress>
+
+</suppressions>

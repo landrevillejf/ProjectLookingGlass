@@ -136,3 +136,7 @@ tasks.register('extractWorlds') {
         logger.lifecycle("extracted ${extracted.size()} world jar(s) into ${out}: ${extracted.join(', ')}")
     }
 }
+
+pitest {
+    targetClasses = ['org.jdesktop.wonderland.server.*']
+}

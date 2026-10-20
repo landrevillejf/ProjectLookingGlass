@@ -60,22 +60,16 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope (the regime is the root's)
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
-// is NOT part of `build`/`check` (mutation analysis is slow), so run it
-// explicitly: `./gradlew :lg3d-widgets:pitest`. mutationThreshold=0 means
-// surviving mutants never fail the build; the HTML/XML report under
-// build-gradle/reports/pitest shows which mutants the tests catch.
-apply plugin: 'info.solidsoft.pitest'
+// Threads, versions, report formats, failWhenNoMutations and the
+// mutationThreshold all come from the root build.gradle (100 = no surviving
+// mutant, unless the module carries a measured entry in its
+// mutationExemptions map). Restating them here is how a module lowers its own
+// bar. Headless mutation runs must not call into AWT or Swing: such a mutant
+// dies on a HeadlessException, which is noise about the harness, not a
+// judgement about the test suite.
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
-    threads = 4
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
-    // Do not mutate into GUI calls: they cannot run headless inside a mutation
-    // sandbox and would only produce spurious "killed by error" noise.
+    targetClasses = ['org.jdesktop.lg3d.widgets.*']
     avoidCallsTo = ['java.awt', 'javax.swing']
 }

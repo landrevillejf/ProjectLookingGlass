@@ -208,22 +208,45 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope (the regime is the root's)
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
-// is NOT part of `build`/`check` (mutation analysis is slow), so run it
-// explicitly: `./gradlew :lg3d-incubator:pitest`. mutationThreshold=0 means
-// surviving mutants never fail the build; the report under
-// build-gradle/reports/pitest shows which mutants the tests catch.
-apply plugin: 'info.solidsoft.pitest'
+// Threads, versions, report formats, failWhenNoMutations and the
+// mutationThreshold come from the root build.gradle, so this module cannot
+// lower its own bar; mutation-floors.mnd fails the build if a threshold is
+// spelled here instead. The forked mutant JVMs inherit nothing from the `test`
+// task above, so the vendored JAI needs the same sun.awt.image export there
+// that it needs on the desktop run classpath -- repeated deliberately, because
+// the extension holds one list and a module that sets it replaces it.
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
-    threads = 4
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
-    // Do not mutate into GUI calls: they cannot run headless inside a mutation
-    // sandbox and would only produce spurious "killed by error" noise.
+    targetClasses = ['edu.cmu.sun.*', 'org.jdesktop.lg3d.apps.*']
+    jvmArgs = ['-Xmx512m', '-Djava.awt.headless=true', '-Dlg.locale=en',
+               '--add-exports', 'java.desktop/sun.awt.image=ALL-UNNAMED',
+               // Force JDK's built-in XML parser: xercesImpl.jar (from ext/axis/)
+               // registers itself via META-INF/services as the JAXP
+               // DocumentBuilderFactory/SAXParserFactory and references
+               // org.w3c.dom.ls.DocumentLS, removed from the JDK. The classpath
+               // filter below removes the jar from the PIT task, but the minion
+               // JVM also picks up jars through the engine's own classloader
+               // hierarchy, so the system properties are a defence-in-depth
+               // measure that guarantees the JDK parser wins regardless.
+               '-Djavax.xml.parsers.DocumentBuilderFactory=com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl',
+               '-Djavax.xml.parsers.SAXParserFactory=com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl']
     avoidCallsTo = ['java.awt', 'javax.swing']
+    // Mail tests (GreenMail) and Presentoire tests fail under PIT's forked JVM
+    excludedTestClasses = [
+        'org.jdesktop.lg3d.apps.mail.*',
+        'org.jdesktop.lg3d.apps.presentoire.*'
+    ]
+}
+
+// PIT's forked JVM needs the same classpath filter as the test task:
+// xercesImpl.jar references org.w3c.dom.ls.DocumentLS (removed from JDK),
+// mail.jar clashes with angus-mail, commons-io-1.0.jar breaks POI
+tasks.named('pitest') {
+    classpath = classpath.filter {
+        !it.name.equals('xercesImpl.jar') \
+            && !it.name.equals('mail.jar') \
+            && !it.name.equals('activation.jar') \
+            && !it.name.equals('commons-io-1.0.jar')
+    }
 }

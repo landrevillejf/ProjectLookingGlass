@@ -65,20 +65,13 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope (the regime is the root's)
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
-// is NOT part of `build`/`check`, so run it explicitly:
-// `./gradlew :lg3d-webserver:pitest`. mutationThreshold=0 means surviving mutants
-// never fail the build. targetClasses is scoped to this module's own package so
-// PIT never tries to mutate the Spring framework itself.
-apply plugin: 'info.solidsoft.pitest'
+// Threads, versions, report formats, failWhenNoMutations and the
+// mutationThreshold come from the root build.gradle, where a module's entry in
+// the mutationExemptions map is the only way below 100 (no surviving mutant).
+// targetClasses names this module's own package: the bootJar ships Spring, and
+// mutating a framework class would price the dependency, not the code here.
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
     targetClasses = ['org.jdesktop.lg3d.webserver.*']
-    threads = 4
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
 }

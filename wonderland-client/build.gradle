@@ -46,3 +46,7 @@ tasks.named('test') {
     useJUnitPlatform()
     systemProperty 'java.awt.headless', 'true'
 }
+
+pitest {
+    targetClasses = ['org.jdesktop.wonderland.client.*']
+}
