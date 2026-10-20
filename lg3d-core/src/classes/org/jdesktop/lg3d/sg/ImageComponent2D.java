@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg;
 
-import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.*;

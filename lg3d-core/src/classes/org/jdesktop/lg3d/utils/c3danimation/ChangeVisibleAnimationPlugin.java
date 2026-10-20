@@ -21,8 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.c3danimation;
 
-import org.jdesktop.lg3d.utils.animation.ConcurrentTimedSubAnimationHelper;
-import org.jdesktop.lg3d.wg.Frame3DAnimation;
 
 
 /**

@@ -20,8 +20,6 @@
 package org.jdesktop.lg3d.utils.shape;
 
 import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
-import java.awt.image.DataBufferInt;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -215,8 +213,8 @@ public class Text2D extends Shape3D {
 	Toolkit toolkit = Toolkit.getDefaultToolkit();
 	Font font = new java.awt.Font(fontName, fontStyle, fontSize);
 
-	FontMetrics metrics;
-	if ((metrics = (FontMetrics)metricsTable.get(font)) == null) {
+	FontMetrics metrics = (FontMetrics)metricsTable.get(font);
+	if (metrics == null) {
 	    metrics = toolkit.getFontMetrics(font);
 	    metricsTable.put(font, metrics);
 	}

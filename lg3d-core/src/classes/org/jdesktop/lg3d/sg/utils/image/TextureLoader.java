@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.sg.utils.image;
 
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.sg.*;
-import java.awt.Toolkit;
 import java.awt.Image;
 import java.awt.Component;
 import java.awt.image.*;
@@ -33,7 +32,6 @@ import java.awt.color.ColorSpace;
 import java.awt.Transparency;
 
 import java.awt.geom.AffineTransform;
-import java.awt.image.AffineTransformOp;
 
 import java.io.File;
 import java.io.IOException;
@@ -347,7 +345,7 @@ public class TextureLoader extends Object {
 	    int height = ((Integer)jaiGetHeight.invoke( source, new Object[] {} )).intValue();
 
 
-	    WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);;
+	    WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);
 	    bImage = new BufferedImage(colorModel, wr, false, null);
 
    	    java.awt.Graphics g = bImage.getGraphics();
@@ -393,7 +391,7 @@ public class TextureLoader extends Object {
 	    int height = ((Integer)jaiGetHeight.invoke( source, new Object[] {} )).intValue();
 
 
-	    WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);;
+	    WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);
 	    bImage = new BufferedImage(colorModel, wr, false, null);
 
    	    java.awt.Graphics g = bImage.getGraphics();
@@ -660,7 +658,7 @@ public class TextureLoader extends Object {
         int width = image.getWidth(observer);
         int height = image.getHeight(observer);
 
-	WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);;
+	WritableRaster wr =  java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE, width, height , width * 4, 4, bandOffset, null);
 	BufferedImage bImage = new BufferedImage(colorModel, wr, false, null);
 	
    	java.awt.Graphics g = bImage.getGraphics();

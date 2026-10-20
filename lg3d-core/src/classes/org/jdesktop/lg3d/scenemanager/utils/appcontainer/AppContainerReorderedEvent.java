@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.appcontainer;
 
-import org.jogamp.vecmath.Point3f;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 
 /**

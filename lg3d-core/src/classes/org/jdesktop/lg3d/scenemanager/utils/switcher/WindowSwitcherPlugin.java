@@ -282,6 +282,7 @@ public class WindowSwitcherPlugin implements SceneManagerPlugin {
             case NONE -> {
                 // Not a switcher keystroke; leave it to the application.
             }
+            default -> { }
         }
     }
 

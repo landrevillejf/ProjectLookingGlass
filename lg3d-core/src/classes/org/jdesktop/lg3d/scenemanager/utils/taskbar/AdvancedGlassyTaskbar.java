@@ -340,8 +340,7 @@ public class AdvancedGlassyTaskbar extends Taskbar {
     private void initBackgrounds(Container3D themes, AdvancedSceneControl sceneCntrl) {
         BackgroundIcon initialBackground;        
 		
-        themes.addChild(
-            initialBackground =
+        initialBackground =
             new BackgroundIcon(this.getClass().getClassLoader().getResource("resources/images/icon/star.png")) {
                     protected Background initBackground() {
                         if (System.getProperty("lg.3dbackground")==null)
@@ -350,7 +349,8 @@ public class AdvancedGlassyTaskbar extends Taskbar {
                         else
                             return new ModelBackground();
                     }
-                });
+                };
+        themes.addChild(initialBackground);
         themes.addChild(
                 new BackgroundIcon(this.getClass().getClassLoader().getResource("resources/images/icon/hoover.png")) {
                         protected Background initBackground() {
@@ -379,8 +379,7 @@ public class AdvancedGlassyTaskbar extends Taskbar {
                             );
                         }
                     });
-            themes.addChild(
-                initialBackground =
+            initialBackground =
                 new BackgroundIcon(this.getClass().getClassLoader().getResource("resources/images/icon/star.png")) {
                         protected Background initBackground() {
                             if (System.getProperty("lg.3dbackground")==null)
@@ -397,7 +396,8 @@ public class AdvancedGlassyTaskbar extends Taskbar {
                             else
                                 return new ModelBackground();
                         }
-                    });
+                    };
+            themes.addChild(initialBackground);
             if (sceneControl != null) {
                 sceneControl.setBackground(initialBackground.initBackground());
             } else {

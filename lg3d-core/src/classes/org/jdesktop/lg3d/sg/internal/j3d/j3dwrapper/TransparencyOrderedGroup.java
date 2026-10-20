@@ -21,13 +21,7 @@
  */
 package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 
-import java.util.Arrays;
-import java.util.Enumeration;
-import org.jdesktop.lg3d.sg.internal.wrapper.BoundsWrapper;
-import org.jdesktop.lg3d.sg.internal.wrapper.BranchGroupWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.NodeWrapper;
-import org.jdesktop.lg3d.sg.internal.wrapper.SceneGraphPathWrapper;
-import org.jdesktop.lg3d.sg.internal.wrapper.Transform3DWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.TransparencyOrderedGroupWrapper;
 
 /**

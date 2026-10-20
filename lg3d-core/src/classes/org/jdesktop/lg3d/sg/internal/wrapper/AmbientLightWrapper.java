@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import org.jogamp.vecmath.Color3f;
 
 /**
  * An ambient light source object. Ambient light is that light

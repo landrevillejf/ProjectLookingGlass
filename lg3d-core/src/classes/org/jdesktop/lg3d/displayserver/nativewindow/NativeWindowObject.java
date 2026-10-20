@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.displayserver.nativewindow;
 
 import java.util.ArrayList;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Point3f;
 
 import org.jdesktop.lg3d.displayserver.fws.FoundationWinSys;
 
@@ -38,7 +37,6 @@ import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 
@@ -337,7 +335,8 @@ public class NativeWindowObject extends Group {
         
         // TODO Base cell should be a different size !
         // Expansion cells never refer to the base cell
-        previousInRow = previousInCol = null;
+        previousInRow = null;
+        previousInCol = null;
         GridCell baseCell = createCell( 0,0, null, null );
         rowList.add(baseCell);
         colList.add(baseCell);

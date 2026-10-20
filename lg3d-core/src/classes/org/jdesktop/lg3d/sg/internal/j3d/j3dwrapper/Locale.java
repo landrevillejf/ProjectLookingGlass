@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 import org.jogamp.vecmath.*;
 import java.util.Vector;
 import java.util.Enumeration;
-import java.util.ArrayList;
 
 /**
  * A Locale object defines a high-resolution position within a

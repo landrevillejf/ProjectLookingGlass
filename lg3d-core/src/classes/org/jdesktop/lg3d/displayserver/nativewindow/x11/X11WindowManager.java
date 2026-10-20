@@ -527,6 +527,7 @@ final class X11WindowManager extends Application
 		//logger.warning("unhandled atom: " + atom);
 		// TODO: implement these
 		break;
+	    default: break;
 	}
     }
 

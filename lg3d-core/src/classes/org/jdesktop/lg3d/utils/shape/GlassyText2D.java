@@ -159,6 +159,7 @@ public class GlassyText2D extends Shape3D {
             case RIGHT:
                 xo = -w;
                 break;
+            default: break;
         }
             
 	float[] coords 

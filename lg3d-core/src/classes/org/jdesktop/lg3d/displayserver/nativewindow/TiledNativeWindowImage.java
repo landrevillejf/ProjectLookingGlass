@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.displayserver.nativewindow;
 
 import gnu.x11.Visual;
 import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;

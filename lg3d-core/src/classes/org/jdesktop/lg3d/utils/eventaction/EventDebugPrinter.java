@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.utils.eventaction;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMotionEvent3D;
 
 /**

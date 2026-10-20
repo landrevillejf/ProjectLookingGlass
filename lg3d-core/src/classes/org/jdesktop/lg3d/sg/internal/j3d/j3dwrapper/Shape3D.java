@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 import java.util.Enumeration;
 import java.util.Vector;
 
-import org.jdesktop.lg3d.sg.internal.wrapper.BoundsWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.Shape3DWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.GeometryWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.AppearanceWrapper;

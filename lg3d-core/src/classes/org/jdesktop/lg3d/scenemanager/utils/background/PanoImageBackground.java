@@ -35,7 +35,6 @@ import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.shape.Disc;
@@ -524,6 +523,10 @@ public class PanoImageBackground extends Background {
             AppContWrapper acw = (AppContWrapper)obj;
             
             return (innerCont.equals(acw.innerCont));
+        }
+
+        public int hashCode() {
+            return innerCont == null ? 0 : innerCont.hashCode();
         }
     }
     

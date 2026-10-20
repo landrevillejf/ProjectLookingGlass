@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg;
 
 import java.lang.reflect.Constructor;
-import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 

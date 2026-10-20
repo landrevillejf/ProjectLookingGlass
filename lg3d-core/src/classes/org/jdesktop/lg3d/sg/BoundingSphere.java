@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg;
 
 import org.jogamp.vecmath.Point3f;
-import org.jogamp.vecmath.Point3d;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.BoundingSphereWrapper;
 

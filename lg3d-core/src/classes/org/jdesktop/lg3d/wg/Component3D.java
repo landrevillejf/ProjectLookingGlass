@@ -26,7 +26,6 @@ import java.util.Enumeration;
 import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jogamp.vecmath.AxisAngle4f;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.sg.Node;
 import org.jdesktop.lg3d.sg.internal.wrapper.NodeWrapper;

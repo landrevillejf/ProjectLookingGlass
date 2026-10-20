@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.wg.internal.j3d.j3dnodes;
 
-import org.jdesktop.lg3d.wg.internal.j3d.j3dnodes.*;
 
 /**
  * Prototype for adding physics to Component3Ds for layout

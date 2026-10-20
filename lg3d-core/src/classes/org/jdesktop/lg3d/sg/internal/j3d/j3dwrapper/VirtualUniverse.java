@@ -21,8 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 
-import java.util.Vector;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Map;
 

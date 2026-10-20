@@ -23,11 +23,9 @@ package org.jdesktop.lg3d.scenemanager.utils.decoration;
 
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindow3D;
-import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowLookAndFeel;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowObject;
 import org.jdesktop.lg3d.displayserver.nativewindow.TiledNativeWindowImage;
 import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 import org.jdesktop.lg3d.utils.shape.RectShadow;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;

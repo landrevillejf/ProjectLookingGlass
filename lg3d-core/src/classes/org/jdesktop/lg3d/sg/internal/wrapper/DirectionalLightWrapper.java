@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Vector3f;
 
 /**

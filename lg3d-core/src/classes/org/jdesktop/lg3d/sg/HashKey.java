@@ -117,7 +117,7 @@ class HashKey extends Object {
             int n = count;
             if (n == anotherHashKey.count) {
                 char v1[] = value;
-                char v2[] = anotherHashKey.value;;
+                char v2[] = anotherHashKey.value;
                 int i = 0;
                 int j = 0;
                 while (n-- != 0) {

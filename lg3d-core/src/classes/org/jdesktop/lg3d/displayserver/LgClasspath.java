@@ -320,11 +320,7 @@ public class LgClasspath {
          */
         public boolean accept(File dir, String name) {
             // if the filename is a .jar file then add it as a jar
-            if ( name.toLowerCase().endsWith(".jar") ) {
-                return true;
-            } else {
-                return false;
-            }
+            return name.toLowerCase().endsWith(".jar");
         }
     }
     

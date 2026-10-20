@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.wg.internal.j3d.j3dwrapper;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.NodeWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.BranchGroupWrapper;
-import org.jdesktop.lg3d.sg.internal.wrapper.GroupWrapper;
 import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.LgEventListener;

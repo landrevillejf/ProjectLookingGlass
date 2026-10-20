@@ -20,9 +20,6 @@
  * $State: Exp $
  */
 package org.jdesktop.lg3d.sg;
-import org.jogamp.vecmath.Point4d;
-import org.jogamp.vecmath.Point3d;
-import org.jogamp.vecmath.Point3f;
 import java.lang.reflect.Constructor;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.PickShapeWrapper;

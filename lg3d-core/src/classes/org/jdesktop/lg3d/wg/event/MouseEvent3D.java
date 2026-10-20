@@ -364,6 +364,7 @@ public abstract class MouseEvent3D extends InputEvent3D {
     	    case MouseEvent.MOUSE_WHEEL:
 		desc = "MOUSE_WHEEL";
 		break;
+	    default: break;
 	}
 	return "MouseEvent3D " + desc;
     }

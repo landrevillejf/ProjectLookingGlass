@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.displayserver.nativewindow;
 
 import org.jdesktop.lg3d.sg.Group;
-import org.jdesktop.lg3d.wg.internal.j3d.j3dnodes.J3dNativePane;
 import org.jdesktop.lg3d.wg.internal.wrapper.NativePaneWrapper;
 
 /**

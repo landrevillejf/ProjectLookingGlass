@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg;
 
 import org.jogamp.vecmath.*;
-import java.util.Hashtable;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.TextureWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.ImageComponentWrapper;

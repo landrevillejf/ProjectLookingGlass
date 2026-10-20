@@ -22,8 +22,6 @@
 package org.jdesktop.lg3d.sg;
 
 import org.jogamp.vecmath.*;
-import java.lang.Math;
-import java.util.HashMap;
 import java.lang.reflect.Constructor;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.BoundsWrapper;

@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.wg;
 
 import java.util.LinkedList;
 import java.util.logging.Logger;
-import java.util.Enumeration;
 import java.util.logging.Level;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;

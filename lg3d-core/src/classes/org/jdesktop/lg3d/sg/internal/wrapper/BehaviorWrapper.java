@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 
-import java.util.Enumeration;
 
 /**
  * The Behavior leaf node provides a framework for adding user-defined

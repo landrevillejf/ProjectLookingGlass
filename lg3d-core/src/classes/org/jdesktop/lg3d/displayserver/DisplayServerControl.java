@@ -337,7 +337,7 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
      * Return true if we are running in Wonderland, ie the lg.wonderland property is set
      */
     public static boolean inWonderland() {
-        return System.getProperty("lg.wonderland", "false").equals("true") ? true : false;
+        return System.getProperty("lg.wonderland", "false").equals("true");
     }
     
     /**
@@ -946,6 +946,7 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
 	    if (wrapped == null) break;
             printObj = wrapped.getWrapped();
 	    break;
+	default: break;
 	}
 	
 	System.err.print(level + ": ");
@@ -982,6 +983,7 @@ public class DisplayServerControl implements DisplayServerAppInterface, DisplayS
 	case PRINT_SCENE_ROOT_NODE_WRAPPED_WRAPPED:
 	    System.err.println("Node Wrapped.Wrappeds");
 	    break;
+	default: break;
 	}
 
 	printSceneNode(sgWhich, sceneRoot, 0);

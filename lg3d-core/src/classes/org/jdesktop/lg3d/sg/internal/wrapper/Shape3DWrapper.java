@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 import java.util.Enumeration;
-import java.util.Vector;
 
 
 /**

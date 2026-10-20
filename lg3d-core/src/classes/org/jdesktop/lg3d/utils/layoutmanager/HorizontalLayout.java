@@ -97,6 +97,7 @@ public class HorizontalLayout implements LayoutManager3D {
 		x = width * 0.5f + spacing - getTotalWidth(cont);
 		break;
 	    }
+	    default: break;
 	}
         
         for (Component3D comp : compList) {

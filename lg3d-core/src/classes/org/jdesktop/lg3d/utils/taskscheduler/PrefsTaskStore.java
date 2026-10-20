@@ -22,11 +22,6 @@ import java.util.logging.Logger;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import org.jdesktop.lg3d.utils.prefs.LgPreferencesHelper;
-import org.jdesktop.lg3d.utils.taskscheduler.MisfirePolicy;
-import org.jdesktop.lg3d.utils.taskscheduler.ScheduledTask;
-import org.jdesktop.lg3d.utils.taskscheduler.TaskExecutionRecord;
-import org.jdesktop.lg3d.utils.taskscheduler.TaskStore;
-import org.jdesktop.lg3d.utils.taskscheduler.Trigger;
 
 /**
  * The {@link TaskStore} backed by the user {@link Preferences} tree, following

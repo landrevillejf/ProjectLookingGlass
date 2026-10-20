@@ -43,9 +43,7 @@ import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuGroupLinkAddedEv
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuItemAddedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuItemExecutedEvent;
 import org.jdesktop.lg3d.utils.action.ActionInt;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.sg.Transform3D;
@@ -56,7 +54,6 @@ import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 /**
  * The main class for defining a 3D model for the start menu. This class defines

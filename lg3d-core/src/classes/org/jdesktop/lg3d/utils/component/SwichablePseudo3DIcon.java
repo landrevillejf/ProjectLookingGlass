@@ -18,7 +18,6 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.utils.action.*;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
 import org.jdesktop.lg3d.wg.Component3DAnimation;

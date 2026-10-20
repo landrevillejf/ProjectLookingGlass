@@ -43,7 +43,6 @@ import org.jdesktop.lg3d.scenemanager.CursorModule;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.displayserver.EventProcessor;
 import org.jogamp.java3d.BranchGroup;
-import javax.swing.SwingUtilities;
 
 /**
  * Implementation of the FoundationWinSys with AWT to interface between the

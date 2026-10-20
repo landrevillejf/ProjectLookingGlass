@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.utils.c3danimation;
 
 import org.jdesktop.lg3d.utils.smoother.AcceleratingFloatSmoother;
 import org.jdesktop.lg3d.utils.smoother.AcceleratingVector3fSmoother;
-import org.jdesktop.lg3d.scenemanager.utils.appcontainer.ChangeEnabledAnimationPlugin;
 
 
 /**

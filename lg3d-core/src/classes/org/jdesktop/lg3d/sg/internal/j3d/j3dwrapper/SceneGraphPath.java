@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 
 import  org.jogamp.vecmath.Point3d;
-import  org.jogamp.vecmath.Point4d;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.*;
 
@@ -285,7 +284,7 @@ public class SceneGraphPath implements SceneGraphPathWrapper {
 	  
 	  result = transform.equals(testPath.transform);
 	  
-	  if(result == false)
+	  if(!result)
 	    return false;
 
 	  if(interior == null || testPath.interior == null) {
@@ -328,7 +327,7 @@ public class SceneGraphPath implements SceneGraphPathWrapper {
 	   
 	   result = transform.equals(testPath.transform);
 	   
-	   if(result == false)
+	   if(!result)
 	     return false;
 	   
 	   if(interior == null || testPath.interior == null) {

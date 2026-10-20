@@ -26,7 +26,6 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.startmenu;
 
-import java.util.logging.Logger;
 
 import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.scenemanager.config.ConfigData;

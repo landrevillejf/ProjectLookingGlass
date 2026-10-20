@@ -25,7 +25,6 @@ import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.Component3DParkedEvent;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.wg.Component3D;
 
 /**
  * Event adapter for Component3DManualMoveEvent.

@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg;
 
-import java.util.Hashtable;
 
 /**
  * The TextureUnitState object defines all texture mapping state for a

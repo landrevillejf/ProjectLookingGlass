@@ -24,13 +24,8 @@
 package org.jdesktop.lg3d.displayserver;
 
 import java.net.URL;
-import java.net.URISyntaxException;
 import java.beans.*;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 /**

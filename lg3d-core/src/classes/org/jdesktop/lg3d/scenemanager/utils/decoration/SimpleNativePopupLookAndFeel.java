@@ -21,16 +21,13 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.decoration;
 
-import org.jogamp.vecmath.Point3f;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativePopup3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativePopupLookAndFeel;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowObject;
 import org.jdesktop.lg3d.displayserver.nativewindow.TiledNativeWindowImage;
 import org.jdesktop.lg3d.displayserver.nativewindow.WindowShape;
-import org.jdesktop.lg3d.sg.BoundingBox;
 import org.jdesktop.lg3d.utils.shape.RectShadow;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 

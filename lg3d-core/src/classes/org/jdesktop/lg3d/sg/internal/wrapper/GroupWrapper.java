@@ -21,9 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import java.util.BitSet;
-import java.util.Vector;
-import java.util.Hashtable;
 import java.util.Enumeration;
 
 /**

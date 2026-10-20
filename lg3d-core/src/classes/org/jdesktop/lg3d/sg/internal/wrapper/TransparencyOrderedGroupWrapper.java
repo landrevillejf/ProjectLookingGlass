@@ -21,8 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import java.util.Arrays;
-import org.jdesktop.lg3d.sg.Group;
 
 /**
  * Provides the user control over the rendering order of transparent objects

@@ -22,8 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 import org.jogamp.vecmath.*;
-import java.lang.Math;
-import java.util.HashMap;
 
 /**
  * The abstract base class for bounds objects.  Bounds objects define

@@ -21,8 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import  org.jogamp.vecmath.Point3d;
-import  org.jogamp.vecmath.Point4d;
 
 /**
  * A SceneGraphPath object represents the path from a Locale to a

@@ -21,16 +21,12 @@
  */
 package org.jdesktop.lg3d.displayserver.fws;
 
-import java.lang.reflect.Constructor;
-import java.io.IOException;
 import org.jogamp.java3d.*;
 import org.jogamp.java3d.utils.universe.ViewInfo;
-import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.TiledNativeWindowImage;
 import org.jdesktop.lg3d.scenemanager.CursorModule;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import java.util.logging.Logger;
-import org.jdesktop.lg3d.wg.Cursor3D;
 
 /**
  * FoundationWinSys is an abstract class which defines an interface

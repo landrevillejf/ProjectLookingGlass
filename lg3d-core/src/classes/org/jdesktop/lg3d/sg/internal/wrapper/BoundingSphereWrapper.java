@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 import org.jogamp.vecmath.Point3f;
-import org.jogamp.vecmath.Point3d;
 
 /**
  * This class defines a spherical bounding region which is defined by a

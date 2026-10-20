@@ -39,8 +39,6 @@ import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.orbit.OrbitLayout;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.util.PopupText;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
-import org.jdesktop.lg3d.utils.shape.Cylinder;
-import org.jdesktop.lg3d.utils.shape.GlassyDisc;
 import org.jdesktop.lg3d.utils.shape.GlassyRingPanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;

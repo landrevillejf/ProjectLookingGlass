@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.animation;
 
-import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.utils.action.ActionFloat;
 import org.jdesktop.lg3d.utils.smoother.FloatTransitionSmoother;
 import org.jdesktop.lg3d.utils.smoother.NaturalFloatSmoother;

@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 
-import org.jdesktop.lg3d.sg.internal.wrapper.PickSegmentWrapper;
 import org.jogamp.vecmath.*;
 
 

@@ -148,6 +148,7 @@ class GeomBuffer extends Object{
     case TRIANGLE_FAN:
       obj = processTriangleFan();
       break;
+    default: break;
     }
 //    if ((obj != null) && ((flags & Primitive.ENABLE_GEOMETRY_PICKING) != 0)) {
       obj.setCapability(Geometry.ALLOW_INTERSECT);
@@ -209,7 +210,7 @@ class GeomBuffer extends Object{
 	y /= root; 
 	z /= root;
       } else {
-	y = z = 0.0; x = 1.0;
+	y = 0.0; z = 0.0; x = 1.0;
       }
     }
     normals[currVertCnt] = new Vector3f((float)x, (float)y, (float)z);

@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.displayserver;
 
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jdesktop.lg3d.displayserver.socketconnector.ClientHandler;

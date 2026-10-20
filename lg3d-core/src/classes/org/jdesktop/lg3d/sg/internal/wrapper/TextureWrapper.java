@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 import org.jogamp.vecmath.*;
-import java.util.Hashtable;
 
 /**
  * The Texture object is a component object of an Appearance object

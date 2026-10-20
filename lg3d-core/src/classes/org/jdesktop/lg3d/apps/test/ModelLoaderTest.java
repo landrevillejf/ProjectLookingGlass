@@ -27,8 +27,6 @@ import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.ModelLoader;
 import org.jdesktop.lg3d.sg.*;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
-import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Matrix4f;
 import org.jdesktop.lg3d.utils.eventaction.Component3DMover;
 /**

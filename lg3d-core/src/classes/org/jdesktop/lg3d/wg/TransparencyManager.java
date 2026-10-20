@@ -289,6 +289,7 @@ class TransparencyManager {
                         tm.internalModifyTransparency(value);
                     }
                     break;
+                default: break;
             }
         }
     }

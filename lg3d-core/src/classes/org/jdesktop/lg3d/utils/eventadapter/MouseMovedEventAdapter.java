@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.eventadapter;
 
-import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.MouseMovedEvent3D;
 import org.jdesktop.lg3d.wg.event.InputEvent3D.ModifierId;
 import org.jdesktop.lg3d.utils.action.ActionFloat2;

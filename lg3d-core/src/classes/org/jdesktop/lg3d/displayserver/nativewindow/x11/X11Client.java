@@ -56,13 +56,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.jdesktop.lg3d.displayserver.nativewindow.x11;
 
 import gnu.x11.Atom;
-import gnu.x11.Display;
 import gnu.x11.Enum;
 import gnu.x11.Visual;
 import gnu.x11.Window;
-import gnu.x11.event.ConfigureNotify;
-import gnu.x11.event.Event;
-import gnu.x11.extension.NotFoundException;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeInputOnlyWindow3D;
 import org.jdesktop.lg3d.displayserver.nativewindow.NativeWindowControl;
@@ -164,10 +160,12 @@ final class X11Client extends Window implements NativeWindowControl, WindowAssoc
             minWidth = sizeHints.read4(92); //base_width
             minHeight = sizeHints.read4(96);//base_hight
         } else {
-            minWidth = minHeight = 1;
+            minWidth = 1;
+            minHeight = 1;
         }
         if ((minWidth == 0) || minHeight == 0) {
-            minWidth = minHeight = 1;
+            minWidth = 1;
+            minHeight = 1;
         }
         if ((sizeHints.flags() & WMSizeHints.PBASE_SIZE_MASK) != 0) {
             baseWidth = sizeHints.read4(92); //base_width
@@ -176,14 +174,16 @@ final class X11Client extends Window implements NativeWindowControl, WindowAssoc
             baseWidth = sizeHints.min_width();
             baseHeight = sizeHints.min_height();
         } else {
-            baseWidth = baseHeight = 0;
+            baseWidth = 0;
+            baseHeight = 0;
         }
         
         if ((sizeHints.flags() & WMSizeHints.PMAX_SIZE_MASK) != 0) {
             maxWidth = sizeHints.max_width(); 
             maxHeight = sizeHints.max_height();            
         } else {
-            maxWidth = maxHeight = 0;
+            maxWidth = 0;
+            maxHeight = 0;
         }
         
         if (sizeHints.presizeIncrement()) {
@@ -194,7 +194,8 @@ final class X11Client extends Window implements NativeWindowControl, WindowAssoc
             minIncHeight = 1;
         }
         if ((minIncWidth == 0) || minIncHeight == 0) {
-            minIncWidth = minIncHeight = 1;
+            minIncWidth = 1;
+            minIncHeight = 1;
         }
         nativeWinMonitor.setWindowProperety(minIncWidth, 
                 minIncHeight, minWidth, minHeight, baseWidth, baseHeight);

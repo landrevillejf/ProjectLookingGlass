@@ -21,19 +21,8 @@
  */
 package org.jdesktop.lg3d.wg.internal.j3d.j3dnodes;
 
-import java.util.logging.Level;
-import org.jdesktop.lg3d.wg.internal.wrapper.ModelLoaderWrapper;
 
-import org.jogamp.java3d.loaders.Loader;
-import org.jogamp.java3d.loaders.Scene;
-import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Matrix4f;
-import org.jogamp.java3d.BoundingSphere;
-import org.jogamp.java3d.Bounds;
-import org.jogamp.java3d.Transform3D;
-import org.jogamp.java3d.TransformGroup;
 
-import java.util.logging.Logger;
 /**
  *
  * @author  paulby

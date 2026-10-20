@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import org.jogamp.vecmath.Color3f;
 
 /**
  * The ExponentialFog leaf node extends the Fog leaf node by adding a

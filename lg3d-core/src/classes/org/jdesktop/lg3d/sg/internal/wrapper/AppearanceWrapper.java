@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import java.util.Hashtable;
 
 /**
  * The Appearance object defines all rendering state that can be set
