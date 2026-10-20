@@ -51,7 +51,6 @@ EXEMPT.put("wonderland-client", "residue: Throttle dead cancel, impossible DISK 
 EXEMPT.put("wonderland-server", "defensive transport branches want fault injection")
 EXEMPT.put("wonderland-modules", "defensive branches unreachable in-JVM")
 EXEMPT.put("wonderland-renderer", "probe-only Java 3D assembly + GL passes cannot be constructed headless")
-EXEMPT.put("wonderland-avatars", "placeholder pure catalog")
 EXEMPT.put("wonderland-desktop", "handful of defensive branches in pure classes")
 
 // module -> the fact that it has no test source at all, so no coverage rule and
