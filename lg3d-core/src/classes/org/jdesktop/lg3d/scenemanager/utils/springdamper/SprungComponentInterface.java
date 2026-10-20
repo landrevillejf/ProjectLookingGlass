@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.scenemanager.utils.springdamper;
 
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.wg.Component3D;
 
 /**
  *

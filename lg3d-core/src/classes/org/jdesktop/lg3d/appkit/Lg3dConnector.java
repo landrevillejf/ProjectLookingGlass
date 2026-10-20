@@ -22,8 +22,6 @@
 package org.jdesktop.lg3d.appkit;
 
 import java.util.concurrent.Semaphore;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
 import org.jogamp.java3d.Canvas3D;
 import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.displayserver.PlatformConfig;

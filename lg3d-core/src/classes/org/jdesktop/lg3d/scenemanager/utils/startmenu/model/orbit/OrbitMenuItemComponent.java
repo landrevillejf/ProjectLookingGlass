@@ -29,7 +29,6 @@ package org.jdesktop.lg3d.scenemanager.utils.startmenu.model.orbit;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jdesktop.lg3d.displayserver.LgClassLoader;
 
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.action.TooltipAction;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.MenuItem;

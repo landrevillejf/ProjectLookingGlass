@@ -23,49 +23,24 @@ package org.jdesktop.lg3d.scenemanager.utils.appcontainer;
 
 import org.jogamp.vecmath.Vector3f;
 
-import org.jdesktop.lg3d.scenemanager.utils.background.Background;
-import org.jdesktop.lg3d.scenemanager.utils.event.Component3DGestureMoveLeftEvent;
-import org.jdesktop.lg3d.scenemanager.utils.event.Component3DGestureMoveRightEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DAddedEvent;
-import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DAnimationFinishedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DRemovedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.action.ActionComponent3D;
-import org.jdesktop.lg3d.utils.action.ActionFloat2;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.Component3DGroupMigrationAction;
-import org.jdesktop.lg3d.utils.action.Component3DMigrationAction;
 import org.jdesktop.lg3d.utils.action.GenericEventPostAction;
-import org.jdesktop.lg3d.utils.action.TransparencyActionNoArg;
-import org.jdesktop.lg3d.utils.actionadapter.ActionSwitcher;
-import org.jdesktop.lg3d.utils.actionadapter.BooleanToNoArgConverter;
-import org.jdesktop.lg3d.utils.c3danimation.AnimateToChangeVisiblePlugin;
-import org.jdesktop.lg3d.utils.eventadapter.Component3DManualMoveEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.Component3DToFrontEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.Component3DVisualAppearanceEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
-import org.jdesktop.lg3d.utils.layoutmanager.BookshelfLayout;
-import org.jdesktop.lg3d.utils.layoutmanager.HallwayLayout;
-import org.jdesktop.lg3d.utils.smoother.YAcceleratingVector3fSmoother;
-import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Frame3DAnimation;
 import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.wg.event.Component3DToBackEvent;
 import org.jdesktop.lg3d.wg.event.Component3DToFrontEvent;
-import org.jdesktop.lg3d.wg.event.Component3DVisualAppearanceEvent;
-import org.jdesktop.lg3d.wg.event.Component3DVisualAppearanceEvent.VisualAppearanceType;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 
 
 public class CellAppContainer extends AppContainer {

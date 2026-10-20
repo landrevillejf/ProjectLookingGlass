@@ -118,6 +118,7 @@ public class VerticalLayout implements LayoutManager3D {
             y = height * 0.5f + spacing - getTotalHeight(cont);
             break;
         }
+        default: break;
         }
 
         float dir = downward ? -1.0f : 1.0f;

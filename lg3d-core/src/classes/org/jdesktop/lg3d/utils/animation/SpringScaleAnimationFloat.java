@@ -21,8 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.animation;
 
-import org.jogamp.vecmath.AxisAngle4f;
-import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.utils.smoother.SpringFloatSmoother;
 
 

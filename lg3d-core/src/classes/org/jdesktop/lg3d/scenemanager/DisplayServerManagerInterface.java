@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.scenemanager;
 
 import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.sg.Transform3D;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 
 /**

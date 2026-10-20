@@ -22,36 +22,25 @@
 package org.jdesktop.lg3d.displayserver.fws.awt;
 
 import java.awt.event.*;
-import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.LinkedList;
 import org.jogamp.java3d.Canvas3D;
 import org.jogamp.vecmath.*;
 import org.jogamp.java3d.Node;
 
 import org.jdesktop.lg3d.displayserver.EventProcessor;
-import org.jdesktop.lg3d.displayserver.fws.FoundationWinSys;
 import org.jdesktop.lg3d.displayserver.fws.MouseEventNodeInfo;
 import org.jdesktop.lg3d.displayserver.fws.PickEngine;
-import org.jdesktop.lg3d.displayserver.fws.ActiveGrabState;
 import org.jdesktop.lg3d.displayserver.fws.Grab;
-import org.jdesktop.lg3d.displayserver.fws.PassiveGrab;
 import org.jdesktop.lg3d.displayserver.fws.PassiveGrabButton;
-import org.jdesktop.lg3d.displayserver.fws.PassiveGrabKey;
 import org.jdesktop.lg3d.displayserver.fws.PointerObject;
 
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseMovedEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseDraggedEvent3D;
 
-import org.jdesktop.lg3d.wg.internal.j3d.j3dnodes.J3dComponent3D;
-import org.jdesktop.lg3d.wg.internal.j3d.j3dnodes.J3dCursor3D;
-import org.jdesktop.lg3d.wg.internal.j3d.j3dnodes.J3dLgBranchGroup;
 
-import org.jdesktop.lg3d.wg.event.KeyEvent3D;
 
 import org.jdesktop.lg3d.scenemanager.utils.event.Frame3DAnimationFinishedEvent;
 import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
@@ -468,6 +457,7 @@ public class PickEngineAWT extends PickEngine
                 eventProcessor.postEvent(me, s);
             }
             break;
+	default: break;
         }
     }
 

@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 
-import java.util.Vector;
 
 /**
  * Interpolator is an abstract class that extends Behavior to provide

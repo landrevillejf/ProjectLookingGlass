@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.displayserver.fws;
 import java.awt.AWTEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Iterator;
@@ -112,7 +111,7 @@ public abstract class PickEngine extends org.jogamp.java3d.Behavior
 
     private Vector3f tmpV3f = new Vector3f();
     
-    protected boolean detailLog = (logger.getLevel()!=null && logger.getLevel().intValue()<=Level.FINE.intValue()) ? true : false;
+    protected boolean detailLog = (logger.getLevel()!=null && logger.getLevel().intValue()<=Level.FINE.intValue());
 
     /**
      * Creates a PickEngine
@@ -596,6 +595,7 @@ public abstract class PickEngine extends org.jogamp.java3d.Behavior
                 eventProcessor.postEvent(me, s);
             }
             break;
+	default: break;
         }
     }
 

@@ -24,7 +24,6 @@ package org.jdesktop.lg3d.scenemanager.utils;
 
 import org.jdesktop.lg3d.scenemanager.utils.appcontainer.AppContainer;
 import org.jdesktop.lg3d.scenemanager.utils.background.Background;
-import org.jdesktop.lg3d.scenemanager.utils.plugin.SceneManagerPlugin;
 
 
 public interface SceneControl {

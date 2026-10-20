@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.utils.cursor;
 
 import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.Component3D;
 
 
 public class NullCursor extends Cursor3D {

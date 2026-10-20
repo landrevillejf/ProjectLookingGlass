@@ -21,13 +21,7 @@
  */
 package org.jdesktop.lg3d.sg;
 
-import java.awt.AWTEvent;
 import java.awt.event.*;
-import java.util.Hashtable;
-import java.util.Enumeration;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.lang.reflect.Constructor;
 
 import org.jdesktop.lg3d.sg.internal.wrapper.*;
 

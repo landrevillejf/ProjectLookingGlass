@@ -136,6 +136,7 @@ public class GlassyBentText2D extends Shape3D {
             case RIGHT:
                 ao -= a;
                 break;
+            default: break;
         }
             
         int n = divisions;

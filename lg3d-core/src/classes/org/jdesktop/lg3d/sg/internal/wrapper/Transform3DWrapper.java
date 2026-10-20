@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
 import org.jogamp.vecmath.*;
-import java.lang.*;
 
 /**
  * A generalized transform object represented internally as a 4x4 

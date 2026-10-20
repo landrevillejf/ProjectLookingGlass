@@ -22,8 +22,6 @@
 
 package org.jdesktop.lg3d.displayserver.fws;
 
-import java.util.LinkedList;
-import org.jdesktop.lg3d.displayserver.fws.Grab;
 
 public class ActiveGrabState {
 

@@ -22,9 +22,7 @@
 package org.jdesktop.lg3d.wg;
 
 import java.util.HashMap;
-import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.sg.Node;
-import org.jdesktop.lg3d.wg.internal.wrapper.Cursor3DWrapper;
 
 
 /**

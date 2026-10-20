@@ -12,7 +12,6 @@ package org.jdesktop.lg3d.displayserver.nativewindow.x11;
 
 import gnu.x11.Atom;
 import gnu.x11.Display;
-import gnu.x11.Enum;
 import gnu.x11.Window;
 import gnu.x11.event.Event;
 import gnu.x11.extension.NotFoundException;

@@ -225,6 +225,7 @@ public class ThumbnailLayout extends HorizontalReorderableLayout {
 		x = width * 0.5f + spacing - getTotalWidth(cont, compList, spacing);
 		break;
 	    }
+	    default: break;
 	}
         
         for (Component3D comp : compList) {

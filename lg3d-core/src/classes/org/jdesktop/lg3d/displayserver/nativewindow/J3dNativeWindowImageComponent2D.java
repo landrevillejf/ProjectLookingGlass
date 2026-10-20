@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.displayserver.nativewindow;
 
-import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
 
 /**

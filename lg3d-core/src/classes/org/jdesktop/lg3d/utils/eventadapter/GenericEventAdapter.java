@@ -22,9 +22,7 @@
 package org.jdesktop.lg3d.utils.eventadapter;
 
 import org.jdesktop.lg3d.wg.event.LgEvent;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.wg.Component3D;
 
 /**
  * Event adapter whose souce is configurable and that propagates

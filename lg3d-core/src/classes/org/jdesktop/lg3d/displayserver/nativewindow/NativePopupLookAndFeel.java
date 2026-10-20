@@ -42,7 +42,6 @@
 package org.jdesktop.lg3d.displayserver.nativewindow;
 
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import java.util.logging.Logger;
 

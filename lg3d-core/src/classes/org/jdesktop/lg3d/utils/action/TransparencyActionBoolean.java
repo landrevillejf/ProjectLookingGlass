@@ -59,7 +59,7 @@ public class TransparencyActionBoolean implements ActionBoolean {
         float newTrans = Float.NaN;
         if (state) {
             newTrans = onTrans;
-            baseTrans = baseTrans = target.get().getFinalTransparency();
+            baseTrans = target.get().getFinalTransparency();
         } else {
             if (Float.isNaN(baseTrans)) {
                 return;

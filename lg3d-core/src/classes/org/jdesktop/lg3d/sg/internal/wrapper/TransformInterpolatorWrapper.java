@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import java.util.Enumeration;
 /**
  * TransformInterpolator is an abstract class that extends
  * Interpolator to provide common methods used by various transform

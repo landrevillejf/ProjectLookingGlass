@@ -28,9 +28,6 @@ import java.net.JarURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
 
 
 
@@ -318,11 +315,7 @@ public class LgClasspath {
          */
         public boolean accept(File dir, String name) {
             // if the filename is a .jar file then add it as a jar
-            if ( name.toLowerCase().endsWith(".jar") ) {
-                return true;
-            } else {
-                return false;
-            }
+            return name.toLowerCase().endsWith(".jar");
         }
     }
     

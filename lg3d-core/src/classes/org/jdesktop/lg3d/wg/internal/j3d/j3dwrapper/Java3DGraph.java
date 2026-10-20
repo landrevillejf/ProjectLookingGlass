@@ -21,10 +21,7 @@
  */
 package org.jdesktop.lg3d.wg.internal.j3d.j3dwrapper;
 
-import java.util.logging.Level;
 import org.jdesktop.lg3d.wg.internal.wrapper.Java3DGraphWrapper;
-import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Matrix4f;
 
 /**
  *

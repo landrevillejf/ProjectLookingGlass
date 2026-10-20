@@ -171,6 +171,7 @@ public class WonderlandMoveZCursor extends Cursor3D {
 			0.0f, -0.866f, 0.5f,
 		    };
 		    break;
+		default: break;
 	    }
 
 	    int[] indices = {

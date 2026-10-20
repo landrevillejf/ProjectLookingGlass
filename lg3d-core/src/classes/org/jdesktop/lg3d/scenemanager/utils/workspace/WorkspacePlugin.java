@@ -338,6 +338,7 @@ public class WorkspacePlugin implements SceneManagerPlugin {
             case NONE -> {
                 // Not a workspace keystroke; leave it to the application.
             }
+            default -> { }
         }
     }
 

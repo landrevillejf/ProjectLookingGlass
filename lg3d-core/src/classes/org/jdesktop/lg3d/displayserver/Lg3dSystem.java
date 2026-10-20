@@ -43,6 +43,7 @@ public class Lg3dSystem {
                 return (System.nanoTime()-START_TIME)/1000000L;
             case FRAME :
                 return frameTime;
+            default: break;
         }
         
         throw new RuntimeException("Illegal Timer Mode");
@@ -54,6 +55,7 @@ public class Lg3dSystem {
                 return (System.nanoTime()-START_TIME);
             case FRAME :
                 return frameTime;
+            default: break;
         }
         
         throw new RuntimeException("Illegal Timer Mode");        

@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg.utils.transparency;
 
-import java.util.Arrays;
 import org.jdesktop.lg3d.sg.Group;
 import org.jdesktop.lg3d.sg.Node;
 import org.jdesktop.lg3d.sg.SceneGraphSetup;

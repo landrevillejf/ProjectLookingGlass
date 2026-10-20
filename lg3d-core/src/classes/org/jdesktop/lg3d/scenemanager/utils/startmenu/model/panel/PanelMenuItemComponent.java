@@ -31,7 +31,6 @@ import java.util.logging.Level;
 
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.displayserver.LgClassLoader;
 
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.MenuItem;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuItemComponent;

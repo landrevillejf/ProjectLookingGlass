@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.prefs;
 
-import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.prefs.Preferences;

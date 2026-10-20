@@ -22,12 +22,8 @@
 package org.jdesktop.lg3d.utils.animation;
 
 import java.util.EnumSet;
-import java.util.logging.Level;
 import org.jdesktop.lg3d.displayserver.Lg3dSystem;
-import org.jdesktop.lg3d.utils.eventadapter.EventAdapter;
-import org.jdesktop.lg3d.utils.smoother.FloatTransitionSmoother;
 import org.jdesktop.lg3d.wg.Animation;
-import org.jdesktop.lg3d.wg.event.LgEvent;
 
 
 /**

@@ -26,7 +26,6 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.startmenu.model;
 
-import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.action.EditMenuItemAction;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.action.ExecuteItemAction;

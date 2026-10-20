@@ -9,7 +9,6 @@
 
 package org.jdesktop.lg3d.scenemanager.utils.springdamper;
 
-import java.util.Enumeration;
 import org.jogamp.java3d.Behavior;
 import org.jogamp.java3d.BoundingSphere;
 import org.jogamp.java3d.WakeupCondition;

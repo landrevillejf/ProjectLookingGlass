@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.wg;
 
-import java.util.Enumeration;
 import java.util.HashMap;
 
 import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;

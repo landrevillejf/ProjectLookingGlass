@@ -20,7 +20,6 @@
  * $State: Exp $
  */
 package org.jdesktop.lg3d.sg;
-import java.util.Hashtable;
 
 /**
  * NodeComponent is a common superclass for all scene graph node

@@ -25,7 +25,6 @@ package org.jdesktop.lg3d.displayserver.fws;
 import java.util.Iterator;
 import java.util.LinkedList;
 import org.jogamp.java3d.Node;
-import org.jdesktop.lg3d.displayserver.fws.MouseEventNodeInfo;
 
 /**
  * Contains information about the scene graph node that the pointer 
@@ -81,8 +80,13 @@ public class PointerObject {
 
     // Does this pointer object equal a given pointer object?
 
-    public boolean equals (PointerObject po) {
-	return destNode == po.destNode;
+    public boolean equals (Object obj) {
+	if (!(obj instanceof PointerObject)) return false;
+	return destNode == ((PointerObject)obj).destNode;
+    }
+
+    public int hashCode () {
+	return System.identityHashCode(destNode);
     }
 
     // Scan the two paths-from-root of this pointer object and another and

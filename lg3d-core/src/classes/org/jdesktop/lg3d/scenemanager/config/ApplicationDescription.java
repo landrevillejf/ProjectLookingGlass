@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.MalformedURLException;
-import java.util.ArrayList;
 import java.util.StringTokenizer;
 
 import java.net.URLClassLoader;
@@ -413,10 +412,7 @@ public class ApplicationDescription extends ConfigData {
             // Command contains / so assume it is a path, check if the file is
             // available
             File f = new File(command);
-            if (f.isFile())
-                return true;
-            else
-                return false;
+            return f.isFile();
         } else {        
 	    if (isSolaris) {
 		

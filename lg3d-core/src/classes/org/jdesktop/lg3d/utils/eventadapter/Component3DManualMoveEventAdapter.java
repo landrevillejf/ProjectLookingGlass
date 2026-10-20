@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.utils.eventadapter;
 
 import org.jogamp.vecmath.Point3f;
-import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.Component3DManualMoveEvent;

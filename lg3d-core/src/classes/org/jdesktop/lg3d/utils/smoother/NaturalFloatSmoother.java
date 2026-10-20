@@ -45,7 +45,13 @@ public class NaturalFloatSmoother implements FloatTransitionSmoother {
     }
     
     public void setInternalValue(float value) {
-	target = acc1 = acc2 = val = prevAcc1 = prevAcc2 = prevVal = value;
+	target = value;
+	acc1 = value;
+	acc2 = value;
+	val = value;
+	prevAcc1 = value;
+	prevAcc2 = value;
+	prevVal = value;
     }
     
     public float getValue(float n) {

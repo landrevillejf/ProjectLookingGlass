@@ -27,7 +27,6 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 
 import org.jogamp.java3d.Node;
-import org.jogamp.java3d.SceneGraphPath;
 
 public abstract class PassiveGrab extends Grab {
 

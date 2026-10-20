@@ -27,7 +27,6 @@
 package org.jdesktop.lg3d.scenemanager.utils.startmenu.model.disc;
 
 import java.util.logging.Level;
-import org.jdesktop.lg3d.displayserver.LgClassLoader;
 
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.action.TooltipAction;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.MenuItem;

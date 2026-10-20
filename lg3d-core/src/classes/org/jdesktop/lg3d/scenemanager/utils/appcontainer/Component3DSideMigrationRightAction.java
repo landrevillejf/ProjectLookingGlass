@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.appcontainer;
 
-import org.jdesktop.lg3d.scenemanager.utils.appcontainer.ComponentSideMigrationAction;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;

@@ -238,6 +238,7 @@ public class ServerHandler {
                     logger.finer("Client "+clientID+" adding listener "+message.getEventClass()+"  "+source );
                     displayServer.addListener( this, message.getEventClass(), source );
                     break;
+                default: break;
             }
         }
         

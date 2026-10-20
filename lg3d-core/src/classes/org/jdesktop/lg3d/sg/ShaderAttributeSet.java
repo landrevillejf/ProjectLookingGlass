@@ -11,8 +11,6 @@
  */
 
 package org.jdesktop.lg3d.sg;
-import java.util.Map;
-import java.util.HashMap;
 import org.jdesktop.lg3d.sg.internal.wrapper.ShaderAttributeSetWrapper;
 import org.jdesktop.lg3d.sg.internal.wrapper.ShaderAttributeWrapper;
 

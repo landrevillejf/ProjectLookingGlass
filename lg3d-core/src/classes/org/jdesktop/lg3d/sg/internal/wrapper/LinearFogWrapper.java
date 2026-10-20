@@ -22,7 +22,6 @@
 
 package org.jdesktop.lg3d.sg.internal.wrapper;
 
-import org.jogamp.vecmath.Color3f;
 
 /**
  * The LinearFog leaf node defines fog distance parameters for

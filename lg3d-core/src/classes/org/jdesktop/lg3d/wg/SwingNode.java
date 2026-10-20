@@ -51,7 +51,6 @@ import org.jdesktop.lg3d.sg.Texture2D;
 import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeJFrame;
 import org.jdesktop.lg3d.wg.internal.swingnode.SwingNodeWindowCapture;
-import org.jdesktop.j3d.utils.math.Math3D;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 
 

@@ -27,7 +27,6 @@
 
 package org.jdesktop.lg3d.scenemanager.utils.startmenu.model.panel;
 
-import java.awt.Color;
 import java.awt.Font;
 
 import org.jogamp.vecmath.Color3f;
@@ -45,7 +44,6 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.utils.shape.Text2D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.i18n.Messages;
 

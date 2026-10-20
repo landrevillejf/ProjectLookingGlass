@@ -21,15 +21,11 @@
  */
 package org.jdesktop.lg3d.scenemanager.utils.taskbar;
 
-import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.scenemanager.utils.SceneControl;
 import org.jdesktop.lg3d.scenemanager.utils.appcontainer.NaturalMotionF3DAnimationFactory;
 import org.jdesktop.lg3d.scenemanager.utils.background.Background;
-import org.jdesktop.lg3d.scenemanager.utils.background.LayeredImageBackground;
-import org.jdesktop.lg3d.scenemanager.utils.background.ModelBackground;
-import org.jdesktop.lg3d.scenemanager.utils.background.PanoImageBackground;
 import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.DesktopConfigChangeEvent;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
@@ -39,7 +35,6 @@ import org.jdesktop.lg3d.sg.Switch;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimationFactory;
 import org.jdesktop.lg3d.utils.component.Pseudo3DIcon;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;

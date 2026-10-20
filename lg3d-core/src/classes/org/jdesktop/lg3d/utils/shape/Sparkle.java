@@ -21,17 +21,12 @@
  */
 package org.jdesktop.lg3d.utils.shape;
 
-import java.net.URL;
 import org.jogamp.vecmath.Color4f;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.GeometryArray;
-import org.jdesktop.lg3d.sg.PolygonAttributes;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
-import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.sg.TriangleStripArray;
-import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 
 /**
  * A Shape3D object that has sparkle like appearance.

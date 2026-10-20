@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.sg;
 
-import org.jdesktop.lg3d.sg.internal.wrapper.IndexedQuadArrayWrapper;
 
 /**
  * The IndexedQuadArray object draws the array of vertices as individual

@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.sg.utils.traverser;
 
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureUnitState;
-import org.jdesktop.lg3d.sg.Appearance;
 
 /**
  *

@@ -41,15 +41,10 @@ import org.jdesktop.lg3d.scenemanager.utils.startmenu.data.StartMenuData;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuGroupAddedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuGroupLinkAddedEvent;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.event.MenuItemAddedEvent;
-import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuGroupComponent;
-import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuGroupLinkComponent;
-import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.MenuItemComponent;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.StartMenuModel;
 import org.jdesktop.lg3d.scenemanager.utils.startmenu.model.panel.PanelStartMenuModel;
 import org.jdesktop.lg3d.scenemanager.utils.taskbar.TaskbarItemConfig;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseHoverEventAdapter;
 import org.jdesktop.lg3d.utils.prefs.LgPreferencesHelper;
 import org.jdesktop.lg3d.wg.Component3D;
@@ -58,7 +53,6 @@ import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 
 /**

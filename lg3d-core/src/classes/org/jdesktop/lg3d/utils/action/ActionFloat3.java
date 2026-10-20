@@ -22,7 +22,6 @@
 package org.jdesktop.lg3d.utils.action;
 
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.Component3D;
 
 /**
  * An Action interface for an action with three float arguments.

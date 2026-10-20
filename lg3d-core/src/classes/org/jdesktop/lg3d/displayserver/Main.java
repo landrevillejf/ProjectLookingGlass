@@ -34,7 +34,6 @@ import org.jdesktop.lg3d.displayserver.crash.CrashWatcher;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2D;
 import org.jdesktop.lg3d.displayserver.desktop2d.DesktopSwing;
 import org.jdesktop.lg3d.displayserver.socketconnector.ServerHandler;
-import org.jdesktop.lg3d.displayserver.SplashWindow;
 
 /**
  * The main class of LG3D DisplayServer.

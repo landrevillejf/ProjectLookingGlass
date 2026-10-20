@@ -25,8 +25,6 @@ import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseEnteredEvent3D;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.wg.Component3D;
-import org.jogamp.vecmath.Tuple3f;
 
 /**
  * Event adapter class for mouse entered and exited events.

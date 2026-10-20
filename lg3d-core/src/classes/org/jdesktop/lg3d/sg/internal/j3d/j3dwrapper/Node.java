@@ -24,13 +24,7 @@ package org.jdesktop.lg3d.sg.internal.j3d.j3dwrapper;
 import java.lang.reflect.Field;
 import org.jdesktop.lg3d.sg.internal.wrapper.*;
 
-import java.awt.AWTEvent;
 import java.awt.event.*;
-import java.util.Hashtable;
-import java.util.Enumeration;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.lang.reflect.Constructor;
 
 /**
  * The Node class provides an abstract class for all Group and Leaf Nodes.

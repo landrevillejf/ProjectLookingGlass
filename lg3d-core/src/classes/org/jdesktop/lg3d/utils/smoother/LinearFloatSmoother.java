@@ -40,7 +40,9 @@ public class LinearFloatSmoother implements FloatTransitionSmoother {
     }
     
     public void setInternalValue(float value) {
-        start = target = current = value;
+        start = value;
+        target = value;
+        current = value;
     }
     
     public float getValue(float n) {

@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.wg.internal.wrapper;
 
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.sg.internal.wrapper.Transform3DWrapper;
-import org.jdesktop.lg3d.sg.internal.wrapper.TransformGroupWrapper;
 
 /**
  * Component3D object is a top level object for widget development.

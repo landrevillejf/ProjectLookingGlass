@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.utils.component;
 
-import java.util.ArrayList;
 import java.util.logging.Logger;
 import org.jogamp.vecmath.Vector3f;
 import org.jogamp.vecmath.Color3f;
@@ -35,11 +34,8 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.OriginTranslation;
 import org.jdesktop.lg3d.utils.shape.GlassyBentText2D;
 import org.jdesktop.lg3d.utils.shape.GlassyRingPanel;
-import org.jdesktop.lg3d.utils.smoother.XZPolarNaturalVector3fSmoother;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Component3DAnimation;
 import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 

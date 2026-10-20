@@ -80,6 +80,7 @@ public class TransparencyTest extends HelloUniverseApp {
                 app.setTransparencyAttributes(ta);
                 tg.addChild(new Box(0.01f,0.01f,0.01f,app));
                 break;
+            default: break;
         }
         return tg;
     }

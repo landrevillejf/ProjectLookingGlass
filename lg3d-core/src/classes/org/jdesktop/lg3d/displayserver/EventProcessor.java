@@ -21,17 +21,11 @@
  */
 package org.jdesktop.lg3d.displayserver;
 import org.jogamp.java3d.utils.universe.ConfiguredUniverse;
-import java.awt.Component;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.HierarchyListener;
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.logging.Level;
 import org.jogamp.java3d.Canvas3D;
-import javax.swing.SwingUtilities;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
@@ -60,7 +54,7 @@ public class EventProcessor extends Behavior {
     /** the logger instance */
     private static Logger logger = Logger.getLogger("lg.event");
     
-    private static boolean detailLog = (logger.getLevel()!=null && logger.getLevel().intValue()<=Level.FINE.intValue()) ? true : false;
+    private static boolean detailLog = (logger.getLevel()!=null && logger.getLevel().intValue()<=Level.FINE.intValue());
     
     // At this stage we are experimenting between having the event processor
     // frame synchronous and having it free running. To switch between these
@@ -120,6 +114,7 @@ public class EventProcessor extends Behavior {
                                     behaviorDriver.enable(false);
                             }
                             break;
+                        default: break;
                     }
                 }
             });
@@ -554,6 +549,14 @@ public class EventProcessor extends Behavior {
                 tmp.sourceObject.get() == this.sourceObject.get() )
                 return true;
             return false;           
+        }
+        
+        public int hashCode() {
+            int h = System.identityHashCode(listener);
+            h = 31 * h + System.identityHashCode(eventClass);
+            h = 31 * h + System.identityHashCode(sourceClass);
+            h = 31 * h + System.identityHashCode(sourceObject.get());
+            return h;
         }
         
         public LgEventListener getListener() {

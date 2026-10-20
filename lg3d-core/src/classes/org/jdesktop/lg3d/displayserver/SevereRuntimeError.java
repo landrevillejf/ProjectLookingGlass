@@ -20,7 +20,6 @@
 
 package org.jdesktop.lg3d.displayserver;
 
-import java.lang.RuntimeException;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 

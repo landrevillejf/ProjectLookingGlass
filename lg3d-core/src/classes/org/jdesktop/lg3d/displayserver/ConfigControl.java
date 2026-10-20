@@ -21,38 +21,8 @@
  */
 package org.jdesktop.lg3d.displayserver;
 
-import java.beans.ExceptionListener;
-import java.beans.XMLDecoder;
-import java.beans.XMLEncoder;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StreamTokenizer;
-import java.net.JarURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.StringTokenizer;
-import java.util.jar.JarEntry;
-import java.util.jar.Attributes;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
-import java.util.zip.ZipEntry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jdesktop.lg3d.displayserver.classloader.LgClasspath;
-import org.jdesktop.lg3d.scenemanager.config.ApplicationDescription;
-import org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig;
-import org.jdesktop.lg3d.scenemanager.config.ConfigData;
-import org.jdesktop.lg3d.scenemanager.config.ConfigurationCompleteEvent;
-import org.jdesktop.lg3d.scenemanager.config.SceneManagerConfig;
-import org.jdesktop.lg3d.scenemanager.glassy.GlassySceneManagerConfig;
 import org.jdesktop.lg3d.scenemanager.SceneManager;
 
 /**

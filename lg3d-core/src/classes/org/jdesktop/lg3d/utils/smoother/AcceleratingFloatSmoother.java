@@ -41,7 +41,9 @@ public class AcceleratingFloatSmoother implements FloatTransitionSmoother {
     }
     
     public void setInternalValue(float value) {
-        target = val = prevVal = value;
+        target = value;
+        val = value;
+        prevVal = value;
     }
     
     public float getValue(float n) {

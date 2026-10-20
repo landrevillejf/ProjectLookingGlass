@@ -66,9 +66,9 @@ public class SplashStarter extends Thread {
             scfg = (SplashConfig)rdr.readObject();
             rdr.close();
             
-            if (scfg.runSplash == true) {
+            if (scfg.runSplash) {
                 SplashWindow.showSplashscreen(scfg.imageLocation);
-                if (scfg.showText == true) {
+                if (scfg.showText) {
                     if (scfg.messageText==null)                        
                         SplashWindow.showMessage( new String[] 
                                 { "version: " + LgBuildInfo.getVersion(),

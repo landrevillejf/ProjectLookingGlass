@@ -47,7 +47,11 @@ public class SpringFloatSmoother implements FloatTransitionSmoother {
     }
     
     public void setInternalValue(float value) {
-        target = acc = val = prevAcc = prevVal = value;
+        target = value;
+        acc = value;
+        val = value;
+        prevAcc = value;
+        prevVal = value;
     }
     
     public float getValue(float n) {

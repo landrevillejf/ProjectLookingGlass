@@ -23,7 +23,6 @@ package org.jdesktop.lg3d.utils.actionadapter;
 
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.utils.action.*;
-import java.util.logging.Logger;
 
 /**
  * An action adapter that replicates a single action to multiple
