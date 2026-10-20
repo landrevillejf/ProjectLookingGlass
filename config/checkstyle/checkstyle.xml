@@ -4,14 +4,19 @@
     "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!--
-  LG3D Checkstyle configuration (report-only).
+  LG3D Checkstyle configuration.
 
   The 2006-era sources trip thousands of purely-cosmetic rules, so this config
   deliberately enables ONLY high-signal, bug-prone-pattern checks and omits
-  formatting / whitespace / Javadoc / naming rules. The Checkstyle task runs
-  with ignoreFailures=true (see the root build.gradle): it produces an XML+HTML
-  report that CI uploads, but never fails the build. Tighten it per module
-  (ignoreFailures=false) as that module's code is cleaned up.
+  formatting / whitespace / Javadoc / naming rules. Every module is clean under
+  this set, so the root build.gradle enforces it at ZERO tolerance: the task
+  runs with ignoreFailures=false AND maxWarnings=maxErrors=0. That maxWarnings=0
+  is the load-bearing half -- the findings below are severity=warning and Gradle
+  defaults maxWarnings to Integer.MAX_VALUE, so without it a warning still exits
+  0 and "BUILD SUCCESSFUL" never means "0 violations". With it, any finding
+  fails `check`, hence CI and the pull request; the XML+HTML report is still
+  uploaded for review. Keep a new module clean before it lands, and never raise
+  these thresholds to wave a violation through.
 
   Suppress a specific region with:
       //CHECKSTYLE:OFF
