@@ -305,7 +305,7 @@ subprojects {
         // wonderland-desktop: handful of defensive branches in pure classes.
         'wonderland-desktop' : 95,  // Handful of defensive branches in pure classes (PickDecision, WorldHudModel)
         // lg3d-incubator: only Java-3D-free Swing panels exercised; ~184k-line 3D app tree untested.
-        'lg3d-incubator' : 5,  // Only Java-3D-free Swing panels exercised; ~184k-line 3D app tree untested
+        'lg3d-incubator' : 3,  // measured 3%: only Java-3D-free Swing panels exercised; ~184k-line 3D app tree untested
         // update-manager: 1534 mutations, 641 killed = 42%. Swing UI + download layers need a live desktop.
         'update-manager' : 41,  // Swing UI + download layers need a live desktop; ChangelogManager is fully covered
         // lg3d-core: 25356 mutations, 4919 killed = 19%. Scene graph + displayserver need live desktop.
