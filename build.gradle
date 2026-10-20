@@ -30,10 +30,11 @@ subprojects {
     // Test coverage measurement for the modules with test suites (lg3d-core,
     // lg3d-widgets). Configured in the jacoco block at the end of this section.
     apply plugin: 'jacoco'
-    // Report-only static analysis + SBOM + quality analysis. Checkstyle runs
-    // inside `check` with ignoreFailures=false (a violation fails the build);
-    // CycloneDX writes a manifest on demand. SonarQube is configured but not
-    // yet wired into `check` (needs the server URL).
+    // Static analysis + SBOM + quality analysis. Checkstyle runs inside `check`
+    // at zero tolerance -- ignoreFailures=false AND maxWarnings/maxErrors=0 (see
+    // the Checkstyle block below) -- so ANY finding, warning severity included,
+    // fails the build; CycloneDX writes a manifest on demand. SonarQube is
+    // configured but not yet wired into `check` (needs the server URL).
     apply plugin: 'checkstyle'
     apply plugin: 'org.cyclonedx.bom'
 
@@ -186,14 +187,26 @@ subprojects {
     // Checkstyle (static analysis; fails the build on violations)
     // -------------------------------------------------------------------------
     // A single shared, high-signal config lives at config/checkstyle/. The task
-    // runs as part of `check` with ignoreFailures=false, so a violation fails
-    // the build. The HTML report is uploaded in CI.
+    // runs as part of `check` at zero tolerance (ignoreFailures=false plus the
+    // maxWarnings/maxErrors=0 pinned below), so any finding fails the build.
+    // The HTML report is uploaded in CI.
     checkstyle {
         toolVersion = libs.versions.checkstyle.get()
         ignoreFailures = false
         configDirectory = rootProject.file('config/checkstyle')
     }
     tasks.withType(Checkstyle).configureEach {
+        // checkstyle.xml sets severity=warning, and Gradle's Checkstyle task
+        // defaults maxWarnings/maxErrors to Integer.MAX_VALUE -- so with
+        // ignoreFailures=false ALONE a warning-severity finding still exits 0.
+        // That is why "BUILD SUCCESSFUL" here never meant "0 violations". Pinning
+        // both thresholds to 0 makes ANY finding fail the task, hence `check`,
+        // hence the CI build job and the pull request. Every module is at zero
+        // today (the per-module cleanup PRs #436-#445), so this ratchets the gate
+        // shut instead of reddening an already-dirty tree; a PR that reintroduces
+        // a violation now fails CI rather than merging silently.
+        maxWarnings = 0
+        maxErrors = 0
         reports {
             xml.required = true
             html.required = true
