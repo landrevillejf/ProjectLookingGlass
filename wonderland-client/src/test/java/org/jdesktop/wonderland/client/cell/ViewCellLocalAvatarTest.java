@@ -22,6 +22,7 @@ import org.jdesktop.wonderland.client.cell.CellTestFixtures.TriggerableAvatarCel
 import org.jdesktop.wonderland.client.cell.view.AvatarCell;
 import org.jdesktop.wonderland.client.cell.view.LocalAvatar;
 import org.jdesktop.wonderland.client.cell.view.ViewCell;
+import org.jdesktop.wonderland.client.collision.AvatarCollider;
 import org.jdesktop.wonderland.client.comms.CellClientSession;
 import org.jdesktop.wonderland.client.comms.ConnectionTestFixtures.PipelineSession;
 import org.jdesktop.wonderland.common.auth.WonderlandIdentity;
@@ -30,6 +31,7 @@ import org.jdesktop.wonderland.common.cell.CellStatus;
 import org.jdesktop.wonderland.common.cell.messages.CellHierarchyMessage;
 import org.jdesktop.wonderland.common.cell.messages.MovableAvatarMessage;
 import org.jdesktop.wonderland.common.cell.messages.ViewCreateResponseMessage;
+import org.jdesktop.wonderland.common.cell.state.AvatarCellServerState;
 import org.jdesktop.wonderland.common.cell.view.ViewCellClientState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +109,42 @@ class ViewCellLocalAvatarTest {
         assertThat(loop.outbound.get(0)).isInstanceOf(MovableAvatarMessage.class);
         assertThat(cell.getLocalTransform().getTranslation(null))
                 .isEqualTo(new Vector3f(1f, 2f, 3f));
+    }
+
+    @Test
+    void aWalkerColliderClampsTheMoveBeforeItIsSent() {
+        // The P1.1 seam in action: with no obstacles registered the collider
+        // is a pass-through, but it still OWNS the requested position -- the
+        // move is rewritten in place, the collider's own x()/z() remember the
+        // new legal spot, and the outbound frame count is unchanged. This is
+        // the shape a world that has not authored collision yet must keep,
+        // so the seam can be wired in without regressing it.
+        ViewCell cell = loadViewCell();
+        AvatarCollider collider = new AvatarCollider(0f, 0f);
+        cell.setWalkerCollider(collider);
+
+        loop.outbound.clear();
+        cell.localMoveRequest(CellTestFixtures.translation(1f, 2f, 3f));
+
+        assertThat(collider.x()).isEqualTo(1f);
+        assertThat(collider.z()).isEqualTo(3f);
+        assertThat(loop.outbound).hasSize(1);
+        assertThat(loop.outbound.get(0)).isInstanceOf(MovableAvatarMessage.class);
+    }
+
+    @Test
+    void avatarCellCarriesItsServerState() {
+        // The M6b renderer's one field: the AvatarCellServerState the cell was
+        // created from. Null is the documented pre-M6b default, and the setter
+        // is the seam the seeder uses to hand the renderer its avatarModelUrl
+        // hint -- pin both halves of the contract on the headless cell.
+        AvatarCell cell = new CellTestFixtures.AvatarMoveCell(
+                CellTestFixtures.id(8), null);
+        assertThat(cell.getServerState()).isNull();
+
+        AvatarCellServerState state = new AvatarCellServerState();
+        cell.setServerState(state);
+        assertThat(cell.getServerState()).isSameAs(state);
     }
 
     @Test

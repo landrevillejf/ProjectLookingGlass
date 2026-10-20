@@ -97,6 +97,17 @@ class CellStatisticsTest {
         assertThat(sizeValue(2_500_000L)).isEqualTo("2.500 mb.");
     }
 
+    @Test
+    void sizeStatTwoArgConstructorCarriesIdAndDescription() {
+        // The public 2-arg ctor is the one a HUD writes when the label reads
+        // better than the id ("Cell size" over "sz"); pin it against the same
+        // id/description contract the 1-arg form documents.
+        CellStatistics.SizeCellStat s = new CellStatistics.SizeCellStat("sz", "Size");
+        assertThat(s.getId()).isEqualTo("sz");
+        assertThat(s.getDescription()).isEqualTo("Size");
+        assertThat(s.getValue()).isEqualTo("0 b.");
+    }
+
     private String sizeValue(long bytes) {
         CellStatistics.SizeCellStat s = new CellStatistics.SizeCellStat("sz");
         s.setValue(bytes);

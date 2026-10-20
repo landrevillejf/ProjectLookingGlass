@@ -95,6 +95,20 @@ class CellComponentMessageReceiverTest {
         assertThat(cell.getComponents()).isEmpty();
     }
 
+    @Test
+    void aMessageWithNoActionIsANoOpNotAnNpe() {
+        // The public ctor leaves the action field null; the 2006 switch on a
+        // null enum threw NullPointerException, which the receiver's own
+        // contract ("a malformed frame must not take the cell down") forbids.
+        // The refactored if/else-if makes the null path the reachable
+        // "neither ADD nor REMOVE" arm: no component is added, none removed,
+        // and nothing throws.
+        CellClientComponentMessage message = new CellClientComponentMessage(
+                cell.getCellID(), PlainComponent.class.getName());
+        receiver.messageReceived(message);
+        assertThat(cell.getComponents()).isEmpty();
+    }
+
     /** The annotation itself is part of the contract: pin its runtime retention. */
     @Test
     void lookupAnnotationIsVisibleAtRuntime() {

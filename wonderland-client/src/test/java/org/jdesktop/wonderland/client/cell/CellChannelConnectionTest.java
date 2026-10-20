@@ -104,6 +104,34 @@ class CellChannelConnectionTest {
     }
 
     @Test
+    void queuedMessagesFlushSilentlyWhenFineIsNotLoggable() {
+        // The mirror of the test above, run WITHOUT the FINE capture: the
+        // logger inherits the root INFO level, so every isLoggable(FINE)
+        // guard in CellMessageDelivery takes its FALSE arm -- the "existing
+        // queue" trace, the "no receiver" trace, and the deliverDelayedMessages
+        // "Delivering N" trace. The queueing and the flush are byte-for-byte
+        // the same; only the trace lines are skipped. This is the production
+        // behaviour on a desktop that has not opened FINE, and it is the half
+        // the captured test above cannot reach.
+        installChannelOnLoad();
+        CellID id = CellTestFixtures.id(1);
+        Cell cell = load(id); // no view yet: the walk has not reached ACTIVE
+
+        ProbeMessage first = new ProbeMessage(id);
+        ProbeMessage second = new ProbeMessage(id);
+        conn.handleMessage(first);  // receiver == null, FINE off: silent queue
+        conn.handleMessage(second); // delayQueue != null, FINE off: silent ride
+        assertThat(cell.getStatus()).isNotEqualTo(CellStatus.ACTIVE);
+        assertThat(channel.received).isEmpty(); // buffered, nothing dispatched
+
+        // walk the tree through ACTIVE with FINE off: deliverDelayedMessages
+        // sees a non-empty queue but skips its own trace line
+        cache.setViewCell(CellTestFixtures.viewCell(cache));
+        assertThat(cell.getStatus()).isEqualTo(CellStatus.VISIBLE);
+        assertThat(channel.received).containsExactly(first, second);
+    }
+
+    @Test
     void activeCellWithoutAChannelGetsTheNoopReceiver() {
         cache.setViewCell(CellTestFixtures.viewCell(cache)); // walk happens inside the load, channel still null
         CellID id = CellTestFixtures.id(1);

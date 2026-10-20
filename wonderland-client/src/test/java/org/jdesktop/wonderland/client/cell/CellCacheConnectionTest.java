@@ -138,6 +138,25 @@ class CellCacheConnectionTest {
     }
 
     @Test
+    void changeParentActionTypeIsTheEmptyFallThroughArm() {
+        // The 2006 port's faithful quirk: DELETE_CELL falls through into
+        // CHANGE_PARENT, whose body is empty. A direct CHANGE_PARENT message
+        // therefore lands on the same empty arm -- the registry is untouched,
+        // no listener is called, and nothing throws. Pin the arm as its own
+        // switch target (the fall-through from DELETE_CELL does not count as
+        // hitting it for coverage purposes).
+        CellID id = CellTestFixtures.id(1);
+        conn.handleMessage(load(id, CacheableCell.class.getName(), null));
+        assertThat(cache.getCell(id)).isNotNull();
+
+        conn.handleMessage(new CellHierarchyMessage(
+                CellHierarchyMessage.ActionType.CHANGE_PARENT, null, null, id, null,
+                CellTestFixtures.translation(0f, 0f, 0f), null, null));
+
+        assertThat(cache.getCell(id)).isNotNull();
+    }
+
+    @Test
     @Timeout(5)
     void connectRegistersTheViewOverTheLoopback() throws Exception {
         // the two-arg form is the one CellClientSession.login used, and the

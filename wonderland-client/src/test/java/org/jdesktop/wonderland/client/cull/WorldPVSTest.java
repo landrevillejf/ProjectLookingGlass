@@ -23,7 +23,12 @@ class WorldPVSTest {
         WorldPVS pvs = new WorldPVS(10f, 100f);
 
         assertThat(pvs.size()).isZero();
-        assertThat(pvs.visibleFrom(0, 0, 0).visibleCount()).isZero();
+        PotentialVisibleSet empty = pvs.visibleFrom(0, 0, 0);
+        assertThat(empty.visibleCount()).isZero();
+        // The empty answer's own rendering is what a shell logs when it wants
+        // to know why nothing drew: "0 of 0" says the world was empty, not
+        // that the culler threw everything away.
+        assertThat(empty.toString()).isEqualTo("PVS{0/0}");
         assertThat(pvs.isVisible("nowhere", 0, 0, 0)).isFalse();
     }
 

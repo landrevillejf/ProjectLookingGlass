@@ -220,15 +220,24 @@ class CellCacheBasicImplTest {
     void changeParentIntoAnAlreadyParentedChildHitsTheMultipleParentCatch() {
         CellID aId = CellTestFixtures.id(1);
         Cell a = load(aId, CacheableCell.class.getName(), null);
-        CellID bId = CellTestFixtures.id(2);
-        Cell b = load(bId, CacheableCell.class.getName(), null);
         CellID childId = CellTestFixtures.id(3);
-        Cell child = load(childId, CacheableCell.class.getName(), aId);
-        // child still hangs off a, but a is itself parented to b, so a's
-        // addChild(c) throws MultipleParentException -> caught, load continues
-        a.setParent(b);
+        // Load the child as a ROOT, then hand-parent it onto a through the
+        // package-private setParent seam: child.getParent() == a but
+        // a.getChildren() does NOT contain child. changeParent's
+        // parentCell.removeChild(cell) is then a no-op (the recorded parent's
+        // children list has no such child), so the stale link survives and
+        // a.addChild(child) throws MultipleParentException -> caught, logged,
+        // and the load continues. This is the only way to reach the catch:
+        // a clean parent/child link is always broken by removeChild first.
+        Cell child = load(childId, CacheableCell.class.getName(), null);
+        child.setParent(a);
+
         cache.changeParent(childId, aId, CellTestFixtures.translation(0f, 0f, 0f));
+
         assertThat(cache.getCell(childId)).isSameAs(child);
+        // the addChild was refused, so the stale parent link is unchanged
+        assertThat(child.getParent()).isSameAs(a);
+        assertThat(a.getChildren()).isEmpty();
     }
 
     @Test

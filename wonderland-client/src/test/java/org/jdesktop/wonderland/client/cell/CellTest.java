@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.offset;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.AnnotatedCell;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.CarrierComponent;
+import org.jdesktop.wonderland.client.cell.CellTestFixtures.NullWorldCell;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.PlainComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.ProbeComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingChannel;
@@ -23,6 +24,9 @@ import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingComponent;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RecordingRenderer;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.RendererCell;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.StateRecordingComponent;
+import org.jdesktop.wonderland.client.cell.CellTestFixtures.StaticFinalAnnotatedCell;
+import org.jdesktop.wonderland.client.cell.CellTestFixtures.ThrowingRendererCell;
+import org.jdesktop.wonderland.client.cell.CellTestFixtures.UnconstructibleAnnotatedCell;
 import org.jdesktop.wonderland.client.cell.CellTestFixtures.UnconstructibleComponent;
 import org.jdesktop.wonderland.common.cell.CellID;
 import org.jdesktop.wonderland.common.cell.CellStatus;
@@ -441,5 +445,161 @@ class CellTest {
         channel.registered.get(CellClientStateMessage.class)
                 .messageReceived(new CellClientStateMessage(cellID, state));
         assertThat(cell.getName()).isEqualTo("from-message");
+    }
+
+    @Test
+    void worldBoundsComeFromTheFirstGrandchildWhenTheChildHasNoHint() throws Exception {
+        // transformTreeUpdate seeds the aggregate with the child's own world bounds. A
+        // child with NO local bounds has a null aggregate, so the first grandchild's
+        // bounds become it (the ret==null arm), and a bounds-less second grandchild then
+        // takes the else-if's false side instead of merging a null into the aggregate.
+        Cell root = new Cell(CellTestFixtures.id(60));
+        Cell middle = new Cell(CellTestFixtures.id(61));          // no local bounds
+        Cell grandA = new Cell(CellTestFixtures.id(62));
+        grandA.setLocalBounds(CellTestFixtures.box(0f, 0f, 0f, 1f));
+        Cell grandB = new Cell(CellTestFixtures.id(63));          // no bounds either
+        middle.addChild(grandA);
+        middle.addChild(grandB);
+        root.addChild(middle);
+
+        root.setLocalTransform(CellTestFixtures.translation(5f, 0f, 0f),
+                TransformChangeListener.ChangeSource.LOCAL);
+
+        // middle had no hint of its own, so its world bounds are grandA's, carried to x=5
+        assertThat(middle.getWorldBounds()).isNotNull();
+        assertThat(middle.getWorldBounds().getCenter().x).isCloseTo(5f, offset(1e-4f));
+    }
+
+    @Test
+    void theRendererStatusWalkIsSkippedWhenTheRendererAlreadyHoldsTheStatus() {
+        // setRendererStatus walks the ordinal only when it differs from the required
+        // status; re-asserting the status the renderer already holds takes the equal
+        // branch and changes nothing. The re-activation also takes the ACTIVE case's
+        // clientStateReceiver != null side, so no receiver is re-wired.
+        RendererCell rendererCell = new RendererCell(CellTestFixtures.id(64));
+        Cell.setCurrentRendererType(Cell.RendererType.RENDERER_JME);
+        rendererCell.setStatus(CellStatus.INACTIVE, true);
+        rendererCell.setStatus(CellStatus.ACTIVE, true);
+        RecordingRenderer renderer = rendererCell.renderer;
+        assertThat(renderer.statusCalls).containsExactly("INACTIVE/true", "ACTIVE/true");
+
+        renderer.statusCalls.clear();
+        rendererCell.setStatus(CellStatus.ACTIVE, true);
+        assertThat(renderer.statusCalls).isEmpty();
+    }
+
+    @Test
+    void diskIncreasingTearsNothingDownAndActiveDecreasingWiresNoReceiver() {
+        // The DISK case only tears down when !increasing, and the ACTIVE case only wires
+        // receivers when increasing. The ordinal walk never makes either call, but
+        // setStatus is reachable directly, so both guard sides are pinnable: DISK reached
+        // "increasing" leaves the cell intact, ACTIVE reached "decreasing" registers none.
+        Cell c = new Cell(CellTestFixtures.id(65));
+        RecordingChannel channel = new RecordingChannel();
+        c.setMessageChannel(channel);
+        c.addComponent(new RecordingComponent(c));
+
+        c.setStatus(CellStatus.DISK, true);
+        assertThat(c.getComponents()).hasSize(1);
+        assertThat(channel.removed).isEmpty();
+
+        c.setStatus(CellStatus.ACTIVE, false);
+        assertThat(channel.registered).isEmpty();
+    }
+
+    @Test
+    void fineLoggingDuringAnnotationResolutionIsExercised() {
+        // resolveAnnotations guards its FINE log behind isLoggable; pinning the Cell
+        // logger to FINE drives that branch -- the capture helper exists for exactly
+        // these verbatim-2006 isLoggable guards.
+        AnnotatedCell annotated = new AnnotatedCell(CellTestFixtures.id(66));
+        java.util.List<java.util.logging.LogRecord> fine = CellTestFixtures.capture(
+                Cell.class, java.util.logging.Level.FINE,
+                () -> annotated.setStatus(CellStatus.INACTIVE, true));
+        assertThat(fine).isNotEmpty();
+        assertThat(annotated.probe).isNotNull();
+    }
+
+    @Test
+    void reResolvingAnAnnotationReusesTheComponentItAlreadyMade() {
+        // A second INACTIVE-up re-runs resolveAnnotations; getComponent now returns the
+        // probe the first pass created, so the comp==null arm is false and no second
+        // component is built -- the field is re-set to the very same instance.
+        AnnotatedCell annotated = new AnnotatedCell(CellTestFixtures.id(67));
+        annotated.setStatus(CellStatus.INACTIVE, true);
+        ProbeComponent first = annotated.probe;
+        annotated.setStatus(CellStatus.INACTIVE, true);
+        assertThat(annotated.probe).isSameAs(first);
+        assertThat(annotated.getComponents()).hasSize(1);
+    }
+
+    @Test
+    void aRendererHookThatThrowsDegradesToALogNotAPropagation() {
+        // setStatus's ACTIVE branch wraps createCellRendererImpl in try/catch: a hook
+        // that throws must be swallowed (SEVERE-logged), leaving the cell ACTIVE with no
+        // renderer rather than aborting the status walk.
+        ThrowingRendererCell c = new ThrowingRendererCell(CellTestFixtures.id(68));
+        Cell.setCurrentRendererType(Cell.RendererType.RENDERER_JME);
+        c.setStatus(CellStatus.INACTIVE, true);
+        c.setStatus(CellStatus.ACTIVE, true);
+        assertThat(c.getStatus()).isSameAs(CellStatus.ACTIVE);
+        assertThat(c.getCellRenderer(Cell.RendererType.RENDERER_JME)).isNull();
+    }
+
+    @Test
+    void anAnnotationOnATypeWithNoCellConstructorIsLoggedNotThrown() {
+        // resolveAnnotations builds the component reflectively; a field type with no
+        // (Cell) constructor throws NoSuchMethodException, caught as a
+        // ReflectiveOperationException and SEVERE-logged, then the field is set to null
+        // and the walk carries on.
+        UnconstructibleAnnotatedCell c = new UnconstructibleAnnotatedCell(CellTestFixtures.id(69));
+        c.setStatus(CellStatus.INACTIVE, true);
+        assertThat(c.bad).isNull();
+    }
+
+    @Test
+    void anAnnotationOnAStaticFinalFieldLogsTheIllegalAccessAndCarriesOn() {
+        // Field.set on a static final field throws IllegalAccessException even after
+        // setAccessible(true); resolveAnnotations catches it and SEVERE-logs rather than
+        // aborting. The component was already constructed and added before the set fails.
+        StaticFinalAnnotatedCell c = new StaticFinalAnnotatedCell(CellTestFixtures.id(70));
+        c.setStatus(CellStatus.INACTIVE, true);
+        assertThat(c.getComponent(CellTestFixtures.Probe.class)).isNotNull();
+    }
+
+    @Test
+    void aNullLocalTransformWalksPastAParentWithNoWorldTransform() throws Exception {
+        // setLocalTransform(null) inherits the nearest ancestor's world transform. A
+        // parent whose getWorldTransform() reads null (the override seam) is skipped, so
+        // the walk continues to the grandparent instead of stopping at the first parent.
+        Cell grandParent = new Cell(CellTestFixtures.id(71));
+        grandParent.setLocalTransform(CellTestFixtures.translation(7f, 0f, 0f),
+                TransformChangeListener.ChangeSource.LOCAL);
+        NullWorldCell parent = new NullWorldCell(CellTestFixtures.id(72));
+        Cell child = new Cell(CellTestFixtures.id(73));
+        grandParent.addChild(parent);
+        parent.addChild(child);
+
+        child.setLocalTransform(null, TransformChangeListener.ChangeSource.LOCAL);
+
+        // the child inherited the grandparent's world transform, skipping the null parent
+        assertThat(child.getWorldTransform()).isEqualTo(grandParent.getWorldTransform());
+    }
+
+    @Test
+    void componentAndParentChangeListenersCanBeRemoved() {
+        // removeComponentChangeListener / removeParentChangeListener are one-line
+        // fan-out guards the suite never called; removing a registered listener stops it
+        // firing, so adding a component afterwards records nothing.
+        final java.util.List<String> events = new java.util.ArrayList<>();
+        ComponentChangeListener compListener = (changed, type, comp) -> events.add("comp");
+        CellParentChangeListener parentListener = (changed, newParent) -> events.add("parent");
+        cell.addComponentChangeListener(compListener);
+        cell.addParentChangeListener(parentListener);
+        cell.removeComponentChangeListener(compListener);
+        cell.removeParentChangeListener(parentListener);
+
+        cell.addComponent(new RecordingComponent(cell));
+        assertThat(events).isEmpty();
     }
 }
