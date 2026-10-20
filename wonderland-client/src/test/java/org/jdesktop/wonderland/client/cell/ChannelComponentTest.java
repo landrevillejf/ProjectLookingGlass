@@ -174,4 +174,21 @@ class ChannelComponentTest {
         component.send(ask, listener);
         assertThat(listener.waitForResponse().getMessageID()).isEqualTo(ask.getMessageID());
     }
+
+    @Test
+    @Timeout(5)
+    void sendWithListenerFillsOwnCellIdWhenTheMessageCarriesNone() throws Exception {
+        // The send(CellMessage, ResponseListener) overload's own cellID guard:
+        // a bare message (no id) gets the cell's id stamped on before it rides
+        // the connection, exactly as the no-listener send() does. The 2006 port
+        // kept the two overloads symmetric; pin the symmetry.
+        conn.connect(session);
+        session.responder = (c, msg) -> c.messageReceived(
+                new TestResponse(msg.getMessageID()));
+        ProbeMessage ask = new ProbeMessage(); // no cell id yet
+        WaitResponseListener listener = new WaitResponseListener();
+        component.send(ask, listener);
+        assertThat(ask.getCellID()).isEqualTo(cell.getCellID());
+        assertThat(listener.waitForResponse().getMessageID()).isEqualTo(ask.getMessageID());
+    }
 }

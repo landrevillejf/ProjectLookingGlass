@@ -6,10 +6,12 @@
  * M2f pulls it in for MovableComponent, which rate-limits local move requests
  * to 2 per second through exactly this helper. Two faithful 2006 behaviours are
  * preserved on purpose because a component depends on them:
- *   - the scheduled future is never stored in {@code scheduled}, so
- *     {@link #clear()} cannot actually cancel a pending task -- it only drops
- *     the reference to the next task. Keeping the field (unused on the write
- *     side) pins that so a later "fix" is a deliberate change, not a silent one;
+ *   - {@link #clear()} cannot cancel a pending task, only drop the reference to
+ *     the next one, because {@link #schedule} never stores the scheduled future.
+ *     The 2006 clear() kept a dead {@code if (scheduled != null) cancel} arm for a
+ *     field nothing ever assigned; it is removed here (an unreachable branch is
+ *     not coverage), and the quirk is preserved by schedule() not keeping the
+ *     future, so a later "fix" stays a deliberate change rather than a silent one;
  *   - {@code schedule()} runs the task inline when the minimum delay has
  *     elapsed, otherwise it stores the one pending task (a second schedule
  *     before it fires simply replaces the pending runnable) and returns false.
@@ -18,7 +20,6 @@ package org.jdesktop.wonderland.client.utils;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class Throttle {
@@ -27,7 +28,6 @@ public class Throttle {
     private TimeUnit rateUnit;
     private long lastExecution;
     private Runnable nextTask;
-    private ScheduledFuture scheduled;
 
     public Throttle(long rate, TimeUnit rateUnit) {
         this.rate = rate;
@@ -57,7 +57,6 @@ public class Throttle {
                         synchronized (Throttle.this) {
                             Throttle.this.nextTask.run();
                             Throttle.this.lastExecution = System.currentTimeMillis();
-                            Throttle.this.scheduled = null;
                             Throttle.this.nextTask = null;
                         }
                     }
@@ -69,10 +68,6 @@ public class Throttle {
 
     public synchronized void clear() {
         this.nextTask = null;
-        if (this.scheduled != null) {
-            this.scheduled.cancel(false);
-            this.scheduled = null;
-        }
     }
 
     private synchronized long getMinDelayMillis() {

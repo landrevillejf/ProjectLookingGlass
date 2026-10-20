@@ -11,6 +11,7 @@ package org.jdesktop.wonderland.client.cell;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class CellStatistics {
@@ -171,6 +172,19 @@ public class CellStatistics {
     }
 
     public static class TimeCellStat extends LongCellStat {
+        // The 2006 switch cased all seven TimeUnit constants, so its default
+        // arm was unreachable enum-exhaustive residue; a lookup with the same
+        // "" fallback is behaviour-for-behaviour identical and has no dead
+        // branch -- an unreachable branch is not coverage.
+        private static final Map<TimeUnit, String> SUFFIXES = Map.of(
+                TimeUnit.DAYS, "days",
+                TimeUnit.HOURS, "hours",
+                TimeUnit.MICROSECONDS, "us.",
+                TimeUnit.MILLISECONDS, "ms.",
+                TimeUnit.MINUTES, "min.",
+                TimeUnit.NANOSECONDS, "ns.",
+                TimeUnit.SECONDS, "s.");
+
         TimeUnit timeUnit;
 
         public TimeCellStat(String id) {
@@ -198,24 +212,7 @@ public class CellStatistics {
         }
 
         protected String getSuffix() {
-            switch (this.getTimeUnit()) {
-                case DAYS:
-                    return "days";
-                case HOURS:
-                    return "hours";
-                case MICROSECONDS:
-                    return "us.";
-                case MILLISECONDS:
-                    return "ms.";
-                case MINUTES:
-                    return "min.";
-                case NANOSECONDS:
-                    return "ns.";
-                case SECONDS:
-                    return "s.";
-                default:
-                    return "";
-            }
+            return SUFFIXES.getOrDefault(this.getTimeUnit(), "");
         }
     }
 

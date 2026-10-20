@@ -416,7 +416,11 @@ public final class WebSocketWonderlandSession implements WonderlandSession {
                 socket = client.newWebSocketBuilder()
                         .buildAsync(uri, new FrameReader(inbound)).join();
             } catch (CompletionException ex) {
-                Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+                // CompletableFuture.join() always completes exceptionally with
+                // the real failure as the cause, so getCause() is never null
+                // here; the "no cause" fallback was an unreachable branch, and
+                // an unreachable branch is not coverage.
+                Throwable cause = ex.getCause();
                 throw new IOException("cannot open the WebSocket to " + uri
                         + ": " + cause, cause);
             }

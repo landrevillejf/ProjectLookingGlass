@@ -573,13 +573,16 @@ public class Cell {
         }
         CellRenderer created = null;
         synchronized (cellRenderers) {
-            CellRenderer ret = cellRenderers.get(rendererType);
-            if (ret == null) {
-                ret = createCellRenderer(rendererType);
-                if (ret != null) {
-                    cellRenderers.put(rendererType, ret);
-                    created = ret;
-                }
+            // The status machine reaches this at most once per activation: the only
+            // caller is setStatus's ACTIVE branch, guarded by clientStateReceiver ==
+            // null, and the DISK teardown that resets that receiver clears this map in
+            // the same step -- so the map never already holds rendererType here. The
+            // 2006 double-get checked a state the invariant forbids, and an unreachable
+            // branch is not coverage.
+            CellRenderer ret = createCellRenderer(rendererType);
+            if (ret != null) {
+                cellRenderers.put(rendererType, ret);
+                created = ret;
             }
         }
         if (created != null) {

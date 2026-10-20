@@ -112,4 +112,15 @@ class CameraPathTest {
                 .as("and on the last, an infinity being no place either")
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void theRouteIsReadableAsAuthored() {
+        // waypoints() is the shell's window into the tour: a route it cannot
+        // read back is a route it cannot draw or log, so pin it against the
+        // keys of() was handed -- the same record values, in the same order.
+        CameraPath.Waypoint a = p(0, 0, 0);
+        CameraPath.Waypoint b = p(5, 1, 8);
+        CameraPath.Waypoint c = p(12, 0, 3);
+        assertThat(CameraPath.of(a, b, c).waypoints()).containsExactly(a, b, c);
+    }
 }

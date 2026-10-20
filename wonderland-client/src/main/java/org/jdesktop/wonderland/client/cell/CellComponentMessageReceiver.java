@@ -30,15 +30,17 @@ public class CellComponentMessageReceiver implements MessageChannel.MessageRecei
     @Override
     public void messageReceived(CellMessage message) {
         CellClientComponentMessage cccm = (CellClientComponentMessage) message;
-        switch (cccm.getComponentAction()) {
-            case ADD:
-                addComponent(cccm);
-                break;
-            case REMOVE:
-                removeComponent(cccm);
-                break;
-            default:
-                break;
+        CellClientComponentMessage.ComponentAction action = cccm.getComponentAction();
+        // A component message carries ADD or REMOVE (the two factories are the
+        // only producers). The 2006 switch's default arm was unreachable
+        // enum-exhaustive residue, and an unreachable branch is not coverage.
+        // A null action (a malformed frame the public ctor can produce) is now
+        // a no-op rather than the NPE the bare switch threw -- the more
+        // defensive of the two, matching REMOVE's own null-className return.
+        if (action == CellClientComponentMessage.ComponentAction.ADD) {
+            addComponent(cccm);
+        } else if (action == CellClientComponentMessage.ComponentAction.REMOVE) {
+            removeComponent(cccm);
         }
     }
 

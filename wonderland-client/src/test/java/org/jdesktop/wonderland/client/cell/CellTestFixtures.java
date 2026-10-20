@@ -380,6 +380,61 @@ class CellTestFixtures {
         }
     }
 
+    /** Overrides the renderer hook to throw, so setStatus's ACTIVE branch exercises
+     *  its createCellRendererImpl try/catch: a renderer-backend failure degrades to a
+     *  SEVERE log rather than propagating out of the status walk. */
+    static class ThrowingRendererCell extends Cell {
+        ThrowingRendererCell(CellID cellID) {
+            super(cellID);
+        }
+
+        @Override
+        protected CellRenderer createCellRenderer(RendererType rendererType) {
+            throw new IllegalStateException("renderer backend unavailable");
+        }
+    }
+
+    /** @UsesCellComponent on a field whose type has no (Cell) constructor, so
+     *  resolveAnnotations' getConstructor(Cell.class) throws NoSuchMethodException --
+     *  its ReflectiveOperationException catch. */
+    static class UnconstructibleAnnotatedCell extends Cell {
+        @UsesCellComponent
+        UnconstructibleComponent bad;
+
+        UnconstructibleAnnotatedCell(CellID cellID) {
+            super(cellID);
+        }
+    }
+
+    /** @UsesCellComponent on a static final field: Field.set throws
+     *  IllegalAccessException even after setAccessible(true), pinning
+     *  resolveAnnotations' IllegalAccessException catch. The component is still
+     *  constructed and added before the failing set. */
+    static class StaticFinalAnnotatedCell extends Cell {
+        @UsesCellComponent
+        static final ProbeComponent pinned = null;
+
+        StaticFinalAnnotatedCell(CellID cellID) {
+            super(cellID);
+        }
+    }
+
+    /** A parent whose world transform reads as "not computed yet" (null). The public,
+     *  overridable getWorldTransform() is the seam that drives setLocalTransform's
+     *  walk-up past a parent with no world transform to the nearest defined ancestor --
+     *  the defensive else the base invariant (worldTransform is never null) otherwise
+     *  leaves unreachable. */
+    static class NullWorldCell extends Cell {
+        NullWorldCell(CellID cellID) {
+            super(cellID);
+        }
+
+        @Override
+        public CellTransform getWorldTransform() {
+            return null;
+        }
+    }
+
     static CellClientState namedState(String name) {
         CellClientState state = new CellClientState();
         state.setName(name);

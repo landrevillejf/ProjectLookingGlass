@@ -350,6 +350,26 @@ class WebSocketWonderlandSessionTest {
     }
 
     @Test
+    void disconnectingOneChannelOfTwoLeavesTheSessionConnected() throws Exception {
+        FakeFactory factory = new FakeFactory();
+        WebSocketWonderlandSession session = session(factory);
+        TestConnection cache = new TestConnection(CellCacheConnectionType.CLIENT_TYPE);
+        TestConnection channel = new TestConnection(CellChannelConnectionType.CLIENT_TYPE);
+        session.connect(cache, new Properties());
+        session.connect(channel, new Properties());
+
+        session.disconnect(cache);
+
+        // one channel of two gone: the session is still CONNECTED (the
+        // channels.isEmpty() guard is false), the survivor is still registered,
+        // and only the dropped socket was closed
+        assertEquals(WonderlandSession.Status.CONNECTED, session.getStatus());
+        assertThat(session.getConnections()).containsExactly(channel);
+        assertTrue(factory.transports.get(0).closed);
+        assertFalse(factory.transports.get(1).closed);
+    }
+
+    @Test
     void aWriteFailureDropsTheChannelItCouldNotReach() throws Exception {
         FakeFactory factory = new FakeFactory();
         WebSocketWonderlandSession session = session(factory);
@@ -378,6 +398,22 @@ class WebSocketWonderlandSessionTest {
         assertThat(session.getConnections()).containsExactly(cache);
         assertEquals(cache, session.getConnection(
                 CellCacheConnectionType.CLIENT_TYPE, TestConnection.class));
+    }
+
+    @Test
+    void aTypedLookupOfAnAbsentChannelIsNull() throws Exception {
+        FakeFactory factory = new FakeFactory();
+        WebSocketWonderlandSession session = session(factory);
+        session.connect(new TestConnection(CellCacheConnectionType.CLIENT_TYPE),
+                new Properties());
+
+        // the cache channel is live, but the cell-channel was never opened:
+        // the typed getConnection must answer null rather than throw on the
+        // cast, and the live one still casts to the caller's type
+        assertThat(session.getConnection(
+                CellChannelConnectionType.CLIENT_TYPE, TestConnection.class)).isNull();
+        assertThat(session.getConnection(
+                CellCacheConnectionType.CLIENT_TYPE, TestConnection.class)).isNotNull();
     }
 
     /** A message that refuses to serialise, to pin the pack-failure path. */
@@ -511,6 +547,49 @@ class WebSocketWonderlandSessionTest {
         factory.last().push(new SessionInitializationMessage(SESSION, ALICE));
 
         assertThat(cache.received).hasSize(1);
+    }
+
+    @Test
+    void aDataFrameThatArrivesBeforeTheHandshakeIsDeliveredNotSwallowed() throws Exception {
+        // onInbound's unattached arm has three exits: AttachedClientMessage
+        // (sets the wire id), SessionInitializationMessage (completes the
+        // handshake), and -- the one a server that talks early exercises --
+        // anything else, which falls straight through to the connection. The
+        // channel is in the map the moment connect() puts it there, before the
+        // attach is even written, so a data frame that beats the handshake is
+        // delivered, not dropped.
+        WebSocketWonderlandSession session = new WebSocketWonderlandSession(
+                new WonderlandServerInfo("localhost", 8080), identity(),
+                (uri, inbound) -> new WebSocketWonderlandSession.Transport() {
+                    @Override
+                    public void send(ByteBuffer frame) throws IOException {
+                        // a data frame FIRST, while the channel is unattached
+                        inbound.accept(pack(
+                                CellHierarchyMessage.newSetAvatarMessage("early"), WIRE_ID));
+                        // then the normal handshake pair completes the attach
+                        AttachClientMessage attach =
+                                (AttachClientMessage) unpack(frame).getMessage();
+                        inbound.accept(pack(new AttachedClientMessage(
+                                attach.getMessageID(), WIRE_ID), (short) 0));
+                        inbound.accept(pack(new SessionInitializationMessage(
+                                SESSION, ALICE), (short) 0));
+                    }
+
+                    @Override
+                    public void close() {
+                    }
+                },
+                Duration.ofSeconds(5));
+        TestConnection cache = new TestConnection(CellCacheConnectionType.CLIENT_TYPE);
+
+        session.connect(cache, new Properties());
+
+        // the early data frame reached the connection; the two handshake
+        // frames were consumed by the session and never delivered
+        assertThat(cache.received).hasSize(1);
+        assertEquals(CellHierarchyMessage.newSetAvatarMessage("early").getClass(),
+                cache.received.get(0).getClass());
+        assertEquals(ClientConnection.Status.CONNECTED, cache.getStatus());
     }
 
     @Test

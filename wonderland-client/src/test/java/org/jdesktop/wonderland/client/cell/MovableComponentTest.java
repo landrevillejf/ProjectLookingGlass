@@ -229,6 +229,28 @@ class MovableComponentTest {
     }
 
     @Test
+    void diskRungWithAReceiverButNoChannelIsAHarmlessNoOp() {
+        // The DISK arm's second guard: msgReceiver survives but channelComp has
+        // been dropped (a torn-down cell whose channel went first). The 2006
+        // port's && means the removal is skipped -- the receiver is left
+        // dangling but nothing throws, which is the more defensive of the two
+        // outcomes for a cell already on its way out. Both fields are protected
+        // in the same package, so the seam is a plain assignment.
+        CellID id = CellTestFixtures.id(1);
+        MovableCell cell = loadMovable(id);
+        assertThat(cell.movable.msgReceiver).isNotNull();
+        assertThat(cell.movable.channelComp).isNotNull();
+
+        cell.movable.channelComp = null;
+        cell.movable.setStatus(CellStatus.DISK, false);
+
+        assertThat(cell.movable.msgReceiver)
+                .as("the removal was skipped: no channel to remove it from")
+                .isNotNull();
+        assertThat(cell.movable.channelComp).isNull();
+    }
+
+    @Test
     @Timeout(10)
     void secondMoveWithinTheWindowIsBufferedThenSent() throws InterruptedException {
         CellID id = CellTestFixtures.id(1);
