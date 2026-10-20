@@ -402,6 +402,34 @@ sonar {
         // A gate still RUNNING when the scanner gives up must not read as a
         // pass; 5 minutes is generous for a community build of this size.
         property 'sonar.qualitygate.timeout', '300'
+        // Exclude retired modules, generated code, and legacy paths that are
+        // intentionally excluded from the build (see AGENTS.md "Code Exclusions"
+        // and "Excluded from Build"). SonarQube analyzes the whole tree by
+        // default, so without these exclusions it reports 120k+ bugs from code
+        // that is not compiled, not maintained, and not part of the product.
+        property 'sonar.exclusions',
+            '**/build-gradle/**,' +
+            '**/build/**,' +
+            'lg3d-awt/**,' +
+            'lg3d-x11/**,' +
+            'lg3d-docs/**,' +
+            'lg3d-art/**,' +
+            'documentation/**,' +
+            'lg3d-core/src/contrib/java/org/jdesktop/lg3d/awt/**,' +
+            'lg3d-core/src/contrib/java/sun/awt/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/awt/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/displayserver/fws/x11/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/apps/x11integration/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/sg/internal/rmi/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/wg/internal/rmi/**,' +
+            'lg3d-core/src/classes/org/jdesktop/lg3d/wg/**/j3dnodes/Ode*.java,' +
+            'lg3d-escher/src/classes/gnu/**,' +
+            'lg3d-incubator/src/classes/nu/koidelab/**,' +
+            'lg3d-incubator/src/classes/apps/archviz3d/**,' +
+            'lg3d-incubator/src/classes/apps/intel3d/**,' +
+            'lg3d-incubator/src/classes/apps/browser/**,' +
+            'lg3d-incubator/src/classes/apps/browser3d/**,' +
+            'lg3d-incubator/src/classes/apps/wilkoaim3d/**'
     }
 }
 // The scanner uploads whatever JaCoCo XML already exists; running it before the
