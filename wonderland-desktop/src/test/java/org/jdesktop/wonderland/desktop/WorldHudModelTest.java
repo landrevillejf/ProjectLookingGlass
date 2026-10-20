@@ -187,6 +187,19 @@ class WorldHudModelTest {
     }
 
     @Test
+    void aBlankClassNameFallsThroughToTheIdToo() {
+        // The class arm has two ways to fail: className null (covered by "bare"
+        // above) and className present but blank. A blank class is not a label,
+        // so the id is the only honest one -- this is labelFor()'s isBlank() side
+        // on the className arm.
+        model.setInventory(new FixtureInventory(
+                cell("blankclass", null, "   ", null)));
+
+        assertThat(model.rows()).extracting(WorldHudModel.Row::label)
+                .containsExactly("blankclass");
+    }
+
+    @Test
     void aParentCycleTerminatesInsteadOfHanging() {
         model.setInventory(new FixtureInventory(
                 cell("self", "self", "Group", "Self parent"),

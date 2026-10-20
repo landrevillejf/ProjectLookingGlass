@@ -128,8 +128,13 @@ public final class CellFrameBridge {
         if (cellId == null || !mounted.contains(cellId)) {
             return;
         }
+        // The map holds exactly the hidden cells (a hide stores FALSE, showing
+        // removes the entry), so `previous` is only ever null (shown) or FALSE
+        // (hidden), never TRUE. "Was visible" is therefore just the absence of a
+        // hide record; the old `|| previous.booleanValue()` arm tested a value
+        // the map cannot hold, and an unreachable branch is not coverage.
         Boolean previous = visibility.get(cellId);
-        boolean wasVisible = previous == null || previous.booleanValue();
+        boolean wasVisible = previous == null;
         if (wasVisible == visible) {
             return;
         }

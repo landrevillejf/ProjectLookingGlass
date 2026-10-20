@@ -207,6 +207,23 @@ class PickRouterTest {
     }
 
     @Test
+    void routeHitsWithANullIntentIsAPassthroughToo() {
+        // route() guards a null intent before it ever builds a hit list, but the
+        // event-driven routeHits() is its own public entry point: a caller that
+        // hands over cells with no gesture must get the same passthrough, not an
+        // NPE from the interest lookup. This is routeHits()'s intent==null arm,
+        // which route()'s own guard means the coordinate path never reaches.
+        PickRouter router = new PickRouter(bridge, new ScriptedHits("A"));
+        router.register("A", PickIntent.SELECT);
+
+        PickDecision decision = router.routeHits(List.of("A"), null);
+
+        assertThat(decision.consumed()).isFalse();
+        assertThat(decision.cellId()).isNull();
+        assertThat(decision.intent()).isNull();
+    }
+
+    @Test
     void nullEntriesInTheHitListAreSteppedOver() {
         bridge.mountCell("A", STUB_RENDERER);
         PickRouter router = new PickRouter(bridge, new ScriptedHits(null, "A"));

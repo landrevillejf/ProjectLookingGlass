@@ -123,7 +123,11 @@ public final class WorldHudModel {
                     depthOf(cell.id(), parents), stateOf(cell.id())));
         }
         for (String cellId : bridge.mountedCellIds()) {
-            if (cellId == null || listed.contains(cellId)) {
+            // mountedCellIds() never yields null -- CellFrameBridge rejects a
+            // null id at mountCell -- so the only skip here is a cell the
+            // inventory already listed above. The old `cellId == null ||` arm
+            // guarded a state the final bridge cannot produce.
+            if (listed.contains(cellId)) {
                 continue;
             }
             // A cell the world did not publish but the session loaded still has
