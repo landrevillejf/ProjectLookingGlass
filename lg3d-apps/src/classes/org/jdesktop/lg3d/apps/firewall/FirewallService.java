@@ -210,6 +210,7 @@ public class FirewallService {
                 case "-j":
                     if (i + 1 < tokens.length) action = tokens[i + 1];
                     break;
+                default: break;
             }
         }
         return new FirewallRule(protocol, source, destination, port, action, target);

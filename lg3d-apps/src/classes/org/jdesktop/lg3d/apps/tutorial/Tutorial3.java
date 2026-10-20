@@ -46,7 +46,6 @@ package org.jdesktop.lg3d.apps.tutorial;
 
 // org.jdesktop.lg3d.wg.* -- Project Looking Glass core components
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 // org.jdesktop.lg3d.tils.c3danimation.* -- Utility animation classes
@@ -59,7 +58,6 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 // receives events and predigest those into action calls.
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
 // org.jdesktop.lg3d.utils.actionadapter.* -- performs some processing 
 // and possibly conversion among the Action interfaces.
 import org.jdesktop.lg3d.utils.actionadapter.ToggleAdapter;

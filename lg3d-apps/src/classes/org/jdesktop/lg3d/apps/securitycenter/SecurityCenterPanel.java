@@ -1057,6 +1057,7 @@ public class SecurityCenterPanel extends JPanel {
             case INFO -> {
                 // The fix lives outside this app; the detail line is the guidance.
             }
+            default -> { }
         }
         setStatus(recommendation.detail().isBlank()
                 ? recommendation.title() : recommendation.detail());

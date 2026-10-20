@@ -59,11 +59,9 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 // org.jdesktop.lg3d.utils.eventadapter.* -- Utility classes that
 // receives events and predigest those into action calls.
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 // org.jdesktop.lg3d.utils.action.* -- Action classes that accepts
 // invocations via Action interface and performs predefined actions.
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
-import org.jdesktop.lg3d.utils.action.GenericEventPostAction;
 // org.jogamp.vecmath.* -- Classes for vector math operations
 import org.jogamp.vecmath.Vector3f;
 

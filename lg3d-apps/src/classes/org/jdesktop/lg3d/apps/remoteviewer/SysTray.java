@@ -50,7 +50,7 @@ public class SysTray {
     }
     
     public static void updateServerStatus(int msgType) {
-        if (!SystemTray.isSupported() || enabled == false) return;
+        if (!SystemTray.isSupported() || !enabled) return;
         
         switch (msgType) {
             case SERVER_RUNNING:
@@ -90,12 +90,13 @@ public class SysTray {
                 trayIcon.setToolTip("Remote viewer [Server stopped]\n" +
                         server_address);
                 break;
+            default: break;
         }
         serverItem.setEnabled(true);
     }
 
     public static void displayViewer(String viewer, int size, boolean connected) {
-        if (!SystemTray.isSupported() || enabled == false) return;
+        if (!SystemTray.isSupported() || !enabled) return;
 
         if (connected) {
             trayIcon.displayMessage("Viewer details", viewer + " connected !!",

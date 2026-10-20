@@ -18,7 +18,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
@@ -1207,6 +1206,7 @@ public class DockerManagementPanel extends JPanel {
                                     button.setEnabled(dockerRunning);  // CORRIGÉ : activé quand Docker tourne
                             case "Compose Down" -> button.setEnabled(dockerRunning);  // OK
                             case "Build", "Run" -> button.setEnabled(dockerRunning);  // Ces boutons dépendent de Docker
+                            default -> { }
                         }
                         // Les boutons "Refresh" et "Quick Actions" sont toujours activés
                     }

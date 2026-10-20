@@ -31,7 +31,6 @@ import org.jdesktop.lg3d.wg.*;
 import org.jdesktop.lg3d.wg.event.*;
 import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Vector3f;
 
 

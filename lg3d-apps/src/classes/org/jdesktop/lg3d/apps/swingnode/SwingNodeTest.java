@@ -32,7 +32,6 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.sg.*;
 // org.jogamp.vecmath.* -- Classes for vector math operations
 import org.jogamp.vecmath.Vector3f;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.wg.SwingNodeRenderer;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 

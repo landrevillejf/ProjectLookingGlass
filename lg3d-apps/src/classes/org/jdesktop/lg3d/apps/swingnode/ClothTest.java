@@ -24,14 +24,11 @@ package org.jdesktop.lg3d.apps.swingnode;
 
 import org.jogamp.vecmath.Vector3f;
 //import java.util.Random;
-import java.util.Enumeration;
-import java.awt.GraphicsConfiguration;
 import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Point3d;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.sg.GeometryArray;
-import org.jdesktop.lg3d.sg.GeometryUpdater;
 import org.jdesktop.lg3d.sg.IndexedTriangleStripArray;
 import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;

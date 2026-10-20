@@ -22,9 +22,7 @@
 package org.jdesktop.lg3d.apps.callviewer;
 
 import java.lang.ref.WeakReference;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.wg.Component3D;
 
 /**

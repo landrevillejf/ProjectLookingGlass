@@ -554,6 +554,7 @@ public class PrivacyPanel extends JPanel {
                 viewer.setText("check.torproject.org was unreachable.\n"
                         + "This usually means tor is not running, or the network is cut.");
             }
+            default -> { }
         }
         viewer.setCaretPosition(0);
     }

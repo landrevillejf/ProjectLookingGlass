@@ -78,6 +78,7 @@ public class SampleGraph {
             case SPHERE :
                 ret.addChild( new Sphere( 0.01f ));
                 break;
+            default: break;
         }
         return ret;
     }

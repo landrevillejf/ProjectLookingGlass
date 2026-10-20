@@ -200,7 +200,7 @@ final class Archives {
         while (total < buf.length) {
             int n = in.read(buf, total, buf.length - total);
             if (n < 0) {
-                return total == 0 ? false : true;
+                return total != 0;
             }
             total += n;
         }

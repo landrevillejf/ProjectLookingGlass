@@ -77,6 +77,7 @@ final class ProjectProvisioner {
             case NONE -> {
                 // A plain Java project has no build descriptor.
             }
+            default -> { }
         }
 
         String toolHomeRel = "";

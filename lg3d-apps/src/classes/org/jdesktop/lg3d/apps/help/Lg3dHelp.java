@@ -21,14 +21,12 @@
  */
 package org.jdesktop.lg3d.apps.help;
 
-import java.net.MalformedURLException;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.scenemanager.utils.decoration.Frame3DWindowDecoration;
 import org.jdesktop.lg3d.sg.utils.transparency.TransparencyOrderedGroup;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.AppearanceChangeAction;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;

@@ -21,12 +21,10 @@
  */
 package org.jdesktop.lg3d.apps.tutorial;
 
-import java.awt.event.MouseMotionAdapter;
 
 
 
 import javax.swing.JWindow;
-import javax.swing.JFrame;
 
 /**
  *

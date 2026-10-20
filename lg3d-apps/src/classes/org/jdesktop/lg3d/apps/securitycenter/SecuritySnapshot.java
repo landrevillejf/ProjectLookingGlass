@@ -106,6 +106,7 @@ public record SecuritySnapshot(
             case ENFORCING -> {
                 // The desired state; no concern.
             }
+            default -> { }
         }
         switch (firewall) {
             case NOT_RUNNING -> out.add("The firewall is not running.");
@@ -114,6 +115,7 @@ public record SecuritySnapshot(
             case RUNNING -> {
                 // The desired state; no concern.
             }
+            default -> { }
         }
         return out;
     }

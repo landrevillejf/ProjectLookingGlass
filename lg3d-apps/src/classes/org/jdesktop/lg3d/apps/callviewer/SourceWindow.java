@@ -21,7 +21,6 @@
  */
 package org.jdesktop.lg3d.apps.callviewer;
 
-import org.jogamp.java3d.QuadArray;
 import org.jogamp.vecmath.*;
 import java.net.URL;
 import java.awt.image.BufferedImage;
@@ -29,25 +28,12 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 import java.io.*;
 import java.awt.*;
-import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.*;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.AppearanceChangeAction;
-import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
-import org.jdesktop.lg3d.utils.shape.RectShadow;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Thumbnail;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 
 /**

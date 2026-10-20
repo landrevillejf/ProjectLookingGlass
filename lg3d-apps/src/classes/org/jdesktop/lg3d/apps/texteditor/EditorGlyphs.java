@@ -251,6 +251,7 @@ final class EditorGlyphs {
                     g.draw(new Line2D.Double(3.5, 8.5, 6.5, 11.5));
                     g.draw(new Line2D.Double(6.5, 11.5, 12.5, 4.5));
                 }
+                default -> { }
             }
         }
 
