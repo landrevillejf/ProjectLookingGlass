@@ -256,26 +256,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Elasticsearch inside SonarQube refuses to start under the default
-    # vm.max_map_count on a fresh runner.
+    # vm.max_map_count on a fresh runner. The sysctl MUST be raised BEFORE
+    # the container starts, so SonarQube is launched as a background process
+    # in a step (after the sysctl step) rather than as a service container
+    # (which starts before any step runs).
     env:
-      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+      SONAR_HOST_URL: http://localhost:9000
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    services:
-      sonarqube:
-        image: sonarqube:lts-community
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl --fail --silent http://localhost:9000/api/system/status | grep -q 'UP' || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Raise vm.max_map_count for Elasticsearch
         run: sudo sysctl -w vm.max_map_count=262144
+
+      - name: Start SonarQube
+        run: |
+          docker run -d --name sonarqube \
+            -p 9000:9000 \
+            -e SONAR_ES_BOOTSTRAP_CHECKS=false \
+            sonarqube:lts-community
+          # Wait for SonarQube to be ready
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:9000/api/system/status | grep -q 'UP'; then
+              echo "SonarQube is ready"
+              exit 0
+            fi
+            echo "Waiting for SonarQube... ($i/60)"
+            sleep 5
+          done
+          echo "SonarQube failed to start"
+          docker logs sonarqube
+          exit 1
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -346,6 +358,10 @@ jobs:
           done
           curl -sf -u "$AUTH" "$base/api/qualitygates/project_status?projectKey=lg3d" \
             | python3 -c 'import json,sys; d=json.load(sys.stdin)["projectStatus"]; print("gate:", d["status"]); [print(" ", c["status"], c["metricKey"], c.get("value")) for c in d["conditions"]]; sys.exit(0 if d["status"]=="OK" else 1)'
+
+      - name: Stop SonarQube
+        if: always()
+        run: docker rm -f sonarqube 2>/dev/null || true
 
       - name: Upload the analysis report
         if: always()
