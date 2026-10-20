@@ -115,8 +115,9 @@ public class CellCacheConnection extends BaseConnection {
                 for (CellCacheMessageListener l : listeners) {
                     l.deleteCell(msg.getCellID());
                 }
-                // falls through to CHANGE_PARENT in the 2006 bytecode; kept
-                // verbatim -- the CHANGE_PARENT body is empty there too
+                // kept verbatim from the 2006 bytecode -- the CHANGE_PARENT
+                // body is empty there too, so DELETE_CELL simply runs into it.
+                // fall through
             case CHANGE_PARENT:
                 break;
             default:
