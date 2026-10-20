@@ -2,9 +2,7 @@ package gnu.app.displayhack;
 
 import gnu.x11.GC;
 import gnu.x11.Pixmap;
-import gnu.x11.extension.render.Picture.Format.Direct;
 import gnu.x11.extension.render.Picture;
-import gnu.x11.extension.render.Picture.Format;
 import gnu.x11.extension.render.Render;
 
 

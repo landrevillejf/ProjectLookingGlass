@@ -160,6 +160,7 @@ public abstract class DisplayHack extends gnu.x11.Application
     } case ClientMessage.CODE:
       if (((ClientMessage) event).delete_window ()) exit ();
       break;
+    default: break;
     }
   }
 

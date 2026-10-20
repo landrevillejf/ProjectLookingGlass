@@ -1,7 +1,6 @@
 package gnu.x11.test;
 
 import gnu.x11.Cursor;
-import gnu.x11.extension.XCMisc;
 
 
 /**

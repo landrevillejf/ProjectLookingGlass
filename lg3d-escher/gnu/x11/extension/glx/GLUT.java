@@ -1,6 +1,5 @@
 package gnu.x11.extension.glx;
 
-import gnu.x11.Data;
 import gnu.util.Misc;
 import gnu.util.Vector3f;
 
@@ -47,12 +46,30 @@ public class GLUT {             // TODO
 
   private void box (float size, int type) {
     float [] [] v = new float [8] [3];
-    v[0][0] = v[1][0] = v[2][0] = v[3][0] = -size / 2;
-    v[4][0] = v[5][0] = v[6][0] = v[7][0] = size / 2;
-    v[0][1] = v[1][1] = v[4][1] = v[5][1] = -size / 2;
-    v[2][1] = v[3][1] = v[6][1] = v[7][1] = size / 2;
-    v[0][2] = v[3][2] = v[4][2] = v[7][2] = -size / 2;
-    v[1][2] = v[2][2] = v[5][2] = v[6][2] = size / 2;
+    v[0][0] = -size / 2;
+    v[1][0] = -size / 2;
+    v[2][0] = -size / 2;
+    v[3][0] = -size / 2;
+    v[4][0] = size / 2;
+    v[5][0] = size / 2;
+    v[6][0] = size / 2;
+    v[7][0] = size / 2;
+    v[0][1] = -size / 2;
+    v[1][1] = -size / 2;
+    v[4][1] = -size / 2;
+    v[5][1] = -size / 2;
+    v[2][1] = size / 2;
+    v[3][1] = size / 2;
+    v[6][1] = size / 2;
+    v[7][1] = size / 2;
+    v[0][2] = -size / 2;
+    v[3][2] = -size / 2;
+    v[4][2] = -size / 2;
+    v[7][2] = -size / 2;
+    v[1][2] = size / 2;
+    v[2][2] = size / 2;
+    v[5][2] = size / 2;
+    v[6][2] = size / 2;
 
 
     for (int i=5; i>=0; i--) {

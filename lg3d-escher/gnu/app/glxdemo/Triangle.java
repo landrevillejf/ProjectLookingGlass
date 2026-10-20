@@ -112,6 +112,7 @@ public class Triangle extends gnu.x11.extension.glx.Application {
     case SOLID: gl.begin (GL.POLYGON); break;
     case LINE: gl.begin (GL.LINE_LOOP); break;
     case POINT: gl.begin (GL.POINTS); break;
+    default: break;
     }
 
     gl.vertex3fv (POINT0);
@@ -141,6 +142,7 @@ public class Triangle extends gnu.x11.extension.glx.Application {
     case SOLID: gl.begin (GL.POLYGON); break;
     case LINE: gl.begin (GL.LINE_LOOP); break;
     case POINT: gl.begin (GL.POINTS); break;
+    default: break;
     }
 
     gl.color3f (1.0f, 0.0f, 0.0f);

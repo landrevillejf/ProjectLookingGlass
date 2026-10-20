@@ -75,6 +75,7 @@ public class Pixel extends gnu.x11.extension.glx.Application {
       if (zoom_factor < 0.5f) zoom_factor = 0.5f;
       System.out.println ("zoom-factor: " + zoom_factor);
       break;
+    default: break;
     }
   }
 

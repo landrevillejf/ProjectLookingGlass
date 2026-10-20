@@ -740,8 +740,8 @@ public class Display {
     resource_base = reply.read4 (12);
     resource_mask = reply.read4 (16);
     int vendor_length = reply.read2 (24);
-    extended_maximum_request_length 
-      = maximum_request_length = reply.read2 (26);
+    maximum_request_length = reply.read2 (26);
+    extended_maximum_request_length = maximum_request_length;
     int screen_count = reply.read1 (28);
     int pixmap_format_count = reply.read1 (29);
 

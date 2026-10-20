@@ -8,7 +8,6 @@ import gnu.x11.Rectangle;
 import gnu.x11.Request;
 import gnu.x11.Window;
 import gnu.x11.event.Event;
-import gnu.x11.extension.*;
 import gnu.x11.XProtocolInfo;
 
 

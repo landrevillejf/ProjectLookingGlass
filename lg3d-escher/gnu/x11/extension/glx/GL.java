@@ -1932,6 +1932,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case FOG_END:               // fall through
     case FOG_INDEX: n = 1; break;      
     case FOG_COLOR: n = 4; break;
+    default: break;
     }
     
     begin_render_request (81, 8+4*n);
@@ -1965,6 +1966,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case FOG_END:               // fall through
     case FOG_INDEX: n = 1; break;
     case FOG_COLOR: n = 4; break;
+    default: break;
     }
     
     begin_render_request (83, 8+4*n);
@@ -2023,6 +2025,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case DIFFUSE:               // fall through
     case SPECULAR:              // fall through
     case POSITION: n = 4; break;
+    default: break;
     }
     
     begin_render_request (87, 12+4*n);
@@ -2062,6 +2065,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case DIFFUSE:               // fall through
     case SPECULAR:              // fall through
     case POSITION: n = 4; break;
+    default: break;
     }
     
     begin_render_request (89, 12+4*n);
@@ -2094,6 +2098,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case LIGHT_MODEL_LOCAL_VIEWER: // fall through
     case LIGHT_MODEL_TWO_SIDE: n = 1; break;
     case LIGHT_MODEL_AMBIENT: n = 4; break;
+    default: break;
     }
 
     begin_render_request (91, 8+4*n);
@@ -2125,6 +2130,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case LIGHT_MODEL_LOCAL_VIEWER: // fall through
     case LIGHT_MODEL_TWO_SIDE: n = 1; break;
     case LIGHT_MODEL_AMBIENT: n = 4; break;
+    default: break;
     }
 
     begin_render_request (93, 8+4*n);
@@ -2182,6 +2188,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case SPECULAR:              // fall through
     case EMISSION:              // fall through
     case AMBIENT_AND_DIFFUSE: n = 4; break;
+    default: break;
     }
 
     begin_render_request (97, 12+4*n);
@@ -2218,6 +2225,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case SPECULAR:              // fall through
     case EMISSION:              // fall through
     case AMBIENT_AND_DIFFUSE: n = 4; break;
+    default: break;
     }
 
     begin_render_request (99, 12+4*n);
@@ -2322,6 +2330,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case TEXTURE_WRAP_T:        // fall through
     case TEXTURE_PRIORITY: n = 1; break;
     case TEXTURE_BORDER_COLOR: n = 4; break;
+    default: break;
     }
 
     begin_render_request (106, 12+4*n);
@@ -2359,6 +2368,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case TEXTURE_WRAP_T:        // fall through
     case TEXTURE_PRIORITY: n = 1; break;
     case TEXTURE_BORDER_COLOR: n = 4; break;
+    default: break;
     }
 
     begin_render_request (108, 12+4*n);
@@ -2455,6 +2465,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     switch (pname) {
     case TEXTURE_ENV_MODE: n = 1; break;
     case TEXTURE_ENV_COLOR: n = 4; break;
+    default: break;
     }
 
     begin_render_request (112, 12+4*n);
@@ -2486,6 +2497,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     switch (pname) {
     case TEXTURE_ENV_MODE: n = 1; break;
     case TEXTURE_ENV_COLOR: n = 4; break;
+    default: break;
     }
 
     begin_render_request (114, 12+4*n);
@@ -2518,6 +2530,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case TEXTURE_GEN_MODE: n = 1; break;
     case OBJECT_PLANE:        // fall through
     case EYE_PLANE: n = 4; break;
+    default: break;
     }
 
     begin_render_request (116, 12+8*n);
@@ -2550,6 +2563,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case TEXTURE_GEN_MODE: n = 1; break;
     case OBJECT_PLANE:        // fall through
     case EYE_PLANE: n = 4; break;
+    default: break;
     }
 
     begin_render_request (118, 12+4*n);
@@ -2582,6 +2596,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case TEXTURE_GEN_MODE: n = 1; break;
     case OBJECT_PLANE:          // fall through
     case EYE_PLANE: n = 4; break;
+    default: break;
     }
 
     begin_render_request (120, 12+4*n);
@@ -2835,6 +2850,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAP1_COLOR_4:          // fall through
     case MAP1_TEXTURE_COORD_4:  // fall through
     case MAP1_VERTEX_4: k = 4; break;
+    default: break;
     }
 
 
@@ -2873,6 +2889,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAP1_COLOR_4:          // fall through
     case MAP1_TEXTURE_COORD_4:  // fall through
     case MAP1_VERTEX_4: k = 4; break;
+    default: break;
     }
 
 
@@ -2912,6 +2929,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAP2_COLOR_4:          // fall through
     case MAP2_TEXTURE_COORD_4:  // fall through
     case MAP2_VERTEX_4: k = 4; break;
+    default: break;
     }
 
     int n = vorder * uorder * k * 8;
@@ -2954,6 +2972,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAP2_COLOR_4:          // fall through
     case MAP2_TEXTURE_COORD_4:  // fall through
     case MAP2_VERTEX_4: k = 4; break;
+    default: break;
     }
 
     int n = vorder * uorder * k * 4;
@@ -3754,6 +3773,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     switch (pname) {
     case COLOR_TABLE_SCALE:     // fall through
     case COLOR_TABLE_BIAS: n = 4; break;
+    default: break;
     }
 
     begin_render_request (2054, 12+4*n);      
@@ -3776,6 +3796,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     switch (pname) {
     case COLOR_TABLE_SCALE:     // fall through
     case COLOR_TABLE_BIAS: n = 4; break;
+    default: break;
     }
 
     begin_render_request (2055, 12+4*n);      
@@ -3903,6 +3924,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAX_CONVOLUTION_HEIGHT: n = 1; break;
     case CONVOLUTION_FILTER_SCALE: // fall through
     case CONVOLUTION_FILTER_BIAS: n = 4; break;
+    default: break;
     }
 
     begin_render_request (4104, 12+4*n);
@@ -3946,6 +3968,7 @@ public class GL extends gnu.x11.Resource implements GLConstant {
     case MAX_CONVOLUTION_HEIGHT: n = 1; break;
     case CONVOLUTION_FILTER_SCALE: // fall through
     case CONVOLUTION_FILTER_BIAS: n = 4; break;
+    default: break;
     }
 
     begin_render_request (4106, 12+4*n);

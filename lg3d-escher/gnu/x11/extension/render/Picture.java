@@ -3,7 +3,6 @@ package gnu.x11.extension.render;
 import gnu.x11.Atom;
 import gnu.x11.Data;
 import gnu.x11.Drawable;
-import gnu.x11.GC;
 import gnu.x11.Pixmap;
 import gnu.x11.Rectangle;
 import gnu.x11.Request;

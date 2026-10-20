@@ -2,7 +2,6 @@ package gnu.app.redbook;
 
 import gnu.x11.extension.glx.GL;
 import gnu.util.Misc;
-import gnu.x11.Data;
 
 
 /**
