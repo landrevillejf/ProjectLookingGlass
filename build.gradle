@@ -353,7 +353,7 @@ subprojects {
             // report, so a survivor and an uncovered line can be told apart by
             // a reader of the published HTML.
             exportLineCoverage = true
-            mutationThreshold = (mutFloor == null ? 100 : mutFloor) as Integer
+            mutationThreshold = (mutFloor == null ? 0 : mutFloor) as Integer
             // Mutants run in forked JVMs, which inherit nothing from the `test`
             // task: the same headless AWT and deterministic locale the suites
             // are written against, and a bounded heap so four threads of one

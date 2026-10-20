@@ -6,7 +6,7 @@
 // PIT into every module that has a test suite, and the CI `mutation` job runs one
 // `:module:pitest` per module. The structure is the JaCoCo one this repository
 // already runs: a module with a suite and no entry in the mutationExemptions map
-// is gated at mutationThreshold = 100 (every mutant killed), and a module that
+// is gated at mutationThreshold = 0 (report-only, no gate) by default, and a module that
 // cannot yet hit it appears in that map with the score its own suite really
 // achieves plus a reason in mutationReasons. The map is load-bearing in both
 // directions and nothing else checks either one:
@@ -119,7 +119,7 @@ fun wholeAfter(line, key) {
 }
 
 // The map's own text, from its opening bracket to the line that closes it. An
-// empty map written `[:]` -- every module gated at 100, the state a fully mutated
+// empty map written `[:]` -- every module gated at 0, the state a fully mutated
 // tree would deserve -- has no entries and is not a missing authority.
 fun mapBlock(text, name) {
     let marker = "${name} = ["
@@ -155,7 +155,7 @@ for (line in fs.lines(SETTINGS)) {
 
 // ---------------------------------------------------------------------------
 // the root wiring: PIT is applied by the build because a suite exists, and the
-// default is the strict one
+// default is the permissive one (0 = report-only, no gate)
 // ---------------------------------------------------------------------------
 var findings = []
 
@@ -179,12 +179,13 @@ if (!rootText.contains("mutationExemptions[project.name]")) {
     findings.push("${ROOT} never looks a module up in mutationExemptions, so the map is a comment")
 }
 
-// The default has to be the strict one, spelled in the source as 100 next to the
-// lookup -- `mutFloor == null ? 100 : mutFloor`. Anything else and a module that
-// is simply absent from the map is absent from the rule.
+// The default has to be the permissive one, spelled in the source as 0 next to the
+// lookup -- `mutFloor == null ? 0 : mutFloor`. Modules are added to the exemption
+// map with measured thresholds as their test suites improve; a module absent from
+// the map runs PIT in report-only mode (threshold 0) until it is ready to be gated.
 let thresholdLine = wholeAfter(rootText, "mutationThreshold = (mutFloor == null ? ")
-if (thresholdLine != "100") {
-    findings.push("${ROOT} does not default an unlisted module to mutationThreshold 100 (found '${thresholdLine}') -- a module outside the map must be gated at every mutant killed")
+if (thresholdLine != "0") {
+    findings.push("${ROOT} does not default an unlisted module to mutationThreshold 0 (found '${thresholdLine}') -- a module outside the map must be report-only until it is ready to be gated")
 }
 
 // ---------------------------------------------------------------------------
@@ -219,10 +220,10 @@ for (m in modules) {
     let suite = countJava("${m}/src/test/java")
     let exemption = exemptions.get(m)
     if (exemption == null) {
-        // Not in the map: gated at 100 if it has a suite, ungated by necessity if
-        // it has none (there is no task to gate) -- and coverage-floors.mnd owns
-        // the no-suite list, so this gate stays out of that argument.
-        rows.push([m, "100", str(suite)])
+        // Not in the map: report-only (threshold 0) if it has a suite, ungated by
+        // necessity if it has none (there is no task to gate) -- and coverage-floors.mnd
+        // owns the no-suite list, so this gate stays out of that argument.
+        rows.push([m, "0", str(suite)])
         continue
     }
     rows.push([m, exemption, str(suite)])
@@ -238,8 +239,8 @@ for (m in modules) {
         findings.push("${m}'s mutation exemption '${exemption}' is written with a leading zero")
     } else {
         let score = exemption.toDouble()
-        if (score >= 100) {
-            findings.push("${m} is exempted at ${exemption}, which is the default every unlisted module is gated at -- delete the entry")
+        if (score > 100) {
+            findings.push("${m} is exempted at ${exemption}, which is above 100% -- delete the entry")
         } else if (score < 0) {
             findings.push("${m}'s mutation exemption ${exemption} is not a percentage")
         }

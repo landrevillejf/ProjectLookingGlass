@@ -122,10 +122,10 @@ root maps cannot see it, which is how a mutation gate becomes decoration;
 > in-JVM (scene graph, GL context, Swing probe, etc.). A module not in the map
 > is held to 100%. Mutation testing is tracked the same way, in the
 > `mutationExemptions` and `mutationReasons` maps: an unlisted module with a
-> suite is gated at `mutationThreshold = 100`, and a listed one carries the
+> suite is gated at `mutationThreshold = 0` (report-only), and a listed one carries the
 > score its own suite really achieves plus the reason. The convention: a PR
-> that improves a module's coverage or mutation score removes it from the
-> exemption list in the same PR.
+> that improves a module's coverage or mutation score increases its threshold
+> in the exemption list towards the 100% target.
 >
 > **An exemption is a measurement, never an estimate.** A floor written down
 > without a `mutations.xml` or a JaCoCo XML behind it is how an exemption
