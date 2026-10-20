@@ -86,7 +86,6 @@ import org.jogamp.java3d.TransformGroup;
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.AxisAngle4d;
 import org.jogamp.vecmath.Point3d;
-import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3d;
 import org.jogamp.vecmath.Vector3f;
 import org.jogamp.vecmath.Vector4f;
