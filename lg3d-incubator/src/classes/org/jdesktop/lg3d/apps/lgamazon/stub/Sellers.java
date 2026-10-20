@@ -124,7 +124,7 @@ public class Sellers  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.request==null && other.getRequest()==null) || 
              (this.request!=null &&
               this.request.equals(other.getRequest()))) &&

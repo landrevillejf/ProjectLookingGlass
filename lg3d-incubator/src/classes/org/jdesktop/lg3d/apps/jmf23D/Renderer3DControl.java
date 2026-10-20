@@ -7,7 +7,6 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.image.*;
 
-import java.io.File;
 import java.util.*;
 import java.net.URL;
 
@@ -17,15 +16,12 @@ import javax.media.format.*;
 import javax.media.protocol.*;
 import javax.media.util.*;
 
-import javax.swing.JFileChooser;
-import javax.swing.JPanel;
 
 
 // java3d
 import org.jogamp.vecmath.*;
 
 import org.jdesktop.lg3d.scenemanager.utils.background.Background;
-import org.jdesktop.lg3d.scenemanager.utils.event.BackgroundChangeRequestEvent;
 import org.jdesktop.lg3d.sg.*;
 import org.jdesktop.lg3d.utils.action.*;
 import org.jdesktop.lg3d.utils.c3danimation.*;
@@ -206,8 +202,9 @@ class Renderer3DControl implements Control, ControllerListener {
 		    case RECORD: faceList.setRolled(!faceList.getRolled());break;
 		    case EJECT:	 try {
 			    Algea3D.main(new String[]{""});
-		    } catch(Exception e){};break;
+		    } catch(Exception e){} break;
 		    case FORWARD:skip(1);break;
+		    default: break;
 	    }
     }
     
@@ -321,11 +318,11 @@ public enum ButtonType {
         ActionBoolean act = new org.jdesktop.lg3d.utils.action.ActionBoolean() {
             public void performAction(LgEventSource source, boolean state) {
 
-                if (state == true) {
+                if (state) {
                     component.changeScale(1.5f);
                 }
 
-                if (state == false) {
+                if (!state) {
                     component.changeScale( 1.0f);
                 }
             }

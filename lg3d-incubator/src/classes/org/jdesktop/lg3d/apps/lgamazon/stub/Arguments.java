@@ -55,7 +55,7 @@ public class Arguments  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.argument==null && other.getArgument()==null) || 
              (this.argument!=null &&
               java.util.Arrays.equals(this.argument, other.getArgument())));

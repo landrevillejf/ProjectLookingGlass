@@ -16,7 +16,6 @@
 
 package org.jdesktop.lg3d.apps.kwebdemo1.edges;
 
-import org.jdesktop.lg3d.apps.kwebdemo1.singletons.NodeData;
 
 /**
  * James Burke's Knowledge Web graph journey edge rendering.

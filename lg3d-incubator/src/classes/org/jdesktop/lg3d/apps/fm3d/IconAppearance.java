@@ -31,7 +31,6 @@ package org.jdesktop.lg3d.apps.fm3d;
  */
 
 import org.jdesktop.lg3d.utils.shape.*;
-import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 
 public class IconAppearance extends SimpleAppearance {

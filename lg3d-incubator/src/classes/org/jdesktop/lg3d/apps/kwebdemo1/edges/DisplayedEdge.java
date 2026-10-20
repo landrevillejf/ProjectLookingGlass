@@ -18,13 +18,11 @@ package org.jdesktop.lg3d.apps.kwebdemo1.edges;
 
 import java.util.Hashtable;
 
-import javax.swing.text.Highlighter;
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Point3d;
 import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.Material;
 import org.jdesktop.lg3d.sg.GeometryArray;
 import org.jdesktop.lg3d.sg.LineArray;
 import org.jdesktop.lg3d.sg.LineAttributes;

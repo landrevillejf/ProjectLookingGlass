@@ -461,7 +461,7 @@ public class MultiOperationResponse  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.operationRequest==null && other.getOperationRequest()==null) || 
              (this.operationRequest!=null &&
               this.operationRequest.equals(other.getOperationRequest()))) &&

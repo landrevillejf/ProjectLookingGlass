@@ -31,7 +31,7 @@ public class MouseMonitorAction implements ActionBoolean {
 
 	public void performAction(LgEventSource source, boolean state) {
 		Frame3D frame = (Frame3D) source;
-		if (state == false){
+		if (!state){
 			logger.info("Removing focussed application");
 			scene.setFocussedApplication(null);
 		} else {

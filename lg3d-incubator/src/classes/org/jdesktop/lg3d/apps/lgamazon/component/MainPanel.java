@@ -22,7 +22,6 @@ package org.jdesktop.lg3d.apps.lgamazon.component;
 
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -33,7 +32,6 @@ import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.apps.lgamazon.LgAmazon;
 import org.jdesktop.lg3d.apps.lgamazon.LgAmazonListener;
 import org.jdesktop.lg3d.apps.lgamazon.stub.Items;
-import org.jdesktop.lg3d.apps.lgamazon.util.ImageTexture;
 import org.jdesktop.lg3d.apps.lgamazon.util.LgUtil;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.utils.action.ActionChar;
@@ -202,8 +200,10 @@ implements LgAmazonListener {
                 SimpleAppearance.ENABLE_TEXTURE | SimpleAppearance.DISABLE_CULLING);
         exceptionLabel = new LabelComponent(appearance);
         exceptionLabel.setSize(toolkit.widthNativeToPhysical(256), toolkit.heightNativeToPhysical(256));
-        exceptionLabel.topMargin = exceptionLabel.bottomMargin = 10;  
-        exceptionLabel.leftMargin = exceptionLabel.rightMargin = 10;   
+        exceptionLabel.topMargin = 10;
+        exceptionLabel.bottomMargin = 10;
+        exceptionLabel.leftMargin = 10;
+        exceptionLabel.rightMargin = 10;
         exceptionLabel.ignoreNewline = false;
         
         LabelScroller scroller = new LabelScroller(exceptionLabel);        

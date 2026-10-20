@@ -23,8 +23,6 @@ import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 
-import org.jogamp.vecmath.Point3f;
-import org.jdesktop.lg3d.sg.BoundingBox;
 
 
 /**

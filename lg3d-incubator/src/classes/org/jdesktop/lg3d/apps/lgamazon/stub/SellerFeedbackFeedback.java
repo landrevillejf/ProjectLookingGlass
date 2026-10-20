@@ -116,7 +116,7 @@ public class SellerFeedbackFeedback  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.rating==null && other.getRating()==null) || 
              (this.rating!=null &&
               this.rating.equals(other.getRating()))) &&

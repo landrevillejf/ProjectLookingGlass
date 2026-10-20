@@ -8,13 +8,9 @@
 package org.jdesktop.lg3d.apps.trumplayer;
 
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumBase;
-import org.jdesktop.lg3d.apps.trumplayer.base.MouseReleasedEventAdapter;
-import org.jdesktop.lg3d.apps.trumplayer.base.Manager;
 
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.shape.Box;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
@@ -26,22 +22,12 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
-import org.jdesktop.lg3d.utils.action.ActionFloat2;
-import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.EventAdapter;
-import org.jdesktop.lg3d.wg.event.MouseDraggedEvent3D;
-import org.jdesktop.lg3d.wg.event.LgEvent;
 
-import java.io.IOException;
-import java.io.FileNotFoundException;
 
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
-import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.utils.shape.Text2D;
-import org.jdesktop.lg3d.sg.ColoringAttributes;
  
 import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
@@ -49,11 +35,7 @@ import java.awt.RenderingHints;
 import java.awt.Color;
 import java.awt.Font;
 
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
-import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3Tag;
-import java.util.AbstractList;
 
-import org.jdesktop.lg3d.displayserver.EventProcessor;
 
 
 /**
@@ -115,7 +97,7 @@ public class AlbumComponent extends AlbumBase {
             super(a,f);
         }
         public void setTransparency(float trans){
-            if( !(getTransparency() == 0.0f && mouseIn == true) ){
+            if( !(getTransparency() == 0.0f && mouseIn) ){
                 super.setTransparency(trans);
             }
         }
@@ -248,11 +230,14 @@ public class AlbumComponent extends AlbumBase {
             java.io.File file = null;
             ClassLoader classLoader = this.getClass().getClassLoader();
 
-            if (filename != null && filename.trim().equals("") == false )
+            if (filename != null && !filename.trim().equals("") )
                 file = new java.io.File(filename);
             java.io.InputStream is = null;
             
             java.net.URL url = null;
+            if (filename != null && !filename.trim().equals("")) {
+                url = classLoader.getResource(filename);
+            }
 
             if(file != null && file.exists()){
                 try{
@@ -264,8 +249,7 @@ public class AlbumComponent extends AlbumBase {
                     System.out.println("Read File Error : " + filename);
                 }
             }
-            else if (filename != null && filename.trim().equals("") == false &&
-                    (url = classLoader.getResource(filename)) != null ){
+            else if (filename != null && !filename.trim().equals("") && url != null ){
                 System.out.println(url.toString());
                 try{
                     // funny picture is displayed using texture which was created by TextureLoader(URL).
@@ -301,7 +285,7 @@ public class AlbumComponent extends AlbumBase {
                 ta.setTextureMode(TextureAttributes.REPLACE);
             }
         }
-        if( flag == false  ){  // paint white (clear jacket image)
+        if( !flag  ){  // paint white (clear jacket image)
             BufferedImage image = new BufferedImage(10,10,BufferedImage.TYPE_INT_ARGB|BufferedImage.SCALE_SMOOTH);
             Graphics2D g = (Graphics2D) image.getGraphics();
             g.setRenderingHint( RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON );
@@ -430,12 +414,12 @@ public class AlbumComponent extends AlbumBase {
     }
     
     public void moveToDefaultPosition(){
-        if(alwaysDragAndDrop == false)
+        if(!alwaysDragAndDrop)
             setDragAndDrop(false);
         Vector3f loc = getDefaultTranslation();
         this.changeTranslation(loc,1000);
         //System.out.println(rotationAngle);
-        if(middlePopupMode == true)
+        if(middlePopupMode)
             this.changeRotationAngle(rotationAngle, 1000);
         else
             this.changeRotationAngle(0.0f,1000);
@@ -463,7 +447,7 @@ public class AlbumComponent extends AlbumBase {
                     changeScale((1.0f + scale)/2.0f);
                     albumBase.changeTranslation( loc );
                 }
-                else if(middlePopupMode == false){
+                else if(!middlePopupMode){
                     popup();
                 }
                 else{
@@ -521,7 +505,7 @@ public class AlbumComponent extends AlbumBase {
 
             Vector3f loc = new Vector3f();
             component.getFinalTranslation(loc);
-            if(middlePopupMode == true && loc.z != - depth)
+            if(middlePopupMode && loc.z != - depth)
                 popup();
             else if( component.getFinalRotationAngle() == ONEEIGHTY )
                 component.changeRotationAngle(0.0f);
@@ -540,7 +524,7 @@ public class AlbumComponent extends AlbumBase {
         }
     
         public void performAction(LgEventSource source) {
-            if(enableDragAndDrop() == true){ 
+            if(enableDragAndDrop()){ 
                 moveToDefaultPosition();
             }
         }
@@ -553,7 +537,7 @@ public class AlbumComponent extends AlbumBase {
     /** overwrite to change action */
     public void doDroppedAction(Component3D component, float x, float y){
         super.doDroppedAction(component,x,y);
-        if(alwaysDragAndDrop == true)
+        if(alwaysDragAndDrop)
             setDragAndDrop(true);
         Vector3f nloc = new Vector3f();
         this.moveToDefaultPosition();

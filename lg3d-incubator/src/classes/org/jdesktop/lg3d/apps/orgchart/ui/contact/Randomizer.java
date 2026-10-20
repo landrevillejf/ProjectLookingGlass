@@ -10,8 +10,6 @@
 
 package org.jdesktop.lg3d.apps.orgchart.ui.contact;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;

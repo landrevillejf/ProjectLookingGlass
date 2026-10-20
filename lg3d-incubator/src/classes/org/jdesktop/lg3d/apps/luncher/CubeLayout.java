@@ -9,8 +9,6 @@ import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 
 /**
  *
@@ -89,6 +87,7 @@ public class CubeLayout implements LayoutManager3D {
                     comp.setRotationAxis(0.0f, 1.0f, 0.0f);
                     comp.setRotationAngle((float)Math.toRadians(90));
                     break;
+                default: break;
             }
         }
     }

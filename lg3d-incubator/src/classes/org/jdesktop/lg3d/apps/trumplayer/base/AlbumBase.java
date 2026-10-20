@@ -8,40 +8,17 @@
 package org.jdesktop.lg3d.apps.trumplayer.base;
 
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.sg.Shape3D;
-import org.jdesktop.lg3d.utils.shape.Box;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 import org.jdesktop.lg3d.utils.action.ActionFloat2;
 import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.EventAdapter;
-import org.jdesktop.lg3d.wg.event.MouseDraggedEvent3D;
-import org.jdesktop.lg3d.wg.event.LgEvent;
 
-import java.io.IOException;
-import java.io.FileNotFoundException;
 
 import org.jdesktop.lg3d.sg.Texture;
-import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
-import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.utils.shape.Text2D;
-import org.jdesktop.lg3d.sg.ColoringAttributes;
  
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Color;
-import java.awt.Font;
 
 import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3Tag;
@@ -91,7 +68,7 @@ public abstract class AlbumBase extends Component3D {
      * Creates a new instance of AlbumBase 
      */
     public AlbumBase(String fontName) {
-        if(fontName != null && fontName.trim().equals("") == false)
+        if(fontName != null && !fontName.trim().equals(""))
             this.fontName = fontName;
         this.fontName = fontName;
         init();
@@ -184,7 +161,7 @@ public abstract class AlbumBase extends Component3D {
                 FileInfoBean fib = fileList.get(i);
                 ID3Tag id3 = fib.getID3Tag();
                 if( id3 != null ){
-                    if( id3.getTitle() != null && id3.getTitle().equals("") != true)
+                    if( id3.getTitle() != null && !id3.getTitle().equals(""))
                         playList[i] = id3.getTitle();
                     else
                         playList[i] = fib.getFilePath();

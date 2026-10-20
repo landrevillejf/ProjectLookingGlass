@@ -35,7 +35,6 @@ import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.OrientedFuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;

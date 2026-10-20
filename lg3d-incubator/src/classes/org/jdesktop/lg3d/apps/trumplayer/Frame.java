@@ -11,7 +11,6 @@ import org.jdesktop.lg3d.apps.trumplayer.base.AlbumInformation;
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumInformationReader;
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumBase;
 import org.jdesktop.lg3d.apps.trumplayer.base.ShelfBase;
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 import org.jdesktop.lg3d.apps.trumplayer.base.PlayerBase;
 import org.jdesktop.lg3d.apps.trumplayer.base.Manager;
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumSearch;
@@ -19,12 +18,9 @@ import org.jdesktop.lg3d.apps.trumplayer.utils.TrumplayerDefaults;
 
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
 
-import java.util.AbstractList;
 
-import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import javax.imageio.ImageIO;
@@ -34,13 +30,8 @@ import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.Thumbnail;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
 
 import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Color;
-import java.awt.Font;
 
 
 /**
@@ -90,7 +81,7 @@ public class Frame {
 
         String trumplayer_localhome = null;
 
-        if(TrumplayerDefaults.HOME_DIR.equalsIgnoreCase("") == false){
+        if(!TrumplayerDefaults.HOME_DIR.equalsIgnoreCase("")){
             reader = AlbumInformationReader.getReader(TrumplayerDefaults.TRUMPLAYER_CONFIG_PATH,TrumplayerDefaults.TRUMPLAYER_LOCALHOME);
         }
 

@@ -33,7 +33,6 @@ import org.jdesktop.lg3d.sg.QuadArray;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import org.jdesktop.lg3d.utils.animation.TranslationAnimationBoolean;
 import org.jdesktop.lg3d.utils.eventadapter.GenericEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
@@ -193,6 +192,7 @@ public class BioDialogC3D extends Component3D
       {
       case 10: changeTexture(dialog02); step = 99;
       /* no break */ sleep(1000);
+      // fall through
       default: app.bioDialogSequence(2, id, currentKNode); 
       }
   }

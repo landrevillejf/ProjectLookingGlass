@@ -30,7 +30,6 @@ import org.jdesktop.lg3d.wg.AnimationGroup;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
-import org.jdesktop.lg3d.wg.Cursor3D;
 
 /**
  * The component that handles the Big Glassy Panel animation.

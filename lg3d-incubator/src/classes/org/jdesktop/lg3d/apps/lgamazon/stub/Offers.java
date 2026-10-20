@@ -101,7 +101,7 @@ public class Offers  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.totalOffers==null && other.getTotalOffers()==null) || 
              (this.totalOffers!=null &&
               this.totalOffers.equals(other.getTotalOffers()))) &&

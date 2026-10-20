@@ -10,7 +10,6 @@
 
 package org.jdesktop.lg3d.apps.orgchart.ui.chart;
 
-import java.awt.image.BufferedImage;
 import java.beans.XMLEncoder;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -20,15 +19,10 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.jdesktop.lg3d.apps.orgchart.framework.contact.Contact;
-import org.jdesktop.lg3d.apps.orgchart.framework.contact.ContactService;
-import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContext;
-import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContextFactory;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.AbstractOrgChartApp;
 import org.jdesktop.lg3d.apps.orgchart.framework.Util;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.Button;
-import org.jdesktop.lg3d.apps.orgchart.ui.common.UIUtil;
 import org.jdesktop.lg3d.utils.action.ActionChar;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.cursor.WigglingCursor;
@@ -38,7 +32,6 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Toolkit3D;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
@@ -82,7 +75,8 @@ public class Chart3D extends AbstractOrgChartApp {
         addChild(queryUI);
 
         // create org levels
-        addChild(levels = new Container3D());
+        levels = new Container3D();
+        addChild(levels);
 
         // create button
         upButton = new Button(

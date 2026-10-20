@@ -55,7 +55,7 @@ public class SellerSellerFeedbackSummary  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.feedbackDateRange==null && other.getFeedbackDateRange()==null) || 
              (this.feedbackDateRange!=null &&
               java.util.Arrays.equals(this.feedbackDateRange, other.getFeedbackDateRange())));

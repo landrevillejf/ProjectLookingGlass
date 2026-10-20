@@ -19,7 +19,6 @@ package org.jdesktop.lg3d.apps.gol3d;
 import org.jdesktop.lg3d.wg.*;
 import org.jdesktop.lg3d.utils.shape.*;
 import java.util.BitSet;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.jogamp.java3d.BranchGroup;
 import org.jogamp.java3d.Switch;

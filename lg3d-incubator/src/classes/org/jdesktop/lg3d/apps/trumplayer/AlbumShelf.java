@@ -7,32 +7,23 @@
 
 package org.jdesktop.lg3d.apps.trumplayer;
 
-import org.jdesktop.lg3d.apps.trumplayer.base.AlbumBase;
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumInformation;
 import org.jdesktop.lg3d.apps.trumplayer.base.AlbumInformationReader;
-import org.jdesktop.lg3d.apps.trumplayer.base.Manager;
 import org.jdesktop.lg3d.apps.trumplayer.base.ShelfBase;
 import org.jdesktop.lg3d.apps.trumplayer.utils.TrumplayerDefaults;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Color4f;
-import org.jdesktop.lg3d.apps.trumplayer.UpdateBySearch;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
-import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 import java.io.File;
 import java.util.AbstractList;
 import java.util.Arrays;
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.M3UReader;
 import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 import org.jdesktop.lg3d.utils.shape.Disc;
 import org.jdesktop.lg3d.utils.shape.Box;
@@ -196,12 +187,12 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
             title = info.getTitle();
             jacket = info.getImage();
             m3u = info.getM3U();
-            if(m3u != null && m3u.trim().equals("") == false){
+            if(m3u != null && !m3u.trim().equals("")){
                 File m3uFile = new File(m3u);
                 if( m3uFile.exists() )
                     m3uLastModified = m3uFile.lastModified();
             }
-            if(jacket != null && jacket.trim().equals("") == false){
+            if(jacket != null && !jacket.trim().equals("")){
                 File jacketFile = new File(jacket);
                 if( jacketFile.exists() )
                     jacketLastModified = jacketFile.lastModified();
@@ -245,7 +236,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
     
     private void updateAlbumInformations2(AlbumInformation[] albumInfo, int move, Thread thread){
 
-        if ( albumInfo != null && ( Arrays.equals(albumInfo,currentAlbumInfo) == false || move != 0 ) ){
+        if ( albumInfo != null && ( !Arrays.equals(albumInfo,currentAlbumInfo) || move != 0 ) ){
             
             int newPosition = 0;
             if( move != 0 )
@@ -441,7 +432,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                     super.performAction(source,b);
 
                     if(b){
-                        if(playListSwingNode.isVisible() == true)
+                        if(playListSwingNode.isVisible())
                             playListSwingNode.changeVisible(false);
                         else
                             playListSwingNode.changeVisible(true);
@@ -479,7 +470,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false)
+                    if(loc.z != BUTTON_Z && !b)
                         super.performAction(source,b);
                 }
             }
@@ -517,7 +508,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     super.performAction(source,b);
                     if(b){
-                        if( inPageChangeAction == false){
+                        if( !inPageChangeAction){
                             inPageChangeAction = true;
                             updateAlbumInformations(currentAlbumInfo,1);
                         }
@@ -531,7 +522,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -554,7 +545,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     super.performAction(source,b);
                     if(b){
-                        if( inPageChangeAction == false){
+                        if( !inPageChangeAction){
                             inPageChangeAction = true;
                             updateAlbumInformations(currentAlbumInfo,-1);
                         }
@@ -568,7 +559,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -635,7 +626,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                     super.performAction(source,b);
                     if(b){
                         //if(searchComponent.getFinalScale() == 1.0f){
-                        if(searchComponent.isVisible() == true){
+                        if(searchComponent.isVisible()){
                             searchComponent.changeVisible(false);
                             //searchComponent.changeScale(0.0f);
                             //searchComponent.changeDefaultTranslation();
@@ -653,7 +644,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false)
+                    if(loc.z != BUTTON_Z && !b)
                         super.performAction(source,b);
                 }
             }
@@ -690,7 +681,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false)
+                    if(loc.z != BUTTON_Z && !b)
                         super.performAction(source,b);
                 }
             }
@@ -716,7 +707,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false){
+                    if(loc.z != BUTTON_Z && !b){
                         super.performAction(source,b);
                     }
                 }
@@ -742,7 +733,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false)
+                    if(loc.z != BUTTON_Z && !b)
                         super.performAction(source,b);
                 }
             }
@@ -768,7 +759,7 @@ public class AlbumShelf extends ShelfBase implements UpdateBySearch, UpdateActio
                 public void performAction(LgEventSource source,boolean b){
                     Vector3f loc = new Vector3f();
                     getComponent3D().getFinalTranslation(loc);
-                    if(loc.z != BUTTON_Z && b == false)
+                    if(loc.z != BUTTON_Z && !b)
                         super.performAction(source,b);
                 }
             }

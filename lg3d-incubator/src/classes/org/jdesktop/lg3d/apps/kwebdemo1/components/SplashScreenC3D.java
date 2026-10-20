@@ -18,7 +18,6 @@ package org.jdesktop.lg3d.apps.kwebdemo1.components;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 
 import org.jogamp.vecmath.Vector3f;

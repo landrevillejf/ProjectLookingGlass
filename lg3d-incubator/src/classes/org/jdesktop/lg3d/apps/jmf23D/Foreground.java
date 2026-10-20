@@ -1,6 +1,5 @@
 package org.jdesktop.lg3d.apps.jmf23D;
 
-import java.awt.Color;
 
 import org.jogamp.vecmath.*;
 

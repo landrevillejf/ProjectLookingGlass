@@ -20,7 +20,6 @@ import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Quat4f;
 
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.wg.event.LgEventSource;

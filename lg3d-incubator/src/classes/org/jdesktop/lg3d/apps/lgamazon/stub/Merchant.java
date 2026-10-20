@@ -162,7 +162,7 @@ public class Merchant  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.merchantId==null && other.getMerchantId()==null) || 
              (this.merchantId!=null &&
               this.merchantId.equals(other.getMerchantId()))) &&

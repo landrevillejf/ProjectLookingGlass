@@ -272,7 +272,7 @@ public class ResultElement  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true &&
+        _equals =
                 ((this.summary==null && other.getSummary()==null) ||
                 (this.summary!=null &&
                 this.summary.equals(other.getSummary()))) &&

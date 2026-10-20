@@ -446,7 +446,7 @@ public class List  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.listId==null && other.getListId()==null) || 
              (this.listId!=null &&
               this.listId.equals(other.getListId()))) &&

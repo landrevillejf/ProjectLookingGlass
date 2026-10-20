@@ -262,7 +262,7 @@ public class ListLookupRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.condition==null && other.getCondition()==null) || 
              (this.condition!=null &&
               this.condition.equals(other.getCondition()))) &&

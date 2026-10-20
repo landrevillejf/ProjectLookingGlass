@@ -9,7 +9,6 @@
 
 package org.jdesktop.lg3d.apps.trumplayer.utils;
 
-import org.jdesktop.lg3d.apps.trumplayer.utils.ExtendedDragComponent3D;
 import org.jdesktop.lg3d.apps.trumplayer.base.Manager;
 
 import org.jdesktop.lg3d.wg.SwingNode;

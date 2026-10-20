@@ -23,7 +23,6 @@ import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 import static org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId.*;
-import org.jdesktop.lg3d.apps.orgchart.framework.contact.Contact;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.ContactPanel;
 
 
@@ -103,7 +102,8 @@ public class ContactStackLayout implements LayoutManager3D {
                     (numComp - 1) * (compClosedWidth + SPACING));
             float compScale = (contWidth - 2 * BOUNDARY_SIDE) / totalCompWidth;
             if (compScale >= maxScale) {
-                scale = compScale = maxScale; // make sure it's not too large
+                scale = maxScale; // make sure it's not too large
+                compScale = maxScale;
             }
             if (totalCompWidth > contWidth) {
                 totalCompWidth = contWidth;
@@ -285,7 +285,8 @@ public class ContactStackLayout implements LayoutManager3D {
             synchronized (cont.getLayout()) {
                 orgChart.removeLevels(cont);
                 if (compSelected == target) {
-                    compOpen = compSelected = null;
+                    compOpen = null;
+                    compSelected = null;
                 } else {
                     orgChart.addLevel(target.getContact());
                     compSelected = target;

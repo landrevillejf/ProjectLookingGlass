@@ -12,7 +12,6 @@ package org.jdesktop.lg3d.apps.orgchart.framework;
 
 import java.util.EventObject;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**

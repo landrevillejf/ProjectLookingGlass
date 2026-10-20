@@ -86,6 +86,10 @@ public class DefaultSorter implements Sorter {
         public boolean equals(Object obj) {
             return super.equals(obj);
         }
+           
+        public int hashCode() {
+            return super.hashCode();
+        }
     };
 }
 

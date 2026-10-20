@@ -24,7 +24,6 @@
 
 package org.jdesktop.lg3d.apps.gol3d;
 
-import org.jdesktop.lg3d.apps.gol3d.GolController;
 
 public class Gol3D {
 	

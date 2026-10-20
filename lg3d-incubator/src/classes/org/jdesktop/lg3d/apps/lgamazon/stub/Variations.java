@@ -124,7 +124,7 @@ public class Variations  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.totalVariations==null && other.getTotalVariations()==null) || 
              (this.totalVariations!=null &&
               this.totalVariations.equals(other.getTotalVariations()))) &&

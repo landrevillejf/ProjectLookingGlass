@@ -14,7 +14,6 @@ import org.jdesktop.lg3d.apps.nlc.knowledge.SceneFactory;
 import org.jdesktop.lg3d.apps.nlc.listeners.F12Listener;
 import org.jdesktop.lg3d.apps.nlc.mascot.BasicMascot;
 import org.jdesktop.lg3d.apps.nlc.mascot.Mascot;
-import org.jdesktop.lg3d.displayserver.AppConnectorPrivate;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventConnector;
 import org.jdesktop.lg3d.wg.event.LgEventListener;

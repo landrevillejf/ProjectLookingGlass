@@ -55,7 +55,7 @@ public class ItemSubjects  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.subject==null && other.getSubject()==null) || 
              (this.subject!=null &&
               java.util.Arrays.equals(this.subject, other.getSubject())));

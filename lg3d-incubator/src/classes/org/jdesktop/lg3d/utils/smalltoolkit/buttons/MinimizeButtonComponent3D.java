@@ -11,7 +11,6 @@ import java.net.URL;
 
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 
 

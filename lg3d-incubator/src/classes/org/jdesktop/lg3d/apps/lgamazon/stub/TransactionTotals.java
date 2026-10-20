@@ -139,7 +139,7 @@ public class TransactionTotals  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.total==null && other.getTotal()==null) || 
              (this.total!=null &&
               this.total.equals(other.getTotal()))) &&

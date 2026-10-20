@@ -34,9 +34,7 @@ package org.jdesktop.lg3d.apps.utils.freedesktop.common;
 import java.awt.EventQueue;
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Locale;
-import java.util.Set;
 import java.util.logging.Logger;
 import org.jdesktop.lg3d.displayserver.LgClassLoader;
 

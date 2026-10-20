@@ -17,16 +17,12 @@
 
 package org.jdesktop.lg3d.apps.bgmanager;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import org.jogamp.vecmath.Color4f;
-import org.jogamp.vecmath.Matrix4f;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.apps.bgmanager.layouts.RaisingSegmentedWheelLayout;
 import org.jdesktop.lg3d.scenemanager.utils.appcontainer.NaturalMotionF3DAnimationFactory;
 import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.utils.action.ActionBoolean;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
@@ -36,13 +32,11 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseHoverEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
 import org.jdesktop.lg3d.utils.shape.Disc;
-import org.jdesktop.lg3d.utils.shape.GlassyText2D;
 import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.ModelLoader;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 

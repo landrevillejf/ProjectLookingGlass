@@ -15,7 +15,6 @@ import org.jogamp.vecmath.Color3f;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Material;
 import org.jdesktop.lg3d.sg.PolygonAttributes;
-import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.wg.Component3D;
 
 import edu.cmu.sun.animation.AnimationPlan;
@@ -58,7 +57,7 @@ public abstract class AbstractListView extends Component3D{
 	 */
 	synchronized public static Appearance getAppearance(boolean backfaceCulling)
 	{
-		if (cullAppearance == null || noncullAppearance == null);
+		if (cullAppearance == null || noncullAppearance == null) { }
 		
 		cullAppearance = new Appearance();
 		noncullAppearance = new Appearance();

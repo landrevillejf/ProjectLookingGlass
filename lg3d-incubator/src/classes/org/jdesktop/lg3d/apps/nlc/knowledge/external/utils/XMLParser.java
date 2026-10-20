@@ -6,7 +6,6 @@
 package org.jdesktop.lg3d.apps.nlc.knowledge.external.utils;
 
 
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;

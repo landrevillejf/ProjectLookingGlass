@@ -228,7 +228,7 @@ public class IconTheme {
         return out;
     }
     public URL findIconForMime(String type,int size) {
-        if(type == "") {
+        if("".equals(type)) {
             logger.fine("Overwritting unknown mime type ");
             type = "misc";
         }

@@ -78,7 +78,7 @@ public class SavedForLaterItems  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.subTotal==null && other.getSubTotal()==null) || 
              (this.subTotal!=null &&
               this.subTotal.equals(other.getSubTotal()))) &&

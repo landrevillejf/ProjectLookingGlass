@@ -55,7 +55,7 @@ public class VariationDimensions  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.variationDimension==null && other.getVariationDimension()==null) || 
              (this.variationDimension!=null &&
               java.util.Arrays.equals(this.variationDimension, other.getVariationDimension())));

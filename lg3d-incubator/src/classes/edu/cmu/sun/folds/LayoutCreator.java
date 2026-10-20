@@ -232,7 +232,7 @@ public class LayoutCreator
 			if (p == items.size() - 1)
 			{
 				// we're not going to create a fold with a single item:
-				if (thisItemType == LayoutComponent.Type.FOLD && merge == false)
+				if (thisItemType == LayoutComponent.Type.FOLD && !merge)
 				{
 					thisItemType = LayoutComponent.Type.LIST;
 					merge = true;

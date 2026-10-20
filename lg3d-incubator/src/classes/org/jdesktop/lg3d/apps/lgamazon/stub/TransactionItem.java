@@ -162,7 +162,7 @@ public class TransactionItem  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.transactionItemId==null && other.getTransactionItemId()==null) || 
              (this.transactionItemId!=null &&
               this.transactionItemId.equals(other.getTransactionItemId()))) &&

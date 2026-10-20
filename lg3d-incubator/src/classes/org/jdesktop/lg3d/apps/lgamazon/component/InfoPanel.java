@@ -24,8 +24,6 @@ package org.jdesktop.lg3d.apps.lgamazon.component;
 import java.awt.Color;
 import java.awt.Font;
 
-import org.jdesktop.lg3d.apps.lgamazon.component.HTMLLabel;
-import org.jdesktop.lg3d.apps.lgamazon.component.Product;
 import org.jdesktop.lg3d.apps.lgamazon.stub.Item;
 import org.jdesktop.lg3d.apps.lgamazon.stub.ItemAttributes;
 import org.jdesktop.lg3d.apps.lgamazon.stub.OfferSummary;

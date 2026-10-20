@@ -55,7 +55,7 @@ public class Tracks  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.disc==null && other.getDisc()==null) || 
              (this.disc!=null &&
               java.util.Arrays.equals(this.disc, other.getDisc())));

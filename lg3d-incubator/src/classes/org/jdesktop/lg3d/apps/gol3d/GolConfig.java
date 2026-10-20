@@ -18,7 +18,6 @@ package org.jdesktop.lg3d.apps.gol3d;
 
 import java.io.*;
 import java.util.*;
-import java.awt.Color;
 
 
 public class GolConfig implements Serializable {

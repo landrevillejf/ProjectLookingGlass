@@ -55,7 +55,7 @@ public class OperationInformationRequiredParameters  implements java.io.Serializ
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.parameter==null && other.getParameter()==null) || 
              (this.parameter!=null &&
               java.util.Arrays.equals(this.parameter, other.getParameter())));

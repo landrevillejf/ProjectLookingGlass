@@ -1,27 +1,22 @@
 package org.jdesktop.lg3d.apps.blackgoat.component.letter;
 
 import org.jogamp.vecmath.Color3f;
-import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.utils.action.ActionInt;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.AppearanceChangeAction;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.MouseWheelEventAdapter;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;
 import org.jdesktop.lg3d.wg.event.LgEventListener;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;

@@ -7,7 +7,6 @@ import java.awt.image.*;
 import java.net.*;
 
 import javax.media.*;
-import javax.media.format.RGBFormat;
 import javax.media.protocol.*;
 
 

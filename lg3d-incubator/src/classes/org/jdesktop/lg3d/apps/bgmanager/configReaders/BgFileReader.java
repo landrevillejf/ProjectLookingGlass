@@ -220,7 +220,7 @@ public class BgFileReader extends DefaultHandler {
 	public void bGDescriptorBuilder() {
 		if (parseBgType.equals(SIMPLE_BG)) {
 			String idx = (String) ImagesList.get(0);
-			if(onlyCurrent==false) {
+			if(!onlyCurrent) {
 			BgComponentList.add(new BgLgComponent(tmpName, tmpAuthor, tmpThumb,
 					tmpDate, tmpDescription, idx, BgTypes.SIMPLEBG,configFileURL));
 			} else if(onlyCurrent) {
@@ -242,7 +242,7 @@ public class BgFileReader extends DefaultHandler {
 				tabCords[i][2] = xyz[2];
 
 			}
-			if(onlyCurrent==false) {
+			if(!onlyCurrent) {
 			BgComponentList.add(new BgLgComponent(tmpName, tmpAuthor, tmpThumb,
 					tmpDate, tmpDescription, numLayers, tabImages, tabCords,
 					BgTypes.LAYEREDBG,configFileURL));
@@ -260,7 +260,7 @@ public class BgFileReader extends DefaultHandler {
 			for (int i = 0; i < numPanoramaImages; i++) {
 				tabImages[i] = (String) ImagesList.get(i);
 			}
-			if(onlyCurrent==false) {
+			if(!onlyCurrent) {
 			BgComponentList.add(new BgLgComponent(tmpName, tmpAuthor, tmpThumb,
 					tmpDate, tmpDescription, tabImages, numPanoramaImages,
 					BgTypes.PANORAMABG, initialPanoBackground,configFileURL));

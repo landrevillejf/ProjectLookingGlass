@@ -78,7 +78,7 @@ public class DesktopEntryPool {
                         substring(basedir.getAbsolutePath().
                         length()+1).
                         replace('/','-').
-                        replace(".desktop","");;                
+                        replace(".desktop","");
                 entries.put(desktopid,new FileDesktopEntry(file));
             }
         }

@@ -34,7 +34,9 @@ public class SimpleFloatSmoother implements FloatTransitionSmoother {
 	}
 
 	public void setInternalValue(float v) {
-		toVal = fromVal = currentVal = v;
+		toVal = v;
+		fromVal = v;
+		currentVal = v;
 	}
 
 	public float getValue(float n) {

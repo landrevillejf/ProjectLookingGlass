@@ -51,11 +51,7 @@ package org.jdesktop.lg3d.apps.fm3d;
 import java.awt.Color;
 import java.io.File;
 import java.util.*;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jogamp.vecmath.Vector3f;
 
 /** Main class */
@@ -95,10 +91,7 @@ public class Fm3DMain {
     
     /** Check to see if a window has been opened */
     private boolean isWindowOpen(File dir) {
-        if(pathList.indexOf(dir.getAbsolutePath()) != -1)
-            return true;
-        else
-            return false;
+        return pathList.indexOf(dir.getAbsolutePath()) != -1;
     }
 
     /** Make the window of the passed file active */
@@ -129,7 +122,8 @@ public class Fm3DMain {
         
         ListIterator iterator = windowList.listIterator();
         while(iterator.hasNext()) {
-            if((window = (Fm3DWindow)iterator.next()) != nonActiveWindow) {
+            window = (Fm3DWindow)iterator.next();
+            if(window != nonActiveWindow) {
                 window.setPanelAppearance(false);
             }
         }

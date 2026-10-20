@@ -5,17 +5,12 @@ import java.util.Date;
 
 import org.jogamp.vecmath.Vector3f;
 
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.sg.Texture;
 import org.jdesktop.lg3d.sg.TextureAttributes;
 import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.AppearanceChangeAction;
 import org.jdesktop.lg3d.utils.action.RotateActionBoolean;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
 import org.jdesktop.lg3d.utils.action.TransparencyActionBoolean;
-import org.jdesktop.lg3d.utils.action.TransparencyActionFloat;
-import org.jdesktop.lg3d.utils.action.TransparencyActionNoArg;
 import org.jdesktop.lg3d.utils.actionadapter.ToggleAdapter;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
@@ -23,13 +18,7 @@ import org.jdesktop.lg3d.utils.eventadapter.MouseEnteredEventAdapter;
 import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.event.LgEvent;
-import org.jdesktop.lg3d.wg.event.LgEventListener;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 import org.jdesktop.lg3d.wg.event.MouseButtonEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseWheelEvent3D;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 /**
  * 

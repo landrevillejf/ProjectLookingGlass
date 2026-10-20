@@ -73,7 +73,9 @@ public class EditorsReviewPanel extends HTMLLabel {
                 
         setSize(width, height);        
         
-        leftMargin = rightMargin = bottomMargin = 13; 
+        leftMargin = 13;
+        rightMargin = 13;
+        bottomMargin = 13;
         topMargin = 35;  
         
         setFont("Dialog", Font.PLAIN, 20);

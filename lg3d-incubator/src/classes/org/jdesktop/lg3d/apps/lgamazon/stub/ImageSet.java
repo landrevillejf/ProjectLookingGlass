@@ -139,7 +139,7 @@ public class ImageSet  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.swatchImage==null && other.getSwatchImage()==null) || 
              (this.swatchImage!=null &&
               this.swatchImage.equals(other.getSwatchImage()))) &&

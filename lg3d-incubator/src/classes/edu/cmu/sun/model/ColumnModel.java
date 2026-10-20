@@ -230,7 +230,7 @@ public class ColumnModel extends Model{
 	
 	public void sortWindows() {
 		Collections.sort(windows);
-		needsUpdate();;
+		needsUpdate();
 	}
 
 	public int getPosition(WindowModel model) {

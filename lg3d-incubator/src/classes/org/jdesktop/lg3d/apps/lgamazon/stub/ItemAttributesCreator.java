@@ -70,7 +70,7 @@ public class ItemAttributesCreator  implements java.io.Serializable, org.apache.
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this._value==null && other.get_value()==null) || 
              (this._value!=null &&
               this._value.equals(other.get_value()))) &&

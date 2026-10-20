@@ -193,7 +193,7 @@ public class SellerListingSearchRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.keywords==null && other.getKeywords()==null) || 
              (this.keywords!=null &&
               this.keywords.equals(other.getKeywords()))) &&

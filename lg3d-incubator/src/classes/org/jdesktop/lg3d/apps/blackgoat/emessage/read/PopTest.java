@@ -1,15 +1,11 @@
 package org.jdesktop.lg3d.apps.blackgoat.emessage.read;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.List;
 import java.util.StringTokenizer;
 import javax.mail.*;
 import javax.mail.internet.*;
 
 //import org.jdesktop.lg3d.apps.blackgoat.draw.letter.LetterContentImpl;
-import org.jdesktop.lg3d.apps.blackgoat.draw.letter.Letter;
-import org.jdesktop.lg3d.apps.blackgoat.emessage.read.EMessageReader;
 import org.jdesktop.lg3d.apps.blackgoat.utils.UserInfo;
 
 /**

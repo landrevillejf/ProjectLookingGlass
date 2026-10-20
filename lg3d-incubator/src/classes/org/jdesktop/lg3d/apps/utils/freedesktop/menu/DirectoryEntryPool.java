@@ -35,7 +35,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Hashtable;
 import java.util.StringTokenizer;
-import org.jdesktop.lg3d.apps.utils.freedesktop.common.DesktopEntry;
 import org.jdesktop.lg3d.apps.utils.freedesktop.common.FileDesktopEntry;
 import org.jdesktop.lg3d.apps.utils.freedesktop.common.XDG;
 

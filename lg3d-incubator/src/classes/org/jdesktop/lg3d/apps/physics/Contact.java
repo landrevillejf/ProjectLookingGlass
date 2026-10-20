@@ -20,7 +20,6 @@
 
 package org.jdesktop.lg3d.apps.physics;
 import org.jogamp.vecmath.*;
-import java.util.PriorityQueue;
 import java.util.Vector;
 /**
  * Class used for storing information about a contact point between two physical objects.

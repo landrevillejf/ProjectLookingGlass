@@ -11,8 +11,6 @@ import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.folder.CubeComponent3D;
-import org.jdesktop.lg3d.utils.shape.GlassyPanel;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 
 /**
  * @author dai
@@ -109,6 +107,7 @@ public class CubeLayout implements LayoutManager3D {
 				comp.setRotationAngle((float) Math.toRadians(90));
 				comp.setId(i);
 				break;
+			default: break;
 			}
 		}
 	}

@@ -15,7 +15,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.InputStream;
@@ -23,7 +22,6 @@ import java.io.InputStream;
 import java.util.AbstractList;
 import java.util.Vector;
 import java.util.Arrays;
-import java.util.List;
 
 import java.io.FileInputStream;
 
@@ -31,7 +29,6 @@ import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3Tag;
 import org.jdesktop.lg3d.apps.trumplayer.mp3util.ID3TagReader;
 import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 import org.jdesktop.lg3d.apps.trumplayer.mp3player.M3UReader;
-import org.jdesktop.lg3d.apps.trumplayer.mp3player.FileInfoBean;
 
 
 /**
@@ -157,13 +154,13 @@ public class AlbumInformationReader {
                 }
 
                 // When already set m3u filename, do nothing.(use m3u information).
-                if(albumInformation.getM3U() == null || albumInformation.getM3U().equalsIgnoreCase("") == true){
+                if(albumInformation.getM3U() == null || albumInformation.getM3U().equalsIgnoreCase("")){
                     String folder = null;
                     if( child.hasChildNodes() )
                         folder = child.getChildNodes().item(0).getNodeValue();
                     // when folder cannot found, do nothing.
                     String m3u = getLocalM3U(folder, recursive, albumInformation.getArtist(), albumInformation.getTitle());
-                    if(m3u != null && m3u.equalsIgnoreCase("") == false)
+                    if(m3u != null && !m3u.equalsIgnoreCase(""))
                         albumInformation.setM3U( m3u );
                     else 
                         albumInformation.setM3U( "" );
@@ -190,19 +187,19 @@ public class AlbumInformationReader {
             return null;
         else {
             folderFile = new File(folder);
-            if(folderFile.isDirectory() == false)
+            if(!folderFile.isDirectory())
                 return null;
         }
         
         // when local folder setting is null, do nothing.
-        if(localhome == null || localhome.equalsIgnoreCase("") == true)
+        if(localhome == null || localhome.equalsIgnoreCase(""))
             return null;
         
         // when local folder does not exists, make folder
         File localFolder = new File(localhome);
-        if ( localFolder.exists() == false )
+        if ( !localFolder.exists() )
             localFolder.mkdir();
-        else if( localFolder.isDirectory() != true )
+        else if( !localFolder.isDirectory() )
             return null;
        
         // extm3u check : simple version
@@ -215,7 +212,7 @@ public class AlbumInformationReader {
         // file check
         // when local m3u already exists, trumplayer check directory path of the first track.
         // If it differences folder(String), make new local m3u.
-        if( localM3u.exists() == true ) {
+        if( localM3u.exists() ) {
             try{ 
                 AbstractList<FileInfoBean> alist = M3UReader.getPlayList(localM3u.getCanonicalPath());
                 FileInfoBean fileInfo = alist.get(0);
@@ -223,7 +220,7 @@ public class AlbumInformationReader {
                 String dirPath = tmpfile.getParent();
                 if( recursive && dirPath.startsWith(folder) )
                     return m3u;
-                else if( recursive == false && dirPath.equalsIgnoreCase(folder) )
+                else if( !recursive && dirPath.equalsIgnoreCase(folder) )
                     return m3u;
             } catch (Exception e){}
         }

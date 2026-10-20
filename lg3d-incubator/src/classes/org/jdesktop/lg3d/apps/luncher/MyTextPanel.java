@@ -97,7 +97,7 @@ public class MyTextPanel extends Shape3D {
 	}
 
 	int pow = 2;
-	for ( ; pow < n; pow *= 2);
+	for ( ; pow < n; pow *= 2) { }
 
 	return pow;
     }

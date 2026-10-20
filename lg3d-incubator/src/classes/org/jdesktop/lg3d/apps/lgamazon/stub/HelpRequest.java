@@ -101,7 +101,7 @@ public class HelpRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.about==null && other.getAbout()==null) || 
              (this.about!=null &&
               this.about.equals(other.getAbout()))) &&

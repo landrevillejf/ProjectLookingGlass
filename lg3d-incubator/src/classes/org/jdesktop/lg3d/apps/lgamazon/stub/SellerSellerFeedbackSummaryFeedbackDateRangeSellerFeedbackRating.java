@@ -93,7 +93,7 @@ public class SellerSellerFeedbackSummaryFeedbackDateRangeSellerFeedbackRating  i
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.count==null && other.getCount()==null) || 
              (this.count!=null &&
               this.count.equals(other.getCount()))) &&

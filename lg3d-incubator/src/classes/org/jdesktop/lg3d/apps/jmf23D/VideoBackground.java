@@ -5,15 +5,9 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.image.*;
 
-import java.util.Enumeration;
-import java.util.Vector;
 
 import javax.media.*;
-import javax.media.Format;
-import javax.media.format.RGBFormat;
-import javax.media.format.VideoFormat;
 import javax.media.jai.*;
-import javax.media.renderer.VideoRenderer;
 import javax.media.util.*;
 
 import org.jogamp.vecmath.*;
@@ -23,11 +17,9 @@ import org.jdesktop.lg3d.scenemanager.utils.appcontainer.AppContainer;
 import org.jdesktop.lg3d.scenemanager.utils.background.Background;
 import org.jdesktop.lg3d.scenemanager.utils.event.ScreenResolutionChangedEvent;
 import org.jdesktop.lg3d.sg.*;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.c3danimation.*;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.utils.shape.*;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
 import org.jdesktop.lg3d.wg.*;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.event.LgEvent;

@@ -16,16 +16,11 @@
 
 package org.jdesktop.lg3d.apps.kwebdemo1.onionskins;
 
-import java.util.ArrayList;
 import java.util.Enumeration;
 import org.jogamp.vecmath.Color3f;
-import org.jogamp.vecmath.Point3f;
-import org.jogamp.vecmath.Tuple3f;
-import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.sg.Material;
-import org.jdesktop.lg3d.sg.Transform3D;
 import org.jdesktop.lg3d.sg.TransformGroup;
 import org.jdesktop.lg3d.sg.TransparencyAttributes;
 import org.jdesktop.lg3d.utils.shape.Sphere;

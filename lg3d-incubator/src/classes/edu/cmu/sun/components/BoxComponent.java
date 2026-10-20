@@ -12,7 +12,6 @@
 package edu.cmu.sun.components;
 
 import org.jdesktop.lg3d.sg.Appearance;
-import org.jdesktop.lg3d.sg.Shape3D;
 import org.jdesktop.lg3d.utils.shape.Box;
 import org.jdesktop.lg3d.wg.Component3D;
 

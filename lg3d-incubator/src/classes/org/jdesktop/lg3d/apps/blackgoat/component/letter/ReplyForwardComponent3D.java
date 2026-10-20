@@ -1,6 +1,5 @@
 package org.jdesktop.lg3d.apps.blackgoat.component.letter;
 
-import java.io.IOException;
 
 import org.jogamp.vecmath.Vector3f;
 

@@ -16,7 +16,6 @@
 package org.jdesktop.lg3d.apps.physics;
 
 import org.jogamp.vecmath.Vector3f;
-import java.util.Vector;
 
 /**
  * A class used to model gravity in a simulation.

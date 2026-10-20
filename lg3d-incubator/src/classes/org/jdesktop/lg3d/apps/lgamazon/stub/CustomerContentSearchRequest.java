@@ -124,7 +124,7 @@ public class CustomerContentSearchRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.customerPage==null && other.getCustomerPage()==null) || 
              (this.customerPage!=null &&
               this.customerPage.equals(other.getCustomerPage()))) &&

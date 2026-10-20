@@ -45,7 +45,6 @@ import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.apps.kwebdemo1.singletons.NodeData;
 import org.jdesktop.lg3d.apps.kwebdemo1.edges.DisplayedEdge;
-import org.jdesktop.lg3d.sg.Node;
 
 /**
  * Base class for nodes.  Nodes identify a specific person, thing or event

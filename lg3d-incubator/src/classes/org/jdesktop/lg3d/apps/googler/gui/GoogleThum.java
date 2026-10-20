@@ -29,7 +29,6 @@
 
 package org.jdesktop.lg3d.apps.googler.gui;
 import java.awt.Color;
-import java.awt.Font;
 import java.util.TimerTask;
 import org.jogamp.vecmath.Vector3f;
 import org.jdesktop.lg3d.apps.googler.engine.events.SearchRunningLgEvent;
@@ -67,8 +66,9 @@ public class GoogleThum extends Thumbnail implements LgEventListener{
     public GoogleThum(float size) {
         this.size = size;
         
+        textPanel = new TextPanel3D(3, 3, size/3);
         OriginTranslation ot = new OriginTranslation(
-                (textPanel= new TextPanel3D(3, 3, size/3)),
+                textPanel,
                 new Vector3f(size/5, size*0.8f, size/15));
         textComp.addChild(ot);                
         

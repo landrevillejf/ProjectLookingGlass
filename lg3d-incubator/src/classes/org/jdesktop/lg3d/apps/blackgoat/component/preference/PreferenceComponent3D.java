@@ -258,7 +258,7 @@ public class PreferenceComponent3D extends Component3D {
 		shapeComp.addListener(new MouseClickedEventAdapter(new ActionNoArg() {
 			public void performAction(LgEventSource source) {
 				if (null != source) {
-					if (upFlag == false) {
+					if (!upFlag) {
 
 						/*
 						info.setPopServer("");
@@ -280,7 +280,7 @@ public class PreferenceComponent3D extends Component3D {
 		okComp.addListener(new MouseClickedEventAdapter(new ActionNoArg() {
 			public void performAction(LgEventSource source) {
 				if (null != source) {
-					if (upFlag == true) {
+					if (upFlag) {
 						info.setPopServerIp(pf.getPopServerName());
 						info.setPopUserName(pf.getPopUserName());
 						info.setPopPassword(pf.getPopUserPassword());

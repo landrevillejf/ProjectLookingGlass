@@ -4,15 +4,8 @@ import org.jogamp.vecmath.Vector3f;
 
 import org.jdesktop.lg3d.apps.blackgoat.component.letter.PostitComponent3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.letter.SmallLetterComponent3D;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
-import org.jdesktop.lg3d.utils.eventadapter.MouseClickedEventAdapter;
-import org.jdesktop.lg3d.utils.shape.FuzzyEdgePanel;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
-import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 /**
  * @author dai
@@ -46,7 +39,9 @@ public class FolderContainer3D extends Container3D implements Runnable {
 		float dim = 0.0f;
 		float xdim, ydim, zdim;
 		
-		xdim = ydim = zdim = 0.009f;
+		xdim = 0.009f;
+		ydim = 0.009f;
+		zdim = 0.009f;
 		dim = xdim * 1.5f;
 		deli = dim / (numLetters + 2);
 		

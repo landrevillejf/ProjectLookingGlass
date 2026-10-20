@@ -55,7 +55,7 @@ public class ItemAttributesLanguages  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.language==null && other.getLanguage()==null) || 
              (this.language!=null &&
               java.util.Arrays.equals(this.language, other.getLanguage())));

@@ -86,7 +86,8 @@ public class GooglerFrame3D extends Frame3D {
             searchInput.setColumns((int)(225*externalRadius));
             searchInput.addActionListener(new ActionListener() {
                 public void actionPerformed(ActionEvent e) {
-                    showSearchResults(showingResults = !showingResults);
+                    showingResults = !showingResults;
+                    showSearchResults(showingResults);
                     if(showingResults)
                         doQuery(input.getText());
                 }
@@ -182,7 +183,8 @@ public class GooglerFrame3D extends Frame3D {
      * @return The next Color
      */
     public Color getNextColor() {
-        return nextColor[colorIndex=(colorIndex+1)%nextColor.length];
+        colorIndex=(colorIndex+1)%nextColor.length;
+        return nextColor[colorIndex];
     }
     /** Creates a new instance of GooglerFrame3D */
     public GooglerFrame3D() {
@@ -247,7 +249,8 @@ public class GooglerFrame3D extends Frame3D {
                 new MouseClickedEventAdapter(
                 new ActionNoArg() {
             public void performAction(LgEventSource source) {
-                showSearchResults(showingResults = !showingResults);
+                showingResults = !showingResults;
+                showSearchResults(showingResults);
                 if(showingResults)
                     doQuery(input.getText());
             }

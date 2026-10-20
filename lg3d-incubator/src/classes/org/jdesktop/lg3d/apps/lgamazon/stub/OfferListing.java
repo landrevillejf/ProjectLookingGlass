@@ -208,7 +208,7 @@ public class OfferListing  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.offerListingId==null && other.getOfferListingId()==null) || 
              (this.offerListingId!=null &&
               this.offerListingId.equals(other.getOfferListingId()))) &&

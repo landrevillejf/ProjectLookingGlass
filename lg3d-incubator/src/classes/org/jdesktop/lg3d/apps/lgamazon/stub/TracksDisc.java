@@ -78,7 +78,7 @@ public class TracksDisc  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.track==null && other.getTrack()==null) || 
              (this.track!=null &&
               java.util.Arrays.equals(this.track, other.getTrack()))) &&

@@ -55,7 +55,7 @@ public class TopSellers  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.topSeller==null && other.getTopSeller()==null) || 
              (this.topSeller!=null &&
               java.util.Arrays.equals(this.topSeller, other.getTopSeller())));

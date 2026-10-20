@@ -24,7 +24,6 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.font.TextAttribute;
 import java.text.AttributedString;
 
 import org.jdesktop.lg3d.sg.Appearance;
@@ -71,8 +70,10 @@ public class SpineCover extends Component3D {
         spineLabel.setSize(width, height);
         spineLabel.appearance.setColor(rgb[0], rgb[1], rgb[2], 1.0f);
         
-        spineLabel.topMargin = spineLabel.bottomMargin = 0;
-        spineLabel.leftMargin = spineLabel.rightMargin = 10;
+        spineLabel.topMargin = 0;
+        spineLabel.bottomMargin = 0;
+        spineLabel.leftMargin = 10;
+        spineLabel.rightMargin = 10;
         
         
         int nw = toolkit.widthPhysicalToNative(width);
@@ -152,7 +153,8 @@ public class SpineCover extends Component3D {
         }
         
         
-        spineLabel.topMargin = spineLabel.bottomMargin = hm;
+        spineLabel.topMargin = hm;
+        spineLabel.bottomMargin = hm;
         spineLabel.setFont(font.getName(), font.getStyle(), font.getSize());
         g.dispose();
                         

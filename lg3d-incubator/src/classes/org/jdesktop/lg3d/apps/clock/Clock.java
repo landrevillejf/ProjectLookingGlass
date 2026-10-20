@@ -22,8 +22,6 @@ package org.jdesktop.lg3d.apps.clock;
 
 import java.util.Calendar;
 import org.jdesktop.lg3d.wg.Container3D;
-import java.util.Timer;
-import java.util.TimerTask;
 
 
 

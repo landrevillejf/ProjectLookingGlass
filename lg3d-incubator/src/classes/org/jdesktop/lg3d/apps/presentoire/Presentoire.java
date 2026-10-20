@@ -29,7 +29,6 @@ import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Cursor3D;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.event.LgEventSource;
 
 /**
  * Presentoire: a slide-deck viewer for the native 3D desktop.

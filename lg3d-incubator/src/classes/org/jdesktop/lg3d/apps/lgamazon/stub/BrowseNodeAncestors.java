@@ -55,7 +55,7 @@ public class BrowseNodeAncestors  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.browseNode==null && other.getBrowseNode()==null) || 
              (this.browseNode!=null &&
               java.util.Arrays.equals(this.browseNode, other.getBrowseNode())));

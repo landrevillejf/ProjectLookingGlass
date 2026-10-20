@@ -63,6 +63,7 @@ public class XDG {
             case XDG_CACHE_HOME:
                 output = System.getProperty("user.home")+"/.cache";
                 break;
+            default: break;
         }
         return output;
     }

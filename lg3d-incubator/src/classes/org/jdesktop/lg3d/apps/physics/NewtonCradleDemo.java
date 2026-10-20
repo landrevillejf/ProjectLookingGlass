@@ -25,12 +25,9 @@ package org.jdesktop.lg3d.apps.physics;
  */
 import org.jdesktop.lg3d.wg.Frame3D;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.utils.shape.Box;
 import org.jdesktop.lg3d.utils.shape.Sphere;
 import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Quat4f;
-import java.util.HashSet;
 
 
 

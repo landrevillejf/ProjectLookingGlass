@@ -583,6 +583,7 @@ public class LgScope extends Frame3D {
                     }
                     
                     break;
+                default: break;
             }
         }
 
@@ -635,6 +636,7 @@ public class LgScope extends Frame3D {
                     x = 0;
                     y = 0.01f;
                     break;
+                default: break;
             }
             
             

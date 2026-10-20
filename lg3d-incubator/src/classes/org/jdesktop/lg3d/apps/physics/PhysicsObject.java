@@ -17,7 +17,6 @@ package org.jdesktop.lg3d.apps.physics;
 
 import org.jogamp.vecmath.*;
 import org.jogamp.java3d.*;
-import java.util.Vector;
 import org.jdesktop.lg3d.wg.Component3D;
 /**
  * The basic abstract class for all phyiscally simulated objects. 

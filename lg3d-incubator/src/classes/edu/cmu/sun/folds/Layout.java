@@ -184,7 +184,7 @@ public class Layout {
 	public void segment(Layout acrossLayout)
 	{
 		// repeat this until we made a pass w/o adding a segment
-		while (segmentAcorss(acrossLayout));
+		while (segmentAcorss(acrossLayout)) { }
 	}
 	
 	/**
@@ -249,7 +249,7 @@ public class Layout {
 		
 		// calculate ranges for new component
 		int pos = localComp.getRange().position();
-		int size = localComp.getRange().size();;
+		int size = localComp.getRange().size();
 		
 		IndexRange r1 = new IndexRange(pos, rangeIndex - pos);
 		IndexRange r2 = new IndexRange(pos + (rangeIndex - pos), size - (rangeIndex - pos));

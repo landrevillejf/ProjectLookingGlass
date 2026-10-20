@@ -70,7 +70,7 @@ public class OtherCategoriesSimilarProductsOtherCategoriesSimilarProduct  implem
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.ASIN==null && other.getASIN()==null) || 
              (this.ASIN!=null &&
               this.ASIN.equals(other.getASIN()))) &&

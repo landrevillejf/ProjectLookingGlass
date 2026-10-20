@@ -55,7 +55,7 @@ public class TransactionShipmentsShipmentPackages  implements java.io.Serializab
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this._package==null && other.get_package()==null) || 
              (this._package!=null &&
               java.util.Arrays.equals(this._package, other.get_package())));

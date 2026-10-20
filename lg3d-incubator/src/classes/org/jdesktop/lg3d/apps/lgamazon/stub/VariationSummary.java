@@ -139,7 +139,7 @@ public class VariationSummary  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.lowestPrice==null && other.getLowestPrice()==null) || 
              (this.lowestPrice!=null &&
               this.lowestPrice.equals(other.getLowestPrice()))) &&

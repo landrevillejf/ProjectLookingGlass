@@ -180,7 +180,7 @@ public class SearchThread extends Thread {
             matcher.find();
             rank = Integer.parseInt(line.substring(matcher.end()));
         } catch(Exception e) {
-            logger.warning("Failed to obtain pagerank : " + e.getMessage());;
+            logger.warning("Failed to obtain pagerank : " + e.getMessage());
             //e.printStackTrace();
             return rank;
         }

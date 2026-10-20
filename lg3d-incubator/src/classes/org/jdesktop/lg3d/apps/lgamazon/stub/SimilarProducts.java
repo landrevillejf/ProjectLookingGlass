@@ -55,7 +55,7 @@ public class SimilarProducts  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.similarProduct==null && other.getSimilarProduct()==null) || 
              (this.similarProduct!=null &&
               java.util.Arrays.equals(this.similarProduct, other.getSimilarProduct())));

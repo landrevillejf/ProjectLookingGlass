@@ -118,7 +118,8 @@ public class ResultElement3D extends Container3D implements ResultEventListener{
         
         related = new Container3D();
         related.setAnimation(new NaturalMotionAnimation(5000));
-        related.setLayout(lMan = new ResultsLayoutManager(radius*3, radius*3, -radius*12, 3, new Color3f(0.5f,0.2f,0.7f), 0.7f));        
+        lMan = new ResultsLayoutManager(radius*3, radius*3, -radius*12, 3, new Color3f(0.5f,0.2f,0.7f), 0.7f);
+        related.setLayout(lMan);        
         addChild(related);
         
         closeShape = new Component3D();

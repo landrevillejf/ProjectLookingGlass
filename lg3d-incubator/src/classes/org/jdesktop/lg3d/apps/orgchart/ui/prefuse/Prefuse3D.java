@@ -29,24 +29,15 @@ import edu.berkeley.guir.prefuse.graph.io.TreeMLTreeReader;
 import edu.berkeley.guir.prefuse.graph.io.XMLGraphWriter;
 import edu.berkeley.guir.prefuse.render.DefaultRendererFactory;
 import java.awt.Font;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Iterator;
-import java.util.logging.Logger;
-import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContext;
-import org.jdesktop.lg3d.apps.orgchart.framework.ServiceContextFactory;
-import org.jdesktop.lg3d.apps.orgchart.framework.Util;
 import org.jdesktop.lg3d.apps.orgchart.framework.contact.ContactChannel;
-import org.jdesktop.lg3d.apps.orgchart.framework.contact.ContactService;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.AbstractOrgChartApp;
 import org.jdesktop.lg3d.apps.orgchart.ui.common.UIUtil;
-import org.jdesktop.lg3d.utils.cursor.WigglingCursor;
 import org.jdesktop.lg3d.wg.Component3D;
-import org.jdesktop.lg3d.wg.Cursor3D;
-import org.jdesktop.lg3d.wg.Tapp;
 
 
 /**
@@ -257,7 +248,7 @@ public class Prefuse3D extends AbstractOrgChartApp {
     }
 
     static final boolean isManager(Entity item) {
-        return true ||item.getAttribute(ATTR_MANAGER) != null;
+        return true;
     }
 
     static final boolean isRoot(Entity item) {

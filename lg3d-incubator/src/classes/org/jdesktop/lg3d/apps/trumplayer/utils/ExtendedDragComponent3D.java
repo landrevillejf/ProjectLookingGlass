@@ -40,7 +40,7 @@ public class ExtendedDragComponent3D extends DragComponent3D {
     }
     
     public void changeVisible(boolean b){
-        if(b == true){
+        if(b){
             this.changeScale(1.0f);
             this.changeRotationAngle(0.0f);
         }
@@ -59,7 +59,7 @@ public class ExtendedDragComponent3D extends DragComponent3D {
     }
     
     public void setVisible(boolean b){
-        if(b == true){
+        if(b){
             this.setScale(1.0f);
             this.changeRotationAngle(0.0f);
         }

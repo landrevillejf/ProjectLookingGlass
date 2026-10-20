@@ -86,7 +86,7 @@ public class BrowseNodeLookupRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.browseNodeId==null && other.getBrowseNodeId()==null) || 
              (this.browseNodeId!=null &&
               java.util.Arrays.equals(this.browseNodeId, other.getBrowseNodeId()))) &&

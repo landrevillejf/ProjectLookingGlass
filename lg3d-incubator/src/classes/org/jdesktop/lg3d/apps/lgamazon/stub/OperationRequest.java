@@ -139,7 +139,7 @@ public class OperationRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.HTTPHeaders==null && other.getHTTPHeaders()==null) || 
              (this.HTTPHeaders!=null &&
               this.HTTPHeaders.equals(other.getHTTPHeaders()))) &&

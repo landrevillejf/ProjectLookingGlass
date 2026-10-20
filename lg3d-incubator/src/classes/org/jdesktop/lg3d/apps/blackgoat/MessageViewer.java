@@ -1,20 +1,13 @@
 package org.jdesktop.lg3d.apps.blackgoat;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Vector;
 
-import javax.mail.Message;
 import org.jogamp.vecmath.Color3f;
 import org.jogamp.vecmath.Point3f;
 import org.jogamp.vecmath.Vector3f;
@@ -22,7 +15,6 @@ import org.jogamp.vecmath.Vector3f;
 //import org.jdesktop.lg3d.apps.blackgoat.action.PopupAction;
 import org.jdesktop.lg3d.apps.blackgoat.button.Button;
 import org.jdesktop.lg3d.apps.blackgoat.component.folder.ALetterContainer3D;
-import org.jdesktop.lg3d.apps.blackgoat.component.folder.FolderContainer3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.letter.HeaderComponent3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.letter.LetterComponent3D;
 import org.jdesktop.lg3d.apps.blackgoat.component.letter.PostitComponent3D;
@@ -31,16 +23,10 @@ import org.jdesktop.lg3d.apps.blackgoat.component.letter.SmallLetterComponent3D;
 import org.jdesktop.lg3d.apps.blackgoat.draw.letter.ExtendableLineForDoodle;
 import org.jdesktop.lg3d.apps.blackgoat.draw.letter.Letter;
 import org.jdesktop.lg3d.apps.blackgoat.layout.CubeInfo;
-import org.jdesktop.lg3d.apps.blackgoat.utils.DesendingSortComparator;
 import org.jdesktop.lg3d.scenemanager.utils.decoration.TextPanel;
 import org.jdesktop.lg3d.sg.Appearance;
 import org.jdesktop.lg3d.sg.BranchGroup;
 import org.jdesktop.lg3d.sg.ColoringAttributes;
-import org.jdesktop.lg3d.sg.Geometry;
-import org.jdesktop.lg3d.sg.Shape3D;
-import org.jdesktop.lg3d.sg.Texture;
-import org.jdesktop.lg3d.sg.TextureAttributes;
-import org.jdesktop.lg3d.sg.utils.image.TextureLoader;
 import org.jdesktop.lg3d.utils.action.ActionNoArg;
 import org.jdesktop.lg3d.utils.action.RotateActionBoolean;
 import org.jdesktop.lg3d.utils.action.ScaleActionBoolean;
@@ -719,7 +705,7 @@ public class MessageViewer extends Container3D implements Runnable {
 		// aLetterCon.getSmallLetterComponent().doWear();
 		// System.out.println("Letter Comp is selected" +
 		// letterComp.isSelected());
-		if (false == aLetterCon.isSelected()) {
+		if (!aLetterCon.isSelected()) {
 			// System.out.println("Letter goes selected");
 
 			/** Watermark */
@@ -1439,7 +1425,7 @@ public class MessageViewer extends Container3D implements Runnable {
 								if (null == source)
 									return;
 
-								if (false == aLetterCon.hasCreatedLetter()) {
+								if (!aLetterCon.hasCreatedLetter()) {
 									createLetterImage(index, aLetterCon);
 									aLetterCon.setLetterIsCreated(true);
 								}

@@ -100,7 +100,7 @@ public class DirectoryCategory  implements Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.fullViewableName==null && other.getFullViewableName()==null) || 
              (this.fullViewableName!=null &&
               this.fullViewableName.equals(other.getFullViewableName()))) &&

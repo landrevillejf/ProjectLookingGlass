@@ -8,7 +8,6 @@ import org.jdesktop.lg3d.utils.action.ActionBooleanInt;
 import org.jdesktop.lg3d.utils.eventadapter.KeyPressedEventAdapter;
 import org.jdesktop.lg3d.wg.Container3D;
 import org.jdesktop.lg3d.wg.Frame3D;
-import org.jdesktop.lg3d.wg.LayoutManager3D;
 import org.jdesktop.lg3d.wg.Thumbnail;
 import org.jdesktop.lg3d.wg.event.InputEvent3D;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
@@ -76,6 +75,7 @@ public class BgFrame extends Frame3D {
                        
                     break;
                 }
+                default: break;
             }
                  
                     addChild((Container3D)nextCont);

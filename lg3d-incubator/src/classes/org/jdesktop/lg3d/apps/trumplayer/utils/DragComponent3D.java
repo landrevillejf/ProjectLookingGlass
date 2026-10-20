@@ -10,28 +10,18 @@
 package org.jdesktop.lg3d.apps.trumplayer.utils;
 
 import org.jogamp.vecmath.Vector3f;
-import org.jogamp.vecmath.Color3f;
 
 import org.jdesktop.lg3d.apps.trumplayer.base.Manager;
-import org.jdesktop.lg3d.apps.trumplayer.base.MouseReleasedEventAdapter;
 
 import org.jdesktop.lg3d.wg.Component3D;
 import org.jdesktop.lg3d.wg.Container3D;
-import org.jdesktop.lg3d.sg.Shape3D;
-import org.jdesktop.lg3d.utils.shape.Box;
-import org.jdesktop.lg3d.utils.shape.ImagePanel;
-import org.jdesktop.lg3d.utils.action.ActionNoArg;
-import org.jdesktop.lg3d.utils.action.ActionBoolean;
-import org.jdesktop.lg3d.utils.shape.SimpleAppearance;
 import org.jdesktop.lg3d.wg.event.LgEventSource;
-import org.jdesktop.lg3d.utils.c3danimation.NaturalMotionAnimation;
 import org.jdesktop.lg3d.wg.event.MouseEvent3D.ButtonId;
 
 import org.jdesktop.lg3d.utils.action.ActionFloat2;
 import org.jdesktop.lg3d.utils.action.ActionBooleanFloat3;
 import org.jdesktop.lg3d.utils.eventadapter.MouseDraggedEventAdapter;
 import org.jdesktop.lg3d.utils.eventadapter.MousePressedEventAdapter;
-import org.jdesktop.lg3d.utils.eventadapter.EventAdapter;
 
 
 /**
@@ -158,7 +148,7 @@ public class DragComponent3D extends Container3D {
         }
         
         public void performAction(LgEventSource source, boolean b, float f1, float f2, float f3) {
-            if(b == true){
+            if(b){
                 Vector3f loc = new Vector3f();
                 component.getFinalTranslation(loc);
                 mouseX = f1;

@@ -868,7 +868,7 @@ public class ItemSearchRequest  implements java.io.Serializable {
         }
         __equalsCalc = obj;
         boolean _equals;
-        _equals = true && 
+        _equals =
             ((this.actor==null && other.getActor()==null) || 
              (this.actor!=null &&
               this.actor.equals(other.getActor()))) &&
