@@ -47,7 +47,24 @@ public final class PasscodeAuthenticator {
     private static final String SEPARATOR = "|";
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
+    /**
+     * The HMAC primitive, behind a seam for one reason only: so a test can
+     * simulate the single deployment this kernel cannot otherwise reach -- a
+     * JVM missing its mandated HmacSHA256. Production always uses
+     * {@link #JDK_HMAC}; the seam never changes what a real gate signs.
+     */
+    interface Hmac {
+        byte[] sign(byte[] key, byte[] data) throws java.security.GeneralSecurityException;
+    }
+
+    private static final Hmac JDK_HMAC = (key, data) -> {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key, "HmacSHA256"));
+        return mac.doFinal(data);
+    };
+
     private final byte[] secret;
+    private final Hmac hmac;
 
     /**
      * @param secret the deployment's shared key (from configuration, never a
@@ -55,11 +72,17 @@ public final class PasscodeAuthenticator {
      *     HMAC over "nothing" is a signature every deployment shares.
      */
     public PasscodeAuthenticator(String secret) {
+        this(secret, JDK_HMAC);
+    }
+
+    /** The seam constructor: same key, a replaceable HMAC primitive. */
+    PasscodeAuthenticator(String secret, Hmac hmac) {
         Objects.requireNonNull(secret, "the gate needs a key");
         if (secret.isEmpty()) {
             throw new IllegalArgumentException("an empty secret signs everything and nothing");
         }
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
+        this.hmac = hmac;
     }
 
     /**
@@ -105,9 +128,7 @@ public final class PasscodeAuthenticator {
 
     private byte[] sign(String username) {
         try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            return mac.doFinal(username.getBytes(StandardCharsets.UTF_8));
+            return hmac.sign(secret, username.getBytes(StandardCharsets.UTF_8));
         } catch (java.security.GeneralSecurityException impossible) {
             // HmacSHA256 is a JDK-mandated algorithm; if it is genuinely
             // absent, nothing can sign and the gate cannot answer anything --

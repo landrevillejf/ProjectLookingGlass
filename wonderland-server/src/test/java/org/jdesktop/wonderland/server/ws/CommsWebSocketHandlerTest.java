@@ -16,6 +16,7 @@ package org.jdesktop.wonderland.server.ws;
 
 import com.jme.math.Quaternion;
 import com.jme.math.Vector3f;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -49,9 +50,13 @@ import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CommsWebSocketHandlerTest {
@@ -343,5 +348,206 @@ class CommsWebSocketHandlerTest {
         assertThat(world.find(viewCellID)).isNull();
         assertThat(registry.get(sessionId)).isNull();
         assertThat(registry.count()).isZero();
+    }
+
+    // ---- P5.4 auth gate: the transport refuses an unauthenticated attach ------
+
+    @Test
+    void authRefusesAnAttachWithNoTokenAndClosesTheSocket() throws Exception {
+        CommsWebSocketHandler gated = new CommsWebSocketHandler(router, registry,
+                new org.jdesktop.wonderland.server.auth.AuthGate(true, "secret"));
+        WebSocketSession refused = mock(WebSocketSession.class);
+        when(refused.getId()).thenReturn("ws-refused");
+        Properties props = new Properties();
+        props.setProperty("username", "carol");
+        // no "token" property and the gate is live -> resolve() null -> refuse
+        ByteBuffer packed = MessagePacker.pack(
+                new AttachClientMessage(CellCacheConnectionType.CLIENT_TYPE, props),
+                (short) 1);
+
+        gated.handleMessage(refused, new BinaryMessage(packed));
+
+        // the socket is closed with POLICY_VIOLATION and no session is minted
+        verify(refused).close(CloseStatus.POLICY_VIOLATION);
+        assertThat(registry.count()).isZero();
+    }
+
+    @Test
+    void aRefusalWhoseCloseAlsoFailsIsSwallowedNotPropagated() throws Exception {
+        CommsWebSocketHandler gated = new CommsWebSocketHandler(router, registry,
+                new org.jdesktop.wonderland.server.auth.AuthGate(true, "secret"));
+        WebSocketSession refused = mock(WebSocketSession.class);
+        when(refused.getId()).thenReturn("ws-refused-2");
+        doThrow(new IOException("close failed"))
+                .when(refused).close(any(CloseStatus.class));
+        Properties props = new Properties();
+        props.setProperty("username", "carol");
+        ByteBuffer packed = MessagePacker.pack(
+                new AttachClientMessage(CellCacheConnectionType.CLIENT_TYPE, props),
+                (short) 1);
+
+        // the best-effort close throws; the handler swallows it and still returns
+        gated.handleMessage(refused, new BinaryMessage(packed));
+
+        assertThat(registry.count()).isZero();
+    }
+
+    // ---- a session whose connection-type attribute is missing -----------------
+
+    @Test
+    void dataOnASocketThatLostItsConnectionTypeIsDropped() throws Exception {
+        main.feed(attach(CellCacheConnectionType.CLIENT_TYPE, null));
+        sentFrames.clear();
+        // the session attribute survives, the connection type does not
+        attributes.remove("wonderland.client.connectionType");
+
+        main.feed(CellHierarchyMessage.newSetAvatarMessage("ghost"));
+
+        assertThat(sentFrames).isEmpty();
+    }
+
+    @Test
+    void closingASocketThatLostItsConnectionTypeIsHarmless() throws Exception {
+        main.feed(attach(CellCacheConnectionType.CLIENT_TYPE, null));
+        BigInteger sessionId = sessionIdOf(main);
+        attributes.remove("wonderland.client.connectionType");
+
+        handler.afterConnectionClosed(socket, CloseStatus.NORMAL);
+
+        // the early return never detaches, so the session is left registered
+        assertThat(registry.get(sessionId)).isNotNull();
+    }
+
+    @Test
+    void closingTheSameSocketTwiceTakesTheNoChannelMapPath() throws Exception {
+        main.feed(attach(CellCacheConnectionType.CLIENT_TYPE, null));
+        BigInteger sessionId = sessionIdOf(main);
+
+        handler.afterConnectionClosed(socket, CloseStatus.NORMAL);
+        assertThat(registry.get(sessionId)).isNull();
+
+        // the attributes survive the first close, but the channel-map entry is
+        // gone, so the second close takes the byType == null path and the
+        // idempotent registry.close() changes nothing
+        handler.afterConnectionClosed(socket, CloseStatus.NORMAL);
+
+        assertThat(registry.count()).isZero();
+    }
+
+    // ---- parseSessionId: an empty (not absent) id property --------------------
+
+    @Test
+    void anEmptySessionIdPropertyOpensAFreshSession() throws Exception {
+        Properties props = new Properties();
+        props.setProperty("username", "carol");
+        props.setProperty(CommsWebSocketHandler.SESSION_ID_KEY, "");
+        MockSocket sock = new MockSocket("ws-empty");
+        sock.feed(new AttachClientMessage(CellCacheConnectionType.CLIENT_TYPE, props));
+
+        // an empty string is not a session id: parseSessionId returns null and a
+        // fresh session is minted rather than a NumberFormatException
+        assertThat(registry.count()).isEqualTo(1);
+        assertThat(sessionIdOf(sock)).isNotNull();
+    }
+
+    // ---- write(): a closed socket and a socket whose send throws --------------
+
+    @Test
+    void framesAreNotWrittenToAnAlreadyClosedSocket() throws Exception {
+        WebSocketSession closed = mock(WebSocketSession.class);
+        when(closed.getId()).thenReturn("ws-closed");
+        when(closed.isOpen()).thenReturn(false);
+        when(closed.getAttributes()).thenReturn(new HashMap<>());
+        ByteBuffer packed = MessagePacker.pack(
+                attach(CellCacheConnectionType.CLIENT_TYPE, null), (short) 1);
+
+        handler.handleMessage(closed, new BinaryMessage(packed));
+
+        // the handshake still mints the session; isOpen() false skips every send
+        verify(closed, never()).sendMessage(any(BinaryMessage.class));
+        assertThat(registry.count()).isEqualTo(1);
+    }
+
+    @Test
+    void aWriteThatThrowsIsLoggedAndNotPropagated() throws Exception {
+        WebSocketSession bad = mock(WebSocketSession.class);
+        when(bad.getId()).thenReturn("ws-bad-write");
+        when(bad.isOpen()).thenReturn(true);
+        when(bad.getAttributes()).thenReturn(new HashMap<>());
+        doThrow(new IOException("socket broke"))
+                .when(bad).sendMessage(any(BinaryMessage.class));
+        ByteBuffer packed = MessagePacker.pack(
+                attach(CellCacheConnectionType.CLIENT_TYPE, null), (short) 1);
+
+        // must not throw: write() swallows the IOException and logs a warning
+        handler.handleMessage(bad, new BinaryMessage(packed));
+
+        assertThat(registry.count()).isEqualTo(1);
+    }
+
+    // ---- writeToChannel(): the two arms only a direct call can reach ----------
+
+    @Test
+    void writeToChannelForAnUnknownSessionIsSilentlyIgnored() {
+        // no channel map for this session -> byType == null -> early return
+        handler.writeToChannel(BigInteger.valueOf(4242L),
+                CellCacheConnectionType.CLIENT_TYPE, ByteBuffer.allocate(4));
+
+        // reaching here with nothing registered is the whole assertion
+        assertThat(registry.count()).isZero();
+    }
+
+    @Test
+    void writeToChannelForATypeWithNoLiveSocketIsSilentlyIgnored() throws Exception {
+        MockSocket cache = new MockSocket("ws-cache");
+        cache.feed(attach(CellCacheConnectionType.CLIENT_TYPE, null));
+        BigInteger sessionId = sessionIdOf(cache);
+        cache.sentFrames.clear();
+
+        // the session is known, but no socket is registered for the CHANNEL type
+        handler.writeToChannel(sessionId, CellChannelConnectionType.CLIENT_TYPE,
+                ByteBuffer.allocate(4));
+
+        assertThat(cache.sentFrames).isEmpty();
+    }
+
+    // ---- pack(): a message the codec cannot serialise -------------------------
+
+    /** A Message the codec cannot serialise: its one field is not Serializable. */
+    private static final class UnpackableMessage extends Message {
+        private static final long serialVersionUID = 1L;
+        @SuppressWarnings("unused")
+        private final Object payload = new Object();
+    }
+
+    @Test
+    void packingAnUnserialisableMessageRethrowsAsIllegalState() {
+        assertThatThrownBy(() -> handler.pack(new UnpackableMessage(), (short) 1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failed to pack");
+    }
+
+    // ---- unpack(): a valid header with no body reads back as null -------------
+
+    @Test
+    void aValidHeaderWithNoBodyUnpacksToNullAndIsDropped() throws Exception {
+        // 0xACED0005 is the Java serialisation stream header: the codec reads it,
+        // then hits EOF on readObject and returns null (not a PackerException),
+        // which the handler drops without touching the registry
+        ByteBuffer headerOnly = ByteBuffer.wrap(new byte[]{
+                (byte) 0xAC, (byte) 0xED, 0x00, 0x05});
+
+        handler.handleMessage(socket, new BinaryMessage(headerOnly));
+
+        assertThat(sentFrames).isEmpty();
+        assertThat(registry.count()).isZero();
+    }
+
+    // ---- socketFor(): an unknown session --------------------------------------
+
+    @Test
+    void socketForAnUnknownSessionIsNull() {
+        assertThat(handler.socketFor(BigInteger.valueOf(999L),
+                CellCacheConnectionType.CLIENT_TYPE)).isNull();
     }
 }

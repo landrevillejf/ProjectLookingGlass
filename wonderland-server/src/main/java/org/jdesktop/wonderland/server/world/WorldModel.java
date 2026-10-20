@@ -20,7 +20,6 @@ package org.jdesktop.wonderland.server.world;
 import com.jme.bounding.BoundingSphere;
 import com.jme.math.Vector3f;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -188,18 +187,27 @@ public class WorldModel {
      * contract without a recursive walk.
      */
     public List<WorldCell> hierarchy() {
-        List<WorldCell> all = new ArrayList<>(cells.values());
-        // environment first, then ascending id so parents precede children
-        Collections.sort(all, (a, b) -> {
-            if (a.getCellID().equals(environmentCellID)) {
-                return -1;
+        // Hold the environment root out and lead with it, whatever its id, then
+        // sort the content ascending by id. Doing it in two steps rather than one
+        // comparator keeps the root-first guarantee explicit and total-orderable,
+        // and never leans on the map's iteration order to place the root.
+        List<WorldCell> content = new ArrayList<>();
+        WorldCell environment = null;
+        for (WorldCell cell : cells.values()) {
+            if (cell.getCellID().equals(environmentCellID)) {
+                environment = cell;
+            } else {
+                content.add(cell);
             }
-            if (b.getCellID().equals(environmentCellID)) {
-                return 1;
-            }
-            return Long.compare(Long.parseLong(a.getCellID().toString()),
-                    Long.parseLong(b.getCellID().toString()));
-        });
+        }
+        // ascending id so a parent always precedes its children
+        content.sort((a, b) -> Long.compare(Long.parseLong(a.getCellID().toString()),
+                Long.parseLong(b.getCellID().toString())));
+        // the constructor seeds the root and removeCell refuses it, so it is
+        // always present to lead the load order
+        List<WorldCell> all = new ArrayList<>(content.size() + 1);
+        all.add(environment);
+        all.addAll(content);
         return all;
     }
 }

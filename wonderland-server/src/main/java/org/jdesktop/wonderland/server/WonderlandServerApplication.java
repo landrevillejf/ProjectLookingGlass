@@ -12,13 +12,23 @@ package org.jdesktop.wonderland.server;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
 public class WonderlandServerApplication {
 
+    /**
+     * The context the last {@link #main} booted, held so a headless test can
+     * close it: main() returns void, and an unclosed context leaves the
+     * {@code @Scheduled} autosave beat running on a non-daemon thread that
+     * would otherwise outlive the test JVM. Production never reads this -- the
+     * container owns the context's lifetime through its own shutdown hook.
+     */
+    static volatile ConfigurableApplicationContext booted;
+
     public static void main(String[] args) {
-        SpringApplication.run(WonderlandServerApplication.class, args);
+        booted = SpringApplication.run(WonderlandServerApplication.class, args);
     }
 }

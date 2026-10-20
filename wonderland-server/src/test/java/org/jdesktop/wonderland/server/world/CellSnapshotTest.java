@@ -164,4 +164,32 @@ class CellSnapshotTest {
 
         assertThat(translationOf(reboot, 9)).isEqualTo(new Vector3f(0.1f, 1.0E7f, -3.3333333f));
     }
+
+    @Test
+    void anEmptyFileIsRefusedNotReadAsAnEmptyWorld(@TempDir Path empty) throws IOException {
+        // A zero-byte file has no header line at all: that is not a first boot
+        // (which has NO file), it is a truncated one, so it must be refused
+        // rather than silently restoring nothing.
+        Path zero = empty.resolve("zero.txt");
+        Files.write(zero, List.of());
+
+        assertThatThrownBy(() -> CellSnapshot.restore(furnished(), zero))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("not a cell snapshot");
+    }
+
+    @Test
+    void blankLinesAmongThePlacementsAreSkipped(@TempDir Path padded) throws IOException {
+        // A hand-edited or CRLF-mangled file can carry blank lines; they are
+        // gaps in the list, not placements, so restore steps over them and
+        // still applies every real line.
+        Path file = padded.resolve("cells.txt");
+        Files.write(file, List.of(CellSnapshot.MAGIC, "", "1 0x0.0p0 0x0.0p0 0x1.8p1", "   "));
+
+        WorldModel reboot = new WorldModel();
+        reboot.addCell(new CellID(1L), "some.client.Cell", "chair", at(0f, 0f, 0f), null);
+
+        assertThat(CellSnapshot.restore(reboot, file)).isEqualTo(1);
+        assertThat(translationOf(reboot, 1)).isEqualTo(new Vector3f(0f, 0f, 3f));
+    }
 }

@@ -20,6 +20,7 @@ import org.jdesktop.wonderland.common.cell.CellTransform;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldAutosaverTest {
 
@@ -144,5 +145,17 @@ class WorldAutosaverTest {
 
         model.removeCell(id);
         assertThat(model.revision()).isEqualTo(base + 3);
+    }
+
+    @Test
+    void aNegativeIntervalIsRefusedAtConstruction(@TempDir Path dir) {
+        // A negative throttle is a caller's slip, not a runtime condition: fail
+        // at the door rather than let tick()'s "nowMs - lastSaveMs < intervalMs"
+        // comparison silently never settle.
+        WorldModel model = oneCellWorld(700L, 0f, 0f, 0f);
+
+        assertThatThrownBy(() -> new WorldAutosaver(model, dir.resolve("world.snapshot"), -1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("negative");
     }
 }

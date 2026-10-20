@@ -212,8 +212,14 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
         }
     }
 
-    /** Write one already-packed frame to the live socket registered for a type. */
-    private void writeToChannel(BigInteger sessionId, ConnectionType type, ByteBuffer packed) {
+    /**
+     * Write one already-packed frame to the live socket registered for a type.
+     * Package-private (not private) so a test can drive the two arms that are
+     * otherwise only reachable through a live multi-socket race the headless
+     * suite cannot stage: an unknown session (no channel map) and a known
+     * session with no socket registered for the frame's connection type.
+     */
+    void writeToChannel(BigInteger sessionId, ConnectionType type, ByteBuffer packed) {
         Map<ConnectionType, WebSocketSession> byType = channels.get(sessionId);
         if (byType == null) {
             return;
@@ -252,7 +258,12 @@ public class CommsWebSocketHandler extends BinaryWebSocketHandler {
         }
     }
 
-    private ByteBuffer pack(Message message, short clientID) {
+    /**
+     * Pack one outbound frame. Package-private so a test can hand it a message
+     * that cannot be serialised and assert the codec's PackerException is
+     * rethrown as an IllegalStateException, not leaked onto the transport thread.
+     */
+    ByteBuffer pack(Message message, short clientID) {
         try {
             return MessagePacker.pack(message, clientID);
         } catch (MessagePacker.PackerException ex) {

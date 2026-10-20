@@ -307,6 +307,24 @@ class WorldSeederTest {
     }
 
     @Test
+    void aCorruptInstalledWorldJarFallsBackToTheClasspathSeed(@TempDir Path dir)
+            throws IOException {
+        // A file in the worlds directory that ends in .jar but is not a real zip
+        // makes openAllStores throw when it opens each jar. run() must not abort
+        // the boot over an unrelated broken jar: it catches the IOException and
+        // seeds the bundled clinic from the classpath store instead.
+        Path bad = dir.resolve("wonderland-broken-world.jar");
+        Files.write(bad, "this is not a zip file".getBytes(StandardCharsets.UTF_8));
+
+        WorldModel world = new WorldModel();
+        assertThatCode(() -> new WorldSeeder(world, CLINIC,
+                new WorldCatalog(dir.toString())).run(null)).doesNotThrowAnyException();
+
+        assertThat(names(world)).contains("Floor", "Reception");
+        assertThat(world.getLiveModule()).isEqualTo(CLINIC);
+    }
+
+    @Test
     void seedContentsSkipsAnUnnamedCellButKeepsNamedOnes() {
         WorldModel world = new WorldModel();
         WorldSeeder seeder = new WorldSeeder(world, CLINIC);

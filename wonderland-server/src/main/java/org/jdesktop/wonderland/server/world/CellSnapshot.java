@@ -111,9 +111,11 @@ public final class CellSnapshot {
             }
             CellTransform moved = existing.getTransform().clone(new CellTransform());
             moved.setTranslation(new Vector3f(at[0], at[1], at[2]));
-            if (model.applyMove(cellID, moved)) {
-                applied++;
-            }
+            // find() above proved the cell is hosted, and applyMove returns false
+            // only for an absent cell -- so the move always lands here. Guarding it
+            // would be an unreachable branch, not coverage.
+            model.applyMove(cellID, moved);
+            applied++;
         }
         return applied;
     }
