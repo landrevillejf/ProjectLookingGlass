@@ -89,32 +89,101 @@ All source files have been migrated from the legacy Sun Java 3D packages to Joga
 **When adding new code:** Use the Jogamp packages (`org.jogamp.java3d`, `org.jogamp.vecmath`), not the legacy `javax.*` packages.
 
 ## Test coverage
-- 100% is mandatory with jacoco
-- 0 surviving mutants is mandatory with PIT
 
-> **Current status:** JaCoCo works in two halves, and only one of them is a
-> report. Every `test` task finalizes `jacocoTestReport` (the HTML/XML the CI
-> uploads), while the root [build.gradle](build.gradle) `coverageFloors` map sets
-> a per-module **minimum line/branch covered ratio** for the eight modules that
-> have a test suite, and `check` depends on `jacocoTestCoverageVerification` — so
-> **a coverage regression below a module's floor fails the build**. The floors sit
-> just under the measured numbers (`lg3d-mandela` 0.910 / 0.815 at 91.49 % /
-> 81.86 % measured; `lg3d-widgets` 0.480 / 0.400; `lg3d-core` 0.225 / 0.310 at
-> 22.83 % / 31.56 %) and the convention is to **raise a floor as coverage
-> improves**: a PR that closes a package moves its module's number in the same PR.
+This is a bank's regime, and every agent working here is expected to treat it as
+one: a defect that reaches a user is a defect the pipeline could have caught, so
+the pipeline is not allowed to be optional.
+
+- 100% line and branch coverage is mandatory (JaCoCo)
+- 0 surviving mutants is mandatory (PIT)
+- Cucumber BDD suites run inside `test` in every module that has feature files,
+  and their HTML report is published per module
+- Checkstyle violations fail the build
+- OWASP dependency-check fails on CVSS >= 7
+- SonarQube: 0 bugs, 0 vulnerabilities, 100% coverage on new code
+
+**The rules are identical for every module, PIT included.** The root
+[build.gradle](build.gradle) applies `info.solidsoft.pitest` to each module that
+has a test suite and owns the whole regime there: engine version, `threads`,
+`outputFormats`, `failWhenNoMutations`, `exportLineCoverage` and
+`mutationThreshold`. A module's own `pitest {}` block may name only **what** to
+mutate (`targetClasses`, `targetTests`, `avoidCallsTo`, its own `jvmArgs`). A
+threshold spelled in a module build file lowers that module's bar somewhere the
+root maps cannot see it, which is how a mutation gate becomes decoration;
+`scripts/mandela/mutation-floors.mnd` fails exactly that.
+
+> **Exemption tracking.** Modules that cannot yet reach 100% coverage are
+> listed in the `coverageExemptions` map in [build.gradle](build.gradle) with
+> their measured maximum achievable ratio. Each exemption has a matching entry
+> in the `exemptionReasons` map documenting why 100% is not yet achievable
+> in-JVM (scene graph, GL context, Swing probe, etc.). A module not in the map
+> is held to 100%. Mutation testing is tracked the same way, in the
+> `mutationExemptions` and `mutationReasons` maps: an unlisted module with a
+> suite is gated at `mutationThreshold = 100`, and a listed one carries the
+> score its own suite really achieves plus the reason. The convention: a PR
+> that improves a module's coverage or mutation score removes it from the
+> exemption list in the same PR.
 >
-> What is genuinely **not** enforced is the 100 % / 0-mutant target itself. PIT is
-> applied only to `lg3d-mandela` (`./gradlew :lg3d-mandela:pitest`,
-> `mutationThreshold = 0`, report-only and deliberately outside `check`),
-> Checkstyle runs inside `check` with `ignoreFailures = true`, and a module
-> without a test suite gets no floor at all (it would trivially "fail" at 0 %).
-> The gate is intentionally deferred: the ported codebase is ~200k lines at ~23 %
-> core coverage (and the 2006-era scene graph is still close to none of it), so a
-> hard 100 % rule would red-line every build. Until then,
-> scene-graph / rendering changes (which need a live 3D desktop) are verified with
-> the in-JVM probe + internal screencapture described in
-> [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*); report
-> that evidence in the PR instead of claiming untested success.
+> **An exemption is a measurement, never an estimate.** A floor written down
+> without a `mutations.xml` or a JaCoCo XML behind it is how an exemption
+> becomes a way of avoiding a measurement. PIT scores are read from the
+> `detected` attribute of the module's own `mutations.xml`, and the number that
+> matters is the split inside it: `SURVIVED` means a test reached the line and
+> did not notice the change, `NO_COVERAGE` means no test reached it at all. Only
+> the first is a missing assertion, and the second is the same debt the JaCoCo
+> floor already reports, counted a different way.
+>
+> The exemption lists and their reasons live in the root
+> [build.gradle](build.gradle) (`coverageExemptions`, `exemptionReasons`,
+> `mutationExemptions`, `mutationReasons`). Two gates keep the prose and the
+> build honest with each other:
+> `scripts/mandela/coverage-floors.mnd` (coverage floors, and the untested
+> modules below) and `scripts/mandela/mutation-floors.mnd` (PIT floors, the
+> per-module CI matrix, and the per-module published reports).
+
+> **What the 100% rule does not reach.** A module with **no test suite** gets no
+> rule at all: its `test` task is NO-SOURCE, no JaCoCo `.exec` is written, the
+> verification task is skipped, and PIT is never applied. Such a module is not
+> "held to 100%", it is held to nothing, and naming that is a requirement, not a
+> courtesy. `lg3d-escher` (247 files under `gnu/**`, the pure-Java X11 protocol
+> library the compositor is built on) and `lg3d-terminal` (19 files, 3.6k lines:
+> emulator, scrollback, cell/attribute model, alternate screen, audit log, JNA
+> PTY layer) both have no `src/test/java`, and both are recorded in the
+> `NO_SUITE` list inside `coverage-floors.mnd`, which fails if such a module is
+> unacknowledged and fails if a module that grew a suite is still listed. Do not
+> answer this gap by writing a `jacocoTestCoverageVerification` rule for a module
+> with no tests: a rule that cannot fire is not a gate, it is a claim. Add the
+> suite, then delete the entry.
+
+> **Scene-graph / rendering changes** (which need a live 3D desktop) are verified
+> with the in-JVM probe + internal screencapture described in
+> [`lg3d-core/AGENTS.md`](lg3d-core/AGENTS.md) (*Verifying UI changes*);
+> report that evidence in the PR instead of claiming untested success.
+
+## The CI pipeline that enforces it
+
+[.github/workflows/build.yml](.github/workflows/build.yml) runs one job per
+concern, so a failure names the gate it broke rather than the build:
+
+| Job | Holds |
+| --- | ----- |
+| `build` | compile, Checkstyle, unit + Cucumber tests, JaCoCo report and coverage verification, then `:lg3d-mandela:repositoryChecks` as its own visible step (the Mandela gates, including `coverageFloorsCheck`, `mutationFloorsCheck` and `cveScopeCheck`) |
+| `inventory` | derives the gated module list from `settings.gradle` plus a non-empty `src/test/java` -- the same two facts the root build uses, so CI and the build cannot disagree about what is covered |
+| `mutation` | one `:module:pitest` per module on its own runner (`fail-fast: false`, so one red module never hides the others), uploading that module's PIT report |
+| `analysis` | a throwaway SonarQube service container, one `sonar` upload for the whole tree, then an explicit assertion that the project has **0 bugs and 0 vulnerabilities**, with `sonar.qualitygate.wait` turning the gate into a build result |
+| `cve` | `dependencyCheckAggregate` at CVSS 7, no `continue-on-error` anywhere near it |
+
+Note that `repositoryChecks` is a **step of the `build` job**, not a job of its
+own: the Mandela gates audit the whole tree, so their failure belongs to the run
+that checked the tree. They are deliberately not wired into `:lg3d-mandela:check`
+either, for the same reason - a stale link in unrelated documentation must not
+redden the language module's build and misdirect the blame.
+
+Supply-chain exceptions follow the same discipline as coverage exemptions, in the
+opposite direction (they expire rather than ratchet): see
+[SECURITY.md](SECURITY.md) and `config/owasp/suppressions.xml` -- one entry per
+vendored binary, a written justification, and an `until` date after which
+Dependency-Check stops applying it and the finding comes back.
 
 ## In-Tree Replacements
 
@@ -243,8 +312,8 @@ JUnit 5 test infrastructure exists and runs headless:
 - [lg3d-core/tests/junit/](cci:9://file:///home/fedora/Documents/ProjectLookingGlass/lg3d-core/tests/junit:0:0-0:0) - legacy JUnit tree, not integrated into Gradle.
 - `./gradlew build` runs the tests through the `check` task; each `test` task
   finalizes `jacocoTestReport`, and `check` additionally runs
-  `jacocoTestCoverageVerification` against the module's floor in the root
-  `coverageFloors` map (see *Test coverage*).
+  `jacocoTestCoverageVerification` against the module's exemption in the root
+  `coverageExemptions` map (see *Test coverage*).
 - `lg3d-mandela/src/test/java` - the language's own headless suite (1259 cases:
   the JUnit suites plus the Cucumber BDD `MandelaSuite`, one `test` task),
   including `DocumentationTest` (the language guide is a tested artifact) and
@@ -327,11 +396,11 @@ the exit codes and how to add a tool.
   on neither list only with a written reason, the `ext/` allow-lists must agree and
   name jars that exist on disk, and the run task must depend on every jar it puts
   on the classpath (a CI gate).
-- `coverage-floors.mnd` - what the root `coverageFloors` map is allowed to claim: a
-  module with a test suite and no floor has no measurable regression guard, a floor
-  for a module with no test source names a rule that can never fire, an exemption
-  must carry its reason, and the floors quoted in this file's *Test coverage* prose
-  must be the numbers the build actually enforces (a CI gate).
+- `coverage-floors.mnd` — what the root `coverageExemptions` map is allowed to claim: a
+  module with a test suite and no exemption must be at 100%, an exemption
+  must carry its reason in `exemptionReasons`, and the exemptions quoted in
+  this file's *Test coverage* prose must be the numbers the build actually
+  enforces (a CI gate).
 - `exclusions.mnd` - the exclusion set as one set, because it is written twice:
   this file's *Code Exclusions* / *Incubator Exclusions* prose and the
   `exclude '…'` lines inside every module's `java` source set. An exclude no

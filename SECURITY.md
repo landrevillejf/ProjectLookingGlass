@@ -73,25 +73,59 @@ Mitigations in place:
 - Incubator applications should be treated as **experimental and untrusted**;
   they are not part of the validated desktop.
 
-## Supply-chain scanning (report-only)
+## Supply-chain scanning (hard gate)
 
-Automated supply-chain visibility is now wired in, but deliberately
-**report-only** — a hard CVE gate is not appropriate while the known-vulnerable
-legacy jars above are intentionally retained:
+Automated supply-chain visibility is wired in and **fails the build**: a CVSS >= 7
+finding in a dependency the build resolves reddens the pull request.
+
+This is a change of policy, not just of wording. This file used to describe a
+scan that could inform but never fail, configured with a CVSS ceiling above the
+maximum real score of 10 -- a value chosen precisely because it can never fire --
+and the reason given for the softness was the retained legacy jars above. The
+reason was sound; the mechanism was not. A bank does not answer an unfixable
+vulnerability by switching the scanner off. It accepts the risk **in writing**,
+per artefact, with a named owner of the decision and a date when the decision
+must be made again. That is what the gate now enforces:
 
 - **SBOM.** `./gradlew cyclonedxBom` writes a CycloneDX Software Bill of
   Materials (exact resolved component versions) per module under
   `<module>/build-gradle/reports/bom.{json,xml}`.
 - **Dependency vulnerability scanning.** `./gradlew dependencyCheckAggregate`
   runs OWASP Dependency-Check across every module's resolved dependencies
-  (including the bundled incubator jars) against the NVD. It is configured with
-  `failBuildOnCVSS=11` — above the maximum real CVSS score of 10 — so a finding
-  informs rather than red-lines the build. Pass `-PnvdApiKey=KEY` (or set
-  `ORG_GRADLE_PROJECT_nvdApiKey`) to speed up the NVD feed download.
-- **CI.** The `security` job in `.github/workflows/build.yml` generates the SBOM
-  and runs the dependency scan on `main`/`master` pushes, the weekly schedule and
-  manual dispatch (skipped on pull requests to avoid the heavy first NVD
-  download), and uploads the reports as artifacts. Findings against the retained
-  legacy jars are expected and documented above.
+  (including the bundled incubator jars) against the NVD, gated at
+  `failBuildOnCVSS = 7f` with `failOnError = true`. The second knob matters as
+  much as the first: an interrupted NVD sync must not exit 0 on an empty report,
+  because a scan that silently checked nothing publishes a clean result. Pass
+  `-PnvdApiKey=KEY` (or set `ORG_GRADLE_PROJECT_nvdApiKey`) to speed up the NVD
+  feed download.
+- **Every exception is a signed lease.**
+  [`config/owasp/suppressions.xml`](config/owasp/suppressions.xml) is the only
+  place a finding may be set aside, and each entry is exactly one vendored binary
+  matched on its own file path, carrying a written justification and an `until`
+  review date. Dependency-check stops applying an expired suppression, so a
+  set-aside whose date has passed makes the build red again until a person
+  re-signs it or removes the jar -- which is the point of the date. Naming a CVE,
+  a CPE, a Maven coordinate, a file hash or a CVSS threshold is not allowed:
+  those silence a *class* of findings instead of one decision, and for anything
+  resolved from Maven Central the answer is the upgrade, never an exclusion.
+  [`scripts/mandela/cve-scope.mnd`](scripts/mandela/cve-scope.mnd) enforces that
+  shape in `repositoryChecks`, so the exclusions file cannot quietly decay into a
+  mute button, and it fails if a newly vendored binary inherits a neighbour's
+  waiver instead of carrying its own.
+- **What the gate cannot see.** Dependency-check analyses *declared*
+  dependencies. The three executables the desktop forks as child processes --
+  `swing-ide.jar`, `openapi-editor.jar` and `payloadman.jar` -- are fetched on
+  demand and appear in no build file, so they ship in the release bundle without
+  ever being scanned. Closing that gap means scanning the assembled bundle, not
+  writing a suppression for a jar the scan never read.
+- **CI.** The `cve` job in `.github/workflows/build.yml` runs the aggregate scan
+  on every pull request and every push to `main`, with no `continue-on-error`:
+  a step that cannot fail is not a gate. The `security` job additionally
+  regenerates the SBOM on the weekly schedule and manual dispatch, where the cold
+  NVD download is acceptable, and uploads both reports as artifacts.
+
+Findings against the retained legacy jars are expected, and are therefore not
+silent: they are listed by name, with their justification and their expiry, in
+the exclusions file.
 
 See [`AUDIT.md`](AUDIT.md) for the tracked remediation plan.

@@ -58,22 +58,14 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope (the regime is the root's)
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
-// is NOT part of `build`/`check`, so run it explicitly:
-// `./gradlew :ftp-client:pitest`. mutationThreshold=0 means surviving mutants
-// never fail the build; the HTML/XML report under build-gradle/reports/pitest
-// shows which mutants the tests catch.
-apply plugin: 'info.solidsoft.pitest'
+// Threads, versions, report formats, failWhenNoMutations and the
+// mutationThreshold all come from the root build.gradle's PIT section (100 = no
+// surviving mutant unless the module carries a measured entry in the
+// mutationExemptions map), so a module can never lower its own bar; that is
+// what scripts/mandela/mutation-floors.mnd checks. AWT and Swing calls are not
+// mutated: a mutant that throws HeadlessException says nothing about the suite.
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
-    threads = 4
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
-    // Do not mutate into GUI calls: they cannot run headless inside a mutation
-    // sandbox and would only produce spurious "killed by error" noise.
     avoidCallsTo = ['java.awt', 'javax.swing']
 }

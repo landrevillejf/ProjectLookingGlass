@@ -110,8 +110,10 @@ tasks.register('mandelaRepl', JavaExec) {
 // language itself, a changelog-shape gate, a start-menu descriptor audit, an
 // accelerator-conflict gate, an i18n bundle-completeness gate, a legacy Java 3D
 // import lint, a gate on the two hand-written copies of the desktop classpath,
-// a gate on what the coverage floors may claim, a gate pairing the build files'
-// source excludes with the exclusion prose, a gate on the background manager's
+// a gate on what the coverage floors may claim, a gate on what the PIT mutation
+// floors may claim, a gate on the CVE policy and the shape of every one of its
+// exclusions, a gate pairing the build files' source excludes with the exclusion
+// prose, a gate on the background manager's
 // menu against the art the tree ships, a gate on the Help Center's JavaHelp
 // bundle - its HelpSet, map, Contents, Index, topics and the headless test's
 // copies of the same lists - a freshness gate on the generated
@@ -122,7 +124,7 @@ tasks.register('mandelaRepl', JavaExec) {
 // the module's compiled classes, confined to the repository root, with no jar to
 // assemble first:
 //
-//   ./gradlew :lg3d-mandela:repositoryChecks      (all sixteen)
+//   ./gradlew :lg3d-mandela:repositoryChecks      (all eighteen)
 //   ./gradlew :lg3d-mandela:docLinksCheck         (one at a time)
 //
 // Deliberately NOT wired into `check`: these audit the whole tree rather than
@@ -182,6 +184,10 @@ mandelaCheck('scriptsHygieneCheck', 'scripts-hygiene.mnd',
         'Fail when a Mandela gate is unwired, left out of repositoryChecks, or missing from the scripts README.')
 mandelaCheck('whatsNewCheck', 'whats-new.mnd',
         "Fail when the generated What's New help topic or a documentation/releases/ archive page no longer matches CHANGELOG.md.")
+mandelaCheck('mutationFloorsCheck', 'mutation-floors.mnd',
+        'Fail when a PIT exemption names a module with no suite, a threshold is spelled in a module build file, or CI stops running and publishing mutation testing per module.')
+mandelaCheck('cveScopeCheck', 'cve-scope.mnd',
+        'Fail when the CVE gate stops being hard, or when an OWASP exclusion is not one existing vendored jar with a written reason and a live expiry date.')
 
 tasks.register('repositoryChecks') {
     group = 'verification'
@@ -191,7 +197,8 @@ tasks.register('repositoryChecks') {
             'i18nKeysCheck', 'legacyJ3dCheck', 'runClasspathCheck', 'coverageFloorsCheck',
             'exclusionsCheck', 'bgConfigsCheck', 'helpTopicsCheck',
             'scriptsHygieneCheck', 'whatsNewCheck',
-            'mandelaVersionCheck', 'changelogCheck'
+            'mandelaVersionCheck', 'changelogCheck',
+            'mutationFloorsCheck', 'cveScopeCheck'
 }
 
 // todo-scan.mnd is a report, not a gate (the asset-report.mnd kind): it always
@@ -290,21 +297,23 @@ tasks.register('whatsNewRefresh', JavaExec) {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope (the regime is the root's)
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable on
-// the language core, where a silently wrong operator or comparison is the worst
-// possible defect. NOT part of `build`/`check`: run
-// `./gradlew :lg3d-mandela:pitest` explicitly. mutationThreshold = 0 keeps the
-// report informational (the suite is new; the gate is deferred repo-wide).
-apply plugin: 'info.solidsoft.pitest'
+// The engine, threads, formats, failWhenNoMutations and the mutationThreshold
+// come from the root build.gradle; a threshold spelled here instead would be a
+// module setting its own bar, which scripts/mandela/mutation-floors.mnd fails.
+// On a language toolchain a silently wrong operator or comparison is the worst
+// possible defect, so this module is one of the two the mutation gate bites
+// hardest on: targetClasses is the whole `mandela` package (lexer, parser,
+// compiler, VM, stdlib, engine, CLI) and nothing outside it.
+//
+// targetTests names the `*Test` classes only, which leaves the Cucumber
+// MandelaSuite out of the mutant-killer pool. That is deliberately the
+// pessimistic direction: fewer tests may kill a mutant means a LOWER score, so
+// the filter can never flatter the figure -- a feature file that kills a mutant
+// nobody wrote a unit test for is counted as a survivor until its scenario is
+// added back to the pool.
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
-    threads = 4
     targetClasses = ['org.jdesktop.lg3d.mandela.*']
     targetTests = ['org.jdesktop.lg3d.mandela.*Test']
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
 }

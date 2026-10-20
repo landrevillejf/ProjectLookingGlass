@@ -44,22 +44,20 @@ tasks.named('jacocoTestReport') {
     }
 }
 
-// Coverage floor: 80% line coverage mandatory for Phase 1
-// The jacocoTestCoverageVerification task is already registered by the root build.gradle;
-// we only need to configure its violation rules here.
-tasks.named('jacocoTestCoverageVerification') {
-    violationRules {
-        rule {
-            limit {
-                minimum = 0.80
-            }
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn 'jacocoTestCoverageVerification'
-}
+// No coverage rule here, on purpose. An earlier revision of this file configured
+// jacocoTestCoverageVerification with `minimum = 0.80` and made `check` depend on
+// it, which read as an 80% coverage gate and was nothing: this module has no
+// src/test/java at all, so `test` is NO-SOURCE, no .exec file is ever written,
+// and JaCoCo skips the verification task with "missing execution data file".
+// A rule that cannot fire is not a gate, it is a claim. The module's 19 classes
+// (3.6k lines: the emulator, scrollback, cell/attribute model, alternate screen,
+// audit log, plus the JNA PTY layer) are untested, and that is now said out loud
+// in scripts/mandela/coverage-floors.mnd's NO_SUITE list, which is checked in both
+// directions: every module with no test source must be named there, and an entry
+// whose module has grown a suite must be deleted -- so the debt is enumerated
+// rather than absent, and the list shrinks when the first suite lands. Until it
+// does, neither jacocoTestCoverageVerification nor pitest is applied to this
+// module at all, and AGENTS.md says so in the same breath as its 100% rule.
 
 // Encoding
 tasks.withType(JavaCompile).configureEach {

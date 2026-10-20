@@ -365,6 +365,11 @@ dependencies {
     // Headless JUnit 5 for the HelpSet / content-integrity test.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
+    // Cucumber BDD for application workflow scenarios
+    testImplementation platform(libs.cucumber.bom)
+    testImplementation libs.junit.platform.suite
+    testImplementation libs.cucumber.java
+    testImplementation libs.cucumber.junit.platform.engine
     testRuntimeOnly libs.junit.platform.launcher
     // AssertJ: the wonderland bridge tests moved here from wonderland-desktop
     // (WonderlandDesktopPluginTest, WonderlandWorldContainerTest,

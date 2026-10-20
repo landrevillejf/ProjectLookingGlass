@@ -193,6 +193,11 @@ dependencies {
     // tests/junit tree is left where it is; it predates this source set.
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
+    // Cucumber BDD for desktop behaviour scenarios (crash reporting, etc.)
+    testImplementation platform(libs.cucumber.bom)
+    testImplementation libs.junit.platform.suite
+    testImplementation libs.cucumber.java
+    testImplementation libs.cucumber.junit.platform.engine
     // Tests classify real holidays/weekends through jbusinessday, so the library
     // and a silent slf4j provider are on the test classpath (headless, no GUI).
     testImplementation files(rootProject.file('libs/jbusinessday-0.9.1-SNAPSHOT.jar'))
@@ -213,23 +218,20 @@ tasks.named('test') {
 }
 
 // ---------------------------------------------------------------------------
-// PIT mutation testing (report-only, on-demand)
+// PIT mutation testing -- this module's scope, nothing else
 // ---------------------------------------------------------------------------
-// AGENTS.md calls 0 surviving mutants mandatory; PIT makes that measurable. It
-// is NOT part of `build`/`check` (mutation analysis is slow on a module this
-// size), so run it explicitly: `./gradlew :lg3d-core:pitest`. mutationThreshold
-// =0 means surviving mutants never fail the build; the HTML/XML report under
-// build-gradle/reports/pitest shows which mutants the tests catch.
-apply plugin: 'info.solidsoft.pitest'
+// The regime is the root build.gradle's: engine and plugin versions, threads,
+// report formats, failWhenNoMutations and the mutationThreshold every module is
+// held to (100 = no surviving mutant, unless the module carries a measured
+// exemption in the root's mutationExemptions map). Restating any of it here is
+// how a module quietly lowers its own bar, and scripts/mandela/mutation-floors.mnd
+// fails exactly that. What IS module-specific is what to mutate: everything in
+// the module's own classes, minus any call into the GUI / Java 3D stack --
+// those cannot run headless inside a mutation sandbox and would produce
+// "killed by error" noise rather than a real judgement about a mutant.
+// Run it with `./gradlew :lg3d-core:pitest`; CI runs every module's pitest in
+// the mandatory `mutation` job (.github/workflows/build.yml).
 pitest {
-    pitestVersion = libs.versions.pitest.get()
-    junit5PluginVersion = libs.versions.pitestJunit5.get()
-    threads = 4
-    outputFormats = ['HTML', 'XML']
-    mutationThreshold = 0
-    timestampedReports = false
-    // Do not mutate into GUI / Java 3D calls: they cannot run headless inside a
-    // mutation sandbox and would only produce spurious "killed by error" noise.
     avoidCallsTo = ['java.awt', 'javax.swing', 'org.jogamp.java3d', 'org.jogamp.vecmath']
 }
 

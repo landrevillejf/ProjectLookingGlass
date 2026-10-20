@@ -565,11 +565,12 @@ let SITE_CSS = [
 // missing directory as a missing report.
 let REPORT_NOTE = [
     "  <p class=\"note\">The test reports of a published release are generated beside this ", 
-    "  page: <code>&lt;version&gt;/reports/</code> carries the JUnit, JaCoCo and Cucumber ", 
-    "  reports of every module, and the PIT mutation report of <code>lg3d-mandela</code> - ", 
-    "  the only module this repository configures PIT for. The same tree is attached to ", 
-    "  the GitHub release as <code>reports-&lt;version&gt;.zip</code>, so a report outlives ", 
-    "  a rebuilt site.</p>"
+    "  page: <code>&lt;version&gt;/reports/</code> carries the JUnit, JaCoCo, Cucumber ", 
+    "  and PIT mutation reports of every module with a test suite. Each module is gated ", 
+    "  at <code>mutationThreshold = 100</code> (zero surviving mutants) unless it appears ", 
+    "  in the <code>mutationExemptions</code> map with a measured score and documented reason. ", 
+    "  The same tree is attached to the GitHub release as <code>reports-&lt;version&gt;.zip</code>, ", 
+    "  so a report outlives a rebuilt site.</p>"
 ]
 
 // The line the release workflow substitutes for a list of links into the report

@@ -115,6 +115,7 @@ springBoot = "3.5.6"      # org.springframework.boot:* (Apache-2.0)
 # per module. All run report-only / on-demand so they never red-line `build`.
 cyclonedx = "1.8.2"             # CycloneDX SBOM generation
 dependencyCheck = "13.0.0"      # OWASP dependency-check (CVE scanning)
+sonarqube = "5.1.0.4882"       # SonarQube quality analysis
 
 [libraries]
 # Java 3D (Jogamp). Exposed transitively by lg3d-core to every downstream module.
@@ -243,6 +244,7 @@ spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-star
 cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
 pitest = { id = "info.solidsoft.pitest", version.ref = "pitestPlugin" }
 dependencyCheck = { id = "org.owasp.dependencycheck", version.ref = "dependencyCheck" }
+sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
 # The Spring Boot Gradle plugin: adds `bootRun` + an executable `bootJar` so a
 # human can actually start wonderland-server (its @SpringBootTest suite boots
 # Tomcat in-JVM and never needed this, which is why the wiring was missing).

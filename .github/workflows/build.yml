@@ -59,7 +59,7 @@ jobs:
       # attributed here rather than buried inside `build`. --continue runs every
       # module's suite before failing, so one module's failure does not hide the
       # others. Each test task finalizes jacocoTestReport, and `check` also runs
-      # the jacocoTestCoverageVerification ratchet + report-only Checkstyle.
+      # the jacocoTestCoverageVerification exemption gate + Checkstyle (ignoreFailures=false).
       - name: Run unit tests
         run: ./gradlew test --continue --stacktrace
 
@@ -69,8 +69,20 @@ jobs:
       - name: Build all modules
         run: ./gradlew build --stacktrace
 
-      # Validate the runtime resources/ tree (icons, wallpapers, background
-      # manager configs) assembles from lg3d-art + lg3d-core + bgmanager.
+      # Quality gates: JaCoCo coverage verification (100% default, modules in
+      # the coverageExemptions map sit at their measured maximum achievable
+      # ratio) + Checkstyle (ignoreFailures=false, a violation fails the build).
+      # --continue runs every module's gate before failing.
+      - name: Quality gates (coverage + checkstyle)
+        run: ./gradlew check --continue --stacktrace
+
+      # PIT, SonarQube and the CVE gate are their own JOBS below, not steps here:
+      # a step buried at the end of the build job is how a mandatory gate quietly
+      # stops being mandatory (PIT ran with `--continue` next to a coverage rule
+      # that could not fail, SonarQube ran only `if: env.SONAR_TOKEN != ''` -- so
+      # never, on every pull request -- and dependency-check ran with
+      # `continue-on-error: true`, a step that cannot redden a build by definition).
+      # Each gate is now a job whose name says what it enforces.
       - name: Assemble runtime resources
         run: ./gradlew :lg3d-core:runtimeResources --stacktrace
 
@@ -86,10 +98,9 @@ jobs:
       - name: Repository checks (Mandela scripts)
         run: ./gradlew :lg3d-mandela:repositoryChecks --continue --stacktrace
 
-      # Coverage/Checkstyle are report-only (see the root build.gradle): the
-      # ratchet floor sits just below current coverage, and Checkstyle runs with
-      # ignoreFailures=true.
-      - name: Upload test, coverage & checkstyle reports
+      # Coverage/Checkstyle are enforced (see the root build.gradle):
+      # coverageExemptions sets per-module floors, Checkstyle fails on violations.
+      - name: Upload test, coverage, checkstyle & Cucumber reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -98,6 +109,7 @@ jobs:
             **/build-gradle/reports/tests/**
             **/build-gradle/reports/jacoco/**
             **/build-gradle/reports/checkstyle/**
+            **/build-gradle/reports/cucumber/**
             **/build-gradle/test-results/**
           if-no-files-found: warn
 
@@ -112,6 +124,287 @@ jobs:
             lg3d-apps/build-gradle/libs/*.jar
             lg3d-incubator/build-gradle/libs/*.jar
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # The module inventory the mutation matrix runs over.
+  # ---------------------------------------------------------------------------
+  # Derived, never typed. The list is read from settings.gradle and filtered to
+  # the modules that actually have a test source, which is the exact condition
+  # the root build.gradle applies when it decides whether to wire PIT in -- so a
+  # module cannot be missing from this matrix and still look covered. A hardcoded
+  # list here would be a second copy of one set, and the copy would be the one
+  # that silently falls behind when a module is added.
+  inventory:
+    name: Which modules are gated
+    runs-on: ubuntu-latest
+    outputs:
+      mutation: ${{ steps.scan.outputs.modules }}
+      suites: ${{ steps.scan.outputs.suites }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read the module list out of settings.gradle
+        id: scan
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/inventory.json
+          import glob, json, os, re
+          modules = re.findall(r"include '([^']+)'", open('settings.gradle').read())
+          gated, suites = [], []
+          for m in modules:
+              tests = glob.glob(f'{m}/src/test/java/**/*.java', recursive=True)
+              if tests:
+                  gated.append(m)
+                  suites.append({'module': m, 'test_files': len(tests)})
+          print(json.dumps({'mutation': gated, 'suites': suites}))
+          PY
+          # The step output is a JSON string; also print the table so a reader of
+          # the log sees the inventory without opening the artifact.
+          python3 - <<'PY'
+          import json
+          inv = json.load(open('/tmp/inventory.json'))
+          print('PIT-matrix modules (%d): %s' % (len(inv['mutation']), ', '.join(inv['mutation'])))
+          for s in inv['suites']:
+              print('  %-20s %4d test source file(s)' % (s['module'], s['test_files']))
+          print('A module with a suite is gated; a module with main sources and NO suite is')
+          print('named in scripts/mandela/coverage-floors.mnd instead (see that gate).')
+          PY
+          echo "modules=$(python3 -c 'import json;print(json.dumps(json.load(open("/tmp/inventory.json"))["mutation"]))')" >> "$GITHUB_OUTPUT"
+          echo "suites=$(python3 -c 'import json;print(json.dumps(json.load(open("/tmp/inventory.json"))["suites"]))')" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # PIT mutation testing - EVERY module, one job per module
+  # ---------------------------------------------------------------------------
+  # AGENTS.md: 0 surviving mutants is mandatory. The root build.gradle applies
+  # PIT to every module that has a test suite and gates each one at
+  # mutationThreshold = 100 unless the module sits in the mutationExemptions map
+  # with the score its own suite really achieves. This job runs each module's
+  # `pitest` task separately with fail-fast: false, so a pull request shows
+  # precisely which module's mutants survive instead of one repo-wide line from a
+  # `--continue` run, and no module is quoted for another. The published HTML per
+  # module is uploaded as pitest-<module>.
+  mutation:
+    name: PIT (${{ matrix.module }})
+    needs: inventory
+    runs-on: ubuntu-latest
+    if: ${{ needs.inventory.outputs.mutation != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.inventory.outputs.mutation) }}
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # No --continue and no `|| true`: a threshold breach is the finding. PIT
+      # prints "Generated N mutations Killed M (P%)" and the failing threshold on
+      # the same console, so the measured number a mutationExemptions entry must
+      # quote is produced by the very run that reddens the pull request.
+      - name: Mutate ${{ matrix.module }}
+        run: ./gradlew :${{ matrix.module }}:pitest --stacktrace
+
+      - name: Upload ${{ matrix.module }} PIT report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitest-${{ matrix.module }}
+          path: ${{ matrix.module }}/build-gradle/reports/pitest/**
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # SonarQube - 0 bugs, 0 vulnerabilities, and the quality gate decides
+  # ---------------------------------------------------------------------------
+  # This job ALWAYS runs. Before, the analysis was a step guarded by
+  # `if: env.SONAR_TOKEN != ''`, which on this repository meant it never ran: the
+  # secrets are unset, so every pull request reported green without an analysis
+  # having happened. With no server secret the job starts its own throwaway
+  # SonarQube as a service container, so the number of bugs found is a fact about
+  # this tree rather than about somebody's credentials.
+  #
+  # It fails immediately, as audited. `sonar.qualitygate.wait = true` (root
+  # build.gradle) makes the `sonar` task block until the gate is computed and
+  # fail on a breach; the extra API check below prints the actual bug and
+  # vulnerability totals first, so a red job names what is wrong instead of just
+  # being red. On a fresh server every analysed line is "new code", so the default
+  # Sonar way gate -- 0 bugs, 0 vulnerabilities, 0 hotspots, coverage on new code
+  # -- is exactly the bank rule AGENTS.md states, and there is no baseline to
+  # inherit and nothing to quietly compare against.
+  #
+  # Secrets: set BOTH SONAR_HOST_URL and SONAR_TOKEN for a self-hosted server (the
+  # service container then starts but is simply unused), or NEITHER and this job
+  # brings up its own. There is no third state, and no branch in which the job is
+  # skipped: the analysis either happens and is judged, or the build is red.
+  analysis:
+    name: SonarQube (0 bugs / 0 vulnerabilities)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Elasticsearch inside SonarQube refuses to start under the default
+    # vm.max_map_count on a fresh runner.
+    env:
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    services:
+      sonarqube:
+        image: sonarqube:lts-community
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl --fail --silent http://localhost:9000/api/system/status | grep -q 'UP' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Raise vm.max_map_count for Elasticsearch
+        run: sudo sysctl -w vm.max_map_count=262144
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # The throwaway server's own credential, minted for this run only. The
+      # scanner's login/password pair is deprecated (and refused on SonarQube
+      # Cloud), so the analysis authenticates with a generated token exactly as it
+      # would against a self-hosted server -- one code path, not a special case
+      # that works only on a disposable instance.
+      - name: Mint the analysis token
+        if: ${{ secrets.SONAR_TOKEN == '' }}
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -sf -u admin:admin -X POST \
+            "$SONAR_HOST_URL/api/user_tokens/generate?name=ci-ephemeral" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      # The scanner uploads whatever JaCoCo XML exists; without the suite having
+      # run in this job, the analysis would report 0% coverage and call the tree
+      # uncovered -- a false reading, in the other direction this time.
+      - name: Run the suites so coverage exists
+        run: ./gradlew test jacocoTestReport --continue --stacktrace
+
+      - name: Analyse and wait for the quality gate
+        run: ./gradlew sonar --stacktrace
+
+      # A second, independent statement of the same rule, read straight off the
+      # server: the gate can be reconfigured on the server side, and a gate that
+      # somebody relaxed would otherwise pass silently. Total BUG +
+      # VULNERABILITY issues over the project must be 0 for the whole project, not
+      # just new code.
+      - name: Assert zero bugs and zero vulnerabilities
+        if: always()
+        run: |
+          set -euo pipefail
+          base="${SONAR_HOST_URL:-http://localhost:9000}"
+          if [ -n "${SONAR_TOKEN:-}" ]; then AUTH="$SONAR_TOKEN:"; else AUTH="admin:admin"; fi
+          for type in BUG VULNERABILITY; do
+            total=$(curl -sf -u "$AUTH" \
+              "$base/api/issues/search?componentKeys=lg3d&issueTypes=$type&statuses=OPEN,CONFIRMED&ps=1" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["total"])')
+            echo "$type: $total open issue(s)"
+            if [ "$total" != "0" ]; then
+              echo "::error::SonarQube reports $total open $type issue(s); the rule is 0."
+              curl -s -u "$AUTH" \
+                "$base/api/issues/search?componentKeys=lg3d&issueTypes=$type&statuses=OPEN,CONFIRMED&ps=50" \
+                | python3 -c 'import json,sys
+          d = json.load(sys.stdin)
+          for i in d.get("issues", [])[:20]:
+              print("  %s %s %s" % (i.get("severity"), i.get("component"), i.get("message")))'
+              exit 1
+            fi
+          done
+          curl -sf -u "$AUTH" "$base/api/qualitygates/project_status?projectKey=lg3d" \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin)["projectStatus"]; print("gate:", d["status"]); [print(" ", c["status"], c["metricKey"], c.get("value")) for c in d["conditions"]]; sys.exit(0 if d["status"]=="OK" else 1)'
+
+      - name: Upload the analysis report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-config
+          path: |
+            **/build-gradle/reports/jacoco/**/jacocoTestReport.xml
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # OWASP dependency-check - the CVE gate, on every pull request
+  # ---------------------------------------------------------------------------
+  # failBuildOnCVSS = 7 in the root build.gradle, and this job has NO
+  # continue-on-error: an unaddressed CVSS >= 7 finding in a dependency the build
+  # actually resolves stops the merge. The only set-asides are the vendored 2006-
+  # era binaries enumerated in config/owasp/suppressions.xml, each with its own
+  # path, written justification and `until` review date -- and cve-scope.mnd (part
+  # of repositoryChecks, run by the build job above) fails if that file gains a
+  # Maven Central coordinate, a named CVE or an expired entry. An expired lease is
+  # not re-issued by a bot; it comes back as a red build for a person to decide.
+  #
+  # The NVD sync is slow without a key (observed 10-47 min), which is a cost, not a
+  # reason to make the gate optional -- so the timeout is generous and the key is
+  # optional rather than required.
+  cve:
+    name: OWASP dependency-check (CVSS >= 7 fails)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Scan every resolved dependency
+        env:
+          ORG_GRADLE_PROJECT_nvdApiKey: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAggregate --stacktrace
+
+      - name: Upload the CVE report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: |
+            build/reports/dependency-check-report.html
+            build/reports/dependency-check-report.json
+          if-no-files-found: warn
 
   # Lint + self-test the automated release train (scripts/release/*.sh and the
   # workflow YAML). This is pure shell/YAML -- no JDK, no Gradle, no network --
@@ -160,18 +453,11 @@ jobs:
       - name: Release-script self-tests
         run: bash scripts/release/tests/run.sh
 
-  # Supply-chain visibility. Generates a CycloneDX SBOM for every module and runs
-  # OWASP dependency-check across all resolved dependencies (including the
-  # bundled 2006-era incubator jars). Runs ONLY on the weekly schedule and manual
-  # dispatch -- NOT on push or pull_request: the first NVD feed download is
-  # large/network-heavy and, without an NVD_API_KEY secret, can take hours (a past
-  # run hit GitHub's 6h job cap and exhausted the account's monthly Actions
-  # minutes, blocking every later job). The job is also capped with
-  # timeout-minutes so a slow NVD mirror can never hang it. dependency-check is
-  # continue-on-error and report-only (failBuildOnCVSS=11, above the max real
-  # CVSS of 10): the retained legacy jars have known CVEs documented in
-  # SECURITY.md, so a finding informs rather than red-lines the build. Set an
-  # NVD_API_KEY repository secret to make the NVD feed download fast.
+  # SBOM generation. OWASP dependency-check moved to the main build job so it
+  # runs on every PR (failBuildOnCVSS=7, the known-vulnerable legacy jars are
+  # documented in SECURITY.md). This weekly job still generates the CycloneDX
+  # SBOM for supply-chain visibility and runs a deep dependency scan with the
+  # NVD API key when available.
   security:
     name: SBOM & dependency scan
     runs-on: ubuntu-latest
@@ -204,12 +490,13 @@ jobs:
         run: ./gradlew cyclonedxBom --continue --stacktrace
 
       - name: Run OWASP dependency-check
-        continue-on-error: true
+        # Same rule as the `cve` job on a pull request: no continue-on-error. A
+        # weekly scan that cannot fail is a newsletter, not a control.
         env:
           # Optional; empty when the secret is unset (the build.gradle guard
           # ignores a blank key and falls back to the unauthenticated feed).
           ORG_GRADLE_PROJECT_nvdApiKey: ${{ secrets.NVD_API_KEY }}
-        run: ./gradlew dependencyCheckAggregate --continue --stacktrace
+        run: ./gradlew dependencyCheckAggregate --stacktrace
 
       - name: Upload security reports
         if: always()
