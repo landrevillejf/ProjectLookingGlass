@@ -58,6 +58,18 @@ class JarProcessBackendTest {
     }
 
     @Test
+    void startForksTheSameCommandAsDeploy() throws IOException {
+        Deployment d = jar("app", aJar().toString(), 9011);
+        FakeChildProcessStarter starter =
+                new FakeChildProcessStarter().toReturn(new FakeChildProcess(888, true, ""));
+        JarProcessBackend backend = new JarProcessBackend(starter);
+
+        assertThat(backend.start(d)).isEqualTo("888");
+        assertThat(starter.lastCommand()).containsExactly(
+                JarProcessBackend.javaExecutable(), "-jar", d.jarPath(), "--server.port=9011");
+    }
+
+    @Test
     void deployMissingJarThrowsReadable() {
         JarProcessBackend backend = new JarProcessBackend(new FakeChildProcessStarter());
         Deployment d = jar("app", tempDir.resolve("nope.jar").toString(), 9010);
@@ -70,6 +82,16 @@ class JarProcessBackendTest {
     void deployBlankJarPathThrowsReadable() {
         JarProcessBackend backend = new JarProcessBackend(new FakeChildProcessStarter());
         Deployment d = new Deployment("app", "app", DeploymentType.JAR, null, "  ",
+                "/app", 9010, Map.of(), AppState.STOPPED, null, 1L, null);
+        assertThatThrownBy(() -> backend.deploy(d))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("jarPath");
+    }
+
+    @Test
+    void deployNullJarPathThrowsReadable() {
+        JarProcessBackend backend = new JarProcessBackend(new FakeChildProcessStarter());
+        Deployment d = new Deployment("app", "app", DeploymentType.JAR, null, null,
                 "/app", 9010, Map.of(), AppState.STOPPED, null, 1L, null);
         assertThatThrownBy(() -> backend.deploy(d))
                 .isInstanceOf(DeploymentException.class)

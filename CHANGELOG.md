@@ -3586,6 +3586,33 @@ work to make it build and run on a current toolchain.
   program tests with `is`. `Any` asks for no shape, so it is now the identity.
 
 ### Changed
+- **The `lg3d-webserver` floors are raised to `0.985` line / `0.975` branch and
+  `82` mutants** (`build.gradle`, `lg3d-webserver`) — the Spring Boot management
+  server's coverage ratchet sat at the conservative `0.890 / 0.795` it was given
+  when the module landed, and its mutation floor at `78`. A fault-injection
+  campaign drives the pure core to every line and branch reachable in-JVM —
+  measured `99.02-99.16% / 98.10%` and `83%` mutation (317 of 380 mutants
+  detected) — so both floors follow the measurement. The new cases reach
+  `DeploymentRegistry`'s defensive catch arms through a fault-injecting
+  `StubBackend` (a deploy/start/stop/remove/isRunning that throws
+  `DeploymentException` vs `RuntimeException`) and an orphan registry whose
+  persisted app has no backend; `DockerDeploymentBackend`'s detail-message
+  fallbacks over blank, negative-exit and null streams; `ReverseProxyFilter`'s
+  502-on-interrupt, committed-response skip and null/hop-by-hop header drop
+  against an in-JVM `com.sun.net.httpserver`; and the real `RealProcessLauncher` /
+  `RealChildProcessStarter` interrupt, bounded-window and SIGTERM-escalation paths
+  over genuine short-lived children. Two dead-code removals fell out of reaching
+  every branch: `requirePortFree` / `requireContextPathFree` carried a `selfId`
+  parameter every caller passed `null` (a pre-insert check has no self to
+  exclude), and `newId` / `deriveName` / `deriveContextPath` each guarded a blank
+  slug that `validate()` and `slug()`'s own `"app-"` fallback already make
+  unreachable — both now a comment naming the invariant instead of a branch no
+  test could kill. The residue is branches genuinely unreachable in-JVM
+  (`WebServerApplication.main`, `JarProcessBackend.javaExecutable`'s Windows
+  fallback, `RealProcessLauncher`'s `joinQuietly` interrupt, `ReverseProxyFilter`'s
+  contractually-never-null guards); of the 63 unkilled mutants only 3 are
+  `NO_COVERAGE` and the other 60 `SURVIVED` sit on covered lines whose tests
+  assert the outcome but not the exact mutated token inside a detail message.
 - **The world browser previews through JOGL by default** (`lg3d-apps`) —
   `WorldRender.joglPreviewEnabled()` inverts from opt-in to opt-out: the JOGL
   preview path (`GlWorldBuilder` into a `GlWorldViewer`) is now the shipped

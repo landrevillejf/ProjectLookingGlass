@@ -8,6 +8,8 @@
 package org.jdesktop.lg3d.webserver.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.jdesktop.lg3d.webserver.config.WebServerProperties;
 import org.junit.jupiter.api.Test;
@@ -96,6 +98,40 @@ class ManagementAuthGateTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
         run("GET", "/api", null, response, chain);
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void nullTokenFromPropertiesPassesThrough() throws Exception {
+        WebServerProperties nullToken = mock(WebServerProperties.class);
+        when(nullToken.getManagementToken()).thenReturn(null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new ManagementAuthGate(nullToken)
+                .doFilter(new MockHttpServletRequest("GET", "/api/apps"), response, chain);
+        assertThat(chain.getRequest()).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void nullRequestUriIsNotAnApiPathAndPassesThrough() throws Exception {
+        properties.setManagementToken(TOKEN);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/apps");
+        request.setRequestURI(null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new ManagementAuthGate(properties).doFilter(request, response, chain);
+        assertThat(chain.getRequest()).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void emptyBearerCandidateIsRejected() throws Exception {
+        properties.setManagementToken(TOKEN);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        run("GET", "/api/apps", "Bearer    ", response, chain);
         assertThat(chain.getRequest()).isNull();
         assertThat(response.getStatus()).isEqualTo(401);
     }

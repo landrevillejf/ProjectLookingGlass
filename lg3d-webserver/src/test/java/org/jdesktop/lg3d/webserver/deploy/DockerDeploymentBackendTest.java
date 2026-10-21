@@ -30,6 +30,11 @@ class DockerDeploymentBackendTest {
                 "/x", 9001, Map.of(), AppState.STOPPED, null, 1L, null);
     }
 
+    private static Deployment blankImage() {
+        return new Deployment("x", "x", DeploymentType.DOCKER, "   ", null,
+                "/x", 9001, Map.of(), AppState.STOPPED, null, 1L, null);
+    }
+
     @Test
     void typeIsDocker() {
         assertThat(new DockerDeploymentBackend(new FakeDockerCli(), properties).type())
@@ -186,5 +191,67 @@ class DockerDeploymentBackendTest {
 
         FakeDockerCli gone = new FakeDockerCli().on("inspect", new CommandResult(1, "", "No such container"));
         assertThat(new DockerDeploymentBackend(gone, properties).isRunning(docker("shop", 9001, Map.of()))).isFalse();
+    }
+
+    // ---- defensive arms: blank image, failure-detail fallbacks -------------
+
+    @Test
+    void deployWithABlankImageThrowsReadable() {
+        DockerDeploymentBackend backend = new DockerDeploymentBackend(new FakeDockerCli(), properties);
+        assertThatThrownBy(() -> backend.deploy(blankImage()))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("image");
+    }
+
+    @Test
+    void startWithABlankImagePropagatesTheStartFailure() {
+        FakeDockerCli cli = new FakeDockerCli().on("start", new CommandResult(1, "", "No such container"));
+        assertThatThrownBy(() -> new DockerDeploymentBackend(cli, properties).start(blankImage()))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("No such container");
+    }
+
+    @Test
+    void deployFailureWithBlankStderrReportsTheExitCode() {
+        FakeDockerCli cli = new FakeDockerCli().on("run", new CommandResult(1, "", ""));
+        assertThatThrownBy(() -> new DockerDeploymentBackend(cli, properties).deploy(docker("shop", 9001, Map.of())))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("exit code 1");
+    }
+
+    @Test
+    void deployFailureWithANegativeExitAndNullStderrReportsItCouldNotRun() {
+        FakeDockerCli cli = new FakeDockerCli().on("run", new CommandResult(-1, "", null));
+        assertThatThrownBy(() -> new DockerDeploymentBackend(cli, properties).deploy(docker("shop", 9001, Map.of())))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("could not be run");
+    }
+
+    @Test
+    void logsReturnsStdoutWhenTheCommandFailedButProducedOutput() {
+        FakeDockerCli cli = new FakeDockerCli().on("logs", new CommandResult(1, " partial output ", "err"));
+        assertThat(new DockerDeploymentBackend(cli, properties).logs(docker("shop", 9001, Map.of()), 10))
+                .isEqualTo("partial output");
+    }
+
+    @Test
+    void logsFallsBackToNoFurtherDetailWhenBothStreamsAreBlank() {
+        FakeDockerCli cli = new FakeDockerCli().on("logs", new CommandResult(1, "", ""));
+        assertThat(new DockerDeploymentBackend(cli, properties).logs(docker("shop", 9001, Map.of()), 10))
+                .isEqualTo("no further detail");
+    }
+
+    @Test
+    void logsFallBackToStderrWhenStdoutIsNull() {
+        FakeDockerCli cli = new FakeDockerCli().on("logs", new CommandResult(1, null, " err "));
+        assertThat(new DockerDeploymentBackend(cli, properties).logs(docker("shop", 9001, Map.of()), 10))
+                .isEqualTo("err");
+    }
+
+    @Test
+    void logsFallBackToNoFurtherDetailWhenBothStreamsAreNull() {
+        FakeDockerCli cli = new FakeDockerCli().on("logs", new CommandResult(1, null, null));
+        assertThat(new DockerDeploymentBackend(cli, properties).logs(docker("shop", 9001, Map.of()), 10))
+                .isEqualTo("no further detail");
     }
 }

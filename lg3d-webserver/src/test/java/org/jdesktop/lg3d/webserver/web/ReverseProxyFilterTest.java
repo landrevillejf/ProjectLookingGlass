@@ -14,12 +14,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.sun.net.httpserver.HttpServer;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.jdesktop.lg3d.webserver.config.WebServerProperties;
 import org.jdesktop.lg3d.webserver.deploy.DeploymentRegistry;
@@ -76,6 +82,36 @@ class ReverseProxyFilterTest {
         Map<String, Integer> routes = new HashMap<>();
         routes.put("", 9001);
         assertThat(ReverseProxyFilter.match(routes, "/anything")).isNull();
+    }
+
+    @Test
+    void matchSkipsANullContextPath() {
+        Map<String, Integer> routes = new HashMap<>();
+        routes.put(null, 9001);
+        routes.put("/shop", 9002);
+        ReverseProxyFilter.RouteMatch match = ReverseProxyFilter.match(routes, "/shop/x");
+        assertThat(match.contextPath()).isEqualTo("/shop");
+        assertThat(match.port()).isEqualTo(9002);
+    }
+
+    @Test
+    void matchPrefersTheLongestPrefixRegardlessOfIterationOrder() {
+        Map<String, Integer> routes = new LinkedHashMap<>();
+        routes.put("/shop/admin", 9002);
+        routes.put("/shop", 9001);
+        ReverseProxyFilter.RouteMatch match = ReverseProxyFilter.match(routes, "/shop/admin/users");
+        assertThat(match.contextPath()).isEqualTo("/shop/admin");
+        assertThat(match.port()).isEqualTo(9002);
+    }
+
+    @Test
+    void matchUpgradesToALongerPrefixSeenLater() {
+        Map<String, Integer> routes = new LinkedHashMap<>();
+        routes.put("/shop", 9001);
+        routes.put("/shop/admin", 9002);
+        ReverseProxyFilter.RouteMatch match = ReverseProxyFilter.match(routes, "/shop/admin/users");
+        assertThat(match.contextPath()).isEqualTo("/shop/admin");
+        assertThat(match.port()).isEqualTo(9002);
     }
 
     // ---- forwarding -------------------------------------------------------
@@ -162,6 +198,116 @@ class ReverseProxyFilterTest {
         assertThat(chain.getRequest()).isNotNull();
     }
 
+    @Test
+    void nullRequestUriFallsThrough() throws Exception {
+        ReverseProxyFilter filter = filterOver(Map.of("/app", 9001));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/app/x");
+        request.setRequestURI(null);
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(request, new MockHttpServletResponse(), chain);
+        assertThat(chain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void emptyQueryStringIsNotAppended() throws Exception {
+        int port = startEchoBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/app/x");
+        request.setQueryString("");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        assertThat(response.getContentAsString()).contains("query=null");
+    }
+
+    @Test
+    void headRequestForwardsWithoutReadingABody() throws Exception {
+        int port = startEchoBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(new MockHttpServletRequest("HEAD", "/app/x"), response, chain);
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void nullHeaderNamesAreTolerated() throws Exception {
+        int port = startEchoBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        HttpServletRequest request = new HttpServletRequestWrapper(
+                new MockHttpServletRequest("GET", "/app/x")) {
+            @Override
+            public Enumeration<String> getHeaderNames() {
+                return null;
+            }
+        };
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void hopByHopAndNullHeaderNamesAreSkippedWhileOthersAreRelayed() throws Exception {
+        int port = startEchoBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        MockHttpServletRequest base = new MockHttpServletRequest("GET", "/app/x");
+        base.addHeader("X-Test", "value");
+        HttpServletRequest request = new HttpServletRequestWrapper(base) {
+            @Override
+            public Enumeration<String> getHeaderNames() {
+                return Collections.enumeration(Arrays.asList(null, "Host", "X-Test"));
+            }
+
+            @Override
+            public Enumeration<String> getHeaders(String name) {
+                return name == null ? Collections.emptyEnumeration() : super.getHeaders(name);
+            }
+        };
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(request, response, chain);
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void emptyUpstreamBodyWritesNothing() throws Exception {
+        int port = startEmptyBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(new MockHttpServletRequest("GET", "/app/x"), response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).isEmpty();
+    }
+
+    @Test
+    void badGatewayOnAnAlreadyCommittedResponseIsSkipped() throws Exception {
+        ReverseProxyFilter filter = filterOver(Map.of("/dead", freePort()));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        response.setCommitted(true);
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(new MockHttpServletRequest("GET", "/dead/x"), response, chain);
+        // The 502 body cannot be written once committed, so the status is untouched.
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void interruptDuringForwardIsBadGateway() throws Exception {
+        int port = startEchoBackend();
+        ReverseProxyFilter filter = filterOver(Map.of("/app", port));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Thread.currentThread().interrupt();
+        try {
+            filter.doFilter(new MockHttpServletRequest("GET", "/app/x"),
+                    response, new MockFilterChain());
+        } finally {
+            Thread.interrupted();
+        }
+        assertThat(response.getStatus()).isEqualTo(502);
+        assertThat(response.getContentAsString()).contains("interrupted");
+    }
+
     private ReverseProxyFilter filterOver(Map<String, Integer> routes) {
         DeploymentRegistry registry = mock(DeploymentRegistry.class);
         when(registry.proxyRoutes()).thenReturn(routes);
@@ -180,6 +326,13 @@ class ReverseProxyFilterTest {
                 out.write(bytes);
             }
         });
+        backend.start();
+        return backend.getAddress().getPort();
+    }
+
+    private int startEmptyBackend() throws IOException {
+        backend = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        backend.createContext("/", exchange -> exchange.sendResponseHeaders(200, -1));
         backend.start();
         return backend.getAddress().getPort();
     }

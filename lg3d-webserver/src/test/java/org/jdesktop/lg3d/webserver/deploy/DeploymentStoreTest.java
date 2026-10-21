@@ -106,4 +106,53 @@ class DeploymentStoreTest {
             System.clearProperty(DeploymentStore.DIR_PROPERTY);
         }
     }
+
+    @Test
+    void nullPropertiesFallsBackToTheHomeDefault() {
+        String previous = System.getProperty(DeploymentStore.DIR_PROPERTY);
+        try {
+            System.clearProperty(DeploymentStore.DIR_PROPERTY);
+            Path parent = new DeploymentStore((WebServerProperties) null).file().getParent();
+            assertThat(parent.endsWith(Path.of(".lg3d", "webserver"))).isTrue();
+        } finally {
+            restore(previous);
+        }
+    }
+
+    @Test
+    void blankDeployDirFallsThroughToTheSystemProperty() {
+        String previous = System.getProperty(DeploymentStore.DIR_PROPERTY);
+        try {
+            System.setProperty(DeploymentStore.DIR_PROPERTY, tempDir.resolve("sys").toString());
+            WebServerProperties properties = new WebServerProperties();
+            properties.setDeployDir("   ");
+            assertThat(new DeploymentStore(properties).file().getParent())
+                    .isEqualTo(tempDir.resolve("sys"));
+        } finally {
+            restore(previous);
+        }
+    }
+
+    @Test
+    void blankSystemPropertyFallsBackToTheHomeDefault() {
+        String previous = System.getProperty(DeploymentStore.DIR_PROPERTY);
+        try {
+            System.setProperty(DeploymentStore.DIR_PROPERTY, "   ");
+            Path parent = new DeploymentStore(new WebServerProperties()).file().getParent();
+            assertThat(parent.endsWith(Path.of(".lg3d", "webserver"))).isTrue();
+        } finally {
+            restore(previous);
+        }
+    }
+
+    @Test
+    void saveSwallowsAnIoFailureRatherThanThrowing() throws IOException {
+        Path notADirectory = tempDir.resolve("afile");
+        Files.writeString(notADirectory, "i am a regular file, not a directory");
+        DeploymentStore store = new DeploymentStore(notADirectory);
+        // createDirectories() on an existing file raises FileAlreadyExistsException;
+        // save is best effort, so it logs and returns rather than taking the API down.
+        store.save(List.of(sample("a")));
+        assertThat(store.file()).isEqualTo(notADirectory.resolve("deployments.json"));
+    }
 }

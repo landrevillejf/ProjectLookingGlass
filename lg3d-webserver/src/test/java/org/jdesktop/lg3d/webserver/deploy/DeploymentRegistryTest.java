@@ -60,6 +60,14 @@ class DeploymentRegistryTest {
         return jar;
     }
 
+    /** @return a registry over the given backends and a temp-dir store, loaded. */
+    private DeploymentRegistry registryOver(DeploymentBackend... backends) {
+        DeploymentRegistry r = new DeploymentRegistry(
+                List.of(backends), DeployFixtures.store(tempDir), properties);
+        r.load();
+        return r;
+    }
+
     // ---- id / name / context / port assignment ---------------------------
 
     @Test
@@ -366,5 +374,294 @@ class DeploymentRegistryTest {
         assertThat(DeploymentRegistry.slug("9lives")).isEqualTo("app-9lives");
         assertThat(DeploymentRegistry.slug("")).isEqualTo("app-");
         assertThat(DeploymentRegistry.slug(null)).isEmpty();
+        assertThat(DeploymentRegistry.slug("--shop--")).isEqualTo("shop");
+        assertThat(DeploymentRegistry.slug("a{b")).isEqualTo("a-b");
+    }
+
+    // ---- defensive arms, driven by a fault-injecting backend --------------
+
+    @Test
+    void deployWithNoBackendForTheTypeIsA503() {
+        DeploymentRegistry r = registryOver();
+        assertThatThrownBy(() -> r.deploy(docker("shop", "shop:1.0")))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("no backend for type");
+    }
+
+    @Test
+    void deployRethrowsABackendDeploymentException() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        backend.onDeploy = new DeploymentException("image pull failed");
+        DeploymentRegistry r = registryOver(backend);
+        assertThatThrownBy(() -> r.deploy(docker("shop", "shop:1.0")))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("image pull failed");
+        assertThat(r.list()).isEmpty();
+    }
+
+    @Test
+    void deployWrapsABackendRuntimeException() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        backend.onDeploy = new IllegalStateException("kaboom");
+        DeploymentRegistry r = registryOver(backend);
+        assertThatThrownBy(() -> r.deploy(docker("shop", "shop:1.0")))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("deploy failed: kaboom");
+    }
+
+    @Test
+    void startWrapsABackendRuntimeExceptionAndRecordsFailed() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.onStart = new IllegalStateException("nope");
+        assertThatThrownBy(() -> r.start("shop"))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("start failed: nope");
+        assertThat(r.get("shop").state()).isEqualTo(AppState.FAILED);
+    }
+
+    @Test
+    void stopRethrowsABackendDeploymentException() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.onStop = new DeploymentException("stop boom");
+        assertThatThrownBy(() -> r.stop("shop"))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("stop boom");
+        assertThat(r.get("shop").state()).isEqualTo(AppState.FAILED);
+    }
+
+    @Test
+    void stopWrapsABackendRuntimeException() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.onStop = new IllegalStateException("stop nope");
+        assertThatThrownBy(() -> r.stop("shop"))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("stop failed: stop nope");
+    }
+
+    @Test
+    void undeployToleratesABackendRemoveThatThrows() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.onRemove = new IllegalStateException("rm nope");
+        r.undeploy("shop");
+        assertThat(r.list()).isEmpty();
+    }
+
+    @Test
+    void reconcileTreatsAnIsRunningThatThrowsAsNotRunning() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.onIsRunning = new IllegalStateException("inspect boom");
+        r.reconcile();
+        assertThat(r.get("shop").state()).isEqualTo(AppState.STOPPED);
+    }
+
+    @Test
+    void getLazilyReconcilesADeploymentThatDiedOutsideTheApi() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(docker("shop", "shop:1.0"));
+        backend.running = false;
+        assertThat(r.get("shop").state()).isEqualTo(AppState.STOPPED);
+    }
+
+    @Test
+    void startWithAnUnavailableJarBackendUsesTheJarMessage() {
+        StubBackend backend = new StubBackend(DeploymentType.JAR);
+        DeploymentRegistry r = registryOver(backend);
+        r.deploy(jar("app", "/tmp/app.jar"));
+        backend.available = false;
+        Deployment result = r.start("app");
+        assertThat(result.state()).isEqualTo(AppState.FAILED);
+        assertThat(result.lastError()).contains("no runtime is available to start a JAR");
+    }
+
+    @Test
+    void startOfADeploymentWhoseBackendIsGoneIsA503() {
+        StubBackend backend = new StubBackend(DeploymentType.DOCKER);
+        registryOver(backend).deploy(docker("shop", "shop:1.0"));
+        // A fresh registry over the same store but with no backends at all: the
+        // persisted deployment survives, its runtime does not.
+        DeploymentRegistry orphan = new DeploymentRegistry(
+                List.of(), DeployFixtures.store(tempDir), properties);
+        orphan.load();
+        assertThatThrownBy(() -> orphan.start("shop"))
+                .isInstanceOf(DeploymentException.class)
+                .hasMessageContaining("no backend for type");
+    }
+
+    @Test
+    void snapshotReturnsTheCurrentTable() {
+        DeploymentRegistry r = registryOver(new StubBackend(DeploymentType.DOCKER));
+        r.deploy(docker("shop", "shop:1.0"));
+        assertThat(r.snapshot()).hasSize(1);
+        assertThat(r.snapshot().get(0).id()).isEqualTo("shop");
+    }
+
+    // ---- input-derivation and lookup edge arms ----------------------------
+
+    @Test
+    void isBackendAvailableIsFalseForAnUnregisteredType() {
+        DeploymentRegistry r = registryOver(new StubBackend(DeploymentType.DOCKER));
+        assertThat(r.isBackendAvailable(DeploymentType.DOCKER)).isTrue();
+        assertThat(r.isBackendAvailable(DeploymentType.JAR)).isFalse();
+    }
+
+    @Test
+    void getOfADeploymentWhoseBackendIsGoneReconcilesItToStopped() {
+        registryOver(new StubBackend(DeploymentType.DOCKER)).deploy(docker("shop", "shop:1.0"));
+        DeploymentRegistry orphan = new DeploymentRegistry(
+                List.of(), DeployFixtures.store(tempDir), properties);
+        orphan.load();
+        // No backend for DOCKER, so a recorded RUNNING app cannot be confirmed up.
+        assertThat(orphan.get("shop").state()).isEqualTo(AppState.STOPPED);
+    }
+
+    @Test
+    void nullIdIsANotFound() {
+        assertThatThrownBy(() -> registry.get(null)).isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void nullRequestIsRejected() {
+        assertThatThrownBy(() -> registry.deploy(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("type");
+    }
+
+    @Test
+    void dockerWithABlankImageIsRejected() {
+        DeploymentRequest request =
+                new DeploymentRequest("shop", DeploymentType.DOCKER, "   ", null, null, null, null);
+        assertThatThrownBy(() -> registry.deploy(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("image");
+    }
+
+    @Test
+    void jarWithABlankPathIsRejected() {
+        DeploymentRequest request =
+                new DeploymentRequest("app", DeploymentType.JAR, null, "   ", null, null, null);
+        assertThatThrownBy(() -> registry.deploy(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jarPath");
+    }
+
+    @Test
+    void blankNameIsDerivedFromTheImage() {
+        assertThat(registry.deploy(docker("   ", "shop:1.0")).name()).isEqualTo("shop");
+    }
+
+    @Test
+    void blankContextPathIsDerivedFromTheName() {
+        assertThat(registry.deploy(docker("Shop", "shop:1.0", "   ", null)).contextPath())
+                .isEqualTo("/shop");
+    }
+
+    @Test
+    void rootContextPathIsPreserved() {
+        assertThat(registry.deploy(docker("Shop", "shop:1.0", "/", null)).contextPath())
+                .isEqualTo("/");
+    }
+
+    @Test
+    void nameOfAnImageThatReducesToNothingFallsBackToApp() {
+        // ".jar" strips its extension down to an empty stem, so the derived name is "app".
+        assertThat(registry.deploy(docker(null, ".jar")).name()).isEqualTo("app");
+    }
+
+    @Test
+    void proxyRoutesSkipsARunningDeploymentWithNoContextPath() {
+        // A hand-persisted RUNNING record with no context path: the routing guard
+        // must skip it rather than publish a null prefix.
+        DeploymentStore store = DeployFixtures.store(tempDir);
+        store.save(List.of(new Deployment("ghost", "ghost", DeploymentType.DOCKER, "img:1", null,
+                null, 9001, Map.of(), AppState.RUNNING, "cid", 1L, null)));
+        DeploymentRegistry r = new DeploymentRegistry(
+                List.of(new StubBackend(DeploymentType.DOCKER)), store, properties);
+        r.load();
+        assertThat(r.proxyRoutes()).isEmpty();
+    }
+
+    /**
+     * A scriptable {@link DeploymentBackend} that succeeds by default and throws
+     * the configured {@link RuntimeException} from any single lifecycle method, so
+     * the registry's defensive catch arms can be reached without a docker daemon
+     * or a real fork.
+     */
+    private static final class StubBackend implements DeploymentBackend {
+        private final DeploymentType type;
+        private boolean available = true;
+        private boolean running = true;
+        private RuntimeException onDeploy;
+        private RuntimeException onStart;
+        private RuntimeException onStop;
+        private RuntimeException onRemove;
+        private RuntimeException onIsRunning;
+
+        StubBackend(DeploymentType type) {
+            this.type = type;
+        }
+
+        @Override
+        public DeploymentType type() {
+            return type;
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return available;
+        }
+
+        @Override
+        public String deploy(Deployment deployment) {
+            if (onDeploy != null) {
+                throw onDeploy;
+            }
+            return "stub-runtime";
+        }
+
+        @Override
+        public String start(Deployment deployment) {
+            if (onStart != null) {
+                throw onStart;
+            }
+            return "stub-runtime";
+        }
+
+        @Override
+        public void stop(Deployment deployment) {
+            if (onStop != null) {
+                throw onStop;
+            }
+        }
+
+        @Override
+        public String logs(Deployment deployment, int tail) {
+            return "stub-logs";
+        }
+
+        @Override
+        public void remove(Deployment deployment) {
+            if (onRemove != null) {
+                throw onRemove;
+            }
+        }
+
+        @Override
+        public boolean isRunning(Deployment deployment) {
+            if (onIsRunning != null) {
+                throw onIsRunning;
+            }
+            return running;
+        }
     }
 }

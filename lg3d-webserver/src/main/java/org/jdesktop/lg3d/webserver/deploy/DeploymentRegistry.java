@@ -134,9 +134,9 @@ public class DeploymentRegistry {
             String name = deriveName(request);
             String id = newId(name);
             String contextPath = deriveContextPath(request, name);
-            requireContextPathFree(contextPath, null);
+            requireContextPathFree(contextPath);
             int port = request.port() != null ? request.port() : allocatePort();
-            requirePortFree(port, null);
+            requirePortFree(port);
 
             Deployment draft = new Deployment(id, name, request.type(), request.image(),
                     request.jarPath(), contextPath, port, request.envOrEmpty(),
@@ -325,18 +325,18 @@ public class DeploymentRegistry {
         }
     }
 
-    private void requirePortFree(int port, String selfId) {
+    private void requirePortFree(int port) {
         for (Deployment d : deployments.values()) {
-            if (d.port() == port && !d.id().equals(selfId)) {
+            if (d.port() == port) {
                 throw new IllegalArgumentException(
                         "port " + port + " is already used by '" + d.name() + "'");
             }
         }
     }
 
-    private void requireContextPathFree(String contextPath, String selfId) {
+    private void requireContextPathFree(String contextPath) {
         for (Deployment d : deployments.values()) {
-            if (contextPath.equals(d.contextPath()) && !d.id().equals(selfId)) {
+            if (contextPath.equals(d.contextPath())) {
                 throw new IllegalArgumentException(
                         "context path '" + contextPath + "' is already used by '" + d.name() + "'");
             }
@@ -359,10 +359,9 @@ public class DeploymentRegistry {
     }
 
     private String newId(String name) {
+        // name is always a derived, non-blank name, and slug() of a non-blank
+        // value is never empty (its own fallback is "app-"), so base is non-empty.
         String base = slug(name);
-        if (base.isEmpty()) {
-            base = "app";
-        }
         String id = base;
         for (int n = 2; deployments.containsKey(id); n++) {
             id = base + "-" + n;
@@ -375,9 +374,6 @@ public class DeploymentRegistry {
             return request.name().trim();
         }
         String source = request.type() == DeploymentType.DOCKER ? request.image() : request.jarPath();
-        if (source == null || source.isBlank()) {
-            return request.type().name().toLowerCase(Locale.ROOT) + "-app";
-        }
         String last = source.substring(lastSeparator(source) + 1);
         int colon = last.lastIndexOf(':');
         if (colon > 0) {
@@ -396,8 +392,9 @@ public class DeploymentRegistry {
     private static String deriveContextPath(DeploymentRequest request, String name) {
         String requested = request.contextPath();
         if (requested == null || requested.isBlank()) {
-            String slug = slug(name);
-            return "/" + (slug.isEmpty() ? "app" : slug);
+            // name is non-blank here, and slug() of a non-blank value is never
+            // empty, so the derived path always carries a segment.
+            return "/" + slug(name);
         }
         String cp = requested.trim();
         if (!cp.startsWith("/")) {
