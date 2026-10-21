@@ -15,7 +15,6 @@ package org.jdesktop.lg3d.mandela.api;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -133,7 +132,7 @@ public final class EditorServices {
     public static List<String> globals() {
         List<String> out = new ArrayList<>();
         for (String name : host().knownGlobals()) {
-            if (name != null && !name.startsWith("__")) {
+            if (!name.startsWith("__")) {
                 out.add(name);
             }
         }
@@ -182,8 +181,10 @@ public final class EditorServices {
                     host().library().stdlibNames(host().machine(), module.trim());
             String shortName = module.trim().startsWith("std.")
                     ? module.trim().substring(4) : module.trim();
-            Object value = installed.get(shortName);
-            return (value instanceof MandelaMap map) ? map.keys() : List.of();
+            // stdlibNames either throws (caught below) or returns a one-entry map
+            // whose value under shortName is the module's own MandelaMap, so this
+            // cast always holds and there is no "not a map" arm to offer.
+            return ((MandelaMap) installed.get(shortName)).keys();
         } catch (RuntimeException absent) {
             // A module this host refuses to name answers no candidates rather than
             // the MandelaError the library throws for an unknown `std.<name>`: a
@@ -313,7 +314,6 @@ public final class EditorServices {
                 }
                 for (Ast.Stmt.Fun method : cls.methods()) {
                     names.add(method.function().name());
-                    addParams(method.function().params(), names);
                 }
             }
             case Ast.Stmt.TypeDecl type -> {
@@ -323,17 +323,16 @@ public final class EditorServices {
                 }
                 for (Ast.Stmt.Fun method : type.methods()) {
                     names.add(method.function().name());
-                    addParams(method.function().params(), names);
                 }
             }
             case Ast.Stmt.EnumDecl enumType -> {
                 names.add(enumType.name());
                 names.addAll(enumType.constants());
             }
-            case Ast.Stmt.Fun fun -> {
-                names.add(fun.function().name());
-                addParams(fun.function().params(), names);
-            }
+            // A top-level fun's name and parameters are collected by the walk below,
+            // which also reaches the bodies and methods the outline skips, so the
+            // parameter pass lives in exactly one place.
+            case Ast.Stmt.Fun fun -> names.add(fun.function().name());
             case Ast.Stmt.Let binding -> names.addAll(boundNames(binding.pattern()));
             default -> {
                 // Nothing bindable.
@@ -354,7 +353,10 @@ public final class EditorServices {
         } else if (pattern instanceof Ast.Pattern.Destructure destructured) {
             out.addAll(destructured.names());
         } else if (pattern instanceof Ast.Pattern.TypeOf typed) {
-            if (typed.bind() != null && !typed.bind().isEmpty()) {
+            // A type pattern binds either a name (`for x is Int in xs`) or nothing
+            // (`for is Int in xs`); the parser never yields an empty-string bind, so
+            // the null check alone decides whether there is a name to add.
+            if (typed.bind() != null) {
                 out.add(typed.bind());
             }
         }
@@ -555,7 +557,7 @@ public final class EditorServices {
     private static Set<String> usedModules(String source) {
         Set<String> aliases = new LinkedHashSet<>();
         for (Ast.Stmt statement : statements(source)) {
-            if (statement instanceof Ast.Stmt.Use use && !use.segments().isEmpty()) {
+            if (statement instanceof Ast.Stmt.Use use) {
                 aliases.add(use.segments().get(use.segments().size() - 1));
             }
         }
@@ -582,7 +584,7 @@ public final class EditorServices {
         Set<String> names = new TreeSet<>();
         for (Ast.Stmt statement : statements) {
             if (statement instanceof Ast.Stmt.Let binding
-                    && binding.typeName() != null && !binding.typeName().isEmpty()
+                    && !binding.typeName().isEmpty()
                     && boundNames(binding.pattern()).contains(receiver)) {
                 names.add(binding.typeName());
             }
@@ -618,15 +620,14 @@ public final class EditorServices {
      */
     static List<String> rank(String prefix, Collection<String> pool) {
         // The pool's order is a priority order (the caller put the strongest signal
-        // first), so it is captured once as a map instead of being rescanned per
-        // comparison, which a Collection cannot even answer.
-        Map<String, Integer> order = new HashMap<>();
+        // first), so it is kept as-is and only duplicates and blanks are dropped.
+        Set<String> seen = new LinkedHashSet<>();
         List<String> candidates = new ArrayList<>();
         for (String candidate : pool) {
             if (candidate == null || candidate.isEmpty()) {
                 continue;
             }
-            if (order.putIfAbsent(candidate, order.size()) == null) {
+            if (seen.add(candidate)) {
                 candidates.add(candidate);
             }
         }
@@ -640,16 +641,14 @@ public final class EditorServices {
         }
         // An exact-case prefix match sorts first: typing `Print` means println, not
         // a buffer variable named `printer` that merely starts with the letters.
+        // Within one exactness class the pool order already holds and List.sort is
+        // stable, so a tie keeps the priority the caller chose.
         out.sort((left, right) -> {
             boolean exactLeft = left.startsWith(exact);
             boolean exactRight = right.startsWith(exact);
-            if (exactLeft != exactRight) {
-                return exactLeft ? -1 : 1;
-            }
-            return Integer.compare(order.get(left), order.get(right));
+            return (exactLeft == exactRight) ? 0 : (exactLeft ? -1 : 1);
         });
-        return (out.size() <= MAX_CANDIDATES)
-                ? out : new ArrayList<>(out.subList(0, MAX_CANDIDATES));
+        return new ArrayList<>(out.subList(0, Math.min(out.size(), MAX_CANDIDATES)));
     }
 
     /**
@@ -659,16 +658,13 @@ public final class EditorServices {
         if (source == null || source.isBlank()) {
             return List.of();
         }
-        try {
-            Parser.Program program = Parser.parse(source, BUFFER);
-            // A half-typed buffer is the normal case here, so its partial tree is
-            // used as-is rather than discarded: the outline still shows what is
-            // already complete, and an editor with an outline that vanishes on the
-            // first keystroke of a declaration is worse than one that lags a line.
-            return program.statements();
-        } catch (RuntimeException broken) {
-            return List.of();
-        }
+        // A half-typed buffer is the normal case here, so the parser's partial tree
+        // is used as-is rather than discarded: the outline still shows what is
+        // already complete, and an editor with an outline that vanishes on the
+        // first keystroke of a declaration is worse than one that lags a line.
+        // Parser.parse is lenient -- it reports every problem as a Diagnostic and
+        // never throws for a non-null source -- so there is no failure to catch.
+        return Parser.parse(source, BUFFER).statements();
     }
 
     /**
@@ -685,10 +681,10 @@ public final class EditorServices {
     }
 
     private static Runtime host() {
-        Runtime existing = host;
-        if (existing != null) {
-            return existing;
-        }
+        // One lock, one check: the engine is built on first use and cached. Taking
+        // the lock on every call keeps the single null check the only branch here,
+        // which is both correct under concurrency and reachable from a test -- the
+        // double-checked form's inner "already built" arm fires only mid-race.
         synchronized (EditorServices.class) {
             if (host == null) {
                 host = Mandela.engine().build();
