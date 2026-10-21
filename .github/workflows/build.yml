@@ -188,9 +188,7 @@ jobs:
     name: PIT (${{ matrix.module }})
     needs: inventory
     runs-on: ubuntu-latest
-    # TEMPORARILY DISABLED: PIT thresholds being lowered across the tree.
-    # Re-enable by restoring: if: ${{ needs.inventory.outputs.mutation != '[]' }}
-    if: false
+    if: ${{ needs.inventory.outputs.mutation != '[]' }}
     strategy:
       fail-fast: false
       matrix:
