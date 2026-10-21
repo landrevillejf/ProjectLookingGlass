@@ -153,7 +153,20 @@ class ValuesTest {
                 Arguments.of(MandelaError.of("boom"), "Err", true),
                 Arguments.of(Values.ABSENT, "Any", true),
                 Arguments.of(new Ref(1L), "Any", true),
-                Arguments.of(DOMAIN, "Any", true));
+                Arguments.of(DOMAIN, "Any", true),
+                // The false half of every name, and the Double arm's true half. A
+                // BooleanTrueReturn on any one case arm makes every value answer true
+                // to that name, which only a value of a different type catches; the
+                // Double arm is mutated the other way (BooleanFalseReturn), so it is
+                // the one name that needs a value that really is a Double.
+                Arguments.of(1L, "Null", false),
+                Arguments.of(1.5d, "Double", true),
+                Arguments.of("a", "Num", false),
+                Arguments.of(1L, "List", false),
+                Arguments.of(1L, "Map", false),
+                Arguments.of(1L, "Range", false),
+                Arguments.of(1L, "Fun", false),
+                Arguments.of(1L, "Err", false));
     }
 
     @ParameterizedTest(name = "{2} for {0} tested as {1}")
@@ -335,6 +348,24 @@ class ValuesTest {
         // The ceiling counts, so a legitimate structure deeper than it prints as
         // the same cut rather than as a stack overflow.
         assertEquals(16, printed.split("\\[", -1).length - 1);
+    }
+
+    @Test
+    @DisplayName("a map or an instance that refers to itself is cut too")
+    void printingStopsAtTheDepthCeilingForMapsAndInstances() {
+        // The list is not the only arm that deepens: a map value and an instance
+        // field each recurse at depth + 1, and a cycle in either would recurse
+        // forever -- a stack overflow, not a printed "..." -- if that increment were
+        // bent the other way.
+        MandelaMap loop = new MandelaMap();
+        loop.put("self", loop);
+        String mapText = Values.repr(loop);
+        assertTrue(mapText.contains("..."), mapText);
+
+        MandelaInstance node = (MandelaInstance) Scripts.run(
+                "class Node { var next = null }\nlet n = Node()\nn.next = n\nn");
+        String nodeText = Values.repr(node);
+        assertTrue(nodeText.contains("..."), nodeText);
     }
 
     static Stream<Arguments> doubles() {
@@ -548,6 +579,17 @@ class ValuesTest {
                 new MandelaRange(1, 3, false, 1)));
         assertFalse(Values.equal(new MandelaRange(1, 3, false, 1),
                 new MandelaRange(1, 3, false, 2)));
+        // Two Ints too large for the boxed-Long cache are distinct objects, so
+        // equality reaches the Long.equals arm instead of the `left == right`
+        // shortcut; a BooleanFalseReturn there would call two equal big Ints apart.
+        assertTrue(Values.equal(4_000_000_000L, 4_000_000_000L));
+        // The mixed-number arm's two returns each need the case the other cannot
+        // supply: a NaN against a finite number is false (catching a BooleanTrue on
+        // the NaN arm), and two different finite numbers are false (catching a
+        // BooleanTrue on the `l == r` arm).
+        assertFalse(Values.equal(Double.NaN, 1.0d));
+        assertFalse(Values.equal(1.0d, 2.0d));
+        assertFalse(Values.equal(1L, 2.0d));
     }
 
     @Test
@@ -601,6 +643,48 @@ class ValuesTest {
         List<Object> asList = new ArrayList<>(List.of(1L, "a"));
         assertEquals(ints, new MandelaList(asList));
         assertEquals(ints.hashCode(), new MandelaList(asList).hashCode());
+    }
+
+    @Test
+    @DisplayName("hash follows the documented formula, not merely agreement")
+    void hashFollowsTheDocumentedFormula() {
+        // Agreement between two equal values is necessary but not sufficient: a bent
+        // multiplier or a return flattened to 0 keeps equal values equal, so each arm
+        // is pinned to the number the documented formula produces. The expected side
+        // is computed from the JDK primitives directly, never by calling the method
+        // under test on the same input.
+        // A number hashes through its double form, so an Int and its Double agree.
+        assertEquals(Double.hashCode(1.0d), Values.hash(1L));
+        assertEquals(Double.hashCode(1.5d), Values.hash(1.5d));
+        // An empty list is the seed 1; a PrimitiveReturn would flatten it to 0.
+        assertEquals(1, Values.hash(new MandelaList()));
+        // out = 31 * out + hash(item), folded over the items in order.
+        assertEquals(31 * (31 * 1 + Double.hashCode(1.0d)) + Double.hashCode(2.0d),
+                Values.hash(new MandelaList(List.<Object>of(1L, 2L))));
+        // An empty map is 0, so a non-empty one is what pins the map arm:
+        // out += key.hashCode() + 31 * hash(value).
+        MandelaMap map = new MandelaMap();
+        map.put("a", 1L);
+        assertEquals("a".hashCode() + 31 * Double.hashCode(1.0d), Values.hash(map));
+        // Anything else keeps the hash the JDK gives it; a PrimitiveReturn to 0 would
+        // erase it.
+        assertEquals("a".hashCode(), Values.hash("a"));
+        assertEquals(Boolean.TRUE.hashCode(), Values.hash(true));
+    }
+
+    @Test
+    @DisplayName("an instance hashes by identity or by value, per its kind")
+    void instanceHashFollowsTheDeclarationKind() {
+        // A class instance is identical to itself, so its hash is its identity --
+        // never 0, which is what a PrimitiveReturn on that arm would give.
+        MandelaInstance window = (MandelaInstance) Scripts.run("class C(x: Int)\nC(1)");
+        assertEquals(System.identityHashCode(window), Values.hash(window));
+        // A type instance is equal by value, so its hash folds its owner's identity
+        // with its fields: identityHashCode(owner) * 31 + hash(fields).
+        MandelaInstance record = (MandelaInstance) Scripts.run("type P(x: Int)\nP(1)");
+        assertEquals(System.identityHashCode(record.owner()) * 31
+                        + Values.hash(record.fields()),
+                Values.hash(record));
     }
 
     @Test
@@ -666,6 +750,11 @@ class ValuesTest {
         assertEquals("TypeError", refused.kind());
         assertEquals("cannot order a Int against a Str; use <, <=, >, >= only on"
                 + " numbers or strings", refused.getMessage());
+        // A NaN ranks last, so against a finite number Double.compare returns a
+        // non-zero sign; a PrimitiveReturn flattening that arm to 0 would make a NaN
+        // and a number compare equal.
+        assertTrue(Values.compare(Double.NaN, 1.0d) > 0);
+        assertTrue(Values.compare(1.0d, Double.NaN) < 0);
     }
 
     @Test
