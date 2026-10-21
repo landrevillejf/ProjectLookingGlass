@@ -452,6 +452,29 @@ class ApiSurfaceTest {
         }
 
         @Test
+        @DisplayName("eval announces the engine attributes into a fresh context")
+        void announceIntoFreshContext() throws ScriptException {
+            MandelaScriptEngine target = engine();
+            // A context this engine has never seen: createBindings() hands back an
+            // empty map, and the constructor's announce() went to the engine's own
+            // default context, not this one. So the only thing that can put the
+            // JSR-223 attributes into `scope` is the announce() call execute() makes
+            // on the request's engine scope. Drop that call -- the mutant -- and the
+            // fresh scope stays bare after the run.
+            ScriptContext ctx = new SimpleScriptContext();
+            Bindings scope = target.createBindings();
+            ctx.setBindings(scope, ScriptContext.ENGINE_SCOPE);
+            assertNull(scope.get(ScriptEngine.ENGINE), "empty before the run");
+            assertEquals(3L, target.eval("1 + 2", ctx));
+            assertEquals(MandelaScriptEngine.ENGINE_NAME, scope.get(ScriptEngine.ENGINE));
+            assertEquals(Mandela.LANGUAGE_NAME, scope.get(ScriptEngine.LANGUAGE));
+            assertEquals(Mandela.LANGUAGE_VERSION, scope.get(ScriptEngine.LANGUAGE_VERSION));
+            assertEquals(Mandela.IMPLEMENTATION_VERSION,
+                    scope.get(ScriptEngine.ENGINE_VERSION));
+            assertNotNull(scope.get(ScriptEngine.NAME), "the engine's advertised name");
+        }
+
+        @Test
         @DisplayName("a writer that throws IOException surfaces as ScriptException")
         void brokenWriter() {
             MandelaScriptEngine target = engine();
