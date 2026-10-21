@@ -240,8 +240,21 @@ public final class Mandela {
      * @throws IllegalStateException when this jar's service registration is missing
      */
     public static ScriptEngine scriptEngine() {
-        ScriptEngine found = new ScriptEngineManager(Mandela.class.getClassLoader())
-                .getEngineByName(MandelaScriptEngine.NAME);
+        return requireRegistered(new ScriptEngineManager(Mandela.class.getClassLoader())
+                .getEngineByName(MandelaScriptEngine.NAME));
+    }
+
+    /**
+     * The registry's answer, or the reason a host must fall back to
+     * {@link #scriptEngineDirect()}. Split out so the missing-registration path is
+     * a seam a test can reach without hiding this jar's service file from its own
+     * class loader.
+     *
+     * @param found the engine the platform registry returned, possibly null
+     * @return {@code found}, never null
+     * @throws IllegalStateException when this jar's service registration is missing
+     */
+    static ScriptEngine requireRegistered(ScriptEngine found) {
         if (found == null) {
             throw new IllegalStateException("the Mandela JSR-223 registration is not"
                     + " visible to this class loader; use Mandela.scriptEngineDirect()");

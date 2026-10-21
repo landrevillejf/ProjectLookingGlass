@@ -400,6 +400,51 @@ class EditorServicesTest {
                 EditorServices.rank("", crowd).size(), "a popup cannot scroll forever");
     }
 
+    @Test
+    @DisplayName("rank() drops a candidate that does not match the prefix")
+    void rankFiltersNonMatching() {
+        // `zebra` does not start with `pr`, so the prefix filter must exclude it;
+        // a filter that let everything through would hand back both.
+        assertEquals(List.of("printer"),
+                EditorServices.rank("pr", List.of("printer", "zebra")));
+    }
+
+    @Test
+    @DisplayName("complete() at caret 0 still offers the pool")
+    void completeAtZeroCaretIsNotEmpty() {
+        // caret == 0 is a valid position, not a negative one: an empty prefix
+        // completes on the whole pool, so the list is not empty.
+        assertFalse(EditorServices.complete("let x = 1", 0).isEmpty());
+    }
+
+    @Test
+    @DisplayName("a leading dot with no receiver offers nothing")
+    void completeOnLeadingDotIsMemberLookup() {
+        // The dot is at index 0, so the receiver run before it is empty and the
+        // member path answers nothing rather than falling back to the whole pool.
+        assertTrue(EditorServices.complete(".foo", 1).isEmpty());
+    }
+
+    @Test
+    @DisplayName("a use alias completes even when it is not a known module name")
+    void completeOffersTheUseAlias() {
+        String source = "use std.notes\nnot";
+        List<String> candidates = EditorServices.complete(source, source.length());
+        assertTrue(candidates.contains("notes"),
+                () -> "the alias a `use` bound must complete: " + candidates);
+    }
+
+    @Test
+    @DisplayName("a dot in a comment after a real use does not open the module's members")
+    void commentDotAfterUseStaysQuiet() {
+        // `use std.json` makes `json.parse` a real member, but the caret sits in a
+        // `//` comment, so the popup must stay closed and never offer `parse`.
+        String source = "use std.json\n// json.pa";
+        List<String> candidates = EditorServices.complete(source, source.length());
+        assertFalse(candidates.contains("parse"),
+                () -> "a comment is not a receiver: " + candidates);
+    }
+
     // -- the engine behind the lookups ---------------------------------------
 
     @Test

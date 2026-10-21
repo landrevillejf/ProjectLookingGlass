@@ -254,11 +254,11 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
     }
 
     /** Runs one previously compiled body against one context's bindings. */
-    Object evalCompiled(MandelaCompiledScript body, ScriptContext context)
+    Object evalCompiled(MandelaCompiledScript compiled, ScriptContext context)
             throws ScriptException {
         ScriptContext valid = checked(context);
-        return execute(new Request(body.text(), valid, sourceNameOf(valid),
-                body.body(), false));
+        return execute(new Request(compiled.text, valid, sourceNameOf(valid),
+                compiled.body, false));
     }
 
     /**
@@ -309,7 +309,9 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
     @Override
     public void put(String key, Object value) {
         super.put(key, value);
-        if (key == null || RESERVED.contains(key)) {
+        // A null key never reaches here: super.put has already refused it the way
+        // the standard SimpleBindings does, so only the JSR-223 keys need skipping.
+        if (RESERVED.contains(key)) {
             return;
         }
         try {
@@ -388,20 +390,17 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
      * script's list or map does cross as a {@code java.util} copy; its class
      * instance crosses as itself, which is what keeps its methods callable.</p>
      *
-     * @param scope    the engine scope to write into, possibly null or immutable
+     * @param scope    the engine scope to write into, possibly immutable
      * @param pushed   the names that came in as bindings for this run
      * @param before   the globals as they stood before the run
      */
     private void pullBack(Bindings scope, Map<String, Object> pushed,
                           Map<String, Object> before) {
-        if (scope == null) {
-            return;
-        }
+        // The scope is the checked context's engine scope, so it is never null, and
+        // the runtime's global keys are always script identifiers -- never null and
+        // never one of the JSR-223 RESERVED names -- so neither needs guarding here.
         for (Map.Entry<String, Object> entry : runtime.globals().entrySet()) {
             String key = entry.getKey();
-            if (key == null || RESERVED.contains(key)) {
-                continue;
-            }
             Object value = entry.getValue();
             boolean created = !before.containsKey(key);
             boolean rebound = before.get(key) != value;
@@ -524,8 +523,9 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
      */
     private static Callable methodOf(Object self, String name) {
         if (self instanceof MandelaInstance instance) {
+            // An instance always has an owner: the constructor reads owner.fieldNames().
             MandelaClass owner = instance.owner();
-            Callable declared = (owner == null) ? null : owner.lookup(name);
+            Callable declared = owner.lookup(name);
             if (declared != null) {
                 return declared;
             }
@@ -572,9 +572,10 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
             return null;
         }
         for (Method method : cl.getMethods()) {
-            if (method.getDeclaringClass() == Object.class
-                    || Modifier.isStatic(method.getModifiers())
-                    || method.isDefault()) {
+            // An interface's getMethods() never lists Object's methods, so only the
+            // interface's own static and default members are skipped here; the proxy
+            // still routes hashCode/equals/toString through ScriptHandler.invoke.
+            if (Modifier.isStatic(method.getModifiers()) || method.isDefault()) {
                 continue;
             }
             boolean has = (self == null)
@@ -635,9 +636,8 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
 
     /** Puts the engine's own attributes into one scope, as a compliant engine must. */
     private void announce(Bindings scope) {
-        if (scope == null) {
-            return;
-        }
+        // Both callers pass an engine scope the engine itself owns or checked() has
+        // already validated, so it is never null.
         putIfAbsent(scope, SCRIPT_ENGINE, this);
         putIfAbsent(scope, ScriptEngine.ENGINE, ENGINE_NAME);
         putIfAbsent(scope, ScriptEngine.ENGINE_VERSION, Mandela.IMPLEMENTATION_VERSION);
@@ -668,9 +668,10 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
      *         otherwise the runtime's snippet name
      */
     private static String sourceNameOf(ScriptContext context) {
-        Bindings scope = (context == null) ? null : context.getBindings(
-                ScriptContext.ENGINE_SCOPE);
-        Object named = (scope == null) ? null : scope.get(ScriptEngine.FILENAME);
+        // Every caller runs checked(context) first, so the context and its engine
+        // scope are both present by the time this reads the filename attribute.
+        Object named = context.getBindings(ScriptContext.ENGINE_SCOPE)
+                .get(ScriptEngine.FILENAME);
         return (named instanceof String text && !text.isBlank()) ? text
                 : Runtime.STRING_SOURCE;
     }
@@ -698,19 +699,19 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
             return new ScriptException(found.message(), found.sourceName(),
                     found.line(), found.column());
         }
-        if (failure instanceof MandelaError error) {
-            String where = (error.sourceName() == null || error.sourceName().isBlank())
-                    ? fallback : error.sourceName();
-            ScriptException out = new ScriptException(error.kind() + ": " + error.getMessage(),
-                    where, Math.max(0, error.line()), 0);
-            if (error.getCause() != null) {
-                out.initCause(error.getCause());
-            }
-            return out;
+        // Every caller catches only MandelaError | LangException, so once the
+        // language diagnostic is handled what remains is always a runtime error.
+        MandelaError error = (MandelaError) failure;
+        // A non-null source name is never blank: sourceNameOf falls back to
+        // STRING_SOURCE rather than hand an empty name on, so only null needs the
+        // fallback here.
+        String where = (error.sourceName() == null) ? fallback : error.sourceName();
+        ScriptException out = new ScriptException(error.kind() + ": " + error.getMessage(),
+                where, Math.max(0, error.line()), 0);
+        if (error.getCause() != null) {
+            out.initCause(error.getCause());
         }
-        ScriptException other = new ScriptException(String.valueOf(failure.getMessage()));
-        other.initCause(failure);
-        return other;
+        return out;
     }
 
     private static String drain(Reader reader) throws ScriptException {
@@ -757,16 +758,6 @@ public final class MandelaScriptEngine extends AbstractScriptEngine
         @Override
         public ScriptEngine getEngine() {
             return engine;
-        }
-
-        /** @return the body to run, already resolved against compile-time names */
-        CompiledFunction body() {
-            return body;
-        }
-
-        /** @return the source text, kept so a host can show what a script ran */
-        String text() {
-            return text;
         }
     }
 
