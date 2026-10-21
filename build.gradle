@@ -319,8 +319,9 @@ subprojects {
         'update-manager' : 41,  // Swing UI + download layers need a live desktop; ChangelogManager is fully covered
         // lg3d-core: 25356 mutations, 4919 killed = 19%. Scene graph + displayserver need live desktop.
         'lg3d-core' : 18,  // Scene graph + displayserver need live 3D desktop; crash package is at 92%/82% (123 tests)
-        // lg3d-mandela: 4646 mutations, 3658 killed = 79%. Residue: defensive branches in parser/compiler.
-        'lg3d-mandela' : 78,  // Defensive branches in parser/compiler error paths want fault injection
+        // lg3d-mandela: 3774 of 4621 mutations detected = 81% (CI PIT, partial report). The vm package
+        // went from 60 to 23 unkilled (Frame 0). Residue: defensive branches in parser/compiler.
+        'lg3d-mandela' : 80,  // Defensive branches in parser/compiler error paths want fault injection
         // lg3d-apps: 35548 mutations, 11206 killed = 32%. Swing app panels are probe-verified.
         'lg3d-apps' : 31,  // Swing app panels are probe-verified; pure logic classes are higher
     ]
