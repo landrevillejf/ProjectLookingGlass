@@ -81,6 +81,72 @@ class RealChildProcessStarterTest {
         assertThat(child.isAlive()).isFalse();
     }
 
+    @Test
+    void stopOfAnAlreadyExitedChildIsANoOp() throws Exception {
+        assumeShell();
+        ChildProcess child = starter.start(List.of("/bin/sh", "-c", "true"));
+        long deadline = System.currentTimeMillis() + 5000;
+        while (child.isAlive() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(child.isAlive()).isFalse();
+        child.stop();
+        assertThat(child.isAlive()).isFalse();
+    }
+
+    @Test
+    void interruptDuringStopForciblyKillsTheChild() throws Exception {
+        assumeShell();
+        ChildProcess child = starter.start(List.of("/bin/sh", "-c", "sleep 30"));
+        assertThat(child.isAlive()).isTrue();
+        // Interrupt this thread before the graceful wait: waitFor() throws
+        // InterruptedException, and stop() escalates straight to a forcible kill.
+        Thread.currentThread().interrupt();
+        try {
+            child.stop();
+        } finally {
+            Thread.interrupted();
+        }
+        assertThat(awaitDeath(child, 5000)).isFalse();
+    }
+
+    @Test
+    void outputWindowIsBoundedToTheLastMaxLines() throws Exception {
+        assumeShell();
+        ChildProcess child = starter.start(List.of("/bin/sh", "-c",
+                "i=0; while [ $i -lt 2500 ]; do echo line$i; i=$((i+1)); done; sleep 5"));
+        try {
+            // Wait until the gobbler has drained the final line, so the bounded
+            // window has necessarily evicted its oldest entries.
+            assertThat(awaitOutput(child, "line2499", 15000)).contains("line2499");
+            assertThat(child.output().split("\n", -1).length).isLessThanOrEqualTo(2000);
+        } finally {
+            child.stop();
+        }
+    }
+
+    @Test
+    void stopEscalatesToForcibleKillWhenSigtermIsIgnored() throws Exception {
+        assumeShell();
+        // The child prints "ready" only after installing the TERM-ignore trap, so
+        // stop() cannot race ahead of the trap and hit the default disposition.
+        ChildProcess child = starter.start(List.of("/bin/sh", "-c",
+                "trap '' TERM; echo ready; sleep 30"));
+        assertThat(awaitOutput(child, "ready", 5000)).contains("ready");
+        assertThat(child.isAlive()).isTrue();
+        child.stop();
+        assertThat(awaitDeath(child, 8000)).isFalse();
+    }
+
+    private static boolean awaitDeath(ChildProcess child, long timeoutMillis)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (child.isAlive() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        return child.isAlive();
+    }
+
     private static String awaitOutput(ChildProcess child, String needle, long timeoutMillis)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMillis;

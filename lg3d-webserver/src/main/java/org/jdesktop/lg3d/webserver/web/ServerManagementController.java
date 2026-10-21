@@ -155,7 +155,17 @@ public class ServerManagementController {
     }
 
     private String serverVersion() {
-        String version = getClass().getPackage().getImplementationVersion();
+        return versionOrDefault(getClass().getPackage().getImplementationVersion());
+    }
+
+    /**
+     * @return {@code version}, or {@code "dev"} when the running classes carry no
+     *         {@code Implementation-Version} -- the case on an exploded classpath
+     *         (a test run) rather than a packaged jar. Split out from
+     *         {@link #serverVersion()} so the manifest-present arm is testable
+     *         without a jar whose manifest supplies one.
+     */
+    static String versionOrDefault(String version) {
         return version != null ? version : "dev";
     }
 

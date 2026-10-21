@@ -60,4 +60,22 @@ class RealProcessLauncherTest {
         assertThat(result.ok()).isFalse();
         assertThat(result.stderr()).contains("timed out");
     }
+
+    @Test
+    void interruptDuringTheWaitIsAFailure() {
+        assumeTrue(Files.exists(Path.of("/bin/sh")), "a POSIX shell is required");
+        // Interrupt this thread before the bounded wait: waitFor() observes the flag
+        // and throws InterruptedException, which the launcher turns into a failure
+        // CommandResult after forcibly destroying the child.
+        Thread.currentThread().interrupt();
+        CommandResult result;
+        try {
+            result = launcher.launch(List.of("/bin/sh", "-c", "sleep 5"), 30000);
+        } finally {
+            // the launcher re-asserts the interrupt status; clear it so it cannot leak
+            Thread.interrupted();
+        }
+        assertThat(result.ok()).isFalse();
+        assertThat(result.stderr()).contains("interrupted");
+    }
 }

@@ -211,4 +211,38 @@ class ServerManagementControllerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error").value(containsString("not available")));
     }
+
+    @Test
+    void appsListsDeploymentsWithPublicUrl() throws Exception {
+        registry.deploy(dockerRequest("Shop", "shop:1.0"));
+        mockMvc.perform(get("/api/apps"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].id").value("shop"))
+                .andExpect(jsonPath("$[0].url").value("http://localhost:9001/shop"));
+    }
+
+    @Test
+    void healthCountsAStoppedDeploymentAsNotRunning() throws Exception {
+        registry.deploy(dockerRequest("Shop", "shop:1.0"));
+        registry.stop("shop");
+        mockMvc.perform(get("/api/server/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deployments").value(1))
+                .andExpect(jsonPath("$.running").value(0));
+    }
+
+    @Test
+    void infoPortIsZeroWhenTheWebServerIsNull() {
+        WebServerApplicationContext context = mock(WebServerApplicationContext.class);
+        when(context.getWebServer()).thenReturn(null);
+        assertThat(new ServerManagementController(registry, properties, context).info().port())
+                .isZero();
+    }
+
+    @Test
+    void versionOrDefaultKeepsARealVersionAndFallsBackToDev() {
+        assertThat(ServerManagementController.versionOrDefault("1.69.0")).isEqualTo("1.69.0");
+        assertThat(ServerManagementController.versionOrDefault(null)).isEqualTo("dev");
+    }
 }
