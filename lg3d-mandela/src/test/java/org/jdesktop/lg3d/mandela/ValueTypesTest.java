@@ -15,6 +15,7 @@ package org.jdesktop.lg3d.mandela;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,10 +33,12 @@ import org.jdesktop.lg3d.mandela.values.MandelaClass;
 import org.jdesktop.lg3d.mandela.values.MandelaClosure;
 import org.jdesktop.lg3d.mandela.values.MandelaError;
 import org.jdesktop.lg3d.mandela.values.MandelaInstance;
+import org.jdesktop.lg3d.mandela.values.MandelaIterator;
 import org.jdesktop.lg3d.mandela.values.MandelaList;
 import org.jdesktop.lg3d.mandela.values.MandelaMap;
 import org.jdesktop.lg3d.mandela.values.MandelaRange;
 import org.jdesktop.lg3d.mandela.values.Operators;
+import org.jdesktop.lg3d.mandela.values.Ref;
 import org.jdesktop.lg3d.mandela.values.Values;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -346,5 +349,146 @@ class ValueTypesTest {
         // A position the machine does not know stays unknown rather than guessed.
         assertEquals("RuntimeError: it failed", wrapped.toString());
         assertEquals(0, wrapped.line());
+    }
+
+    // -- the Java surface a script's operators never reach ---------------------
+
+    @Test
+    @DisplayName("an exhausted cursor clears the element it was holding")
+    void anExhaustedIteratorClearsItsCursor() {
+        // advance() ends all six container shapes the same way: done() returns
+        // false AND clears key/value, so a body cannot re-read the last element
+        // after the walk. This locks that clearing down at the Java boundary.
+        //
+        // It does NOT kill the six BooleanFalseReturn mutants on the
+        // `return done()` arms, and cannot: PIT forces the returned value to
+        // false while preserving the done() call, and done() already returns
+        // false -- so the mutant is observably identical (measured: all six
+        // survive this test). They are equivalent mutants, recorded as such.
+        exhaustsAndClears(new MandelaList(List.<Object>of(1L, 2L)));
+        MandelaMap pairs = new MandelaMap();
+        pairs.put("a", 1L);
+        exhaustsAndClears(pairs);
+        exhaustsAndClears(MandelaRange.inclusive(1, 3));
+        exhaustsAndClears("ab");
+        exhaustsAndClears(Scripts.run(DECLARATIONS + "E"));      // an enum's constants
+        exhaustsAndClears(Scripts.run(DECLARATIONS + "Base()")); // an instance's fields
+    }
+
+    private static void exhaustsAndClears(Object source) {
+        MandelaIterator cursor = MandelaIterator.of(source);
+        int seen = 0;
+        // The guard is belt-and-braces: no mutant here can make advance() loop, but
+        // a hung suite is the one failure worth defending a small walk against.
+        while (seen < 64 && cursor.advance()) {
+            seen++;
+        }
+        assertTrue(seen > 0, "the walk produced at least one element");
+        assertNull(cursor.value(), "value is cleared once the walk ends");
+        assertNull(cursor.key(), "and so is the key");
+    }
+
+    @Test
+    @DisplayName("a list answers the Java index API a script's [] never reaches")
+    void aListAtTheJavaBoundary() {
+        MandelaList list = new MandelaList(List.<Object>of(1L, 2L, 3L));
+        // Operators.index folds a negative index before it calls get(), so the
+        // negative arm of normalise() is reachable only from here: size + index. The
+        // MathMutator's size - index lands past the end and throws instead.
+        assertEquals(3L, list.get(-1));
+        // The low boundary: index 0 is in range, so `at < 0` bent to `at <= 0`
+        // would refuse the first element.
+        assertEquals(1L, list.get(0));
+        // The high boundary: index == size is out of range and must say so in the
+        // list's own words; `at >= size` bent to `at > size` falls through to
+        // ArrayList.get, which throws a differently-worded exception.
+        IndexOutOfBoundsException atEnd = assertThrows(IndexOutOfBoundsException.class,
+                () -> list.get(3));
+        assertEquals("index 3 is out of bounds for a list of 3", atEnd.getMessage());
+        // insert() at a negative index is never reached by a script either; the
+        // NO_COVERAGE MathMutator turns size + index into size - index, which clamps
+        // to the end and appends instead of inserting before the last element.
+        MandelaList ins = new MandelaList(List.<Object>of(1L, 2L, 3L));
+        ins.insert(-1, 99L);
+        assertEquals("[1, 2, 99, 3]", Values.display(ins));
+        // The java.lang.Object contract: a hash that is not a flat 0, and a
+        // toString that is the display form rather than an empty string.
+        assertEquals(Values.hash(list), list.hashCode());
+        assertEquals("[1, 2, 3]", list.toString());
+    }
+
+    @Test
+    @DisplayName("a map answers isEmpty, hashCode and toString at the Java boundary")
+    void aMapAtTheJavaBoundary() {
+        assertTrue(new MandelaMap().isEmpty(),
+                "an empty map says so; a BooleanFalseReturn would not");
+        MandelaMap map = new MandelaMap();
+        map.put("a", 1L);
+        assertFalse(map.isEmpty());
+        assertEquals(Values.hash(map), map.hashCode());
+        assertEquals(Values.display(map), map.toString());
+        assertFalse(map.toString().isEmpty(),
+                "toString is the display form, not an empty string");
+    }
+
+    @Test
+    @DisplayName("an instance hands back its live field map and its display form")
+    void anInstanceAtTheJavaBoundary() {
+        MandelaInstance inst = (MandelaInstance) Scripts.run(DECLARATIONS + "Base()");
+        // fields() is the live map the runtime iterates and serialises; a NullReturn
+        // would hand a caller nothing to read.
+        assertNotNull(inst.fields());
+        assertEquals("b", inst.fields().get("tag"));
+        assertEquals(Values.display(inst), inst.toString());
+        assertFalse(inst.toString().isEmpty());
+    }
+
+    @Test
+    @DisplayName("a declaration with a default is variadic; a fixed one is not")
+    void aDefaultMakesAClosureVariadic() {
+        // acceptsAnyArgs() is `arity != minArgs`, so a body with a default parameter
+        // is variadic. The BooleanFalseReturn mutant flattens it to the answer a
+        // plain fixed-arity function gives, which only the true case can catch.
+        MandelaClosure withDefault = (MandelaClosure) Scripts.run(
+                "fun pick(a, b = 9) -> Int { a * 10 + b }\npick");
+        assertTrue(withDefault.isVariadic());
+        MandelaClosure fixed = (MandelaClosure) Scripts.run("fun label() -> Int { 1 }\nlabel");
+        assertFalse(fixed.isVariadic(), "a fixed-arity function is not variadic");
+    }
+
+    @Test
+    @DisplayName("an integer power at the 63rd exponent stays an exact Int")
+    void powAtTheExponentBoundary() {
+        // exponent > 63 promotes to Math.pow; at exactly 63 the exact long path still
+        // runs. 1 ** 63 is 1 either way in value but not in TYPE: the loop returns
+        // Long 1, while the boundary mutant's Math.pow returns Double 1.0.
+        assertEquals(1L, Operators.pow(1L, 63L));
+    }
+
+    @Test
+    @DisplayName("assigning at index == size is refused in the list's own words")
+    void setIndexAtTheSizeBoundary() {
+        MandelaList one = new MandelaList(List.<Object>of(1L));
+        // at >= size bent to at > size would fall through to ArrayList.set(1) on a
+        // one-element list, which throws a bare IndexOutOfBoundsException instead of
+        // the language's IndexError.
+        MandelaError refused = assertThrows(MandelaError.class,
+                () -> Operators.setIndex(one, 1L, 9L));
+        assertEquals("IndexError", refused.kind());
+    }
+
+    @Test
+    @DisplayName("an error with an unknown line omits it rather than printing :0")
+    void anErrorAtLineZeroOmitsTheLine() {
+        MandelaError atZero = MandelaError.runtime("boom", null).at("script.mnd", 0);
+        // line > 0 bent to line >= 0 would print the ":0" for a line it does not know.
+        assertEquals("RuntimeError: boom (at script.mnd)", atZero.toString());
+    }
+
+    @Test
+    @DisplayName("a Ref and the ABSENT marker print themselves, not an empty string")
+    void debugFormsAreNotEmpty() {
+        assertEquals("@1", new Ref(1L).toString());
+        assertEquals("<absent>", Values.ABSENT.toString());
     }
 }
