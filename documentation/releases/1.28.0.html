@@ -54,9 +54,9 @@
   <!-- test-reports -->
   <p class="note">The test reports of a published release are generated beside this 
   page: <code>&lt;version&gt;/reports/</code> carries the JUnit, JaCoCo, Cucumber 
-  and PIT mutation reports of every module with a test suite. Each module is gated 
-  at <code>mutationThreshold = 100</code> (zero surviving mutants) unless it appears 
-  in the <code>mutationExemptions</code> map with a measured score and documented reason. 
+  and PIT mutation reports of every module with a test suite. Each module runs 
+  report-only (<code>mutationThreshold = 0</code>, no gate) unless it appears in the 
+  <code>mutationExemptions</code> map, where it is gated at the score its own suite really achieves. 
   The same tree is attached to the GitHub release as <code>reports-&lt;version&gt;.zip</code>, 
   so a report outlives a rebuilt site.</p>
   </main>

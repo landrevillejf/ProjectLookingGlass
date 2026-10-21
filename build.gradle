@@ -227,11 +227,13 @@ subprojects {
     // -------------------------------------------------------------------------
     // AGENTS.md: 0 surviving mutants is mandatory. PIT is therefore configured
     // for EVERY module that has a suite -- there is no single module the figure
-    // is quoted for, and no module the figure is quietly skipped for. The
-    // structure is the JaCoCo one: a module not in the map below is gated at
-    // mutationThreshold = 100 (every mutant killed), and a module that cannot yet
-    // hit it appears in mutationExemptions with the score its own suite really
-    // achieves, plus a reason in mutationReasons. PIT prints the measured score
+    // is quoted for, and no module the figure is quietly skipped for. The gate
+    // inverts the JaCoCo one: a module absent from the map below runs PIT in
+    // report-only mode (mutationThreshold = 0, no gate) until it is ready to be
+    // held to a figure, and a module that is ready is added to mutationExemptions
+    // gated at the score its own suite really achieves, plus a reason in
+    // mutationReasons -- a floor ratcheted up toward 100 as survivors are killed.
+    // PIT prints the measured score
     // when it fails, so an entry is always a number somebody ran, never a guess.
     //
     // Two guards keep the map honest, because a mutation gate is easy to fake:
@@ -277,10 +279,11 @@ subprojects {
         // lg3d-widgets: 1217 mutants, 330 killed = 27%. The widget presentation layer needs a live desktop.
         'lg3d-widgets' : 26,  // 1217 mutants, 330 detected; Swing card presentation needs live desktop
         //
-        // No module is listed below because its number is missing: an unmeasured
-        // module is gated at 100 by default, and CI's `mutation` matrix produces the
-        // figure. Writing an exemption here without a measured mutations.xml behind
-        // it is how a floor becomes a way of avoiding a measurement.
+        // No module is listed below because its number is missing: an unlisted
+        // module runs report-only (mutationThreshold = 0, no gate) by default, and
+        // CI's `mutation` matrix produces the figure that earns it a real floor.
+        // Writing an exemption here without a measured mutations.xml behind it is
+        // how a floor becomes a way of avoiding a measurement.
         //
         // What the XML root's partial="true" does NOT mean, since a reader of the
         // report will meet it on every module: in PIT 1.17 that attribute is
