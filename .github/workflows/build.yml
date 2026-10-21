@@ -177,9 +177,9 @@ jobs:
   # PIT mutation testing - EVERY module, one job per module
   # ---------------------------------------------------------------------------
   # AGENTS.md: 0 surviving mutants is mandatory. The root build.gradle applies
-  # PIT to every module that has a test suite and gates each one at
-  # mutationThreshold = 100 unless the module sits in the mutationExemptions map
-  # with the score its own suite really achieves. This job runs each module's
+  # PIT to every module that has a test suite -- report-only (mutationThreshold = 0)
+  # unless the module sits in the mutationExemptions map, where it is gated at the
+  # score its own suite really achieves. This job runs each module's
   # `pitest` task separately with fail-fast: false, so a pull request shows
   # precisely which module's mutants survive instead of one repo-wide line from a
   # `--continue` run, and no module is quoted for another. The published HTML per
