@@ -7,7 +7,9 @@ grouped by Added / Changed / Removed / Fixed.
 The original 2006 Sun codebase is the baseline; everything below describes the
 work to make it build and run on a current toolchain.
 
-## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
+## [Unreleased]
+
+## [1.69.0] — 2026-10-22 — Gradle / JDK 21 modernization
 
 ### Added
 - **QNX-style process isolation, Phase 1: the child-process app framework and the Web Browser as its first isolated app** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`, `org.jdesktop.lg3d.apps.webbrowser`) —

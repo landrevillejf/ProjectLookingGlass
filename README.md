@@ -553,7 +553,7 @@ it on the `run` classpath. This is additive — no module jar is restructured.
 ## Project coordinates
 
 - Group: `org.jdesktop.lg3d`
-- Version: `1.69.0-dev`
+- Version: `1.69.0`
 
 See [CHANGELOG.md](CHANGELOG.md) for a summary of the modernization work.
 
