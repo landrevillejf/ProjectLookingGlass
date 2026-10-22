@@ -258,6 +258,9 @@ Record the output of (1) alongside the §5 compliance evidence.
 
 ## 8. References
 
+- [`lfs-iso-contract.md`](lfs-iso-contract.md) — the `--iso` composited-desktop
+  addendum: launching lg3d as the 2D Swing desktop **and** X11 WM/compositor in
+  one JVM so child-process apps composite into MDI windows (process isolation).
 - [`x11-compositor-spike-roadmap.md`](x11-compositor-spike-roadmap.md) — spike
   report (Stages 0–3 evidence), the §5 acceptance checklist mapped to
   `scripts/x11/live-proof.sh`, deferred work with rationale, and the

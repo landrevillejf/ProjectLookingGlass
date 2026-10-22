@@ -10,10 +10,15 @@
  button spawns the interactive browser (WebBrowserApp) into a separate child
  process JVM, because a WebView is a heavyweight peer that paints blank when
  SwingNode captures it offscreen and JavaFX must not share the Java 3D OpenGL
- context. In the 2D/Swing desktop Desktop2DAppRegistry.PANEL_APPS opens the very
- same command as the real interactive BrowserPanel (a JFXPanel hosted WebView) in
- an MDI internal frame, where JavaFX composites correctly against an on screen
- window. Launched in JVM via the "java class" command; lives in the Internet
+ context. In the 2D/Swing desktop Desktop2DAppRegistry.CHILD_PROCESS_APPS opens
+ the very same command by forking WebBrowserApp (a JFXPanel hosted WebView in its
+ own top level JFrame) into an ISOLATED child process JVM, because a WebKit
+ surface is the most likely thing to hard crash and must not take the desktop
+ down with it; AppProcessSupervisor restarts a crashed child within a bounded
+ budget. Under the combined launch (run-lg3d.sh in iso mode) the X11 compositor
+ redirects that child window back into an MDI internal frame, so the browser is
+ both isolated and integrated; otherwise it appears as its own window. Launched
+ via the "java class" command; lives in the Internet
  menu group. The lg3d apps jar and the OpenJFX jars (with their Linux natives)
  are on the :lg3d core:run classpath, so the reflective lookup resolves.
  Discovery only scans config/demo and config/incubator, so this descriptor lives

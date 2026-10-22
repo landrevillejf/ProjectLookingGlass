@@ -56,7 +56,28 @@ public final class WebBrowserApp {
      * @param args ignored
      */
     public static void main(String[] args) {
+        installCrashHandler();
         SwingUtilities.invokeLater(WebBrowserApp::createAndShow);
+    }
+
+    /**
+     * Installs a default uncaught-exception handler that exits the child
+     * <em>non-zero</em>, so the desktop's {@code AppProcessSupervisor} sees a
+     * crash and can offer a bounded restart instead of leaving a zombie JVM
+     * behind. A native WebKit fault (a {@code SIGSEGV} in {@code libwebkitgtk})
+     * never reaches a Java handler at all - it kills the process with a signal,
+     * which is exactly the non-zero exit the supervisor watches for; this covers
+     * the Java-level faults that would otherwise leave a broken frame alive.
+     */
+    private static void installCrashHandler() {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            System.err.println("Web Browser child process fault on "
+                    + thread.getName());
+            error.printStackTrace(System.err);
+            // halt (not exit): a fault during shutdown must not deadlock on a
+            // shutdown hook, and stderr is already flushed by the print above.
+            Runtime.getRuntime().halt(1);
+        });
     }
 
     private static void createAndShow() {
@@ -70,6 +91,11 @@ public final class WebBrowserApp {
             frame.setIconImage(icon);
         }
         BrowserPanel panel = new BrowserPanel();
+        // BrowserPanel has now brought up the JavaFX toolkit, so it is safe to
+        // take explicit control of the JVM lifetime: JavaFX must not tear the
+        // process down on its own when its last window closes, because the
+        // Swing frame's windowClosed handler below owns that exit.
+        Platform.setImplicitExit(false);
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         frame.getContentPane().add(panel, BorderLayout.CENTER);
         frame.setSize(BrowserPanel.WIDTH_PX, BrowserPanel.HEIGHT_PX);

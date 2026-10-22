@@ -41,7 +41,9 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.DesktopManager;
@@ -190,6 +192,15 @@ public class Desktop2D {
     private final SessionManager sessionManager;
     private final RunHistoryStore runHistoryStore;
     private final RunHistory runHistory;
+
+    /**
+     * The isolated child-process applications this desktop has forked, keyed by
+     * the child's main class so a launcher is de-duplicated (one live process
+     * per app) and supervised across relaunches. Populated lazily on first
+     * launch of a {@link Desktop2DAppRegistry.Kind#CHILD_PROCESS} app; see
+     * {@link #launchChildProcessApp}.
+     */
+    private final Map<String, AppProcessSupervisor> childApps = new HashMap<>();
 
     /**
      * The screen-saver host (idle detection + full-screen saver windows),
@@ -1290,6 +1301,9 @@ public class Desktop2D {
                         Messages.tr("lg2d.notify.launchedOwnWindow"),
                         Notification.Kind.INFO);
                 break;
+            case CHILD_PROCESS:
+                launchChildProcessApp(item);
+                break;
             case EXTERNAL:
                 if (Desktop2DAppRegistry.launchExternal(item.getCommand())) {
                     // An external process likewise has no taskbar presence.
@@ -1307,6 +1321,120 @@ public class Desktop2D {
                                 Desktop2DAppRegistry.UNAVAILABLE_TOOLTIP));
                 break;
         }
+    }
+
+    /**
+     * Forks a {@link Desktop2DAppRegistry.Kind#CHILD_PROCESS} application into
+     * its own isolated child-process JVM (QNX-style process isolation) and
+     * supervises it: one live process per app (a second launch raises the
+     * running child instead of forking another), a bounded restart policy so a
+     * crash recovers on its own, and notifications for the transitions. The
+     * child draws a real X window on the lg3d display; under the combined launch
+     * ({@code run-lg3d.sh --iso}) the X11 compositor redirects it back into an
+     * MDI frame, so the app is both isolated and integrated. A crash, an OOM or
+     * a {@code System.exit} in the child can never take this desktop JVM down.
+     */
+    private void launchChildProcessApp(ItemSpec item) {
+        launchChildProcess(item.getName(), item.getCommand());
+    }
+
+    /**
+     * The command-string form of {@link #launchChildProcessApp}, used by the
+     * file-association launcher. {@code appName} labels the notifications.
+     */
+    private void launchChildProcess(String appName, String command) {
+        String childMain = Desktop2DAppRegistry.childMainClass(command);
+        if (childMain == null) {
+            showMessage(Messages.tr("lg2d.error.couldNotStart", appName),
+                    Messages.tr("lg2d.error.commandFailed", command));
+            return;
+        }
+        AppProcessSupervisor supervisor;
+        synchronized (childApps) {
+            supervisor = childApps.get(childMain);
+            if (supervisor == null) {
+                supervisor = newChildSupervisor(appName, command, childMain);
+                childApps.put(childMain, supervisor);
+            }
+        }
+        if (supervisor.launch()) {
+            postNotification(Messages.tr("lg2d.notify.launched", appName), null,
+                    Notification.Kind.INFO);
+        }
+    }
+
+    /**
+     * Builds the supervisor for a freshly-registered child app: the isolated
+     * {@code java} command (this JVM's own launcher and classpath, so the child
+     * resolves the app), the profile's JVM arguments and environment (a bounded
+     * heap and, for the browser, the software Prism pipeline and the WebKit
+     * workarounds) over the privacy-critical Tor proxy env, the propagated
+     * {@code lg.*} configuration so the child resolves resources exactly as
+     * in-JVM, and the desktop notifier. The profile, main class and arguments all
+     * come from the registry, so isolating a new app needs no change here.
+     */
+    private AppProcessSupervisor newChildSupervisor(String appName,
+            String command, String childMain) {
+        ChildProcessLauncher.ChildProfile profile =
+                Desktop2DAppRegistry.childProfile(command);
+        List<String> cmd = ChildProcessLauncher.buildCommand(
+                ChildProcessLauncher.defaultJavaBin(),
+                ChildProcessLauncher.currentClasspath(),
+                ChildProcessLauncher.jvmArgsFor(profile),
+                childMain, Desktop2DAppRegistry.childArgs(command));
+        Map<String, String> env = ChildProcessLauncher.envFor(profile,
+                TorPrivateMode.proxyEnv(TorPrivateMode.isOn(),
+                        TorPrivateMode.socksPort()),
+                ChildProcessLauncher.lg3dDisplay());
+        AppProcessSupervisor.Policy policy =
+                profile == ChildProcessLauncher.ChildProfile.BROWSER
+                        ? AppProcessSupervisor.Policy.webBrowser()
+                        : AppProcessSupervisor.Policy.swing();
+        return AppProcessSupervisor.forCommand(appName, cmd, env,
+                policy, childNotifier(appName));
+    }
+
+    /**
+     * The notification surface for an isolated child app. Every callback may
+     * fire on the child-exit thread (a ForkJoinPool worker), so all of them
+     * route through the EDT-marshalling {@link #postNotification}. A clean exit
+     * is silent: the user closed the app, so there is nothing to report.
+     */
+    private AppProcessSupervisor.Notifier childNotifier(final String appName) {
+        return new AppProcessSupervisor.Notifier() {
+            @Override
+            public void alreadyOpen() {
+                postNotification(Messages.tr("lg2d.notify.launched", appName),
+                        Messages.tr("lg2d.notify.launchedOwnWindow"),
+                        Notification.Kind.INFO);
+            }
+
+            @Override
+            public void restarting(int attempt) {
+                postNotification(
+                        Messages.tr("lg2d.notify.childRestarting", appName),
+                        null, Notification.Kind.WARNING);
+            }
+
+            @Override
+            public void stopped(int exitCode) {
+                // A clean close is expected; raise no toast.
+            }
+
+            @Override
+            public void gaveUp(int attempts) {
+                postNotification(
+                        Messages.tr("lg2d.notify.childCrashed", appName),
+                        null, Notification.Kind.ERROR);
+            }
+
+            @Override
+            public void startFailed() {
+                postNotification(
+                        Messages.tr("lg2d.error.couldNotStart", appName),
+                        null, Notification.Kind.ERROR);
+            }
+        };
     }
 
     /**
@@ -1824,6 +1952,15 @@ public class Desktop2D {
                     command + " " + file.toAbsolutePath());
             return true;
         }
+        if (kind == Desktop2DAppRegistry.Kind.CHILD_PROCESS) {
+            // An isolated child app: fork (or raise) its child process. Passing
+            // the document into the child is not wired yet - the hosted-panel
+            // path never loaded a file into the browser either (BrowserPanel
+            // exposes no openFile) - so this simply opens the app.
+            String main = Desktop2DAppRegistry.mainClass(command);
+            launchChildProcess(main, command);
+            return true;
+        }
         // EXTERNAL / UNAVAILABLE: let Opener run it as a child process (or fail).
         return false;
     }
@@ -2010,6 +2147,7 @@ public class Desktop2D {
         toastLayer.uninstall();
         uninstallWidgetLayer();
         disposeCompositedWindows();
+        stopChildApps();
         if (runDialog != null) {
             runDialog.hide();
         }
@@ -2023,6 +2161,32 @@ public class Desktop2D {
         frame.setVisible(false);
         frame.dispose();
         System.exit(0);
+    }
+
+    /**
+     * Reaps every isolated child-process application this desktop forked, so a
+     * child JVM is terminated with the desktop rather than orphaned by
+     * {@code System.exit}. Each supervisor's {@link AppProcessSupervisor#shutdown}
+     * stops restarting and destroys its live child; the map is cleared so a later
+     * launch cannot resurrect a stopped app. A no-op when nothing was forked.
+     */
+    private void stopChildApps() {
+        List<AppProcessSupervisor> supervisors;
+        synchronized (childApps) {
+            if (childApps.isEmpty()) {
+                return;
+            }
+            supervisors = new ArrayList<>(childApps.values());
+            childApps.clear();
+        }
+        for (AppProcessSupervisor supervisor : supervisors) {
+            try {
+                supervisor.shutdown();
+            } catch (RuntimeException e) {
+                // A child that will not die must never block the desktop's exit.
+                logger.log(Level.WARNING, "Could not terminate a child app", e);
+            }
+        }
     }
 
     /**

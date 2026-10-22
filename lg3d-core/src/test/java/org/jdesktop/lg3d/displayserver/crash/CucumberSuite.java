@@ -9,13 +9,16 @@ import org.junit.platform.suite.api.Suite;
 /**
  * BDD entry point: discovers every {@code .feature} under
  * {@code src/test/resources/features} and runs them through the Cucumber
- * JUnit Platform engine inside the module's ordinary {@code test} task.
+ * JUnit Platform engine inside the module's ordinary {@code test} task. The
+ * glue names every package that contributes step definitions, so a feature in
+ * one area is matched by its own steps.
  */
 @Suite
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
 @ConfigurationParameter(key = Constants.GLUE_PROPERTY_NAME,
-        value = "org.jdesktop.lg3d.displayserver.crash")
+        value = "org.jdesktop.lg3d.displayserver.crash,"
+                + "org.jdesktop.lg3d.displayserver.desktop2d")
 @ConfigurationParameter(key = Constants.PLUGIN_PROPERTY_NAME,
         value = "html:build-gradle/reports/cucumber/index.html, summary")
 public class CucumberSuite {

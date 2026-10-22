@@ -9,10 +9,10 @@
 | Item | Value |
 | --- | --- |
 | Status | **Production** daily-driver utility (web browser) |
-| 2D entry point | `Desktop2DAppRegistry.PANEL_APPS` → `BrowserPanel` (full interactive browser in an MDI internal frame) |
+| 2D entry point | `Desktop2DAppRegistry.CHILD_PROCESS_APPS` → forks `WebBrowserApp` into an **isolated child-process JVM** (QNX-style crash isolation); its window is composited into an MDI frame under `run-lg3d.sh --iso`, else it appears as its own top-level window |
 | 3D entry point | `WebBrowser.main` → `TitledSwingWindow.show(...)` hosting `BrowserPreviewPanel` (static preview) |
-| Standalone | `WebBrowserApp.main` → a top-level `JFrame` holding `BrowserPanel` |
-| Surface | **Split by design** — 2D: `JFXPanel`-hosted `WebView`; 3D: pure-Swing preview whose button spawns `WebBrowserApp` into a child-process JVM |
+| Standalone | `WebBrowserApp.main` → a top-level `JFrame` holding `BrowserPanel` (also the isolated 2D child, and the 3D preview's spawn target) |
+| Surface | **Split by design** — 2D: forks `WebBrowserApp` (a `JFXPanel`-hosted `WebView`) into a separate OS process so a WebKit crash cannot take the desktop down; 3D: pure-Swing preview whose button spawns the same child |
 | Start-menu name / group | Web Browser / **Internet** |
 | Command | `java org.jdesktop.lg3d.apps.webbrowser.WebBrowser` |
 | Descriptor | `src/config/webbrowser.lgcfg` → `config/demo` |
@@ -173,9 +173,26 @@ JavaFX surface is a heavyweight native peer that yields a **blank quad** when
 painted offscreen, so a `WebView` cannot ride the 3D capture path — and
 initialising JavaFX in the Java 3D JVM risks an OpenGL toolkit clash. Keeping
 JavaFX out of the 3D process entirely (static preview + child-process launch) is
-the lowest-risk realization of "full 2D, 3D static preview". In the 2D/Swing
-desktop the browser is hosted as an MDI internal frame, where the heavyweight
-`JFXPanel` composites correctly against an on-screen window.
+the lowest-risk realization of "full 2D, 3D static preview".
+
+**The 2D desktop now forks the child too (QNX-style process isolation).** A
+`WebView` is a native WebKit/OpenGL surface and the single most likely thing in
+the desktop to hard-crash — a `SIGSEGV` in `libwebkitgtk` takes the whole JVM
+with it — so `Desktop2DAppRegistry` classifies the shared descriptor as
+`CHILD_PROCESS` (no longer `PANEL`) and `Desktop2D.launchChildProcessApp` forks
+`WebBrowserApp` into its own JVM via `ChildProcessLauncher` (this JVM's launcher
++ classpath, a bounded `-Xmx`, the software Prism pipeline, the WebKit
+compositing/DMABUF workarounds, over the privacy-critical Tor proxy env).
+`AppProcessSupervisor` owns one live child per app: a second launch raises the
+running child, a crash is restarted within a bounded budget (a stable run resets
+it), and a clean close is silent. Under the combined launch
+(`run-lg3d.sh --iso`) the X11 compositor redirects the child's foreign X window
+back into an MDI frame, so the browser is both isolated *and* integrated; on a
+plain 2D desktop it appears as its own top-level window, exactly like a
+`SWING_FRAME` app. `WebBrowserApp` hardens the child: a default
+uncaught-exception handler exits **non-zero** so the supervisor sees a crash, and
+`Platform.setImplicitExit(false)` hands JVM lifetime to the Swing
+`windowClosed` handler.
 
 ## Roles
 
@@ -221,7 +238,11 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   the CONTENT_SCRIPT gate, and a script's binds/injections asserted against the real
   engine — including that a throwing script is logged by name, still delivers what
   it queued before failing, and does not stop the next one). `Desktop2DAppRegistryTest` asserts the
-  command classifies as `PANEL` and maps to `BrowserPanel`. `FxBrowser` and
+  command classifies as `CHILD_PROCESS` and maps to `WebBrowserApp` (no longer an
+  in-JVM `BrowserPanel`). The isolation seams are covered headlessly in
+  `lg3d-core`: `ChildProcessLauncherTest` (command/env builders),
+  `AppProcessSupervisorTest` (restart policy + lifecycle with a stub process) and
+  the `process-isolation.feature` Cucumber scenarios. `FxBrowser` and
   `BrowserPanel` stay without unit tests (they need a live toolkit), consistent
   with the suite. The GUI itself has no coverage/mutation gate; verify it with the
   in-JVM probe + `lgscreen-*.png` capture on the host X display (2D MDI browser
@@ -247,8 +268,10 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
   Dependencies line — call those out. Done = build + headless tests +
   `./run-lg3d.sh` capture/log evidence. Branch → PR against `main`; never commit
   to `main`.
-- **UI/UX (3D & 2D)** — 2D: the full interactive browser in an MDI internal frame
-  (conventional browser chrome: tab strip + toolbar + status bar). 3D: a glassy
+- **UI/UX (3D & 2D)** — 2D: the full interactive browser, forked into an
+  isolated child process — composited into an MDI internal frame under `--iso`
+  (conventional browser chrome: tab strip + toolbar + status bar), otherwise its
+  own top-level window. 3D: a glassy
   `TitledSwingWindow` frame showing the branded static preview and the "Open Full
   Browser" affordance; never a click-cycling 3D idiom, and never a blank
   offscreen-captured `WebView`.
@@ -304,8 +327,8 @@ desktop the browser is hosted as an MDI internal frame, where the heavyweight
 
 Single source of truth: this file → module `AGENTS.md` → core UI/UX rulebook →
 root `AGENTS.md`. On conflict the higher file wins; fix here in the same PR.
-Every PR states the split surface (2D `JFXPanel` browser + 3D preview/child
-process), the `FxBrowser` JavaFX seam, and the evidence.
+Every PR states the split surface (2D isolated child-process browser + 3D
+preview/child process), the `FxBrowser` JavaFX seam, and the evidence.
 
 ## Commit / PR
 
