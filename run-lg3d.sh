@@ -100,6 +100,16 @@ run-lg3d.sh [<options>] [-- <extra-gradle-args>]
                          Add the Swing app's classes/jar to the desktop run
                          classpath (File.pathSeparator-separated). Passes
                          -PswingAppCp. Must precede --swing-app.
+    --iso                Combined launch for QNX-style process isolation: run
+                         the conventional 2D Swing desktop AND the X11 window
+                         manager + compositor in one JVM, so isolated
+                         child-process applications are composited into MDI
+                         windows and an app crash can never take the desktop
+                         down. Requires an X server lg3d owns with no competing
+                         window manager - pair it with --nested <display> (a
+                         bare Xorg or an already-running nested display), or the
+                         WM claim fails and the desktop falls back to in-JVM
+                         panel hosting. Passes -PcompositedDesktop to Gradle.
     -h, --help           Print this help.
 
 Anything after '--' is passed straight to the Gradle invocation, e.g.:
@@ -116,6 +126,7 @@ EOF
 # --- Option parsing ----------------------------------------------------------
 BACKGROUND3D=false
 COMPOSITOR=false
+COMPOSITED_DESKTOP=false
 DESKTOP2D=false
 DESKTOP_SWING=false
 DO_CLEAN=false
@@ -132,6 +143,7 @@ while [ $# -gt 0 ]; do
         -2|--2d)           DESKTOP2D=true ;;
         -w|--swing)        DESKTOP_SWING=true ;;
         -x|--compositor)   COMPOSITOR=true ;;
+        --iso)             COMPOSITED_DESKTOP=true ;;
         -n|--nested)
                            # Optional display arg (default :1); consume the next
                            # token only if it is a value, not another flag.
@@ -174,6 +186,9 @@ fi
 if [ "${COMPOSITOR}" = true ]; then
     GRADLE_ARGS+=("-Pcompositor")
 fi
+if [ "${COMPOSITED_DESKTOP}" = true ]; then
+    GRADLE_ARGS+=("-PcompositedDesktop")
+fi
 if [ -n "${LGSERVERDISPLAY}" ]; then
     GRADLE_ARGS+=("-Plgserverdisplay=${LGSERVERDISPLAY}")
 fi
@@ -209,6 +224,12 @@ if [ "${COMPOSITOR}" = true ]; then
     echo "MODE      : X11 compositor / window manager (-Pcompositor)"
     echo "WARNING   : lg3d will claim SubstructureRedirect on ${DISPLAY} and act"
     echo "            as the window manager. No other WM may already hold it."
+fi
+if [ "${COMPOSITED_DESKTOP}" = true ]; then
+    echo "MODE      : composited 2D desktop, process-isolated MDI apps (-PcompositedDesktop)"
+    echo "WARNING   : lg3d claims SubstructureRedirect on ${DISPLAY} as WM/compositor"
+    echo "            AND runs the 2D Swing desktop. No other WM may already hold it"
+    echo "            (use --nested <display> on a Wayland host)."
 fi
 if [ -n "${LGSERVERDISPLAY}" ]; then
     echo "X SERVER  : targeting existing display ${LGSERVERDISPLAY} (--nested;"

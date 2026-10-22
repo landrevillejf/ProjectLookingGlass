@@ -442,25 +442,74 @@ public class X11Compositor {
      * composites back, so the physical screen would appear black.
      */
     public void exemptOwnWindow() {
-        long wid = -1L;
+        long wid = ownWindowIdOverride();
+        if (wid <= 0L) {
+            wid = discoverOwnWindowId();
+        }
+        applyOwnWindowId(wid, "Canvas3D host");
+    }
+
+    /**
+     * Exempts an arbitrary realized top-level AWT window from both WM management
+     * and Composite redirection, exactly as {@link #exemptOwnWindow()} does for
+     * the 3D {@code Canvas3D} host. This is the combined-launch (2D desktop +
+     * compositor in one JVM) variant: the conventional Swing desktop has no
+     * {@code Canvas3D}, so it hands over its own {@code JFrame} to be exempted
+     * instead. Without this the desktop frame is redirected into an offscreen
+     * pixmap nothing composites back, so the physical screen stays black.
+     *
+     * <p>The window id is resolved in the same order: the
+     * {@code lg3d.x11.ownwindowid} property first (for deterministic
+     * deployments), then the native X handle read from {@code ownWindow}'s
+     * top-level {@link java.awt.Window} peer (which on JDK 21 requires
+     * {@code --add-exports java.desktop/sun.awt=ALL-UNNAMED}). A warning is
+     * logged if neither yields an id.
+     *
+     * @param ownWindow the desktop's own realized window (or any component whose
+     *                  top-level window is walked up to); may be null
+     */
+    public void exemptOwnWindow(java.awt.Component ownWindow) {
+        long wid = ownWindowIdOverride();
+        if (wid <= 0L && ownWindow != null) {
+            java.awt.Component c = ownWindow;
+            while (c != null && !(c instanceof java.awt.Window)) {
+                c = c.getParent();
+            }
+            if (c != null) {
+                wid = readNativeWindowId(c);
+            }
+        }
+        applyOwnWindowId(wid, "2D desktop");
+    }
+
+    /**
+     * The {@code lg3d.x11.ownwindowid} override (decimal or {@code 0x} hex), or
+     * -1 when unset or unparseable.
+     */
+    private static long ownWindowIdOverride() {
         String override = System.getProperty("lg3d.x11.ownwindowid");
         if (override != null && !override.trim().isEmpty()) {
             try {
-                wid = Long.decode(override.trim());
+                return Long.decode(override.trim());
             } catch (NumberFormatException e) {
                 logger.warning("Ignoring invalid lg3d.x11.ownwindowid='"
                     + override + "': " + e.getMessage());
             }
         }
-        if (wid <= 0L) {
-            wid = discoverOwnWindowId();
-        }
+        return -1L;
+    }
+
+    /**
+     * Applies a resolved own-window id, or warns that lg3d's own rendering will
+     * be redirected offscreen (black screen) when none could be determined.
+     */
+    private void applyOwnWindowId(long wid, String what) {
         if (wid > 0L) {
             markOwnWindowAsDesktop((int) wid);
         } else {
-            logger.warning("Could not determine lg3d's own X window id; the "
-                + "Canvas3D window may be redirected offscreen (black screen). "
-                + "Set -Dlg3d.x11.ownwindowid=<id> or run with "
+            logger.warning("Could not determine lg3d's own X window id ("
+                + what + " window); it may be redirected offscreen (black "
+                + "screen). Set -Dlg3d.x11.ownwindowid=<id> or run with "
                 + "--add-exports java.desktop/sun.awt=ALL-UNNAMED to enable "
                 + "automatic discovery.");
         }

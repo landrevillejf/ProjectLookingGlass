@@ -50,15 +50,31 @@ public final class X11CompositorSession {
          * published session.
          */
         WindowLifecycleRegistrar registrar();
+
+        /**
+         * Exempts the caller's own realized top-level AWT window (the 2D
+         * desktop's frame, which has no {@code Canvas3D}) from both WM management
+         * and Composite redirection, so it keeps drawing directly to the screen
+         * instead of into an offscreen pixmap nothing composites back. A no-op on
+         * a session that cannot reach a live compositor (for example one published
+         * through the test seam).
+         *
+         * @param ownWindow the desktop's own top-level window, or a component
+         *                  whose top-level window is walked up to; may be null
+         */
+        void exemptOwnWindow(java.awt.Component ownWindow);
     }
 
     private static final class SessionImpl implements Session {
         private final CompositedWindowHost host;
         private final WindowLifecycleRegistrar registrar;
+        private final java.util.function.Consumer<java.awt.Component> exemption;
 
-        SessionImpl(CompositedWindowHost host, WindowLifecycleRegistrar registrar) {
+        SessionImpl(CompositedWindowHost host, WindowLifecycleRegistrar registrar,
+                java.util.function.Consumer<java.awt.Component> exemption) {
             this.host = host;
             this.registrar = registrar;
+            this.exemption = exemption;
         }
 
         @Override
@@ -69,6 +85,13 @@ public final class X11CompositorSession {
         @Override
         public WindowLifecycleRegistrar registrar() {
             return registrar;
+        }
+
+        @Override
+        public void exemptOwnWindow(java.awt.Component ownWindow) {
+            if (exemption != null) {
+                exemption.accept(ownWindow);
+            }
         }
     }
 
@@ -93,7 +116,8 @@ public final class X11CompositorSession {
             clear();
             return;
         }
-        current = new SessionImpl(new X11CompositedWindowHost(compositor), registrar);
+        current = new SessionImpl(new X11CompositedWindowHost(compositor), registrar,
+                compositor::exemptOwnWindow);
     }
 
     /**
@@ -109,7 +133,7 @@ public final class X11CompositorSession {
             clear();
             return;
         }
-        current = new SessionImpl(host, registrar);
+        current = new SessionImpl(host, registrar, null);
     }
 
     /** The live session, or null if lg3d is not running as an X compositor. */

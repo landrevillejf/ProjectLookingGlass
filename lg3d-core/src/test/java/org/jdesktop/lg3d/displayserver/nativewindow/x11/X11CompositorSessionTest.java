@@ -158,4 +158,18 @@ class X11CompositorSessionTest {
         assertSame(secondHost, X11CompositorSession.current().host());
         assertSame(secondRegistrar, X11CompositorSession.current().registrar());
     }
+
+    @Test
+    @DisplayName("a test-seam session's own-window exemption is a safe no-op")
+    void exemptOwnWindowIsNoOpWithoutACompositor() {
+        X11CompositorSession.publish(new FakeHost(), new FakeRegistrar());
+        X11CompositorSession.Session session = X11CompositorSession.current();
+
+        // The test seam cannot reach a live X11Compositor, so the exemption
+        // carries no target: it must neither throw nor touch the collaborators.
+        session.exemptOwnWindow(null);
+        session.exemptOwnWindow(new JPanel());
+
+        assertTrue(X11CompositorSession.isLive());
+    }
 }
