@@ -796,6 +796,36 @@ tasks.register('run', JavaExec) {
         }
     }
 
+    // Combined launch (-PcompositedDesktop, equivalently run-lg3d.sh --iso): run
+    // the conventional 2D Swing desktop AND the X11 window manager + compositor
+    // in ONE JVM, so isolated child-process applications are composited into MDI
+    // windows (QNX-style process isolation - an app crash can never take the
+    // desktop down). Sets lg.fws.mode=2d, turns on both the compositor bootstrap
+    // flag X11IntegrationModule.initialize() reads and the lg3d.x11.composite2d
+    // opt-in CompositedDesktopWiring.shouldInstall checks, and grants the same
+    // sun.awt export the own-window exemption needs (here it reads the Swing
+    // desktop frame's peer rather than a Canvas3D). Pair with
+    // -Plgserverdisplay=:1 (run-lg3d.sh --iso --nested :1) to target a display
+    // lg3d can claim with no competing window manager.
+    if (project.hasProperty('compositedDesktop')) {
+        systemProperty 'lg.fws.mode', '2d'
+        systemProperty 'lg3d.x11.compositor', 'true'
+        systemProperty 'lg3d.x11.composite2d', 'true'
+        jvmArgs '--add-exports', 'java.desktop/sun.awt=ALL-UNNAMED'
+        doFirst {
+            logger.lifecycle('')
+            logger.lifecycle('=== LG3D COMPOSITED 2D DESKTOP (-PcompositedDesktop) ===')
+            logger.lifecycle('2D Swing desktop + X11 WM/compositor in one JVM: isolated')
+            logger.lifecycle('child-process applications composite into MDI windows.')
+            logger.lifecycle('Requires an X server lg3d owns with no competing window')
+            logger.lifecycle('manager (a bare Xorg, or -Plgserverdisplay=<display>), or')
+            logger.lifecycle('the WM claim fails with BadAccess and the desktop falls')
+            logger.lifecycle('back to in-JVM panel hosting.')
+            logger.lifecycle('=========================================================')
+            logger.lifecycle('')
+        }
+    }
+
     // Opt-in: target a specific X display for the lg3d X server / compositor
     // (-Plgserverdisplay=:1, equivalently run-lg3d.sh --nested :1). Sets both the
     // lg.lgserverdisplay property X11IntegrationModule reads and the DISPLAY

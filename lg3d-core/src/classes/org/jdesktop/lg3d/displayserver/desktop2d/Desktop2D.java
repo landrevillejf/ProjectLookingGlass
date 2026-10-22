@@ -67,6 +67,7 @@ import org.jdesktop.lg3d.displayserver.Desktop2DSplash;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DMenuConfig.ItemSpec;
 import org.jdesktop.lg3d.displayserver.desktop2d.screensaver.ScreensaverService;
 import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11CompositorSession;
+import org.jdesktop.lg3d.displayserver.nativewindow.x11.X11IntegrationModule;
 import org.jdesktop.lg3d.i18n.Messages;
 import org.jdesktop.lg3d.utils.prefs.DesktopConfig;
 import org.jdesktop.lg3d.utils.schedule.ScheduleService;
@@ -402,6 +403,10 @@ public class Desktop2D {
         // so a cold 2D start does not look like a hang. Shown before the build is
         // queued and disposed once the desktop is on screen; a no-op headless.
         Desktop2DSplash.show();
+        // Combined launch (QNX-style process isolation): when opted in, boot the
+        // X11 WM/compositor in this same JVM before the shell is shown, so the
+        // session is live by the time show() wires it into the MDI desktop.
+        maybeStartCompositedLaunch();
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -414,10 +419,50 @@ public class Desktop2D {
         });
     }
 
+    /**
+     * Combined launch for QNX-style process isolation. When the operator opted
+     * in with both {@code lg3d.x11.compositor} and
+     * {@link CompositedDesktopWiring#OPT_IN_PROPERTY} ({@code lg3d.x11.composite2d}),
+     * and we are not headless, boot the X11 window manager + compositor in this
+     * same 2D-desktop JVM. {@link X11IntegrationModule#initialize()} claims the
+     * display, layers the Composite/Damage compositor on top and publishes an
+     * {@link X11CompositorSession}, which {@link #show()} then discovers and wires
+     * into the MDI desktop. Isolated child-process applications draw real X
+     * windows the compositor redirects into MDI frames, so an app crash can never
+     * take the desktop JVM down.
+     *
+     * <p>A no-op in every other topology (dev mode, the {@code *_nox} configs,
+     * compositing disabled, headless, or a session already published by the
+     * display-server boot), so the default 2D shell is byte-for-byte unchanged.
+     * A failed WM claim (for example another window manager already holds
+     * SubstructureRedirect) is logged and swallowed: the desktop still starts,
+     * with in-JVM panel hosting as the fallback.
+     */
+    private static void maybeStartCompositedLaunch() {
+        if (GraphicsEnvironment.isHeadless()
+                || !Boolean.getBoolean("lg3d.x11.compositor")
+                || !Boolean.getBoolean(CompositedDesktopWiring.OPT_IN_PROPERTY)
+                || X11CompositorSession.isLive()) {
+            return;
+        }
+        try {
+            new X11IntegrationModule().initialize();
+        } catch (RuntimeException | LinkageError e) {
+            logger.log(Level.WARNING,
+                    "Could not start the X11 compositor for the combined 2D"
+                            + " desktop; falling back to in-JVM panel hosting", e);
+        }
+    }
+
     /** Shows the desktop window. Must be called on the EDT. */
     public void show() {
         frame.setVisible(true);
         frame.toFront();
+        // Combined launch: exempt the desktop's own frame from Composite
+        // redirection so it keeps drawing directly to the screen. A no-op unless
+        // a compositor session is live (i.e. -PcompositedDesktop / run-lg3d.sh
+        // --iso), so every other topology is unchanged.
+        exemptOwnDesktopWindow();
         // The pane now has its real size, so restored windows can be clamped
         // on-screen. Done after the frame is shown rather than in the
         // constructor, where the desktop pane is not yet laid out.
@@ -1423,6 +1468,28 @@ public class Desktop2D {
             logger.log(Level.WARNING,
                     "Could not wire native X11 window hosting into the 2D"
                             + " desktop", ex);
+        }
+    }
+
+    /**
+     * Exempts the desktop's own top-level frame from WM management and Composite
+     * redirection when a compositor session is live in this JVM (the combined
+     * launch). Without this the frame is redirected into an offscreen pixmap that
+     * nothing composites back, so the physical screen would appear black. A no-op
+     * in every topology with no live session, and a failure is logged and
+     * swallowed rather than aborting start-up. Must run on the EDT after the
+     * frame is realized (called from {@link #show()}).
+     */
+    private void exemptOwnDesktopWindow() {
+        X11CompositorSession.Session session = X11CompositorSession.current();
+        if (session == null) {
+            return;
+        }
+        try {
+            session.exemptOwnWindow(frame);
+        } catch (RuntimeException ex) {
+            logger.log(Level.WARNING,
+                    "Could not exempt the 2D desktop window from compositing", ex);
         }
     }
 
