@@ -76,6 +76,11 @@ public final class Desktop2DAppRegistry {
         PANEL,
         /** A conventional Swing app that shows its own JFrame. */
         SWING_FRAME,
+        /**
+         * An in-desktop app forked into its own child-process JVM for QNX-style
+         * isolation; its window is composited back into the desktop.
+         */
+        CHILD_PROCESS,
         /** An external executable; started as a child process. */
         EXTERNAL,
         /** Needs Java 3D (or is otherwise unusable in 2D). */
@@ -98,6 +103,32 @@ public final class Desktop2DAppRegistry {
      * than inside it (an MDI frame cannot adopt a {@code JFrame}).
      */
     private static final Set<String> SWING_FRAME_APPS;
+
+    /**
+     * {@code java <mainClass>} commands forked into an isolated child-process
+     * JVM, mapped to that child's launch recipe (its main class, the arguments
+     * and the {@link ChildProcessLauncher.ChildProfile}). Running these in their
+     * own OS process (rather than inside the desktop JVM) means a native crash,
+     * an OOM or a {@code System.exit} in the app can never take the desktop down;
+     * see {@link ChildProcessLauncher} and {@link AppProcessSupervisor}.
+     */
+    private static final Map<String, ChildTarget> CHILD_PROCESS_APPS;
+
+    /**
+     * The generic child-process {@code main} that hosts any leaf Swing panel in
+     * its own JVM (see {@code org.jdesktop.lg3d.apps.host.PanelHostApp} in
+     * lg3d-apps). A panel app is isolated by moving its entry out of
+     * {@link #PANEL_APPS} and into {@link #CHILD_PROCESS_APPS} as a
+     * {@link #panelHost} target - a one-line change - once it has been validated
+     * live under the combined launch, which redirects the forked window back
+     * into an MDI frame. Named here (not referenced at compile time) so lg3d-core
+     * keeps no dependency on lg3d-apps.
+     */
+    private static final String PANEL_HOST_MAIN =
+            "org.jdesktop.lg3d.apps.host.PanelHostApp";
+
+    /** The {@code --panel} flag {@link #PANEL_HOST_MAIN} reads the panel class from. */
+    private static final String PANEL_HOST_FLAG = "--panel";
 
     static {
         Map<String, String> panels = new LinkedHashMap<>();
@@ -473,20 +504,14 @@ public final class Desktop2DAppRegistry {
                 "org.jdesktop.lg3d.apps.gitgui.GitGuiPanel");
         // The Web Browser (lg3d-apps, org.jdesktop.lg3d.apps.webbrowser) is the
         // desktop's full-featured browser over the JavaFX WebView (WebKit)
-        // engine. Its two faces deliberately differ: here in the 2D/Swing
-        // desktop the very same start-menu command opens the real interactive
-        // BrowserPanel - a JFXPanel-hosted WebView in an MDI internal frame -
-        // because a heavyweight JavaFX peer composites correctly against an
-        // on-screen window. The 3D desktop instead shows a pure-Swing static
-        // preview (BrowserPreviewPanel) whose "Open Full Browser" button spawns
-        // WebBrowserApp into a separate child-process JVM, since a WebView
-        // paints blank when SwingNode captures it offscreen and JavaFX must not
-        // share the Java 3D OpenGL context. JavaFX (and its Linux natives) is
-        // therefore initialised only in the 2D desktop JVM and in the spawned
-        // browser child process; the OpenJFX jars are on the desktop run
-        // classpath, so the reflective lookup resolves.
-        panels.put("org.jdesktop.lg3d.apps.webbrowser.WebBrowser",
-                "org.jdesktop.lg3d.apps.webbrowser.BrowserPanel");
+        // engine. It is deliberately NOT a hosted panel: a WebView is a native
+        // WebKit/OpenGL surface that is the single most likely thing in the
+        // desktop to hard-crash (a SIGSEGV in libwebkitgtk takes the whole JVM
+        // with it), so it is forked into an isolated child-process JVM instead
+        // (see CHILD_PROCESS_APPS below and ChildProcessLauncher). The 3D
+        // desktop reaches the same isolation from the other direction: it shows
+        // a pure-Swing static preview (BrowserPreviewPanel) whose "Open Full
+        // Browser" button spawns WebBrowserApp into a separate child process.
         // The Docker Manager (lg3d-apps, org.jdesktop.lg3d.apps.dockermanager) is
         // a port of the Swing IDE docker plugin: a Swing terminal / containers /
         // files / images workspace that shells out to the system docker CLI (no
@@ -594,6 +619,72 @@ public final class Desktop2DAppRegistry {
         // desktop run classpath, so the in-JVM start-menu launch resolves.
         frames.add("org.jdesktop.lg3d.apps.terminal.TerminalApp");
         SWING_FRAME_APPS = Collections.unmodifiableSet(frames);
+
+        Map<String, ChildTarget> children = new LinkedHashMap<>();
+        // The Web Browser forks WebBrowserApp (a BrowserPanel in its own
+        // top-level JFrame) into an isolated child-process JVM. On the combined
+        // launch (run-lg3d.sh --iso) the X11 compositor redirects that foreign
+        // window back into an MDI frame, so the browser is both isolated and
+        // integrated; on a plain 2D desktop it simply appears as its own window,
+        // exactly like a SWING_FRAME app. Either way a WebKit crash kills only
+        // the child, and AppProcessSupervisor offers to restart it. It is a
+        // DEDICATED main (its own WebBrowserApp), forked with the BROWSER profile
+        // (the software Prism pipeline and the WebKit workarounds).
+        children.put("org.jdesktop.lg3d.apps.webbrowser.WebBrowser",
+                new ChildTarget("org.jdesktop.lg3d.apps.webbrowser.WebBrowserApp",
+                        Collections.emptyList(),
+                        ChildProcessLauncher.ChildProfile.BROWSER));
+        CHILD_PROCESS_APPS = Collections.unmodifiableMap(children);
+    }
+
+    /**
+     * The recipe for one {@link Kind#CHILD_PROCESS} application: the class the
+     * isolated JVM runs, the arguments it takes and the
+     * {@link ChildProcessLauncher.ChildProfile} that decides its heap, pipeline
+     * and environment. Values are precomputed at registration so the launch-time
+     * lookups are plain map reads with no per-kind branching.
+     */
+    private static final class ChildTarget {
+
+        private final String childMain;
+        private final List<String> args;
+        private final ChildProcessLauncher.ChildProfile profile;
+
+        ChildTarget(final String childMain, final List<String> args,
+                final ChildProcessLauncher.ChildProfile profile) {
+            this.childMain = childMain;
+            this.args = (args == null)
+                    ? Collections.emptyList() : Collections.unmodifiableList(args);
+            this.profile = profile;
+        }
+    }
+
+    /**
+     * The arguments the generic panel host ({@link #panelHostMain}) takes to
+     * isolate {@code panelClassName}: {@code [--panel, <panelClassName>]}. A
+     * panel app is forked into its own JVM by registering it in the static block
+     * as {@code new ChildTarget(panelHostMain(), panelHostArgs(panelClass),
+     * ChildProfile.SWING)} - the scalable one-line isolation path, gated on a
+     * live validation under the combined launch. Exposed so the recipe is
+     * assertable without a live registration.
+     *
+     * @param panelClassName the panel's fully-qualified class name
+     * @return the immutable argument list
+     */
+    public static List<String> panelHostArgs(final String panelClassName) {
+        return Collections.unmodifiableList(
+                java.util.Arrays.asList(PANEL_HOST_FLAG, panelClassName));
+    }
+
+    /**
+     * The generic panel-host child main class name
+     * ({@code org.jdesktop.lg3d.apps.host.PanelHostApp} in lg3d-apps), which
+     * forks any leaf Swing panel into an isolated JVM. See {@link #panelHostArgs}.
+     *
+     * @return the panel-host main class name
+     */
+    public static String panelHostMain() {
+        return PANEL_HOST_MAIN;
     }
 
     private Desktop2DAppRegistry() {
@@ -620,6 +711,9 @@ public final class Desktop2DAppRegistry {
             if (SWING_FRAME_APPS.contains(mainClass)) {
                 return Kind.SWING_FRAME;
             }
+            if (CHILD_PROCESS_APPS.containsKey(mainClass)) {
+                return Kind.CHILD_PROCESS;
+            }
             return Kind.UNAVAILABLE;
         }
         return Kind.EXTERNAL;
@@ -628,6 +722,45 @@ public final class Desktop2DAppRegistry {
     /** The panel class a {@link Kind#PANEL} command is hosted from, else null. */
     public static String panelClass(String command) {
         return (command == null) ? null : PANEL_APPS.get(mainClass(command.trim()));
+    }
+
+    /**
+     * The child main class a {@link Kind#CHILD_PROCESS} command is forked into,
+     * else null. The child runs in its own JVM for QNX-style isolation; see
+     * {@link ChildProcessLauncher}.
+     */
+    public static String childMainClass(String command) {
+        ChildTarget target = childTarget(command);
+        return (target == null) ? null : target.childMain;
+    }
+
+    /**
+     * The arguments the isolated child's {@code main} takes for a
+     * {@link Kind#CHILD_PROCESS} command (empty for a non-child command). For the
+     * generic panel host this is {@code [--panel, <panelClass>]}; for a dedicated
+     * main it is whatever that app was registered with.
+     */
+    public static List<String> childArgs(String command) {
+        ChildTarget target = childTarget(command);
+        return (target == null) ? Collections.emptyList() : target.args;
+    }
+
+    /**
+     * The {@link ChildProcessLauncher.ChildProfile} a {@link Kind#CHILD_PROCESS}
+     * command is forked under, which decides its heap, pipeline and environment.
+     * Defaults to {@link ChildProcessLauncher.ChildProfile#SWING} for a command
+     * that is not an isolated child.
+     */
+    public static ChildProcessLauncher.ChildProfile childProfile(String command) {
+        ChildTarget target = childTarget(command);
+        return (target == null)
+                ? ChildProcessLauncher.ChildProfile.SWING : target.profile;
+    }
+
+    /** The registered {@link ChildTarget} for {@code command}, else null. */
+    private static ChildTarget childTarget(String command) {
+        return (command == null)
+                ? null : CHILD_PROCESS_APPS.get(mainClass(command.trim()));
     }
 
     /** The main class of a {@code java}/{@code swingapp} command, else null. */
@@ -714,6 +847,35 @@ public final class Desktop2DAppRegistry {
             panel = panelClass.getDeclaredConstructor().newInstance();
         }
         return (JComponent) panel;
+    }
+
+    /**
+     * Builds a Swing panel directly from its class name, for the isolated
+     * {@link #panelHostMain} child (which is handed the panel class as an
+     * argument, not a start-menu command). When {@code initialDir} is given it
+     * tries the {@code Path} constructor first and falls back to the no-arg one;
+     * otherwise it uses the no-arg constructor.
+     *
+     * @param panelClassName the panel's fully-qualified class name
+     * @param initialDir     the directory/file to open, or null for the default
+     * @return the constructed panel
+     * @throws ReflectiveOperationException if the class cannot be built
+     */
+    public static JComponent createPanelByClassName(String panelClassName,
+            Path initialDir) throws ReflectiveOperationException {
+        if (panelClassName == null || panelClassName.isBlank()) {
+            throw new ReflectiveOperationException("No panel class name given");
+        }
+        Class<?> panelClass = Class.forName(panelClassName);
+        if (initialDir != null) {
+            try {
+                Constructor<?> ctor = panelClass.getConstructor(Path.class);
+                return (JComponent) ctor.newInstance(initialDir);
+            } catch (NoSuchMethodException nsme) {
+                // The panel takes no directory; fall through to the no-arg form.
+            }
+        }
+        return (JComponent) panelClass.getDeclaredConstructor().newInstance();
     }
 
     /**

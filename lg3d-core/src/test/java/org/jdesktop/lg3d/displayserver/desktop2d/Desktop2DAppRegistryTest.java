@@ -24,6 +24,7 @@ import javax.swing.JPanel;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import org.jdesktop.lg3d.displayserver.desktop2d.Desktop2DAppRegistry.Kind;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -87,8 +88,6 @@ class Desktop2DAppRegistryTest {
                 "java org.jdesktop.lg3d.apps.vpn.Vpn"));
         assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.gitgui.GitGui"));
-        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
-                "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
         // Wonderland World (M6c2): the desktop's read-only browser over a
         // wonderland-server world is a plain Swing panel over the AWT-free
         // WorldCatalog, so the 2D desktop hosts it as an MDI frame and never
@@ -599,20 +598,94 @@ class Desktop2DAppRegistryTest {
     }
 
     @Test
-    @DisplayName("the Web Browser maps to its interactive JavaFX panel")
-    void webBrowserIsHostedPanel() {
-        // The Web Browser (lg3d-apps) is a JavaFX WebView (WebKit) browser. The
-        // two desktops deliberately differ: in the 2D/Swing desktop this command
-        // opens the real interactive BrowserPanel (a JFXPanel-hosted WebView) as
-        // an MDI internal frame, where the heavyweight JavaFX peer composites
-        // correctly; the 3D desktop instead shows a pure-Swing static preview
-        // whose button spawns the browser into a child-process JVM. Only the 2D
-        // panel is registered here, keyed on the shared descriptor's main class.
-        assertEquals(Kind.PANEL, Desktop2DAppRegistry.classify(
+    @DisplayName("the Web Browser is forked into an isolated child process")
+    void webBrowserIsChildProcess() {
+        // The Web Browser (lg3d-apps) is a JavaFX WebView (WebKit) browser: the
+        // single most likely thing in the desktop to hard-crash, since a SIGSEGV
+        // in libwebkitgtk would take the whole desktop JVM with it. So the 2D
+        // desktop no longer hosts its panel in-JVM; it classifies the shared
+        // descriptor as CHILD_PROCESS and forks WebBrowserApp into an isolated
+        // JVM (see ChildProcessLauncher / AppProcessSupervisor), whose window
+        // the X11 compositor redirects back into an MDI frame under --iso. It
+        // therefore has no hosted panel class.
+        assertEquals(Kind.CHILD_PROCESS, Desktop2DAppRegistry.classify(
                 "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
-        assertEquals("org.jdesktop.lg3d.apps.webbrowser.BrowserPanel",
-                Desktop2DAppRegistry.panelClass(
+        assertEquals("org.jdesktop.lg3d.apps.webbrowser.WebBrowserApp",
+                Desktop2DAppRegistry.childMainClass(
                         "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
+        assertNull(Desktop2DAppRegistry.panelClass(
+                "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser"));
+    }
+
+    @Test
+    @DisplayName("childMainClass is null for a non-isolated command")
+    void childMainClassGuards() {
+        assertNull(Desktop2DAppRegistry.childMainClass(
+                "java org.jdesktop.lg3d.apps.calculator.Calculator"));
+        assertNull(Desktop2DAppRegistry.childMainClass("firefox"));
+        assertNull(Desktop2DAppRegistry.childMainClass(null));
+    }
+
+    @Test
+    @DisplayName("the browser child carries no main args and the BROWSER profile")
+    void childArgsAndProfileForBrowser() {
+        String command = "java org.jdesktop.lg3d.apps.webbrowser.WebBrowser";
+        assertEquals(List.of(), Desktop2DAppRegistry.childArgs(command),
+                "WebBrowserApp takes no arguments");
+        assertEquals(ChildProcessLauncher.ChildProfile.BROWSER,
+                Desktop2DAppRegistry.childProfile(command));
+    }
+
+    @Test
+    @DisplayName("childArgs/childProfile fall back safely for a non-child command")
+    void childArgsAndProfileGuards() {
+        assertEquals(List.of(), Desktop2DAppRegistry.childArgs("firefox"));
+        assertEquals(List.of(), Desktop2DAppRegistry.childArgs(null));
+        assertEquals(ChildProcessLauncher.ChildProfile.SWING,
+                Desktop2DAppRegistry.childProfile("firefox"),
+                "a non-child command defaults to the plain-Swing profile");
+        assertEquals(ChildProcessLauncher.ChildProfile.SWING,
+                Desktop2DAppRegistry.childProfile(null));
+    }
+
+    @Test
+    @DisplayName("panelHostArgs names the panel for the generic host")
+    void panelHostArgsBuildsFlagPair() {
+        assertEquals(List.of("--panel", "org.jdesktop.lg3d.apps.calculator.CalculatorPanel"),
+                Desktop2DAppRegistry.panelHostArgs(
+                        "org.jdesktop.lg3d.apps.calculator.CalculatorPanel"));
+    }
+
+    @Test
+    @DisplayName("panelHostMain names the generic isolated-panel host in lg3d-apps")
+    void panelHostMainNamesTheGenericHost() {
+        assertEquals("org.jdesktop.lg3d.apps.host.PanelHostApp",
+                Desktop2DAppRegistry.panelHostMain());
+    }
+
+    @Test
+    @DisplayName("createPanelByClassName builds a no-arg panel by name")
+    void createPanelByClassNameBuildsPanel() throws Exception {
+        // javax.swing.JPanel is on the test classpath and has a no-arg ctor, so
+        // it exercises the reflective build without depending on lg3d-apps.
+        assertTrue(Desktop2DAppRegistry.createPanelByClassName(
+                "javax.swing.JPanel", null) instanceof JPanel);
+        // A Path is given but JPanel has no Path ctor: the build falls back to the
+        // no-arg constructor rather than failing.
+        assertTrue(Desktop2DAppRegistry.createPanelByClassName(
+                "javax.swing.JPanel", Path.of("/tmp")) instanceof JPanel);
+    }
+
+    @Test
+    @DisplayName("createPanelByClassName rejects a blank or absent panel class")
+    void createPanelByClassNameGuards() {
+        assertThrows(ReflectiveOperationException.class,
+                () -> Desktop2DAppRegistry.createPanelByClassName(null, null));
+        assertThrows(ReflectiveOperationException.class,
+                () -> Desktop2DAppRegistry.createPanelByClassName("   ", null));
+        assertThrows(ReflectiveOperationException.class,
+                () -> Desktop2DAppRegistry.createPanelByClassName(
+                        "org.jdesktop.lg3d.apps.calculator.CalculatorPanel", null));
     }
 
     @Test

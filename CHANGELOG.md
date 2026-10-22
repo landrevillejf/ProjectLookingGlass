@@ -10,6 +10,70 @@ work to make it build and run on a current toolchain.
 ## [Unreleased] — 1.69.0-dev — Gradle / JDK 21 modernization
 
 ### Added
+- **QNX-style process isolation, Phase 1: the child-process app framework and the Web Browser as its first isolated app** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`, `org.jdesktop.lg3d.apps.webbrowser`) —
+  The combined launch (`run-lg3d.sh --iso`) already boots the 2D desktop and the
+  X11 WM/compositor in one JVM so a foreign X window can be redirected into an
+  MDI frame; this adds the other half — running an *application* in its own OS
+  process so a native crash, an OOM or a `System.exit` in the app can never take
+  the desktop JVM down. `Desktop2DAppRegistry.Kind` gains `CHILD_PROCESS` (a
+  `java <class>` command forked into an isolated JVM rather than constructed
+  in-process), backed by a new `CHILD_PROCESS_APPS` table and `childMainClass`.
+  `ChildProcessLauncher` builds the isolated command line (this JVM's own
+  launcher + classpath, a bounded `-Xmx512m`, the software Prism pipeline with
+  HiDPI pinned off, and the WebKit compositing/DMABUF workarounds) and its
+  environment over the privacy-critical Tor proxy env — pure builders, so they
+  are asserted without forking a JVM. `AppProcessSupervisor` owns one live child
+  per app: a second launch raises the running child instead of re-forking, output
+  is drained, and a bounded restart policy (`decide`) turns an exit into
+  relaunch / relaunch-on-a-fresh-budget / stop-clean / give-up, so a crash
+  recovers on its own and never loops forever. `Desktop2D.openApp` routes
+  `CHILD_PROCESS` through `launchChildProcessApp`, and the file-association
+  launcher treats it like a frame app. The **Web Browser** — a native
+  WebKit/OpenGL surface and the single most likely thing in the desktop to
+  hard-crash — is the reference migration: it moves out of `PANEL_APPS` into
+  `CHILD_PROCESS_APPS` (forking `WebBrowserApp`), and `WebBrowserApp` hardens the
+  child (a default uncaught-exception handler exits non-zero so the supervisor
+  sees the crash; `Platform.setImplicitExit(false)` hands JVM lifetime to the
+  Swing `windowClosed` handler). Under `--iso` the compositor redirects the
+  child's window back into an MDI frame, so the browser is both isolated *and*
+  integrated; on a plain 2D desktop it appears as its own window. Covered
+  headlessly by `ChildProcessLauncherTest`, `AppProcessSupervisorTest`, the
+  updated `Desktop2DAppRegistryTest` and the new `process-isolation.feature`
+  Cucumber scenarios; the live window/compositor behaviour is validated on a bare
+  Xorg host (see [`docs/lfs-iso-contract.md`](docs/lfs-iso-contract.md)).
+- **QNX-style process isolation, Phases 2 & 3: the generic panel host, config inheritance and graceful reaping** (`lg3d-core`, `org.jdesktop.lg3d.displayserver.desktop2d`; `lg3d-apps`, `org.jdesktop.lg3d.apps.host`) —
+  Phase 1 isolated exactly one bespoke child (the Web Browser, which needs JavaFX
+  hardening). Phase 2 generalises that into a *mechanism* so isolating an ordinary
+  Swing app needs no per-app code, and Phase 3 makes the desktop clean up after
+  the children it forked. `ChildProcessLauncher` gains a `ChildProfile`
+  (`BROWSER` / `SWING`) that selects the heap, the JavaFX Prism pipeline and the
+  WebKit environment per app, and — the piece that made a forked child unable to
+  find its resources — `lgSystemPropertyArgs()`, which propagates the desktop's
+  `lg.*` / `lg3d.*` system properties (plus a jar-path and logging allow-list) to
+  the child as `-D` arguments, since a forked JVM does **not** inherit them. New
+  `PanelHostApp` (`lg3d-apps`) is the generic isolated-panel host: a child `main`
+  that reflectively builds any leaf Swing panel via
+  `Desktop2DAppRegistry.createPanelByClassName` and shows it in its own frame,
+  exiting the process when the frame closes so the supervisor sees a clean stop;
+  its argument parsing and title derivation are pure and headless-tested, only
+  `main` and the frame assembly touch a display (so it lives in `lg3d-apps`,
+  reached from core by class-name string with no compile dependency). The registry
+  now models a child as a `ChildTarget` (main class + args + profile) and exposes
+  `childArgs`, `childProfile`, `panelHostMain` and `panelHostArgs`, so
+  `Desktop2D.newChildSupervisor` derives the profile, JVM arguments, environment
+  and restart policy from the registry — isolating a new app is a one-line
+  registration, not a change to the launcher. `AppProcessSupervisor` gains
+  `Policy.swing()` (two retries over a 10 s stable window) and, in Phase 3, a
+  `shutdown()` that terminates the live child and suppresses both its restart and
+  its stop notification (a teardown is not a crash); `Desktop2D.exit()` reaps every
+  forked child through it, so logging out leaves no orphaned `java` process. A
+  panel is **not** flipped to `CHILD_PROCESS` blindly — that is a live-only
+  decision gated on the bare-Xorg runbook (`docs/lfs-iso-contract.md` §4, criteria
+  5–6), which is why this delivers the covered mechanism rather than migrating a
+  working in-JVM panel. Extended `ChildProcessLauncherTest`,
+  `Desktop2DAppRegistryTest`, `AppProcessSupervisorTest` (shutdown) and the new
+  `PanelHostAppTest`, plus three further `process-isolation.feature` scenarios
+  (generic panel host, Swing-child config inheritance, graceful reaping).
 - **Tetris, the Games group's fifth game and its first written for both desktops at once** (`lg3d-apps`, `org.jdesktop.lg3d.apps.games.tetris`; `lg3d-core`, `lg3d-art`) —
   The four existing *Games* entries are incubator apps that were built as
   native-3D boards first and given a Swing panel afterwards, so each ships an
