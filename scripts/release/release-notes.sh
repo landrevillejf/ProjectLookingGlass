@@ -52,6 +52,13 @@ if [ -z "$REPO" ]; then
     REPO="$(git remote get-url origin 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##' || true)"
 fi
 
+# Everything below assembles the Release body on stdout. It is piped through
+# cap_release_notes (lib.sh) so the body can never exceed GitHub's 125,000-char
+# limit -- the [1.69.0] CHANGELOG section alone is ~296k chars, which made
+# `gh release create` fail with HTTP 422 "body is too long" and blocked the
+# publish. Over the cap the notes are truncated with a pointer to the full
+# CHANGELOG.md; under it they pass through untouched.
+{
 # --- 1. Curated CHANGELOG section -------------------------------------------
 SECTION="$(changelog_section "$BASE")"
 if [ -z "$SECTION" ]; then
@@ -132,3 +139,4 @@ if [ -n "$MILESTONE" ] && command -v gh >/dev/null 2>&1; then
         fi
     fi
 fi
+} | cap_release_notes "$REPO" "v${VERSION}" "$BASE"
