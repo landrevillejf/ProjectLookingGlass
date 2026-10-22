@@ -263,6 +263,31 @@ echo "== latest_stable_tag ignores pre-releases =="
     assert_eq "latest stable" "v1.9.0" "$(latest_stable_tag)"
 )
 
+echo "== cap_release_notes bounds an over-long Release body =="
+(
+    set -uo pipefail; . "$LIB"
+    # A short body passes through untouched -- no truncation, no pointer.
+    short="$(printf 'line one\nline two\n' | (export RELEASE_NOTES_MAX=400; cap_release_notes "o/r" "v1.2.3" "1.2.3"))"
+    assert_contains "short body kept"   "$short" "line one"
+    assert_contains "short body kept 2" "$short" "line two"
+    case "$short" in *"truncated"*) bad "short body was needlessly truncated";; *) ok;; esac
+
+    # An over-long body is cut to at most the cap and gains the pointer link.
+    big="$(head -c 5000 /dev/zero | tr '\0' 'x' | (export RELEASE_NOTES_MAX=400; cap_release_notes "o/r" "v1.2.3" "1.2.3"))"
+    if [ "${#big}" -le 400 ]; then ok; else bad "capped body over the limit: ${#big} > 400"; fi
+    assert_contains "pointer present"         "$big" "truncated to fit GitHub"
+    assert_contains "pointer links CHANGELOG" "$big" "https://github.com/o/r/blob/v1.2.3/CHANGELOG.md"
+
+    # With no repo slug the pointer degrades to plain text, still capped.
+    big2="$(head -c 5000 /dev/zero | tr '\0' 'y' | (export RELEASE_NOTES_MAX=400; cap_release_notes "" "" "1.2.3"))"
+    if [ "${#big2}" -le 400 ]; then ok; else bad "capped body (no repo) over the limit: ${#big2} > 400"; fi
+    assert_contains "plain-text pointer" "$big2" "notes are in CHANGELOG.md"
+
+    # The default cap (no RELEASE_NOTES_MAX) holds a realistic body under the limit.
+    big3="$(head -c 300000 /dev/zero | tr '\0' 'z' | cap_release_notes "o/r" "v1.2.3" "1.2.3")"
+    if [ "${#big3}" -le 125000 ]; then ok; else bad "default cap exceeded GitHub's limit: ${#big3}"; fi
+)
+
 PASS="$(grep -c '^PASS$' "$RESULTS" || true)"
 FAIL="$(grep -c '^FAIL ' "$RESULTS" || true)"
 echo

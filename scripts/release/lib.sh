@@ -347,3 +347,37 @@ changelog_section() {
         inseg { print }
     ' "$cl"
 }
+
+# Bound a GitHub Release body. The API rejects a body longer than 125,000
+# characters with HTTP 422 "body is too long", and this project's curated
+# CHANGELOG sections are verbose enough to exceed that (the [1.69.0] section
+# alone is ~296k chars, which blocked the publish). Read the assembled notes on
+# stdin and write them back out, truncated at a line boundary with a pointer to
+# the full CHANGELOG.md when -- and only when -- they are over the cap. The cap
+# defaults to a safe margin below the hard limit and is overridable through
+# RELEASE_NOTES_MAX (characters) so the self-test can exercise it cheaply.
+#   cap_release_notes <repo-slug> <ref> <version>
+cap_release_notes() {
+    local repo="${1:-}" ref="${2:-}" version="${3:-}"
+    local limit="${RELEASE_NOTES_MAX:-120000}"
+    local notes; notes="$(cat)"
+    if [ "${#notes}" -le "$limit" ]; then
+        printf '%s\n' "$notes"
+        return 0
+    fi
+    local pointer
+    if [ -n "$repo" ]; then
+        pointer="_Release notes truncated to fit GitHub's 125,000-character body limit. The complete ${version} notes are in [\`CHANGELOG.md\`](https://github.com/${repo}/blob/${ref:-main}/CHANGELOG.md)._"
+    else
+        pointer="_Release notes truncated to fit GitHub's 125,000-character body limit. The complete ${version} notes are in CHANGELOG.md._"
+    fi
+    # Leave room for the separating blank line and the pointer, then cut at the
+    # last whole line so no entry is halved mid-sentence. Substring expansion
+    # (not `printf | head -c`) so a large body cannot SIGPIPE the writer, which
+    # under the caller's `set -euo pipefail` would abort before anything prints.
+    local keep; keep=$(( limit - ${#pointer} - 3 ))
+    [ "$keep" -lt 0 ] && keep=0
+    local head; head="${notes:0:keep}"
+    head="${head%$'\n'*}"
+    printf '%s\n\n%s\n' "$head" "$pointer"
+}
