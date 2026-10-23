@@ -397,4 +397,31 @@ startmenu.lgcfg - Basic Start Menu configuration file
    <string>Lg3d Homepage</string>
   </void>
  </object>
+
+ <!-- System Menu -->
+ <!-- Install WBLFS: launches the Calamares installer with root privileges via
+      pkexec. doConfig() runs the command's first token through
+      ApplicationDescription.isApplicationAvailable (a `which` lookup), so the
+      item posts to the menu only where the launcher is present and self-hides
+      where it is not. -->
+ <object class="org.jdesktop.lg3d.scenemanager.utils.startmenu.StartMenuItemConfig">
+  <void property="command">
+   <string>pkexec calamares</string>
+  </void>
+  <void property="desc">
+   <string>Install WBLFS (LG3D)</string>
+  </void>
+  <void property="displayResourceType">
+   <string>ICON</string>
+  </void>
+  <void property="displayResourceUrlName">
+   <string>resource:///resources/images/icon/system.png</string>
+  </void>
+  <void property="menuGroup">
+   <string>System</string>
+  </void>
+  <void property="name">
+   <string>Install WBLFS (LG3D)</string>
+  </void>
+ </object>
 </java>
