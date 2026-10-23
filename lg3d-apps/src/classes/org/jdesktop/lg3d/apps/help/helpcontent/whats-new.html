@@ -17,6 +17,20 @@
   changelog - never edit this HTML, a CI gate compares it against the
   changelog line by line.</p>
 
+  <h2>1.70.0 &mdash; 2026-10-23 &mdash; Gradle / JDK 21 modernization</h2>
+
+  <h3>Added</h3>
+  <ul>
+    <li><strong>"Install WBLFS (LG3D)" start-menu item</strong> (<code>lg3d-core</code>, <code>src/etc/lg3d/startmenu.lgcfg</code>)
+    </li>
+  </ul>
+
+  <h3>Fixed</h3>
+  <ul>
+    <li><strong>A privilege-escalated start-menu item now self-hides when the elevated program is missing</strong> (<code>lg3d-core</code>, <code>org.jdesktop.lg3d.scenemanager.config</code>)
+    </li>
+  </ul>
+
   <h2>1.69.0 &mdash; 2026-10-22 &mdash; Gradle / JDK 21 modernization</h2>
 
   <h3>Added</h3>
@@ -508,28 +522,6 @@
     <li><strong>The "multiple SLF4J providers" startup warning is gone</strong> (<code>lg3d-core</code>)
     </li>
     <li><strong>Web browser toolbar now uses IconManager glyphs</strong> (<code>lg3d-apps</code>)
-    </li>
-  </ul>
-
-  <h2>1.66.0 &mdash; 2026-10-07 &mdash; Gradle / JDK 21 modernization</h2>
-
-  <h3>Added</h3>
-  <ul>
-    <li><strong>Software Update: OpenPGP signature verification is now enforced by default</strong> (<code>update-manager</code>)
-    </li>
-    <li><strong>LFS system management: front-end contract + shared init-system backend (Phase 0)</strong> (<code>lg3d-core</code>, docs)
-    </li>
-    <li><strong>LFS system management Phase 1: a Services control-center panel</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
-    </li>
-    <li><strong>LFS system management Phase 2: a System Update control-center panel</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
-    </li>
-    <li><strong>LFS system management Phase 3a: a Storage &amp; LUKS control-center panel</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
-    </li>
-    <li><strong>LFS system management Phase 3b: Network panel backend detection &amp; fallback</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
-    </li>
-    <li><strong>LFS system management Phase 4a: Security &mdash; nftables / AppArmor / SELinux / SSH over real backends</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
-    </li>
-    <li><strong>LFS system management Phase 4b: Privacy &mdash; tor over the init abstraction</strong> (<code>lg3d-apps</code>, <code>lg3d-core</code>)
     </li>
   </ul>
 
