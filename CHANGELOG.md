@@ -9,6 +9,28 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased]
 
+### Added
+- **"Install WBLFS (LG3D)" start-menu item** (`lg3d-core`, `src/etc/lg3d/startmenu.lgcfg`) —
+  A System-group `StartMenuItemConfig` that launches the Calamares installer with
+  root privileges via `pkexec calamares`, using the generic `system.png` icon. It
+  is a companion to the WBLFS installer integration and self-hides on a host where
+  the launcher cannot run (see the availability fix below).
+
+### Fixed
+- **A privilege-escalated start-menu item now self-hides when the elevated program is missing** (`lg3d-core`, `org.jdesktop.lg3d.scenemanager.config`) —
+  `ApplicationDescription.isApplicationAvailable` decided an item's visibility
+  from the first token of its command only, so `pkexec calamares` was shown
+  wherever `pkexec` existed even with no `calamares` installed — an item that dies
+  when it is clicked. The decision is extracted into a new pure `LaunchCommand`:
+  it still requires only the leading program for an ordinary command (so
+  `firefox https://…` never mistakes its URL argument for a missing executable),
+  but when that program is a privilege wrapper (`pkexec`, `sudo`, `doas`, `gksu`,
+  `gksudo`, `kdesu`, `kdesudo`) the first following non-option token — the real
+  program the wrapper elevates — is required too. Covered by `LaunchCommandTest`
+  and the new `launch-availability.feature` Cucumber scenarios, and verified on a
+  host with `pkexec` but no `calamares` (one variable changed: `pkexec calamares`
+  → unavailable, `pkexec sh` → available, `firefox https://…` → still available).
+
 ## [1.69.0] — 2026-10-22 — Gradle / JDK 21 modernization
 
 ### Added

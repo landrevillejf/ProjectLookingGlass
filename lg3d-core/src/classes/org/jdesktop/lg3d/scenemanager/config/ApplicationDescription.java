@@ -391,23 +391,35 @@ public class ApplicationDescription extends ConfigData {
     /**
      * Checks if the application is runnable.
      *
-     * If exec does not start with java then this method checks if the command
-     * can be found on the system.
+     * An in-JVM launch ({@code java} / {@code swingapp}) is always available.
+     * Any other command is available only when every executable it depends on
+     * is present on the system: the leading program, plus the elevated program
+     * when the command is a privilege-escalation wrapper such as
+     * {@code pkexec calamares}. Arguments (a URL, a flag, a document path) are
+     * never probed -- see {@link LaunchCommand} for the exact rule.
      *
      * Returns true if the app is available.
      */
     public static boolean isApplicationAvailable(String exec) {
-        // "java ..." runs a class's main in-JVM; "swingapp ..." does the same
-        // but also opts the app into 3D window capture (see AppLaunchAction).
-        // Neither is an external executable, so both are always available.
-        if (exec.startsWith("java") || exec.startsWith("swingapp "))
+        if (LaunchCommand.isInJvmLaunch(exec))
             return true;
-        
-        int end = exec.indexOf(' ');    // Somewhat evil, no space allowed in path or filename
-        if (end==-1) 
-            end = exec.length();
-        String command = exec.substring(0, end);
-        
+
+        String[] required = LaunchCommand.requiredExecutables(exec);
+        if (required.length == 0)
+            return false;               // a blank command names nothing runnable
+
+        for (String command : required) {
+            if (!isExecutablePresent(command))
+                return false;
+        }
+        return true;
+   }
+
+    /**
+     * True when a single executable token -- an absolute path, or a bare name to
+     * be found on PATH -- is present on the system.
+     */
+    private static boolean isExecutablePresent(String command) {
         if (command.indexOf(File.separatorChar)!=-1) {
             // Command contains / so assume it is a path, check if the file is
             // available
