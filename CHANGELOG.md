@@ -9,6 +9,8 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased]
 
+## [1.70.0] — 2026-10-23 — Gradle / JDK 21 modernization
+
 ### Added
 - **"Install WBLFS (LG3D)" start-menu item** (`lg3d-core`, `src/etc/lg3d/startmenu.lgcfg`) —
   A System-group `StartMenuItemConfig` that launches the Calamares installer with
