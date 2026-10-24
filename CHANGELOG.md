@@ -10,6 +10,25 @@ work to make it build and run on a current toolchain.
 ## [Unreleased]
 
 ### Added
+- **HIDS control-center tab** (`lg3d-apps`, `org.jdesktop.lg3d.apps.securitycenter.HidsPanel`;
+  `lg3d-core`, `org.jdesktop.lg3d.utils.system.HidsService`) —
+  A new *HIDS* tab in the Security Center that surfaces the host-intrusion-detection
+  tools the LFS `lg3d` build profile ships (fail2ban, rkhunter, lynis, auditd —
+  inventory §6.11) and closes the control plan's gap G1. It is a thin front-end over
+  the new `HidsService` seam: a `JList` of the four tools (an absent one is listed as
+  "not installed", never an error), read-only queries (`fail2ban-client status`,
+  `auditctl -s`, `ausearch -m <type>`) run unprivileged through `ProcessRunner`, and
+  the mutations and long scans (`fail2ban-client set … banip/unbanip`,
+  `rkhunter --check/--propupd`, `lynis audit system`) are confirmed and escalated
+  per-operation through `PrivilegedRunner` (polkit), run off the EDT behind an
+  indeterminate progress bar with a Cancel control that interrupts (and destroys) the
+  child, controls serialized while busy, and non-zero exits / cancelled prompts shown
+  verbatim as state. The rkhunter log is shown read-only through the shared
+  `ConfigFileReader` (never escalated for a read). Every argument is built as a
+  vector, never a shell string, and no `/etc` write occurs (§6). Normative in
+  `system-management-contract.md` §4.10. Covered by headless JUnit (`HidsServiceTest`,
+  `HidsPanelTest`) and a `hids.feature` Cucumber suite (detection matrix, argument
+  vectors, fail2ban/rkhunter/lynis/auditd parsing, read-vs-mutating execution guards).
 - **Servers control-center panel** (`lg3d-apps`, `org.jdesktop.lg3d.apps.controlcenter.ServersPanel`;
   `lg3d-core`, `org.jdesktop.lg3d.utils.system.ServerService` + `ConfigFileReader`) —
   A 26th Control Center category that surfaces the internet servers and databases

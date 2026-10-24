@@ -35,7 +35,8 @@
   Firewall / AppArmor / SSH daemon / Antivirus / Private (Tor) mode / VPN tunnel
   posture cards, a worst-first recommendations list with a **Remediate** button,
   last-scan line and Refresh), a **Privacy** tab (`PrivacyPanel`: tor status /
-  start / stop / restart plus read-only config and log views) an **Activity** tab
+  start / stop / restart plus read-only config and log views), a **HIDS** tab
+  (`HidsPanel`: fail2ban / rkhunter / lynis / auditd) and an **Activity** tab
   (the append-only audit trail) and an EAST scan-history dock. No scanner, probe
   or dialog runs until the user presses Scan / Update / Refresh / Remediate (or
   first opens the Overview tab); each external command runs on a daemon thread.
@@ -115,6 +116,32 @@
   `describeTor`) and reads the config / log through bounded NIO file reads
   (`readFile` / `FileContent`, a trailing 256 KiB window). Read-only paths stay
   unprivileged; only the lifecycle mutations escalate (polkit).
+- **HidsPanel** — the Security Center's *HIDS* tab (§4.10): a thin Swing front-end
+  over the shared `HidsService` that lists the four host-intrusion-detection tools
+  (fail2ban, rkhunter, lynis, auditd) in a `JList` — an absent one is shown as
+  "not installed", never an error — and drives the selected tool's operations: the
+  read-only queries (`fail2ban-client status`, `auditctl -s`, `ausearch -m <type>`)
+  run unprivileged through `ProcessRunner`, the mutations and long scans
+  (`fail2ban-client set … banip/unbanip`, `rkhunter --check/--propupd`,
+  `lynis audit system`) are confirmed and escalated through `PrivilegedRunner`
+  (polkit), and the rkhunter log is shown read-only through the shared
+  `ConfigFileReader` (never escalated for a read). Every operation runs off the EDT
+  behind an indeterminate progress bar with a Cancel control that interrupts (and
+  destroys) the child, controls are serialized while busy, and non-zero exits /
+  cancelled prompts are shown verbatim as state. Plain labels / buttons / list /
+  text area (never a combo box), headless-safe to construct (availability is a
+  non-spawning PATH probe), and it never writes `/etc`.
+- **HidsService** (shared, `org.jdesktop.lg3d.utils.system` in lg3d-core) — the
+  §4.10 backend: it detects fail2ban / rkhunter / lynis / auditd with non-spawning
+  PATH probes (`auditd` is present when either `auditctl` or `ausearch` is), builds
+  the exact argument vectors (`buildCommand`, never a shell string, a malformed
+  parameter yielding an empty vector rather than a partial command) and parses each
+  tool's read-only output (`parseFail2BanStatus` / `parseFail2BanJail` /
+  `parseRkhunter` / `parseLynis` / `parseAuditdStatus` / `countAusearchEvents`).
+  `runRead` stays unprivileged and refuses a mutating operation; `runMutating`
+  escalates and refuses a read-only one — the read/mutate line the UI's
+  confirmation level follows. It re-implements no scanner, jail engine or audit
+  subsystem, and writes nothing.
 - **ScanReport / Detection / VersionInfo / SecuritySnapshot** — immutable records:
   a parsed scan (counts, detections, exit code, whether the summary was seen), a
   single finding (`INFECTED` / `ERROR`), the engine/database version and the
@@ -163,7 +190,7 @@
   build the panel. Never call `System.exit`. Obey the core UI/UX rulebook.
 - **QA** — `AntivirusBackendTest`, `SecurityProbeTest`, `SecurityCenterStoreTest`,
   `SecurityCenterPanelTest`, `SecurityScoreTest`, `HardeningRulesTest`,
-  `AuditEventTest` and `PrivacyPanelTest` run headless (87 tests): the
+  `AuditEventTest`, `PrivacyPanelTest` and `HidsPanelTest` run headless (93 tests): the
   backend suite asserts
   scanner resolution, the command builders (quiet vs streaming `--infected`) and
   the parse of recorded ClamAV output
@@ -181,20 +208,27 @@
   resilience, the quarantine dir and the capped activity log; the panel suite
   drives `applyReport` / `applySnapshot` / `addRecord` / `renderHostServices` /
   `remediate` with synthetic values — never spawning a scanner — and asserts the
-  four tabs (Antivirus / Security Overview / Privacy / Activity), the grade header,
+  five tabs (Antivirus / Security Overview / Privacy / HIDS / Activity), the grade header,
   the recommendations and the audit trail (including its reload from disk), plus
   the progress seam (`updateScanProgress` determinate vs pulsing and `countFiles`
   against a temp tree);
   `PrivacyPanelTest` asserts headless construction, the
   tor / init / polkit / file button gating and the private (Tor) mode section
-  (state line, hidden CUT banner while off, and Enable/Disable/Verify gating). The
+  (state line, hidden CUT banner while off, and Enable/Disable/Verify gating);
+  `HidsPanelTest` asserts headless construction, that all four tools are listed
+  (present or not), and that each action is gated on the selected tool being
+  installed — plus polkit for a mutation — while Cancel stays disabled until an
+  operation is in flight. The
   `TorPrivateMode` / `NetworkCut` decisions behind it are covered by
   `TorPrivateModeTest` / `NetworkCutTest`, and the `SecurityPosture` seam plus the
   `PrivacyStatus` grade overloads by `SecurityPostureTest` / `PrivacyStatusTest`.
   The AppArmor / SSH vectors and parsers
-  behind `renderHostServices` are covered by `SecurityServiceTest`, and the tor
+  behind `renderHostServices` are covered by `SecurityServiceTest`, the tor
   lifecycle vectors, `parseTorState` and bounded file reads behind `PrivacyPanel`
-  by `PrivacyServiceTest`, all in lg3d-core, where `ProcessRunnerTest` /
+  by `PrivacyServiceTest`, and the fail2ban / rkhunter / lynis / auditd detection,
+  vectors, parsers and read-vs-mutating guards behind `HidsPanel` by
+  `HidsServiceTest` plus the `hids.feature` Cucumber suite, all in lg3d-core, where
+  `ProcessRunnerTest` /
   `PrivilegedRunnerTest` also cover the per-stdout-line sink overloads the
   elevated definition update streams through.
   For the 3D host use the in-JVM probe + internal screencapture
@@ -224,7 +258,7 @@
 - **UI/UX (3D & 2D)** — 3D: glassy `TitledSwingWindow` frame; the panel is the
   SwingNode content. 2D: the identical `SecurityCenterPanel` in an MDI internal
   frame. Conventional tabbed chrome (Antivirus / Security Overview / Privacy /
-  Activity) with a findings list, posture cards, a grade header, a worst-first
+  HIDS / Activity) with a findings list, posture cards, a grade header, a worst-first
   recommendations list with a Remediate button and a history dock, never a
   click-cycling 3D idiom; keep both
   surfaces pixel-identical. A missing scanner, a stopped daemon or an unprivileged
