@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -24,7 +25,11 @@ import org.jdesktop.lg3d.utils.system.InitSystemService.InitSystem;
 import org.jdesktop.lg3d.utils.system.SecurityService.AppArmorTool;
 import org.jdesktop.lg3d.utils.system.SecurityService.NftSummary;
 import org.jdesktop.lg3d.utils.system.SecurityService.AppArmorStatus;
+import org.jdesktop.lg3d.utils.system.SecurityService.ModuleDraft;
 import org.jdesktop.lg3d.utils.system.SecurityService.Operation;
+import org.jdesktop.lg3d.utils.system.SecurityService.PolicyOperation;
+import org.jdesktop.lg3d.utils.system.SecurityService.PolicyProbes;
+import org.jdesktop.lg3d.utils.system.SecurityService.PolicyTool;
 import org.jdesktop.lg3d.utils.system.SecurityService.Probes;
 import org.jdesktop.lg3d.utils.system.SecurityService.SelinuxMode;
 import org.jdesktop.lg3d.utils.system.SecurityService.SshdState;
@@ -348,5 +353,245 @@ class SecurityServiceTest {
         assertFalse(r.isSuccess());
         assertEquals(PrivilegedRunner.Status.ERROR, SecurityService.runMutating(Operation.SELINUX_MODE).getStatus());
         assertEquals(PrivilegedRunner.Status.ERROR, SecurityService.runMutating(null).getStatus());
+    }
+
+    // ==================================================================
+    // SELinux policy management (gap G2)
+
+    @Test
+    @DisplayName("policy tool detection reports each present binary, absent is not")
+    void detectPolicyTools() {
+        PolicyProbes all = new PolicyProbes(true, true, true, true, true, true);
+        PolicyProbes none = new PolicyProbes(false, false, false, false, false, false);
+        for (PolicyTool tool : PolicyTool.values()) {
+            assertTrue(SecurityService.isPolicyToolPresent(all, tool), tool + " present");
+            assertFalse(SecurityService.isPolicyToolPresent(none, tool), tool + " absent");
+        }
+        assertFalse(SecurityService.isPolicyToolPresent(null, PolicyTool.SEMANAGE));
+        assertFalse(SecurityService.isPolicyToolPresent(all, null));
+    }
+
+    @Test
+    @DisplayName("toolFor maps every policy operation to the binary that drives it")
+    void toolForMapsOperations() {
+        assertEquals(PolicyTool.SEMANAGE, SecurityService.toolFor(PolicyOperation.SEMANAGE_FCONTEXT_LIST));
+        assertEquals(PolicyTool.SEMANAGE, SecurityService.toolFor(PolicyOperation.SEMANAGE_PORT_ADD));
+        assertEquals(PolicyTool.RESTORECON, SecurityService.toolFor(PolicyOperation.RESTORECON));
+        assertEquals(PolicyTool.SEMODULE, SecurityService.toolFor(PolicyOperation.SEMODULE_INSTALL));
+        assertEquals(PolicyTool.LOAD_POLICY, SecurityService.toolFor(PolicyOperation.LOAD_POLICY));
+        assertEquals(PolicyTool.AUSEARCH, SecurityService.toolFor(PolicyOperation.AUSEARCH_AVC));
+        assertEquals(PolicyTool.AUDIT2ALLOW, SecurityService.toolFor(PolicyOperation.AUDIT2ALLOW));
+        assertNull(SecurityService.toolFor(null));
+    }
+
+    @Test
+    @DisplayName("semanage list vectors take no parameters")
+    void semanageListVectors() {
+        assertEquals(List.of("semanage", "fcontext", "-l"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_FCONTEXT_LIST));
+        assertEquals(List.of("semanage", "boolean", "-l"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_BOOLEAN_LIST));
+        assertEquals(List.of("semanage", "port", "-l"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_PORT_LIST));
+    }
+
+    @Test
+    @DisplayName("semanage fcontext add/del build the exact rule vector")
+    void semanageFcontextVectors() {
+        assertEquals(List.of("semanage", "fcontext", "-a", "-t", "httpd_sys_content_t", "/var/www(/.*)?"),
+                SecurityService.buildPolicyCommand(
+                        PolicyOperation.SEMANAGE_FCONTEXT_ADD, "httpd_sys_content_t", "/var/www(/.*)?"));
+        assertEquals(List.of("semanage", "fcontext", "-d", "/var/www(/.*)?"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_FCONTEXT_DEL, "/var/www(/.*)?"));
+        // A malformed add (missing type, or a type with whitespace) yields no vector.
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_FCONTEXT_ADD, "only_one"));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_FCONTEXT_ADD, "bad type", "/x"));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_FCONTEXT_DEL));
+    }
+
+    @Test
+    @DisplayName("semanage boolean set maps on/off and rejects any other value")
+    void semanageBooleanVector() {
+        assertEquals(List.of("semanage", "boolean", "-m", "--on", "httpd_can_network_connect"),
+                SecurityService.buildPolicyCommand(
+                        PolicyOperation.SEMANAGE_BOOLEAN_SET, "httpd_can_network_connect", "on"));
+        assertEquals(List.of("semanage", "boolean", "-m", "--off", "httpd_can_network_connect"),
+                SecurityService.buildPolicyCommand(
+                        PolicyOperation.SEMANAGE_BOOLEAN_SET, "httpd_can_network_connect", "OFF"));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_BOOLEAN_SET, "name", "maybe"));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_BOOLEAN_SET, "name"));
+    }
+
+    @Test
+    @DisplayName("semanage port add/del carry type, protocol and port")
+    void semanagePortVectors() {
+        assertEquals(List.of("semanage", "port", "-a", "-t", "http_port_t", "-p", "tcp", "8080"),
+                SecurityService.buildPolicyCommand(
+                        PolicyOperation.SEMANAGE_PORT_ADD, "http_port_t", "tcp", "8080"));
+        assertEquals(List.of("semanage", "port", "-d", "-t", "http_port_t", "-p", "tcp", "8080"),
+                SecurityService.buildPolicyCommand(
+                        PolicyOperation.SEMANAGE_PORT_DEL, "http_port_t", "tcp", "8080"));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMANAGE_PORT_ADD, "t", "tcp"));
+    }
+
+    @Test
+    @DisplayName("restorecon, semodule and load_policy vectors")
+    void restoreconSemanageModuleVectors() {
+        assertEquals(List.of("restorecon", "-Rv", "/var/www"),
+                SecurityService.buildPolicyCommand(PolicyOperation.RESTORECON, "/var/www"));
+        assertEquals(List.of(), SecurityService.buildPolicyCommand(PolicyOperation.RESTORECON));
+        assertEquals(List.of(),
+                SecurityService.buildPolicyCommand(PolicyOperation.RESTORECON, "has\nnewline"));
+        assertEquals(List.of("semodule", "-l"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMODULE_LIST));
+        assertEquals(List.of("semodule", "-i", "/root/mymodule.pp"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMODULE_INSTALL, "/root/mymodule.pp"));
+        assertEquals(List.of("semodule", "-r", "mymodule"),
+                SecurityService.buildPolicyCommand(PolicyOperation.SEMODULE_REMOVE, "mymodule"));
+        assertEquals(List.of("load_policy"),
+                SecurityService.buildPolicyCommand(PolicyOperation.LOAD_POLICY));
+    }
+
+    @Test
+    @DisplayName("the ausearch -> audit2allow review pipe vectors")
+    void auditReviewVectors() {
+        assertEquals(List.of("ausearch", "-m", "avc", "-ts", "recent"),
+                SecurityService.buildPolicyCommand(PolicyOperation.AUSEARCH_AVC));
+        assertEquals(List.of("audit2allow"),
+                SecurityService.buildPolicyCommand(PolicyOperation.AUDIT2ALLOW));
+        assertEquals(List.of(), SecurityService.buildPolicyCommand(null));
+    }
+
+    @Test
+    @DisplayName("policy mutating classification: every write is destructive, reads are not")
+    void policyMutatingClassification() {
+        assertTrue(PolicyOperation.SEMANAGE_FCONTEXT_ADD.isMutating());
+        assertTrue(PolicyOperation.SEMANAGE_FCONTEXT_DEL.isMutating());
+        assertTrue(PolicyOperation.SEMANAGE_BOOLEAN_SET.isMutating());
+        assertTrue(PolicyOperation.SEMANAGE_PORT_ADD.isMutating());
+        assertTrue(PolicyOperation.SEMANAGE_PORT_DEL.isMutating());
+        assertTrue(PolicyOperation.RESTORECON.isMutating());
+        assertTrue(PolicyOperation.SEMODULE_INSTALL.isMutating());
+        assertTrue(PolicyOperation.SEMODULE_REMOVE.isMutating());
+        assertTrue(PolicyOperation.LOAD_POLICY.isMutating());
+        assertFalse(PolicyOperation.SEMANAGE_FCONTEXT_LIST.isMutating());
+        assertFalse(PolicyOperation.SEMANAGE_BOOLEAN_LIST.isMutating());
+        assertFalse(PolicyOperation.SEMANAGE_PORT_LIST.isMutating());
+        assertFalse(PolicyOperation.SEMODULE_LIST.isMutating());
+        assertFalse(PolicyOperation.AUSEARCH_AVC.isMutating());
+        assertFalse(PolicyOperation.AUDIT2ALLOW.isMutating());
+    }
+
+    @Test
+    @DisplayName("isToken rejects blanks, whitespace and over-long words; isPath rejects control chars")
+    void tokenAndPathValidation() {
+        assertTrue(SecurityService.isToken("httpd_sys_content_t"));
+        assertTrue(SecurityService.isToken("tcp"));
+        assertFalse(SecurityService.isToken("two words"));
+        assertFalse(SecurityService.isToken("  "));
+        assertFalse(SecurityService.isToken(null));
+        assertFalse(SecurityService.isToken("x".repeat(65)));
+
+        assertTrue(SecurityService.isPath("/var/www(/.*)?"));
+        assertTrue(SecurityService.isPath("/home/a dir/b.pp"), "a space is safe in one argv element");
+        assertFalse(SecurityService.isPath("/has\nnewline"));
+        assertFalse(SecurityService.isPath(""));
+        assertFalse(SecurityService.isPath(null));
+    }
+
+    @Test
+    @DisplayName("countAvcDenials counts type=AVC records and tolerates junk")
+    void countAvcDenials() {
+        String log = "time->Fri Oct 24 10:00:00 2026\n"
+                + "type=AVC msg=audit(1.2:3): avc:  denied  { read } for  pid=1 comm=\"httpd\"\n"
+                + "type=SYSCALL msg=audit(1.2:3): arch=c000003e syscall=2 success=no\n"
+                + "----\n"
+                + "type=AVC msg=audit(1.2:4): avc:  denied  { write } for  pid=1 comm=\"httpd\"\n";
+        assertEquals(2, SecurityService.countAvcDenials(log));
+        assertEquals(0, SecurityService.countAvcDenials("<no events>"));
+        assertEquals(0, SecurityService.countAvcDenials(null));
+        assertEquals(0, SecurityService.countAvcDenials("  "));
+    }
+
+    @Test
+    @DisplayName("summarizeAudit2Allow counts allow rules and tunable hints")
+    void summarizeAudit2Allow() {
+        String module = "module mydraft 1.0;\n\n"
+                + "require {\n\ttype httpd_t;\n\tclass file read;\n}\n\n"
+                + "#============= httpd_t ==============\n"
+                + "allow httpd_t user_home_t:file read;\n"
+                + "allow httpd_t var_t:dir write;\n";
+        ModuleDraft d = SecurityService.summarizeAudit2Allow(module);
+        assertEquals(2, d.getAllowRules());
+        assertEquals(0, d.getTunables());
+        assertFalse(d.isEmpty());
+        assertEquals("2 allow rules", d.describe());
+
+        ModuleDraft empty = SecurityService.summarizeAudit2Allow("");
+        assertTrue(empty.isEmpty());
+        assertEquals("audit2allow drafted no rules (nothing was denied)", empty.describe());
+        assertTrue(SecurityService.summarizeAudit2Allow(null).isEmpty());
+
+        ModuleDraft tunable = SecurityService.summarizeAudit2Allow(
+                "#!!!! The boolean httpd_can_network_connect can be set to allow\nsetsebool -P x 1\n");
+        assertEquals(1, tunable.getTunables());
+        assertEquals("0 allow rules, 1 tunable", tunable.describe());
+    }
+
+    @Test
+    @DisplayName("describePolicy renders every operation and tolerates null")
+    void describePolicy() {
+        assertEquals("Reload kernel policy", SecurityService.describePolicy(PolicyOperation.LOAD_POLICY));
+        assertEquals("Relabel path (restorecon)", SecurityService.describePolicy(PolicyOperation.RESTORECON));
+        assertEquals("Generate module draft (review)", SecurityService.describePolicy(PolicyOperation.AUDIT2ALLOW));
+        assertEquals("Unknown", SecurityService.describePolicy(null));
+        for (PolicyOperation op : PolicyOperation.values()) {
+            assertFalse(SecurityService.describePolicy(op).isBlank(), op + " has a label");
+        }
+    }
+
+    @Test
+    @DisplayName("runPolicyRead refuses a mutating op before building or spawning")
+    void runPolicyReadRejectsMutating() {
+        ProcessRunner.Result r = SecurityService.runPolicyRead(PolicyOperation.RESTORECON, "/var/www");
+        assertFalse(r.isStarted());
+        assertTrue(r.getMessage().contains("mutating"));
+        assertFalse(SecurityService.runPolicyRead(PolicyOperation.LOAD_POLICY).isStarted());
+        assertFalse(SecurityService.runPolicyRead(null).isStarted());
+        // A read op with malformed parameters is refused without spawning.
+        assertFalse(SecurityService.runPolicyRead(PolicyOperation.SEMANAGE_FCONTEXT_DEL).isStarted());
+    }
+
+    @Test
+    @DisplayName("runPolicyMutating refuses a read-only op before spawning")
+    void runPolicyMutatingRejectsReadOnly() {
+        PrivilegedRunner.PrivilegedResult r =
+                SecurityService.runPolicyMutating(PolicyOperation.SEMODULE_LIST);
+        assertEquals(PrivilegedRunner.Status.ERROR, r.getStatus());
+        assertFalse(r.isSuccess());
+        assertEquals(PrivilegedRunner.Status.ERROR,
+                SecurityService.runPolicyMutating(PolicyOperation.AUSEARCH_AVC).getStatus());
+        assertEquals(PrivilegedRunner.Status.ERROR, SecurityService.runPolicyMutating(null).getStatus());
+        // A mutating op with malformed parameters is refused without spawning.
+        assertEquals(PrivilegedRunner.Status.ERROR,
+                SecurityService.runPolicyMutating(PolicyOperation.SEMODULE_INSTALL).getStatus());
+    }
+
+    @Test
+    @DisplayName("live policy probes never throw and never return null")
+    void livePolicyProbesAreSafe() {
+        assertDoesNotThrow(() -> {
+            PolicyProbes p = SecurityService.probePolicy();
+            assertNotNull(p);
+            // runAudit2Allow degrades to a not-started result when the tool is absent.
+            ProcessRunner.Result r = SecurityService.runAudit2Allow("type=AVC denied");
+            assertNotNull(r);
+        });
     }
 }

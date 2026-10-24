@@ -194,15 +194,16 @@ class SecurityCenterPanelTest {
     }
 
     @Test
-    @DisplayName("the panel offers Antivirus / Overview / Privacy / HIDS / Activity tabs")
-    void hasFiveTabs(@TempDir Path dir) {
+    @DisplayName("the panel offers Antivirus / Overview / Privacy / HIDS / SELinux policy / Activity tabs")
+    void hasSixTabs(@TempDir Path dir) {
         SecurityCenterPanel panel = new SecurityCenterPanel(new SecurityCenterStore(dir));
-        assertEquals(5, panel.tabCount());
+        assertEquals(6, panel.tabCount());
         assertEquals("Antivirus", panel.tabTitle(0));
         assertEquals("Security Overview", panel.tabTitle(1));
         assertEquals("Privacy", panel.tabTitle(2));
         assertEquals("HIDS", panel.tabTitle(3));
-        assertEquals("Activity", panel.tabTitle(4));
+        assertEquals("SELinux policy", panel.tabTitle(4));
+        assertEquals("Activity", panel.tabTitle(5));
     }
 
     @Test

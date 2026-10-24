@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +49,16 @@ import java.util.regex.Pattern;
  * {@code run*} helpers are thin wrappers that degrade gracefully - an absent
  * tool or an unsupported operation yields an empty vector / a not-started
  * result rather than throwing.</p>
+ *
+ * <p>Beyond that read-only state, this class also owns <em>SELinux policy
+ * management</em> (inventory §6.11, gap G2): {@code semanage},
+ * {@code restorecon}, {@code semodule}, {@code load_policy} and the
+ * {@code ausearch -> audit2allow} review pipe. It is a separate, self-contained
+ * section ({@link PolicyOperation}, {@link #buildPolicyCommand},
+ * {@code runPolicy*}) so the state surface above is untouched. Every policy
+ * write is destructive: the UI confirms it with a typed phrase and escalates
+ * through {@link PrivilegedRunner}; audit2allow only ever generates a module
+ * <em>draft</em> for review and never installs one (§6).</p>
  */
 public final class SecurityService {
 
@@ -599,6 +610,436 @@ public final class SecurityService {
             }
             return tables + (tables == 1 ? " table" : " tables")
                     + ", " + chains + (chains == 1 ? " chain" : " chains");
+        }
+    }
+
+    // ==================================================================
+    // SELinux policy management (inventory §6.11, gap G2). The read-only
+    // state (getenforce / selinuxenabled) lives above; this section adds the
+    // policy tools the desktop had no front-end for - semanage, restorecon,
+    // semodule, load_policy and the ausearch -> audit2allow review pipe. Every
+    // vector is built here (never a shell string); a malformed parameter yields
+    // an empty vector rather than a partial command. Reads run unprivileged
+    // through ProcessRunner, mutations are confirmed (typed) and escalated
+    // through PrivilegedRunner. Nothing here writes /etc: policy changes go
+    // through the owning CLI under polkit (§6).
+
+    /** The audit event type the AVC review pipe queries ({@code ausearch -m}). */
+    public static final String AVC_EVENT_TYPE = "avc";
+
+    /** A SELinux policy operation, carrying its confirmation class. */
+    public enum PolicyOperation {
+        /** {@code semanage fcontext -l} - list file-context rules (read-only). */
+        SEMANAGE_FCONTEXT_LIST(false),
+        /** {@code semanage fcontext -a -t <type> <regex>} - add a rule (destructive). */
+        SEMANAGE_FCONTEXT_ADD(true),
+        /** {@code semanage fcontext -d <regex>} - delete a rule (destructive). */
+        SEMANAGE_FCONTEXT_DEL(true),
+        /** {@code semanage boolean -l} - list booleans (read-only). */
+        SEMANAGE_BOOLEAN_LIST(false),
+        /** {@code semanage boolean -m --on|--off <name>} - set a boolean (destructive). */
+        SEMANAGE_BOOLEAN_SET(true),
+        /** {@code semanage port -l} - list port contexts (read-only). */
+        SEMANAGE_PORT_LIST(false),
+        /** {@code semanage port -a -t <type> -p <proto> <port>} - add a context (destructive). */
+        SEMANAGE_PORT_ADD(true),
+        /** {@code semanage port -d -t <type> -p <proto> <port>} - delete a context (destructive). */
+        SEMANAGE_PORT_DEL(true),
+        /** {@code restorecon -Rv <path>} - relabel a path to its context (destructive). */
+        RESTORECON(true),
+        /** {@code semodule -l} - list installed policy modules (read-only). */
+        SEMODULE_LIST(false),
+        /** {@code semodule -i <module.pp>} - install a policy module (destructive). */
+        SEMODULE_INSTALL(true),
+        /** {@code semodule -r <name>} - remove a policy module (destructive). */
+        SEMODULE_REMOVE(true),
+        /** {@code load_policy} - reload the policy into the kernel (destructive). */
+        LOAD_POLICY(true),
+        /** {@code ausearch -m avc -ts recent} - read recent AVC denials (read-only). */
+        AUSEARCH_AVC(false),
+        /** {@code audit2allow} on stdin - generate a module draft for review (read-only). */
+        AUDIT2ALLOW(false);
+
+        private final boolean mutating;
+
+        PolicyOperation(boolean mutating) {
+            this.mutating = mutating;
+        }
+
+        /** True if the operation changes policy and needs typed confirmation + polkit. */
+        public boolean isMutating() {
+            return mutating;
+        }
+    }
+
+    /** Which SELinux policy tool an operation drives. */
+    public enum PolicyTool {
+        /** {@code semanage} (the policy-management CLI). */
+        SEMANAGE,
+        /** {@code restorecon} (the file relabeller). */
+        RESTORECON,
+        /** {@code semodule} (the policy-module manager). */
+        SEMODULE,
+        /** {@code load_policy} (the kernel policy reloader). */
+        LOAD_POLICY,
+        /** {@code ausearch} (the audit-log query). */
+        AUSEARCH,
+        /** {@code audit2allow} (the denial-to-module generator). */
+        AUDIT2ALLOW
+    }
+
+    /**
+     * The {@code PATH} facts {@link #probePolicy()} gathers for the policy
+     * tools. Split out so detection is unit-testable without the real SELinux
+     * toolchain present (the dev host has none of it).
+     */
+    public static final class PolicyProbes {
+        private final boolean semanage;
+        private final boolean restorecon;
+        private final boolean semodule;
+        private final boolean loadPolicy;
+        private final boolean ausearch;
+        private final boolean audit2allow;
+
+        public PolicyProbes(boolean semanage, boolean restorecon, boolean semodule,
+                            boolean loadPolicy, boolean ausearch, boolean audit2allow) {
+            this.semanage = semanage;
+            this.restorecon = restorecon;
+            this.semodule = semodule;
+            this.loadPolicy = loadPolicy;
+            this.ausearch = ausearch;
+            this.audit2allow = audit2allow;
+        }
+
+        boolean semanagePresent() {
+            return semanage;
+        }
+
+        boolean restoreconPresent() {
+            return restorecon;
+        }
+
+        boolean semodulePresent() {
+            return semodule;
+        }
+
+        boolean loadPolicyPresent() {
+            return loadPolicy;
+        }
+
+        boolean ausearchPresent() {
+            return ausearch;
+        }
+
+        boolean audit2allowPresent() {
+            return audit2allow;
+        }
+    }
+
+    /**
+     * Live detection of the SELinux policy tools: probes {@code PATH} for each.
+     * Never spawns a mutating process; {@link ProcessRunner#isAvailable} only
+     * checks the PATH and is cached.
+     */
+    public static PolicyProbes probePolicy() {
+        return new PolicyProbes(
+                ProcessRunner.isAvailable("semanage"),
+                ProcessRunner.isAvailable("restorecon"),
+                ProcessRunner.isAvailable("semodule"),
+                ProcessRunner.isAvailable("load_policy"),
+                ProcessRunner.isAvailable("ausearch"),
+                ProcessRunner.isAvailable("audit2allow"));
+    }
+
+    /** True if the given policy tool is present. Pure. */
+    public static boolean isPolicyToolPresent(PolicyProbes p, PolicyTool tool) {
+        if (p == null || tool == null) {
+            return false;
+        }
+        return switch (tool) {
+            case SEMANAGE -> p.semanagePresent();
+            case RESTORECON -> p.restoreconPresent();
+            case SEMODULE -> p.semodulePresent();
+            case LOAD_POLICY -> p.loadPolicyPresent();
+            case AUSEARCH -> p.ausearchPresent();
+            case AUDIT2ALLOW -> p.audit2allowPresent();
+        };
+    }
+
+    /** The policy tool an operation drives; null for a null operation. Pure. */
+    public static PolicyTool toolFor(PolicyOperation op) {
+        if (op == null) {
+            return null;
+        }
+        return switch (op) {
+            case SEMANAGE_FCONTEXT_LIST, SEMANAGE_FCONTEXT_ADD, SEMANAGE_FCONTEXT_DEL,
+                 SEMANAGE_BOOLEAN_LIST, SEMANAGE_BOOLEAN_SET,
+                 SEMANAGE_PORT_LIST, SEMANAGE_PORT_ADD, SEMANAGE_PORT_DEL -> PolicyTool.SEMANAGE;
+            case RESTORECON -> PolicyTool.RESTORECON;
+            case SEMODULE_LIST, SEMODULE_INSTALL, SEMODULE_REMOVE -> PolicyTool.SEMODULE;
+            case LOAD_POLICY -> PolicyTool.LOAD_POLICY;
+            case AUSEARCH_AVC -> PolicyTool.AUSEARCH;
+            case AUDIT2ALLOW -> PolicyTool.AUDIT2ALLOW;
+        };
+    }
+
+    /**
+     * True if {@code s} is a single safe word (a context type, a boolean or
+     * module name, a protocol, a port): non-blank, no whitespace, at most 64
+     * characters. Used to reject a malformed parameter before a vector is
+     * built. Pure.
+     */
+    public static boolean isToken(String s) {
+        return s != null && !s.isBlank() && s.length() <= 64
+                && s.chars().noneMatch(Character::isWhitespace);
+    }
+
+    /**
+     * True if {@code s} is a safe path / fcontext regex: non-blank, at most
+     * 4096 characters and free of control characters (newline, tab, NUL).
+     * Spaces are allowed because the value is handed to {@code exec} as one
+     * argument-vector element and never through a shell, so a space cannot
+     * split it; a control character is rejected as malformed. Pure.
+     */
+    public static boolean isPath(String s) {
+        if (s == null || s.isBlank() || s.length() > 4096) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) < ' ') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Builds the argument vector for a policy operation. Returns an empty list
+     * when the operation is null or a parameter is missing / malformed, so a
+     * partial command is never handed to a runner. The result never contains
+     * shell metacharacters as separate words and is meant to go straight to
+     * {@link ProcessRunner} / {@link PrivilegedRunner}.
+     *
+     * <p>Parameter shapes: {@code SEMANAGE_FCONTEXT_ADD} = (type, pathRegex);
+     * {@code SEMANAGE_FCONTEXT_DEL} = (pathRegex); {@code SEMANAGE_BOOLEAN_SET}
+     * = (name, on|off); {@code SEMANAGE_PORT_ADD}/{@code _DEL} = (type, proto,
+     * port); {@code RESTORECON} = (path); {@code SEMODULE_INSTALL} = (modulePath);
+     * {@code SEMODULE_REMOVE} = (name). The list / read / audit2allow ops take
+     * none.</p>
+     */
+    public static List<String> buildPolicyCommand(PolicyOperation op, String... params) {
+        if (op == null) {
+            return Collections.emptyList();
+        }
+        String[] a = (params == null) ? new String[0] : params;
+        return switch (op) {
+            case SEMANAGE_FCONTEXT_LIST -> Arrays.asList("semanage", "fcontext", "-l");
+            case SEMANAGE_FCONTEXT_ADD -> (a.length == 2 && isToken(a[0]) && isPath(a[1]))
+                    ? Arrays.asList("semanage", "fcontext", "-a", "-t", a[0], a[1])
+                    : Collections.emptyList();
+            case SEMANAGE_FCONTEXT_DEL -> (a.length == 1 && isPath(a[0]))
+                    ? Arrays.asList("semanage", "fcontext", "-d", a[0])
+                    : Collections.emptyList();
+            case SEMANAGE_BOOLEAN_LIST -> Arrays.asList("semanage", "boolean", "-l");
+            case SEMANAGE_BOOLEAN_SET -> booleanSetCommand(a);
+            case SEMANAGE_PORT_LIST -> Arrays.asList("semanage", "port", "-l");
+            case SEMANAGE_PORT_ADD -> portCommand("-a", a);
+            case SEMANAGE_PORT_DEL -> portCommand("-d", a);
+            case RESTORECON -> (a.length == 1 && isPath(a[0]))
+                    ? Arrays.asList("restorecon", "-Rv", a[0])
+                    : Collections.emptyList();
+            case SEMODULE_LIST -> Arrays.asList("semodule", "-l");
+            case SEMODULE_INSTALL -> (a.length == 1 && isPath(a[0]))
+                    ? Arrays.asList("semodule", "-i", a[0])
+                    : Collections.emptyList();
+            case SEMODULE_REMOVE -> (a.length == 1 && isToken(a[0]))
+                    ? Arrays.asList("semodule", "-r", a[0])
+                    : Collections.emptyList();
+            case LOAD_POLICY -> Collections.singletonList("load_policy");
+            case AUSEARCH_AVC -> Arrays.asList("ausearch", "-m", AVC_EVENT_TYPE, "-ts", "recent");
+            case AUDIT2ALLOW -> Collections.singletonList("audit2allow");
+        };
+    }
+
+    private static List<String> booleanSetCommand(String[] a) {
+        if (a.length != 2 || !isToken(a[0])) {
+            return Collections.emptyList();
+        }
+        String v = a[1] == null ? "" : a[1].toLowerCase(Locale.ROOT);
+        if (!v.equals("on") && !v.equals("off")) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList("semanage", "boolean", "-m", v.equals("on") ? "--on" : "--off", a[0]);
+    }
+
+    private static List<String> portCommand(String addOrDel, String[] a) {
+        if (a.length != 3 || !isToken(a[0]) || !isToken(a[1]) || !isToken(a[2])) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList("semanage", "port", addOrDel, "-t", a[0], "-p", a[1], a[2]);
+    }
+
+    /** A short human label for a policy operation; never null. */
+    public static String describePolicy(PolicyOperation op) {
+        if (op == null) {
+            return "Unknown";
+        }
+        return switch (op) {
+            case SEMANAGE_FCONTEXT_LIST -> "List file-context rules";
+            case SEMANAGE_FCONTEXT_ADD -> "Add file-context rule";
+            case SEMANAGE_FCONTEXT_DEL -> "Delete file-context rule";
+            case SEMANAGE_BOOLEAN_LIST -> "List booleans";
+            case SEMANAGE_BOOLEAN_SET -> "Set boolean";
+            case SEMANAGE_PORT_LIST -> "List port contexts";
+            case SEMANAGE_PORT_ADD -> "Add port context";
+            case SEMANAGE_PORT_DEL -> "Delete port context";
+            case RESTORECON -> "Relabel path (restorecon)";
+            case SEMODULE_LIST -> "List policy modules";
+            case SEMODULE_INSTALL -> "Install policy module";
+            case SEMODULE_REMOVE -> "Remove policy module";
+            case LOAD_POLICY -> "Reload kernel policy";
+            case AUSEARCH_AVC -> "Read recent AVC denials";
+            case AUDIT2ALLOW -> "Generate module draft (review)";
+        };
+    }
+
+    /**
+     * Counts the AVC denials in {@code ausearch -m avc} output by counting the
+     * {@code type=AVC} record lines. Pure and lenient: blank or unrecognised
+     * output yields {@code 0}.
+     */
+    public static int countAvcDenials(String output) {
+        if (output == null || output.isBlank()) {
+            return 0;
+        }
+        int denials = 0;
+        for (String line : output.split("\\r?\\n")) {
+            if (line.toLowerCase(Locale.ROOT).contains("type=avc")) {
+                denials++;
+            }
+        }
+        return denials;
+    }
+
+    /**
+     * Summarises an {@code audit2allow} generated module for review: how many
+     * {@code allow} rules and how many tunable/{@code setsebool} hints it
+     * drafts. Pure and lenient: blank text yields an empty draft. The full text
+     * is shown verbatim by the UI; this is only the one-line summary.
+     */
+    public static ModuleDraft summarizeAudit2Allow(String moduleText) {
+        int allows = 0;
+        int tunables = 0;
+        if (moduleText != null) {
+            for (String line : moduleText.split("\\r?\\n")) {
+                String t = line.trim();
+                if (t.startsWith("allow ")) {
+                    allows++;
+                } else if (t.contains("setsebool") || t.startsWith("tunable_policy")) {
+                    tunables++;
+                }
+            }
+        }
+        return new ModuleDraft(allows, tunables);
+    }
+
+    /**
+     * Runs a read-only policy operation unprivileged through
+     * {@link ProcessRunner}. Returns a not-started result (spawning nothing)
+     * when the operation is mutating, null, or its vector is empty (unsupported
+     * or malformed parameters).
+     */
+    public static ProcessRunner.Result runPolicyRead(PolicyOperation op, String... params) {
+        if (op == null || op.isMutating()) {
+            return new ProcessRunner.Result(false, -1, "",
+                    "operation is mutating; use runPolicyMutating");
+        }
+        List<String> cmd = buildPolicyCommand(op, params);
+        if (cmd.isEmpty()) {
+            return new ProcessRunner.Result(false, -1, "",
+                    "unsupported, unavailable or malformed: " + op);
+        }
+        return ProcessRunner.run(cmd);
+    }
+
+    /**
+     * Runs the {@code ausearch -> audit2allow} review pipe without a shell: the
+     * AVC denials already captured from {@code ausearch -m avc} are fed to
+     * {@code audit2allow} on stdin and the generated module <em>draft</em> is
+     * returned for the admin to review. This is read-only - audit2allow only
+     * prints a draft, it never installs one; installing goes through
+     * {@link PolicyOperation#SEMODULE_INSTALL} under polkit. Returns a
+     * not-started result when {@code audit2allow} is absent.
+     */
+    public static ProcessRunner.Result runAudit2Allow(String avcDenials) {
+        if (!ProcessRunner.isAvailable("audit2allow")) {
+            return new ProcessRunner.Result(false, -1, "", "audit2allow is not installed");
+        }
+        return ProcessRunner.run(Collections.singletonList("audit2allow"),
+                avcDenials == null ? "" : avcDenials, 30, TimeUnit.SECONDS, null);
+    }
+
+    /**
+     * Runs a mutating policy operation with polkit escalation through
+     * {@link PrivilegedRunner}. The caller MUST have confirmed first - the UI
+     * requires a typed confirmation for every policy write. Returns an ERROR
+     * result (spawning nothing) when the operation is read-only, null, or its
+     * vector is empty.
+     */
+    public static PrivilegedRunner.PrivilegedResult runPolicyMutating(
+            PolicyOperation op, String... params) {
+        if (op == null || !op.isMutating()) {
+            return new PrivilegedRunner.PrivilegedResult(
+                    PrivilegedRunner.Status.ERROR,
+                    "operation is not mutating; use runPolicyRead", -1, "");
+        }
+        List<String> cmd = buildPolicyCommand(op, params);
+        if (cmd.isEmpty()) {
+            return new PrivilegedRunner.PrivilegedResult(
+                    PrivilegedRunner.Status.ERROR,
+                    "unsupported, unavailable or malformed: " + op, -1, "");
+        }
+        return PrivilegedRunner.run(cmd);
+    }
+
+    /**
+     * A one-line summary of an {@code audit2allow} module draft: how many allow
+     * rules and tunable hints it contains.
+     */
+    public static final class ModuleDraft {
+        private final int allowRules;
+        private final int tunables;
+
+        public ModuleDraft(int allowRules, int tunables) {
+            this.allowRules = Math.max(0, allowRules);
+            this.tunables = Math.max(0, tunables);
+        }
+
+        /** The number of {@code allow} rules drafted. */
+        public int getAllowRules() {
+            return allowRules;
+        }
+
+        /** The number of tunable / {@code setsebool} hints drafted. */
+        public int getTunables() {
+            return tunables;
+        }
+
+        /** True when audit2allow drafted neither a rule nor a tunable. */
+        public boolean isEmpty() {
+            return allowRules == 0 && tunables == 0;
+        }
+
+        /** A one-line label for the review header. */
+        public String describe() {
+            if (isEmpty()) {
+                return "audit2allow drafted no rules (nothing was denied)";
+            }
+            String base = allowRules + (allowRules == 1 ? " allow rule" : " allow rules");
+            if (tunables == 0) {
+                return base;
+            }
+            return base + ", " + tunables + (tunables == 1 ? " tunable" : " tunables");
         }
     }
 }

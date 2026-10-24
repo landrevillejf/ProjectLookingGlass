@@ -10,6 +10,31 @@ work to make it build and run on a current toolchain.
 ## [Unreleased]
 
 ### Added
+- **SELinux policy control-center tab** (`lg3d-apps`, `org.jdesktop.lg3d.apps.securitycenter.SelinuxPolicyPanel`;
+  `lg3d-core`, `org.jdesktop.lg3d.utils.system.SecurityService`) —
+  A new *SELinux policy* tab in the Security Center that closes the control plan's
+  gap G2: the desktop already read the SELinux *state* (`getenforce`, in the Security
+  Overview) but had no front-end for policy *management* (inventory §6.11). It is a
+  thin extension of the existing `SecurityService` seam with a self-contained policy
+  section: a `JList` of policy areas (file contexts, booleans, ports, relabel,
+  modules, reload, AVC denials — an absent tool is listed as "not installed", never
+  an error), read-only queries (`semanage … -l`, `semodule -l`,
+  `ausearch -m avc -ts recent`) run unprivileged through `ProcessRunner`, and every
+  policy write (`semanage fcontext/boolean/port` add/del/set, `restorecon -Rv`,
+  `semodule -i/-r`, `load_policy`) is destructive — guarded by a *typed*
+  confirmation, then escalated per-operation through `PrivilegedRunner` (polkit),
+  run off the EDT behind an indeterminate progress bar with a Cancel control that
+  interrupts (and destroys) the child, controls serialized while busy, and non-zero
+  exits / cancelled prompts shown verbatim as state. The `ausearch → audit2allow`
+  pipe is driven without a shell (the denials are fed to `audit2allow` on stdin) and
+  produces a module *draft for review only* — it is never installed automatically;
+  applying it is an explicit `semodule -i` the admin confirms separately. Every
+  argument is built as a vector, never a shell string, a malformed parameter yields
+  no command, and no `/etc` write occurs (§6). Covered by headless JUnit
+  (`SecurityServiceTest`, `SelinuxPolicyPanelTest`) and a `selinux-policy.feature`
+  Cucumber suite (detection matrix, semanage/restorecon/semodule vectors, parameter
+  validation, the ausearch→audit2allow review pipe, destructive classification, and
+  the read-vs-mutating execution guards).
 - **HIDS control-center tab** (`lg3d-apps`, `org.jdesktop.lg3d.apps.securitycenter.HidsPanel`;
   `lg3d-core`, `org.jdesktop.lg3d.utils.system.HidsService`) —
   A new *HIDS* tab in the Security Center that surfaces the host-intrusion-detection

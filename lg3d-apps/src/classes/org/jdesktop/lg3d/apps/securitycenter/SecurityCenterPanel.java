@@ -66,9 +66,11 @@ import org.jdesktop.lg3d.utils.system.TorPrivateMode;
  * that aggregates the host's SELinux / firewall / AppArmor / SSH / antivirus
  * posture, a <em>Privacy</em> tab ({@link PrivacyPanel}) that drives the tor
  * service and shows its read-only config and log, a <em>HIDS</em> tab
- * ({@link HidsPanel}) that drives fail2ban / rkhunter / lynis / auditd, and a
- * scan history dock on the right. One panel serves both the 3D desktop (hosted
- * on a SwingNode inside a Frame3D by the {@code SecurityCenter} wrapper) and the
+ * ({@link HidsPanel}) that drives fail2ban / rkhunter / lynis / auditd, a
+ * <em>SELinux policy</em> tab ({@link SelinuxPolicyPanel}) that drives semanage /
+ * restorecon / semodule / load_policy and the ausearch -&gt; audit2allow review
+ * pipe, and a scan history dock on the right. One panel serves both the 3D desktop
+ * (hosted on a SwingNode inside a Frame3D by the {@code SecurityCenter} wrapper) and the
  * 2D/Swing desktop (opened as an MDI internal frame via
  * {@code Desktop2DAppRegistry.PANEL_APPS}).
  *
@@ -136,7 +138,7 @@ public class SecurityCenterPanel extends JPanel {
     private final JButton refreshBtn = new JButton("Refresh");
     private final JButton remediateBtn = new JButton("Remediate");
 
-    /** The tabbed pane (Antivirus / Security Overview / Privacy / HIDS / Activity); a field so a test can inspect it. */
+    /** The tabbed pane (Antivirus / Security Overview / Privacy / HIDS / SELinux policy / Activity); a field so a test can inspect it. */
     private final JTabbedPane tabs = new JTabbedPane();
 
     private Runnable onClose;
@@ -244,6 +246,7 @@ public class SecurityCenterPanel extends JPanel {
         tabs.addTab("Security Overview", buildOverviewTab());
         tabs.addTab("Privacy", new PrivacyPanel());
         tabs.addTab("HIDS", new HidsPanel());
+        tabs.addTab("SELinux policy", new SelinuxPolicyPanel());
         tabs.addTab("Activity", buildActivityTab());
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 1 && snapshot == null
