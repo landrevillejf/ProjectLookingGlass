@@ -17,12 +17,12 @@
 | Build | `./gradlew :lg3d-apps:build` |
 
 **Panels:** `ControlCenterPanel` is a `JList` navigation list + `CardLayout` (not a
-`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-five panels
+`JTabbedPane`) that shows whichever `ControlPanel` is selected. Twenty-six panels
 implement the `ControlPanel` interface and are registered by `ControlPanelRegistry`,
 in order: Appearance, Customization, Desktop, Display, Screen Saver, Sound, Power, Mouse & Keyboard,
 Shortcuts, Notifications, Workspaces, Quick Launch, Default Applications, Network,
 Bluetooth, Printing,
-Date & Time, Language & Region, Users, System, Services, System Update, Storage, Schedule, Task Scheduler.
+Date & Time, Language & Region, Users, System, Services, System Update, Storage, Servers, Schedule, Task Scheduler.
 
 ## Roles
 
@@ -42,7 +42,7 @@ Date & Time, Language & Region, Users, System, Services, System Update, Storage,
   `EventProcessor` warnings before calling an interaction broken.
 - **Business Analyst** — A shipped system utility (display, sound, power, mouse &
   keyboard, shortcuts, notifications, workspaces, quick launch, network, Bluetooth, printing,
-  date & time, language & region, users, system info, services, system update, storage/LUKS, appearance, schedule, and the
+  date & time, language & region, users, system info, services, system update, storage/LUKS, servers, appearance, schedule, and the
   cron-style task scheduler). Hold it
   to production standards: real tests, review, backward
   compatibility — not "it's just a demo".
@@ -101,7 +101,7 @@ Control Center is a system settings application that provides a Swing-based UI f
   `WorkspacesPanel`, `QuickLaunchPanel`, `FileAssociationsPanel`, `NetworkPanel`,
   `BluetoothPanel`,
   `PrintingPanel`, `DateTimePanel`, `LocalePanel`, `UsersPanel`, `SystemInfoPanel`,
-  `ServicesPanel`, `SystemUpdatePanel`, `StoragePanel`, `SchedulePanel`, `TaskSchedulerPanel`,
+  `ServicesPanel`, `SystemUpdatePanel`, `StoragePanel`, `ServersPanel`, `SchedulePanel`, `TaskSchedulerPanel`,
   `ScreenSaverPanel`
 - **Seams** - the `lg3d-core` `displayserver.desktop2d` helpers the panels drive
   (`VolumeStatus`, `BatteryStatus`, `BrightnessStatus`, `ThermalService`,
@@ -111,7 +111,8 @@ Control Center is a system settings application that provides a Swing-based UI f
   control-center hooks. The system-management panels additionally drive the
   `lg3d-core` `utils.system` backends defined by `system-management-contract.md`
   (`InitSystemService` for Services, `LfsUpdateService` for System Update,
-  `StorageService`/`LuksService` for Storage, `NetworkService` for Network) - thin,
+  `StorageService`/`LuksService` for Storage, `ServerService`/`ConfigFileReader`
+  for Servers, `NetworkService` for Network) - thin,
   injectable CLI argument-vector builders that reuse `ProcessRunner`/
   `PrivilegedRunner`. `NetworkPanel` routes uniformly through `NetworkService`
   (NetworkManager → dhcpcd → systemd-networkd → read-only `ip`); `NetworkConnections`
@@ -126,7 +127,7 @@ Frame3D (Control Center)
     └── ControlCenterPanel (JPanel)
         ├── JList (navigation)
         └── CardLayout (selected ControlPanel)
-            └── the 25 panels registered by ControlPanelRegistry
+            └── the 26 panels registered by ControlPanelRegistry
 ```
 
 ### Swing Integration Pattern

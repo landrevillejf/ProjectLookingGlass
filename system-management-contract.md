@@ -264,6 +264,41 @@ Config lives at `/etc/nftables.conf` (+ `/etc/nftables/conf.d/*.nft`),
 Tor is a service → its lifecycle goes through the §4.1 init abstraction with
 `tor` as the service name; no tor-specific reimplementation.
 
+### 4.9 Servers — new `ServersPanel` over `ServerService`/`ConfigFileReader`
+
+The `lg3d` build profile installs a set of internet servers and databases
+(`lg3d-agent-package-inventory.md` §4). `ServerService` is a curated
+*catalog* of them — each entry is `(display name, service unit, revealing
+binary, read-only config path)` — and adds **no server-specific logic** (§6): the
+whole lifecycle is delegated to the §4.1 init abstraction with the entry's
+service unit, so a server is driven exactly like any other service. Detection is
+a pure filter over `PATH`/filesystem probes (a server is surfaced when its binary
+is on `PATH` *or* its config file exists). The config view is a bounded
+read-only file view through the shared `ConfigFileReader` (§3.5) — the GUI never
+writes `/etc`.
+
+| Server | Service unit | Config (read-only) |
+|---|---|---|
+| Apache httpd | `httpd` | `/etc/httpd/httpd.conf` |
+| BIND (DNS) | `named` | `/etc/named.conf` |
+| Postfix (MTA) | `postfix` | `/etc/postfix/main.cf` |
+| Dovecot (IMAP/POP3) | `dovecot` | `/etc/dovecot/dovecot.conf` |
+| Samba (SMB/CIFS) | `smbd` | `/etc/samba/smb.conf` |
+| NFS server | `nfs-server` | `/etc/exports` |
+| ProFTPD | `proftpd` | `/etc/proftpd.conf` |
+| vsftpd | `vsftpd` | `/etc/vsftpd.conf` |
+| OpenLDAP | `slapd` | `/etc/openldap/slapd.conf` |
+| Apache Tomcat | `tomcat` | (no single well-known path) |
+| MariaDB | `mariadb` | `/etc/my.cnf` |
+| PostgreSQL | `postgresql` | `/var/lib/pgsql/data/postgresql.conf` |
+
+| Feature | Command | Class |
+|---|---|---|
+| server status (read) | init-system `status <unit>` (§4.1) | read-only |
+| start/stop/restart | init-system start/stop/restart `<unit>` (§4.1) | **mutating**, escalated, confirmed |
+| enable/disable at boot | init-system enable/disable `<unit>` (§4.1; unsupported on sysvinit) | **mutating**, escalated, confirmed |
+| server config (read) | read the entry's config path via `ConfigFileReader` | read-only |
+
 ## 5. Surface mapping (subsystem → lg3d surface)
 
 | Subsystem | Surface | Status |
@@ -275,6 +310,7 @@ Tor is a service → its lifecycle goes through the §4.1 init abstraction with
 | Storage & LUKS | Control Center → **`StoragePanel`** (new) over `StorageService`/`LuksService` | Phase 3 |
 | Security (firewall/MAC/ssh) | **`firewall`** + **`securitycenter`** apps (extend to real backends) | Phase 4 |
 | Privacy (tor) | **`securitycenter`** Privacy section (extend) | Phase 4 |
+| Servers (httpd/BIND/Postfix/…) | Control Center → **`ServersPanel`** (new) over `ServerService`/`ConfigFileReader` | Phase B |
 
 New Control Center panels MUST register through `ControlPanelRegistry`
 (`addDefault(<Panel>::new, "<Name>")`), implement `ControlPanel`, construct
@@ -332,7 +368,8 @@ Record the output/evidence of (1)–(9) per subsystem as the compliance artefact
 
 1. The backend service class(es) in `org.jdesktop.lg3d.utils.system`
    (`InitSystemService`, `LfsUpdateService`, `StorageService`/`LuksService`,
-   `NetworkService`, `SecurityService`, `PrivacyService`) — thin, injectable,
+   `NetworkService`, `SecurityService`, `PrivacyService`, `ServerService` +
+   the shared `ConfigFileReader`) — thin, injectable,
    headless-testable; `ProcessRunner`/`PrivilegedRunner` reused, not replaced.
 2. The Control Center panel(s) / app extension(s) wired to
    `ControlPanelRegistry` (and a start-menu descriptor where applicable).

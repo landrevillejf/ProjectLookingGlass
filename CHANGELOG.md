@@ -9,6 +9,26 @@ work to make it build and run on a current toolchain.
 
 ## [Unreleased]
 
+### Added
+- **Servers control-center panel** (`lg3d-apps`, `org.jdesktop.lg3d.apps.controlcenter.ServersPanel`;
+  `lg3d-core`, `org.jdesktop.lg3d.utils.system.ServerService` + `ConfigFileReader`) —
+  A 26th Control Center category that surfaces the internet servers and databases
+  the LFS `lg3d` build profile installs (Apache httpd, BIND, Postfix, Dovecot,
+  Samba, NFS, ProFTPD, vsftpd, OpenLDAP, Tomcat, MariaDB, PostgreSQL — inventory
+  §4) and are actually present on the host. It is a thin front-end over the new
+  `ServerService` catalog seam: read-only status and a bounded config view, with
+  start/stop/restart/enable/disable delegated to the existing `InitSystemService`
+  §4.1 abstraction (no init logic duplicated, no `/etc` writes), confirmed and
+  escalated per-operation through `PrivilegedRunner` (polkit), run off the EDT
+  behind an indeterminate progress bar with controls serialized while busy, and
+  non-zero exits / cancelled prompts shown verbatim as state. The bounded
+  read-only file view is extracted from `PrivacyService` into a shared
+  `ConfigFileReader` (behavior-preserving). Normative in
+  `system-management-contract.md` §4.9. Covered by headless JUnit
+  (`ConfigFileReaderTest`, `ServerServiceTest`, `ServersPanelTest`) and a
+  `server-services.feature` Cucumber suite (detection matrix, command-vector
+  delegation, config-path resolution).
+
 ## [1.70.0] — 2026-10-23 — Gradle / JDK 21 modernization
 
 ### Added
