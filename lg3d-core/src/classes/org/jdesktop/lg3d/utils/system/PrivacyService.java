@@ -13,9 +13,6 @@
  */
 package org.jdesktop.lg3d.utils.system;
 
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -65,7 +62,7 @@ public final class PrivacyService {
     public static final String TOR_LOG = "/var/log/tor/notices.log";
 
     /** Trailing-byte cap on a read-only file view (bounds memory for the log). */
-    static final int MAX_READ_BYTES = 256 * 1024;
+    static final int MAX_READ_BYTES = ConfigFileReader.DEFAULT_MAX_BYTES;
 
     private PrivacyService() {
         // no instances
@@ -297,52 +294,18 @@ public final class PrivacyService {
 
     /**
      * Reads a text file for a read-only view, bounded to the trailing
-     * {@value #MAX_READ_BYTES} bytes so a large log cannot exhaust memory. Pure
-     * w.r.t. the process model (spawns nothing) and never throws: a missing path
-     * yields {@code exists=false}, an unreadable one (tor's log is often
-     * root-only) yields {@code readable=false}, and a read error is reported the
-     * same way. The GUI never writes these files (§6).
+     * {@value #MAX_READ_BYTES} bytes so a large log cannot exhaust memory. The
+     * read is delegated to the shared {@link ConfigFileReader} (the single
+     * implementation of the contract's §3.5 read-only file view) and re-wrapped
+     * into this class's {@link FileContent}; it spawns nothing, never writes and
+     * never throws.
      *
      * @param path the absolute path to read
      * @return an immutable {@link FileContent}; never null
      */
     public static FileContent readFile(String path) {
-        if (path == null || path.isBlank()) {
-            return new FileContent(false, false, "", false);
-        }
-        Path p;
-        try {
-            p = Path.of(path);
-        } catch (RuntimeException e) {
-            return new FileContent(false, false, "", false);
-        }
-        try {
-            if (!Files.exists(p)) {
-                return new FileContent(false, false, "", false);
-            }
-            if (!Files.isReadable(p)) {
-                return new FileContent(true, false, "", false);
-            }
-            long size = Files.size(p);
-            if (size <= MAX_READ_BYTES) {
-                return new FileContent(true, true, Files.readString(p, StandardCharsets.UTF_8), false);
-            }
-            return new FileContent(true, true, readTail(p, MAX_READ_BYTES), true);
-        } catch (IOException | RuntimeException e) {
-            // A directory, a vanishing file, an I/O error: honest "unreadable".
-            return new FileContent(true, false, "", false);
-        }
-    }
-
-    private static String readTail(Path p, int maxBytes) throws IOException {
-        try (RandomAccessFile raf = new RandomAccessFile(p.toFile(), "r")) {
-            long len = raf.length();
-            long start = Math.max(0L, len - maxBytes);
-            raf.seek(start);
-            byte[] buf = new byte[(int) Math.min((long) maxBytes, len - start)];
-            raf.readFully(buf);
-            return new String(buf, StandardCharsets.UTF_8);
-        }
+        ConfigFileReader.Content c = ConfigFileReader.read(path, MAX_READ_BYTES);
+        return new FileContent(c.isExists(), c.isReadable(), c.getText(), c.isTruncated());
     }
 
     // ------------------------------------------------------------------

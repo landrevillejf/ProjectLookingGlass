@@ -18,7 +18,8 @@ import org.junit.platform.suite.api.Suite;
 @SelectClasspathResource("features")
 @ConfigurationParameter(key = Constants.GLUE_PROPERTY_NAME,
         value = "org.jdesktop.lg3d.displayserver.crash,"
-                + "org.jdesktop.lg3d.displayserver.desktop2d")
+                + "org.jdesktop.lg3d.displayserver.desktop2d,"
+                + "org.jdesktop.lg3d.utils.system")
 @ConfigurationParameter(key = Constants.PLUGIN_PROPERTY_NAME,
         value = "html:build-gradle/reports/cucumber/index.html, summary")
 public class CucumberSuite {
